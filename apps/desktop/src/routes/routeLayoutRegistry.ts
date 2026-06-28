@@ -201,6 +201,13 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     notes: 'Setting preview is a dedicated review surface for setting namespace assets, states, and slots.',
   }, exact(ROUTES.project.settingPreview)),
   route({
+    routeId: 'studio.editDesk',
+    pathnamePattern: ROUTES.studioEditDesk,
+    ...PROJECT_WORKSPACE_ROUTE,
+    projectEntryId: 'orchestration_production',
+    notes: 'Edit desk reviews workflow artifacts for a focused production and hands off to editing.',
+  }, (pathname) => /^\/studio\/[^/]+\/edit-desk\/?$/.test(pathname)),
+  route({
     routeId: 'project.contentLegacy',
     pathnamePattern: ROUTES.project.contentLegacy,
     ...REDIRECT_ROUTE,
@@ -210,6 +217,28 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     pathnamePattern: ROUTES.project.contentLegacyNext,
     ...REDIRECT_ROUTE,
   }, exact(ROUTES.project.contentLegacyNext)),
+  route({
+    routeId: 'tools.image',
+    pathnamePattern: ROUTES.tools.image,
+    ...TOOL_WORKSPACE_ROUTE,
+    panes: [...TOOL_WORKSPACE_ROUTE.panes, ...TOOL_WORKBENCH_PANES],
+  }, exact(ROUTES.tools.image)),
+  route({
+    routeId: 'tools.video',
+    pathnamePattern: ROUTES.tools.video,
+    ...TOOL_WORKSPACE_ROUTE,
+    panes: [...TOOL_WORKSPACE_ROUTE.panes, ...TOOL_WORKBENCH_PANES],
+  }, exact(ROUTES.tools.video)),
+  route({
+    routeId: 'tools.audio',
+    pathnamePattern: ROUTES.tools.audio,
+    ...TOOL_WORKSPACE_ROUTE,
+  }, exact(ROUTES.tools.audio)),
+  route({
+    routeId: 'tools.text',
+    pathnamePattern: ROUTES.tools.text,
+    ...TOOL_WORKSPACE_ROUTE,
+  }, exact(ROUTES.tools.text)),
   route({
     routeId: 'tools.refImageGen',
     pathnamePattern: ROUTES.tools.refImageGen,

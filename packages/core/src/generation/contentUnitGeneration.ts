@@ -2,12 +2,10 @@ import {
   resourceIdsFromMentions,
   stripResourceMentions,
 } from '@movscript/workspace'
-import {
-  resolveGenerationJobTypeFromResourceCount,
-  type GenerationResolvedJobType,
-} from './jobDecision.js'
+import { type GenerationResolvedJobType } from './jobDecision.js'
 import {
   buildGenerationJobPayload,
+  type GenerationIntentPayload,
   type GenerationJobPayloadParamDef,
   type GenerationParamValue,
 } from './jobPayload.js'
@@ -33,6 +31,7 @@ export interface ContentUnitGenerationRequestInput {
   modelParams?: Record<string, unknown>
   additionalInputResourceIds?: number[]
   preferredVideoJobType?: unknown
+  generationIntent?: GenerationIntentPayload | null
   paramAudit?: unknown[]
 }
 
@@ -42,6 +41,7 @@ export interface ContentUnitGenerationRequest {
   promptText: string
   inputResourceIds: number[]
   jobType: GenerationResolvedJobType
+  generationIntent: GenerationIntentPayload
   featureKey: string
   params: Record<string, GenerationParamValue>
   promptSnapshot: Record<string, unknown>
@@ -90,11 +90,8 @@ export function buildContentUnitGenerationRequest(
     ...compiledContentUnitGenerationPromptResourceIds(input.compiledPrompt),
     ...(input.additionalInputResourceIds ?? []),
   ])
-  const jobType = resolveGenerationJobTypeFromResourceCount({
-    outputType: input.outputKind,
-    inputResourceCount: inputResourceIds.length,
-    preferredVideoJobType: input.preferredVideoJobType,
-  })
+  const generationIntent = requiredContentUnitGenerationIntent(input.generationIntent)
+  const jobType = generationExecutionJobTypeForIntent(generationIntent, input.outputKind)
   const params = contentUnitGenerationParams(input.outputKind, input.compiledPrompt, input.params)
   const promptSnapshot = buildContentUnitGenerationPromptSnapshot({
     contentUnitId: input.contentUnitId,
@@ -112,9 +109,43 @@ export function buildContentUnitGenerationRequest(
     promptText,
     inputResourceIds,
     jobType,
+    generationIntent,
     featureKey: contentUnitGenerationFeatureKey(input.outputKind),
     params,
     promptSnapshot,
+  }
+}
+
+export function generationExecutionJobTypeForIntent(
+  intent: Pick<GenerationIntentPayload, 'capability' | 'operation'> | undefined,
+  fallbackOutputKind: ContentUnitGenerationOutputKind | 'audio' | 'text',
+): GenerationResolvedJobType {
+  switch (intent?.capability?.trim()) {
+    case 'video_generation':
+      return 'video'
+    case 'image_generation':
+      return intent.operation === 'image_to_image' || intent.operation === 'image_edit' ? 'image_edit' : 'image'
+    case 'audio_generation':
+      switch (intent.operation?.trim()) {
+        case 'music':
+          return 'audio_music'
+        case 'sfx':
+          return 'audio_sfx'
+        case 'stt':
+          return 'audio_transcribe'
+        case 'speech_translate':
+          return 'audio_translate'
+        case 'audio_chat':
+          return 'audio_chat'
+        case 'voice_clone':
+          return 'voice_clone'
+        case 'voice_design':
+          return 'voice_design'
+        default:
+          return 'audio_tts'
+      }
+    default:
+      return fallbackOutputKind
   }
 }
 
@@ -128,6 +159,7 @@ export function buildContentUnitGenerationJobPayload(
       ...buildGenerationJobPayload({
         modelId: input.modelId,
         jobType: request.jobType,
+        generationIntent: request.generationIntent,
         title: contentUnitGenerationJobTitle(input.outputKind),
         prompt: request.promptText,
         params: request.params,
@@ -138,6 +170,13 @@ export function buildContentUnitGenerationJobPayload(
       ...(input.projectId !== undefined ? { project_id: input.projectId } : {}),
     },
   }
+}
+
+function requiredContentUnitGenerationIntent(intent: GenerationIntentPayload | null | undefined): GenerationIntentPayload {
+  if (!intent?.capability?.trim() || !intent.operation?.trim()) {
+    throw new Error('generationIntent with capability and operation is required for content-unit generation')
+  }
+  return intent
 }
 
 export function buildContentUnitGenerationPendingCandidate(

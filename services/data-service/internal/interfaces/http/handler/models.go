@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -27,7 +28,13 @@ func NewModelsHandler(modelCatalog providercontract.AIGatewayModelCatalog, cache
 func (h *ModelsHandler) ListByCapability(c *gin.Context) {
 	providerVariants := c.Query("provider_variants") == "true" || c.Query("include_provider_variants") == "true"
 	capability := c.Query("capability")
+	operation := strings.TrimSpace(firstNonEmpty(c.Query("operation"), c.Query("model_operation")))
 	apiKinds, err := splitModelCatalogAPIKindQuery(c.Query("api_kind"), c.Query("api_kinds"), c.Query("provider_api_kind"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	referenceAssets, err := parseModelCatalogReferenceAssetsQuery(c.Query("reference_assets"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -45,12 +52,38 @@ func (h *ModelsHandler) ListByCapability(c *gin.Context) {
 		ProviderVariants: providerVariants,
 		RouteGroup:       routeGroup,
 		APIKinds:         apiKinds,
+		Operation:        operation,
+		ReferenceAssets:  referenceAssets,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, models)
+}
+
+func parseModelCatalogReferenceAssetsQuery(value string) ([]providercontract.AIReferenceAssetIntent, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, nil
+	}
+	var refs []providercontract.AIReferenceAssetIntent
+	if err := json.Unmarshal([]byte(value), &refs); err != nil {
+		return nil, fmt.Errorf("reference_assets must be a JSON array of {role, media_type}: %w", err)
+	}
+	out := make([]providercontract.AIReferenceAssetIntent, 0, len(refs))
+	for _, ref := range refs {
+		role := strings.TrimSpace(ref.Role)
+		mediaType := strings.TrimSpace(ref.MediaType)
+		if role == "" && mediaType == "" {
+			continue
+		}
+		out = append(out, providercontract.AIReferenceAssetIntent{
+			Role:      role,
+			MediaType: mediaType,
+		})
+	}
+	return out, nil
 }
 
 func splitModelCatalogAPIKindQuery(values ...string) ([]string, error) {

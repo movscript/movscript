@@ -59,6 +59,12 @@ func (r *gormRepository) List(ctx context.Context, filter ListFilter) (ListResul
 	if filter.FeatureKey != "" {
 		q = q.Where("feature_key = ?", filter.FeatureKey)
 	}
+	if filter.GenerationCapability != "" {
+		q = q.Where("request_context LIKE ?", `%"capability":"`+filter.GenerationCapability+`"%`)
+	}
+	if filter.GenerationOperation != "" {
+		q = q.Where("request_context LIKE ?", `%"operation":"`+filter.GenerationOperation+`"%`)
+	}
 	if len(spec.JobTypes) == 1 {
 		q = q.Where("job_type = ?", spec.JobTypes[0])
 	} else if len(spec.JobTypes) > 1 {

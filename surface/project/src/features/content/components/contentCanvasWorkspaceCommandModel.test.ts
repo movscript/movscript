@@ -4,6 +4,7 @@ import test from 'node:test'
 import type { ContentCanvasNode } from '../domain/contentCanvasTypes'
 import {
   mergeContentCanvasCommandCandidates,
+  mergeContentCanvasCommandRemovedCandidates,
   mergeContentCanvasCommandSelections,
   withLocalContentCanvasCandidates,
 } from './contentCanvasWorkspaceCandidateModel'
@@ -80,6 +81,8 @@ test('contentUnitNodeForGenerationTask projects generation tasks into content un
     metrics: ['创作片段 video', '候选 1', '已选择候选'],
     sourcePath: 'script.md',
     record: { prompt: 'Create the opening shot' },
+    domainCategory: 'content_unit',
+    domainKind: 'content_unit',
     candidates: node.generationTask?.candidates,
     position: { x: 10, y: 20 },
   })
@@ -222,6 +225,34 @@ test('content canvas backend terminal candidates replace matching local running 
     selected: false,
     notes: 'succeeded',
   }])
+})
+
+test('content canvas removed candidates are hidden before backend reload completes', () => {
+  const removed = mergeContentCanvasCommandRemovedCandidates({}, {
+    removedCandidates: [{ contentUnitId: 'cu_1', candidateId: 'cand_remove' }],
+  })
+  const project = withLocalContentCanvasCandidates(projectDataFixture({
+    contentUnitCandidates: {
+      cu_1: [
+        {
+          id: 'cand_keep',
+          title: 'Keep',
+          source: 'generated',
+          selected: false,
+          notes: '',
+        },
+        {
+          id: 'cand_remove',
+          title: 'Remove',
+          source: 'generated',
+          selected: false,
+          notes: '',
+        },
+      ],
+    },
+  }), {}, removed)
+
+  assert.deepEqual(project?.contentUnitCandidates.cu_1.map((candidate) => candidate.id), ['cand_keep'])
 })
 
 test('content canvas command selections merge selected candidate ids by content unit', () => {

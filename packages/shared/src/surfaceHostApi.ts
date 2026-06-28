@@ -220,6 +220,7 @@ export interface SurfaceHostApi {
   ensureMovScriptEngineTimelineAssemblyContentUnit?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   createMovScriptEngineContentCandidate?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   selectMovScriptEngineContentUnitCandidate?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
+  decideMovScriptEngineContentUnitCandidate?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   updateMovScriptEngineContentUnitEditPrompt?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   updateMovScriptEngineExpressionUnit?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   updateMovScriptEngineAudioCue?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>

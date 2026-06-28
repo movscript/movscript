@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
-import { AudioLines, BriefcaseBusiness, CircleUserRound, Clapperboard, FileAudio, GitBranch, HardDrive, Image as ImageIcon, KeyRound, Languages, MessageCircle, Mic, Music, Plug, Scissors, Settings, Video, Volume2, Wand2, Workflow, Zap, type LucideIcon } from 'lucide-react'
+import { AudioLines, BriefcaseBusiness, CircleUserRound, Clapperboard, FileAudio, FileText, GitBranch, HardDrive, Image as ImageIcon, KeyRound, Languages, MessageCircle, Mic, Music, Plug, Scissors, Settings, Video, Volume2, Wand2, Workflow, Zap, type LucideIcon } from 'lucide-react'
 import { runtimeNavItems } from '@runtime'
 import { ROUTES } from '@/routes/projectRoutes'
 import type { AccountSettingsPageTab } from '@/features/app-shell/components/AccountSettingsDialog'
@@ -26,6 +26,7 @@ export function projectRouteHeaderTitle(pathname: string): ReactNode | undefined
     { match: (value) => value === ROUTES.project.settingPreview, icon: Video, title: '设定预览' },
     { match: (value) => value === ROUTES.project.contentLegacy, icon: GitBranch, title: '创作' },
     { match: (value) => value === ROUTES.project.contentLegacyNext, icon: GitBranch, title: '创作' },
+    { match: (value) => /^\/studio\/[^/]+\/edit-desk\/?$/.test(value), icon: Scissors, title: '剪辑台' },
     { match: (value) => value === ROUTES.project.settings, icon: Settings, title: 'Project Settings' },
   ]
   return routeHeaderTitleFrom(pathname, routeTitles)
@@ -47,6 +48,10 @@ export function toolRouteHeaderTitle(pathname: string): ReactNode | undefined {
     { match: (value) => value === ROUTES.jobs, icon: BriefcaseBusiness, title: i18n.t('header.titles.jobs') },
     { match: (value) => value === ROUTES.plugins, icon: Plug, title: i18n.t('sidebar.items.plugins') },
     { match: (value) => value === ROUTES.workspaceConfig || value === ROUTES.workspaceReview, icon: HardDrive, title: 'Workspace' },
+    { match: (value) => value === ROUTES.tools.image, icon: ImageIcon, title: i18n.t('sidebar.items.toolImage', { defaultValue: '图片生成' }) },
+    { match: (value) => value === ROUTES.tools.video, icon: Video, title: i18n.t('sidebar.items.toolVideo', { defaultValue: '视频生成' }) },
+    { match: (value) => value === ROUTES.tools.audio, icon: AudioLines, title: i18n.t('sidebar.items.toolAudio', { defaultValue: '音频生成' }) },
+    { match: (value) => value === ROUTES.tools.text, icon: FileText, title: i18n.t('sidebar.items.toolText', { defaultValue: '文本产出' }) },
     { match: (value) => value === ROUTES.tools.refImageGen, icon: ImageIcon, title: i18n.t('sidebar.items.refImageGen') },
     { match: (value) => value === ROUTES.tools.refVideoGen, icon: Video, title: i18n.t('sidebar.items.refVideoGen') },
     { match: (value) => value === ROUTES.tools.audioGen, icon: AudioLines, title: i18n.t('sidebar.items.audioGen') },

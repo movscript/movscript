@@ -12,6 +12,14 @@ rules:
     lab: seed
   - provider_type: yunwu
     profile: gateway
+    model_template_key: xai:grok-imagine-video
+    adapter_type: official_video_generations
+  - provider_type: yunwu
+    profile: gateway
+    model_template_key: xai:grok-imagine-video-1.5
+    adapter_type: openai_video_multipart
+  - provider_type: yunwu
+    profile: gateway
     exclude_labs:
       - open-source-audio
   - provider_type: openai
@@ -49,7 +57,17 @@ rules:
     lab: vidu
   - provider_type: xai
     profile: official
+    model_template_key: xai:grok-imagine-video
+    adapter_type: official_video_generations
+  - provider_type: xai
+    profile: official
+    model_template_key: xai:grok-imagine-video-1.5
+    adapter_type: openai_video_multipart
+  - provider_type: xai
+    profile: official
     lab: xai
+    exclude_id_prefixes:
+      - xai:grok-imagine-video
   - provider_type: stability
     profile: official
     lab: stability-audio

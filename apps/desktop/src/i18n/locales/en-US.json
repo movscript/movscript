@@ -2662,6 +2662,7 @@
         "modelId": "Model ID",
         "capabilities": "Capabilities",
         "provider": "Provider",
+        "routeAvailability": "Route availability",
         "configId": "Config ID"
       }
     },

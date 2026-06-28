@@ -52,6 +52,22 @@ export {
   type TransitionSpec,
 } from './media-project.js'
 
+export {
+  createMediaEditingProjectFromEditDecisions,
+  type MediaEditDecisionsProjectOptions,
+  type MovScriptAssetManifest,
+  type MovScriptEditDecisionAudio,
+  type MovScriptEditDecisionAudioLayer,
+  type MovScriptEditDecisionAudioSegment,
+  type MovScriptEditDecisionCut,
+  type MovScriptEditDecisionNarration,
+  type MovScriptEditDecisionOverlay,
+  type MovScriptEditDecisionSubtitleSegment,
+  type MovScriptEditDecisionSubtitles,
+  type MovScriptEditDecisionsArtifact,
+  type MovScriptVideoComposeRenderRuntime,
+} from './video-compose.js'
+
 export type {
   EditingMediaPipelineAssetDescriptor,
   EditingMediaPipelineHlsVariantSpec,
@@ -100,6 +116,7 @@ export const MEDIA_PIPELINE_TASK_ACTION_ENDPOINT = '/v1/media-pipeline/task/acti
 export type EditingServiceProjectCommandName =
   | 'createProject'
   | 'createProjectFromEditPlan'
+  | 'createProjectFromEditDecisions'
   | 'createProjectFromPreviewTimeline'
   | 'saveProject'
   | 'getProject'

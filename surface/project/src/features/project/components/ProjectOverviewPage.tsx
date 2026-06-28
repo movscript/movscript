@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Blocks, Clapperboard, FilePlus2, FileText, FolderKanban, GitBranch, ImageOff, MonitorPlay, Plus, Settings } from 'lucide-react'
+import { Blocks, Clapperboard, FilePlus2, FileText, FolderKanban, GitBranch, ImageOff, MonitorPlay, Plus, Scissors, Settings } from 'lucide-react'
 import { AppContentLayout } from '@movscript/ui/layout'
 import { AppPager } from '@movscript/ui/business/app'
 import {
@@ -24,6 +24,7 @@ import { toast } from '@movscript/ui/toast'
 import { resolveResourceFileUrl } from '@movscript/resource-surface/resource-media'
 import {
   readSurfaceHostApi,
+  routePathWithParams,
   surfaceRoutePath,
   surfaceWorkspaceOwnerContext,
   type Script,
@@ -51,6 +52,7 @@ import {
   ProjectPageActionButton,
   ProjectPageEmptyState,
 } from './ProjectPageUi'
+import { projectSurfacePath } from '../../../domain'
 import { scriptKeys } from '../../scripts/application/scriptQueryKeys'
 import {
   createWorkspaceScript,
@@ -237,6 +239,11 @@ export default function ProjectOverviewPage() {
   const productionPreviewRoute = useCallback((production: ProjectHomeProductionSummary) => (
     projectId ? projectHomeProductionPreviewPath(projectId, production) : '#'
   ), [projectId])
+  const productionEditDeskRoute = useCallback((production: ProjectHomeProductionSummary) => {
+    const params = projectHomeProductionEditDeskParams(production)
+    if (projectSurfaceRuntime) return projectSurfaceRuntime.navigator.href('editDesk', params)
+    return projectId ? projectHomeProductionEditDeskPath(projectId, production) : '#'
+  }, [projectId, projectSurfaceRuntime])
   const settingPreviewRoute = useCallback((setting: ProjectHomeSettingSummary) => (
     projectId ? projectHomeSettingPreviewPath(projectId, setting) : '#'
   ), [projectId])
@@ -363,6 +370,7 @@ export default function ProjectOverviewPage() {
             <ProjectOverviewProductionList
               productions={productions}
               productionPreviewRoute={productionPreviewRoute}
+              productionEditDeskRoute={productionEditDeskRoute}
               isCreating={createProduction.isPending}
               onCreateCanvas={createCanvasForProduction}
               onCreateClick={() => setProductionDialogOpen(true)}
@@ -753,12 +761,14 @@ function ProjectOverviewScriptList({
 function ProjectOverviewProductionList({
   productions,
   productionPreviewRoute,
+  productionEditDeskRoute,
   isCreating,
   onCreateCanvas,
   onCreateClick,
 }: {
   productions: ProjectHomeProductionSummary[]
   productionPreviewRoute: (production: ProjectHomeProductionSummary) => string
+  productionEditDeskRoute: (production: ProjectHomeProductionSummary) => string
   isCreating: boolean
   onCreateCanvas: (production: ProjectHomeProductionSummary) => void
   onCreateClick: () => void
@@ -825,6 +835,12 @@ function ProjectOverviewProductionList({
             <Link to={productionPreviewRoute(production)}>
               <MonitorPlay size={14} />
               预览
+            </Link>
+          </Button>
+          <Button asChild type="button" size="sm" variant="outline" className="gap-2">
+            <Link to={productionEditDeskRoute(production)}>
+              <Scissors size={14} />
+              剪辑台
             </Link>
           </Button>
           <Button type="button" size="sm" variant="outline" className="gap-2" onClick={() => onCreateCanvas(production)}>
@@ -1697,6 +1713,26 @@ function projectHomeProductionPreviewPath(projectId: number, production: Project
     targetRef,
     timeline_assembly_ref: targetRef,
   })
+}
+
+function projectHomeProductionEditDeskParams(production: ProjectHomeProductionSummary) {
+  const targetRef = `timeline_assembly:production:${production.id}`
+  return {
+    productionId: production.id,
+    scopeKind: 'production',
+    scopeRef: production.id,
+    targetCategory: 'timeline_assembly',
+    targetKind: 'timeline_assembly',
+    targetRef,
+    timeline_assembly_ref: targetRef,
+  }
+}
+
+function projectHomeProductionEditDeskPath(projectId: number, production: ProjectHomeProductionSummary): string {
+  return routePathWithParams(
+    projectSurfacePath('editDesk', projectId),
+    projectHomeProductionEditDeskParams(production),
+  )
 }
 
 function projectHomeSettingPreviewPath(projectId: number, setting: ProjectHomeSettingSummary): string {

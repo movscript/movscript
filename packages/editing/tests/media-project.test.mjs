@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 import {
+  createMediaEditingProjectFromEditDecisions,
   createMediaEditingProjectFromMovScriptEditPlan,
   createMediaEditingProjectFromProductionTimelineClips,
   createMediaEditingProjectService,
@@ -140,6 +141,61 @@ test('creates a production MediaEditingProject from preview timeline clips', () 
   assert.equal(project.provenance.legacyTargetKind, 'production')
   assert.equal(project.provenance.legacyTargetRef, 'pilot')
   assert.deepEqual(project.provenance.selectedCandidateIds, ['cand_rain'])
+})
+
+test('creates a MediaEditingProject from edit decisions and asset manifest', () => {
+  const project = createMediaEditingProjectFromEditDecisions(sampleEditDecisions(), {
+    assetManifest: sampleAssetManifest(),
+    id: 'edit_decisions_cut',
+    projectId: 'project-video-compose',
+    title: 'Video compose cut',
+    now: '2026-06-25T00:00:00.000Z',
+    productionId: 'pilot',
+    targetKind: 'timeline_assembly',
+    targetRef: 'timeline_assembly:production:pilot',
+    scopeKind: 'production',
+    scopeRef: 'pilot',
+  })
+
+  assert.equal(project.id, 'edit_decisions_cut')
+  assert.equal(project.projectId, 'project-video-compose')
+  assert.equal(project.source.kind, 'edit_decisions')
+  assert.equal(project.source.productionId, 'pilot')
+  assert.equal(project.timeline.width, 1920)
+  assert.equal(project.timeline.height, 1080)
+  assert.equal(project.timeline.metadata.renderRuntime, 'ffmpeg')
+  assert.deepEqual(project.provenance.inputResourceIds, [101, 202, 303, 404, 505])
+
+  const primary = project.timeline.tracks.find((track) => track.id === 'track_primary_video')
+  assert.equal(primary.type, 'video')
+  assert.equal(primary.clips.length, 2)
+  assert.equal(primary.clips[0].timelineStartMs, 0)
+  assert.equal(primary.clips[0].sourceStartMs, 1000)
+  assert.equal(primary.clips[0].sourceEndMs, 5000)
+  assert.equal(primary.clips[1].timelineStartMs, 4000)
+  assert.equal(primary.clips[1].durationMs, 3000)
+  assert.equal(primary.clips[1].transition.type, 'fade')
+  assert.equal(primary.clips[1].fadeInMs, 500)
+
+  const overlay = project.timeline.tracks.find((track) => track.id === 'track_overlay_visual')
+  assert.equal(overlay.clips[0].asset.assetType, 'image')
+  assert.equal(overlay.clips[0].timelineStartMs, 500)
+  assert.equal(overlay.clips[0].durationMs, 2000)
+  assert.equal(overlay.clips[0].opacity, 0.8)
+
+  const narration = project.timeline.tracks.find((track) => track.id === 'track_audio_narration')
+  assert.equal(narration.clips[0].asset.resourceId, 303)
+  assert.equal(narration.clips[0].volume, 90)
+
+  const music = project.timeline.tracks.find((track) => track.id === 'track_audio_music')
+  assert.equal(music.clips[0].asset.resourceId, 404)
+  assert.equal(music.clips[0].durationMs, project.timeline.durationMs)
+  assert.equal(music.clips[0].volume, 25)
+
+  const subtitles = project.timeline.tracks.find((track) => track.id === 'track_subtitles')
+  assert.equal(subtitles.clips[0].assetType, 'text')
+  assert.equal(subtitles.clips[0].text.content, 'Hello')
+  assert.equal(validateMediaEditingProjectTimeline(project).every((diagnostic) => diagnostic.severity !== 'error'), true)
 })
 
 test('normalizes legacy ratio volume and validates media editing timelines', () => {
@@ -307,5 +363,78 @@ function sampleEditPlan() {
       output_kind: 'video',
       track_type: 'video',
     }],
+  }
+}
+
+function sampleEditDecisions() {
+  return {
+    version: 1,
+    render_runtime: 'ffmpeg',
+    composition_mode: 'templated',
+    cuts: [
+      {
+        id: 'cut_intro',
+        source: 'clip_intro',
+        in_seconds: 1,
+        out_seconds: 5,
+        layer: 'primary',
+        reason: 'opening hook',
+      },
+      {
+        id: 'cut_detail',
+        source: 'clip_detail',
+        in_seconds: 0,
+        out_seconds: 3,
+        transition_in: 'fade',
+        transition_duration: 0.5,
+      },
+    ],
+    overlays: [{
+      id: 'logo_overlay',
+      asset_id: 'logo',
+      start_seconds: 0.5,
+      end_seconds: 2.5,
+      opacity: 0.8,
+    }],
+    audio: {
+      narration: {
+        segments: [{
+          id: 'narration_intro',
+          asset_id: 'voice_intro',
+          start_seconds: 0,
+          end_seconds: 4,
+          volume: 0.9,
+        }],
+      },
+      music: {
+        asset_id: 'music_bed',
+        volume: 0.25,
+      },
+    },
+    subtitles: {
+      enabled: true,
+      segments: [{
+        id: 'subtitle_intro',
+        text: 'Hello',
+        start_seconds: 0,
+        end_seconds: 2,
+      }],
+      style: {
+        font_size: 44,
+        color: '#ffffff',
+      },
+    },
+  }
+}
+
+function sampleAssetManifest() {
+  return {
+    assets: [
+      { id: 'clip_intro', type: 'video', resource_id: 101, label: 'Intro clip' },
+      { id: 'clip_detail', type: 'video', resource_id: 202, label: 'Detail clip' },
+      { id: 'voice_intro', type: 'audio', resource_id: 303, label: 'Voice intro' },
+      { id: 'music_bed', type: 'audio', resource_id: 404, label: 'Music bed' },
+      { id: 'logo', type: 'image', resource_id: 505, label: 'Logo' },
+    ],
   }
 }

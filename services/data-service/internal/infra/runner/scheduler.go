@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	appcontentcandidate "github.com/movscript/movscript/internal/app/contentcandidate"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -218,6 +219,11 @@ func (w *Worker) completeFailure(job *persistencemodel.Job, err error) {
 	if job.UsageReservationID != nil {
 		_ = w.aiService.ReleaseReservation(context.Background(), *job.UsageReservationID, err.Error())
 	}
+	job.Status = StatusFailed
+	job.ErrorMsg = err.Error()
+	if err := appcontentcandidate.SyncJobFailed(context.Background(), w.db, job, StatusFailed); err != nil {
+		log.Printf("[job] job #%d failed but content candidate sync failed: %v", job.ID, err)
+	}
 	w.publishGenerationJobStatus(job, err.Error())
 	log.Printf("[job] job #%d failed after %d/%d attempts: %v", job.ID, job.AttemptCount, maxAttempts, err)
 }
@@ -335,6 +341,11 @@ func (w *Worker) requeueStaleRunningJobs(ctx context.Context) {
 		}
 		if result.RowsAffected == 0 {
 			continue
+		}
+		job.Status = StatusFailed
+		job.ErrorMsg = msg
+		if err := appcontentcandidate.SyncJobFailed(ctx, w.db, job, StatusFailed); err != nil {
+			log.Printf("[job] stale job #%d failed but content candidate sync failed: %v", job.ID, err)
 		}
 		newJobStateMachine(w, job).fail(fmt.Errorf("%s", msg))
 		w.publishGenerationJobStatus(job, msg)

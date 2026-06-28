@@ -19,6 +19,7 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.POST("/providers/:providerID/credentials/:credentialKey/primary", h.ai.SetProviderCredentialPrimary)
 	admin.GET("/model-catalog/templates", h.ai.ListModelCatalogTemplates)
 	admin.GET("/model-catalog", h.ai.ListModelCatalogEntries)
+	admin.POST("/model-routes/diagnose", h.ai.DiagnoseModelRoute)
 	admin.POST("/model-catalog", h.ai.CreateModelCatalogEntry)
 	admin.PUT("/model-catalog/:id", h.ai.UpdateModelCatalogEntry)
 	admin.DELETE("/model-catalog/:id", h.ai.DeleteModelCatalogEntry)

@@ -11,6 +11,7 @@ type ContextSnapshotInput struct {
 	Model                domainjob.RuntimeModelSnapshotInput
 	Route                domainjob.RouteSnapshotInput
 	Credential           domainjob.AICredential
+	Intent               *domainjob.GenerationIntentSnapshot
 	Prompt               string
 	ExtraParams          string
 	AspectRatio          string
@@ -50,6 +51,7 @@ func BuildContextSnapshot(input ContextSnapshotInput) string {
 		},
 		Route:                input.Route,
 		Credential:           domainjob.CredentialInput{DisplayName: input.Credential.DisplayName},
+		Intent:               input.Intent,
 		Prompt:               input.Prompt,
 		ExtraParams:          input.ExtraParams,
 		AspectRatio:          input.AspectRatio,

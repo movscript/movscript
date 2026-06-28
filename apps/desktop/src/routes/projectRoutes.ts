@@ -70,6 +70,10 @@ export const ROUTES = {
     contentLegacyNext: '/project/content-orchestration/canvas-next',
   },
   tools: {
+    image: '/tools/image',
+    video: '/tools/video',
+    audio: '/tools/audio',
+    text: '/tools/text',
     refImageGen: '/tools/ref-image-gen',
     refVideoGen: '/tools/ref-video-gen',
     audioGen: '/tools/audio-gen',

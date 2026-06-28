@@ -147,8 +147,8 @@ func TestCatalogTemplatesIncludeGPT52(t *testing.T) {
 		if template.ModelID != "gpt-5.2" {
 			t.Fatalf("model_id = %q, want gpt-5.2", template.ModelID)
 		}
-		if template.AdapterType != AdapterOpenAICompat {
-			t.Fatalf("adapter_type = %q, want %q", template.AdapterType, AdapterOpenAICompat)
+		if template.RouteAdapterHint != AdapterOpenAICompat {
+			t.Fatalf("route_adapter_hint = %q, want %q", template.RouteAdapterHint, AdapterOpenAICompat)
 		}
 		if !hasString(template.Capabilities, CapabilityText) || !hasString(template.Capabilities, CapabilityReasoning) {
 			t.Fatalf("capabilities = %#v, want text and reasoning", template.Capabilities)
@@ -174,8 +174,8 @@ func TestCatalogTemplatesIncludeElevenLabsAudioModels(t *testing.T) {
 			if template.ModelID != modelID {
 				t.Fatalf("%s model_id = %q, want %q", template.ID, template.ModelID, modelID)
 			}
-			if template.AdapterType != AdapterElevenLabs {
-				t.Fatalf("%s adapter_type = %q, want %q", template.ID, template.AdapterType, AdapterElevenLabs)
+			if template.RouteAdapterHint != AdapterElevenLabs {
+				t.Fatalf("%s route_adapter_hint = %q, want %q", template.ID, template.RouteAdapterHint, AdapterElevenLabs)
 			}
 			if !hasString(template.Capabilities, CapabilityAudioTTS) {
 				t.Fatalf("%s capabilities = %#v, want audio_tts", template.ID, template.Capabilities)
@@ -186,7 +186,7 @@ func TestCatalogTemplatesIncludeElevenLabsAudioModels(t *testing.T) {
 		}
 		if template.ID == "elevenlabs:scribe-v2" {
 			seenSTT = true
-			if template.ModelID != "scribe_v2" || template.AdapterType != AdapterElevenLabs ||
+			if template.ModelID != "scribe_v2" || template.RouteAdapterHint != AdapterElevenLabs ||
 				!hasString(template.Capabilities, CapabilityAudioSTT) ||
 				!hasParam(template.SupportedParams, "diarize") {
 				t.Fatalf("scribe template = %#v", template)
@@ -280,7 +280,7 @@ func TestCatalogTemplateSupportedParamsAreValidCanonicalContracts(t *testing.T) 
 		if err != nil {
 			t.Fatalf("marshal supported params for template %s: %v", template.ID, err)
 		}
-		if err := ValidateModelParamConfig(template.AdapterType, template.Capabilities, string(body)); err != nil {
+		if err := ValidateModelParamConfig(template.RouteAdapterHint, template.Capabilities, string(body)); err != nil {
 			t.Fatalf("template %s has invalid supported params: %v", template.ID, err)
 		}
 	}
@@ -309,7 +309,7 @@ func TestVisualCatalogTemplateDefaultsValidateAsAgentSubmittedParams(t *testing.
 			ModelID:                 template.ModelID,
 			DisplayName:             template.DisplayName,
 			Capabilities:            template.Capabilities,
-			AdapterType:             template.AdapterType,
+			AdapterType:             template.RouteAdapterHint,
 			SupportedParams:         template.SupportedParams,
 			SupportedParamsExplicit: true,
 		}

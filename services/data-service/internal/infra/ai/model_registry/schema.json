@@ -19,7 +19,6 @@
           "lab",
           "model_id",
           "display_name",
-          "adapter_type",
           "capabilities",
           "source"
         ],
@@ -45,7 +44,8 @@
             "type": "string",
             "minLength": 1
           },
-          "adapter_type": {
+          "route_adapter_hint": {
+            "description": "Optional bootstrap hint for registry generation only. Runtime adapter selection must come from route templates or route bindings.",
             "type": "string",
             "minLength": 1
           },

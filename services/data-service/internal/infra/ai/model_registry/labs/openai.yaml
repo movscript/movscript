@@ -5,7 +5,7 @@ templates:
       lab: openai
       model_id: gpt-5.2
       display_name: GPT-5.2 (推理)
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - text
         - reasoning
@@ -18,7 +18,7 @@ templates:
       lab: openai
       model_id: gpt-4o
       display_name: GPT-4o
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - text
       source:
@@ -30,7 +30,7 @@ templates:
       lab: openai
       model_id: gpt-4o-mini
       display_name: GPT-4o mini
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - text
       source:
@@ -42,7 +42,7 @@ templates:
       lab: openai
       model_id: gpt-4.1
       display_name: GPT-4.1
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - text
       source:
@@ -54,7 +54,7 @@ templates:
       lab: openai
       model_id: gpt-4.1-mini
       display_name: GPT-4.1 mini
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - text
       source:
@@ -66,7 +66,7 @@ templates:
       lab: openai
       model_id: o3-mini
       display_name: o3-mini (推理)
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - text
         - reasoning
@@ -79,7 +79,7 @@ templates:
       lab: openai
       model_id: dall-e-3
       display_name: DALL-E 3
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - image
       params:
@@ -114,7 +114,7 @@ templates:
       lab: openai
       model_id: gpt-image-1
       display_name: GPT Image 1 (文生图)
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - image
       params:
@@ -150,7 +150,7 @@ templates:
       lab: openai
       model_id: gpt-image-1
       display_name: GPT Image 1 (图像编辑)
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - image_edit
       input:
@@ -185,7 +185,7 @@ templates:
       lab: openai
       model_id: gpt-image-2
       display_name: GPT Image 2 (文生图)
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - image
       params:
@@ -216,7 +216,7 @@ templates:
       lab: openai
       model_id: gpt-4o-mini-tts
       display_name: GPT-4o mini TTS
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - audio_tts
       params:
@@ -267,7 +267,7 @@ templates:
       lab: openai
       model_id: gpt-4o-transcribe
       display_name: GPT-4o Transcribe
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - audio_transcribe
       params:
@@ -297,7 +297,7 @@ templates:
       lab: openai
       model_id: gpt-4o-mini-transcribe
       display_name: GPT-4o mini Transcribe
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - audio_transcribe
       params:
@@ -327,7 +327,7 @@ templates:
       lab: openai
       model_id: gpt-4o-transcribe-diarize
       display_name: GPT-4o Transcribe Diarize
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - audio_transcribe
       params:
@@ -359,7 +359,7 @@ templates:
       lab: openai
       model_id: whisper-1
       display_name: Whisper 1
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - audio_transcribe
         - audio_translate
@@ -394,7 +394,7 @@ templates:
       lab: openai
       model_id: tts-1
       display_name: TTS 1
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - audio_tts
       params:
@@ -440,7 +440,7 @@ templates:
       lab: openai
       model_id: tts-1-hd
       display_name: TTS 1 HD
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - audio_tts
       params:
@@ -486,14 +486,14 @@ templates:
       lab: openai
       model_id: gpt-4o-mini-audio-preview
       display_name: GPT-4o mini Audio Preview
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - audio_chat
       source:
         url: https://developers.openai.com/api/docs/guides/audio
         verified_at: "2026-06-25"
         status: verified
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -509,7 +509,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -522,7 +522,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -535,7 +535,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -548,7 +548,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -561,7 +561,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -574,7 +574,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -587,7 +587,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -603,7 +603,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -619,7 +619,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -635,7 +635,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -651,7 +651,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -667,7 +667,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -683,7 +683,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -699,7 +699,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - audio_chat
@@ -712,7 +712,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - audio_chat
@@ -725,7 +725,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -741,7 +741,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - audio_chat
@@ -754,7 +754,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -771,7 +771,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -788,7 +788,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -804,7 +804,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -821,7 +821,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -838,7 +838,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -855,7 +855,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -872,7 +872,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -889,7 +889,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -906,7 +906,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -922,7 +922,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -938,7 +938,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -954,7 +954,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -970,7 +970,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -983,7 +983,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -996,7 +996,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1009,7 +1009,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1025,7 +1025,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1041,7 +1041,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1057,7 +1057,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1070,7 +1070,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1087,7 +1087,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1101,7 +1101,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1117,7 +1117,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1133,7 +1133,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1146,7 +1146,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1162,7 +1162,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1179,7 +1179,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1196,7 +1196,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1213,7 +1213,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1230,7 +1230,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1246,7 +1246,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1262,7 +1262,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1278,7 +1278,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - audio_chat
@@ -1291,7 +1291,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - audio_chat
@@ -1304,7 +1304,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - image
@@ -1340,7 +1340,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1353,7 +1353,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1366,7 +1366,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1380,7 +1380,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1394,7 +1394,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1408,7 +1408,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1422,7 +1422,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1436,7 +1436,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1450,7 +1450,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1464,7 +1464,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1478,7 +1478,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1492,7 +1492,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1506,7 +1506,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -1523,7 +1523,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text

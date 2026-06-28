@@ -271,22 +271,15 @@ export type ProviderModelAPIKind = 'openai_responses' | 'openai_chat_completions
 export interface PublicModel {
   id: number
   catalog_entry_id?: number
-  provider_id?: string
   model_id: string
   display_name: string
   short_name?: string
-  provider_name?: string
   logical_model_id?: string
   provider_variant_count?: number
   capabilities: string[]
   supported_api_kinds?: ProviderModelAPIKind[]
   accepts_image_input: boolean
   is_default?: boolean
-  model_def_id?: string
-  model_id_override?: string
-  priority?: number
-  capacity_weight?: number
-  max_concurrency?: number
   supported_params?: ParamDef[]
   input_requirements?: ModelInputRequirements
   params_schema?: Record<string, unknown>

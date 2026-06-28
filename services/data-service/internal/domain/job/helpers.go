@@ -108,6 +108,7 @@ type ContextSnapshotInput struct {
 	Model                RuntimeModelSnapshotInput
 	Route                RouteSnapshotInput
 	Credential           CredentialInput
+	Intent               *GenerationIntentSnapshot
 	Prompt               string
 	ExtraParams          string
 	AspectRatio          string
@@ -118,6 +119,18 @@ type ContextSnapshotInput struct {
 	CreatedAt            time.Time
 	Project              *ProjectScopeBinding         `json:"project,omitempty"`
 	ContentUnitCandidate *ContentUnitCandidateBinding `json:"content_unit_candidate,omitempty"`
+}
+
+type GenerationIntentSnapshot struct {
+	Capability      string                         `json:"capability"`
+	Operation       string                         `json:"operation"`
+	ReferenceAssets []GenerationReferenceAssetRole `json:"reference_assets,omitempty"`
+}
+
+type GenerationReferenceAssetRole struct {
+	Role       string `json:"role"`
+	MediaType  string `json:"media_type,omitempty"`
+	ResourceID uint   `json:"resource_id,omitempty"`
 }
 
 type ProjectScopeBinding struct {
@@ -141,15 +154,17 @@ type ContentUnitCandidateBinding struct {
 }
 
 type ListFilter struct {
-	UserID     uint
-	OrgID      *uint
-	ProjectID  *uint
-	Status     string
-	FeatureKey string
-	JobType    string
-	ExactType  bool
-	Limit      int
-	Offset     int
+	UserID               uint
+	OrgID                *uint
+	ProjectID            *uint
+	Status               string
+	FeatureKey           string
+	GenerationCapability string
+	GenerationOperation  string
+	JobType              string
+	ExactType            bool
+	Limit                int
+	Offset               int
 }
 
 type ListSpec struct {
@@ -261,6 +276,7 @@ const DefaultMaxAttempts = 3
 type contextSnapshot struct {
 	Model                modelSnapshot                `json:"model"`
 	Route                *routeSnapshot               `json:"route,omitempty"`
+	Intent               *GenerationIntentSnapshot    `json:"intent,omitempty"`
 	JobType              string                       `json:"job_type"`
 	FeatureKey           string                       `json:"feature_key,omitempty"`
 	Prompt               string                       `json:"prompt"`
@@ -444,6 +460,7 @@ func BuildContextSnapshot(input ContextSnapshotInput) string {
 			CredentialID: input.Model.CredentialID,
 		},
 		Route:                routeSnapshotFromInput(input.Route),
+		Intent:               input.Intent,
 		JobType:              input.JobType,
 		FeatureKey:           input.FeatureKey,
 		Prompt:               input.Prompt,

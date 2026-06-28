@@ -48,6 +48,8 @@ func (s *AIService) listModelsFromCatalogEntries(ctx context.Context, filter pro
 		return nil, true, err
 	}
 	capabilities := compactModelCatalogCapabilities(filter)
+	operation := strings.TrimSpace(filter.Operation)
+	referenceAssets := routeReferenceAssetsFromContract(filter.ReferenceAssets)
 	apiKinds := compactModelCatalogAPIKinds(filter)
 	routeGroup := strings.TrimSpace(filter.RouteGroup)
 	if routeGroup == "" {
@@ -57,10 +59,11 @@ func (s *AIService) listModelsFromCatalogEntries(ctx context.Context, filter pro
 	groupIndex := map[string]int{}
 	for _, entry := range entries {
 		def := catalogEntryDef(entry)
-		if !modelDefMatchesAnyCapability(def, capabilities) {
+		if !catalogEntryMatchesAnyListCapability(entry, def, capabilities, operation, referenceAssets) {
 			continue
 		}
 		bindings := catalogEntryBindingsForFilter(entry.RouteBindings, routeGroup, apiKinds, credentials)
+		bindings = catalogRouteBindingsForListIntent(bindings, capabilities, operation, referenceAssets)
 		if len(bindings) == 0 && len(apiKinds) > 0 {
 			if len(entry.RouteBindings) > 0 || !modelAPIKindsIntersect(catalogRouteBindingSupportedAPIKinds(nil, credentials), apiKinds) {
 				continue
@@ -212,6 +215,101 @@ func modelDefMatchesAnyCapability(def *ModelDef, capabilities []string) bool {
 		}
 	}
 	return false
+}
+
+func catalogEntryMatchesAnyListCapability(entry persistencemodel.AIModelCatalogEntry, def *ModelDef, capabilities []string, operation string, refs []RouteReferenceAssetIntent) bool {
+	if len(capabilities) == 0 {
+		return true
+	}
+	for _, capability := range capabilities {
+		capability = strings.TrimSpace(capability)
+		if isStructuredCapabilityFamily(capability) {
+			if strings.TrimSpace(operation) != "" {
+				if len(refs) > 0 {
+					ok, _ := capabilityJSONSupportsIntent(entry.ModelCapabilitiesJSON, capability, operation, refs)
+					if ok {
+						return true
+					}
+				} else if ok, _ := capabilityJSONSupportsOperation(entry.ModelCapabilitiesJSON, capability, operation); ok {
+					return true
+				}
+				continue
+			}
+			if capabilityJSONHasDomain(entry.ModelCapabilitiesJSON, capability) {
+				return true
+			}
+			continue
+		}
+		if modelHasCapability(def, capability) {
+			return true
+		}
+	}
+	return false
+}
+
+func catalogRouteBindingsForListIntent(bindings []persistencemodel.AIModelRouteBinding, capabilities []string, operation string, refs []RouteReferenceAssetIntent) []persistencemodel.AIModelRouteBinding {
+	operation = strings.TrimSpace(operation)
+	if operation == "" {
+		return bindings
+	}
+	out := make([]persistencemodel.AIModelRouteBinding, 0, len(bindings))
+	for _, binding := range bindings {
+		if catalogRouteBindingSupportsAnyListIntent(binding, capabilities, operation, refs) {
+			out = append(out, binding)
+		}
+	}
+	return out
+}
+
+func catalogRouteBindingSupportsAnyListIntent(binding persistencemodel.AIModelRouteBinding, capabilities []string, operation string, refs []RouteReferenceAssetIntent) bool {
+	for _, capability := range capabilities {
+		capability = strings.TrimSpace(capability)
+		if !isStructuredCapabilityFamily(capability) {
+			continue
+		}
+		if len(refs) > 0 {
+			ok, _ := catalogRouteBindingMatchesStructuredIntent(binding, ModelRouteRequest{
+				Operation:       operation,
+				ReferenceAssets: refs,
+			}, capability)
+			if ok {
+				return true
+			}
+			continue
+		}
+		if ok, _ := capabilityJSONSupportsOperation(binding.RouteCapabilitiesJSON, capability, operation); ok {
+			return true
+		}
+	}
+	return false
+}
+
+func catalogEntryMatchesRouteRequest(entry persistencemodel.AIModelCatalogEntry, def *ModelDef, req ModelRouteRequest, capability string) bool {
+	if isStructuredCapabilityFamily(capability) {
+		ok, _ := capabilityJSONSupportsIntent(entry.ModelCapabilitiesJSON, capability, req.Operation, req.ReferenceAssets)
+		return ok
+	}
+	return modelHasCapability(def, capability)
+}
+
+func catalogRouteBindingsForStructuredIntent(bindings []persistencemodel.AIModelRouteBinding, req ModelRouteRequest, capability string) []persistencemodel.AIModelRouteBinding {
+	if !isStructuredCapabilityFamily(capability) {
+		return bindings
+	}
+	out := make([]persistencemodel.AIModelRouteBinding, 0, len(bindings))
+	for _, binding := range bindings {
+		if ok, _ := catalogRouteBindingMatchesStructuredIntent(binding, req, capability); ok {
+			out = append(out, binding)
+		}
+	}
+	return out
+}
+
+func catalogRouteBindingMatchesStructuredIntent(binding persistencemodel.AIModelRouteBinding, req ModelRouteRequest, capability string) (bool, string) {
+	if !isStructuredCapabilityFamily(capability) {
+		return true, ""
+	}
+	return capabilityJSONSupportsIntent(binding.RouteCapabilitiesJSON, capability, req.Operation, req.ReferenceAssets)
 }
 
 func catalogEntryBindingsForFilter(bindings []persistencemodel.AIModelRouteBinding, routeGroup string, apiKinds []string, credentials map[uint]persistencemodel.AICredential) []persistencemodel.AIModelRouteBinding {
@@ -421,10 +519,11 @@ func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capabili
 	candidates := make([]catalogRouteCandidate, 0, len(entries))
 	for _, entry := range entries {
 		def := catalogEntryDef(entry)
-		if !modelHasCapability(def, capability) {
+		if !catalogEntryMatchesRouteRequest(entry, def, req, capability) {
 			continue
 		}
 		bindings := catalogEntryBindingsForFilter(entry.RouteBindings, routeGroup, apiKinds, credentials)
+		bindings = catalogRouteBindingsForStructuredIntent(bindings, req, capability)
 		if len(bindings) == 0 {
 			continue
 		}
@@ -448,18 +547,25 @@ func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capabili
 				reason = "fallback_candidate"
 			}
 			route := s.enrichModelRouteProviderFacts(ModelRoute{
-				ModelID:         strings.TrimSpace(entry.PublicModelID),
-				RuntimeModelID:  runtimeModelID,
-				CatalogEntryID:  entry.ID,
-				RouteBindingID:  binding.ID,
-				CredentialID:    credentialID,
-				SourceType:      strings.TrimSpace(binding.SourceType),
-				RouteGroup:      strings.TrimSpace(binding.RouteGroup),
-				ProviderID:      catalogRouteProviderID(&binding),
-				AdapterType:     strings.TrimSpace(binding.AdapterType),
-				ProviderModelID: catalogRouteProviderModelID(entry, &binding),
-				APIKind:         firstMatchingModelAPIKind(catalogRouteBindingSupportedAPIKinds(&binding, credentials), apiKinds),
-				SelectionReason: reason,
+				ModelID:               strings.TrimSpace(entry.PublicModelID),
+				RuntimeModelID:        runtimeModelID,
+				CatalogEntryID:        entry.ID,
+				RouteBindingID:        binding.ID,
+				CredentialID:          credentialID,
+				SourceType:            strings.TrimSpace(binding.SourceType),
+				RouteGroup:            strings.TrimSpace(binding.RouteGroup),
+				ProviderID:            catalogRouteProviderID(&binding),
+				AdapterType:           strings.TrimSpace(binding.AdapterType),
+				ProviderModelID:       catalogRouteProviderModelID(entry, &binding),
+				Capability:            capability,
+				APIKind:               firstMatchingModelAPIKind(catalogRouteBindingSupportedAPIKinds(&binding, credentials), apiKinds),
+				Operation:             strings.TrimSpace(req.Operation),
+				EndpointBaseURL:       strings.TrimSpace(binding.EndpointBaseURL),
+				EndpointPathPrefix:    strings.TrimSpace(binding.EndpointPathPrefix),
+				EndpointMode:          normalizeRouteEndpointMode(binding.EndpointMode),
+				OperationProfile:      strings.TrimSpace(binding.OperationProfile),
+				RouteCapabilitiesJSON: strings.TrimSpace(binding.RouteCapabilitiesJSON),
+				SelectionReason:       reason,
 			})
 			candidates = append(candidates, catalogRouteCandidate{
 				route:     route,
@@ -486,6 +592,9 @@ func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capabili
 		requested := modelID
 		if requested == "" {
 			requested = fmt.Sprintf("catalog_entry:%d", req.CatalogEntryID)
+		}
+		if isStructuredCapabilityFamily(capability) && strings.TrimSpace(req.Operation) != "" {
+			return ModelRoutePlan{}, true, fmt.Errorf("missing_route_capability:%s for model %q and capability %s", strings.TrimSpace(req.Operation), requested, capability)
 		}
 		if routeGroup != "" {
 			return ModelRoutePlan{}, true, fmt.Errorf("model %q is not available for route group %q and capability %s", requested, routeGroup, capability)
@@ -532,8 +641,11 @@ func (s *AIService) resolveRouteBindingModelRoutePlan(req ModelRouteRequest, cap
 		return ModelRoutePlan{}, true, fmt.Errorf("catalog entry id=%d is disabled", entry.ID)
 	}
 	def := catalogEntryDef(entry)
-	if !modelHasCapability(def, capability) {
-		return ModelRoutePlan{}, true, fmt.Errorf("model %q does not support %s", entry.PublicModelID, capability)
+	if !catalogEntryMatchesRouteRequest(entry, def, req, capability) {
+		return ModelRoutePlan{}, true, fmt.Errorf("missing_model_capability:%s for model %q and capability %s", strings.TrimSpace(req.Operation), entry.PublicModelID, capability)
+	}
+	if ok, _ := catalogRouteBindingMatchesStructuredIntent(binding, req, capability); !ok {
+		return ModelRoutePlan{}, true, fmt.Errorf("missing_route_capability:%s for route binding id=%d", strings.TrimSpace(req.Operation), req.RouteBindingID)
 	}
 	runtimeModelID := entry.ID
 	credentialID := uint(0)
@@ -541,18 +653,25 @@ func (s *AIService) resolveRouteBindingModelRoutePlan(req ModelRouteRequest, cap
 		credentialID = *binding.CredentialID
 	}
 	route := s.enrichModelRouteProviderFacts(ModelRoute{
-		ModelID:         strings.TrimSpace(entry.PublicModelID),
-		RuntimeModelID:  runtimeModelID,
-		CatalogEntryID:  entry.ID,
-		RouteBindingID:  binding.ID,
-		CredentialID:    credentialID,
-		SourceType:      strings.TrimSpace(binding.SourceType),
-		RouteGroup:      strings.TrimSpace(binding.RouteGroup),
-		ProviderID:      catalogRouteProviderID(&binding),
-		AdapterType:     strings.TrimSpace(binding.AdapterType),
-		ProviderModelID: catalogRouteProviderModelID(entry, &binding),
-		APIKind:         firstMatchingModelAPIKind(catalogRouteBindingSupportedAPIKinds(&binding, credentials), apiKinds),
-		SelectionReason: "route_binding_id",
+		ModelID:               strings.TrimSpace(entry.PublicModelID),
+		RuntimeModelID:        runtimeModelID,
+		CatalogEntryID:        entry.ID,
+		RouteBindingID:        binding.ID,
+		CredentialID:          credentialID,
+		SourceType:            strings.TrimSpace(binding.SourceType),
+		RouteGroup:            strings.TrimSpace(binding.RouteGroup),
+		ProviderID:            catalogRouteProviderID(&binding),
+		AdapterType:           strings.TrimSpace(binding.AdapterType),
+		ProviderModelID:       catalogRouteProviderModelID(entry, &binding),
+		Capability:            capability,
+		APIKind:               firstMatchingModelAPIKind(catalogRouteBindingSupportedAPIKinds(&binding, credentials), apiKinds),
+		Operation:             strings.TrimSpace(req.Operation),
+		EndpointBaseURL:       strings.TrimSpace(binding.EndpointBaseURL),
+		EndpointPathPrefix:    strings.TrimSpace(binding.EndpointPathPrefix),
+		EndpointMode:          normalizeRouteEndpointMode(binding.EndpointMode),
+		OperationProfile:      strings.TrimSpace(binding.OperationProfile),
+		RouteCapabilitiesJSON: strings.TrimSpace(binding.RouteCapabilitiesJSON),
+		SelectionReason:       "route_binding_id",
 	})
 	return ModelRoutePlan{
 		ModelID:         route.ModelID,
@@ -635,10 +754,7 @@ func (s *AIService) catalogRouteRuntime(ctx context.Context, userID uint, route 
 			return catalogRouteRuntime{}, true, err
 		}
 		adapterType := routeAdapterType(route, cred.AdapterType)
-		if shouldUseYunwuAdapter(route, adapterType) {
-			cred.AdapterType = AdapterYunwu
-			adapterType = AdapterYunwu
-		}
+		cred = s.applyRouteEndpointToCredential(ctx, route, cred)
 		provider, err := s.registry.buildProvider(cred, definition.def)
 		if err != nil {
 			return catalogRouteRuntime{}, true, err
@@ -784,6 +900,32 @@ func (s *AIService) localProviderCredentialForRoute(ctx context.Context, route M
 	return cred, nil
 }
 
+func (s *AIService) applyRouteEndpointToCredential(ctx context.Context, route ModelRoute, cred persistencemodel.AICredential) persistencemodel.AICredential {
+	config := routeEndpointConfigFromRoute(route)
+	if !routeEndpointHasConfig(config) && route.RouteBindingID != 0 && s != nil && s.db != nil && s.db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) {
+		var binding persistencemodel.AIModelRouteBinding
+		if err := s.db.WithContext(ctx).
+			Select("endpoint_base_url", "endpoint_path_prefix", "endpoint_mode", "operation_profile").
+			Where("id = ? AND deleted_at IS NULL", route.RouteBindingID).
+			First(&binding).Error; err == nil {
+			config = routeEndpointConfigFromBinding(binding)
+		}
+	}
+	if !routeEndpointHasConfig(config) {
+		return cred
+	}
+	baseURL := strings.TrimSpace(cred.BaseURL)
+	if baseURL == "" {
+		if def := GetAdapterDef(routeAdapterType(route, cred.AdapterType)); def != nil {
+			baseURL = def.DefaultBaseURL
+		}
+	}
+	if next := effectiveRouteBaseURL(baseURL, config); strings.TrimSpace(next) != "" {
+		cred.BaseURL = next
+	}
+	return cred
+}
+
 func routeAdapterType(route ModelRoute, fallback string) string {
 	if adapterType := strings.TrimSpace(route.AdapterType); adapterType != "" {
 		return adapterType
@@ -795,18 +937,6 @@ func routeAdapterType(route ModelRoute, fallback string) string {
 		return adapterKey
 	}
 	return strings.TrimSpace(route.SourceType)
-}
-
-func shouldUseYunwuAdapter(route ModelRoute, adapterType string) bool {
-	if strings.TrimSpace(route.ProviderKind) != persistencemodel.AIProviderKindYunwuGateway {
-		return false
-	}
-	switch strings.TrimSpace(adapterType) {
-	case "", AdapterOpenAICompat, AdapterYunwu:
-		return true
-	default:
-		return false
-	}
 }
 
 func (s *AIService) legacyCredentialIDForProvider(ctx context.Context, providerID string) (uint, error) {
@@ -879,6 +1009,7 @@ func (s *AIService) ResolveModel(ctx context.Context, request providercontract.A
 		ModelID:        request.ModelID,
 		CatalogEntryID: request.CatalogEntryID,
 		Capability:     request.Capability,
+		Operation:      request.Operation,
 		RouteGroup:     providerRouteGroupFromContext(ctx),
 	})
 	if err != nil {
@@ -891,6 +1022,7 @@ func (s *AIService) ResolveModel(ctx context.Context, request providercontract.A
 		ProviderModelID: route.ProviderModelID,
 		AdapterType:     strings.TrimSpace(route.AdapterType),
 		Capability:      request.Capability,
+		Operation:       strings.TrimSpace(request.Operation),
 		SelectionReason: route.SelectionReason,
 	}
 	if route.CatalogEntryID != 0 {

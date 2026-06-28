@@ -124,6 +124,8 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
   assert.equal(routeLayoutSpecForPathname('/project/content/canvas').routeId, 'project.content.canvas')
   assert.equal(routeLayoutSpecForPathname('/project/content/preview').routeId, 'project.content.preview')
   assert.equal(routeLayoutSpecForPathname('/project/settings/preview').routeId, 'project.setting.preview')
+  assert.equal(routeLayoutSpecForPathname('/studio/proj_uid_7/edit-desk').routeId, 'studio.editDesk')
+  assert.equal(routeLayoutSpecForPathname('/studio/proj_uid_7/edit-desk').scrollMode, 'workspace')
 
   assert.equal(routeLayoutSpecForPathname('/project/agent').surface, 'agent')
   assert.equal(routeLayoutSpecForPathname('/project/agent').scrollMode, 'workspace')
@@ -225,6 +227,8 @@ test('registered route layout specs expose pane ownership for app shell surfaces
 
 test('route layout registry declares shared tool workbench resource panes', () => {
   for (const pathname of [
+    '/tools/image',
+    '/tools/video',
     '/tools/ref-image-gen',
     '/tools/ref-video-gen',
     '/tools/motion-imitation',
@@ -249,7 +253,7 @@ test('route layout registry declares shared tool workbench resource panes', () =
     assert.equal(resourcePane?.overlapMode, 'pane-surface')
   }
 
-  for (const pathname of ['/tools/audio-gen', '/tools/audio-transcribe', '/tools/audio-translate', '/tools/music-gen', '/tools/audio-sfx', '/tools/voice-clone', '/tools/voice-design']) {
+  for (const pathname of ['/tools/audio', '/tools/text', '/tools/audio-gen', '/tools/audio-transcribe', '/tools/audio-translate', '/tools/music-gen', '/tools/audio-sfx', '/tools/voice-clone', '/tools/voice-design']) {
     const audioRoute = routeLayoutSpecForPathname(pathname)
     assert.equal(audioRoute.surface, 'tool')
     assert.equal(audioRoute.scrollMode, 'workspace')

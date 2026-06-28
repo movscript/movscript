@@ -16,28 +16,22 @@ type ListOptions struct {
 	ProviderVariants bool
 	RouteGroup       string
 	APIKinds         []string
+	Operation        string
+	ReferenceAssets  []providercontract.AIReferenceAssetIntent
 }
 
 type PublicModel struct {
 	ID                uint                                      `json:"id"`
 	CatalogEntryID    uint                                      `json:"catalog_entry_id,omitempty"`
-	ProviderID        string                                    `json:"provider_id,omitempty"`
 	ModelID           string                                    `json:"model_id"`
 	DisplayName       string                                    `json:"display_name"`
 	ShortName         string                                    `json:"short_name,omitempty"`
-	ProviderName      string                                    `json:"provider_name,omitempty"`
-	AdapterType       string                                    `json:"adapter_type,omitempty"`
 	Capabilities      []string                                  `json:"capabilities"`
 	SupportedAPIKinds []string                                  `json:"supported_api_kinds,omitempty"`
 	AcceptsImageInput bool                                      `json:"accepts_image_input"`
 	IsDefault         bool                                      `json:"is_default,omitempty"`
 	LogicalModelID    string                                    `json:"logical_model_id,omitempty"`
 	ProviderVariants  int                                       `json:"provider_variant_count,omitempty"`
-	ModelDefID        string                                    `json:"model_def_id"`
-	ModelIDOverride   string                                    `json:"model_id_override,omitempty"`
-	Priority          int                                       `json:"priority"`
-	CapacityWeight    int                                       `json:"capacity_weight"`
-	MaxConcurrency    int                                       `json:"max_concurrency"`
 	SupportedParams   []map[string]any                          `json:"supported_params,omitempty"`
 	InputRequirements providercontract.AIModelInputRequirements `json:"input_requirements,omitempty"`
 	ParamsSchema      map[string]any                            `json:"params_schema,omitempty"`
@@ -59,6 +53,8 @@ func (s *Service) ListByCapabilityWithOptions(ctx context.Context, capability st
 	filter := providercontract.AIModelListFilter{
 		Capabilities:     capabilities,
 		APIKinds:         apiKinds,
+		Operation:        strings.TrimSpace(opts.Operation),
+		ReferenceAssets:  opts.ReferenceAssets,
 		ProviderVariants: opts.ProviderVariants,
 		RouteGroup:       strings.TrimSpace(opts.RouteGroup),
 	}
@@ -79,32 +75,18 @@ func (s *Service) ListByCapabilityForRoute(ctx context.Context, capability strin
 }
 
 func publicModelFromDescriptor(descriptor providercontract.AIModelDescriptor) PublicModel {
-	modelDefID := descriptor.ModelDefID
-	modelIDOverride := descriptor.ModelIDOverride
-	if descriptor.CatalogEntryID != 0 {
-		modelDefID = descriptor.ModelID
-		modelIDOverride = ""
-	}
 	return PublicModel{
 		ID:                descriptor.CatalogEntryID,
 		CatalogEntryID:    descriptor.CatalogEntryID,
-		ProviderID:        descriptor.ProviderID,
 		ModelID:           descriptor.ModelID,
 		DisplayName:       descriptor.DisplayName,
 		ShortName:         descriptor.ShortName,
-		ProviderName:      descriptor.ProviderName,
-		AdapterType:       descriptor.AdapterType,
 		Capabilities:      append([]string(nil), descriptor.Capabilities...),
 		SupportedAPIKinds: append([]string(nil), descriptor.SupportedAPIKinds...),
 		AcceptsImageInput: descriptor.AcceptsImageInput,
 		IsDefault:         descriptor.IsDefault,
 		LogicalModelID:    descriptor.LogicalModelID,
 		ProviderVariants:  descriptor.ProviderVariants,
-		ModelDefID:        modelDefID,
-		ModelIDOverride:   modelIDOverride,
-		Priority:          descriptor.Priority,
-		CapacityWeight:    descriptor.CapacityWeight,
-		MaxConcurrency:    descriptor.MaxConcurrency,
 		SupportedParams:   cloneParamMaps(descriptor.SupportedParams),
 		InputRequirements: descriptor.InputRequirements,
 		ParamsSchema:      cloneAnyMap(descriptor.ParamsSchema),

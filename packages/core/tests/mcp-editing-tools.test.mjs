@@ -235,6 +235,47 @@ test('MCP editing project and timeline tools apply pure MediaEditingProject edit
   assert.equal(localExport.candidate_created, false)
 })
 
+test('MCP editing video compose creates edit-decision projects and preserves runtime blockers', async () => {
+  const created = await callTool('editing_project_create_from_edit_decisions', {
+    projectId: 'project-tools',
+    title: 'Compose project',
+    editDecisions: sampleEditDecisions(),
+    assetManifest: sampleAssetManifest(),
+  })
+  assert.equal(created.status, 'ok')
+  assert.equal(created.editing_project.source.kind, 'edit_decisions')
+  assert.equal(created.editing_project.timeline.tracks[0].id, 'track_primary_video')
+  assert.equal(created.editing_project.timeline.tracks[0].clips[0].asset.resourceId, 701)
+
+  const unsupportedRuntime = await callTool('editing_video_compose', {
+    projectId: 'project-tools',
+    render_runtime: 'hyperframes',
+    edit_decisions: sampleEditDecisions(),
+    asset_manifest: sampleAssetManifest(),
+  })
+  assert.equal(unsupportedRuntime.status, 'unsupported_runtime')
+  assert.equal(unsupportedRuntime.render_runtime, 'hyperframes')
+  assert.match(unsupportedRuntime.message, /no silent fallback/)
+
+  const compose = await callTool('editing_video_compose', {
+    projectId: 'project-tools',
+    render_runtime: 'ffmpeg',
+    edit_decisions: sampleEditDecisions(),
+    asset_manifest: sampleAssetManifest(),
+    output: { format: 'mp4' },
+  })
+  assert.ok(['ok', 'unsupported_runtime'].includes(compose.status))
+  if (compose.status === 'unsupported_runtime') {
+    assert.equal(compose.code, 'ELECTRON_EDITING_RUNTIME_REQUIRED')
+  } else {
+    assert.equal(compose.task.taskType, 'timeline_render')
+  }
+  assert.equal(compose.render_runtime, 'ffmpeg')
+  assert.equal(compose.editing_project.source.kind, 'edit_decisions')
+  assert.equal(compose.validation.valid, true)
+  assert.equal(compose.candidate_created, false)
+})
+
 test('MCP editing timeline validation reports structural timeline diagnostics', async () => {
   const project = {
     version: 1,
@@ -337,6 +378,34 @@ test('MCP editing timeline validation reports structural timeline diagnostics', 
   assert.ok(codes.includes('clip_overlap'))
   assert.ok(codes.includes('subtitle_reference_missing'))
 })
+
+function sampleEditDecisions() {
+  return {
+    version: 1,
+    render_runtime: 'ffmpeg',
+    cuts: [{
+      id: 'cut_intro',
+      source: 'clip_intro',
+      in_seconds: 0,
+      out_seconds: 3,
+    }],
+    audio: {
+      music: {
+        asset_id: 'music_bed',
+        volume: 0.4,
+      },
+    },
+  }
+}
+
+function sampleAssetManifest() {
+  return {
+    assets: [
+      { id: 'clip_intro', type: 'video', resource_id: 701, label: 'Intro' },
+      { id: 'music_bed', type: 'audio', resource_id: 702, label: 'Music' },
+    ],
+  }
+}
 
 test('MCP editing tools reject malformed MediaEditingProject envelopes before mutation', async () => {
   const response = await callToolResponse('editing_timeline_add_track', {

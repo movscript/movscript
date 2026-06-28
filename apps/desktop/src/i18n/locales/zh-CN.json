@@ -2662,6 +2662,7 @@
         "modelId": "模型 ID",
         "capabilities": "能力",
         "provider": "服务商",
+        "routeAvailability": "可用路由",
         "configId": "配置 ID"
       }
     },

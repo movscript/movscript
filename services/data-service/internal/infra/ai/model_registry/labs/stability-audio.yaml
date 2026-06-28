@@ -5,7 +5,7 @@ templates:
       lab: stability-audio
       model_id: stable-audio-3
       display_name: Stable Audio 3
-      adapter_type: stability
+      route_adapter_hint: stability
       capabilities:
         - audio_music
         - audio_sfx
@@ -40,7 +40,7 @@ templates:
       lab: stability-audio
       model_id: stable-audio-2.5
       display_name: Stable Audio 2.5
-      adapter_type: stability
+      route_adapter_hint: stability
       capabilities:
         - audio_music
         - audio_sfx
@@ -86,7 +86,7 @@ templates:
       lab: stability-audio
       model_id: stable-audio-2
       display_name: Stable Audio 2
-      adapter_type: stability
+      route_adapter_hint: stability
       capabilities:
         - audio_music
         - audio_sfx

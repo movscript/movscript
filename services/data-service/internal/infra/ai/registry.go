@@ -91,6 +91,10 @@ func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelD
 	switch adapterType {
 	case AdapterAnthropic:
 		return NewAnthropicAdapter(apiKey, baseURL), nil
+	case AdapterOpenAIVideoMultipart:
+		return NewOpenAIAdapter(baseURL, apiKey), nil
+	case AdapterOfficialVideoGenerations:
+		return NewOfficialVideoGenerationsAdapter(apiKey, baseURL), nil
 	case AdapterKling:
 		parts := splitKlingKey(apiKey)
 		return NewKlingAdapter(parts[0], parts[1]), nil
@@ -113,9 +117,9 @@ func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelD
 		return NewMurekaAdapter(apiKey, baseURL), nil
 	case AdapterStability:
 		return NewStabilityAdapter(apiKey, baseURL), nil
-	case AdapterYunwu:
-		return NewYunwuAdapter(apiKey, baseURL), nil
-	default: // openai_compat — handles text, image (text-to-image), image_edit, and openai-compat video
+	case AdapterYunwuUnifiedVideo:
+		return NewYunwuUnifiedVideoAdapter(apiKey, baseURL), nil
+	default:
 		return NewOpenAIAdapter(baseURL, apiKey), nil
 	}
 }

@@ -3251,7 +3251,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
       const paths = resolveMovScriptBackendPaths2(workspaceDir2);
       const parsed = readJSON22(paths.configPath);
       if (!isRecord210(parsed) || parsed.schema !== MOVSCRIPT_BACKEND_CONFIG_SCHEMA2) return defaultMovScriptBackendConfig2();
-      const baseURL = stringField28(parsed.baseURL) ?? MOVSCRIPT_DEFAULT_BACKEND_BASE_URL2;
+      const baseURL = stringField29(parsed.baseURL) ?? MOVSCRIPT_DEFAULT_BACKEND_BASE_URL2;
       const realm = normalizeRealm2(parsed.realm);
       const activeUserId = idField14(parsed.activeUserId);
       return {
@@ -3259,7 +3259,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
         baseURL: normalizeBackendBaseURL2(baseURL),
         ...realm ? { realm } : {},
         ...activeUserId !== void 0 ? { activeUserId } : {},
-        updatedAt: stringField28(parsed.updatedAt) ?? (/* @__PURE__ */ new Date()).toISOString()
+        updatedAt: stringField29(parsed.updatedAt) ?? (/* @__PURE__ */ new Date()).toISOString()
       };
     }
     function writeMovScriptBackendConfig2(workspaceDir2, config) {
@@ -3281,7 +3281,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
       const paths = resolveMovScriptBackendPaths2(workspaceDir2, requestedRealm);
       const parsed = readJSON22(paths.authPath);
       if (!isRecord210(parsed) || parsed.schema !== MOVSCRIPT_BACKEND_AUTH_SCHEMA2) return void 0;
-      const token = stringField28(parsed.token);
+      const token = stringField29(parsed.token);
       if (!token) return void 0;
       const tokenType = parsed.tokenType === "Bearer" ? "Bearer" : void 0;
       if (!tokenType) return void 0;
@@ -3295,8 +3295,8 @@ Expecting one of '${allowedValues.join("', '")}'`);
         ...realm ? { realm } : {},
         ...gitCredential ? { gitCredential } : {},
         ...user ? { user } : {},
-        ...stringField28(parsed.expiresAt) ? { expiresAt: stringField28(parsed.expiresAt) } : {},
-        updatedAt: stringField28(parsed.updatedAt) ?? (/* @__PURE__ */ new Date()).toISOString()
+        ...stringField29(parsed.expiresAt) ? { expiresAt: stringField29(parsed.expiresAt) } : {},
+        updatedAt: stringField29(parsed.updatedAt) ?? (/* @__PURE__ */ new Date()).toISOString()
       };
     }
     function writeMovScriptBackendAuth2(workspaceDir2, auth) {
@@ -3326,9 +3326,9 @@ Expecting one of '${allowedValues.join("', '")}'`);
       const realm = normalizeRealm2(input3.realm) ?? config.realm;
       const paths = resolveMovScriptBackendPaths2(root.workspaceDir, realm);
       const auth = readMovScriptBackendAuth2(paths.workspaceDir, realm);
-      const token = stringField28(input3.token) ?? stringField28(process.env.MOVCLI_TOKEN) ?? auth?.token;
+      const token = stringField29(input3.token) ?? stringField29(process.env.MOVCLI_TOKEN) ?? auth?.token;
       const userId = idField14(input3.userId) ?? idField14(auth?.user?.id) ?? idField14(config.activeUserId);
-      const baseURL = normalizeBackendBaseURL2(stringField28(input3.server) ?? stringField28(process.env.MOVSCRIPT_API_BASE_URL) ?? config.baseURL);
+      const baseURL = normalizeBackendBaseURL2(stringField29(input3.server) ?? stringField29(process.env.MOVSCRIPT_API_BASE_URL) ?? config.baseURL);
       return {
         workspaceDir: paths.workspaceDir,
         baseURL,
@@ -3359,13 +3359,13 @@ Expecting one of '${allowedValues.join("', '")}'`);
         username: input3.username,
         password: input3.password
       });
-      const token = stringField28(response.token);
+      const token = stringField29(response.token);
       if (!token) throw new Error("auth login response did not include token");
       return {
         baseURL: session.baseURL,
         token,
         tokenType: "Bearer",
-        ...stringField28(response.expires_at) ? { expiresAt: stringField28(response.expires_at) } : {},
+        ...stringField29(response.expires_at) ? { expiresAt: stringField29(response.expires_at) } : {},
         ...isRecord210(response.user) ? { user: response.user } : {},
         ...normalizeGitCredential2(response.git_credential) ? { gitCredential: normalizeGitCredential2(response.git_credential) } : {}
       };
@@ -3416,11 +3416,11 @@ Expecting one of '${allowedValues.join("', '")}'`);
     function normalizeAuthUser2(value) {
       if (!isRecord210(value)) return void 0;
       const id = idField14(value.id);
-      const username = stringField28(value.username);
-      const displayName22 = stringField28(value.displayName) ?? stringField28(value.display_name);
-      const primaryEmail = stringField28(value.primaryEmail) ?? stringField28(value.primary_email);
-      const locale = stringField28(value.locale);
-      const systemRole = stringField28(value.systemRole) ?? stringField28(value.system_role);
+      const username = stringField29(value.username);
+      const displayName22 = stringField29(value.displayName) ?? stringField29(value.display_name);
+      const primaryEmail = stringField29(value.primaryEmail) ?? stringField29(value.primary_email);
+      const locale = stringField29(value.locale);
+      const systemRole = stringField29(value.systemRole) ?? stringField29(value.system_role);
       const user = {
         ...id !== void 0 ? { id } : {},
         ...username ? { username } : {},
@@ -3433,13 +3433,13 @@ Expecting one of '${allowedValues.join("', '")}'`);
     }
     function normalizeGitCredential2(value) {
       if (!isRecord210(value)) return void 0;
-      const provider = stringField28(value.provider);
-      const username = stringField28(value.username);
+      const provider = stringField29(value.provider);
+      const username = stringField29(value.username);
       if (provider !== "gitea" || !username) return void 0;
-      const token = stringField28(value.token);
-      const maskedToken = stringField28(value.maskedToken) ?? stringField28(value.masked_token);
-      const status = stringField28(value.status);
-      const lastError = stringField28(value.lastError) ?? stringField28(value.last_error);
+      const token = stringField29(value.token);
+      const maskedToken = stringField29(value.maskedToken) ?? stringField29(value.masked_token);
+      const status = stringField29(value.status);
+      const lastError = stringField29(value.lastError) ?? stringField29(value.last_error);
       return {
         provider,
         username,
@@ -3457,7 +3457,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
       const id = idField14(value.id);
       return id ? { kind, id: String(id) } : void 0;
     }
-    function stringField28(value) {
+    function stringField29(value) {
       return typeof value === "string" && value.trim() ? value.trim() : void 0;
     }
     function idField14(value) {
@@ -7534,7 +7534,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
                 ...timelineItem3(storyboardItemId, "storyboard", storyboard, order++),
                 parentId: sceneMomentItemId,
                 caption: stringField112(timeline?.caption),
-                gapAfterSec: numberField25(timeline?.gap_after_sec),
+                gapAfterSec: numberField26(timeline?.gap_after_sec),
                 timing: timeline,
                 transition: recordField23(storyboard.record.transition),
                 contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined6)
@@ -7584,7 +7584,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
                   ...timelineItem3(storyboardItemId, "storyboard", storyboard, order++),
                   parentId: expressionUnitItemId,
                   caption: stringField112(timeline?.caption),
-                  gapAfterSec: numberField25(timeline?.gap_after_sec),
+                  gapAfterSec: numberField26(timeline?.gap_after_sec),
                   timing: timeline,
                   transition: recordField23(storyboard.record.transition),
                   contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined6)
@@ -7679,7 +7679,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
             ...timelineItem3(storyboardItemId, "storyboard", storyboard, order++),
             parentId: sceneMomentItemId,
             caption: stringField112(timeline?.caption),
-            gapAfterSec: numberField25(timeline?.gap_after_sec),
+            gapAfterSec: numberField26(timeline?.gap_after_sec),
             timing: timeline,
             transition: recordField23(storyboard.record.transition),
             contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined6)
@@ -7714,7 +7714,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
               ...timelineItem3(storyboardItemId, "storyboard", storyboard, order++),
               parentId: expressionUnitItemId,
               caption: stringField112(timeline?.caption),
-              gapAfterSec: numberField25(timeline?.gap_after_sec),
+              gapAfterSec: numberField26(timeline?.gap_after_sec),
               timing: timeline,
               transition: recordField23(storyboard.record.transition),
               contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined6)
@@ -7863,8 +7863,8 @@ ${ids.map((id) => `- ${id}`).join("\n")}
     }
     function sortEntities4(entities) {
       return [...entities].sort((left, right) => {
-        const leftOrder = numberField25(left.record.order) ?? Number.MAX_SAFE_INTEGER;
-        const rightOrder = numberField25(right.record.order) ?? Number.MAX_SAFE_INTEGER;
+        const leftOrder = numberField26(left.record.order) ?? Number.MAX_SAFE_INTEGER;
+        const rightOrder = numberField26(right.record.order) ?? Number.MAX_SAFE_INTEGER;
         if (leftOrder !== rightOrder) return leftOrder - rightOrder;
         return left.path.localeCompare(right.path);
       });
@@ -7878,7 +7878,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
     function stringField112(value) {
       return typeof value === "string" && value.trim() ? value.trim() : void 0;
     }
-    function numberField25(value) {
+    function numberField26(value) {
       return typeof value === "number" && Number.isFinite(value) ? value : void 0;
     }
     function isDefined6(value) {
@@ -10202,8 +10202,8 @@ ${ids.map((id) => `- ${id}`).join("\n")}
           const storyboard = entityByPathDir.get(normalizedRefDir2(entity.record.storyboard_ref));
           if (scope) relations.push({ type: "references", from: entityRef32(entity), to: entityRef32(scope), field: "scope_ref" });
           if (storyboard) relations.push({ type: "references", from: entityRef32(entity), to: entityRef32(storyboard), field: "storyboard_ref" });
-          for (const assetRef of arrayField52(entity.record.asset_refs)) {
-            const asset = findEntityByRef22(entities, "asset", assetRef) ?? entityByPathDir.get(normalizedRefDir2(assetRef));
+          for (const assetRef2 of arrayField52(entity.record.asset_refs)) {
+            const asset = findEntityByRef22(entities, "asset", assetRef2) ?? entityByPathDir.get(normalizedRefDir2(assetRef2));
             if (asset) relations.push({ type: "uses", from: entityRef32(entity), to: entityRef32(asset), field: "asset_refs" });
           }
         }
@@ -10220,8 +10220,8 @@ ${ids.map((id) => `- ${id}`).join("\n")}
         if (entity.entityKind === "keyframe") {
           const expressionUnit = parentExpressionUnitForEntity2(entity, entityByPathDir, entityById);
           if (expressionUnit) relations.push({ type: "references", from: entityRef32(entity), to: entityRef32(expressionUnit), field: "expression_unit_ref" });
-          for (const assetRef of arrayField52(entity.record.reference_asset_refs)) {
-            const asset = findEntityByRef22(entities, "asset", assetRef) ?? entityByPathDir.get(normalizedRefDir2(assetRef));
+          for (const assetRef2 of arrayField52(entity.record.reference_asset_refs)) {
+            const asset = findEntityByRef22(entities, "asset", assetRef2) ?? entityByPathDir.get(normalizedRefDir2(assetRef2));
             if (asset) relations.push({ type: "uses", from: entityRef32(entity), to: entityRef32(asset), field: "reference_asset_refs" });
           }
         }
@@ -12624,14 +12624,14 @@ ${ids.map((id) => `- ${id}`).join("\n")}
         });
       }
       const assetRefs = Array.isArray(record.asset_refs) ? record.asset_refs : [];
-      for (const [index, assetRef] of assetRefs.entries()) {
-        const assetId = idField112(assetRef);
+      for (const [index, assetRef2] of assetRefs.entries()) {
+        const assetId = idField112(assetRef2);
         const asset = assetId !== void 0 ? sourceRecordByPathOrId2(graph, "asset", assetId) : void 0;
         if (assetId === void 0 || !asset) {
           issues.push({
             path: file.path,
             severity: "error",
-            message: `audio_cue asset_refs[${index}] does not resolve: ${String(assetRef)}`
+            message: `audio_cue asset_refs[${index}] does not resolve: ${String(assetRef2)}`
           });
         }
       }
@@ -12672,8 +12672,8 @@ ${ids.map((id) => `- ${id}`).join("\n")}
     }
     function validateKeyframeReferenceAssetRefs2(file, record, graph, issues) {
       const assetRefs = Array.isArray(record.reference_asset_refs) ? record.reference_asset_refs : [];
-      for (const [index, assetRef] of assetRefs.entries()) {
-        const assetId = idField112(assetRef);
+      for (const [index, assetRef2] of assetRefs.entries()) {
+        const assetId = idField112(assetRef2);
         if (assetId === void 0) {
           issues.push({
             path: file.path,
@@ -14481,7 +14481,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
           negativePrompt: input3.negativePrompt,
           description: input3.description ?? stringValue92(existing.record.description),
           order: input3.order ?? numberValue23(existing.record.order),
-          modelIntent: input3.modelIntent ?? recordValue5(existing.record.model_intent)
+          modelIntent: input3.modelIntent ?? recordValue6(existing.record.model_intent)
         });
       }
       return saveContentUnit2(workspaceService, {
@@ -14674,7 +14674,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
         audioCueId: idValue5(record.audio_cue_ref),
         prompt: stringValue92(record.edit_prompt) ?? stringValue92(record.prompt),
         description: stringValue92(record.description),
-        modelIntent: recordValue5(record.model_intent)
+        modelIntent: recordValue6(record.model_intent)
       };
     }
     function settingRefsFromRecord3(record) {
@@ -14781,7 +14781,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
         return typeof value === "string" && value.trim() ? [value.trim()] : [];
       });
     }
-    function recordValue5(value) {
+    function recordValue6(value) {
       return isRecord262(value) ? value : void 0;
     }
     function numberValue23(value) {
@@ -19134,7 +19134,7 @@ function isRecord22(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// ../../packages/core/dist/chunk-GPJNPFHD.js
+// ../../packages/core/dist/chunk-UW5SRPBX.js
 function isRecord4(value) {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
@@ -19368,13 +19368,17 @@ function normalizeModelCapabilityAlias(value) {
   const normalized = value?.trim().toLowerCase().replace(/-/g, "_");
   switch (normalized) {
     case "text":
+    case "text_generation":
     case "reasoning":
     case "image":
+    case "image_generation":
     case "image_edit":
     case "video":
+    case "video_generation":
     case "video_i2v":
     case "video_v2v":
     case "audio":
+    case "audio_generation":
     case "audio_tts":
     case "audio_transcribe":
     case "audio_translate":
@@ -19386,80 +19390,16 @@ function normalizeModelCapabilityAlias(value) {
     case "subtitle_align":
     case "subtitle_translate":
       return normalized;
-    case "text_to_image":
-    case "image_generation":
-    case "prompt_to_image":
-    case "t2i":
-    case "txt2img":
-      return "image";
-    case "image_to_image":
-    case "i2i":
-    case "img2img":
-      return "image_edit";
-    case "text_to_video":
-    case "video_generation":
-    case "prompt_to_video":
-    case "t2v":
-    case "txt2video":
-      return "video";
-    case "image_to_video":
-    case "i2v":
-    case "img2video":
-      return "video_i2v";
-    case "video_to_video":
-    case "v2v":
-      return "video_v2v";
-    case "text_generation":
-    case "prompt_to_text":
-      return "text";
     case "tts":
-    case "text_to_speech":
-    case "voiceover":
-    case "voiceover_generation":
-    case "audio_voiceover":
       return "audio_tts";
-    case "speech_translation":
-    case "audio_translation":
-    case "translate_audio":
+    case "speech_translate":
       return "audio_translate";
-    case "speech_to_text":
     case "stt":
-    case "transcription":
-    case "subtitle":
-    case "subtitle_generate":
-    case "generate_subtitle":
-    case "transcribe_subtitle":
       return "audio_transcribe";
-    case "voice_chat":
-    case "audio_conversation":
-    case "audio_omni":
-    case "omni":
-    case "realtime_audio":
-      return "audio_chat";
     case "music":
-    case "music_generation":
-    case "generate_music":
       return "audio_music";
     case "sfx":
-    case "sound_effect":
-    case "sound_effects":
-    case "sound_effect_generation":
-    case "generate_sfx":
       return "audio_sfx";
-    case "clone_voice":
-    case "voice_cloning":
-      return "voice_clone";
-    case "design_voice":
-    case "voice_generation":
-      return "voice_design";
-    case "forced_alignment":
-    case "subtitle_alignment":
-    case "align_subtitles":
-      return "subtitle_align";
-    case "subtitle_translation":
-    case "translate_subtitles":
-    case "translate_subtitle":
-      return "subtitle_translate";
     default:
       return void 0;
   }
@@ -20378,6 +20318,36 @@ function editingTools() {
       })
     },
     {
+      name: "editing_project_create_from_edit_decisions",
+      description: "Create and persist a MediaEditingProject from OpenMontage-style edit_decisions plus an optional asset_manifest. This only creates project data; rendering remains a separate editing task or editing_video_compose call.",
+      inputSchema: objectSchema({
+        ...projectLocator,
+        editDecisions: { type: "object", additionalProperties: true, description: "Edit decision artifact with cuts, overlays, audio, subtitles, and render runtime metadata." },
+        edit_decisions: { type: "object", additionalProperties: true, description: "Alias for editDecisions." },
+        assetManifest: { type: "object", additionalProperties: true, description: "Asset manifest used to resolve edit_decisions source refs into MediaAssetDescriptor entries." },
+        asset_manifest: { type: "object", additionalProperties: true, description: "Alias for assetManifest." },
+        title: { type: "string" },
+        width: { type: "number" },
+        height: { type: "number" },
+        fps: { type: "number" },
+        background: { type: "string" },
+        defaultDurationMs: { type: "number" },
+        default_duration_ms: { type: "number" },
+        productionId: { type: ["string", "number"] },
+        production_id: { type: ["string", "number"] },
+        productionPath: { type: "string" },
+        production_path: { type: "string" },
+        targetKind: { type: "string" },
+        target_kind: { type: "string" },
+        targetRef: { type: "string" },
+        target_ref: { type: "string" },
+        scopeKind: { type: "string" },
+        scope_kind: { type: "string" },
+        scopeRef: { type: ["string", "number"] },
+        scope_ref: { type: ["string", "number"] }
+      })
+    },
+    {
       name: "editing_project_get",
       description: "Read a persisted MediaEditingProject by id from Editing Service.",
       inputSchema: objectSchema({ ...projectLocator, editingProjectId: { type: "string" }, editing_project_id: { type: "string" } })
@@ -20519,6 +20489,45 @@ function editingTools() {
       name: "editing_runtime_capabilities_get",
       description: "Read Electron mediaPipeline runtime capabilities such as FFmpeg availability, version, supported task types, project store, and local HLS preview support. This does not start a task.",
       inputSchema: objectSchema({})
+    },
+    {
+      name: "editing_video_compose",
+      description: "MovScript video_compose entrypoint: resolve an editing project or edit_decisions handoff, validate the MediaEditingProject timeline, and create a Media Pipeline render/HLS task. Supports movscript_media_pipeline/ffmpeg only; Remotion, HyperFrames, and external NLE runtimes return explicit blockers instead of silent fallback.",
+      inputSchema: objectSchema({
+        ...projectLocator,
+        ...editingProjectInput,
+        editingProjectId: { type: "string" },
+        editing_project_id: { type: "string" },
+        editDecisions: { type: "object", additionalProperties: true },
+        edit_decisions: { type: "object", additionalProperties: true },
+        assetManifest: { type: "object", additionalProperties: true },
+        asset_manifest: { type: "object", additionalProperties: true },
+        renderRuntime: { type: "string" },
+        render_runtime: { type: "string" },
+        format: { type: "string", description: "mp4 or hls. Defaults to mp4." },
+        output: { type: "object", additionalProperties: true },
+        importToResource: { type: "boolean" },
+        import_to_resource: { type: "boolean" },
+        title: { type: "string" },
+        width: { type: "number" },
+        height: { type: "number" },
+        fps: { type: "number" },
+        background: { type: "string" },
+        defaultDurationMs: { type: "number" },
+        default_duration_ms: { type: "number" },
+        productionId: { type: ["string", "number"] },
+        production_id: { type: ["string", "number"] },
+        productionPath: { type: "string" },
+        production_path: { type: "string" },
+        targetKind: { type: "string" },
+        target_kind: { type: "string" },
+        targetRef: { type: "string" },
+        target_ref: { type: "string" },
+        scopeKind: { type: "string" },
+        scope_kind: { type: "string" },
+        scopeRef: { type: ["string", "number"] },
+        scope_ref: { type: ["string", "number"] }
+      })
     },
     {
       name: "editing_task_render_create",
@@ -20762,6 +20771,9 @@ function generationTools() {
   ];
 }
 var GENERATION_CAPABILITIES = [
+  "image_generation",
+  "video_generation",
+  "audio_generation",
   "image",
   "image_edit",
   "video",
@@ -20800,7 +20812,7 @@ function generationCapabilityListTool() {
 function generationPrepareTool() {
   return {
     name: "generation_prepare",
-    description: "Prepare a MovScript generation request: validate capability/scope, list usable models, and compile content-unit prompts when scope is content_unit.",
+    description: "Prepare a MovScript generation request: validate capability/scope, list usable models, and compile content-unit prompts when scope is content_unit. Capability-family requests must include an explicit operation or generation_intent.operation.",
     inputSchema: generationRequestSchema(["capability"]),
     outputSchema: objectSchema(
       {
@@ -20820,7 +20832,7 @@ function generationPrepareTool() {
 function generationSubmitTool() {
   return {
     name: "generation_submit",
-    description: "Submit any MovScript generation job through one unified capability contract. Use scope=content_unit for candidate-producing image/video generation, otherwise outputs are RawResources until explicitly registered.",
+    description: "Submit any MovScript generation job through one unified capability contract. Capability-family submissions must include an explicit operation or generation_intent.operation; the tool never infers the operation from resource count. Use scope=content_unit for candidate-producing image/video generation, otherwise outputs are RawResources until explicitly registered.",
     inputSchema: generationRequestSchema(["capability"]),
     outputSchema: objectSchema(
       {
@@ -20957,12 +20969,65 @@ function generationResultRegisterTool() {
 function generationRequestSchema(required = []) {
   return objectSchema(
     {
-      capability: { type: "string", enum: [...GENERATION_CAPABILITIES], description: "MovScript generation capability." },
+      capability: { type: "string", enum: [...GENERATION_CAPABILITIES], description: "MovScript generation capability. Prefer generation families such as image_generation, video_generation, or audio_generation plus an explicit operation." },
       scope: { type: "string", enum: ["free", "content_unit", "asset", "storyboard", "keyframe"], description: "Generation target scope. content_unit image/video jobs create candidates on successful terminal polling." },
       prompt: { type: "string", minLength: 1 },
       title: { type: "string" },
       model_id: { type: "string" },
       provider_id: { type: "string" },
+      operation: {
+        type: "string",
+        enum: [
+          "prompt_to_image",
+          "reference_to_image",
+          "image_to_image",
+          "prompt_to_video",
+          "reference_to_video",
+          "image_to_video",
+          "first_frame_to_video",
+          "first_last_frame_to_video",
+          "video_to_video",
+          "video_edit",
+          "video_extend",
+          "video_inpaint",
+          "object_insert",
+          "object_remove",
+          "motion_control",
+          "lip_sync",
+          "video_upscale",
+          "tts",
+          "stt",
+          "speech_translate",
+          "audio_chat",
+          "voice_clone",
+          "voice_design",
+          "dubbing",
+          "music",
+          "sfx",
+          "speech_enhancement"
+        ],
+        description: "Explicit model operation intent. Required for image_generation, video_generation, and audio_generation; agents must choose this instead of relying on resource count, route, provider, or adapter details."
+      },
+      model_operation: { type: "string", description: "Alias for operation." },
+      generation_intent: {
+        type: "object",
+        additionalProperties: true,
+        description: 'Explicit capability intent, e.g. {capability:"video_generation",operation:"first_last_frame_to_video",reference_assets:[...]}'
+      },
+      reference_assets: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: true,
+          properties: {
+            role: { type: "string", enum: ["generic", "first_frame", "last_frame", "reference_image", "reference_video", "reference_audio"] },
+            media_type: { type: "string", enum: ["image", "video", "audio"] },
+            resource_id: { type: "number", minimum: 1 }
+          },
+          required: ["role"]
+        },
+        description: "Semantic roles for input/reference resources. Use reference_image/reference_video/reference_audio for omni reference video, and first_frame/last_frame for first-last video generation."
+      },
       parameter_mode: { type: "string", enum: ["compatible", "strict"] },
       param_mode: { type: "string", enum: ["compatible", "strict"] },
       projectDir: { type: "string", description: "MovScript project source directory." },
@@ -21008,11 +21073,26 @@ function modelTools() {
   return [
     {
       name: "generation_model_list",
-      description: "List enabled generation and speech models for an AI runtime capability. Use text, image, image_edit, video, video_i2v, video_v2v, audio_tts, audio_transcribe, audio_translate, audio_music, audio_sfx, audio_chat, voice_clone, voice_design, subtitle_align, or subtitle_translate. Timeline render belongs to editing_* and Electron mediaPipeline, not generation model capabilities. The result includes public model_id values plus model_contracts with contract_version 1, capabilities, input_requirements, supported_param_keys, supported_params, and params_schema rule counts so the agent can choose a valid model before calling generation provider tools.",
+      description: "List enabled generation and speech models for an AI runtime capability and optional model operation intent. Use capability plus operation for family capabilities, e.g. video_generation + first_last_frame_to_video or audio_generation + music. The result exposes public model contracts only; provider routes, adapters, and endpoints are Admin/debug details.",
       inputSchema: objectSchema(
         {
-          capability: { type: "string", description: "Optional AI capability filter such as text, image, image_edit, video, video_i2v, video_v2v, audio_tts, audio_transcribe, audio_translate, audio_music, audio_sfx, audio_chat, voice_clone, voice_design, subtitle_align, or subtitle_translate." },
-          provider_variants: { type: "boolean", description: "When true, include provider-specific model variants." },
+          capability: { type: "string", description: "Optional AI capability family such as text_generation, image_generation, video_generation, audio_generation, or an execution capability such as audio_music. Family capabilities should pair this with operation." },
+          operation: { type: "string", description: "Optional model operation intent such as prompt_to_image, image_to_image, first_last_frame_to_video, music, sfx, tts, or stt. If capability is omitted, known operations imply image_generation, video_generation, or audio_generation." },
+          model_operation: { type: "string", description: "Alias for operation." },
+          reference_assets: {
+            type: "array",
+            description: "Optional reference asset intent used to narrow route-capable models without exposing route details.",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["role"],
+              properties: {
+                role: { type: "string", description: "Reference role such as generic, reference_image, reference_video, reference_audio, first_frame, or last_frame." },
+                media_type: { type: "string", enum: ["image", "video", "audio"], description: "Optional media type hint." }
+              }
+            }
+          },
+          provider_variants: { type: "boolean", description: "Admin/debug hint for backend querying; returned records remain public model contracts without route details." },
           include_provider_variants: { type: "boolean", description: "Alias for provider_variants." }
         }
       ),
@@ -21080,7 +21160,7 @@ function modelTools() {
               }
             }
           },
-          models: { type: "array" }
+          models: { type: "array", description: "Compatibility alias for model_contracts; contains public model contracts, not raw provider route records." }
         },
         ["count", "queries", "model_contracts", "models"]
       )
@@ -26745,35 +26825,15 @@ function pruneUndefined12(value) {
   return output;
 }
 
-// ../../packages/core/dist/chunk-I75IWZ5Q.js
-function resolveGenerationJobTypeFromResourceCount(input) {
-  const hasInputResource = positiveResourceCount(input.inputResourceCount) > 0;
-  if (input.outputType === "image") return hasInputResource ? "image_edit" : "image";
-  if (input.outputType === "video") {
-    const preferredVideoJobType = generationPreferredVideoJobType(input.preferredVideoJobType);
-    if (preferredVideoJobType) return preferredVideoJobType;
-    return hasInputResource ? "video_i2v" : "video";
-  }
-  if (input.outputType === "audio") return "audio_tts";
-  return input.outputType;
-}
-function generationPreferredVideoJobType(value) {
-  return value === "video_i2v" || value === "video_v2v" ? value : void 0;
-}
-function positiveResourceCount(value) {
-  return Math.max(0, Math.trunc(Number(value) || 0));
-}
+// ../../packages/core/dist/chunk-KJKRBRBX.js
 function buildContentUnitGenerationRequest(input) {
   const promptText = compiledContentUnitGenerationPromptText(input.compiledPrompt);
   const inputResourceIds = positiveIntegerIds([
     ...compiledContentUnitGenerationPromptResourceIds(input.compiledPrompt),
     ...input.additionalInputResourceIds ?? []
   ]);
-  const jobType = resolveGenerationJobTypeFromResourceCount({
-    outputType: input.outputKind,
-    inputResourceCount: inputResourceIds.length,
-    preferredVideoJobType: input.preferredVideoJobType
-  });
+  const generationIntent = requiredContentUnitGenerationIntent(input.generationIntent);
+  const jobType = generationExecutionJobTypeForIntent(generationIntent, input.outputKind);
   const params = contentUnitGenerationParams(input.outputKind, input.compiledPrompt, input.params);
   const promptSnapshot = buildContentUnitGenerationPromptSnapshot({
     contentUnitId: input.contentUnitId,
@@ -26790,10 +26850,46 @@ function buildContentUnitGenerationRequest(input) {
     promptText,
     inputResourceIds,
     jobType,
+    generationIntent,
     featureKey: contentUnitGenerationFeatureKey(input.outputKind),
     params,
     promptSnapshot
   };
+}
+function generationExecutionJobTypeForIntent(intent, fallbackOutputKind) {
+  switch (intent?.capability?.trim()) {
+    case "video_generation":
+      return "video";
+    case "image_generation":
+      return intent.operation === "image_to_image" ? "image_edit" : "image";
+    case "audio_generation":
+      switch (intent.operation?.trim()) {
+        case "music":
+          return "audio_music";
+        case "sfx":
+          return "audio_sfx";
+        case "stt":
+          return "audio_transcribe";
+        case "speech_translate":
+          return "audio_translate";
+        case "audio_chat":
+          return "audio_chat";
+        case "voice_clone":
+          return "voice_clone";
+        case "voice_design":
+          return "voice_design";
+        default:
+          return "audio_tts";
+      }
+    default:
+      return fallbackOutputKind;
+  }
+}
+function requiredContentUnitGenerationIntent(intent) {
+  if (!intent?.capability?.trim() || !intent.operation?.trim()) {
+    throw new Error("generationIntent with capability and operation is required for content-unit generation");
+  }
+  return intent;
 }
 function buildContentUnitGenerationOutputCandidate(input) {
   const jobId = contentUnitGenerationJobId(input.job);
@@ -26961,7 +27057,7 @@ function newLocalServerId() {
   return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// ../../packages/core/dist/chunk-VRENUJX3.js
+// ../../packages/core/dist/chunk-TGVQFAPY.js
 function buildContentSourceWorkspaceData(input) {
   const productions = input.productions;
   const segments = input.segments;
@@ -27841,6 +27937,8 @@ function previewCandidatesForContentUnit(contentUnitId, candidates, selection) {
       resourceKind: stringField12(output?.kind),
       artifactRef: stringField12(output?.artifact_ref),
       status: stringField12(candidate.status),
+      decisionStatus: candidateDecisionStatus(candidate),
+      decisionReason: candidateDecisionReason(candidate),
       source: stringField12(candidate.source),
       producer: candidate.producer,
       outputs: candidate.outputs,
@@ -27864,6 +27962,8 @@ function previewAssetCandidatesForContentUnit(contentUnitId, candidates, selecti
       resourceKind: stringField12(output?.kind),
       artifactRef: stringField12(output?.artifact_ref),
       status: stringField12(candidate.status),
+      decisionStatus: candidateDecisionStatus(candidate),
+      decisionReason: candidateDecisionReason(candidate),
       source: stringField12(candidate.source),
       producer: candidate.producer,
       outputs: candidate.outputs,
@@ -28077,12 +28177,15 @@ function candidateInputHash(candidate, contentUnitId) {
 }
 function candidateNote(candidate) {
   const output = firstCandidateOutput(candidate);
-  const candidateRecord = candidate;
-  const decisionStatus = stringField12(candidateRecord.decision_status);
-  const decisionReason = stringField12(candidateRecord.decision_reason);
-  if (decisionStatus && decisionReason) return `${decisionStatus}: ${decisionReason}`;
-  if (decisionStatus) return decisionStatus;
   return stringField12(candidate.prompt_snapshot?.note) ?? stringField12(candidate.prompt_snapshot?.summary) ?? stringField12(output?.mime_type) ?? stringField12(candidate.status) ?? "Workspace runtime candidate.";
+}
+function candidateDecisionStatus(candidate) {
+  const record = candidate;
+  return stringField12(record.decision_status) ?? stringField12(record.decisionStatus);
+}
+function candidateDecisionReason(candidate) {
+  const record = candidate;
+  return stringField12(record.decision_reason) ?? stringField12(record.decisionReason);
 }
 function firstCandidateOutput(candidate) {
   return arrayField4(candidate.outputs).filter(isRecord12)[0];
@@ -28559,7 +28662,7 @@ function numberValue3(value) {
 import { readFile } from "fs/promises";
 import { join as join5 } from "path";
 
-// ../../packages/editing/dist/chunk-BRVVQHU3.js
+// ../../packages/editing/dist/chunk-7CZD53CL.js
 var MediaEditingProjectService = class {
   project;
   generatedId = 0;
@@ -29206,6 +29309,557 @@ function clone(value) {
 function assertNever(value) {
   throw new Error(`Unexpected media editing value: ${JSON.stringify(value)}`);
 }
+function createMediaEditingProjectFromEditDecisions(editDecisions, options = {}) {
+  const now = options.now ?? (/* @__PURE__ */ new Date()).toISOString();
+  const projectId = options.projectId ?? composeProjectId(options, editDecisions);
+  const assets = new ComposeAssetRegistry(options.assetManifest);
+  const timeline = buildMediaTimelineRecipeFromEditDecisions(editDecisions, assets, options);
+  const inputResourceIds = [...new Set(assets.assets.flatMap((asset) => asset.resourceId === void 0 ? [] : [asset.resourceId]))].sort((left, right) => left - right);
+  return {
+    version: 1,
+    id: options.id ?? `editing_project_compose_${safeId2(options.scopeRef ?? options.targetRef ?? options.productionId ?? "draft")}`,
+    projectId,
+    title: options.title ?? `Video compose ${String(options.targetRef ?? options.scopeRef ?? options.productionId ?? "draft")}`,
+    source: {
+      kind: "edit_decisions",
+      targetKind: options.targetKind ?? "timeline_assembly",
+      targetRef: options.targetRef ?? `edit_decisions:${safeId2(options.scopeKind ?? "project")}:${safeId2(options.scopeRef ?? projectId)}`,
+      scopeKind: options.scopeKind,
+      scopeRef: options.scopeRef === void 0 ? void 0 : String(options.scopeRef),
+      ...options.productionId !== void 0 ? { productionId: String(options.productionId) } : {}
+    },
+    timeline,
+    assets: { assets: assets.assets },
+    provenance: {
+      sourceHash: options.sourceHash,
+      inputResourceIds,
+      targetKind: options.targetKind ?? "timeline_assembly",
+      targetRef: options.targetRef,
+      scopeKind: options.scopeKind,
+      scopeRef: options.scopeRef === void 0 ? void 0 : String(options.scopeRef),
+      productionPath: options.productionPath
+    },
+    createdAt: now,
+    updatedAt: now,
+    revision: 1
+  };
+}
+function buildMediaTimelineRecipeFromEditDecisions(editDecisions, assets, options) {
+  const defaultDurationMs = options.defaultDurationMs ?? 4e3;
+  const tracks = new TrackRegistry();
+  let primaryCursorMs = 0;
+  for (const [index, cut] of arrayValue2(editDecisions.cuts).entries()) {
+    const layer = stringField26(cut.layer) ?? "primary";
+    const track = videoTrackForLayer(tracks, layer);
+    const asset = assets.resolve(assetRef(cut), inferAssetTypeFromRecord(cut, "video"));
+    const sourceStartMs = secondsToMs(cut.source_in_seconds ?? cut.source_in_sec ?? cut.source_start_seconds ?? cut.source_start_sec ?? cut.in_seconds ?? cut.in_sec) ?? 0;
+    const sourceEndMs = secondsToMs(cut.source_out_seconds ?? cut.source_out_sec ?? cut.source_end_seconds ?? cut.source_end_sec ?? cut.out_seconds ?? cut.out_sec);
+    const durationMs = secondsToMs(cut.duration_seconds ?? cut.duration_sec) ?? durationFromRange(sourceStartMs, sourceEndMs) ?? defaultDurationMs;
+    const explicitTimelineStartMs = secondsToMs(cut.timeline_start_seconds ?? cut.timeline_start_sec ?? cut.start_seconds ?? cut.start_sec);
+    const timelineStartMs = explicitTimelineStartMs ?? (layer === "primary" ? primaryCursorMs : 0);
+    const transform = recordValue(cut.transform);
+    const clip = {
+      id: stringField26(cut.id) ?? `cut_${index + 1}`,
+      assetType: asset?.assetType ?? inferAssetTypeFromRecord(cut, "video"),
+      asset,
+      timelineStartMs,
+      durationMs,
+      sourceStartMs,
+      sourceEndMs: sourceEndMs ?? sourceStartMs + durationMs,
+      speed: numberField23(cut.speed),
+      volume: normalizeMediaClipVolumePercent(numberField23(cut.volume)) ?? 100,
+      muted: false,
+      fit: "cover",
+      opacity: numberField23(transform?.opacity ?? cut.opacity) ?? 1,
+      position: stringField26(transform?.position ?? cut.position),
+      xPercent: numberField23(transform?.x_percent ?? transform?.xPercent ?? cut.x_percent ?? cut.xPercent),
+      yPercent: numberField23(transform?.y_percent ?? transform?.yPercent ?? cut.y_percent ?? cut.yPercent),
+      scale: numberField23(transform?.scale ?? cut.scale),
+      crop: cropSpec(transform?.crop ?? cut.crop),
+      ...transitionFields(cut),
+      metadata: {
+        movscript: {
+          kind: "edit_decision_cut",
+          layer,
+          reason: stringField26(cut.reason),
+          source: assetRef(cut),
+          renderRuntime: stringField26(editDecisions.render_runtime ?? editDecisions.renderRuntime)
+        },
+        ...cut.metadata ?? {}
+      }
+    };
+    track.clips.push(clip);
+    if (layer === "primary" && explicitTimelineStartMs === void 0) primaryCursorMs = timelineStartMs + durationMs;
+  }
+  const primaryDurationMs = Math.max(primaryCursorMs, durationFromTracks2(tracks.all()));
+  addOverlayTracks(editDecisions, tracks, assets, primaryDurationMs, defaultDurationMs);
+  addAudioTracks(editDecisions, tracks, assets, primaryDurationMs, defaultDurationMs);
+  addSubtitleTracks(editDecisions, tracks, assets, primaryDurationMs, defaultDurationMs);
+  const finalTracks = tracks.all();
+  return {
+    version: 1,
+    id: options.id ? `timeline_${safeId2(options.id)}` : `timeline_compose_${safeId2(options.scopeRef ?? options.targetRef ?? options.productionId ?? "draft")}`,
+    fps: options.fps ?? 30,
+    width: options.width ?? 1920,
+    height: options.height ?? 1080,
+    background: options.background ?? "#000000",
+    durationMs: durationFromTracks2(finalTracks),
+    tracks: finalTracks,
+    metadata: {
+      schema: "movscript.video_compose_timeline.v1",
+      rendererFamily: stringField26(editDecisions.renderer_family ?? editDecisions.rendererFamily),
+      renderRuntime: stringField26(editDecisions.render_runtime ?? editDecisions.renderRuntime),
+      compositionMode: stringField26(editDecisions.composition_mode ?? editDecisions.compositionMode),
+      targetKind: options.targetKind,
+      targetRef: options.targetRef,
+      scopeKind: options.scopeKind,
+      scopeRef: options.scopeRef,
+      ...editDecisions.metadata ? { editDecisionMetadata: editDecisions.metadata } : {}
+    }
+  };
+}
+function addOverlayTracks(editDecisions, tracks, assets, timelineDurationMs, defaultDurationMs) {
+  const overlayTrack = tracks.track("track_overlay_visual", "video", 20, "overlay");
+  for (const [index, overlay] of arrayValue2(editDecisions.overlays).entries()) {
+    const asset = assets.resolve(assetRef(overlay), inferAssetTypeFromRecord(overlay, "image"));
+    const startMs = secondsToMs(overlay.start_seconds ?? overlay.start_sec) ?? 0;
+    const durationMs = secondsToMs(overlay.duration_seconds ?? overlay.duration_sec) ?? durationFromRange(startMs, secondsToMs(overlay.end_seconds ?? overlay.end_sec)) ?? Math.max(defaultDurationMs, timelineDurationMs - startMs);
+    overlayTrack.clips.push({
+      id: stringField26(overlay.id) ?? `overlay_${index + 1}`,
+      assetType: asset?.assetType ?? inferAssetTypeFromRecord(overlay, "image"),
+      asset,
+      timelineStartMs: startMs,
+      durationMs,
+      sourceStartMs: secondsToMs(overlay.source_start_seconds ?? overlay.source_start_sec) ?? 0,
+      sourceEndMs: secondsToMs(overlay.source_end_seconds ?? overlay.source_end_sec),
+      fit: "contain",
+      opacity: numberField23(overlay.opacity) ?? 1,
+      position: stringField26(overlay.position),
+      xPercent: numberField23(overlay.x_percent ?? overlay.xPercent),
+      yPercent: numberField23(overlay.y_percent ?? overlay.yPercent),
+      scale: numberField23(overlay.scale),
+      metadata: {
+        movscript: {
+          kind: "edit_decision_overlay",
+          source: assetRef(overlay),
+          animation: overlay.animation
+        },
+        ...overlay.metadata ?? {}
+      }
+    });
+  }
+}
+function addAudioTracks(editDecisions, tracks, assets, timelineDurationMs, defaultDurationMs) {
+  const audio = recordValue(editDecisions.audio);
+  if (!audio) return;
+  const narration = recordValue(audio.narration);
+  const narrationSegments = Array.isArray(audio.narration) ? audio.narration : Array.isArray(narration?.segments) ? narration.segments : [];
+  addAudioSegments(tracks.track("track_audio_narration", "audio", 30, "narration"), narrationSegments, assets, "narration", defaultDurationMs);
+  const music = recordValue(audio.music);
+  if (music) {
+    const track = tracks.track("track_audio_music", "audio", 10, "music");
+    const asset = assets.resolve(assetRef(music), "audio");
+    const startMs = secondsToMs(music.start_seconds ?? music.start_sec) ?? 0;
+    const durationMs = secondsToMs(music.duration_seconds ?? music.duration_sec) ?? durationFromRange(startMs, secondsToMs(music.end_seconds ?? music.end_sec)) ?? Math.max(defaultDurationMs, timelineDurationMs - startMs);
+    track.clips.push(audioClipFromLayer({
+      layer: music,
+      id: "music_bed",
+      kind: "music",
+      asset,
+      startMs,
+      durationMs
+    }));
+  }
+  addAudioSegments(
+    tracks.track("track_audio_sfx", "audio", 40, "sfx"),
+    arrayValue2(audio.sfx),
+    assets,
+    "sfx",
+    defaultDurationMs
+  );
+}
+function addAudioSegments(track, segments, assets, kind, defaultDurationMs) {
+  for (const [index, segment] of segments.entries()) {
+    const record = recordValue(segment);
+    if (!record) continue;
+    const asset = assets.resolve(assetRef(record), "audio");
+    const startMs = secondsToMs(record.start_seconds ?? record.start_sec) ?? 0;
+    const durationMs = secondsToMs(record.duration_seconds ?? record.duration_sec) ?? durationFromRange(startMs, secondsToMs(record.end_seconds ?? record.end_sec)) ?? defaultDurationMs;
+    track.clips.push(audioClipFromLayer({
+      layer: record,
+      id: stringField26(record.id) ?? `${kind}_${index + 1}`,
+      kind,
+      asset,
+      startMs,
+      durationMs
+    }));
+  }
+}
+function audioClipFromLayer(input) {
+  const sourceStartMs = secondsToMs(input.layer.source_start_seconds ?? input.layer.source_start_sec) ?? 0;
+  return {
+    id: input.id,
+    assetType: "audio",
+    asset: input.asset,
+    timelineStartMs: input.startMs,
+    durationMs: input.durationMs,
+    sourceStartMs,
+    sourceEndMs: secondsToMs(input.layer.source_end_seconds ?? input.layer.source_end_sec) ?? sourceStartMs + input.durationMs,
+    volume: normalizeMediaClipVolumePercent(numberField23(input.layer.volume)) ?? 100,
+    fadeInMs: secondsToMs(input.layer.fade_in_seconds ?? input.layer.fade_in ?? input.layer.fadeIn),
+    fadeOutMs: secondsToMs(input.layer.fade_out_seconds ?? input.layer.fade_out ?? input.layer.fadeOut),
+    muted: false,
+    metadata: {
+      movscript: {
+        kind: `edit_decision_${input.kind}`,
+        source: assetRef(input.layer),
+        ducking: input.layer.ducking
+      },
+      ...recordValue(input.layer.metadata) ?? {}
+    }
+  };
+}
+function addSubtitleTracks(editDecisions, tracks, assets, timelineDurationMs, defaultDurationMs) {
+  const subtitles = recordValue(editDecisions.subtitles);
+  if (!subtitles || subtitles.enabled === false) return;
+  const track = tracks.track("track_subtitles", "subtitle", 50, "subtitles");
+  const segments = arrayValue2(subtitles.segments).length ? arrayValue2(subtitles.segments) : arrayValue2(subtitles.captions);
+  const style = subtitleTextStyle(subtitles);
+  for (const [index, item] of segments.entries()) {
+    const segment = recordValue(item);
+    if (!segment) continue;
+    const startMs = secondsToMs(segment.start_seconds ?? segment.start_sec) ?? 0;
+    const durationMs = secondsToMs(segment.duration_seconds ?? segment.duration_sec) ?? durationFromRange(startMs, secondsToMs(segment.end_seconds ?? segment.end_sec)) ?? defaultDurationMs;
+    track.clips.push({
+      id: stringField26(segment.id) ?? `subtitle_${index + 1}`,
+      assetType: "text",
+      timelineStartMs: startMs,
+      durationMs,
+      text: {
+        ...style,
+        content: stringField26(segment.text ?? segment.content) ?? ""
+      },
+      subtitle: {
+        burnIn: true,
+        style
+      },
+      metadata: {
+        movscript: {
+          kind: "edit_decision_subtitle_segment"
+        }
+      }
+    });
+  }
+  const sourceRef = assetRef(subtitles);
+  if (sourceRef !== void 0 && !isGeneratedSubtitleSource(sourceRef)) {
+    const asset = assets.resolve(sourceRef, "subtitle");
+    track.clips.push({
+      id: "subtitle_file",
+      assetType: "subtitle",
+      asset,
+      timelineStartMs: 0,
+      durationMs: Math.max(defaultDurationMs, timelineDurationMs),
+      subtitle: {
+        resourceId: asset?.resourceId,
+        format: subtitleFormat(subtitles),
+        burnIn: true,
+        renderer: subtitleRenderer(subtitles),
+        style
+      },
+      metadata: {
+        movscript: {
+          kind: "edit_decision_subtitle_file",
+          source: sourceRef
+        }
+      }
+    });
+  }
+}
+var TrackRegistry = class {
+  tracks = /* @__PURE__ */ new Map();
+  track(id, type, zIndex, name) {
+    const existing = this.tracks.get(id);
+    if (existing) return existing;
+    const track = {
+      id,
+      type,
+      zIndex,
+      name,
+      muted: false,
+      locked: false,
+      clips: []
+    };
+    this.tracks.set(id, track);
+    return track;
+  }
+  all() {
+    return [...this.tracks.values()].map((track) => ({
+      ...track,
+      clips: [...track.clips].sort((left, right) => left.timelineStartMs - right.timelineStartMs || left.id.localeCompare(right.id))
+    })).filter((track) => track.clips.length > 0).sort((left, right) => left.zIndex - right.zIndex || left.id.localeCompare(right.id));
+  }
+};
+var ComposeAssetRegistry = class {
+  byRef = /* @__PURE__ */ new Map();
+  byId = /* @__PURE__ */ new Map();
+  constructor(manifest) {
+    for (const entry of arrayValue2(manifest?.assets)) {
+      const asset = this.assetFromRecord(entry);
+      if (!asset) continue;
+      this.register(asset, assetRefsFromRecord(entry));
+    }
+  }
+  get assets() {
+    return [...this.byId.values()].sort((left, right) => left.id.localeCompare(right.id));
+  }
+  resolve(ref, preferredType) {
+    const key = refKey(ref);
+    if (key && this.byRef.has(key)) return this.byRef.get(key);
+    const record = recordValue(ref);
+    const asset = record ? this.assetFromRecord(record, preferredType) : this.assetFromPrimitive(ref, preferredType);
+    if (!asset) return void 0;
+    return this.register(asset, key ? [key] : []);
+  }
+  register(asset, refs) {
+    let next = asset;
+    let index = 1;
+    while (this.byId.has(next.id)) {
+      const existing = this.byId.get(next.id);
+      if (sameAsset(existing, next)) {
+        next = existing;
+        break;
+      }
+      index += 1;
+      next = { ...asset, id: `${asset.id}_${index}` };
+    }
+    this.byId.set(next.id, next);
+    for (const ref of refs) this.byRef.set(ref, next);
+    this.byRef.set(next.id, next);
+    if (next.resourceId !== void 0) this.byRef.set(String(next.resourceId), next);
+    if (next.localPath) this.byRef.set(next.localPath, next);
+    return next;
+  }
+  assetFromRecord(record, preferredType = "video") {
+    const resourceId = integerField(record.resourceId ?? record.resource_id);
+    const localPath = stringField26(record.localPath ?? record.local_path ?? record.path ?? record.file_path ?? record.filePath ?? record.src);
+    const idSource = stringField26(record.mediaAssetId ?? record.media_asset_id ?? record.id ?? record.asset_id ?? record.assetId) ?? (resourceId !== void 0 ? `resource_${resourceId}` : void 0) ?? localPath;
+    if (!idSource && resourceId === void 0 && !localPath) return void 0;
+    const assetType = inferAssetTypeFromRecord(record, preferredType);
+    return {
+      id: `asset_${safeId2(idSource ?? `${assetType}_${this.byId.size + 1}`)}`,
+      sourceKind: resourceId !== void 0 ? "backend_resource" : "local_file",
+      assetType,
+      ...resourceId !== void 0 ? { resourceId } : {},
+      ...localPath ? { localPath } : {},
+      ...stringField26(record.mimeType ?? record.mime_type) ? { mimeType: stringField26(record.mimeType ?? record.mime_type) } : {},
+      ...stringField26(record.checksum) ? { checksum: stringField26(record.checksum) } : {},
+      label: stringField26(record.label ?? record.title ?? record.name ?? record.id ?? record.asset_id ?? localPath),
+      metadata: {
+        movscript: {
+          kind: "edit_decision_asset_manifest_entry",
+          manifest: record
+        }
+      }
+    };
+  }
+  assetFromPrimitive(ref, preferredType) {
+    const resourceId = integerField(ref);
+    if (resourceId !== void 0) {
+      return {
+        id: `asset_resource_${resourceId}`,
+        sourceKind: "backend_resource",
+        assetType: preferredType,
+        resourceId,
+        label: `resource ${resourceId}`
+      };
+    }
+    const value = stringField26(ref);
+    if (!value) return void 0;
+    const parsedResourceId = resourceIdFromString(value);
+    if (parsedResourceId !== void 0) {
+      return {
+        id: `asset_resource_${parsedResourceId}`,
+        sourceKind: "backend_resource",
+        assetType: preferredType,
+        resourceId: parsedResourceId,
+        label: value
+      };
+    }
+    return {
+      id: `asset_${safeId2(value)}`,
+      sourceKind: "local_file",
+      assetType: assetTypeFromPath(value) ?? preferredType,
+      localPath: value,
+      label: value.split("/").pop() ?? value,
+      metadata: {
+        movscript: {
+          kind: "edit_decision_inline_asset_ref",
+          ref: value
+        }
+      }
+    };
+  }
+};
+function videoTrackForLayer(tracks, layer) {
+  if (layer === "background") return tracks.track("track_background_video", "video", -10, "background");
+  if (layer === "overlay") return tracks.track("track_overlay_video", "video", 20, "overlay");
+  return tracks.track("track_primary_video", "video", 0, "primary");
+}
+function transitionFields(record) {
+  const transitionIn = stringField26(record.transition_in ?? record.transitionIn);
+  const transitionOut = stringField26(record.transition_out ?? record.transitionOut);
+  const transition = stringField26(record.transition);
+  const durationMs = secondsToMs(record.transition_duration ?? record.transitionDuration);
+  return {
+    ...transitionIn === "fade" ? { fadeInMs: durationMs } : {},
+    ...transitionOut === "fade" ? { fadeOutMs: durationMs } : {},
+    ...transition || transitionIn || transitionOut ? { transition: { type: transition ?? transitionIn ?? transitionOut ?? "fade", durationMs } } : {}
+  };
+}
+function cropSpec(value) {
+  const crop = recordValue(value);
+  if (!crop) return void 0;
+  return {
+    topPercent: numberField23(crop.topPercent ?? crop.top_percent ?? crop.top),
+    rightPercent: numberField23(crop.rightPercent ?? crop.right_percent ?? crop.right),
+    bottomPercent: numberField23(crop.bottomPercent ?? crop.bottom_percent ?? crop.bottom),
+    leftPercent: numberField23(crop.leftPercent ?? crop.left_percent ?? crop.left)
+  };
+}
+function subtitleTextStyle(subtitles) {
+  const style = recordValue(subtitles.style) ?? {};
+  return {
+    content: "",
+    fontSize: numberField23(style.fontSize ?? style.font_size ?? subtitles.fontSize ?? subtitles.font_size) ?? 42,
+    fontFamily: stringField26(style.fontFamily ?? style.font_family ?? subtitles.font) ?? "Inter",
+    color: stringField26(style.color ?? style.text_color ?? subtitles.color ?? subtitles.text_color) ?? "#ffffff",
+    backgroundColor: stringField26(style.backgroundColor ?? style.background_color ?? subtitles.background_color ?? subtitles.background),
+    align: textAlignValue(style.align ?? subtitles.align) ?? "center",
+    position: stringField26(style.position ?? subtitles.position) ?? "bottom"
+  };
+}
+function subtitleFormat(subtitles) {
+  const format = stringField26(subtitles.format)?.toLowerCase();
+  if (format === "srt" || format === "vtt" || format === "ass" || format === "ssa") return format;
+  return void 0;
+}
+function subtitleRenderer(subtitles) {
+  const renderer = stringField26(subtitles.renderer)?.toLowerCase();
+  if (renderer === "drawtext" || renderer === "ass" || renderer === "libass") return renderer;
+  return void 0;
+}
+function textAlignValue(value) {
+  const normalized = stringField26(value)?.toLowerCase();
+  if (normalized === "left" || normalized === "center" || normalized === "right") return normalized;
+  return void 0;
+}
+function assetRef(record) {
+  return record.source ?? record.asset_id ?? record.assetId ?? record.resource_id ?? record.resourceId;
+}
+function assetRefsFromRecord(record) {
+  return [
+    record.id,
+    record.asset_id,
+    record.assetId,
+    record.ref,
+    record.name,
+    record.path,
+    record.localPath,
+    record.local_path,
+    record.file_path,
+    record.filePath,
+    record.resource_id,
+    record.resourceId
+  ].flatMap((value) => {
+    const key = refKey(value);
+    return key ? [key] : [];
+  });
+}
+function inferAssetTypeFromRecord(record, fallback) {
+  const declared = stringField26(record.assetType ?? record.asset_type ?? record.type ?? record.kind ?? record.output_kind ?? record.media_type)?.toLowerCase();
+  if (declared?.includes("subtitle")) return "subtitle";
+  if (declared?.includes("audio") || declared?.includes("music") || declared?.includes("voice") || declared?.includes("sfx")) return "audio";
+  if (declared?.includes("image") || declared?.includes("photo")) return "image";
+  if (declared?.includes("text") || declared?.includes("caption")) return "text";
+  if (declared?.includes("video") || declared?.includes("clip")) return "video";
+  const mime = stringField26(record.mimeType ?? record.mime_type)?.toLowerCase();
+  if (mime?.startsWith("audio/")) return "audio";
+  if (mime?.startsWith("image/")) return "image";
+  if (mime?.startsWith("text/") || mime?.includes("subrip") || mime?.includes("vtt")) return "subtitle";
+  const path = stringField26(record.localPath ?? record.local_path ?? record.path ?? record.file_path ?? record.filePath ?? record.src);
+  return assetTypeFromPath(path) ?? fallback;
+}
+function assetTypeFromPath(path) {
+  const normalized = path?.split("?")[0]?.toLowerCase();
+  if (!normalized) return void 0;
+  if (/\.(wav|mp3|m4a|aac|flac|ogg)$/.test(normalized)) return "audio";
+  if (/\.(png|jpg|jpeg|webp|gif|avif)$/.test(normalized)) return "image";
+  if (/\.(srt|vtt|ass|ssa)$/.test(normalized)) return "subtitle";
+  if (/\.(txt|md)$/.test(normalized)) return "text";
+  if (/\.(mp4|mov|m4v|webm|mkv|avi)$/.test(normalized)) return "video";
+  return void 0;
+}
+function composeProjectId(options, editDecisions) {
+  if (options.productionId !== void 0) return `movscript_production_${safeId2(options.productionId)}`;
+  if (options.scopeKind && options.scopeRef !== void 0) return `movscript_${safeId2(options.scopeKind)}_${safeId2(options.scopeRef)}`;
+  return `movscript_video_compose_${safeId2(editDecisions.version ?? "draft")}`;
+}
+function durationFromTracks2(tracks) {
+  return Math.max(0, ...tracks.flatMap((track) => track.clips.map((clip) => clip.timelineStartMs + clip.durationMs)));
+}
+function durationFromRange(startMs, endMs) {
+  if (startMs === void 0 || endMs === void 0 || endMs <= startMs) return void 0;
+  return endMs - startMs;
+}
+function secondsToMs(value) {
+  const seconds = numberField23(value);
+  return seconds === void 0 ? void 0 : Math.max(0, Math.round(seconds * 1e3));
+}
+function numberField23(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return void 0;
+}
+function integerField(value) {
+  const number = numberField23(value);
+  if (number === void 0 || !Number.isInteger(number) || number <= 0) return void 0;
+  return number;
+}
+function resourceIdFromString(value) {
+  const match = value.match(/^(?:resource|raw_resource|backend_resource)[:_](\d+)$/i);
+  if (!match) return void 0;
+  return integerField(match[1]);
+}
+function stringField26(value) {
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : void 0;
+}
+function recordValue(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return void 0;
+  return value;
+}
+function arrayValue2(value) {
+  return Array.isArray(value) ? value : [];
+}
+function refKey(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return stringField26(value);
+}
+function safeId2(value) {
+  const raw = String(value ?? "draft").trim() || "draft";
+  return raw.replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "") || "draft";
+}
+function sameAsset(left, right) {
+  if (!left) return false;
+  if (left.resourceId !== void 0 && right.resourceId !== void 0) return left.resourceId === right.resourceId;
+  if (left.localPath && right.localPath) return left.localPath === right.localPath;
+  return left.id === right.id;
+}
+function isGeneratedSubtitleSource(value) {
+  const normalized = stringField26(value)?.toLowerCase();
+  return normalized === "script" || normalized === "auto" || normalized === "captions" || normalized === "segments";
+}
 
 // ../../packages/editing/dist/index.js
 var defaultFetch = globalThis.fetch;
@@ -29517,7 +30171,7 @@ function productionTimelineFromPreview(input) {
       const resourceId = numberField5(output?.resource_id);
       if (resourceId !== void 0 && (stringField14(output?.kind) ?? "video") === "video") {
         return [{
-          id: `production_clip_${safeId2(String(item.entity.id ?? index))}_${safeId2(String(contentUnitId))}`,
+          id: `production_clip_${safeId3(String(item.entity.id ?? index))}_${safeId3(String(contentUnitId))}`,
           title: previewTimelineItemTitle(item) ?? stringField14(item.entity.id) ?? `Scene ${index + 1}`,
           sceneMomentId: item.entity.id,
           sceneMomentPath: item.entity.path,
@@ -29579,7 +30233,7 @@ function timelineAssemblyTimelineFromPreview(input) {
       const resourceId = numberField5(output?.resource_id);
       if (resourceId !== void 0 && (stringField14(output?.kind) ?? "video") === "video") {
         return [{
-          id: `assembly_clip_${safeId2(String(item.entity.id ?? index))}_${safeId2(String(contentUnitId))}`,
+          id: `assembly_clip_${safeId3(String(item.entity.id ?? index))}_${safeId3(String(contentUnitId))}`,
           title: previewTimelineItemTitle(item) ?? stringField14(item.entity.id) ?? `Scene ${index + 1}`,
           sceneMomentId: item.entity.id,
           sceneMomentPath: item.entity.path,
@@ -29736,7 +30390,7 @@ function pathSegmentAfter4(path, segment) {
 function lastPathSegment3(path) {
   return path?.split("/").filter(Boolean).at(-1);
 }
-function safeId2(value) {
+function safeId3(value) {
   return value.replace(/[^a-zA-Z0-9_-]+/g, "_") || "item";
 }
 function sameId4(left, right) {
@@ -30921,7 +31575,7 @@ async function ensureContentUnitForEntity(workspaceService, input) {
       negativePrompt: input.negativePrompt,
       description: input.description ?? stringValue9(existing.record.description),
       order: input.order ?? numberValue4(existing.record.order),
-      modelIntent: input.modelIntent ?? recordValue(existing.record.model_intent)
+      modelIntent: input.modelIntent ?? recordValue2(existing.record.model_intent)
     });
   }
   return saveContentUnit(workspaceService, {
@@ -31114,7 +31768,7 @@ function contentUnitInputFromPatchedRecord(record, input) {
     audioCueId: idValue2(record.audio_cue_ref),
     prompt: stringValue9(record.edit_prompt) ?? stringValue9(record.prompt),
     description: stringValue9(record.description),
-    modelIntent: recordValue(record.model_intent)
+    modelIntent: recordValue2(record.model_intent)
   };
 }
 function settingRefsFromRecord(record) {
@@ -31221,7 +31875,7 @@ function compactStrings2(...values) {
     return typeof value === "string" && value.trim() ? [value.trim()] : [];
   });
 }
-function recordValue(value) {
+function recordValue2(value) {
   return isRecord14(value) ? value : void 0;
 }
 function numberValue4(value) {
@@ -33532,14 +34186,14 @@ function validateAudioCueRefs(file, record, graph, issues) {
     });
   }
   const assetRefs = Array.isArray(record.asset_refs) ? record.asset_refs : [];
-  for (const [index, assetRef] of assetRefs.entries()) {
-    const assetId = idField11(assetRef);
+  for (const [index, assetRef2] of assetRefs.entries()) {
+    const assetId = idField11(assetRef2);
     const asset = assetId !== void 0 ? sourceRecordByPathOrId(graph, "asset", assetId) : void 0;
     if (assetId === void 0 || !asset) {
       issues.push({
         path: file.path,
         severity: "error",
-        message: `audio_cue asset_refs[${index}] does not resolve: ${String(assetRef)}`
+        message: `audio_cue asset_refs[${index}] does not resolve: ${String(assetRef2)}`
       });
     }
   }
@@ -33580,8 +34234,8 @@ function isStoryboardUnderSceneMoment(storyboardDir, sceneMomentDir) {
 }
 function validateKeyframeReferenceAssetRefs(file, record, graph, issues) {
   const assetRefs = Array.isArray(record.reference_asset_refs) ? record.reference_asset_refs : [];
-  for (const [index, assetRef] of assetRefs.entries()) {
-    const assetId = idField11(assetRef);
+  for (const [index, assetRef2] of assetRefs.entries()) {
+    const assetId = idField11(assetRef2);
     if (assetId === void 0) {
       issues.push({
         path: file.path,
@@ -34639,7 +35293,7 @@ function recordField32(value) {
 function arrayField6(value) {
   return Array.isArray(value) ? value : [];
 }
-function stringField26(value) {
+function stringField27(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
 function numberField6(value) {
@@ -34660,7 +35314,7 @@ function deriveAssetIndex(index) {
       ...entity.id !== void 0 ? { id: entity.id } : {},
       path: entity.path,
       owner: assetOwnerRef(entity.path),
-      slot: stringField26(entity.record.slot)
+      slot: stringField27(entity.record.slot)
     }))
   };
 }
@@ -34696,7 +35350,7 @@ function treeNode(entity) {
     nodeKind: domainNodeKind(entity, nodeCategory),
     ...entity.id !== void 0 ? { id: entity.id } : {},
     path: entity.path,
-    title: stringField26(entity.record.title) ?? String(entity.id ?? entity.path),
+    title: stringField27(entity.record.title) ?? String(entity.id ?? entity.path),
     order: numberField6(entity.record.order),
     children: []
   };
@@ -34819,7 +35473,7 @@ function trackItemFor(contentUnit, artifact, sceneMoment, expressionByRef, fallb
     stale: artifact.selectionValidity.stale,
     timing_intent: recordField4(expressionUnit?.record.timing_intent),
     generation_role: stringField16(contentUnit.record.generation_role),
-    order: numberField23(contentUnit.record.order) ?? numberField23(expressionUnit?.record.order) ?? fallbackOrder
+    order: numberField24(contentUnit.record.order) ?? numberField24(expressionUnit?.record.order) ?? fallbackOrder
   };
 }
 function groupTrackItems(items) {
@@ -34862,7 +35516,7 @@ function lastPathSegment6(value) {
   if (typeof value !== "string") return void 0;
   return value.split("/").filter(Boolean).at(-1);
 }
-function numberField23(value) {
+function numberField24(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : void 0;
 }
 function deriveImpactReport(changedEntities, interpretationId, createdAt, index, relationGraph, semanticChanges = []) {
@@ -35525,7 +36179,7 @@ function blockersFor(blockers) {
   return blockers.map((blocker) => ({
     code: blocker.code,
     message: blocker.message,
-    ...stringField26(blocker.ref) ? { ref: stringField26(blocker.ref) } : {}
+    ...stringField27(blocker.ref) ? { ref: stringField27(blocker.ref) } : {}
   }));
 }
 function actionCapability(outputKind) {
@@ -35642,8 +36296,8 @@ function deriveRelationGraph(index) {
       const storyboard = entityByPathDir.get(normalizedRefDir(entity.record.storyboard_ref));
       if (scope) relations.push({ type: "references", from: entityRef3(entity), to: entityRef3(scope), field: "scope_ref" });
       if (storyboard) relations.push({ type: "references", from: entityRef3(entity), to: entityRef3(storyboard), field: "storyboard_ref" });
-      for (const assetRef of arrayField6(entity.record.asset_refs)) {
-        const asset = findEntityByRef2(entities, "asset", assetRef) ?? entityByPathDir.get(normalizedRefDir(assetRef));
+      for (const assetRef2 of arrayField6(entity.record.asset_refs)) {
+        const asset = findEntityByRef2(entities, "asset", assetRef2) ?? entityByPathDir.get(normalizedRefDir(assetRef2));
         if (asset) relations.push({ type: "uses", from: entityRef3(entity), to: entityRef3(asset), field: "asset_refs" });
       }
     }
@@ -35660,8 +36314,8 @@ function deriveRelationGraph(index) {
     if (entity.entityKind === "keyframe") {
       const expressionUnit = parentExpressionUnitForEntity(entity, entityByPathDir, entityById);
       if (expressionUnit) relations.push({ type: "references", from: entityRef3(entity), to: entityRef3(expressionUnit), field: "expression_unit_ref" });
-      for (const assetRef of arrayField6(entity.record.reference_asset_refs)) {
-        const asset = findEntityByRef2(entities, "asset", assetRef) ?? entityByPathDir.get(normalizedRefDir(assetRef));
+      for (const assetRef2 of arrayField6(entity.record.reference_asset_refs)) {
+        const asset = findEntityByRef2(entities, "asset", assetRef2) ?? entityByPathDir.get(normalizedRefDir(assetRef2));
         if (asset) relations.push({ type: "uses", from: entityRef3(entity), to: entityRef3(asset), field: "reference_asset_refs" });
       }
     }
@@ -37711,16 +38365,16 @@ async function domainCertifyAssetProvider(args) {
   const provider = providerCertificationProvider(args.provider ?? args.provider_key ?? args.providerKey);
   const runtime = service(args);
   const index = await runtime.loadIndex();
-  const assetRef = requiredId2(args.assetId ?? args.asset_id ?? args.assetRef ?? args.asset_ref, "assetId");
-  const asset = index.entities.find((entity) => entity.entityKind === "asset" && (sameEntityRef(entity.id, assetRef, "asset") || sameEntityRef(lastPathSegment8(entity.path), assetRef, "asset") || normalizeWorkspacePath(entity.path.replace(/\/asset\.json$/, "")) === normalizeWorkspacePath(String(assetRef))));
-  if (!asset) throw new Error(`asset not found: ${String(assetRef)}`);
+  const assetRef2 = requiredId2(args.assetId ?? args.asset_id ?? args.assetRef ?? args.asset_ref, "assetId");
+  const asset = index.entities.find((entity) => entity.entityKind === "asset" && (sameEntityRef(entity.id, assetRef2, "asset") || sameEntityRef(lastPathSegment8(entity.path), assetRef2, "asset") || normalizeWorkspacePath(entity.path.replace(/\/asset\.json$/, "")) === normalizeWorkspacePath(String(assetRef2))));
+  if (!asset) throw new Error(`asset not found: ${String(assetRef2)}`);
   const selection = resolveAssetRefSelection(index, asset);
   const sourceResourceId = resourceIdFromUnknown(args.resourceId ?? args.resource_id) ?? selection.resourceId ?? resourceIdFromUnknown(asset.record.resource_id ?? asset.record.resourceId);
   if (sourceResourceId === void 0) {
-    throw new Error(`asset ${String(asset.id ?? assetRef)} has no selected asset_ref resource_id; select/adopt the asset_ref candidate before certification`);
+    throw new Error(`asset ${String(asset.id ?? assetRef2)} has no selected asset_ref resource_id; select/adopt the asset_ref candidate before certification`);
   }
   const sourceUrl = getOptionalCertificationString(args.source_url ?? args.sourceUrl ?? args.url);
-  const name = getOptionalCertificationString(args.name) ?? stringValue2(asset.record.title) ?? stringValue2(asset.record.slot) ?? String(asset.id ?? assetRef);
+  const name = getOptionalCertificationString(args.name) ?? stringValue2(asset.record.title) ?? stringValue2(asset.record.slot) ?? String(asset.id ?? assetRef2);
   const projectId = stringValue2(args.projectId ?? args.project_id);
   const projectName = getOptionalCertificationString(args.projectName ?? args.project_name) ?? projectId;
   const settingId = getOptionalCertificationString(args.settingId ?? args.setting_id) ?? stringValue2(asset.record.setting_id ?? asset.record.settingId) ?? settingIdFromAssetPath(asset.path);
@@ -37773,7 +38427,7 @@ async function domainCertifyAssetProvider(args) {
     certification: written.certification,
     path: written.path,
     backend_result: backendResult,
-    message: `Certified asset ${String(asset.id ?? assetRef)} for ${certifiedProvider}; downstream generation can resolve resource #${String(certifiedSourceResourceId)} as ${assetUri}.`
+    message: `Certified asset ${String(asset.id ?? assetRef2)} for ${certifiedProvider}; downstream generation can resolve resource #${String(certifiedSourceResourceId)} as ${assetUri}.`
   };
 }
 async function domainQueryRemoteAssetGroups(args) {
@@ -38570,8 +39224,8 @@ function service(args) {
   return createMovScriptDomainRuntime(resolveMCPProjectWorkspaceLocator(args));
 }
 function resolveAssetRefSelection(index, asset) {
-  const assetRef = asset.id ?? lastPathSegment8(asset.path);
-  const contentUnit = index.entities.find((entity) => entity.entityKind === "content_unit" && entity.record.content_unit_type === "asset_ref" && sameEntityRef(entity.record.asset_ref, assetRef, "asset"));
+  const assetRef2 = asset.id ?? lastPathSegment8(asset.path);
+  const contentUnit = index.entities.find((entity) => entity.entityKind === "content_unit" && entity.record.content_unit_type === "asset_ref" && sameEntityRef(entity.record.asset_ref, assetRef2, "asset"));
   if (!contentUnit) return {};
   const contentUnitPath = contentUnit.path.replace(/\/content_unit\.json$/, "");
   const selection = index.documents.find((document) => {
@@ -39795,19 +40449,19 @@ async function initLocalProject(args) {
     ...result,
     backendProject: backendBinding.backendProject,
     projectDataSpace: backendBinding.projectDataSpace,
-    message: `MovScript \u9879\u76EE\u5DF2\u521D\u59CB\u5316\uFF1A${stringField27(result.projectDir)}`
+    message: `MovScript \u9879\u76EE\u5DF2\u521D\u59CB\u5316\uFF1A${stringField28(result.projectDir)}`
   };
 }
 async function fetchLocalProject(args) {
   const result = await runProjectLifecycleCommand("openProject", args);
-  const backendBinding = stringField27(result.projectUid) ? await requireBackendBindingForLifecycleResult(result) : void 0;
+  const backendBinding = stringField28(result.projectUid) ? await requireBackendBindingForLifecycleResult(result) : void 0;
   return {
     ...result,
     ...backendBinding ? {
       backendProject: backendBinding.backendProject,
       projectDataSpace: backendBinding.projectDataSpace
     } : {},
-    message: stringField27(result.projectUid) ? `MovScript \u9879\u76EE\u5DF2\u6253\u5F00\uFF1A${stringField27(result.projectDir)}` : `\u76EE\u5F55\u5DF2\u6253\u5F00\u4F46\u6CA1\u6709\u627E\u5230 MovScript \u9879\u76EE\u5143\u6570\u636E\uFF1A${stringField27(result.projectDir)}`
+    message: stringField28(result.projectUid) ? `MovScript \u9879\u76EE\u5DF2\u6253\u5F00\uFF1A${stringField28(result.projectDir)}` : `\u76EE\u5F55\u5DF2\u6253\u5F00\u4F46\u6CA1\u6709\u627E\u5230 MovScript \u9879\u76EE\u5143\u6570\u636E\uFF1A${stringField28(result.projectDir)}`
   };
 }
 async function runProjectLifecycleCommand(command, args) {
@@ -39840,14 +40494,14 @@ function normalizeProjectDir(args) {
   return resolve23(projectDir);
 }
 async function requireBackendBindingForLifecycleResult(result) {
-  const projectDir = stringField27(result.projectDir);
-  const projectUid = stringField27(result.projectUid);
+  const projectDir = stringField28(result.projectDir);
+  const projectUid = stringField28(result.projectUid);
   if (!projectDir || !projectUid) {
     throw new Error("Project Service lifecycle result must include projectDir and projectUid for MCP backend binding");
   }
   return requireMCPBackendBoundProject({ projectDir, projectUid });
 }
-function stringField27(value) {
+function stringField28(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
 function listProjectResources() {
@@ -40240,7 +40894,7 @@ function copyString(input, out, key, alias) {
   if (value !== void 0) out[key] = value;
 }
 function copyArray(input, out, key, alias) {
-  const value = arrayValue2(input[key]) ?? (alias ? arrayValue2(input[alias]) : void 0);
+  const value = arrayValue3(input[key]) ?? (alias ? arrayValue3(input[alias]) : void 0);
   if (value !== void 0) out[key] = value;
 }
 function copyObject(input, out, key, alias) {
@@ -40276,7 +40930,7 @@ function positiveNumber3(value) {
 function stringValue23(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
-function arrayValue2(value) {
+function arrayValue3(value) {
   return Array.isArray(value) ? value : void 0;
 }
 function parseSceneDetectTimes(output) {
@@ -40419,9 +41073,9 @@ async function queryResourceLibrary(args) {
     ...type ? { type } : {},
     ...scope ? { scope } : {},
     ...folderId ? { folder_id: folderId } : {},
-    page: numberField24(pageData, "page") ?? page,
-    pageSize: numberField24(pageData, "page_size") ?? pageSize,
-    total: numberField24(pageData, "total") ?? filtered.length,
+    page: numberField25(pageData, "page") ?? page,
+    pageSize: numberField25(pageData, "page_size") ?? pageSize,
+    total: numberField25(pageData, "total") ?? filtered.length,
     count: filtered.length,
     items: filtered,
     usage: "Use RawResource.ID values as input_resource_ids or reference_resource_ids for MovScript generation tools.",
@@ -40493,7 +41147,7 @@ function rawResourceId(item) {
   if (!isRecord4(item)) return void 0;
   return typeof item.ID === "number" ? item.ID : typeof item.id === "number" ? item.id : void 0;
 }
-function numberField24(record, key) {
+function numberField25(record, key) {
   if (!isRecord4(record)) return void 0;
   return typeof record[key] === "number" && Number.isFinite(record[key]) ? record[key] : void 0;
 }
@@ -43002,6 +43656,76 @@ async function editingProjectCreateFromEditPlan(args) {
   const result = await editingServiceProjectCommand("createProjectFromEditPlan", args);
   return persistCreatedEditingProject(editingProjectFromServiceResult(result), result);
 }
+async function editingProjectCreateFromEditDecisions(args) {
+  const result = await editingServiceProjectCommand("createProjectFromEditDecisions", args);
+  return persistCreatedEditingProject(editingProjectFromServiceResult(result), result);
+}
+async function editingVideoCompose(args) {
+  const renderRuntime = normalizeRenderRuntime(args.renderRuntime ?? args.render_runtime);
+  if (!renderRuntime.supported) {
+    return {
+      status: "unsupported_runtime",
+      code: "VIDEO_COMPOSE_RENDER_RUNTIME_UNSUPPORTED",
+      message: `MovScript video compose currently supports movscript_media_pipeline/ffmpeg only. Requested runtime ${renderRuntime.value} must be handled by an explicit future adapter; no silent fallback was performed.`,
+      render_runtime: renderRuntime.value,
+      supported_render_runtimes: ["movscript_media_pipeline", "ffmpeg"]
+    };
+  }
+  const editingProject = await composeEditingProject(args);
+  const validation = await editingServiceProjectCommand("validateTimeline", {
+    editingProject
+  });
+  if (timelineValidationHasErrors(validation)) {
+    return {
+      status: "blocked",
+      code: "VIDEO_COMPOSE_TIMELINE_INVALID",
+      message: "Video compose did not start render because the MediaEditingProject timeline has validation errors.",
+      render_runtime: renderRuntime.value,
+      editing_project: editingProject,
+      validation
+    };
+  }
+  const output = isRecord4(args.output) ? args.output : {};
+  const format = stringValue42(output.format ?? args.format) === "hls" ? "hls" : "mp4";
+  const task = await mediaPipelineTaskCreate(format === "hls" ? "timeline_hls" : "timeline_render", {
+    ...args,
+    editingProject,
+    projectId: projectIdValue(args) ?? editingProject.projectId,
+    output: {
+      ...output,
+      format,
+      ...output.importToResource !== void 0 || output.import_to_resource !== void 0 ? {} : booleanValue2(args.importToResource ?? args.import_to_resource) === void 0 ? {} : { importToResource: booleanValue2(args.importToResource ?? args.import_to_resource) }
+    }
+  });
+  const taskRecord = isRecord4(task) ? task : {};
+  const mediaTask = isRecord4(taskRecord.task) ? taskRecord.task : void 0;
+  return {
+    ...task,
+    render_runtime: renderRuntime.value,
+    render_runtime_used: renderRuntime.value === "ffmpeg" ? "movscript_media_pipeline_ffmpeg" : renderRuntime.value,
+    format,
+    editing_project: editingProject,
+    validation,
+    render_report: {
+      schema: "movscript.render_report.v1",
+      status: stringValue42(task.status) ?? "unknown",
+      render_runtime: renderRuntime.value,
+      render_runtime_used: renderRuntime.value === "ffmpeg" ? "movscript_media_pipeline_ffmpeg" : renderRuntime.value,
+      format,
+      project_id: editingProject.projectId,
+      editing_project_id: editingProject.id,
+      task_id: stringValue42(mediaTask?.taskId ?? mediaTask?.task_id),
+      output_path: stringValue42(mediaTask?.outputPath ?? mediaTask?.output_path),
+      output_resource_id: optionalNumber(mediaTask?.outputResourceId ?? mediaTask?.output_resource_id),
+      candidate_created: false,
+      adopted: false,
+      selected: false
+    },
+    candidate_created: false,
+    adopted: false,
+    selected: false
+  };
+}
 async function editingProjectAddAsset(args) {
   return editingServiceProjectCommand("addAsset", args);
 }
@@ -43299,6 +44023,37 @@ async function editingRuntimeTaskSnapshot(args, runtime) {
   const action = await editingServiceRuntimeTaskAction("getTask", args);
   return runtime.getTask(action.taskId, action.options);
 }
+async function composeEditingProject(args) {
+  const explicitProject = objectArg(args, "editingProject") ?? objectArg(args, "editing_project") ?? objectArg(args, "project");
+  if (explicitProject) return editingProjectArg(args);
+  const editingProjectId = stringValue42(args.editingProjectId ?? args.editing_project_id);
+  if (editingProjectId && !objectArg(args, "editDecisions") && !objectArg(args, "edit_decisions")) {
+    const result = await editingProjectGet({
+      projectId: projectIdValue(args) ?? STANDALONE_EDITING_PROJECT_ID,
+      editingProjectId
+    });
+    return editingProjectFromServiceResult(result);
+  }
+  const editDecisions = objectArg(args, "editDecisions") ?? objectArg(args, "edit_decisions");
+  if (editDecisions) {
+    const result = await editingProjectCreateFromEditDecisions(args);
+    return editingProjectFromServiceResult(result);
+  }
+  throw new Error("editingProject, editingProjectId, or editDecisions is required");
+}
+function normalizeRenderRuntime(value) {
+  const runtime = stringValue42(value) ?? "movscript_media_pipeline";
+  return {
+    value: runtime,
+    supported: runtime === "movscript_media_pipeline" || runtime === "ffmpeg"
+  };
+}
+function timelineValidationHasErrors(validation) {
+  if (!isRecord4(validation)) return true;
+  if (validation.valid === false) return true;
+  const diagnostics = Array.isArray(validation.diagnostics) ? validation.diagnostics : [];
+  return diagnostics.some((diagnostic2) => isRecord4(diagnostic2) && diagnostic2.severity === "error");
+}
 function editingProjectArg(args) {
   const project = objectArg(args, "editingProject") ?? objectArg(args, "editing_project") ?? objectArg(args, "project");
   if (!project) throw new Error("editingProject is required");
@@ -43361,6 +44116,14 @@ function optionalNumber(value) {
   if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
   return void 0;
 }
+function booleanValue2(value) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    if (value === "true") return true;
+    if (value === "false") return false;
+  }
+  return void 0;
+}
 function stringValue42(value) {
   if (typeof value !== "string") return void 0;
   const trimmed = value.trim();
@@ -43372,9 +44135,12 @@ function stringOrNumberValue2(value) {
 }
 async function listModels(args) {
   const rawCapability = getOptionalString(args, "capability");
-  const capability = normalizeModelCapabilityAlias(rawCapability);
+  const operation = getOptionalString(args, "operation") ?? getOptionalString(args, "model_operation");
+  const normalizedCapability = normalizeModelCapabilityAlias(rawCapability);
+  const capability = normalizedCapability ?? (rawCapability ? void 0 : capabilityForModelOperation(operation));
+  const referenceAssets = modelReferenceAssetsArg(args.reference_assets ?? args.referenceAssets);
   const providerVariants = args.provider_variants === true || args.include_provider_variants === true;
-  const defaultCapabilities = ["text", "image", "image_edit", "video", "video_i2v", "video_v2v", "audio_tts", "audio_transcribe", "audio_translate", "audio_music", "audio_sfx", "audio_chat", "voice_clone", "voice_design", "subtitle_align", "subtitle_translate"];
+  const defaultCapabilities = ["text_generation", "image_generation", "video_generation", "audio_generation", "text", "image", "image_edit", "video", "video_i2v", "video_v2v", "audio_tts", "audio_transcribe", "audio_translate", "audio_music", "audio_sfx", "audio_chat", "voice_clone", "voice_design", "subtitle_align", "subtitle_translate"];
   if (rawCapability && !capability) {
     return {
       count: 0,
@@ -43383,28 +44149,103 @@ async function listModels(args) {
       models: []
     };
   }
-  const queries = capability ? [{ label: `capability:${capability}`, path: `/models?capability=${encodeURIComponent(capability)}${providerVariants ? "&provider_variants=true" : ""}` }] : defaultCapabilities.map((item) => ({
+  if (operation && !capability) {
+    return {
+      count: 0,
+      queries: [],
+      model_contracts: [],
+      models: []
+    };
+  }
+  const queries = capability ? [modelListQuery(capability, { operation, providerVariants, referenceAssets })] : defaultCapabilities.map((item) => ({
     label: `capability:${item}`,
-    path: `/models?capability=${encodeURIComponent(item)}${providerVariants ? "&provider_variants=true" : ""}`
+    path: modelListPath(item, { providerVariants })
   }));
   const byId = /* @__PURE__ */ new Map();
   for (const query of queries) {
     const models = await backendList(query.path);
     for (const model of models) {
       const id = Number(model?.id ?? model?.ID);
-      if (Number.isFinite(id) && id > 0 && !byId.has(id)) {
-        byId.set(id, model);
-      }
+      const contract = summarizeModelContractForAgent(model);
+      const key = typeof contract.model_id === "string" && contract.model_id.trim() ? contract.model_id.trim() : Number.isFinite(id) && id > 0 ? `backend.model.${id}` : `model.${byId.size}`;
+      if (!byId.has(key)) byId.set(key, contract);
     }
   }
+  const modelContracts = Array.from(byId.values());
   return {
     count: byId.size,
     queries: queries.map((query) => query.label),
-    model_contracts: Array.from(byId.values()).map(summarizeModelContractForAgent),
-    models: Array.from(byId.values())
+    model_contracts: modelContracts,
+    models: modelContracts
   };
 }
+function modelListQuery(capability, options) {
+  const parts = [`capability:${capability}`];
+  if (options.operation) parts.push(`operation:${options.operation}`);
+  if (options.referenceAssets && options.referenceAssets.length > 0) {
+    parts.push(`reference_assets:${options.referenceAssets.length}`);
+  }
+  return {
+    label: parts.join(":"),
+    path: modelListPath(capability, options)
+  };
+}
+function modelListPath(capability, options = {}) {
+  const params = new URLSearchParams();
+  params.set("capability", capability);
+  if (options.operation) params.set("operation", options.operation);
+  if (options.providerVariants) params.set("provider_variants", "true");
+  if (options.referenceAssets && options.referenceAssets.length > 0) {
+    params.set("reference_assets", JSON.stringify(options.referenceAssets));
+  }
+  return `/models?${params.toString()}`;
+}
+function capabilityForModelOperation(operation) {
+  const normalized = operation?.trim().toLowerCase().replace(/-/g, "_");
+  switch (normalized) {
+    case "prompt_to_image":
+    case "text_to_image":
+    case "image_to_image":
+      return "image_generation";
+    case "prompt_to_video":
+    case "text_to_video":
+    case "image_to_video":
+    case "first_frame_to_video":
+    case "first_last_frame_to_video":
+    case "reference_to_video":
+    case "video_to_video":
+      return "video_generation";
+    case "tts":
+    case "stt":
+    case "speech_translate":
+    case "audio_chat":
+    case "voice_clone":
+    case "voice_design":
+    case "dubbing":
+    case "music":
+    case "sfx":
+    case "speech_enhancement":
+      return "audio_generation";
+    default:
+      return void 0;
+  }
+}
+function modelReferenceAssetsArg(value) {
+  const raw = Array.isArray(value) ? value : [];
+  const refs = raw.filter(isRecord4).map((item) => {
+    const role = getOptionalString(item, "role") ?? "generic";
+    const mediaType = getOptionalString(item, "media_type") ?? getOptionalString(item, "mediaType");
+    return {
+      role,
+      ...mediaType ? { media_type: mediaType } : {}
+    };
+  }).filter((item) => item.role.trim());
+  return refs.length > 0 ? refs : void 0;
+}
 var generationCapabilities = [
+  "image_generation",
+  "video_generation",
+  "audio_generation",
   "image",
   "image_edit",
   "video",
@@ -43423,7 +44264,7 @@ var generationCapabilities = [
 ];
 async function generateImage(args) {
   const built = buildImageRequest(args);
-  const selection = await resolveModelSelection(args, built.jobType, built.jobType === "image_edit" ? "image" : "image_edit");
+  const selection = await resolveModelSelection(args, built.generationIntent?.capability ?? built.jobType, built.jobType === "image_edit" ? "image" : "image_edit", built.generationIntent?.operation);
   const submitted = await submitGenerationJob(args, selection, built, "electron.generation.image");
   return withGenerationJobSurface(args, generationSubmitResult("image", submitted.job, "generation_job_get", submitted.paramAudit));
 }
@@ -43448,8 +44289,19 @@ async function listGenerationCapabilities(args) {
 async function prepareGeneration(args) {
   const capability = requiredGenerationCapability(args);
   const scope = generationScope(args);
-  const models = await listModels({ capability, provider_variants: args.provider_variants, include_provider_variants: args.include_provider_variants });
-  if (scope === "content_unit" && (capability === "image" || capability === "image_edit" || capability === "video" || capability === "video_i2v" || capability === "video_v2v")) {
+  const operation = generationOperationArg(args);
+  if ((isImageGenerationCapability(capability) || isVideoGenerationCapability(capability) || isAudioGenerationCapability(capability)) && !operation) {
+    throw new Error(`${capability} operation is required for generation_prepare; choose an explicit operation instead of relying on input resources`);
+  }
+  const referenceAssets = generationReferenceAssetsForModelList(args);
+  const models = await listModels({
+    capability,
+    operation,
+    ...referenceAssets.length > 0 ? { reference_assets: referenceAssets } : {},
+    provider_variants: args.provider_variants,
+    include_provider_variants: args.include_provider_variants
+  });
+  if (scope === "content_unit" && (isImageGenerationCapability(capability) || isVideoGenerationCapability(capability))) {
     const contentUnitId = requiredContentUnitId(args);
     const compiled = await compiledContentUnitPrompt(args, contentUnitId);
     const blockers = Array.isArray(compiled.blockers) ? compiled.blockers : compiled.prompt?.blockers ?? [];
@@ -43478,22 +44330,26 @@ async function submitUnifiedGeneration(args) {
   const scope = generationScope(args);
   const candidatePolicy = getOptionalString(args, "candidate_policy") ?? (scope === "content_unit" ? "auto_create" : "none");
   if (scope === "content_unit") {
-    if (capability === "image" || capability === "image_edit") {
+    if (isImageGenerationCapability(capability)) {
       return generationV2Result(await generateContentUnitImage(args), capability, scope, "image", "content_unit_candidate", candidatePolicy);
     }
-    if (capability === "video" || capability === "video_i2v" || capability === "video_v2v") {
+    if (isVideoGenerationCapability(capability)) {
       return generationV2Result(await generateContentUnitVideo(args), capability, scope, "video", "content_unit_candidate", candidatePolicy);
     }
     throw new Error(`scope=content_unit is currently supported by image and video generation capabilities; got ${capability}`);
   }
   switch (capability) {
+    case "image_generation":
     case "image":
     case "image_edit":
       return generationV2Result(await generateImage(args), capability, scope, "image", "raw_resource", candidatePolicy);
+    case "video_generation":
     case "video":
     case "video_i2v":
     case "video_v2v":
       return generationV2Result(await generateVideo(args), capability, scope, "video", "raw_resource", candidatePolicy);
+    case "audio_generation":
+      return submitUnifiedAudioGeneration(args, capability, scope, candidatePolicy);
     case "audio_tts":
       return generationV2Result(await generateVoiceover(args), capability, scope, "audio", "raw_resource", candidatePolicy);
     case "audio_transcribe":
@@ -43516,6 +44372,32 @@ async function submitUnifiedGeneration(args) {
       return generationV2Result(await translateSubtitle(args), capability, scope, "subtitle", "raw_resource", candidatePolicy);
     default:
       return assertNeverGenerationCapability(capability);
+  }
+}
+async function submitUnifiedAudioGeneration(args, capability, scope, candidatePolicy) {
+  const operation = generationOperationArg(args);
+  if (!operation) {
+    throw new Error("audio_generation operation is required; choose a model operation such as tts, stt, music, or sfx");
+  }
+  switch (operation) {
+    case "tts":
+      return generationV2Result(await generateVoiceover(args), capability, scope, "audio", "raw_resource", candidatePolicy);
+    case "stt":
+      return generationV2Result(await generateSubtitle(args), capability, scope, "subtitle", "raw_resource", candidatePolicy);
+    case "speech_translate":
+      return generationV2Result(await generateAudioTranslate(args), capability, scope, "subtitle", "raw_resource", candidatePolicy);
+    case "music":
+      return generationV2Result(await generateMusic(args), capability, scope, "audio", "raw_resource", candidatePolicy);
+    case "sfx":
+      return generationV2Result(await generateSfx(args), capability, scope, "audio", "raw_resource", candidatePolicy);
+    case "audio_chat":
+      return generationV2Result(await generateAudioChat(args), capability, scope, "audio", "raw_resource", candidatePolicy);
+    case "voice_clone":
+      return generationV2Result(await generateVoiceClone(args), capability, scope, "voice_profile", "raw_resource", candidatePolicy);
+    case "voice_design":
+      return generationV2Result(await generateVoiceDesign(args), capability, scope, "voice_profile", "raw_resource", candidatePolicy);
+    default:
+      throw new Error(`unsupported audio_generation operation: ${operation}`);
   }
 }
 async function getUnifiedGenerationJob(args) {
@@ -43593,7 +44475,7 @@ async function getContentUnitImageGenerationJob(args) {
 }
 async function generateVideo(args) {
   const built = buildVideoRequest(args);
-  const selection = await resolveModelSelection(args, built.jobType, "video");
+  const selection = await resolveModelSelection(args, built.generationIntent?.capability ?? built.jobType, "video", built.generationIntent?.operation);
   const submitted = await submitGenerationJob(args, selection, built, "electron.generation.video");
   return withGenerationJobSurface(args, generationSubmitResult("video", submitted.job, "generation_job_get", submitted.paramAudit));
 }
@@ -43635,7 +44517,7 @@ async function generateVoiceDesign(args) {
 }
 async function generateAudioLike(args, jobType, fallbackCapability, featureKey) {
   const built = buildAudioRequest(args, jobType);
-  const selection = await resolveModelSelection(args, built.jobType, fallbackCapability);
+  const selection = await resolveModelSelection(args, built.generationIntent?.capability ?? built.jobType, fallbackCapability, built.generationIntent?.operation);
   const submitted = await submitGenerationJob(args, selection, built, featureKey);
   return withGenerationJobSurface(args, generationSubmitResult("audio", submitted.job, "generation_job_get", submitted.paramAudit));
 }
@@ -43671,7 +44553,7 @@ async function generateContentUnitVisual(args, kind) {
     if (negative) nextArgs.negative_prompt = negative;
   }
   const built = kind === "image" ? buildImageRequest(nextArgs) : buildVideoRequest(nextArgs);
-  const selection = kind === "image" ? await resolveModelSelection(nextArgs, built.jobType, built.jobType === "image_edit" ? "image" : "image_edit") : await resolveModelSelection(nextArgs, built.jobType, "video");
+  const selection = kind === "image" ? await resolveModelSelection(nextArgs, built.generationIntent?.capability ?? built.jobType, built.jobType === "image_edit" ? "image" : "image_edit", built.generationIntent?.operation) : await resolveModelSelection(nextArgs, built.generationIntent?.capability ?? built.jobType, "video", built.generationIntent?.operation);
   const projectScope = await resolveGenerationProjectScope(args, { required: true });
   const sharedRequest = buildContentUnitGenerationRequest({
     contentUnitId,
@@ -43682,6 +44564,7 @@ async function generateContentUnitVisual(args, kind) {
       ...resourceIds(args.input_resource_ids) ?? [],
       ...resourceIds(args.reference_resource_ids) ?? []
     ],
+    generationIntent: built.generationIntent,
     paramAudit: []
   });
   const promptSnapshot = {
@@ -43860,6 +44743,7 @@ async function getContentUnitVisualGenerationJob(args, kind) {
 }
 function buildImageRequest(args) {
   const { prompt, refIds } = promptAndResourceIds(args);
+  const generationIntent = generationIntentArg(args, "image", refIds);
   const params = extraParamsArg(args.extra_params);
   const explicitParamKeys = new Set(Object.keys(params));
   const defaultParamKeys = /* @__PURE__ */ new Set();
@@ -43890,7 +44774,8 @@ function buildImageRequest(args) {
   return {
     prompt,
     refIds,
-    jobType: refIds.length > 0 ? "image_edit" : "image",
+    jobType: generationExecutionJobTypeForIntent(generationIntent, "image"),
+    generationIntent,
     timeoutMs: getOptionalNumeric(args, "timeout_ms") ?? 18e4,
     params,
     explicitParamKeys,
@@ -43899,6 +44784,7 @@ function buildImageRequest(args) {
 }
 function buildVideoRequest(args) {
   const { prompt, refIds } = promptAndResourceIds(args);
+  const generationIntent = generationIntentArg(args, "video", refIds);
   const params = { ...extraParamsArg(args.extra_params) };
   const explicitParamKeys = new Set(Object.keys(params));
   const defaultParamKeys = /* @__PURE__ */ new Set();
@@ -43929,15 +44815,121 @@ function buildVideoRequest(args) {
   return {
     prompt,
     refIds,
-    jobType: refIds.length > 0 ? "video_i2v" : "video",
+    jobType: generationExecutionJobTypeForIntent(generationIntent, "video"),
+    generationIntent,
     timeoutMs: getOptionalNumeric(args, "timeout_ms") ?? 6e5,
     params,
     explicitParamKeys,
     defaultParamKeys
   };
 }
+function generationIntentArg(args, outputKind, refIds) {
+  const explicit = args.generation_intent ?? args.generationIntent;
+  const topLevelOperation = getOptionalString(args, "operation") ?? getOptionalString(args, "model_operation");
+  if (isRecord4(explicit)) {
+    const capability = getOptionalString(explicit, "capability") ?? (outputKind === "image" ? "image_generation" : "video_generation");
+    const operation2 = getOptionalString(explicit, "operation") ?? topLevelOperation;
+    if (capability && operation2) {
+      return {
+        capability,
+        operation: operation2,
+        ...generationReferenceAssetsPayload(explicit.reference_assets ?? explicit.referenceAssets, refIds)
+      };
+    }
+  }
+  const operation = topLevelOperation;
+  if (!operation) {
+    throw new Error(`${outputKind}_generation operation is required; choose an explicit operation instead of relying on input resources`);
+  }
+  return {
+    capability: outputKind === "image" ? "image_generation" : "video_generation",
+    operation,
+    ...generationReferenceAssetsPayload(args.reference_assets ?? args.referenceAssets, refIds)
+  };
+}
+function audioGenerationIntentArg(args, jobType, refIds) {
+  const explicit = args.generation_intent ?? args.generationIntent;
+  const topLevelOperation = getOptionalString(args, "operation") ?? getOptionalString(args, "model_operation");
+  if (isRecord4(explicit)) {
+    const capability = getOptionalString(explicit, "capability") ?? "audio_generation";
+    const operation2 = getOptionalString(explicit, "operation") ?? topLevelOperation ?? audioOperationForJobType(jobType);
+    if (capability && operation2) {
+      return {
+        capability,
+        operation: operation2,
+        ...generationReferenceAssetsPayload(explicit.reference_assets ?? explicit.referenceAssets, refIds)
+      };
+    }
+  }
+  const operation = topLevelOperation ?? audioOperationForJobType(jobType);
+  if (!operation) return void 0;
+  return {
+    capability: "audio_generation",
+    operation,
+    ...generationReferenceAssetsPayload(args.reference_assets ?? args.referenceAssets, refIds)
+  };
+}
+function audioOperationForJobType(jobType) {
+  switch (jobType) {
+    case "audio_tts":
+      return "tts";
+    case "audio_transcribe":
+      return "stt";
+    case "audio_translate":
+      return "speech_translate";
+    case "audio_music":
+      return "music";
+    case "audio_sfx":
+      return "sfx";
+    case "audio_chat":
+      return "audio_chat";
+    case "voice_clone":
+      return "voice_clone";
+    case "voice_design":
+      return "voice_design";
+    default:
+      return void 0;
+  }
+}
+function generationReferenceAssetsPayload(value, refIds) {
+  const explicit = Array.isArray(value) ? value.filter(isRecord4) : [];
+  const source = explicit.length > 0 ? explicit.map((item, index) => ({
+    role: getOptionalString(item, "role") ?? "generic",
+    media_type: getOptionalString(item, "media_type") ?? getOptionalString(item, "mediaType"),
+    resource_id: idField23(item.resource_id ?? item.resourceId) ?? refIds[index]
+  })) : refIds.map((resourceId) => ({ role: "generic", resource_id: resourceId }));
+  const referenceAssets = source.filter((item) => item.role.trim() && item.resource_id !== void 0).map((item) => ({
+    role: item.role.trim(),
+    ...item.media_type ? { media_type: item.media_type } : {},
+    ...item.resource_id !== void 0 ? { resource_id: item.resource_id } : {}
+  }));
+  return referenceAssets.length > 0 ? { reference_assets: referenceAssets } : {};
+}
+function generationOperationArg(args) {
+  const explicit = args.generation_intent ?? args.generationIntent;
+  if (isRecord4(explicit)) {
+    const operation = getOptionalString(explicit, "operation");
+    if (operation) return operation;
+  }
+  return getOptionalString(args, "operation") ?? getOptionalString(args, "model_operation");
+}
+function generationReferenceAssetsForModelList(args) {
+  const explicit = args.generation_intent ?? args.generationIntent;
+  const raw = isRecord4(explicit) && (explicit.reference_assets !== void 0 || explicit.referenceAssets !== void 0) ? explicit.reference_assets ?? explicit.referenceAssets : args.reference_assets ?? args.referenceAssets;
+  const refs = Array.isArray(raw) ? raw.filter(isRecord4) : [];
+  if (refs.length === 0) return [];
+  return refs.map((item) => {
+    const role = getOptionalString(item, "role") ?? "generic";
+    const mediaType = getOptionalString(item, "media_type") ?? getOptionalString(item, "mediaType");
+    return {
+      role,
+      ...mediaType ? { media_type: mediaType } : {}
+    };
+  }).filter((item) => item.role.trim());
+}
 function buildAudioRequest(args, jobType = "audio_tts") {
   const { prompt, refIds } = promptAndResourceIds(args);
+  const generationIntent = audioGenerationIntentArg(args, jobType, refIds);
   const params = { ...extraParamsArg(args.extra_params) };
   const explicitParamKeys = new Set(Object.keys(params));
   const defaultParamKeys = /* @__PURE__ */ new Set();
@@ -43961,34 +44953,35 @@ function buildAudioRequest(args, jobType = "audio_tts") {
     prompt,
     refIds,
     jobType,
+    generationIntent,
     timeoutMs: getOptionalNumeric(args, "timeout_ms") ?? 18e4,
     params,
     explicitParamKeys,
     defaultParamKeys
   };
 }
-async function resolveModelSelection(args, primaryCapability, fallbackCapability) {
+async function resolveModelSelection(args, primaryCapability, fallbackCapability, operation) {
   const explicit = getOptionalString(args, "model_id");
   if (explicit) {
-    const models = await modelsForCapabilities([primaryCapability, fallbackCapability]);
+    const models = await modelsForCapabilities([primaryCapability, fallbackCapability], operation);
     const model2 = models.find((model3) => modelMatchesPublicId(model3, explicit));
     return { modelId: explicit, model: model2 };
   }
-  const primary = await modelsForCapability(primaryCapability);
-  const fallback = primary.length > 0 ? primary : await modelsForCapability(fallbackCapability);
+  const primary = await modelsForCapability(primaryCapability, operation);
+  const fallback = primary.length > 0 ? primary : await modelsForCapability(fallbackCapability, operation);
   const modelId = modelPublicId(fallback[0]);
   if (!modelId) throw new Error(`No enabled generation model is configured for ${primaryCapability}`);
   const model = isRecord4(fallback[0]) ? fallback[0] : void 0;
   return { modelId, model };
 }
-async function modelsForCapability(capability) {
-  const result = await listModels({ capability });
+async function modelsForCapability(capability, operation) {
+  const result = await listModels({ capability, operation });
   return isRecord4(result) && Array.isArray(result.models) ? result.models : [];
 }
-async function modelsForCapabilities(capabilities) {
+async function modelsForCapabilities(capabilities, operation) {
   const byId = /* @__PURE__ */ new Map();
   for (const capability of Array.from(new Set(capabilities))) {
-    for (const model of await modelsForCapability(capability)) {
+    for (const model of await modelsForCapability(capability, operation)) {
       if (!isRecord4(model)) continue;
       const key = String(idField23(model.id) ?? idField23(model.ID) ?? modelPublicId(model) ?? byId.size);
       if (!byId.has(key)) byId.set(key, model);
@@ -44003,6 +44996,7 @@ async function submitGenerationJob(args, selection, built, featureKey, contentUn
   const body = {
     model_id: selection.modelId,
     job_type: built.jobType,
+    generation_intent: built.generationIntent,
     feature_key: featureKey,
     prompt: built.prompt,
     input_resource_ids: built.refIds,
@@ -44161,6 +45155,8 @@ function optionalGenerationCapability(args) {
 function normalizeGenerationCapability(value) {
   const raw = value.trim();
   const aliases = {
+    image_generation: "image_generation",
+    video_generation: "video_generation",
     audio: "audio_tts",
     tts: "audio_tts",
     voiceover: "audio_tts",
@@ -44191,11 +45187,20 @@ function outputKindArg(args, capability) {
   return generationCapabilityOutputKind(capability);
 }
 function generationCapabilityOutputKind(capability) {
-  if (capability === "image" || capability === "image_edit") return "image";
-  if (capability === "video" || capability === "video_i2v" || capability === "video_v2v") return "video";
+  if (isImageGenerationCapability(capability)) return "image";
+  if (isVideoGenerationCapability(capability)) return "video";
   if (capability === "audio_transcribe" || capability === "audio_translate" || capability === "subtitle_align" || capability === "subtitle_translate") return "subtitle";
   if (capability === "voice_clone" || capability === "voice_design") return "voice_profile";
   return "audio";
+}
+function isImageGenerationCapability(capability) {
+  return capability === "image_generation" || capability === "image" || capability === "image_edit";
+}
+function isVideoGenerationCapability(capability) {
+  return capability === "video_generation" || capability === "video" || capability === "video_i2v" || capability === "video_v2v";
+}
+function isAudioGenerationCapability(capability) {
+  return capability === "audio_generation";
 }
 function generationOutputJobGroup(outputKind) {
   if (outputKind === "image") return "image";
@@ -44815,6 +45820,10 @@ async function callTool(params) {
       return toolText(await editingProjectCreate(args));
     case "editing_project_create_from_edit_plan":
       return toolText(await editingProjectCreateFromEditPlan(args));
+    case "editing_project_create_from_edit_decisions":
+      return toolText(await editingProjectCreateFromEditDecisions(args));
+    case "editing_video_compose":
+      return toolText(await editingVideoCompose(args));
     case "editing_project_add_asset":
       return toolText(await editingProjectAddAsset(args));
     case "editing_project_remove_asset":
@@ -46302,13 +47311,15 @@ import { dirname as dirname6, join as join8, resolve as resolve7 } from "path";
 var EDITING_SERVICE_CAPABILITIES = Object.freeze([
   "timeline",
   "edit-plan",
+  "edit-decisions",
   "editing-project-command",
   "editing-timeline-view",
   "production-timeline-bundle",
   "timeline-assembly-bundle",
   "preview-timeline",
   "render-request",
-  "media-task-action"
+  "media-task-action",
+  "video-compose-project"
 ]);
 function createEditingServiceHandler(options = {}) {
   const serviceName = options.serviceName ?? EDITING_SERVICE_NAME;
@@ -46344,7 +47355,7 @@ function createEditingServiceHandler(options = {}) {
         if (!command) {
           throw httpError(400, "editing_project_command_required", "command is required");
         }
-        const result = await executeEditingProjectCommand(command, recordValue2(body.input) ?? {}, { homeDir });
+        const result = await executeEditingProjectCommand(command, recordValue3(body.input) ?? {}, { homeDir });
         writeJSON2(response, 200, {
           schema: "movscript.editing-project-command-result.v1",
           command,
@@ -46374,7 +47385,7 @@ function createEditingServiceHandler(options = {}) {
         if (!taskType) {
           throw httpError(400, "editing_task_type_required", "taskType is required");
         }
-        const taskRequest = buildEditingTaskRequest(taskType, recordValue2(body.input) ?? {});
+        const taskRequest = buildEditingTaskRequest(taskType, recordValue3(body.input) ?? {});
         writeJSON2(response, 200, {
           schema: "movscript.editing-task-request.v1",
           taskType,
@@ -46388,7 +47399,7 @@ function createEditingServiceHandler(options = {}) {
         if (!action) {
           throw httpError(400, "editing_task_action_required", "action is required");
         }
-        const taskAction = buildEditingTaskAction(action, recordValue2(body.input) ?? {});
+        const taskAction = buildEditingTaskAction(action, recordValue3(body.input) ?? {});
         writeJSON2(response, 200, {
           schema: "movscript.editing-task-action.v1",
           action,
@@ -46460,7 +47471,7 @@ async function readEditingTimelineView({ projectDir, kind, input }) {
 }
 async function readSceneMomentTimelineBundle(workspaceService, sceneMomentId, input) {
   const editPlan = await workspaceService.readSceneMomentEditPlan(sceneMomentId);
-  if (!recordValue2(editPlan)) {
+  if (!recordValue3(editPlan)) {
     throw httpError(404, "editing_scene_moment_edit_plan_missing", `scene_moment ${String(sceneMomentId)} edit plan was not found; run domain_interpret first`);
   }
   const mediaEditingProject = createMediaEditingProjectFromMovScriptEditPlan(editPlan, {
@@ -46678,7 +47689,7 @@ function productionTimelineClips(input) {
       if (resourceId !== void 0) {
         const durationSec = optionalNumber2(firstCandidateOutput5(candidate)?.duration_sec) ?? 4;
         return [{
-          id: `production_clip_${safeId3(String(item.entity.id ?? index))}_${safeId3(String(contentUnitId))}`,
+          id: `production_clip_${safeId4(String(item.entity.id ?? index))}_${safeId4(String(contentUnitId))}`,
           sceneMomentId: item.entity.id,
           sceneMomentPath: item.entity.path,
           sceneMomentTitle: previewTimelineItemTitle2(item),
@@ -46705,7 +47716,7 @@ function productionTimelineClips(input) {
 }
 function productionSceneMomentContentUnitIds2(contentUnits, item) {
   const fromTimeline = previewTimelineItemContentUnitIds(item);
-  const scanned = contentUnits.filter((unit) => recordValue2(unit.record) && isSceneMomentVideoContentUnit2(unit.record) && sceneMomentRefMatches2(unit.record, item)).map((unit) => unit.id ?? pathSegmentAfter8(unit.path, "content_units")).filter((id) => typeof id === "string" || typeof id === "number");
+  const scanned = contentUnits.filter((unit) => recordValue3(unit.record) && isSceneMomentVideoContentUnit2(unit.record) && sceneMomentRefMatches2(unit.record, item)).map((unit) => unit.id ?? pathSegmentAfter8(unit.path, "content_units")).filter((id) => typeof id === "string" || typeof id === "number");
   return Array.from(new Map([...fromTimeline, ...scanned].map((id) => [String(id), id])).values());
 }
 function previewTimelineItemTitle2(item) {
@@ -46733,7 +47744,7 @@ function sceneMomentRefMatches2(record, item) {
 function contentCandidateRecordsByContentUnitId4(documents) {
   const output = /* @__PURE__ */ new Map();
   for (const document of documents) {
-    if (!document.path.endsWith("/content_candidate.json") || !recordValue2(document.data)) continue;
+    if (!document.path.endsWith("/content_candidate.json") || !recordValue3(document.data)) continue;
     const contentUnitId = contentUnitIdForRuntimeDocument5(document.path, stringValue11(document.data.content_unit_ref ?? document.data.contentUnitRef));
     if (!contentUnitId) continue;
     output.set(contentUnitId, [...output.get(contentUnitId) ?? [], document.data]);
@@ -46743,8 +47754,8 @@ function contentCandidateRecordsByContentUnitId4(documents) {
 function selectionRecordsByContentUnitId4(documents) {
   const output = /* @__PURE__ */ new Map();
   for (const document of documents) {
-    if (!recordValue2(document.data)) continue;
-    const selection = recordValue2(document.data.selection);
+    if (!recordValue3(document.data)) continue;
+    const selection = recordValue3(document.data.selection);
     if (!selection) continue;
     const contentUnitId = contentUnitIdForRuntimeDocument5(document.path, stringValue11(document.data.target_ref ?? document.data.targetRef));
     if (!contentUnitId) continue;
@@ -46764,7 +47775,7 @@ function selectedVideoResourceId(candidate) {
 }
 function firstCandidateOutput5(candidate) {
   const outputs = Array.isArray(candidate?.outputs) ? candidate.outputs : [];
-  return outputs.find(recordValue2);
+  return outputs.find(recordValue3);
 }
 function timelineAssemblyScopeFromInput(input) {
   const parsedTarget = parseTimelineAssemblyRef(stringValue11(input.targetRef ?? input.target_ref ?? input.timelineAssemblyRef ?? input.timeline_assembly_ref));
@@ -47081,7 +48092,7 @@ function mediaProjectVideoItem(track, clip) {
   const startMs = msValue2(clip.sourceStartMs) ?? 0;
   const durationMs = msValue2(clip.durationMs) ?? Math.max(1, (msValue2(clip.sourceEndMs) ?? startMs + 4e3) - startMs);
   const endMs = msValue2(clip.sourceEndMs) ?? startMs + durationMs;
-  const movscript = recordValue2(clip.metadata?.movscript);
+  const movscript = recordValue3(clip.metadata?.movscript);
   return {
     resource_id: resourceId,
     start_sec: startMs / 1e3,
@@ -47162,6 +48173,8 @@ async function executeEditingProjectCommand(command, input, context = {}) {
       return createProject2(input);
     case "createProjectFromEditPlan":
       return createProjectFromEditPlan(input);
+    case "createProjectFromEditDecisions":
+      return createProjectFromEditDecisions(input);
     case "createProjectFromPreviewTimeline":
       return createProjectFromPreviewTimeline(input);
     case "saveProject":
@@ -47389,7 +48402,7 @@ async function deleteEditingProject(input, context) {
 async function readEditingProject(projectPath) {
   try {
     const raw = JSON.parse(await readFile4(projectPath, "utf8"));
-    const project = recordValue2(raw.editingProject ?? raw.editing_project ?? raw.project);
+    const project = recordValue3(raw.editingProject ?? raw.editing_project ?? raw.project);
     if (!project) return void 0;
     assertMediaEditingProjectEnvelope2(project);
     return project;
@@ -47440,7 +48453,7 @@ function createProject2(input) {
   };
 }
 function createProjectFromEditPlan(input) {
-  const editPlan = recordValue2(input.editPlan) ?? recordValue2(input.edit_plan);
+  const editPlan = recordValue3(input.editPlan) ?? recordValue3(input.edit_plan);
   if (!editPlan) throw new Error("editPlan is required");
   const editingProject = createMediaEditingProjectFromMovScriptEditPlan(editPlan, {
     id: stringValue11(input.id ?? input.editingProjectId ?? input.editing_project_id),
@@ -47451,6 +48464,34 @@ function createProjectFromEditPlan(input) {
     fps: optionalNumber2(input.fps),
     background: stringValue11(input.background),
     defaultDurationMs: optionalNumber2(input.defaultDurationMs ?? input.default_duration_ms)
+  });
+  return {
+    status: "ok",
+    editing_project: editingProject
+  };
+}
+function createProjectFromEditDecisions(input) {
+  const editDecisions = recordValue3(input.editDecisions) ?? recordValue3(input.edit_decisions);
+  if (!editDecisions) throw new Error("editDecisions is required");
+  const assetManifest = recordValue3(input.assetManifest) ?? recordValue3(input.asset_manifest);
+  const editingProject = createMediaEditingProjectFromEditDecisions(editDecisions, {
+    assetManifest,
+    id: stringValue11(input.id ?? input.editingProjectId ?? input.editing_project_id),
+    projectId: projectIdValue2(input) ?? "standalone",
+    title: stringValue11(input.title),
+    now: stringValue11(input.now),
+    width: optionalNumber2(input.width),
+    height: optionalNumber2(input.height),
+    fps: optionalNumber2(input.fps),
+    background: stringValue11(input.background),
+    defaultDurationMs: optionalNumber2(input.defaultDurationMs ?? input.default_duration_ms),
+    productionId: stringOrNumberValue3(input.productionId ?? input.production_id),
+    productionPath: stringValue11(input.productionPath ?? input.production_path),
+    targetKind: stringValue11(input.targetKind ?? input.target_kind),
+    targetRef: stringValue11(input.targetRef ?? input.target_ref),
+    scopeKind: stringValue11(input.scopeKind ?? input.scope_kind),
+    scopeRef: stringOrNumberValue3(input.scopeRef ?? input.scope_ref),
+    sourceHash: stringValue11(input.sourceHash ?? input.source_hash)
   });
   return {
     status: "ok",
@@ -47487,7 +48528,7 @@ function updateProjectSettings(input) {
   const height = optionalNumber2(input.height);
   const fps = optionalNumber2(input.fps);
   const background = stringValue11(input.background);
-  const workspace = recordValue2(input.workspace);
+  const workspace = recordValue3(input.workspace);
   if (title) next.title = title;
   if (width !== void 0) next.timeline.width = width;
   if (height !== void 0) next.timeline.height = height;
@@ -47606,7 +48647,7 @@ function buildEditingTaskAction(action, input) {
 }
 function buildImportExportResourceAction(input) {
   const taskId = stringValue11(input.taskId ?? input.task_id);
-  const task = recordValue2(input.task);
+  const task = recordValue3(input.task);
   const explicitOutputPath = stringValue11(input.outputPath ?? input.output_path);
   if (taskId && !task && !explicitOutputPath) {
     return {
@@ -47666,7 +48707,7 @@ function buildSaveLocalExportAction(input) {
   const saveDirectory = stringValue11(input.saveDirectory ?? input.save_directory ?? input.destinationDirectory ?? input.destination_directory);
   const taskId = stringValue11(input.taskId ?? input.task_id);
   const projectId = projectIdValue2(input);
-  const task = recordValue2(input.task);
+  const task = recordValue3(input.task);
   if (explicitOutputPath && !savePath && !saveDirectory) {
     return {
       status: "result",
@@ -47764,7 +48805,7 @@ function buildSaveLocalExportAction(input) {
 }
 function buildPublishHlsStreamAction(input) {
   const taskId = stringValue11(input.taskId ?? input.task_id);
-  const task = recordValue2(input.task);
+  const task = recordValue3(input.task);
   const hasExplicitManifest = !!stringValue11(input.manifestPath ?? input.manifest_path);
   const hasExplicitSegments = !!stringList2(input.segmentPaths ?? input.segment_paths)?.length;
   if (taskId && !task && !hasExplicitManifest) {
@@ -47833,7 +48874,7 @@ function buildSourceTaskRequest(input, taskType) {
   if (!projectId) {
     throw new Error(`projectId is required for ${taskType} Electron media workspace tasks`);
   }
-  const source = recordValue2(input.source);
+  const source = recordValue3(input.source);
   if (!source) throw new Error("source is required");
   return {
     projectId,
@@ -47868,7 +48909,7 @@ function applyTimelineCommand(project, command) {
   return service2.getProject();
 }
 function editingProjectArg2(input) {
-  const project = recordValue2(input.editingProject) ?? recordValue2(input.editing_project) ?? recordValue2(input.project);
+  const project = recordValue3(input.editingProject) ?? recordValue3(input.editing_project) ?? recordValue3(input.project);
   if (!project) throw new Error("editingProject is required");
   assertMediaEditingProjectEnvelope2(project);
   return project;
@@ -47877,22 +48918,22 @@ function assertMediaEditingProjectEnvelope2(project) {
   if (project.version !== 1 || !stringValue11(project.id) || !stringValue11(project.projectId ?? project.project_id)) {
     throw new Error("editingProject must be a MediaEditingProject v1 object");
   }
-  if (!recordValue2(project.timeline) || project.timeline.version !== 1 || !Array.isArray(project.timeline.tracks)) {
+  if (!recordValue3(project.timeline) || project.timeline.version !== 1 || !Array.isArray(project.timeline.tracks)) {
     throw new Error("editingProject.timeline must be a MediaTimelineRecipe v1 object");
   }
-  if (!recordValue2(project.assets) || !Array.isArray(project.assets.assets)) {
+  if (!recordValue3(project.assets) || !Array.isArray(project.assets.assets)) {
     throw new Error("editingProject.assets must contain an assets array");
   }
 }
 function commandList(input) {
   const commands = Array.isArray(input.commands) ? input.commands : void 0;
   if (commands) return commands;
-  const command = recordValue2(input.command);
+  const command = recordValue3(input.command);
   if (command) return [command];
   return [];
 }
 function mediaAssetArg(input) {
-  const asset = recordValue2(input.asset);
+  const asset = recordValue3(input.asset);
   if (!asset) throw new Error("asset is required");
   const sourceKind = sourceKindValue(asset.sourceKind ?? asset.source_kind);
   const assetType = assetTypeValue(asset.assetType ?? asset.asset_type);
@@ -47908,19 +48949,19 @@ function mediaAssetArg(input) {
     ...stringValue11(asset.mimeType ?? asset.mime_type) ? { mimeType: stringValue11(asset.mimeType ?? asset.mime_type) } : {},
     ...stringValue11(asset.checksum) ? { checksum: stringValue11(asset.checksum) } : {},
     ...stringValue11(asset.label) ? { label: stringValue11(asset.label) } : {},
-    ...recordValue2(asset.metadata) ? { metadata: asset.metadata } : {}
+    ...recordValue3(asset.metadata) ? { metadata: asset.metadata } : {}
   };
 }
 function mediaTrackArg(input) {
-  const track = recordValue2(input.track);
+  const track = recordValue3(input.track);
   if (track) {
     return {
       id: stringValue11(track.id) ?? `track_${trackTypeValue(track.type)}_${Date.now()}`,
       type: trackTypeValue(track.type),
       zIndex: optionalNumber2(track.zIndex ?? track.z_index) ?? 0,
       ...stringValue11(track.name) ? { name: stringValue11(track.name) } : {},
-      ...booleanValue2(track.muted) !== void 0 ? { muted: booleanValue2(track.muted) } : {},
-      ...booleanValue2(track.locked) !== void 0 ? { locked: booleanValue2(track.locked) } : {},
+      ...booleanValue3(track.muted) !== void 0 ? { muted: booleanValue3(track.muted) } : {},
+      ...booleanValue3(track.locked) !== void 0 ? { locked: booleanValue3(track.locked) } : {},
       clips: Array.isArray(track.clips) ? track.clips : []
     };
   }
@@ -47930,15 +48971,15 @@ function mediaTrackArg(input) {
     type,
     zIndex: optionalNumber2(input.zIndex ?? input.z_index) ?? 0,
     ...stringValue11(input.name) ? { name: stringValue11(input.name) } : {},
-    ...booleanValue2(input.muted) !== void 0 ? { muted: booleanValue2(input.muted) } : {},
-    ...booleanValue2(input.locked) !== void 0 ? { locked: booleanValue2(input.locked) } : {},
+    ...booleanValue3(input.muted) !== void 0 ? { muted: booleanValue3(input.muted) } : {},
+    ...booleanValue3(input.locked) !== void 0 ? { locked: booleanValue3(input.locked) } : {},
     clips: []
   };
 }
 function mediaClipArg(input, project) {
-  const clip = recordValue2(input.clip);
+  const clip = recordValue3(input.clip);
   const source = clip ?? input;
-  const asset = recordValue2(source.asset);
+  const asset = recordValue3(source.asset);
   const assetId = stringValue11(source.assetId ?? source.asset_id);
   const registeredAsset = assetId ? project.assets.assets.find((candidate) => candidate.id === assetId) : void 0;
   const resolvedAsset = asset ?? registeredAsset;
@@ -47952,22 +48993,22 @@ function mediaClipArg(input, project) {
     ...optionalNumber2(source.sourceStartMs ?? source.source_start_ms) !== void 0 ? { sourceStartMs: optionalNumber2(source.sourceStartMs ?? source.source_start_ms) } : {},
     ...optionalNumber2(source.sourceEndMs ?? source.source_end_ms) !== void 0 ? { sourceEndMs: optionalNumber2(source.sourceEndMs ?? source.source_end_ms) } : {},
     ...optionalNumber2(source.volume) !== void 0 ? { volume: optionalNumber2(source.volume) } : {},
-    ...booleanValue2(source.muted) !== void 0 ? { muted: booleanValue2(source.muted) } : {},
+    ...booleanValue3(source.muted) !== void 0 ? { muted: booleanValue3(source.muted) } : {},
     ...fitValue(source.fit) ? { fit: fitValue(source.fit) } : {},
     ...stringValue11(source.position) ? { position: stringValue11(source.position) } : {},
     ...optionalNumber2(source.xPercent ?? source.x_percent) !== void 0 ? { xPercent: optionalNumber2(source.xPercent ?? source.x_percent) } : {},
     ...optionalNumber2(source.yPercent ?? source.y_percent) !== void 0 ? { yPercent: optionalNumber2(source.yPercent ?? source.y_percent) } : {},
     ...optionalNumber2(source.scale) !== void 0 ? { scale: optionalNumber2(source.scale) } : {},
     ...optionalNumber2(source.opacity) !== void 0 ? { opacity: optionalNumber2(source.opacity) } : {},
-    ...recordValue2(source.crop) ? { crop: source.crop } : {},
-    ...recordValue2(source.transition) ? { transition: source.transition } : {},
-    ...recordValue2(source.text) ? { text: source.text } : {},
-    ...recordValue2(source.subtitle) ? { subtitle: source.subtitle } : {},
-    ...recordValue2(source.metadata) ? { metadata: source.metadata } : {}
+    ...recordValue3(source.crop) ? { crop: source.crop } : {},
+    ...recordValue3(source.transition) ? { transition: source.transition } : {},
+    ...recordValue3(source.text) ? { text: source.text } : {},
+    ...recordValue3(source.subtitle) ? { subtitle: source.subtitle } : {},
+    ...recordValue3(source.metadata) ? { metadata: source.metadata } : {}
   };
 }
 function mediaClipPatchArg(input) {
-  const patch = recordValue2(input.patch);
+  const patch = recordValue3(input.patch);
   const source = patch ?? input;
   const next = {};
   for (const [inputKey, outputKey] of [
@@ -47990,14 +49031,14 @@ function mediaClipPatchArg(input) {
     const value = optionalNumber2(source[inputKey]);
     if (value !== void 0) next[outputKey] = value;
   }
-  if (booleanValue2(source.muted) !== void 0) next.muted = booleanValue2(source.muted);
+  if (booleanValue3(source.muted) !== void 0) next.muted = booleanValue3(source.muted);
   if (fitValue(source.fit)) next.fit = fitValue(source.fit);
   if (stringValue11(source.position)) next.position = stringValue11(source.position);
-  if (recordValue2(source.crop)) next.crop = source.crop;
-  if (recordValue2(source.transition)) next.transition = source.transition;
-  if (recordValue2(source.text)) next.text = source.text;
-  if (recordValue2(source.subtitle)) next.subtitle = source.subtitle;
-  if (recordValue2(source.metadata)) next.metadata = source.metadata;
+  if (recordValue3(source.crop)) next.crop = source.crop;
+  if (recordValue3(source.transition)) next.transition = source.transition;
+  if (recordValue3(source.text)) next.text = source.text;
+  if (recordValue3(source.subtitle)) next.subtitle = source.subtitle;
+  if (recordValue3(source.metadata)) next.metadata = source.metadata;
   return next;
 }
 function trackIdValue(input) {
@@ -48019,7 +49060,7 @@ function productionTimelineClipsArg(input) {
   const clips = input.clips;
   if (!Array.isArray(clips)) throw new Error("clips is required");
   return clips.map((clip, index) => {
-    const record = recordValue2(clip);
+    const record = recordValue3(clip);
     if (!record) throw new Error(`clips[${index}] must be an object`);
     const contentUnitId = stringOrNumberValue3(record.contentUnitId ?? record.content_unit_id);
     if (contentUnitId === void 0) throw new Error(`clips[${index}].contentUnitId is required`);
@@ -48053,20 +49094,20 @@ function taskIdValue(input) {
   return taskId;
 }
 function outputSpec(input, defaultFormat) {
-  const output = recordValue2(input.output);
+  const output = recordValue3(input.output);
   const format = stringValue11(output?.format) === "hls" ? "hls" : stringValue11(output?.format) === "mp4" ? "mp4" : defaultFormat;
   return {
     format,
     ...stringValue11(output?.filename) ? { filename: stringValue11(output?.filename) } : {},
-    ...booleanValue2(output?.importToResource ?? output?.import_to_resource) !== void 0 ? { importToResource: booleanValue2(output?.importToResource ?? output?.import_to_resource) } : {},
+    ...booleanValue3(output?.importToResource ?? output?.import_to_resource) !== void 0 ? { importToResource: booleanValue3(output?.importToResource ?? output?.import_to_resource) } : {},
     ...stringOrNumberValue3(output?.folderId ?? output?.folder_id) !== void 0 ? { folderId: stringOrNumberValue3(output?.folderId ?? output?.folder_id) } : {},
     ...exportDerivativePayload2(output ?? {}) ? { derivative: exportDerivativePayload2(output ?? {}) } : {},
     ...Array.isArray(output?.hlsVariants ?? output?.hls_variants) ? { hlsVariants: output?.hlsVariants ?? output?.hls_variants } : {}
   };
 }
 function reframeRuntimeOptions(input) {
-  const output = recordValue2(input.output);
-  const reframe = recordValue2(input.reframe) ?? {};
+  const output = recordValue3(input.output);
+  const reframe = recordValue3(input.reframe) ?? {};
   const target = stringValue11(input.target ?? reframe.target ?? output?.target);
   const mode = stringValue11(input.mode ?? reframe.mode ?? output?.mode);
   const width = optionalNumber2(input.width ?? reframe.width ?? output?.width);
@@ -48087,8 +49128,8 @@ function reframeRuntimeOptions(input) {
   };
 }
 function transcodeRuntimeOptions(input) {
-  const output = recordValue2(input.output);
-  const transcode = recordValue2(input.transcode) ?? {};
+  const output = recordValue3(input.output);
+  const transcode = recordValue3(input.transcode) ?? {};
   const videoCodec = stringValue11(input.videoCodec ?? input.video_codec ?? transcode.videoCodec ?? transcode.video_codec ?? output?.videoCodec ?? output?.video_codec);
   const audioCodec = stringValue11(input.audioCodec ?? input.audio_codec ?? transcode.audioCodec ?? transcode.audio_codec ?? output?.audioCodec ?? output?.audio_codec);
   const videoBitrateKbps = optionalNumber2(input.videoBitrateKbps ?? input.video_bitrate_kbps ?? transcode.videoBitrateKbps ?? transcode.video_bitrate_kbps ?? output?.videoBitrateKbps ?? output?.video_bitrate_kbps);
@@ -48103,9 +49144,9 @@ function transcodeRuntimeOptions(input) {
   return Object.keys(spec).length ? { transcode: spec } : {};
 }
 function resourceRuntimeOptions(input) {
-  const output = recordValue2(input.output);
-  const resourceCache = recordValue2(input.resourceCache) ?? recordValue2(input.resource_cache) ?? recordValue2(output?.resourceCache) ?? recordValue2(output?.resource_cache);
-  const resourceDownload = recordValue2(input.resourceDownload) ?? recordValue2(input.resource_download) ?? recordValue2(output?.resourceDownload) ?? recordValue2(output?.resource_download);
+  const output = recordValue3(input.output);
+  const resourceCache = recordValue3(input.resourceCache) ?? recordValue3(input.resource_cache) ?? recordValue3(output?.resourceCache) ?? recordValue3(output?.resource_cache);
+  const resourceDownload = recordValue3(input.resourceDownload) ?? recordValue3(input.resource_download) ?? recordValue3(output?.resourceDownload) ?? recordValue3(output?.resource_download);
   return {
     ...resourceCache ? { resourceCache } : {},
     ...resourceDownload ? { resourceDownload } : {}
@@ -48123,12 +49164,12 @@ function exportImportDerivativeRequest(input) {
     ...stringOrNumberValue3(input.source_resource_id) !== void 0 ? { source_resource_id: stringOrNumberValue3(input.source_resource_id) } : {},
     ...idList(input.sourceResourceIds) ? { sourceResourceIds: idList(input.sourceResourceIds) } : {},
     ...idList(input.source_resource_ids) ? { source_resource_ids: idList(input.source_resource_ids) } : {},
-    ...recordValue2(input.params) ? { params: input.params } : {}
+    ...recordValue3(input.params) ? { params: input.params } : {}
   };
 }
 function exportDerivativePayload2(source) {
   const explicit = source.derivative;
-  if (recordValue2(explicit)) {
+  if (recordValue3(explicit)) {
     const operation = stringValue11(explicit.operation);
     if (!operation) return void 0;
     const inputIds = numericIdList2(explicit.input_resource_ids ?? explicit.inputResourceIds);
@@ -48136,7 +49177,7 @@ function exportDerivativePayload2(source) {
       operation,
       ...stringValue11(explicit.tool) ? { tool: stringValue11(explicit.tool) } : {},
       ...inputIds.length ? { input_resource_ids: inputIds } : {},
-      ...recordValue2(explicit.params) ? { params: explicit.params } : {}
+      ...recordValue3(explicit.params) ? { params: explicit.params } : {}
     };
   }
   return void 0;
@@ -48151,7 +49192,7 @@ function numericIdList2(value) {
   return Array.from(new Set(values.map((item) => typeof item === "number" ? item : typeof item === "string" ? Number(item) : NaN).filter((item) => Number.isInteger(item) && item > 0)));
 }
 function isHlsTaskOutput(task, outputPath) {
-  if (recordValue2(task) && stringValue11(task.taskType ?? task.task_type) === "timeline_hls") return true;
+  if (recordValue3(task) && stringValue11(task.taskType ?? task.task_type) === "timeline_hls") return true;
   return outputPath.toLowerCase().endsWith(".m3u8");
 }
 function requiredNumeric(input, camelKey, snakeKey) {
@@ -48250,25 +49291,25 @@ function stringList2(value) {
   }
   return void 0;
 }
-function booleanValue2(value) {
+function booleanValue3(value) {
   if (typeof value === "boolean") return value;
   if (value === "true") return true;
   if (value === "false") return false;
   return void 0;
 }
-function recordValue2(value) {
+function recordValue3(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
 }
 function stringRecord(value) {
-  const record = recordValue2(value);
+  const record = recordValue3(value);
   if (!record) return void 0;
   return Object.fromEntries(Object.entries(record).filter(([, item]) => typeof item === "string").map(([key, item]) => [key, item]));
 }
 function optionalDecisionStoreFromBody(body) {
-  return recordValue2(body.decisionStore ?? body.decision_store) ? decisionStoreFromBody(body) : void 0;
+  return recordValue3(body.decisionStore ?? body.decision_store) ? decisionStoreFromBody(body) : void 0;
 }
 function decisionStoreFromBody(body) {
-  const config = recordValue2(body.decisionStore ?? body.decision_store);
+  const config = recordValue3(body.decisionStore ?? body.decision_store);
   if (!config) return void 0;
   if (config.kind !== "scoped-project-data") {
     throw httpError(400, "editing_decision_store_unsupported", "only scoped-project-data decisionStore is supported");
@@ -48304,7 +49345,7 @@ function pathSegmentAfter8(path, segment) {
 function lastPathSegment9(path) {
   return path?.split("/").filter(Boolean).at(-1);
 }
-function safeId3(value) {
+function safeId4(value) {
   return value.replace(/[^a-zA-Z0-9_-]+/g, "_") || "item";
 }
 function sameId7(left, right) {
@@ -48809,7 +49850,7 @@ function createMediaPipelineServiceHandler(options = {}) {
       }
       if (request.method === "POST" && url.pathname === MEDIA_PIPELINE_TASK_CREATE_ENDPOINT) {
         const body = await readJSONBody3(request);
-        const taskRequest = recordValue3(body.request);
+        const taskRequest = recordValue4(body.request);
         if (!taskRequest) {
           throw httpError2(400, "media_pipeline_task_request_required", "media pipeline task create requires request");
         }
@@ -48932,7 +49973,7 @@ function normalizeProbeResult(result, context) {
     ...context.taskType ? { requestedTaskType: context.taskType } : {},
     ...context.feature ? { requestedFeature: context.feature } : {},
     ...stringValue13(result?.reason) ? { reason: stringValue13(result.reason) } : {},
-    ...recordValue3(result?.ffmpeg) ? { ffmpeg: result.ffmpeg } : {}
+    ...recordValue4(result?.ffmpeg) ? { ffmpeg: result.ffmpeg } : {}
   };
 }
 function startMediaPipelineService(options = {}) {
@@ -49011,11 +50052,11 @@ function httpError2(statusCode, code, message) {
 function stringValue13(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
-function recordValue3(value) {
+function recordValue4(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
 }
 function mediaPipelineTaskOptions(value) {
-  const options = recordValue3(value);
+  const options = recordValue4(value);
   const projectId = stringValue13(options?.projectId);
   return projectId ? { projectId } : void 0;
 }
@@ -49433,7 +50474,7 @@ function createProjectServiceHandler(options = {}) {
         const result = await executeProjectSourceCommand({
           projectDir,
           command,
-          input: recordValue4(body.input) ?? {},
+          input: recordValue5(body.input) ?? {},
           decisionStore: await optionalDecisionStoreFromBody2(body, projectDir),
           now: now()
         });
@@ -49455,7 +50496,7 @@ function createProjectServiceHandler(options = {}) {
         const result = await executeProjectLifecycleCommand({
           projectDir,
           command,
-          input: recordValue4(body.input) ?? {},
+          input: recordValue5(body.input) ?? {},
           now: now()
         });
         writeJSON4(response, 200, {
@@ -49538,7 +50579,7 @@ function createProjectServiceHandler(options = {}) {
         const result = await executeProjectCandidateCommand({
           projectDir,
           command,
-          input: recordValue4(body.input) ?? {},
+          input: recordValue5(body.input) ?? {},
           decisionStore
         });
         writeJSON4(response, 200, {
@@ -49677,7 +50718,7 @@ async function readProjectSourceContext(request) {
   };
 }
 function projectContentCanvasEnvelope(projectDir, result, fallbackSchema) {
-  const record = recordValue4(result) ?? {};
+  const record = recordValue5(result) ?? {};
   return {
     ...record,
     schema: stringValue14(record.schema) ?? fallbackSchema,
@@ -49698,7 +50739,7 @@ function createProjectWorkspaceEngine(context) {
   });
 }
 function projectSourceOperationInput(body) {
-  const explicit = recordValue4(body.input);
+  const explicit = recordValue5(body.input);
   if (explicit) return explicit;
   const {
     projectDir: _projectDir,
@@ -49885,7 +50926,7 @@ async function writeProjectContentCanvas(fileRepository, input) {
   const titleValidationError = validateProjectContentCanvasTitle(record.title);
   if (titleValidationError) throw titleValidationError;
   const path = contentCanvasProjectFilePath(record.id);
-  const source = recordValue4(input) ?? {};
+  const source = recordValue5(input) ?? {};
   const expectedVersion = stringValue14(source.expectedVersion ?? source.expected_version);
   const written = await fileRepository.write({
     path,
@@ -49906,7 +50947,7 @@ async function writeProjectContentCanvas(fileRepository, input) {
   };
 }
 async function renameProjectContentCanvas(fileRepository, input) {
-  const source = recordValue4(input) ?? {};
+  const source = recordValue5(input) ?? {};
   const id = stringValue14(source.id ?? source.canvasId ?? source.canvas_id);
   if (!id) throw httpError3(400, "project_content_canvas_id_required", "canvas id is required");
   const title = normalizeProjectContentCanvasTitle(source.title ?? source.name);
@@ -49946,7 +50987,7 @@ async function renameProjectContentCanvas(fileRepository, input) {
   };
 }
 async function runProjectContentCanvas({ projectDir, fileRepository, engine, input, now }) {
-  const source = recordValue4(input) ?? {};
+  const source = recordValue5(input) ?? {};
   const canvasId = stringValue14(source.id ?? source.canvasId ?? source.canvas_id);
   if (!canvasId) throw httpError3(400, "project_content_canvas_id_required", "canvas id is required");
   const canvas = await readProjectContentCanvas(fileRepository, canvasId);
@@ -50063,7 +51104,7 @@ function contentCanvasRunAffectedContentUnitIds(canvasRecord, snapshot) {
   return affected;
 }
 function contentUnitRunRefs(unit) {
-  const record = recordValue4(unit.record) ?? {};
+  const record = recordValue5(unit.record) ?? {};
   const id = idValue4(unit.id ?? record.id ?? pathSegmentAfter9(unit.path, "content_units"));
   const refs = [
     id,
@@ -50121,13 +51162,13 @@ function contentCanvasRunCandidateImpact({ affectedContentUnitIds, contentUnitSu
     missing_selection_content_unit_ids: missingSelectionContentUnitIds,
     totalCandidateCount: summaries.reduce((sum, summary) => sum + (numberValue7(summary.candidate_count) ?? 0), 0),
     total_candidate_count: summaries.reduce((sum, summary) => sum + (numberValue7(summary.candidate_count) ?? 0), 0),
-    workspaceCandidateMapCount: Object.keys(recordValue4(contentData.contentUnitCandidates) ?? {}).length,
-    workspace_candidate_map_count: Object.keys(recordValue4(contentData.contentUnitCandidates) ?? {}).length
+    workspaceCandidateMapCount: Object.keys(recordValue5(contentData.contentUnitCandidates) ?? {}).length,
+    workspace_candidate_map_count: Object.keys(recordValue5(contentData.contentUnitCandidates) ?? {}).length
   };
 }
 function projectContentCanvasRecordFromInput(input, options = {}) {
-  const source = recordValue4(input);
-  const record = source ? recordValue4(source.canvas ?? source.record) ?? source : void 0;
+  const source = recordValue5(input);
+  const record = source ? recordValue5(source.canvas ?? source.record) ?? source : void 0;
   if (!record) throw httpError3(400, "project_content_canvas_required", "content canvas record is required");
   const id = stringValue14(record.id ?? record.canvasId ?? record.canvas_id) ?? contentCanvasProjectIdFromPath(options.path) ?? createProjectContentCanvasId();
   const updatedAt = stringValue14(record.updated_at ?? record.updatedAt) ?? (/* @__PURE__ */ new Date()).toISOString();
@@ -50167,7 +51208,7 @@ function validateProjectContentCanvasTitle(title) {
   return void 0;
 }
 function projectContentCanvasScope(value) {
-  const scope = recordValue4(value);
+  const scope = recordValue5(value);
   if (!scope || scope.kind === "global") return { kind: "global" };
   if (scope.kind !== "production") return { kind: "global" };
   const productionId = stringValue14(scope.production_id ?? scope.productionId);
@@ -50181,11 +51222,11 @@ function projectContentCanvasScope(value) {
   });
 }
 function projectContentCanvasNodes(value) {
-  const values = Array.isArray(value) ? value : Object.values(recordValue4(value) ?? {});
+  const values = Array.isArray(value) ? value : Object.values(recordValue5(value) ?? {});
   return values.map(projectContentCanvasNode).filter(Boolean).sort((left, right) => left.node_id.localeCompare(right.node_id));
 }
 function projectContentCanvasNode(value) {
-  const node = recordValue4(value);
+  const node = recordValue5(value);
   if (!node) return void 0;
   const nodeId2 = stringValue14(node.node_id ?? node.nodeId ?? node.id);
   if (!nodeId2) return void 0;
@@ -50196,12 +51237,12 @@ function projectContentCanvasNode(value) {
   });
 }
 function projectContentCanvasLayouts(value) {
-  const layouts = recordValue4(value);
+  const layouts = recordValue5(value);
   if (!layouts) return {};
   return Object.fromEntries(Object.entries(layouts).map(([nodeId2, layout]) => [nodeId2, projectContentCanvasLayout(layout)]).filter(([, layout]) => Boolean(layout)));
 }
 function projectContentCanvasLayout(value) {
-  const layout = recordValue4(value);
+  const layout = recordValue5(value);
   if (!layout) return void 0;
   const x = numberValue7(layout.x);
   const y = numberValue7(layout.y);
@@ -50262,7 +51303,7 @@ function namespaceHierarchyNodeInput(input) {
   if (!entityKind || !namespaceCategoryAllowsEntityKind(category, entityKind)) {
     throw httpError3(400, "project_namespace_target_path_unsupported", `targetPath is not valid for ${category}`);
   }
-  const record = recordValue4(input.record) ?? {};
+  const record = recordValue5(input.record) ?? {};
   const namespaceKind = stringValue14(
     input.namespaceKind ?? input.namespace_kind ?? input.domainKind ?? input.domain_kind ?? input.kind ?? record.namespace_kind ?? record.namespaceKind ?? record.timeline_namespace_kind ?? record.timelineNamespaceKind ?? record.setting_namespace_kind ?? record.settingNamespaceKind
   );
@@ -50569,7 +51610,7 @@ async function initializeLocalProject(projectDir, input) {
     ...stringValue14(input.projectId ?? input.project_id) ? { projectId: stringValue14(input.projectId ?? input.project_id) } : {},
     ...stringValue14(input.projectUid ?? input.project_uid) ? { projectUid: stringValue14(input.projectUid ?? input.project_uid) } : {},
     ...stringValue14(input.language) ? { language: stringValue14(input.language) } : {},
-    ...recordValue4(input.standards) ? { standards: recordValue4(input.standards) } : {},
+    ...recordValue5(input.standards) ? { standards: recordValue5(input.standards) } : {},
     overwrite: input.overwrite === true
   });
 }
@@ -50603,7 +51644,7 @@ function localProjectTitleFromInitialized(projectDir, initialized) {
 async function readLocalProjectMetadata(projectDir) {
   const workspace = await readJSONFile(resolve9(projectDir, "workspace.json"));
   const project = await readJSONFile(resolve9(projectDir, "project.json"));
-  const hasMetadata = Boolean(recordValue4(workspace) || recordValue4(project));
+  const hasMetadata = Boolean(recordValue5(workspace) || recordValue5(project));
   return {
     hasMetadata,
     projectId: stringValue14(workspace?.project_id ?? workspace?.projectId ?? project?.project_id ?? project?.projectId ?? project?.id),
@@ -50660,7 +51701,7 @@ async function readProjectCandidateActionContext(request) {
   }
   return {
     projectDir,
-    input: recordValue4(body.input) ?? {},
+    input: recordValue5(body.input) ?? {},
     decisionStore
   };
 }
@@ -50716,7 +51757,7 @@ function missingDecisionProvider() {
   };
 }
 function decisionStoreFromBody2(body) {
-  const config = recordValue4(body.decisionStore ?? body.decision_store);
+  const config = recordValue5(body.decisionStore ?? body.decision_store);
   if (!config) {
     throw httpError3(400, "project_candidate_decision_store_required", "decisionStore is required");
   }
@@ -50735,11 +51776,11 @@ function decisionStoreFromBody2(body) {
     ...config.scopeKind === "user" || config.scopeKind === "org" ? { scopeKind: config.scopeKind } : {},
     ...config.scopeId !== void 0 || config.scope_id !== void 0 ? { scopeId: config.scopeId ?? config.scope_id } : {},
     ...stringValue14(config.token) ? { token: stringValue14(config.token) } : {},
-    ...recordValue4(config.headers) ? { headers: stringRecord2(config.headers) } : {}
+    ...recordValue5(config.headers) ? { headers: stringRecord2(config.headers) } : {}
   });
 }
 async function optionalDecisionStoreFromBody2(body, projectDir) {
-  if (recordValue4(body.decisionStore ?? body.decision_store)) return decisionStoreFromBody2(body);
+  if (recordValue5(body.decisionStore ?? body.decision_store)) return decisionStoreFromBody2(body);
   return inferLocalProjectDecisionStore(body, projectDir);
 }
 async function inferLocalProjectDecisionStore(body, projectDir) {
@@ -50817,7 +51858,7 @@ function pathStringValue(value) {
 async function readJSONFile(path) {
   try {
     const parsed = JSON.parse(await readFile5(path, "utf8"));
-    return recordValue4(parsed);
+    return recordValue5(parsed);
   } catch {
     return void 0;
   }
@@ -50849,7 +51890,7 @@ function numberValue7(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : void 0;
 }
-function recordValue4(value) {
+function recordValue5(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
 }
 function pathSegmentAfter9(path, segment) {
@@ -50861,7 +51902,7 @@ function pruneUndefinedRecord3(record) {
   return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== void 0 && value !== ""));
 }
 function stringRecord2(value) {
-  const record = recordValue4(value);
+  const record = recordValue5(value);
   if (!record) return {};
   return Object.fromEntries(Object.entries(record).filter(([, item]) => typeof item === "string").map(([key, item]) => [key, item]));
 }

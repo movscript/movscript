@@ -1,4 +1,5 @@
 import type { ContentCandidateRecord, ContentSourceWorkspaceCandidateCreatePlan, ContentSourceWorkspaceData } from '@movscript/core/content'
+import type { GenerationIntentPayload } from '@movscript/core/generation'
 import type { ParamDef } from '@movscript/shared'
 import type { MovScriptWorkspaceService } from '@movscript/workspace'
 import type {
@@ -47,6 +48,7 @@ export interface ContentCanvasWorkspaceGateway {
   previewContentUnitGenerationPrompt(input: ContentCanvasContentCandidateGenerateInput): Promise<ContentCanvasGenerationPromptPreview>
   generateContentUnitCandidate(input: ContentCanvasContentCandidateGenerateInput): Promise<ContentCandidateRecord>
   selectContentUnitCandidate(input: ContentCanvasContentCandidateSelectInput): Promise<void>
+  decideContentUnitCandidate(input: ContentCanvasContentCandidateDecideInput): Promise<void>
 }
 
 export type ContentCanvasProductionCreateInput = {
@@ -114,6 +116,7 @@ export type ContentCanvasContentCandidateGenerateInput = {
   modelId?: string
   params?: Record<string, string | number | boolean>
   supportedParams?: ParamDef[]
+  generationIntent?: GenerationIntentPayload
   promptText?: string
 }
 
@@ -143,4 +146,14 @@ export type ContentCanvasContentCandidateSelectInput = {
   candidateId: string
   resourceId?: number
   reason: 'content_source_workspace_selection'
+}
+
+export type ContentCanvasContentCandidateDecideInput = {
+  projectId: number
+  contentUnitId: string
+  candidateId: string
+  resourceId?: number
+  decision: 'adopt' | 'reject' | 'defer'
+  reason?: string
+  metadata?: Record<string, unknown>
 }

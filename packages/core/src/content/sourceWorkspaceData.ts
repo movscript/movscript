@@ -135,6 +135,8 @@ export interface ContentCandidateRecord {
   content_unit_ref?: string
   source?: string
   status?: string
+  decision_status?: string
+  decision_reason?: string
   producer?: Record<string, unknown>
   outputs?: unknown[]
   prompt_snapshot?: Record<string, unknown>
@@ -1889,6 +1891,8 @@ function previewCandidatesForContentUnit(
       resourceKind: stringField(output?.kind),
       artifactRef: stringField(output?.artifact_ref),
       status: stringField(candidate.status),
+      decisionStatus: candidateDecisionStatus(candidate),
+      decisionReason: candidateDecisionReason(candidate),
       source: stringField(candidate.source),
       producer: candidate.producer,
       outputs: candidate.outputs,
@@ -1917,6 +1921,8 @@ function previewAssetCandidatesForContentUnit(
       resourceKind: stringField(output?.kind),
       artifactRef: stringField(output?.artifact_ref),
       status: stringField(candidate.status),
+      decisionStatus: candidateDecisionStatus(candidate),
+      decisionReason: candidateDecisionReason(candidate),
       source: stringField(candidate.source),
       producer: candidate.producer,
       outputs: candidate.outputs,
@@ -2268,16 +2274,21 @@ function candidateInputHash(candidate: ContentCandidateRecord, contentUnitId: st
 
 function candidateNote(candidate: ContentCandidateRecord): string {
   const output = firstCandidateOutput(candidate)
-  const candidateRecord = candidate as Record<string, unknown>
-  const decisionStatus = stringField(candidateRecord.decision_status)
-  const decisionReason = stringField(candidateRecord.decision_reason)
-  if (decisionStatus && decisionReason) return `${decisionStatus}: ${decisionReason}`
-  if (decisionStatus) return decisionStatus
   return stringField(candidate.prompt_snapshot?.note)
     ?? stringField(candidate.prompt_snapshot?.summary)
     ?? stringField(output?.mime_type)
     ?? stringField(candidate.status)
     ?? 'Workspace runtime candidate.'
+}
+
+function candidateDecisionStatus(candidate: ContentCandidateRecord): string | undefined {
+  const record = candidate as Record<string, unknown>
+  return stringField(record.decision_status) ?? stringField(record.decisionStatus)
+}
+
+function candidateDecisionReason(candidate: ContentCandidateRecord): string | undefined {
+  const record = candidate as Record<string, unknown>
+  return stringField(record.decision_reason) ?? stringField(record.decisionReason)
 }
 
 function firstCandidateOutput(candidate: ContentCandidateRecord): Record<string, unknown> | undefined {

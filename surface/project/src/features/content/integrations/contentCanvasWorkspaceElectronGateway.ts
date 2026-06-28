@@ -11,8 +11,9 @@ import {
   buildContentUnitGenerationJobPayload,
   compiledContentUnitGenerationPromptText,
   compiledContentUnitGenerationPromptResourceIds,
-  resolveGenerationJobTypeFromResourceCount,
+  generationExecutionJobTypeForIntent,
   type ContentUnitGenerationOutputKind,
+  type GenerationIntentPayload,
 } from '@movscript/core/generation'
 import type { ContentCandidateRecord } from '@movscript/core/content'
 import type { PublicModel, RawResource } from '@movscript/shared'
@@ -22,6 +23,7 @@ import {
 } from './contentSourceWorkspaceElectron'
 import type {
   ContentCanvasContentCandidateCreateInput,
+  ContentCanvasContentCandidateDecideInput,
   ContentCanvasContentCandidateGenerateInput,
   ContentCanvasGenerationPromptPreview,
   ContentCanvasContentCandidateSelectInput,
@@ -270,11 +272,12 @@ export function createElectronContentCanvasWorkspaceGateway(
       const blockers = promptBlockers(compiledPrompt)
       if (blockers.length) throw new Error(`提示词引用尚未解析：${blockers.map(promptBlockerLabel).join('；')}`)
       const inputResourceIds = compiledContentUnitGenerationPromptResourceIds(compiledPrompt)
-      const jobType = resolveGenerationJobTypeFromResourceCount({
-        outputType: input.outputKind,
-        inputResourceCount: inputResourceIds.length,
-      })
-      const resolvedModel = input.modelId ? undefined : await resolveContentUnitGenerationModel(jobType, input.outputKind)
+      const generationIntent = completeCanvasContentUnitGenerationIntent(input.generationIntent, input.outputKind, inputResourceIds)
+      const jobType = generationExecutionJobTypeForIntent(generationIntent, input.outputKind)
+      const modelCapability = generationIntent.capability
+      const resolvedModel = input.modelId
+        ? undefined
+        : await resolveContentUnitGenerationModel(modelCapability, input.outputKind, generationIntent.operation, generationIntent.reference_assets)
       const modelId = input.modelId ?? (resolvedModel ? publicModelId(resolvedModel) : '')
       if (!modelId) throw new Error(`没有可用于 ${jobType} 的生成模型`)
       const supportedParams = input.supportedParams ?? resolvedModel?.supported_params
@@ -286,6 +289,7 @@ export function createElectronContentCanvasWorkspaceGateway(
         modelId,
         params: input.params,
         supportedParams,
+        generationIntent,
       })
       const payload = built.payload
       const response = await api.post(`/projects/${input.projectId}/content-units/${encodeURIComponent(input.contentUnitId)}/candidates/generate`, {
@@ -300,6 +304,7 @@ export function createElectronContentCanvasWorkspaceGateway(
         aspect_ratio: payload.aspect_ratio,
         duration: payload.duration,
         input_resource_ids: payload.input_resource_ids,
+        generation_intent: payload.generation_intent,
         prompt_snapshot: built.promptSnapshot,
       }).then((result) => result.data as { candidate: ContentCandidateRecord })
       return response.candidate
@@ -319,7 +324,86 @@ export function createElectronContentCanvasWorkspaceGateway(
         reason: input.reason,
       })
     },
+    decideContentUnitCandidate: async (input: ContentCanvasContentCandidateDecideInput) => {
+      const decideCandidate = readSurfaceHostApi()?.decideMovScriptEngineContentUnitCandidate
+      if (!decideCandidate) throw new Error('当前窗口没有创作片段候选决策能力')
+      const projectDir = currentSurfaceWorkspaceProjectDir()
+      await decideCandidate({
+        ...currentSurfaceWorkspaceOwnerContext(),
+        ...(projectDir ? { projectDir } : {}),
+        projectId: input.projectId,
+        expectedWorkspaceVersions: {},
+        contentUnitId: input.contentUnitId,
+        candidateId: input.candidateId,
+        resourceId: input.resourceId,
+        decision: input.decision,
+        reason: input.reason,
+        metadata: input.metadata,
+      })
+    },
   }
+}
+
+function completeCanvasContentUnitGenerationIntent(
+  intent: GenerationIntentPayload | undefined,
+  outputKind: ContentUnitGenerationOutputKind,
+  inputResourceIds: readonly number[],
+): GenerationIntentPayload {
+  if (!intent?.capability?.trim() || !intent.operation?.trim()) {
+    throw new Error('生成候选需要显式选择模型能力和 operation')
+  }
+  const referenceAssets = completeCanvasReferenceAssets(intent.operation, intent.reference_assets, inputResourceIds)
+  return {
+    capability: intent.capability.trim(),
+    operation: intent.operation.trim(),
+    ...(referenceAssets.length > 0 ? { reference_assets: referenceAssets } : {}),
+  }
+}
+
+function completeCanvasReferenceAssets(
+  operation: string,
+  existing: GenerationIntentPayload['reference_assets'] | undefined,
+  inputResourceIds: readonly number[],
+): NonNullable<GenerationIntentPayload['reference_assets']> {
+  const raw = Array.isArray(existing) ? existing : []
+  if (inputResourceIds.length === 0 && raw.length === 0) return []
+  const maxLength = Math.max(inputResourceIds.length, raw.length)
+  const out: NonNullable<GenerationIntentPayload['reference_assets']> = []
+  for (let index = 0; index < maxLength; index += 1) {
+    const current = raw[index]
+    const role = current?.role?.trim() || referenceRoleForOperation(operation, index)
+    const mediaType = current?.media_type?.trim() || referenceMediaTypeForOperation(operation, role)
+    const resourceId = current?.resource_id ?? inputResourceIds[index]
+    if (!role || resourceId === undefined) continue
+    out.push({
+      role,
+      ...(mediaType ? { media_type: mediaType } : {}),
+      resource_id: resourceId,
+    })
+  }
+  return out
+}
+
+function referenceRoleForOperation(operation: string, index: number): string {
+  switch (operation.trim()) {
+    case 'first_frame_to_video':
+      return index === 0 ? 'first_frame' : 'generic'
+    case 'first_last_frame_to_video':
+      return index === 0 ? 'first_frame' : index === 1 ? 'last_frame' : 'generic'
+    case 'reference_to_video':
+      return 'generic'
+    case 'video_to_video':
+      return 'reference_video'
+    default:
+      return 'generic'
+  }
+}
+
+function referenceMediaTypeForOperation(operation: string, role: string): 'image' | 'video' | undefined {
+  if (operation.trim() === 'video_to_video' || role === 'reference_video') return 'video'
+  if (operation.trim() === 'reference_to_video' && role === 'generic') return undefined
+  if (role === 'generic' || role === 'reference_image' || role === 'first_frame' || role === 'last_frame') return 'image'
+  return undefined
 }
 
 function timelineAssemblyContentUnitEnsurePayload(input: {
@@ -435,12 +519,8 @@ async function buildContentUnitBackendPromptForCanvas(
     contentUnitId: input.contentUnitId,
     promptText: input.promptText,
   })
-  const promptText = typeof input.promptText === 'string' ? input.promptText : undefined
-  const prompt = promptText === undefined
-    ? result.prompt
-    : { ...(result.prompt ?? {}), text: promptText }
   return {
-    ...prompt,
+    ...result.prompt,
     ...(result.ok ? {} : { blockers: result.blockers }),
   }
 }
@@ -467,18 +547,33 @@ function stringValue(value: unknown): string | undefined {
 async function resolveContentUnitGenerationModel(
   capability: string,
   fallbackCapability: ContentUnitGenerationOutputKind,
+  operation?: string,
+  referenceAssets?: GenerationIntentPayload['reference_assets'],
 ): Promise<PublicModel> {
-  const models = await listGenerationModels(capability)
+  const models = await listGenerationModels(capability, operation, referenceAssets)
   const fallbackModels = models.length > 0 || capability === fallbackCapability
     ? models
-    : await listGenerationModels(fallbackCapability)
+    : await listGenerationModels(fallbackCapability, operation, referenceAssets)
   const model = fallbackModels.find((item) => item.is_default) ?? fallbackModels[0]
   if (!model) throw new Error(`没有可用于 ${capability} 的生成模型`)
   return model
 }
 
-async function listGenerationModels(capability: string): Promise<PublicModel[]> {
-  return api.get('/models', { params: { capability } }).then((response) => response.data as PublicModel[])
+async function listGenerationModels(
+  capability: string,
+  operation?: string,
+  referenceAssets?: GenerationIntentPayload['reference_assets'],
+): Promise<PublicModel[]> {
+  return api.get('/models', {
+    params: {
+      capability,
+      ...(operation ? { operation } : {}),
+      ...(referenceAssets && referenceAssets.length > 0 ? { reference_assets: JSON.stringify(referenceAssets.map((asset) => ({
+        role: asset.role,
+        ...(asset.media_type ? { media_type: asset.media_type } : {}),
+      }))) } : {}),
+    },
+  }).then((response) => response.data as PublicModel[])
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

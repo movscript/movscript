@@ -153,12 +153,14 @@ export interface BuildContentUnitBackendPromptInput {
   index: MovScriptWorkspaceDomainIndex
   contentUnit: MovScriptWorkspaceIndexedEntity
   decisionProvider: MovScriptContentUnitDecisionProvider
+  promptText?: string
 }
 
 export interface BuildContentUnitBackendPromptByIdInput {
   index: MovScriptWorkspaceDomainIndex
   contentUnitId: string | number
   decisionProvider: MovScriptContentUnitDecisionProvider
+  promptText?: string
 }
 
 const PROMPT_REF_PATTERN = /\{\{([a-z_]+)::?([^{}:\s][^{}]*)\}\}/g
@@ -185,6 +187,7 @@ export async function buildContentUnitBackendPromptById(
     index: input.index,
     contentUnit,
     decisionProvider: input.decisionProvider,
+    ...(input.promptText !== undefined ? { promptText: input.promptText } : {}),
   })
 }
 
@@ -194,7 +197,7 @@ export async function buildContentUnitBackendPrompt(
   const contentUnitRef = entityDir(input.contentUnit.path)
   const contentUnitType = stringField(input.contentUnit.record.content_unit_type) ?? ''
   const outputKind = contentUnitOutputKind(input.contentUnit.record.output_kind)
-  const editPrompt = recordField(input.contentUnit.record.edit_prompt)
+  const editPrompt = contentUnitEditPrompt(input.contentUnit.record.edit_prompt, input.promptText)
   const refs = parseContentUnitEditPromptRefs(editPrompt)
   const unsupportedRefs = parseUnsupportedContentUnitEditPromptRefs(editPrompt)
   const primaryKind = primaryRefKindForContentUnitType(contentUnitType)
@@ -384,6 +387,15 @@ export async function buildContentUnitBackendPrompt(
     return { ok: false, prompt, blockers: dedupeBlockers(blockers) }
   }
   return { ok: true, prompt }
+}
+
+function contentUnitEditPrompt(value: unknown, promptText: string | undefined): Record<string, unknown> | undefined {
+  const base = recordField(value)
+  if (promptText === undefined) return base
+  return {
+    ...(base ?? {}),
+    text: promptText,
+  }
 }
 
 export function parseContentUnitEditPromptRefs(editPrompt: unknown): MovScriptPromptRef[] {

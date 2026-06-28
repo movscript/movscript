@@ -101,6 +101,7 @@ export default function ContentCanvasWorkspacePage({
           onCandidateCreate={controller.createCandidateForNode}
           onCandidatePromptPreview={controller.previewCandidatePromptForNode}
           onCandidateResourceSelect={controller.createResourceCandidateForNode}
+          onCandidateRemove={controller.removeCandidate}
           onCandidateSelect={controller.selectCandidate}
           onCandidateNodeSelect={controller.selectCandidateNode}
           onCandidateUpload={controller.uploadCandidateForNode}

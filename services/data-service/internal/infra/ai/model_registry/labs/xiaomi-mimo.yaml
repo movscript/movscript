@@ -1,6 +1,6 @@
 lab: xiaomi-mimo
 templates:
-    - adapter_type: xiaomi_mimo
+    - route_adapter_hint: xiaomi_mimo
       allow_model_id_override: true
       capabilities:
         - audio_chat
@@ -35,7 +35,7 @@ templates:
         status: verified
         url: https://mimo.mi.com/docs/en-US/api/chat/openai-api
         verified_at: "2026-06-26"
-    - adapter_type: xiaomi_mimo
+    - route_adapter_hint: xiaomi_mimo
       allow_model_id_override: true
       capabilities:
         - audio_chat
@@ -48,7 +48,7 @@ templates:
         status: deprecated
         url: https://mimo.mi.com/docs/en-US/price/pay-as-you-go
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -61,7 +61,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text

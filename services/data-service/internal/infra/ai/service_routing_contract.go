@@ -13,6 +13,8 @@ func (s *AIService) ResolveGatewayModelRoute(ctx context.Context, request provid
 		CatalogEntryID:        request.CatalogEntryID,
 		RouteBindingID:        request.RouteBindingID,
 		Capability:            request.Capability,
+		Operation:             request.Operation,
+		ReferenceAssets:       routeReferenceAssetsFromContract(request.ReferenceAssets),
 		APIKind:               request.APIKind,
 		APIKinds:              request.APIKinds,
 		RouteGroup:            providerRouteGroupFromContext(ctx),
@@ -31,6 +33,8 @@ func (s *AIService) ResolveGatewayModelRoutePlan(ctx context.Context, request pr
 		CatalogEntryID:        request.CatalogEntryID,
 		RouteBindingID:        request.RouteBindingID,
 		Capability:            request.Capability,
+		Operation:             request.Operation,
+		ReferenceAssets:       routeReferenceAssetsFromContract(request.ReferenceAssets),
 		APIKind:               request.APIKind,
 		APIKinds:              request.APIKinds,
 		RouteGroup:            providerRouteGroupFromContext(ctx),
@@ -97,7 +101,22 @@ func modelRouteToContract(route ModelRoute, capability string) providercontract.
 		AdapterKey:      route.AdapterKey,
 		ProviderModelID: route.ProviderModelID,
 		Capability:      capability,
+		Operation:       route.Operation,
 		APIKind:         route.APIKind,
 		SelectionReason: route.SelectionReason,
 	}
+}
+
+func routeReferenceAssetsFromContract(values []providercontract.AIReferenceAssetIntent) []RouteReferenceAssetIntent {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]RouteReferenceAssetIntent, 0, len(values))
+	for _, value := range values {
+		out = append(out, RouteReferenceAssetIntent{
+			Role:      value.Role,
+			MediaType: value.MediaType,
+		})
+	}
+	return out
 }

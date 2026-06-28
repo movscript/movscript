@@ -15,6 +15,7 @@ import {
   createTimelineAssemblyFromNamespace,
   createCandidateFromContentUnit,
   createCandidateFromResourceForContentUnit,
+  removeContentUnitCandidateFromCanvas,
   selectCandidateNodeFromCanvas,
   selectContentUnitCandidateFromCanvas,
   suggestedContentCanvasChildNodePosition,
@@ -902,6 +903,9 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.doesNotMatch(promptCanvasPanelSource, /onNodeDragStart=\{\(_event, node\) => selectPromptCanvasNode\(node\.id\)\}/)
   assert.match(promptCanvasPanelSource, /flowNodes\.find\(\(node\) => node\.selected\)[\s\S]*flowNodes\.find\(\(node\) => node\.id === focusedNodeId\)/)
   assert.match(promptCanvasPanelSource, /flowInstance\.setCenter/)
+  assert.match(promptCanvasPanelSource, /focusFrameRef/)
+  assert.match(promptCanvasPanelSource, /window\.requestAnimationFrame/)
+  assert.match(promptCanvasPanelSource, /window\.cancelAnimationFrame/)
   assert.match(promptCanvasPanelSource, /onInit=\{setFlowInstance\}/)
   assert.match(promptCanvasPanelSource, /ResourceFileImage/)
   assert.match(promptCanvasPanelSource, /content-prompt-flow-node__candidate/)
@@ -923,11 +927,16 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(promptCanvasPanelSource, /onDrop=\{handleCanvasDrop\}/)
   assert.match(promptCanvasPanelSource, /onDragOver=\{handleCanvasDragOver\}/)
   assert.match(promptCanvasPanelSource, /flowPositionForClientPoint\(event\.clientX, event\.clientY\)/)
+  assert.match(promptCanvasPanelSource, /dropPositionForCanvasLibraryNode/)
+  assert.match(promptCanvasPanelSource, /creativeCanvasContentNodeViewportSize\(node\)/)
+  assert.match(promptCanvasPanelSource, /x: Math\.round\(pointer\.x - size\.width \/ 2\)/)
+  assert.match(promptCanvasPanelSource, /addLibraryNodeToCanvasAtPosition\(draggedNode, dropPositionForCanvasLibraryNode\(draggedNode, event\.clientX, event\.clientY\)\)/)
   assert.match(promptCanvasPanelSource, /creativeCanvasResourceTargetForPosition/)
   assert.match(promptCanvasPanelSource, /contentCanvasUploadedResourceFromDropEvent/)
   assert.match(promptCanvasPanelSource, /contentCanvasNodeCanRenderInPromptCanvas/)
   assert.match(promptCanvasPanelSource, /isCreativeCanvasVisibleNode\(node\)/)
   assert.match(controllerSource, /position\?: ContentCanvasNodePosition/)
+  assert.match(controllerSource, /setCreativeCanvasFocusRequest\(\(current\) => \(\{ nodeId: node\.id, requestId: \(current\?\.requestId \?\? 0\) \+ 1 \}\)\)/)
   assert.match(controllerSource, /createCandidateFromResourceForContentUnit\(projectId, contentUnitNode, resource, position, gateway\)/)
   assert.match(promptCanvasPanelSource, /appendReferenceToActivePrompt/)
   assert.match(promptCanvasPanelSource, /content-prompt-flow-node__candidate-reference/)
@@ -942,8 +951,12 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(promptCanvasPanelSource, /statusTone: 'ready' \| 'running' \| 'failed' \| 'imported' \| 'neutral'/)
   assert.match(promptCanvasPanelSource, /failureReason\?: string/)
   assert.match(promptCanvasPanelSource, /candidateFailureReason/)
+  assert.match(promptCanvasPanelSource, /candidatePreviewShouldShow/)
+  assert.match(promptCanvasPanelSource, /normalizedCandidateDecisionStatus/)
   assert.match(promptCanvasPanelSource, /content-prompt-flow-node__candidate-detail/)
   assert.match(promptCanvasPanelSource, /content-prompt-flow-node__candidate-retry/)
+  assert.match(promptCanvasPanelSource, /content-prompt-flow-node__candidate-remove/)
+  assert.match(promptCanvasPanelSource, /onCandidateRemove/)
   assert.match(promptCanvasPanelSource, /ContentPromptCandidatePreviewDiagnostics/)
   assert.match(promptCanvasPanelSource, /candidateRetryGenerationOptions/)
   assert.match(promptCanvasPanelSource, /pagedCandidatePreviews\.map/)
@@ -975,13 +988,25 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(promptCanvasCssSource, /\.content-prompt-flow-node__candidate-reference/)
   assert.match(promptCanvasCssSource, /\.content-prompt-flow-node__candidate-detail/)
   assert.match(promptCanvasCssSource, /\.content-prompt-flow-node__candidate-retry/)
+  assert.match(promptCanvasCssSource, /\.content-prompt-flow-node__candidate-remove/)
   assert.match(promptCanvasCssSource, /\.content-prompt-flow-node__candidate\[data-status="failed"\]/)
   assert.match(promptCanvasCssSource, /\.content-prompt-candidate-preview-dialog__diagnostics/)
   assert.match(promptCanvasCssSource, /\.content-prompt-candidate-preview-dialog__retry/)
+  assert.match(promptCanvasCssSource, /\.content-prompt-candidate-preview-dialog__remove/)
+  assert.match(promptCanvasCssSource.match(/\.content-prompt-candidate-preview-dialog__panel\s*\{[\s\S]*?\}/)?.[0] ?? '', /background:\s*var\(--ms-color-background\)/)
+  assert.match(promptCanvasCssSource.match(/\.content-prompt-candidate-preview-dialog__body\s*\{[\s\S]*?\}/)?.[0] ?? '', /background:\s*#050505/)
   assert.match(promptCanvasCssSource, /\.content-prompt-flow-node__preview-card/)
   assert.match(promptCanvasCssSource, /\.content-prompt-flow-node__prompt-panel/)
-  assert.match(promptCanvasCssSource.match(/\.content-prompt-flow-node\[data-expanded="true"\] \.content-prompt-flow-node__preview-card\s*\{[\s\S]*?\}/)?.[0] ?? '', /justify-self:\s*center/)
+  assert.match(promptCanvasPanelSource, /onClickCapture=\{\(event\) => \{[\s\S]*event\.target !== event\.currentTarget[\s\S]*data\.onCanvasDeselect\(\)/)
+  assert.match(promptCanvasCssSource.match(/\.content-prompt-flow-node\s*\{[\s\S]*?\}/)?.[0] ?? '', /--content-prompt-flow-node-collapsed-width:\s*360px/)
+  assert.match(promptCanvasCssSource.match(/\.content-prompt-flow-node\s*\{[\s\S]*?\}/)?.[0] ?? '', /transition:\s*width 180ms ease,\s*transform 180ms ease/)
+  assert.match(promptCanvasCssSource.match(/\.content-prompt-flow-node\[data-expanded="true"\]\s*\{[\s\S]*?\}/)?.[0] ?? '', /transform:\s*translateX\(calc\(\(var\(--content-prompt-flow-node-collapsed-width\) - var\(--content-prompt-flow-node-expanded-width\)\) \/ 2\)\)/)
+  assert.match(promptCanvasCssSource.match(/\.content-prompt-flow-node__preview-card\s*\{[\s\S]*?\}/)?.[0] ?? '', /justify-self:\s*center/)
+  assert.match(promptCanvasCssSource.match(/\.content-prompt-flow-node__preview-card\s*\{[\s\S]*?\}/)?.[0] ?? '', /width:\s*var\(--content-prompt-flow-node-preview-width\)/)
   assert.match(promptCanvasCssSource, /\.content-prompt-flow-node__prompt-panel\s*\{[\s\S]*?width:\s*100%/)
+  assert.match(promptCanvasCssSource, /\.content-prompt-flow-node__prompt-panel\s*\{[\s\S]*?width:\s*100%[\s\S]*?animation:\s*contentPromptFlowPromptPanelExpand 180ms ease-out backwards/)
+  assert.match(promptCanvasCssSource, /@keyframes contentPromptFlowPromptPanelExpand/)
+  assert.match(promptCanvasCssSource, /@media \(prefers-reduced-motion: reduce\)/)
   assert.match(promptCanvasCssSource.match(/\.content-prompt-flow-node__prompt-panel \.content-canvas-prompt-inline-editor\s*\{[\s\S]*?\}/)?.[0] ?? '', /min-height:\s*216px/)
   assert.match(promptCanvasCssSource, /\.content-prompt-flow-node__generation-controls/)
   assert.match(promptCanvasCssSource, /\.content-prompt-canvas-panel__side-rail\s*\{/)
@@ -1024,7 +1049,7 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(previewCandidatePromptSource, /promptText: previewPromptText/)
   assert.doesNotMatch(previewCandidatePromptSource, /ensureCandidateContentUnitWithPrompt/)
   assert.match(electronGatewaySource, /promptText: input\.promptText/)
-  assert.match(electronGatewaySource, /text: promptText/)
+  assert.doesNotMatch(electronGatewaySource, /text: promptText/)
   assert.doesNotMatch(controllerSource, /const lastCommittedPromptByNodeId: Record/)
   assert.match(controllerSource, /readContentCanvasDocumentsState/)
   assert.match(controllerSource, /addContentCanvasDocumentNodes/)
@@ -1088,6 +1113,7 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.doesNotMatch(controllerSource, /nodeContextActions/)
   assert.match(controllerSource, /draftAssetPrompts/)
   assert.match(controllerSource, /selectContentUnitCandidateFromCanvas/)
+  assert.match(controllerSource, /removeContentUnitCandidateFromCanvas/)
   assert.match(controllerSource, /createCandidateFromContentUnit/)
   assert.match(controllerSource, /uploadCandidateForContentUnit/)
   assert.match(controllerSource, /uploadCandidateForNode/)
@@ -1107,6 +1133,7 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(workspaceCommandModelSource, /export function contentCanvasCommandFocusState/)
   assert.match(workspaceCommandModelSource, /contentCanvasWorkspaceGenerationModel/)
   assert.match(workspaceCandidateModelSource, /export function mergeContentCanvasCommandCandidates/)
+  assert.match(workspaceCandidateModelSource, /export function mergeContentCanvasCommandRemovedCandidates/)
   assert.match(workspaceCandidateModelSource, /export function withLocalContentCanvasCandidates/)
   assert.match(workspaceGenerationModelSource, /export function contentCanvasGenerationTargetForNode/)
   assert.match(workspaceGenerationModelSource, /export function contentUnitNodeForGenerationTask/)
@@ -1258,12 +1285,14 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(gatewaySource, /createStoryboard/)
   assert.match(gatewaySource, /createContentUnit/)
   assert.match(gatewaySource, /ensureContentUnitForEntity/)
+  assert.match(gatewaySource, /decideContentUnitCandidate/)
   assert.doesNotMatch(electronGatewaySource, /createShot/)
   assert.match(electronGatewaySource, /createKeyframe/)
   assert.match(electronGatewaySource, /createStoryboard/)
   assert.match(electronGatewaySource, /createMovScriptEngineContentUnit/)
   assert.match(electronGatewaySource, /ensureContentUnitForEntity/)
   assert.match(electronGatewaySource, /ensureMovScriptEngineTimelineAssemblyContentUnit/)
+  assert.match(electronGatewaySource, /decideMovScriptEngineContentUnitCandidate/)
   assert.match(electronGatewaySource, /input\.targetKind === 'timeline_assembly'/)
   assert.doesNotMatch(electronGatewaySource, /shots: \[\{/)
   assert.match(commandsSource, /ContentCanvasWorkspaceGateway/)
@@ -2064,6 +2093,7 @@ test('content canvas storage stays separate from workflow canvas service', () =>
   assert.match(hostApiSource, /\/v1\/project\/content-canvases\/write/)
   assert.match(hostApiSource, /\/v1\/project\/content-canvases\/rename/)
   assert.match(hostApiSource, /\/v1\/project\/content-canvases\/run/)
+  assert.match(hostApiSource, /\/v1\/project\/content-unit-candidates\/decide/)
   assert.doesNotMatch(hostApiSource, /sourceCommand\('(listContentCanvases|writeContentCanvas|renameContentCanvas|runContentCanvas|deleteContentCanvas)'/)
   assert.match(projectServiceSource, /CONTENT_CANVAS_DIRECTORY = 'content_canvases'/)
   assert.match(projectServiceSource, /renameProjectContentCanvas/)
@@ -2075,6 +2105,7 @@ test('content canvas storage stays separate from workflow canvas service', () =>
   assert.match(desktopPreloadSource, /renameMovScriptEngineContentCanvas/)
   assert.match(desktopPreloadSource, /runMovScriptEngineContentCanvas/)
   assert.match(desktopPreloadSource, /PROJECT_CONTENT_CANDIDATE_CREATE_ENDPOINT = '\/v1\/project\/content-candidates\/create'/)
+  assert.match(desktopPreloadSource, /PROJECT_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT = '\/v1\/project\/content-unit-candidates\/decide'/)
   assert.match(desktopPreloadSource, /PROJECT_CONTENT_CANVAS_RENAME_ENDPOINT = '\/v1\/project\/content-canvases\/rename'/)
   assert.match(desktopPreloadSource, /daemonProjectContentCanvasRequest\(ipcRenderer, PROJECT_CONTENT_CANVAS_RUN_ENDPOINT/)
   assert.doesNotMatch(desktopPreloadSource, /PROJECT_CANDIDATE_COMMAND_ENDPOINT|\/v1\/project\/candidates\/command/)
@@ -2084,7 +2115,9 @@ test('content canvas storage stays separate from workflow canvas service', () =>
   assert.doesNotMatch(desktopPreloadSource, /ipcRenderer\.invoke\('movscript:engine-/)
   assert.match(desktopIpcSource, /movscript:engine-content-canvases-list/)
   assert.match(desktopIpcSource, /movscript:engine-content-canvas-write/)
+  assert.match(desktopIpcSource, /movscript:engine-content-unit-candidate-decide/)
   assert.match(desktopProjectEngineSource, /CONTENT_CANVAS_DIRECTORY = 'content_canvases'/)
+  assert.match(desktopProjectEngineSource, /export async function decideMovScriptEngineContentUnitCandidate/)
   assert.match(desktopProjectEngineSource, /export async function writeMovScriptEngineContentCanvas/)
 })
 
@@ -5504,6 +5537,21 @@ test('content canvas uploaded resource creates a resource library content candid
   }])
 })
 
+test('content canvas generation requires explicit model operation intent', () => {
+  const panelSource = readFileSync(resolve(process.cwd(), 'src/features/content/components/ContentPromptCanvasPanel.tsx'), 'utf8')
+  const selectorSource = readFileSync(resolve(process.cwd(), 'src/features/content/components/ContentCanvasModelSelector.tsx'), 'utf8')
+  const gatewaySource = readFileSync(resolve(process.cwd(), 'src/features/content/integrations/contentCanvasWorkspaceElectronGateway.ts'), 'utf8')
+
+  assert.match(panelSource, /contentCanvasGenerationOperationOptions/)
+  assert.match(panelSource, /generationIntent: GenerationIntentPayload = \{\s*capability,\s*operation,/)
+  assert.match(selectorSource, /listSurfaceModelsByCapability\(queryCapability, \{ operation \}\)/)
+  assert.match(gatewaySource, /completeCanvasContentUnitGenerationIntent\(input\.generationIntent, input\.outputKind, inputResourceIds\)/)
+  assert.match(gatewaySource, /case 'reference_to_video':\s*return 'generic'/)
+  assert.match(gatewaySource, /operation\.trim\(\) === 'reference_to_video' && role === 'generic'\) return undefined/)
+  assert.doesNotMatch(gatewaySource, /referenceAssets\.length > 0 \? 'image_to_video' : 'prompt_to_video'/)
+  assert.doesNotMatch(gatewaySource, /canvasContentUnitGenerationIntent\(input\.outputKind, inputResourceIds\)/)
+})
+
 test('content canvas existing resource creates a resource library content candidate without uploading', async () => {
   const calls: Array<{ kind: string; payload: unknown }> = []
   const gateway = {
@@ -5600,6 +5648,48 @@ test('content canvas selecting an inspector candidate keeps focus on the current
   assert.deepEqual(result.changedNodeIds, ['content_unit:cu_asset', 'candidate:cu_asset:resource_candidate_existing'])
   assert.equal(result.createdCandidates, undefined)
   assert.deepEqual(result.selectedCandidates, [{ contentUnitId: 'cu_asset', candidateId: 'resource_candidate_existing' }])
+})
+
+test('content canvas removing a candidate writes a reject decision and hides the candidate locally', async () => {
+  const calls: Array<unknown> = []
+  const gateway = {
+    decideContentUnitCandidate: async (payload: unknown) => {
+      calls.push(payload)
+    },
+  } as never
+  const contentUnit = nodeFixture({
+    id: 'content_unit:cu_asset',
+    entityKey: 'cu_asset',
+    kind: 'content_unit',
+    title: 'Asset render',
+    subtitle: 'image',
+    record: {},
+  })
+
+  const result = await removeContentUnitCandidateFromCanvas(7, contentUnit, {
+    id: 'resource_candidate_existing',
+    title: '候选 1',
+    resourceId: 77,
+    resourceKind: 'image',
+    source: 'resource_library',
+    selected: false,
+    notes: 'imported',
+  }, gateway)
+
+  assert.deepEqual(calls[0], {
+    projectId: 7,
+    contentUnitId: 'cu_asset',
+    candidateId: 'resource_candidate_existing',
+    resourceId: 77,
+    decision: 'reject',
+    reason: 'content_canvas_removed_candidate',
+    metadata: {
+      source: 'content_prompt_canvas',
+      hidden_from_canvas: true,
+    },
+  })
+  assert.deepEqual(result.removedCandidates, [{ contentUnitId: 'cu_asset', candidateId: 'resource_candidate_existing' }])
+  assert.deepEqual(result.affectedNodeIds, ['content_unit:cu_asset'])
 })
 
 test('content canvas selecting a candidate node does not refocus the candidate detail', async () => {

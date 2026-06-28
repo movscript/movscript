@@ -328,7 +328,7 @@ func (d *dryRunProvider) buildVideoRequest(req VideoRequest) DebugCallResult {
 			RequestBody: mustJSON(body),
 		}
 
-	default: // openai_compat
+	case AdapterOfficialVideoGenerations:
 		body := map[string]any{
 			"model":        req.Model,
 			"prompt":       req.Prompt,
@@ -346,6 +346,40 @@ func (d *dryRunProvider) buildVideoRequest(req VideoRequest) DebugCallResult {
 				"Content-Type":  "application/json",
 			},
 			RequestBody: mustJSON(body),
+		}
+
+	case AdapterYunwuUnifiedVideo:
+		body := map[string]any{
+			"model":        req.Model,
+			"prompt":       req.Prompt,
+			"aspect_ratio": ar,
+			"size":         orDefault(req.Size, "720P"),
+			"images":       []string{"https://example.test/reference.png"},
+		}
+		return DebugCallResult{
+			Success:  true,
+			ModelID:  req.Model,
+			Endpoint: base + "/video/create",
+			Method:   "POST",
+			RequestHeaders: map[string]string{
+				"Authorization": "Bearer " + maskedKey,
+				"Content-Type":  "application/json",
+				"Accept":        "application/json",
+			},
+			RequestBody: mustJSON(body),
+		}
+
+	default:
+		return DebugCallResult{
+			Success:  true,
+			ModelID:  req.Model,
+			Endpoint: base + "/videos",
+			Method:   "POST",
+			RequestHeaders: map[string]string{
+				"Authorization": "Bearer " + maskedKey,
+				"Content-Type":  "multipart/form-data",
+			},
+			RequestBody: fmt.Sprintf("(multipart: model=%s prompt=%q images=%d)", req.Model, req.Prompt, len(req.InputImages)),
 		}
 	}
 }

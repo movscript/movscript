@@ -85,10 +85,13 @@ test('project overview route consumes the project surface page entrypoint', () =
   const routeComponentsSource = readFileSync(resolve('src/features/app-shell/application/appRouteComponents.tsx'), 'utf8')
   const routeSource = readFileSync(resolve('src/features/app-shell/application/DesktopProjectSurfaceRoutes.tsx'), 'utf8')
   const runtimeSource = readFileSync(resolve('src/features/app-shell/application/desktopProjectSurfaceRuntime.tsx'), 'utf8')
+  const overviewRouteBlock = routeSource.match(/export function ProjectOverviewPage\(\) \{[\s\S]*?\n\}/)?.[0] ?? ''
 
   assert.match(routeComponentsSource, /@movscript\/project-surface\/pages[\s\S]*ProjectOverviewPage/)
   assert.doesNotMatch(routeSource, /ProjectOverviewSurface/)
-  assert.doesNotMatch(routeSource, /useDesktopProjectReadModel/)
+  assert.doesNotMatch(overviewRouteBlock, /useDesktopProjectReadModel/)
+  assert.match(routeSource, /ProjectEditDeskPage/)
+  assert.match(routeSource, /useDesktopProjectReadModel/)
   assert.match(runtimeSource, /workspaceRoot = useProjectStore/)
   assert.match(runtimeSource, /projectDir = project\?\.workspace_path \?\? project\?\.project_path \?\? workspaceRoot \?\? undefined/)
   assert.match(runtimeSource, /readModel: async \(\) =>/)

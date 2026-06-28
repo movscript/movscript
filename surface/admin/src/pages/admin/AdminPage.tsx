@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@admin/lib/api'
-import type { AICredential, AIComboTemplate, AIComboTemplatesResponse, AIModelCatalogEntry, AIModelCatalogTemplate, AIModelImportApplyResult, AIModelImportModelPlan, AIModelImportPreviewResult, AIModelRouteBinding, AIProvider, AIProviderCredential, AIProviderTemplate, AIProviderTemplatesResponse, AIProvidersResponse, AdapterDef, PublicModel, ParamDef, ModelParamProfile, Project, User, RawResource, ResourceBinding, PaginatedResponse, ProviderInstance, ProviderInstanceConfigActivationResult, ProviderInstanceConfigApplyResult, ProviderInstanceConfigDraft, ProviderInstancesResponse } from '@admin/types'
+import type { AICredential, AIComboTemplate, AIComboTemplatesResponse, AIModelCatalogEntry, AIModelCatalogTemplate, AIModelImportApplyResult, AIModelImportModelPlan, AIModelImportPreviewResult, AIModelRouteBinding, AIModelRouteDiagnosis, AIModelRouteDiagnoseRequest, AIProvider, AIProviderCredential, AIProviderTemplate, AIProviderTemplatesResponse, AIProvidersResponse, AdapterDef, PublicModel, ParamDef, ModelParamProfile, Project, User, RawResource, ResourceBinding, PaginatedResponse, ProviderInstance, ProviderInstanceConfigActivationResult, ProviderInstanceConfigApplyResult, ProviderInstanceConfigDraft, ProviderInstancesResponse } from '@admin/types'
 import type { AgentCompactParamContract, ParamRuleTypeSummary } from '@admin/lib/modelParamContract'
 import { useUserStore } from '@admin/store/userStore'
 import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, ArrowUpRight, Settings2, FolderKanban, HardDrive, CloudUpload, ScrollText, BarChart3, UsersRound, Building2, Bug, Download, Database, Route as RouteIcon, Search } from 'lucide-react'
@@ -106,6 +106,7 @@ type CatalogEntryForm = {
   max_input_videos: number
   image_edit_field: string
   supported_params: string
+  model_capabilities_json: string
 }
 
 type CatalogRouteForm = {
@@ -113,6 +114,11 @@ type CatalogRouteForm = {
   provider_id: string
   adapter_type: string
   provider_model_id: string
+  endpoint_base_url: string
+  endpoint_path_prefix: string
+  endpoint_mode: string
+  operation_profile: string
+  route_capabilities_json: string
   is_enabled: boolean
   priority: string
   capacity_weight: string
@@ -290,6 +296,7 @@ function ProviderTemplatePicker({
 function ProviderModelImportWizard() {
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
+  const [importProviderKind, setImportProviderKind] = useState('openai_compat_gateway')
   const [displayName, setDisplayName] = useState('中转站')
   const [baseURL, setBaseURL] = useState('')
   const [apiKey, setApiKey] = useState('')
@@ -300,7 +307,9 @@ function ProviderModelImportWizard() {
   const [error, setError] = useState('')
 
   const providerPayload = () => {
-    const providerKind = providerKindForImportBaseURL(baseURL)
+    const providerKind = importProviderKind === 'yunwu_gateway'
+      ? 'yunwu_gateway'
+      : providerKindForImportBaseURL(baseURL)
     return {
       provider_kind: providerKind,
       display_name: displayNameForImportProvider(displayName, providerKind),
@@ -320,7 +329,12 @@ function ProviderModelImportWizard() {
     },
     onSuccess: (data) => {
       setPreview(data)
-      setSelected(Object.fromEntries(data.models.map((model) => [model.provider_model_id, model.recommended && model.status !== 'route_exists'])))
+      setSelected(Object.fromEntries(data.models.map((model) => [
+        model.provider_model_id,
+        data.provider_kind === 'yunwu_gateway'
+          ? model.status !== 'route_exists'
+          : model.recommended && model.status !== 'route_exists',
+      ])))
     },
     onError: (err: any) => setError(translateAPIRequestError(err)),
   })
@@ -355,7 +369,7 @@ function ProviderModelImportWizard() {
 
   const models = preview?.models ?? []
   const selectedCount = models.filter((model) => selected[model.provider_model_id]).length
-  const canPreview = Boolean(baseURL.trim() && apiKey.trim())
+  const canPreview = Boolean(apiKey.trim() && (baseURL.trim() || importProviderKind === 'yunwu_gateway'))
   const canApply = Boolean(preview && selectedCount > 0 && !applyImport.isPending)
 
   return (
@@ -370,6 +384,31 @@ function ProviderModelImportWizard() {
       {open && (
         <div className="space-y-4 border-t border-border p-4">
           {error && <AppInlineError>{error}</AppInlineError>}
+          <div className="inline-flex rounded-md border border-border bg-muted/30 p-0.5 text-xs">
+            {[
+              { key: 'openai_compat_gateway', label: 'OpenAI-compatible' },
+              { key: 'yunwu_gateway', label: '云雾中转站' },
+            ].map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => {
+                  setImportProviderKind(option.key)
+                  if (option.key === 'yunwu_gateway') {
+                    if (!displayName.trim() || displayName.trim() === '中转站') setDisplayName('云雾中转站')
+                  } else if (displayName.trim() === '云雾中转站') {
+                    setDisplayName('中转站')
+                  }
+                }}
+                className={cn(
+                  'rounded px-2.5 py-1 transition-colors',
+                  importProviderKind === option.key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
           <div className="grid gap-3 md:grid-cols-2">
             <div>
               <Label className="mb-1 block text-xs text-muted-foreground">Provider 名称</Label>
@@ -381,7 +420,12 @@ function ProviderModelImportWizard() {
             </div>
             <div>
               <Label className="mb-1 block text-xs text-muted-foreground">Base URL</Label>
-              <Input value={baseURL} onChange={(event) => setBaseURL(event.target.value)} placeholder="https://gateway.example.com/v1" className="h-8 text-xs font-mono" />
+              <Input
+                value={baseURL}
+                onChange={(event) => setBaseURL(event.target.value)}
+                placeholder={importProviderKind === 'yunwu_gateway' ? '留空使用 https://yunwu.ai/v1' : 'https://gateway.example.com/v1'}
+                className="h-8 text-xs font-mono"
+              />
             </div>
             <div>
               <Label className="mb-1 block text-xs text-muted-foreground">API Key</Label>
@@ -399,7 +443,12 @@ function ProviderModelImportWizard() {
                 {applyImport.isPending ? '导入中' : `导入选中 ${selectedCount} 个`}
               </Button>
             </div>
-            {preview && <p className="text-xs text-muted-foreground">共 {preview.summary.total} 个，建议导入 {preview.summary.recommended} 个</p>}
+            {preview && (
+              <p className="text-xs text-muted-foreground">
+                共 {preview.summary.total} 个，建议导入 {preview.summary.recommended} 个
+                {preview.provider_kind === 'yunwu_gateway' ? '；云雾同步会保留缺映射模型并禁用其 route' : ''}
+              </p>
+            )}
           </div>
           {models.length > 0 && (
             <div className="max-h-80 overflow-auto rounded-md border border-border">
@@ -1044,7 +1093,6 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
                           </div>
                         </div>
                         <p className="mt-2 truncate font-mono text-[11px] text-muted-foreground">upstream: {template.model_id}</p>
-                        <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">adapter: {template.adapter_type}</p>
                         <div className="mt-2 flex flex-wrap gap-1">
                           {template.capabilities.slice(0, 4).map((capability) => (
                             <StatusBadge key={capability} intent={CAPABILITY_STATUS_INTENT[capability] ?? 'neutral'} className="text-xs">
@@ -1084,6 +1132,32 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
                   </label>
                 ))}
               </div>
+            </div>
+            <div className="rounded-md border border-border bg-muted/20 p-3">
+              <div className="mb-2 flex items-start justify-between gap-3">
+                <div>
+                  <Label className="block text-xs text-foreground">
+                    {t('admin.models.modelCapabilitiesJson', { defaultValue: '结构化模型能力 JSON' })}
+                  </Label>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                    {t('admin.models.modelCapabilitiesJsonHint', { defaultValue: 'Router 使用这里的能力域和 operation 判断模型能不能做；旧能力标签只作为迁移辅助。' })}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCatalogForm({ ...catalogForm, model_capabilities_json: STRUCTURED_VIDEO_CAPABILITY_SAMPLE })}
+                >
+                  {t('admin.models.fillVideoCapabilitySample', { defaultValue: '视频示例' })}
+                </Button>
+              </div>
+              <textarea
+                value={catalogForm.model_capabilities_json}
+                onChange={(event) => setCatalogForm({ ...catalogForm, model_capabilities_json: event.target.value })}
+                placeholder='{"video_generation":{"operations":["image_to_video","first_last_frame_to_video"]}}'
+                className="min-h-[160px] w-full rounded-md border border-input bg-background px-2 py-2 font-mono text-xs"
+              />
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
               <label className="flex h-8 items-center gap-2 text-xs">
@@ -1141,6 +1215,10 @@ function ModelRoutesSection({ credentials, providers, adapters }: { credentials:
   const [routeCoverageFilter, setRouteCoverageFilter] = useState<ModelRouteCoverageFilter>('all')
   const [routePage, setRoutePage] = useState(1)
   const [routePageSize, setRoutePageSize] = useState(MODEL_ADMIN_PAGE_SIZE)
+  const [routeDiagnoseCapability, setRouteDiagnoseCapability] = useState('video_generation')
+  const [routeDiagnoseOperation, setRouteDiagnoseOperation] = useState('first_last_frame_to_video')
+  const [routeDiagnoseGroup, setRouteDiagnoseGroup] = useState('')
+  const [routeDiagnoseAssets, setRouteDiagnoseAssets] = useState('first_frame:image\nlast_frame:image')
 
   const catalogQuery = useQuery<AIModelCatalogEntry[]>({
     queryKey: ['admin', 'model-catalog'],
@@ -1234,7 +1312,7 @@ function ModelRoutesSection({ credentials, providers, adapters }: { credentials:
   function openRouteForm(entryId: number, routeGroup = '') {
     const entry = entries.find((item) => item.ID === entryId)
     const providerID = firstEnabledRouteProviderID(routeProviders)
-    const providerModelID = suggestedProviderModelIDForEntry(entry, providerID, catalogTemplates, credentials, routeProviders)
+    const providerModelID = suggestedProviderModelIDForEntry(entry, catalogTemplates)
     setRouteFormFor(entryId)
     setRouteForm({
       ...emptyCatalogRouteForm(providerID, providerModelID || entry?.public_model_id || '', routeGroup),
@@ -1245,9 +1323,25 @@ function ModelRoutesSection({ credentials, providers, adapters }: { credentials:
   }
 
   const activeEntry = selectedEntry ? selectedEntry : null
-  const routeTemplateSuggestion = activeEntry ? matchingCatalogTemplateForRoute(activeEntry, routeForm.provider_id, catalogTemplates, credentials, routeProviders) : null
+  const routeTemplateSuggestion = activeEntry ? matchingCatalogTemplateForRoute(activeEntry, catalogTemplates) : null
   const selectedRouteProvider = routeProviders.find((provider) => provider.provider_id === routeForm.provider_id)
   const canSaveRoute = Boolean(activeEntry && routeForm.provider_id.trim() && routeForm.provider_model_id.trim())
+  const routeDiagnoseCapabilityOptions = useMemo(() => routeDiagnosticCapabilityOptions(activeEntry), [activeEntry])
+  const routeDiagnoseOperationOptions = useMemo(
+    () => routeDiagnosticOperationOptions(activeEntry, routeDiagnoseCapability),
+    [activeEntry, routeDiagnoseCapability],
+  )
+  const canDiagnoseRoute = Boolean(activeEntry && routeDiagnoseCapability.trim() && routeDiagnoseOperation.trim())
+
+  const diagnoseRoute = useMutation<AIModelRouteDiagnosis>({
+    mutationFn: () => api.post('/admin/model-routes/diagnose', routeDiagnosePayload({
+      entry: activeEntry,
+      capability: routeDiagnoseCapability,
+      operation: routeDiagnoseOperation,
+      routeGroup: routeDiagnoseGroup,
+      referenceAssets: routeDiagnoseAssets,
+    })).then((r) => r.data),
+  })
 
   return (
     <div className="space-y-4">
@@ -1337,6 +1431,81 @@ function ModelRoutesSection({ credentials, providers, adapters }: { credentials:
               <p className="px-4 py-6 text-sm text-muted-foreground">{t('admin.modelCatalog.empty')}</p>
             )}
           </div>
+          <div className="rounded-lg border border-border bg-card p-4">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">{t('admin.models.routeDiagnoseTitle', { defaultValue: 'Route 诊断' })}</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  {t('admin.models.routeDiagnoseHint', { defaultValue: '用模型 + 能力 + operation 模拟一次路由选择，查看 selected route、rejected reasons 和 effective endpoint。' })}
+                </p>
+              </div>
+              <Bug size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
+            </div>
+            <div className="grid gap-2">
+              <label className="block text-xs text-muted-foreground">
+                {t('admin.models.routeDiagnoseCapability', { defaultValue: 'Capability' })}
+                <select
+                  value={routeDiagnoseCapability}
+                  onChange={(event) => {
+                    const capability = event.target.value
+                    const operations = routeDiagnosticOperationOptions(activeEntry, capability)
+                    setRouteDiagnoseCapability(capability)
+                    if (operations.length > 0 && !operations.includes(routeDiagnoseOperation)) {
+                      setRouteDiagnoseOperation(defaultRouteDiagnoseOperation(capability, operations))
+                    }
+                  }}
+                  className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+                  disabled={!activeEntry}
+                >
+                  {routeDiagnoseCapabilityOptions.map((capability) => (
+                    <option key={capability} value={capability}>{capability}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-xs text-muted-foreground">
+                {t('admin.models.routeDiagnoseOperation', { defaultValue: 'Operation' })}
+                <select
+                  value={routeDiagnoseOperation}
+                  onChange={(event) => setRouteDiagnoseOperation(event.target.value)}
+                  className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 font-mono text-xs"
+                  disabled={!activeEntry || routeDiagnoseCapabilityOptions.length === 0}
+                >
+                  {routeDiagnoseOperationOptions.includes(routeDiagnoseOperation) ? null : (
+                    <option value={routeDiagnoseOperation}>{routeDiagnoseOperation}</option>
+                  )}
+                  {routeDiagnoseOperationOptions.map((operation) => (
+                    <option key={operation} value={operation}>{operation}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-xs text-muted-foreground">
+                {t('admin.modelCatalog.routeGroup')}
+                <Input
+                  value={routeDiagnoseGroup}
+                  onChange={(event) => setRouteDiagnoseGroup(event.target.value)}
+                  placeholder={t('admin.models.defaultRouteGroupPlaceholder', { defaultValue: '留空为默认分组' })}
+                  className="mt-1 h-8 text-xs"
+                />
+              </label>
+              <label className="block text-xs text-muted-foreground">
+                {t('admin.models.routeDiagnoseReferenceAssets', { defaultValue: 'Reference roles' })}
+                <textarea
+                  value={routeDiagnoseAssets}
+                  onChange={(event) => setRouteDiagnoseAssets(event.target.value)}
+                  placeholder={'first_frame:image\nlast_frame:image'}
+                  className="mt-1 min-h-[70px] w-full rounded-md border border-input bg-background px-2 py-2 font-mono text-xs"
+                />
+              </label>
+              <Button type="button" size="sm" onClick={() => diagnoseRoute.mutate()} disabled={!canDiagnoseRoute || diagnoseRoute.isPending}>
+                {diagnoseRoute.isPending ? t('common.loading') : t('admin.models.runRouteDiagnose', { defaultValue: '运行诊断' })}
+              </Button>
+              {!routeDiagnoseOperation.trim() && (
+                <AppFeedbackText>{t('admin.models.routeDiagnoseRequiresOperation', { defaultValue: 'Route 测试必须先选择 operation。' })}</AppFeedbackText>
+              )}
+              {diagnoseRoute.error && <AppInlineError>{translateAPIRequestError(diagnoseRoute.error)}</AppInlineError>}
+              {diagnoseRoute.data && <RouteDiagnosisResult diagnosis={diagnoseRoute.data} />}
+            </div>
+          </div>
         </aside>
       </div>
 
@@ -1370,7 +1539,7 @@ function ModelRoutesSection({ credentials, providers, adapters }: { credentials:
                   const entryID = Number(event.target.value)
                   const entry = entries.find((item) => item.ID === entryID)
                   const providerID = routeForm.provider_id || firstEnabledRouteProviderID(routeProviders)
-                  const providerModelID = suggestedProviderModelIDForEntry(entry, providerID, catalogTemplates, credentials, routeProviders)
+                  const providerModelID = suggestedProviderModelIDForEntry(entry, catalogTemplates)
                   setRouteFormFor(entryID)
                   setRouteForm((form) => ({
                     ...emptyCatalogRouteForm(providerID, providerModelID || entry?.public_model_id || '', form.route_group),
@@ -1391,7 +1560,7 @@ function ModelRoutesSection({ credentials, providers, adapters }: { credentials:
                 value={routeForm.provider_id}
                 onChange={(event) => {
                   const providerID = event.target.value
-                  const providerModelID = suggestedProviderModelIDForEntry(activeEntry, providerID, catalogTemplates, credentials, routeProviders)
+                  const providerModelID = suggestedProviderModelIDForEntry(activeEntry, catalogTemplates)
                   setRouteForm({
                     ...routeForm,
                     provider_id: providerID,
@@ -1455,6 +1624,49 @@ function ModelRoutesSection({ credentials, providers, adapters }: { credentials:
                 {t('admin.models.routeGroupHint', { defaultValue: '请求指定同名 route group 时，只会在这个分组的候选 provider 里选择。' })}
               </span>
             </label>
+            <div className="mb-2 rounded-md border border-border bg-muted/20 p-3">
+              <div className="mb-2 text-xs font-medium text-foreground">
+                {t('admin.models.routeRuntimeDetails', { defaultValue: '运行时入口细节' })}
+              </div>
+              <p className="mb-3 text-[11px] leading-relaxed text-muted-foreground">
+                {t('admin.models.routeRuntimeDetailsHint', { defaultValue: '这些字段只用于后端路由和 Admin 诊断；Agent 仍然只通过模型 + 能力调用。' })}
+              </p>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <label className="block text-xs text-muted-foreground">
+                  {t('admin.models.endpointMode', { defaultValue: 'Endpoint Mode' })}
+                  <select
+                    value={routeForm.endpoint_mode}
+                    onChange={(event) => setRouteForm({ ...routeForm, endpoint_mode: event.target.value })}
+                    className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+                  >
+                    <option value="inherit">inherit</option>
+                    <option value="replace_path">replace_path</option>
+                    <option value="absolute">absolute</option>
+                  </select>
+                </label>
+                <label className="block text-xs text-muted-foreground sm:col-span-2">
+                  {t('admin.models.endpointBaseUrl', { defaultValue: 'Endpoint Base URL' })}
+                  <Input value={routeForm.endpoint_base_url} onChange={(event) => setRouteForm({ ...routeForm, endpoint_base_url: event.target.value })} placeholder="https://yunwu.ai" className="mt-1 h-8 text-xs font-mono" />
+                </label>
+                <label className="block text-xs text-muted-foreground">
+                  {t('admin.models.endpointPathPrefix', { defaultValue: 'Path Prefix' })}
+                  <Input value={routeForm.endpoint_path_prefix} onChange={(event) => setRouteForm({ ...routeForm, endpoint_path_prefix: event.target.value })} placeholder="/v1" className="mt-1 h-8 text-xs font-mono" />
+                </label>
+                <label className="block text-xs text-muted-foreground sm:col-span-2">
+                  {t('admin.models.operationProfile', { defaultValue: 'Operation Profile' })}
+                  <Input value={routeForm.operation_profile} onChange={(event) => setRouteForm({ ...routeForm, operation_profile: event.target.value })} placeholder="generation" className="mt-1 h-8 text-xs font-mono" />
+                </label>
+              </div>
+              <label className="mt-2 block text-xs text-muted-foreground">
+                {t('admin.models.routeCapabilitiesJson', { defaultValue: 'Route Capabilities JSON' })}
+                <textarea
+                  value={routeForm.route_capabilities_json}
+                  onChange={(event) => setRouteForm({ ...routeForm, route_capabilities_json: event.target.value })}
+                  placeholder='{"video_generation":{"operations":["image_to_video"]}}'
+                  className="mt-1 min-h-[76px] w-full rounded-md border border-input bg-background px-2 py-2 font-mono text-xs"
+                />
+              </label>
+            </div>
             <div className="grid gap-2 sm:grid-cols-3">
               <label className="block text-xs text-muted-foreground">
                 {t('admin.models.priority')}
@@ -1548,6 +1760,28 @@ function CommunityRouteBindingEditor({
       </select>
       <Input value={form.provider_model_id} onChange={(event) => setForm({ ...form, provider_model_id: event.target.value })} placeholder="provider model id" className="h-8 text-xs font-mono" />
       <Input value={form.route_group} onChange={(event) => setForm({ ...form, route_group: event.target.value })} placeholder={t('admin.modelCatalog.routeGroup')} className="h-8 text-xs" />
+      <div className={cn('grid gap-2 rounded-md border border-border bg-muted/20 p-2', compact ? '' : 'md:col-span-full md:grid-cols-[120px_minmax(180px,1fr)_120px_minmax(180px,1fr)]')}>
+        <select
+          value={form.endpoint_mode}
+          onChange={(event) => setForm({ ...form, endpoint_mode: event.target.value })}
+          className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+          aria-label={t('admin.models.endpointMode', { defaultValue: 'Endpoint Mode' })}
+        >
+          <option value="inherit">inherit</option>
+          <option value="replace_path">replace_path</option>
+          <option value="absolute">absolute</option>
+        </select>
+        <Input value={form.endpoint_base_url} onChange={(event) => setForm({ ...form, endpoint_base_url: event.target.value })} placeholder="endpoint base URL" className="h-8 text-xs font-mono" />
+        <Input value={form.endpoint_path_prefix} onChange={(event) => setForm({ ...form, endpoint_path_prefix: event.target.value })} placeholder="/v1" className="h-8 text-xs font-mono" />
+        <Input value={form.operation_profile} onChange={(event) => setForm({ ...form, operation_profile: event.target.value })} placeholder="operation profile" className="h-8 text-xs font-mono" />
+        <textarea
+          value={form.route_capabilities_json}
+          onChange={(event) => setForm({ ...form, route_capabilities_json: event.target.value })}
+          placeholder='{"video_generation":{"operations":["image_to_video"]}}'
+          className={cn('min-h-[64px] rounded-md border border-input bg-background px-2 py-2 font-mono text-xs', compact ? '' : 'md:col-span-full')}
+          aria-label={t('admin.models.routeCapabilitiesJson', { defaultValue: 'Route Capabilities JSON' })}
+        />
+      </div>
       <Input value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })} placeholder="priority" className="h-8 text-xs" />
       <Input value={form.capacity_weight} onChange={(event) => setForm({ ...form, capacity_weight: event.target.value })} placeholder="capacity" className="h-8 text-xs" />
       <Input value={form.max_concurrency} onChange={(event) => setForm({ ...form, max_concurrency: event.target.value })} placeholder="concurrency" className="h-8 text-xs" />
@@ -1561,6 +1795,171 @@ function CommunityRouteBindingEditor({
       </div>
     </form>
   )
+}
+
+const ROUTE_DIAGNOSTIC_CAPABILITY_PRESETS = [
+  'video_generation',
+  'image_generation',
+  'audio_generation',
+  'text_generation',
+]
+
+const ROUTE_DIAGNOSTIC_OPERATION_PRESETS: Record<string, string[]> = {
+  video_generation: [
+    'prompt_to_video',
+    'reference_to_video',
+    'image_to_video',
+    'first_frame_to_video',
+    'first_last_frame_to_video',
+    'video_to_video',
+  ],
+  image_generation: [
+    'prompt_to_image',
+    'image_to_image',
+    'inpaint',
+    'outpaint',
+    'reference_to_image',
+  ],
+  audio_generation: [
+    'tts',
+    'stt',
+    'speech_translate',
+    'music',
+    'sfx',
+    'audio_chat',
+    'voice_clone',
+    'voice_design',
+    'dubbing',
+    'speech_enhancement',
+  ],
+  text_generation: [
+    'chat',
+    'responses',
+    'agent_task',
+  ],
+}
+
+function RouteDiagnosisResult({ diagnosis }: { diagnosis: AIModelRouteDiagnosis }) {
+  const { t } = useTranslation()
+  const selected = diagnosis.selected_route
+  return (
+    <div className="space-y-2 rounded-md border border-border bg-muted/20 p-3 text-xs">
+      <div className="flex flex-wrap items-center gap-2">
+        <StatusBadge intent={selected ? 'success' : 'warning'}>
+          {selected
+            ? t('admin.models.routeDiagnoseSelected', { defaultValue: 'selected route' })
+            : t('admin.models.routeDiagnoseNoSelection', { defaultValue: 'no route selected' })}
+        </StatusBadge>
+        {diagnosis.selected_route_id ? (
+          <span className="font-mono text-muted-foreground">#{diagnosis.selected_route_id}</span>
+        ) : null}
+        <span className="font-mono text-muted-foreground">{diagnosis.capability}:{diagnosis.operation || '-'}</span>
+      </div>
+      <div className="space-y-2">
+        {diagnosis.candidates.map((candidate, index) => (
+          <div key={`${candidate.route_binding_id || candidate.public_model_id}:${index}`} className="rounded-md border border-border bg-card p-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge intent={routeDiagnosticStatusIntent(candidate.status)}>{candidate.status}</StatusBadge>
+              {candidate.route_binding_id ? <span className="font-mono">route #{candidate.route_binding_id}</span> : null}
+              <span className="font-mono text-muted-foreground">{candidate.adapter_type || 'adapter:default'}</span>
+            </div>
+            <div className="mt-1 grid gap-1 text-[11px] text-muted-foreground">
+              <span className="font-mono">provider_model_id: {candidate.provider_model_id || '-'}</span>
+              <span className="font-mono">priority: {candidate.priority} · capacity: {candidate.capacity_weight}</span>
+              {candidate.effective_endpoint ? (
+                <span className="font-mono">
+                  effective_endpoint: {candidate.effective_endpoint.effective_base_url || candidate.effective_endpoint.base_url || '-'}
+                  {candidate.effective_endpoint.path_prefix || ''}
+                  {candidate.effective_endpoint.operation_profile ? ` · ${candidate.effective_endpoint.operation_profile}` : ''}
+                </span>
+              ) : null}
+              {(candidate.reasons ?? []).length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {candidate.reasons!.map((reason) => (
+                    <Badge key={reason} variant="outline" className="font-mono text-[10px]">{reason}</Badge>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function routeDiagnosticStatusIntent(status: string): StatusBadgeProps['intent'] {
+  switch (status) {
+    case 'selected':
+      return 'success'
+    case 'accepted':
+      return 'warning'
+    case 'rejected':
+      return 'danger'
+    default:
+      return 'neutral'
+  }
+}
+
+function routeDiagnosticCapabilityOptions(entry: AIModelCatalogEntry | null): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  const add = (value: string) => {
+    const next = value.trim()
+    if (!next || seen.has(next)) return
+    seen.add(next)
+    out.push(next)
+  }
+  if (entry) modelCatalogCapabilities(entry).forEach(add)
+  ROUTE_DIAGNOSTIC_CAPABILITY_PRESETS.forEach(add)
+  return out
+}
+
+function routeDiagnosticOperationOptions(entry: AIModelCatalogEntry | null, capability: string): string[] {
+  const structured = structuredCapabilityOperations(entry?.model_capabilities_json, capability)
+  if (structured.length > 0) return structured
+  return ROUTE_DIAGNOSTIC_OPERATION_PRESETS[capability] ?? ['generate']
+}
+
+function defaultRouteDiagnoseOperation(capability: string, operations: string[]): string {
+  const preferred = capability === 'video_generation'
+    ? ['first_last_frame_to_video', 'image_to_video', 'prompt_to_video']
+    : []
+  return preferred.find((operation) => operations.includes(operation)) ?? operations[0] ?? ''
+}
+
+function routeDiagnosePayload(input: {
+  entry: AIModelCatalogEntry | null
+  capability: string
+  operation: string
+  routeGroup: string
+  referenceAssets: string
+}): AIModelRouteDiagnoseRequest {
+  const referenceAssets = parseRouteDiagnoseReferenceAssets(input.referenceAssets)
+  return {
+    public_model_id: input.entry?.public_model_id,
+    catalog_entry_id: input.entry?.ID,
+    route_group: input.routeGroup.trim(),
+    capability: input.capability.trim(),
+    operation: input.operation.trim(),
+    intent: {
+      capability: input.capability.trim(),
+      operation: input.operation.trim(),
+      reference_assets: referenceAssets,
+    },
+    reference_assets: referenceAssets,
+  }
+}
+
+function parseRouteDiagnoseReferenceAssets(raw: string) {
+  return raw.split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [role, mediaType] = line.split(/[:\s]+/, 2)
+      return { role: role ?? '', media_type: mediaType ?? '' }
+    })
+    .filter((item) => item.role || item.media_type)
 }
 
 interface RuntimeProviderHealth {
@@ -1602,6 +2001,7 @@ function emptyCatalogEntryForm(): CatalogEntryForm {
     max_input_videos: 0,
     image_edit_field: '',
     supported_params: '',
+    model_capabilities_json: '',
   }
 }
 
@@ -1617,6 +2017,7 @@ function catalogEntryFormFromEntry(entry: AIModelCatalogEntry): CatalogEntryForm
     max_input_videos: entry.max_input_videos ?? 0,
     image_edit_field: entry.image_edit_field ?? '',
     supported_params: entry.supported_params ?? '',
+    model_capabilities_json: entry.model_capabilities_json ?? '',
   }
 }
 
@@ -1632,6 +2033,7 @@ function catalogEntryFormFromTemplate(template: AIModelCatalogTemplate): Catalog
     max_input_videos: template.max_input_videos ?? 0,
     image_edit_field: template.image_edit_field ?? '',
     supported_params: catalogTemplateSupportedParamsValue(template),
+    model_capabilities_json: '',
   })
 }
 
@@ -1691,7 +2093,6 @@ function filterCatalogTemplates(templates: AIModelCatalogTemplate[], search: str
       template.default_public_model_id,
       template.model_id,
       template.display_name,
-      template.adapter_type,
       template.source_status,
       ...template.capabilities,
     ].some((value) => (value ?? '').toLowerCase().includes(needle))
@@ -1718,6 +2119,7 @@ function catalogEntryPayload(form: CatalogEntryForm): Record<string, unknown> {
     max_input_videos: form.max_input_videos,
     image_edit_field: form.image_edit_field.trim(),
     supported_params: form.supported_params.trim(),
+    model_capabilities_json: form.model_capabilities_json.trim(),
   }
 }
 
@@ -1727,6 +2129,11 @@ function emptyCatalogRouteForm(providerID = '', providerModelID = '', routeGroup
     provider_id: providerID,
     adapter_type: adapterType,
     provider_model_id: providerModelID,
+    endpoint_base_url: '',
+    endpoint_path_prefix: '',
+    endpoint_mode: 'inherit',
+    operation_profile: '',
+    route_capabilities_json: '',
     is_enabled: true,
     priority: '0',
     capacity_weight: '1',
@@ -1740,6 +2147,11 @@ function catalogRouteFormFromBinding(binding: AIModelRouteBinding): CatalogRoute
     provider_id: binding.provider_id || '',
     adapter_type: binding.adapter_type || '',
     provider_model_id: binding.provider_model_id || '',
+    endpoint_base_url: binding.endpoint_base_url || '',
+    endpoint_path_prefix: binding.endpoint_path_prefix || '',
+    endpoint_mode: binding.endpoint_mode || 'inherit',
+    operation_profile: binding.operation_profile || '',
+    route_capabilities_json: binding.route_capabilities_json || '',
     is_enabled: binding.is_enabled,
     priority: String(binding.priority ?? 0),
     capacity_weight: String(binding.capacity_weight ?? 1),
@@ -1753,6 +2165,11 @@ function catalogRoutePayload(form: CatalogRouteForm): Record<string, unknown> {
     provider_id: form.provider_id.trim(),
     adapter_type: form.adapter_type.trim(),
     provider_model_id: form.provider_model_id.trim(),
+    endpoint_base_url: form.endpoint_base_url.trim(),
+    endpoint_path_prefix: form.endpoint_path_prefix.trim(),
+    endpoint_mode: form.endpoint_mode.trim() || 'inherit',
+    operation_profile: form.operation_profile.trim(),
+    route_capabilities_json: form.route_capabilities_json.trim(),
     is_enabled: form.is_enabled,
     priority: parseInt(form.priority, 10) || 0,
     capacity_weight: Math.max(1, parseInt(form.capacity_weight, 10) || 1),
@@ -1879,10 +2296,7 @@ function localProviderCredentialIDFromProviderID(providerID: string): number | n
 
 function matchingCatalogTemplateForRoute(
   entry: AIModelCatalogEntry | null | undefined,
-  providerID: string,
   templates: AIModelCatalogTemplate[],
-  credentials: AICredential[],
-  routeProviders: RouteProviderOption[],
 ): AIModelCatalogTemplate | null {
   if (!entry) return null
   const publicModelID = entry.public_model_id.trim()
@@ -1892,22 +2306,14 @@ function matchingCatalogTemplateForRoute(
     return template.default_public_model_id === publicModelID || template.model_id === publicModelID
   })
   if (candidates.length === 0) return null
-  const adapterType = adapterTypeForRouteProviderID(providerID, credentials, routeProviders)
-  if (adapterType) {
-    const adapterMatch = candidates.find((template) => template.adapter_type === adapterType)
-    if (adapterMatch) return adapterMatch
-  }
   return candidates[0]
 }
 
 function suggestedProviderModelIDForEntry(
   entry: AIModelCatalogEntry | null | undefined,
-  providerID: string,
   templates: AIModelCatalogTemplate[],
-  credentials: AICredential[],
-  routeProviders: RouteProviderOption[],
 ): string {
-  return matchingCatalogTemplateForRoute(entry, providerID, templates, credentials, routeProviders)?.model_id ?? ''
+  return matchingCatalogTemplateForRoute(entry, templates)?.model_id ?? ''
 }
 
 function adapterTypeForRouteProviderID(providerID: string, credentials: AICredential[], routeProviders: RouteProviderOption[]): string {
@@ -1925,8 +2331,43 @@ function shouldReplaceRouteProviderModelID(current: string, entry: AIModelCatalo
   return templates.some((template) => template.model_id === value)
 }
 
-function modelCatalogCapabilities(entry: Pick<AIModelCatalogEntry, 'capabilities'>): string[] {
-  return entry.capabilities.split(',').map((capability) => capability.trim()).filter(Boolean)
+function modelCatalogCapabilities(entry: Pick<AIModelCatalogEntry, 'capabilities' | 'model_capabilities_json'>): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  const add = (capability: string) => {
+    const value = capability.trim()
+    if (!value || seen.has(value)) return
+    seen.add(value)
+    out.push(value)
+  }
+  entry.capabilities.split(',').forEach(add)
+  structuredCapabilityDomains(entry.model_capabilities_json).forEach(add)
+  return out
+}
+
+function structuredCapabilityDomains(value?: string): string[] {
+  if (!value?.trim()) return []
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return []
+    return Object.keys(parsed).filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
+function structuredCapabilityOperations(value: string | undefined, capability: string): string[] {
+  if (!value?.trim() || !capability.trim()) return []
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>
+    const domain = parsed?.[capability]
+    if (!domain || typeof domain !== 'object' || Array.isArray(domain)) return []
+    const operations = (domain as { operations?: unknown }).operations
+    if (!Array.isArray(operations)) return []
+    return operations.filter((operation): operation is string => typeof operation === 'string' && operation.trim().length > 0)
+  } catch {
+    return []
+  }
 }
 
 function paramTemplateLabel(key: string, fallback: string, t: (key: string, values?: Record<string, unknown>) => string) {
@@ -5287,7 +5728,40 @@ const CAPABILITY_TRANSLATION_KEYS: Record<string, string> = {
   voice_design: 'admin.capabilities.voiceDesign',
   subtitle_align: 'admin.capabilities.subtitleAlign',
   subtitle_translate: 'admin.capabilities.subtitleTranslate',
+  text_generation: 'admin.capabilities.textGeneration',
+  image_generation: 'admin.capabilities.imageGeneration',
+  video_generation: 'admin.capabilities.videoGeneration',
+  audio_generation: 'admin.capabilities.audioGeneration',
+  embedding: 'admin.capabilities.embedding',
+  rerank: 'admin.capabilities.rerank',
+  moderation: 'admin.capabilities.moderation',
 }
+
+const STRUCTURED_VIDEO_CAPABILITY_SAMPLE = JSON.stringify({
+  video_generation: {
+    operations: [
+      'prompt_to_video',
+      'reference_to_video',
+      'image_to_video',
+      'first_frame_to_video',
+      'first_last_frame_to_video',
+      'video_to_video',
+    ],
+    reference_assets: {
+      min: 0,
+      max: 8,
+      modalities: ['image', 'video', 'audio'],
+      roles: ['generic', 'reference_image', 'reference_video', 'reference_audio', 'first_frame', 'last_frame', 'style', 'character', 'product', 'motion'],
+    },
+    duration: {
+      min_seconds: 1,
+      max_seconds: 15,
+    },
+    aspect_ratios: ['1:1', '16:9', '9:16'],
+    resolutions: ['720p', '1080p'],
+    result_mode: 'async',
+  },
+}, null, 2)
 
 const MODEL_CAPABILITIES = [
   'text',
@@ -5328,6 +5802,13 @@ const CAPABILITY_STATUS_INTENT: Record<string, StatusBadgeProps['intent']> = {
   voice_design: 'info',
   subtitle_align: 'info',
   subtitle_translate: 'info',
+  text_generation: 'info',
+  image_generation: 'neutral',
+  video_generation: 'neutral',
+  audio_generation: 'info',
+  embedding: 'neutral',
+  rerank: 'neutral',
+  moderation: 'warning',
 }
 
 // ── Tab: 存储配置 ──────────────────────────────────────────────────────────────

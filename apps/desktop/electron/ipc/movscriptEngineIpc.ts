@@ -4,6 +4,7 @@ import type {
   ElectronMovScriptEngineAudioCueInput,
   ElectronMovScriptEngineAssetCreateInput,
   ElectronMovScriptEngineContentCandidateCreateInput,
+  ElectronMovScriptEngineContentCandidateDecideInput,
   ElectronMovScriptEngineContentCandidateSelectInput,
   ElectronMovScriptEngineContentCanvasInput,
   ElectronMovScriptEngineContentUnitBackendPromptBuildInput,
@@ -59,6 +60,7 @@ import {
   createMovScriptEngineStoryboard,
   createMovScriptEngineWorkspaceKeyframeCandidate,
   buildMovScriptEngineContentUnitBackendPrompt,
+  decideMovScriptEngineContentUnitCandidate,
   deleteMovScriptEngineContentCanvas,
   deleteMovScriptEngineWorkspaceEntity,
   ensureMovScriptEngineContentUnitForEntity,
@@ -208,6 +210,9 @@ export function registerMovScriptEngineIpcHandlers(): void {
   })
   ipcMain.handle('movscript:engine-content-unit-candidate-select', (_event, input: ElectronMovScriptEngineContentCandidateSelectInput) => {
     return selectMovScriptEngineContentUnitCandidate(input)
+  })
+  ipcMain.handle('movscript:engine-content-unit-candidate-decide', (_event, input: ElectronMovScriptEngineContentCandidateDecideInput) => {
+    return decideMovScriptEngineContentUnitCandidate(input)
   })
   ipcMain.handle('movscript:engine-content-unit-edit-prompt-update', (_event, input: ElectronMovScriptEngineContentUnitEditPromptInput) => {
     return updateMovScriptEngineContentUnitEditPrompt(input)

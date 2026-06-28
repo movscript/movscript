@@ -11,7 +11,7 @@ import (
 
 func TestYunwuVideoStartUsesNativeCreateEndpoint(t *testing.T) {
 	var gotBody map[string]any
-	adapter := NewYunwuAdapter("test-key", "https://api3.wlai.vip/v1")
+	adapter := NewYunwuUnifiedVideoAdapter("test-key", "https://api3.wlai.vip/v1")
 	adapter.rawHTTP = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		if r.URL.Path != "/v1/video/create" {
 			t.Fatalf("path = %s, want /v1/video/create", r.URL.Path)
@@ -64,7 +64,7 @@ func TestYunwuVideoStartUsesNativeCreateEndpoint(t *testing.T) {
 }
 
 func TestYunwuVideoPollParsesQueryResponse(t *testing.T) {
-	adapter := NewYunwuAdapter("test-key", "https://yunwu.ai/v1")
+	adapter := NewYunwuUnifiedVideoAdapter("test-key", "https://yunwu.ai/v1")
 	adapter.rawHTTP = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		if r.URL.Path != "/v1/video/query" || r.URL.Query().Get("id") != "grok:task-1" {
 			t.Fatalf("url = %s, want /v1/video/query?id=grok:task-1", r.URL.String())

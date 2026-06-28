@@ -260,6 +260,7 @@ export type ElectronMovScriptEngineWorkspaceUpdatedEvent = ElectronMovScriptEngi
   reason:
     | 'workspace-mutated'
     | 'content-candidate-created'
+    | 'content-candidate-decided'
     | 'content-candidate-selected'
     | 'source-updated'
     | 'hierarchy-node-written'
@@ -425,6 +426,17 @@ export type ElectronMovScriptEngineContentCandidateSelectInput = ElectronMovScri
   candidateId: string | number
   resourceId?: number
   reason: 'content_source_workspace_selection'
+}
+
+export type ElectronMovScriptEngineContentCandidateDecideInput = ElectronMovScriptEngineProjectInput & {
+  projectId: number | string
+  contentUnitId: string | number
+  candidateId: string | number
+  resourceId?: number
+  decision: 'adopt' | 'reject' | 'defer'
+  reason?: string
+  metadata?: Record<string, unknown>
+  decidedAt?: string
 }
 
 export type ElectronMovScriptEngineContentUnitEditPromptInput =

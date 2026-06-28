@@ -49,6 +49,7 @@ const PROJECT_WORKSPACE_ASSET_SLOT_CANDIDATE_CREATE_ENDPOINT = '/v1/project/work
 const PROJECT_WORKSPACE_KEYFRAME_CANDIDATE_CREATE_ENDPOINT = '/v1/project/workspace-candidates/keyframes/create'
 const PROJECT_CONTENT_CANDIDATE_CREATE_ENDPOINT = '/v1/project/content-candidates/create'
 const PROJECT_CONTENT_UNIT_CANDIDATE_SELECT_ENDPOINT = '/v1/project/content-unit-candidates/select'
+const PROJECT_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT = '/v1/project/content-unit-candidates/decide'
 
 export function createMovScriptEngineAPI(ipcRenderer: IpcRenderer): Pick<
   ElectronAPI,
@@ -92,6 +93,7 @@ export function createMovScriptEngineAPI(ipcRenderer: IpcRenderer): Pick<
   | 'createMovScriptEngineWorkspaceKeyframeCandidate'
   | 'createMovScriptEngineContentCandidate'
   | 'selectMovScriptEngineContentUnitCandidate'
+  | 'decideMovScriptEngineContentUnitCandidate'
   | 'updateMovScriptEngineContentUnitEditPrompt'
   | 'updateMovScriptEngineExpressionUnit'
   | 'updateMovScriptEngineAudioCue'
@@ -157,6 +159,7 @@ export function createMovScriptEngineAPI(ipcRenderer: IpcRenderer): Pick<
     createMovScriptEngineWorkspaceKeyframeCandidate: (input) => daemonProjectSourceOperation(ipcRenderer, PROJECT_WORKSPACE_KEYFRAME_CANDIDATE_CREATE_ENDPOINT, payloadInput(input), input),
     createMovScriptEngineContentCandidate: (input) => daemonProjectCandidateAction(ipcRenderer, PROJECT_CONTENT_CANDIDATE_CREATE_ENDPOINT, stripProjectEnvelope(input), input),
     selectMovScriptEngineContentUnitCandidate: (input) => daemonProjectCandidateAction(ipcRenderer, PROJECT_CONTENT_UNIT_CANDIDATE_SELECT_ENDPOINT, stripProjectEnvelope(input), input),
+    decideMovScriptEngineContentUnitCandidate: (input) => daemonProjectCandidateAction(ipcRenderer, PROJECT_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT, stripProjectEnvelope(input), input),
     updateMovScriptEngineContentUnitEditPrompt: (input) => daemonProjectSourceOperation(ipcRenderer, PROJECT_CONTENT_UNIT_EDIT_PROMPT_UPDATE_ENDPOINT, stripProjectEnvelope(input), input),
     updateMovScriptEngineExpressionUnit: (input) => daemonProjectSourceOperation(ipcRenderer, PROJECT_EXPRESSION_UNIT_UPDATE_ENDPOINT, stripProjectEnvelope(input), input),
     updateMovScriptEngineAudioCue: (input) => daemonProjectSourceOperation(ipcRenderer, PROJECT_AUDIO_CUE_UPDATE_ENDPOINT, stripProjectEnvelope(input), input),

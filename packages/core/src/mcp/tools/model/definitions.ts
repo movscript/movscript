@@ -5,11 +5,26 @@ export function modelTools(): MCPTool[] {
   return [
     {
       name: 'generation_model_list',
-      description: 'List enabled generation and speech models for an AI runtime capability. Use text, image, image_edit, video, video_i2v, video_v2v, audio_tts, audio_transcribe, audio_translate, audio_music, audio_sfx, audio_chat, voice_clone, voice_design, subtitle_align, or subtitle_translate. Timeline render belongs to editing_* and Electron mediaPipeline, not generation model capabilities. The result includes public model_id values plus model_contracts with contract_version 1, capabilities, input_requirements, supported_param_keys, supported_params, and params_schema rule counts so the agent can choose a valid model before calling generation provider tools.',
+      description: 'List enabled generation and speech models for an AI runtime capability and optional model operation intent. Use capability plus operation for family capabilities, e.g. video_generation + first_last_frame_to_video or audio_generation + music. The result exposes public model contracts only; provider routes, adapters, and endpoints are Admin/debug details.',
       inputSchema: objectSchema(
         {
-          capability: { type: 'string', description: 'Optional AI capability filter such as text, image, image_edit, video, video_i2v, video_v2v, audio_tts, audio_transcribe, audio_translate, audio_music, audio_sfx, audio_chat, voice_clone, voice_design, subtitle_align, or subtitle_translate.' },
-          provider_variants: { type: 'boolean', description: 'When true, include provider-specific model variants.' },
+          capability: { type: 'string', description: 'Optional AI capability family such as text_generation, image_generation, video_generation, audio_generation, or an execution capability such as audio_music. Family capabilities should pair this with operation.' },
+          operation: { type: 'string', description: 'Optional model operation intent such as prompt_to_image, image_to_image, first_last_frame_to_video, music, sfx, tts, or stt. If capability is omitted, known operations imply image_generation, video_generation, or audio_generation.' },
+          model_operation: { type: 'string', description: 'Alias for operation.' },
+          reference_assets: {
+            type: 'array',
+            description: 'Optional reference asset intent used to narrow route-capable models without exposing route details.',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['role'],
+              properties: {
+                role: { type: 'string', description: 'Reference role such as generic, reference_image, reference_video, reference_audio, first_frame, or last_frame.' },
+                media_type: { type: 'string', enum: ['image', 'video', 'audio'], description: 'Optional media type hint.' },
+              },
+            },
+          },
+          provider_variants: { type: 'boolean', description: 'Admin/debug hint for backend querying; returned records remain public model contracts without route details.' },
           include_provider_variants: { type: 'boolean', description: 'Alias for provider_variants.' },
         }
       ),
@@ -77,7 +92,7 @@ export function modelTools(): MCPTool[] {
               },
             },
           },
-          models: { type: 'array' },
+          models: { type: 'array', description: 'Compatibility alias for model_contracts; contains public model contracts, not raw provider route records.' },
         },
         ['count', 'queries', 'model_contracts', 'models']
       ),

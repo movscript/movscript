@@ -30,21 +30,22 @@ func (h *ContentCandidateHandler) Generate(c *gin.Context) {
 	}
 
 	var body struct {
-		CandidateID      string          `json:"candidate_id"`
-		ProjectUID       string          `json:"project_uid"`
-		ProjectTitle     string          `json:"project_title"`
-		ScopeKind        string          `json:"scope_kind"`
-		ScopeID          string          `json:"scope_id"`
-		OutputKind       string          `json:"output_kind"`
-		ModelID          string          `json:"model_id"`
-		JobType          string          `json:"job_type"`
-		Title            string          `json:"title"`
-		Prompt           string          `json:"prompt"`
-		ExtraParams      string          `json:"extra_params"`
-		AspectRatio      string          `json:"aspect_ratio"`
-		Duration         int             `json:"duration"`
-		InputResourceIDs []uint          `json:"input_resource_ids"`
-		PromptSnapshot   json.RawMessage `json:"prompt_snapshot"`
+		CandidateID      string                        `json:"candidate_id"`
+		ProjectUID       string                        `json:"project_uid"`
+		ProjectTitle     string                        `json:"project_title"`
+		ScopeKind        string                        `json:"scope_kind"`
+		ScopeID          string                        `json:"scope_id"`
+		OutputKind       string                        `json:"output_kind"`
+		ModelID          string                        `json:"model_id"`
+		JobType          string                        `json:"job_type"`
+		Title            string                        `json:"title"`
+		Prompt           string                        `json:"prompt"`
+		ExtraParams      string                        `json:"extra_params"`
+		AspectRatio      string                        `json:"aspect_ratio"`
+		Duration         int                           `json:"duration"`
+		InputResourceIDs []uint                        `json:"input_resource_ids"`
+		GenerationIntent *jobapp.GenerationIntentInput `json:"generation_intent"`
+		PromptSnapshot   json.RawMessage               `json:"prompt_snapshot"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -74,6 +75,7 @@ func (h *ContentCandidateHandler) Generate(c *gin.Context) {
 		AspectRatio:      body.AspectRatio,
 		Duration:         body.Duration,
 		InputResourceIDs: body.InputResourceIDs,
+		GenerationIntent: body.GenerationIntent,
 		PromptSnapshot:   body.PromptSnapshot,
 	})
 	if err != nil {

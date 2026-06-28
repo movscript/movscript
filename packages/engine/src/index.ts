@@ -298,7 +298,7 @@ export interface MovScriptEngineOptions {
   productionWorkPlan?: () => Promise<unknown>
   regenerationPlan?: () => Promise<unknown>
   deriveContentUnitArtifact?: (contentUnitId: string | number) => Promise<ContentUnitDerivedArtifactBundle>
-  buildContentUnitBackendPrompt?: (contentUnitId: string | number) => Promise<MovScriptContentUnitPromptBuildResult>
+  buildContentUnitBackendPrompt?: (contentUnitId: string | number, options?: { promptText?: string }) => Promise<MovScriptContentUnitPromptBuildResult>
   deriveArtifacts?: (input?: { interpretationId?: string; createdAt?: string }) => Promise<MovScriptWorkspaceDerivedArtifacts>
   publish?: (input?: MovScriptEnginePublishInput) => Promise<unknown>
 }
@@ -363,7 +363,7 @@ export interface MovScriptEngine {
   updateContentUnitEditPrompt: MovScriptWorkspaceService['updateContentUnitEditPrompt']
   deleteContentUnit(input: MovScriptEngineDeleteInput): Promise<{ deleted: true; entity: MovScriptWorkspaceIndexedEntity }>
   deriveContentUnitArtifact(contentUnitId: string | number): Promise<ContentUnitDerivedArtifactBundle>
-  buildContentUnitBackendPrompt(contentUnitId: string | number): Promise<MovScriptContentUnitPromptBuildResult>
+  buildContentUnitBackendPrompt(contentUnitId: string | number, options?: { promptText?: string }): Promise<MovScriptContentUnitPromptBuildResult>
   deriveArtifacts(input?: { interpretationId?: string; createdAt?: string }): Promise<MovScriptWorkspaceDerivedArtifacts>
   overview(): Promise<unknown>
   inspect(input?: MovScriptEngineInspectInput): Promise<unknown>
@@ -554,9 +554,9 @@ export function createMovScriptEngine(options: MovScriptEngineOptions): MovScrip
         'deriveContentUnitArtifact',
       )
     },
-    buildContentUnitBackendPrompt(contentUnitId) {
+    buildContentUnitBackendPrompt(contentUnitId, options) {
       return callRequiredOperation(
-        buildContentUnitBackendPrompt ? () => buildContentUnitBackendPrompt(contentUnitId) : undefined,
+        buildContentUnitBackendPrompt ? () => buildContentUnitBackendPrompt(contentUnitId, options) : undefined,
         'buildContentUnitBackendPrompt',
       )
     },

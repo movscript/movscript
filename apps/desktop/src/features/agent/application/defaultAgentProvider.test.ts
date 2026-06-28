@@ -5,12 +5,12 @@ import { backendAgentProviderRef, selectDefaultAgentProviderModel } from './defa
 import type { PublicModel } from '@/types'
 
 test('default agent provider helpers are frontend re-exports of core model selection helpers', () => {
-  const fallback = modelFixture({ id: 1, provider_id: 'local_provider:10', model_id: 'fallback-model' })
-  const pinned = modelFixture({ id: 2, provider_id: 'local_provider:20', model_id: 'default-model', is_default: true })
+  const fallback = modelFixture({ id: 1, model_id: 'fallback-model' })
+  const pinned = modelFixture({ id: 2, model_id: 'default-model', is_default: true })
 
   assert.equal(selectDefaultAgentProviderModel([fallback, pinned])?.model_id, 'default-model')
-  assert.equal(backendAgentProviderRef(pinned), 'backend:local_provider:20')
-  assert.equal(backendAgentProviderRef(modelFixture({ id: 20, catalog_entry_id: 42, provider_id: undefined })), 'backend:catalog:42')
+  assert.equal(backendAgentProviderRef(pinned), 'backend:model:default-model')
+  assert.equal(backendAgentProviderRef(modelFixture({ id: 20, catalog_entry_id: 42, model_id: '' })), 'backend:catalog:42')
 })
 
 function modelFixture(patch: Partial<PublicModel>): PublicModel {

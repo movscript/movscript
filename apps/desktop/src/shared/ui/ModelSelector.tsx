@@ -17,6 +17,7 @@ import {
 interface ModelSelectorProps {
   capability: SurfaceModelCapability
   queryCapabilities?: SurfaceModelCapability[]
+  operation?: string
   value: string | null
   onChange: (id: string) => void
   onModelChange?: (model: PublicModel | null) => void
@@ -24,15 +25,15 @@ interface ModelSelectorProps {
   className?: string
 }
 
-export function ModelSelector({ capability, queryCapabilities, value, onChange, onModelChange, disabled, className }: ModelSelectorProps) {
+export function ModelSelector({ capability, queryCapabilities, operation, value, onChange, onModelChange, disabled, className }: ModelSelectorProps) {
   const { t } = useTranslation()
   const queryCapability = surfaceModelQueryCapability(capability)
   const queryCapabilityList = normalizeModelQueryCapabilities(queryCapabilities ?? [capability])
 
   const { data: modelsData, isFetching, refetch } = useQuery<PublicModel[]>({
-    queryKey: modelKeys.capability(queryCapabilityList.join(',')),
+    queryKey: modelKeys.intent(queryCapabilityList.join(','), operation),
     queryFn: async () => {
-      const groups = await Promise.all(queryCapabilityList.map((item) => listSurfaceModelsByCapability(item)))
+      const groups = await Promise.all(queryCapabilityList.map((item) => listSurfaceModelsByCapability(item, { operation })))
       return dedupeModels(groups.flat())
     },
     staleTime: 0,

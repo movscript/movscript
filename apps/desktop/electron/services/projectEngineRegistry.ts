@@ -30,6 +30,7 @@ import type {
   ElectronMovScriptEngineAudioCueInput,
   ElectronMovScriptEngineAssetCreateInput,
   ElectronMovScriptEngineContentCandidateCreateInput,
+  ElectronMovScriptEngineContentCandidateDecideInput,
   ElectronMovScriptEngineContentCandidateSelectInput,
   ElectronMovScriptEngineContentCanvasDeleteResult,
   ElectronMovScriptEngineContentCanvasInput,
@@ -281,7 +282,9 @@ export async function readMovScriptEngineContentUnitGenerationPrompt(
 export async function buildMovScriptEngineContentUnitBackendPrompt(
   input: ElectronMovScriptEngineContentUnitBackendPromptBuildInput,
 ) {
-  const result = await projectEngineRegistry.get(input).buildContentUnitBackendPrompt(input.contentUnitId)
+  const result = await projectEngineRegistry.get(input).buildContentUnitBackendPrompt(input.contentUnitId, {
+    ...(input.promptText !== undefined ? { promptText: input.promptText } : {}),
+  })
   console.info('[movscript-engine] build content unit backend prompt', JSON.stringify({
     projectId: input.projectId,
     userId: input.userId,
@@ -486,6 +489,20 @@ export async function selectMovScriptEngineContentUnitCandidate(
     ...(input.resourceId !== undefined ? { resourceId: input.resourceId } : {}),
     reason: input.reason,
   }), 'content-candidate-selected')
+}
+
+export async function decideMovScriptEngineContentUnitCandidate(
+  input: ElectronMovScriptEngineContentCandidateDecideInput,
+): Promise<void> {
+  await workspaceMutation(input, (engine) => engine.workspaceService.decideContentUnitCandidate({
+    contentUnitId: input.contentUnitId,
+    candidateId: input.candidateId,
+    decision: input.decision,
+    ...(input.resourceId !== undefined ? { resourceId: input.resourceId } : {}),
+    ...(input.reason !== undefined ? { reason: input.reason } : {}),
+    ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
+    ...(input.decidedAt !== undefined ? { decidedAt: input.decidedAt } : {}),
+  }), 'content-candidate-decided')
 }
 
 export async function updateMovScriptEngineContentUnitEditPrompt(

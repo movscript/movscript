@@ -52,15 +52,17 @@ func (h *JobHandler) List(c *gin.Context) {
 	}
 
 	result, err := h.service.List(c.Request.Context(), jobapp.ListFilter{
-		UserID:     user.ID,
-		OrgID:      currentOrgID(c),
-		ProjectID:  projectID,
-		Status:     c.Query("status"),
-		FeatureKey: c.Query("feature_key"),
-		JobType:    c.Query("type"),
-		ExactType:  c.Query("exact_type") == "1",
-		Limit:      limit,
-		Offset:     offset,
+		UserID:               user.ID,
+		OrgID:                currentOrgID(c),
+		ProjectID:            projectID,
+		Status:               c.Query("status"),
+		FeatureKey:           c.Query("feature_key"),
+		GenerationCapability: c.Query("generation_capability"),
+		GenerationOperation:  c.Query("generation_operation"),
+		JobType:              c.Query("type"),
+		ExactType:            c.Query("exact_type") == "1",
+		Limit:                limit,
+		Offset:               offset,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

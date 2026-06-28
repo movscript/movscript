@@ -1,6 +1,6 @@
 lab: google-gemini
 templates:
-    - adapter_type: gemini
+    - route_adapter_hint: gemini
       capabilities:
         - text
         - reasoning
@@ -16,7 +16,7 @@ templates:
         status: verified
         url: https://ai.google.dev/gemini-api/docs/gemini-3
         verified_at: "2026-06-25"
-    - adapter_type: gemini
+    - route_adapter_hint: gemini
       capabilities:
         - text
         - reasoning
@@ -32,7 +32,7 @@ templates:
         status: verified
         url: https://ai.google.dev/gemini-api/docs/gemini-3
         verified_at: "2026-06-25"
-    - adapter_type: gemini
+    - route_adapter_hint: gemini
       capabilities:
         - text
         - reasoning
@@ -48,7 +48,7 @@ templates:
         status: verified
         url: https://ai.google.dev/gemini-api/docs/gemini-3
         verified_at: "2026-06-25"
-    - adapter_type: gemini
+    - route_adapter_hint: gemini
       capabilities:
         - image
         - image_edit
@@ -83,7 +83,7 @@ templates:
         status: verified
         url: https://ai.google.dev/gemini-api/docs/gemini-3
         verified_at: "2026-06-25"
-    - adapter_type: gemini
+    - route_adapter_hint: gemini
       capabilities:
         - image
         - image_edit
@@ -118,7 +118,7 @@ templates:
         status: verified
         url: https://ai.google.dev/gemini-api/docs/gemini-3
         verified_at: "2026-06-25"
-    - adapter_type: gemini
+    - route_adapter_hint: gemini
       capabilities:
         - text
         - reasoning
@@ -133,7 +133,7 @@ templates:
         status: deprecated
         url: https://ai.google.dev/gemini-api/docs/deprecations
         verified_at: "2026-06-25"
-    - adapter_type: gemini
+    - route_adapter_hint: gemini
       capabilities:
         - text
         - reasoning
@@ -148,7 +148,7 @@ templates:
         status: deprecated
         url: https://ai.google.dev/gemini-api/docs/deprecations
         verified_at: "2026-06-25"
-    - adapter_type: gemini
+    - route_adapter_hint: gemini
       capabilities:
         - text
       display_name: Gemini 2.0 Flash
@@ -162,7 +162,7 @@ templates:
         status: deprecated
         url: https://ai.google.dev/gemini-api/docs/models/gemini-2.0-flash
         verified_at: "2026-06-25"
-    - adapter_type: gemini
+    - route_adapter_hint: gemini
       capabilities:
         - image
       display_name: Imagen 3 文生图
@@ -185,7 +185,7 @@ templates:
         status: deprecated
         url: https://ai.google.dev/gemini-api/docs/deprecations
         verified_at: "2026-06-25"
-    - adapter_type: gemini
+    - route_adapter_hint: gemini
       capabilities:
         - image
         - image_edit
@@ -212,7 +212,7 @@ templates:
         status: deprecated
         url: https://ai.google.dev/gemini-api/docs/deprecations
         verified_at: "2026-06-25"
-    - adapter_type: gemini
+    - route_adapter_hint: gemini
       capabilities:
         - video
         - video_i2v
@@ -246,7 +246,7 @@ templates:
       video:
         default_duration_sec: 6
         max_duration_sec: 8
-    - adapter_type: gemini
+    - route_adapter_hint: gemini
       allow_model_id_override: true
       capabilities:
         - audio_tts
@@ -259,7 +259,7 @@ templates:
         status: verified
         url: https://ai.google.dev/gemini-api/docs/speech-generation
         verified_at: "2026-06-25"
-    - adapter_type: gemini
+    - route_adapter_hint: gemini
       allow_model_id_override: true
       capabilities:
         - audio_tts
@@ -272,7 +272,7 @@ templates:
         status: verified
         url: https://ai.google.dev/gemini-api/docs/speech-generation
         verified_at: "2026-06-25"
-    - adapter_type: gemini
+    - route_adapter_hint: gemini
       allow_model_id_override: true
       capabilities:
         - audio_tts
@@ -285,7 +285,7 @@ templates:
         status: verified
         url: https://ai.google.dev/gemini-api/docs/speech-generation
         verified_at: "2026-06-25"
-    - adapter_type: gemini
+    - route_adapter_hint: gemini
       allow_model_id_override: true
       capabilities:
         - audio_music
@@ -311,7 +311,7 @@ templates:
         status: verified
         url: https://ai.google.dev/gemini-api/docs/music-generation
         verified_at: "2026-06-25"
-    - adapter_type: gemini
+    - route_adapter_hint: gemini
       allow_model_id_override: true
       capabilities:
         - audio_music
@@ -340,7 +340,7 @@ templates:
         status: verified
         url: https://ai.google.dev/gemini-api/docs/music-generation
         verified_at: "2026-06-25"
-    - adapter_type: gemini
+    - route_adapter_hint: gemini
       allow_model_id_override: true
       capabilities:
         - audio_transcribe
@@ -373,7 +373,7 @@ templates:
         status: verified
         url: https://docs.cloud.google.com/speech-to-text/docs/models/chirp-3
         verified_at: "2026-06-25"
-    - adapter_type: gemini
+    - route_adapter_hint: gemini
       allow_model_id_override: true
       capabilities:
         - audio_transcribe

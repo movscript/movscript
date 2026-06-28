@@ -115,7 +115,7 @@ export function createNodeMovScriptEngine(input: NodeMovScriptEngineInput = {}):
       const now = input.now?.() ?? new Date()
       return deriveContentUnitArtifact(index, contentUnit, { createdAt: now.toISOString() })
     },
-    async buildContentUnitBackendPrompt(contentUnitId) {
+    async buildContentUnitBackendPrompt(contentUnitId, options) {
       return buildContentUnitBackendPromptById({
         index: await workspaceService.loadIndex(),
         contentUnitId,
@@ -124,6 +124,7 @@ export function createNodeMovScriptEngine(input: NodeMovScriptEngineInput = {}):
             return undefined
           },
         },
+        ...(options?.promptText !== undefined ? { promptText: options.promptText } : {}),
       })
     },
     async deriveArtifacts(artifactInput = {}) {

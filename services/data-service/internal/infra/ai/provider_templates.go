@@ -43,14 +43,16 @@ type ComboTemplate struct {
 }
 
 type comboProviderRule struct {
-	ProviderType     string
-	Profile          string
-	AdapterType      string
-	Lab              string
-	ExcludeLabs      []string
-	IDPrefix         string
-	ProviderKind     string
-	ProviderCategory string
+	ProviderType      string
+	Profile           string
+	AdapterType       string
+	Lab               string
+	ExcludeLabs       []string
+	ModelTemplateKey  string
+	IDPrefix          string
+	ExcludeIDPrefixes []string
+	ProviderKind      string
+	ProviderCategory  string
 }
 
 func ProviderTemplates() []ProviderTemplate {
@@ -86,7 +88,7 @@ func ComboTemplates() []ComboTemplate {
 				Profile:              rule.Profile,
 				ProviderKind:         rule.ProviderKind,
 				ProviderCategory:     rule.ProviderCategory,
-				AdapterType:          template.AdapterType,
+				AdapterType:          comboRuleAdapterType(rule),
 				DefaultPublicModelID: template.DefaultPublicModelID,
 				ProviderModelID:      template.ModelID,
 				APIKinds:             comboAPIKindsForTemplate(template),
@@ -105,21 +107,43 @@ func ComboTemplates() []ComboTemplate {
 func comboProvidersForModelTemplate(template CatalogTemplate) []comboProviderRule {
 	out := make([]comboProviderRule, 0, len(comboProviderRules))
 	for _, rule := range comboProviderRules {
-		if strings.TrimSpace(rule.AdapterType) != "" && strings.TrimSpace(rule.AdapterType) != strings.TrimSpace(template.AdapterType) {
-			continue
-		}
 		if strings.TrimSpace(rule.Lab) != "" && strings.TrimSpace(rule.Lab) != strings.TrimSpace(template.Lab) {
 			continue
 		}
 		if hasString(rule.ExcludeLabs, strings.TrimSpace(template.Lab)) {
 			continue
 		}
+		if strings.TrimSpace(rule.ModelTemplateKey) != "" && strings.TrimSpace(rule.ModelTemplateKey) != strings.TrimSpace(template.ID) {
+			continue
+		}
 		if rule.IDPrefix != "" && !strings.HasPrefix(template.ID, rule.IDPrefix) {
+			continue
+		}
+		excluded := false
+		for _, prefix := range rule.ExcludeIDPrefixes {
+			if prefix != "" && strings.HasPrefix(template.ID, prefix) {
+				excluded = true
+				break
+			}
+		}
+		if excluded {
 			continue
 		}
 		out = append(out, rule)
 	}
 	return out
+}
+
+func comboRuleAdapterType(rule comboProviderRule) string {
+	if adapterType := strings.TrimSpace(rule.AdapterType); adapterType != "" {
+		return adapterType
+	}
+	for _, provider := range ProviderTemplates() {
+		if strings.TrimSpace(provider.ProviderKind) == strings.TrimSpace(rule.ProviderKind) {
+			return strings.TrimSpace(provider.DefaultAdapterType)
+		}
+	}
+	return ""
 }
 
 func cloneProviderTemplateMap(in map[string]any) map[string]any {

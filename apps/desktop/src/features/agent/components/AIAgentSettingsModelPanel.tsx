@@ -137,7 +137,7 @@ export function AIAgentSettingsModelPanel({
         <AgentSettingsFormGrid columns="two">
           <AgentSettingsKeyValue label={t('agents.settings.fields.modelId')} value={publicModelId(selectedModel)} />
           <AgentSettingsKeyValue label={t('agents.settings.fields.capabilities')} value={selectedModel.capabilities.join(', ') || '-'} />
-          <AgentSettingsKeyValue label={t('agents.settings.fields.provider')} value={selectedModel.provider_name || '-'} />
+          <AgentSettingsKeyValue label={t('agents.settings.fields.routeAvailability')} value={selectedModel.provider_variant_count ? String(selectedModel.provider_variant_count) : '-'} />
         </AgentSettingsFormGrid>
       )}
       <AgentSettingsActionRow>

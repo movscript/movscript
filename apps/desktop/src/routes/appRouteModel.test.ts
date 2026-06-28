@@ -20,7 +20,7 @@ test('app route layout spec is derived from pathname instead of the saved work m
   assert.equal(getAppRouteLayoutSpec('/project/home').surface, 'project')
   assert.equal(getAppRouteLayoutSpec('/project/scripts/workbench').surface, 'project')
   assert.equal(getAppRouteLayoutSpec('/canvases').surface, 'canvas')
-  assert.equal(getAppRouteLayoutSpec('/tools/ref-image-gen').surface, 'tool')
+  assert.equal(getAppRouteLayoutSpec('/tools/image').surface, 'tool')
   assert.equal(getAppRouteLayoutSpec('/canvases/42').surface, 'canvas')
   assert.equal(getAppRouteLayoutSpec('/app/settings').surface, 'settings')
   assert.equal(getAppRouteLayoutSpec('/app/settings').chrome, 'settings')
@@ -43,10 +43,10 @@ test('work mode route helpers keep canvas as a temporary surface', () => {
   assert.equal(workModeForRoute('/agent', 'project'), 'project')
   assert.equal(routeForWorkMode('agent', true), '/project/agent')
   assert.equal(routeForWorkMode('project', true), '/project/home')
-  assert.equal(routeForWorkMode('tool', true), '/tools/ref-image-gen')
+  assert.equal(routeForWorkMode('tool', true), '/tools/image')
   assert.equal(routeForWorkMode('agent', false), '/project/agent')
   assert.equal(routeForWorkMode('project', false), '/projects')
-  assert.equal(routeForWorkMode('tool', false), '/tools/ref-image-gen')
+  assert.equal(routeForWorkMode('tool', false), '/tools/image')
 })
 
 test('canvas routes preserve their originating surface for back navigation', () => {

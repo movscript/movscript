@@ -60,6 +60,7 @@ import {
   OnboardingPage,
   OrgSelectPage,
   ProjectDataPage,
+  ProjectEditDeskPage,
   ProjectOverviewPage,
   ProjectSettingsPage,
   ProjectStandardsPage,
@@ -164,6 +165,7 @@ export function AuthenticatedAppRouter() {
                   <Route path={ROUTES.studioSettings} element={<ProjectGuard><ProjectSettingsPage /></ProjectGuard>} />
                   <Route path={ROUTES.studioScripts} element={<ProjectGuard><ScriptsPage /></ProjectGuard>} />
                   <Route path={ROUTES.studioStandards} element={<ProjectGuard><ProjectStandardsPage /></ProjectGuard>} />
+                  <Route path={ROUTES.studioEditDesk} element={<ProjectGuard><ProjectEditDeskPage /></ProjectGuard>} />
                   <Route path={ROUTES.studioContent} element={<ProjectGuard><ContentCanvasPreviewPage /></ProjectGuard>} />
                   <Route path={ROUTES.studioContentCanvas} element={<ProjectGuard><ContentCanvasPage /></ProjectGuard>} />
                   <Route path={ROUTES.studioContentPreview} element={<ProjectGuard><ContentCanvasPreviewPage /></ProjectGuard>} />

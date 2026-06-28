@@ -21,7 +21,8 @@ func (h *JobHandler) Create(c *gin.Context) {
 
 	var req struct {
 		ModelID              string                                 `json:"model_id"`
-		JobType              string                                 `json:"job_type"` // image | image_edit | video | video_i2v | video_v2v | audio_tts | audio_transcribe | audio_translate | audio_music | audio_sfx | audio_chat | voice_clone | voice_design | subtitle_align | subtitle_translate
+		JobType              string                                 `json:"job_type"` // execution type; generation calls must also include generation_intent
+		GenerationIntent     *jobapp.GenerationIntentInput          `json:"generation_intent"`
 		FeatureKey           string                                 `json:"feature_key"`
 		Title                string                                 `json:"title"`
 		Prompt               string                                 `json:"prompt"`
@@ -46,6 +47,7 @@ func (h *JobHandler) Create(c *gin.Context) {
 		OrgID:                currentOrgID(c),
 		ModelID:              req.ModelID,
 		JobType:              req.JobType,
+		GenerationIntent:     req.GenerationIntent,
 		FeatureKey:           req.FeatureKey,
 		Title:                req.Title,
 		Prompt:               req.Prompt,

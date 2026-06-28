@@ -1,6 +1,6 @@
 lab: minimax
 templates:
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -18,7 +18,7 @@ templates:
         status: verified
         url: https://platform.minimax.io/docs/guides/text-generation
         verified_at: "2026-06-25"
-    - adapter_type: minimax
+    - route_adapter_hint: minimax
       allow_model_id_override: true
       capabilities:
         - audio_tts
@@ -31,7 +31,7 @@ templates:
         status: verified
         url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
         verified_at: "2026-06-25"
-    - adapter_type: minimax
+    - route_adapter_hint: minimax
       allow_model_id_override: true
       capabilities:
         - audio_tts
@@ -44,7 +44,7 @@ templates:
         status: verified
         url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
         verified_at: "2026-06-25"
-    - adapter_type: minimax
+    - route_adapter_hint: minimax
       allow_model_id_override: true
       capabilities:
         - audio_tts
@@ -57,7 +57,7 @@ templates:
         status: verified
         url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
         verified_at: "2026-06-25"
-    - adapter_type: minimax
+    - route_adapter_hint: minimax
       allow_model_id_override: true
       capabilities:
         - audio_tts
@@ -70,7 +70,7 @@ templates:
         status: verified
         url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
         verified_at: "2026-06-25"
-    - adapter_type: minimax
+    - route_adapter_hint: minimax
       allow_model_id_override: true
       capabilities:
         - audio_tts
@@ -83,7 +83,7 @@ templates:
         status: verified
         url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
         verified_at: "2026-06-25"
-    - adapter_type: minimax
+    - route_adapter_hint: minimax
       allow_model_id_override: true
       capabilities:
         - audio_tts
@@ -96,7 +96,7 @@ templates:
         status: verified
         url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
         verified_at: "2026-06-25"
-    - adapter_type: minimax
+    - route_adapter_hint: minimax
       allow_model_id_override: true
       capabilities:
         - audio_tts
@@ -109,7 +109,7 @@ templates:
         status: verified
         url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
         verified_at: "2026-06-25"
-    - adapter_type: minimax
+    - route_adapter_hint: minimax
       allow_model_id_override: true
       capabilities:
         - audio_tts
@@ -122,7 +122,7 @@ templates:
         status: verified
         url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
         verified_at: "2026-06-25"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -136,7 +136,7 @@ templates:
         status: verified
         url: https://platform.minimax.io/docs/guides/text-generation
         verified_at: "2026-06-25"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -150,7 +150,7 @@ templates:
         status: verified
         url: https://platform.minimax.io/docs/guides/text-generation
         verified_at: "2026-06-25"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -164,7 +164,7 @@ templates:
         status: verified
         url: https://platform.minimax.io/docs/guides/text-generation
         verified_at: "2026-06-25"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -178,7 +178,7 @@ templates:
         status: verified
         url: https://platform.minimax.io/docs/guides/text-generation
         verified_at: "2026-06-25"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -192,7 +192,7 @@ templates:
         status: verified
         url: https://platform.minimax.io/docs/guides/text-generation
         verified_at: "2026-06-25"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -206,7 +206,7 @@ templates:
         status: verified
         url: https://platform.minimax.io/docs/guides/text-generation
         verified_at: "2026-06-25"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text

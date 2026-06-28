@@ -16,6 +16,7 @@ import { GenerationModelSelector } from '@movscript/ui/business/generation'
 
 interface ContentCanvasModelSelectorProps {
   capability: SurfaceModelCapability
+  operation?: string
   value: string | null
   onChange: (id: string) => void
   onModelChange?: (model: PublicModel | null) => void
@@ -25,6 +26,7 @@ interface ContentCanvasModelSelectorProps {
 
 export function ContentCanvasModelSelector({
   capability,
+  operation,
   value,
   onChange,
   onModelChange,
@@ -35,8 +37,8 @@ export function ContentCanvasModelSelector({
   const queryCapability = surfaceModelQueryCapability(capability)
 
   const { data: modelsData, isFetching, refetch } = useQuery<PublicModel[]>({
-    queryKey: modelKeys.capability(queryCapability),
-    queryFn: () => listSurfaceModelsByCapability(queryCapability),
+    queryKey: modelKeys.intent(queryCapability, operation),
+    queryFn: () => listSurfaceModelsByCapability(queryCapability, { operation }),
     staleTime: 0,
   })
   const models = modelsData ?? []

@@ -19,6 +19,7 @@ func (w *Worker) runVideoJob(ctx context.Context, debugCtx context.Context, job 
 	if err != nil {
 		return err
 	}
+	annotateDebugRouteContext(debugResult, route, job.JobType)
 	supportsProviderAssetURI := w.routeSupportsProviderAssetURI(ctx, route)
 	if debugResult != nil {
 		debugResult.ResourceDiagnostics = w.providerAssetDiagnosticsForJob(ctx, job, route, supportsProviderAssetURI)
@@ -28,9 +29,11 @@ func (w *Worker) runVideoJob(ctx context.Context, debugCtx context.Context, job 
 		certifiedAssets = w.certifiedProviderAssetsForJob(job, route.ProviderID, route.ProviderModelID, route.ModelID)
 		imageData, videoData, audioData = filterCertifiedProviderAssetMediaInputs(certifiedAssets, imageData, videoData, audioData)
 	}
-	// Volcen's Seedance video API rejects base64 for video_url; for reference
-	// images and videos alike we need a provider-reachable public URL.
-	w.prepareVideoInputReferences(job, imageData, videoData, audioData)
+	// Some video routes require provider-reachable media URLs. Fail before the
+	// adapter call when the route contract cannot be satisfied locally.
+	if err := w.prepareVideoInputReferencesForRoute(job, route, imageData, videoData, audioData); err != nil {
+		return err
+	}
 	req := w.buildVideoRequest(job, params, dur, imageData, videoData, audioData, certifiedAssets)
 	if job.ProviderTaskID != "" {
 		return w.pollVideoProviderTask(ctx, debugCtx, job, dur, sm, debugResult)
@@ -767,6 +770,7 @@ func (w *Worker) callVideoProvider(ctx context.Context, debugCtx context.Context
 	if err != nil {
 		return err
 	}
+	annotateDebugRouteContext(debugResult, route, job.JobType)
 	resp, err := callProviderWithTimeout(debugCtx, providerCallTimeout, func(ctx context.Context) (ai.VideoResponse, error) {
 		return w.aiService.CallVideoWithRouteUsage(ctx, job.UserID, route, req, w.usageContext(job))
 	})

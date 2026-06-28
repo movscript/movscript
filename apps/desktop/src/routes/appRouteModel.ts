@@ -39,7 +39,7 @@ export function workModeForRoute(pathname: string, fallback: AppWorkMode): AppWo
 export function routeForWorkMode(workMode: AppWorkMode, hasProject: boolean): string {
   if (workMode === 'agent') return ROUTES.project.agent
   if (workMode === 'project') return hasProject ? ROUTES.project.home : ROUTES.projects
-  return ROUTES.tools.refImageGen
+  return ROUTES.tools.image
 }
 
 export function canvasEditorPath(canvasId: string | number, options?: { source?: CanvasRouteSource }): string {

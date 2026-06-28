@@ -15,6 +15,7 @@ export {
 export {
   createCandidateFromContentUnit,
   createCandidateFromResourceForContentUnit,
+  removeContentUnitCandidateFromCanvas,
   selectCandidateNodeFromCanvas,
   selectContentUnitCandidateFromCanvas,
   uploadCandidateForContentUnit,
@@ -31,6 +32,7 @@ export interface ContentCanvasCommandResult {
   focusNodeId?: string
   nodePositions?: Record<string, { x: number; y: number }>
   createdCandidates?: Array<{ contentUnitId: string; candidate: ContentCanvasCandidate }>
+  removedCandidates?: Array<{ contentUnitId: string; candidateId: string }>
   selectedCandidates?: Array<{ contentUnitId: string; candidateId: string }>
   message: string
 }

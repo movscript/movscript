@@ -145,6 +145,7 @@ func TestRunMigrationsInitializesFormalBaselineSchema(t *testing.T) {
 		"model_template_key",
 		"template_version",
 		"param_limits_json",
+		"model_capabilities_json",
 	} {
 		if !db.Migrator().HasColumn(&model.AIModelCatalogEntry{}, column) {
 			t.Fatalf("expected baseline model catalog column %q", column)
@@ -153,6 +154,11 @@ func TestRunMigrationsInitializesFormalBaselineSchema(t *testing.T) {
 	for _, column := range []string{
 		"combo_template_key",
 		"template_version",
+		"endpoint_base_url",
+		"endpoint_path_prefix",
+		"endpoint_mode",
+		"operation_profile",
+		"route_capabilities_json",
 	} {
 		if !db.Migrator().HasColumn(&model.AIModelRouteBinding{}, column) {
 			t.Fatalf("expected baseline route binding column %q", column)
@@ -214,12 +220,12 @@ func TestMigrateModelRouteTemplateMetadataAddsColumns(t *testing.T) {
 	if err := migrateModelRouteTemplateMetadata(db); err != nil {
 		t.Fatalf("migrateModelRouteTemplateMetadata() error = %v", err)
 	}
-	for _, column := range []string{"model_template_key", "template_version", "param_limits_json"} {
+	for _, column := range []string{"model_template_key", "template_version", "param_limits_json", "model_capabilities_json"} {
 		if !db.Migrator().HasColumn(&model.AIModelCatalogEntry{}, column) {
 			t.Fatalf("expected migrated model catalog column %q", column)
 		}
 	}
-	for _, column := range []string{"combo_template_key", "template_version"} {
+	for _, column := range []string{"combo_template_key", "template_version", "endpoint_base_url", "endpoint_path_prefix", "endpoint_mode", "operation_profile", "route_capabilities_json"} {
 		if !db.Migrator().HasColumn(&model.AIModelRouteBinding{}, column) {
 			t.Fatalf("expected migrated route binding column %q", column)
 		}

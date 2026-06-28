@@ -19,9 +19,9 @@ import {
   useNodesState,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { ChevronLeft, ChevronRight, Clock3, FileText, FolderOpen, GitBranch, Image as ImageIcon, Info, Link2, LocateFixed, Move, Music, Pencil, Plus, RotateCcw, Save, Search, Sparkles, Star, Video, X, type LucideIcon } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Clock3, FileText, FolderOpen, GitBranch, Image as ImageIcon, Info, Link2, LocateFixed, Move, Music, Pencil, Plus, RotateCcw, Save, Search, Sparkles, Star, Trash2, Video, X, type LucideIcon } from 'lucide-react'
 
-import { generationParamDefaults } from '@movscript/core/generation'
+import { generationParamDefaults, type GenerationIntentPayload } from '@movscript/core/generation'
 import { allocateMovScriptEntityId } from '@movscript/domain'
 import { readResourceDragPayload, resourceDropAcceptsPayload } from '@movscript/resource-surface/resource-interaction'
 import { ResourceFileImage, ResourceFileVideo } from '@movscript/resource-surface/resource-media-components'
@@ -50,6 +50,7 @@ import {
 } from '../application/contentCreativeCanvasActions'
 import {
   buildCreativeCanvasGraph,
+  creativeNodeFromContentNode,
   isCreativeCanvasVisibleNode,
   type CreativeCanvasNode,
 } from '../application/contentCreativeCanvasModel'
@@ -115,11 +116,13 @@ type CreativeFlowNodeData = {
   onPromptDraftChange: (node: ContentCanvasNode, prompt: string) => void
   onStructuredPromptCommit: (node: ContentCanvasNode, structured: Record<string, unknown>) => void
   onCandidatePreviewOpen: (preview: CreativeFlowNodeCandidatePreview) => void
+  onCandidateRemove: (node: ContentCanvasNode, candidate: ContentCanvasCandidate) => void
   onCandidateSelect: (node: ContentCanvasNode, candidate: ContentCanvasCandidate) => void
   onGenerateWithOptions: (node: ContentCanvasNode, options?: Partial<ContentCanvasCandidateGenerationOptions>) => void
   onReferenceToActivePrompt: (node: ContentCanvasNode) => void
   onReferenceDrop: (targetNode: ContentCanvasNode, sourceNodeId: string) => void
   onResourceDrop: (targetNode: ContentCanvasNode, resource: ContentCanvasUploadedResource, position?: ContentCanvasNodePosition) => void
+  onCanvasDeselect: () => void
   onSelectNode: (kind: InspectorSelection['kind'], nodeId: string) => void
 }
 
@@ -136,6 +139,7 @@ type CreativeFlowNodeCandidatePreview = {
   selected?: boolean
   selectable?: boolean
   retryable?: boolean
+  removable?: boolean
   candidateCount?: number
 }
 
@@ -260,6 +264,7 @@ export function ContentPromptCanvasPanel({
   onCandidateCreate,
   onCandidatePromptPreview,
   onCandidateResourceSelect,
+  onCandidateRemove,
   onCandidateSelect,
   onCandidateNodeSelect,
   onCandidateUpload,
@@ -303,6 +308,7 @@ export function ContentPromptCanvasPanel({
   onCandidateCreate: (node: ContentCanvasNode | undefined, options?: Partial<ContentCanvasCandidateGenerationOptions>) => void
   onCandidatePromptPreview: (node: ContentCanvasNode | undefined) => Promise<ContentCanvasCandidatePromptPreview>
   onCandidateResourceSelect: (node: ContentCanvasNode | undefined, resource: ContentCanvasUploadedResource, position?: ContentCanvasNodePosition) => void
+  onCandidateRemove: (node: ContentCanvasNode | undefined, candidate: ContentCanvasCandidate) => void
   onCandidateSelect: (node: ContentCanvasNode | undefined, candidate: ContentCanvasCandidate) => void
   onCandidateNodeSelect: (node: ContentCanvasNode) => void
   onCandidateUpload: (node: ContentCanvasNode | undefined, file: File) => void
@@ -348,11 +354,15 @@ export function ContentPromptCanvasPanel({
   const [assetLibraryNotice, setAssetLibraryNotice] = useState<string | null>(null)
   const [flowInstance, setFlowInstance] = useState<ReactFlowInstance<Node<CreativeFlowNodeData>, Edge> | null>(null)
   const consumedFocusRequestIdRef = useRef<number | null>(null)
+  const focusFrameRef = useRef<number | null>(null)
   const suppressNextNodeClickRef = useRef(false)
   const panelRef = useRef<HTMLElement | null>(null)
   useEffect(() => {
     setManualPositions(persistedManualPositions ?? {})
   }, [persistedManualPositions])
+  useEffect(() => () => {
+    if (focusFrameRef.current !== null) window.cancelAnimationFrame(focusFrameRef.current)
+  }, [])
   const activeCanvasScope = useMemo(
     () => contentCanvasDocumentScope(activeCanvasDocument),
     [activeCanvasDocument],
@@ -459,17 +469,19 @@ export function ContentPromptCanvasPanel({
       referenceTargetNodeId: activePromptReferenceTargetId,
       onContextMenu: openNodeContextMenu,
       onCandidatePreviewOpen: (preview) => setCandidatePreviewDialog({ preview, sourceNode: item.source }),
+      onCandidateRemove: (node, candidate) => onCandidateRemove(node, candidate),
       onCandidateSelect: (node, candidate) => onCandidateSelect(node, candidate),
       onGenerateWithOptions: (node, options) => onCandidateCreate(node, options),
       onReferenceToActivePrompt: appendReferenceToActivePrompt,
       onReferenceDrop: appendReferenceToPromptTarget,
       onResourceDrop: createResourceCandidateFromDrop,
+      onCanvasDeselect,
       onPromptCommit: commitPromptFromNode,
       onPromptDraftChange: updatePromptDraft,
       onStructuredPromptCommit,
       onSelectNode,
     },
-  })), [activePromptReferenceTargetId, appendReferenceToActivePrompt, appendReferenceToPromptTarget, candidateSelections, commitPromptFromNode, createResourceCandidateFromDrop, creativeGraph.nodes, focusedNodeId, manualPositions, nodes, onCandidateCreate, onCandidateSelect, onSelectNode, onStructuredPromptCommit, openNodeContextMenu, promptByNodeId, updatePromptDraft])
+  })), [activePromptReferenceTargetId, appendReferenceToActivePrompt, appendReferenceToPromptTarget, candidateSelections, commitPromptFromNode, createResourceCandidateFromDrop, creativeGraph.nodes, focusedNodeId, manualPositions, nodes, onCanvasDeselect, onCandidateCreate, onCandidateRemove, onCandidateSelect, onSelectNode, onStructuredPromptCommit, openNodeContextMenu, promptByNodeId, updatePromptDraft])
   const initialFlowEdges = useMemo<Edge[]>(() => creativeGraph.edges.map((edge) => ({
     id: edge.id,
     source: edge.source,
@@ -531,6 +543,19 @@ export function ContentPromptCanvasPanel({
     return flowPositionForClientPoint(clientX, clientY)
   }, [flowPositionForClientPoint])
 
+  const dropPositionForCanvasLibraryNode = useCallback((
+    node: ContentCanvasNode,
+    clientX: number,
+    clientY: number,
+  ): ContentCanvasNodePosition => {
+    const pointer = flowPositionForClientPoint(clientX, clientY)
+    const size = creativeCanvasContentNodeViewportSize(node)
+    return {
+      x: Math.round(pointer.x - size.width / 2),
+      y: Math.round(pointer.y - size.height / 2),
+    }
+  }, [flowPositionForClientPoint])
+
   const addLibraryNodeToCanvasAtPosition = useCallback((node: ContentCanvasNode, position: ContentCanvasNodePosition) => {
     onAddNodeToCanvas(node.id, position)
   }, [onAddNodeToCanvas])
@@ -568,14 +593,18 @@ export function ContentPromptCanvasPanel({
     if (!focusedNode) return
     consumedFocusRequestIdRef.current = focusRequest.requestId
     const size = creativeCanvasNodeViewportSize(focusedNode.data.item)
-    void flowInstance.setCenter(
-      focusedNode.position.x + size.width / 2,
-      focusedNode.position.y + size.height / 2,
-      {
-        duration: 320,
-        zoom: Math.max(flowInstance.getZoom(), 0.72),
-      },
-    )
+    const centerX = focusedNode.position.x + size.width / 2
+    const centerY = focusedNode.position.y + size.height / 2
+    const zoom = Math.max(flowInstance.getZoom(), 0.72)
+    void flowInstance.setCenter(centerX, centerY, { duration: 320, zoom })
+    if (focusFrameRef.current !== null) window.cancelAnimationFrame(focusFrameRef.current)
+    focusFrameRef.current = window.requestAnimationFrame(() => {
+      focusFrameRef.current = null
+      void flowInstance.setCenter(centerX, centerY, {
+        duration: 180,
+        zoom: Math.max(flowInstance.getZoom(), zoom),
+      })
+    })
   }, [flowInstance, flowNodes, focusRequest])
 
   const editablePromptNodeIds = useMemo(
@@ -715,7 +744,7 @@ export function ContentPromptCanvasPanel({
       event.stopPropagation()
       setContextMenu(null)
       setQuickAddMenu(null)
-      addLibraryNodeToCanvasAtPosition(draggedNode, flowPositionForClientPoint(event.clientX, event.clientY))
+      addLibraryNodeToCanvasAtPosition(draggedNode, dropPositionForCanvasLibraryNode(draggedNode, event.clientX, event.clientY))
       return
     }
     if (!resourceDropAcceptsPayload(event.dataTransfer)) return
@@ -740,7 +769,7 @@ export function ContentPromptCanvasPanel({
     onCandidateResourceSelect(targetNode, resource, position)
     const targetLabel = contentCanvasGenerationTargetForNode(targetNode)?.label ?? targetNode.title
     setAssetLibraryNotice(`已加入 ${targetLabel} 的候选。`)
-  }, [addLibraryNodeToCanvasAtPosition, flowNodes, flowPositionForClientPoint, focusedNodeId, nodeById, onCandidateResourceSelect])
+  }, [addLibraryNodeToCanvasAtPosition, dropPositionForCanvasLibraryNode, flowNodes, flowPositionForClientPoint, focusedNodeId, nodeById, onCandidateResourceSelect])
 
   const generatableCount = creativeGraph.nodes.filter((node) => node.canGenerate).length
   const showMiniMap = creativeGraph.nodes.length <= CREATIVE_CANVAS_MINIMAP_NODE_LIMIT
@@ -1162,6 +1191,10 @@ export function ContentPromptCanvasPanel({
         <ContentPromptCandidatePreviewDialog
           preview={candidatePreviewDialog.preview}
           sourceNode={candidatePreviewDialog.sourceNode}
+          onRemove={() => {
+            const candidate = candidatePreviewDialog.preview.candidate
+            if (candidate) onCandidateRemove(candidatePreviewDialog.sourceNode, candidate)
+          }}
           onRetry={() => onCandidateCreate(candidatePreviewDialog.sourceNode, candidateRetryGenerationOptions(candidatePreviewDialog.preview))}
           onClose={() => setCandidatePreviewDialog(null)}
         />
@@ -1415,6 +1448,11 @@ function ContentPromptFlowNode({ data }: NodeProps<Node<CreativeFlowNodeData>>) 
       data-role={data.item.role}
       data-weight={data.item.weight}
       data-reference-drop-target={editablePrompt ? 'true' : undefined}
+      onClickCapture={(event) => {
+        if (event.target !== event.currentTarget) return
+        event.stopPropagation()
+        data.onCanvasDeselect()
+      }}
       onContextMenu={(event) => data.onContextMenu(event, node)}
       onDragOver={(event) => {
         const acceptsPromptReference = editablePrompt && event.dataTransfer.types.includes(CONTENT_PROMPT_REFERENCE_DRAG_MIME)
@@ -1508,6 +1546,7 @@ function ContentPromptFlowNode({ data }: NodeProps<Node<CreativeFlowNodeData>>) 
                         sourceNode={node}
                         onOpen={() => data.onCandidatePreviewOpen(preview)}
                         onReference={() => data.onReferenceToActivePrompt(node)}
+                        onRemove={() => preview.candidate ? data.onCandidateRemove(node, preview.candidate) : undefined}
                         onRetry={() => data.onGenerateWithOptions(node, candidateRetryGenerationOptions(preview))}
                         onSelect={() => preview.candidate ? data.onCandidateSelect(node, preview.candidate) : undefined}
                       />
@@ -2309,7 +2348,9 @@ function ContentPromptFlowNodeGenerationPanel({
   onSubmit: (options: ContentCanvasCandidateGenerationOptions) => void
 }) {
   const mediaKind = mediaKindForNode(node)
-  const capability = mediaKind === 'video' ? 'video' : mediaKind === 'image' ? 'image' : null
+  const capability = mediaKind === 'video' ? 'video_generation' : mediaKind === 'image' ? 'image_generation' : null
+  const operationOptions = contentCanvasGenerationOperationOptions(mediaKind)
+  const [operation, setOperation] = useState(() => operationOptions[0]?.value ?? '')
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
   const [selectedModel, setSelectedModel] = useState<PublicModel | null>(null)
   const [params, setParams] = useState<Record<string, string | number | boolean>>({})
@@ -2321,9 +2362,14 @@ function ContentPromptFlowNodeGenerationPanel({
       return
     }
     setParams(generationParamDefaults(selectedModel))
-  }, [selectedModel?.model_def_id, selectedModel?.model_id])
+  }, [selectedModel?.model_id])
 
-  if (!capability) return null
+  useEffect(() => {
+    const nextOperation = operationOptions[0]?.value ?? ''
+    if (!operationOptions.some((option) => option.value === operation)) setOperation(nextOperation)
+  }, [operation, operationOptions])
+
+  if (!capability || !operation) return null
 
   return (
     <form
@@ -2332,10 +2378,15 @@ function ContentPromptFlowNodeGenerationPanel({
       onSubmit={(event) => {
         event.preventDefault()
         if (!selectedModelId) return
+        const generationIntent: GenerationIntentPayload = {
+          capability,
+          operation,
+        }
         onSubmit({
           modelId: selectedModelId,
           params,
           supportedParams,
+          generationIntent,
         })
       }}
     >
@@ -2348,9 +2399,32 @@ function ContentPromptFlowNodeGenerationPanel({
       </header>
       <div className="content-prompt-flow-node__generation-controls">
         <label>
+          <span>能力</span>
+          <Select
+            value={operation}
+            onValueChange={(nextOperation) => {
+              setOperation(nextOperation)
+              setSelectedModelId(null)
+              setSelectedModel(null)
+            }}
+          >
+            <SelectTrigger className="content-prompt-flow-node__generation-model">
+              <SelectValue placeholder="选择生成能力" />
+            </SelectTrigger>
+            <SelectContent>
+              {operationOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </label>
+        <label>
           <span>模型</span>
           <ContentCanvasModelSelector
             capability={capability}
+            operation={operation}
             className="content-prompt-flow-node__generation-model"
             value={selectedModelId}
             onChange={setSelectedModelId}
@@ -2373,7 +2447,27 @@ function ContentPromptFlowNodeGenerationPanel({
         </button>
       </div>
     </form>
-  )
+	  )
+	}
+
+function contentCanvasGenerationOperationOptions(mediaKind: string | null | undefined): Array<{ value: string; label: string }> {
+  if (mediaKind === 'image') {
+    return [
+      { value: 'prompt_to_image', label: '文生图' },
+      { value: 'image_to_image', label: '图生图 / 参考图生图' },
+    ]
+  }
+  if (mediaKind === 'video') {
+    return [
+      { value: 'prompt_to_video', label: '文生视频' },
+      { value: 'image_to_video', label: '图生视频' },
+      { value: 'first_frame_to_video', label: '首帧生视频' },
+      { value: 'first_last_frame_to_video', label: '首尾帧生视频' },
+      { value: 'reference_to_video', label: '全能参考生视频' },
+      { value: 'video_to_video', label: '视频参考生视频' },
+    ]
+  }
+  return []
 }
 
 function ContentPromptFlowNodeCurrentState({
@@ -2430,6 +2524,7 @@ function ContentPromptFlowNodeCandidatePreview({
   sourceNode,
   onOpen,
   onReference,
+  onRemove,
   onRetry,
   onSelect,
 }: {
@@ -2439,6 +2534,7 @@ function ContentPromptFlowNodeCandidatePreview({
   sourceNode: ContentCanvasNode
   onOpen: () => void
   onReference: () => void
+  onRemove: () => void
   onRetry: () => void
   onSelect: () => void
 }) {
@@ -2475,6 +2571,20 @@ function ContentPromptFlowNodeCandidatePreview({
       <RotateCcw size={12} aria-hidden="true" />
     </button>
   ) : null
+  const removeButton = variant !== 'resource' && preview.removable ? (
+    <button
+      type="button"
+      className="content-prompt-flow-node__candidate-remove"
+      onClick={(event) => {
+        event.stopPropagation()
+        onRemove()
+      }}
+      aria-label={`移出候选 ${preview.title || preview.id}`}
+      title="移出候选"
+    >
+      <Trash2 size={12} aria-hidden="true" />
+    </button>
+  ) : null
   const referenceButton = canReference ? (
     <button
       type="button"
@@ -2504,10 +2614,11 @@ function ContentPromptFlowNodeCandidatePreview({
       <Star size={12} aria-hidden="true" fill={preview.selected ? 'currentColor' : 'none'} />
     </button>
   ) : null
-  const actionButtons = variant !== 'resource' && (detailButton || retryButton || referenceButton || selectionButton) ? (
+  const actionButtons = variant !== 'resource' && (detailButton || retryButton || removeButton || referenceButton || selectionButton) ? (
     <span className="content-prompt-flow-node__candidate-actions">
       {detailButton}
       {retryButton}
+      {removeButton}
       {referenceButton}
       {selectionButton}
     </span>
@@ -2578,11 +2689,13 @@ function ContentPromptFlowNodeCandidatePreview({
 function ContentPromptCandidatePreviewDialog({
   preview,
   sourceNode,
+  onRemove,
   onRetry,
   onClose,
 }: {
   preview: CreativeFlowNodeCandidatePreview
   sourceNode: ContentCanvasNode
+  onRemove: () => void
   onRetry: () => void
   onClose: () => void
 }) {
@@ -2633,6 +2746,19 @@ function ContentPromptCandidatePreviewDialog({
           />
         ) : null}
         <div className="content-prompt-candidate-preview-dialog__footer">
+          {preview.removable ? (
+            <button
+              type="button"
+              className="content-prompt-candidate-preview-dialog__remove"
+              onClick={() => {
+                onRemove()
+                onClose()
+              }}
+            >
+              <Trash2 size={13} aria-hidden="true" />
+              移出候选
+            </button>
+          ) : null}
           {canRetry ? (
             <button
               type="button"
@@ -2717,6 +2843,8 @@ function areCreativeFlowNodePropsEqual(
     && creativeFlowNodeCandidatePreviewsKey(previous.data.candidatePreviews) === creativeFlowNodeCandidatePreviewsKey(next.data.candidatePreviews)
     && previous.data.onContextMenu === next.data.onContextMenu
     && previous.data.onCandidatePreviewOpen === next.data.onCandidatePreviewOpen
+    && previous.data.onCandidateRemove === next.data.onCandidateRemove
+    && previous.data.onCandidateSelect === next.data.onCandidateSelect
     && previous.data.onGenerateWithOptions === next.data.onGenerateWithOptions
     && previous.data.onReferenceToActivePrompt === next.data.onReferenceToActivePrompt
     && previous.data.onReferenceDrop === next.data.onReferenceDrop
@@ -2760,11 +2888,12 @@ function candidatePreviewsForNode(
   if (!target?.candidates.length) return []
   const explicitSelectionId = explicitCandidateSelectionIdForNode(node, target.node, candidateSelections)
   const repeatedIds = repeatedCandidateIds(target.candidates)
-  return target.candidates.map((candidate, index) => {
+  const previews = target.candidates.flatMap((candidate, index) => {
     const selected = candidate.selected || (explicitSelectionId === candidate.id && !repeatedIds.has(candidate.id))
+    if (!candidatePreviewShouldShow(candidate, selected)) return []
     const statusView = candidatePreviewStatusView(candidate, selected)
     const failureReason = candidateFailureReason(candidate)
-    return {
+    return [{
       key: candidatePreviewKey(candidate, index),
       id: candidate.id,
       title: candidate.title || candidate.id,
@@ -2777,9 +2906,10 @@ function candidatePreviewsForNode(
       selected,
       selectable: candidatePreviewCanSelect(candidate, selected),
       retryable: candidatePreviewCanRetry(candidate),
-      candidateCount: target.candidates.length,
-    }
+      removable: true,
+    }]
   })
+  return previews.map((preview) => ({ ...preview, candidateCount: previews.length }))
 }
 
 function resourcePreviewForNode(node: ContentCanvasNode): CreativeFlowNodeCandidatePreview | null {
@@ -2809,6 +2939,7 @@ function creativeFlowNodeCandidatePreviewsKey(previews: CreativeFlowNodeCandidat
     preview.selected ? 'selected' : '',
     preview.selectable ? 'selectable' : '',
     preview.retryable ? 'retryable' : '',
+    preview.removable ? 'removable' : '',
     preview.candidateCount ?? '',
   ].join(':')).join('|')
 }
@@ -2865,6 +2996,7 @@ function candidatePreviewPlaceholderIcon(preview: CreativeFlowNodeCandidatePrevi
 
 function candidateFailureReason(candidate: ContentCanvasCandidate): string | undefined {
   const status = normalizedCandidateStatus(candidate)
+  if (status !== 'failed' && status !== 'canceled' && status !== 'cancelled') return undefined
   const producer = recordValue(candidate.producer)
   const promptSnapshot = recordValue(candidate.promptSnapshot)
   const output = firstRecord(candidate.outputs)
@@ -2898,7 +3030,11 @@ function candidateNote(candidate: ContentCanvasCandidate): string | undefined {
   const note = stringRecordField(candidate.notes)
   if (!note) return undefined
   const status = normalizedCandidateStatus(candidate)
-  return status && note.toLowerCase() === status ? undefined : note
+  const normalized = note.toLowerCase()
+  if (status && normalized === status) return undefined
+  if (['queued', 'pending', 'running', 'succeeded', 'failed', 'canceled', 'cancelled', 'imported'].includes(normalized)) return undefined
+  if (normalized === 'workspace runtime candidate.') return undefined
+  return note
 }
 
 function candidateJobId(candidate: ContentCanvasCandidate): string | undefined {
@@ -2979,7 +3115,57 @@ function editPromptTextFromUnknown(value: unknown): string | undefined {
 }
 
 function normalizedCandidateStatus(candidate: ContentCanvasCandidate): string | undefined {
-  return stringRecordField(candidate.status)?.toLowerCase()
+  const explicit = stringRecordField(candidate.status)?.toLowerCase()
+  const derived = derivedCandidateStatus(candidate)
+  if (derived === 'failed' || derived === 'canceled' || derived === 'cancelled') return derived
+  return explicit ?? derived
+}
+
+function derivedCandidateStatus(candidate: ContentCanvasCandidate): string | undefined {
+  const producer = recordValue(candidate.producer)
+  const promptSnapshot = recordValue(candidate.promptSnapshot)
+  const output = firstRecord(candidate.outputs)
+  const outputMetadata = recordValue(output?.metadata)
+  const status = firstText([
+    producer?.status,
+    producer?.state,
+    producer?.phase,
+    producer?.result,
+    promptSnapshot?.status,
+    promptSnapshot?.state,
+    outputMetadata?.status,
+    outputMetadata?.state,
+  ])?.toLowerCase()
+  if (status && ['failed', 'failure', 'error', 'errored'].includes(status)) return 'failed'
+  if (status && ['canceled', 'cancelled'].includes(status)) return status
+  if (firstText([
+    producer?.error_message,
+    producer?.errorMessage,
+    producer?.failure_reason,
+    producer?.failureReason,
+    producer?.error,
+    promptSnapshot?.error_message,
+    promptSnapshot?.errorMessage,
+    outputMetadata?.error_message,
+    outputMetadata?.errorMessage,
+    outputMetadata?.error,
+  ])) return 'failed'
+  return status
+}
+
+function normalizedCandidateDecisionStatus(candidate: ContentCanvasCandidate): string | undefined {
+  return stringRecordField(candidate.decisionStatus)?.toLowerCase()
+}
+
+function candidateDecisionReason(candidate: ContentCanvasCandidate): string | undefined {
+  return stringRecordField(candidate.decisionReason)
+}
+
+function candidatePreviewShouldShow(candidate: ContentCanvasCandidate, selected: boolean): boolean {
+  const decision = normalizedCandidateDecisionStatus(candidate)
+  if (decision !== 'reject' && decision !== 'rejected') return true
+  const reason = candidateDecisionReason(candidate)
+  return selected && reason !== 'content_canvas_removed_candidate'
 }
 
 function firstText(values: unknown[]): string | undefined {
@@ -3233,6 +3419,10 @@ function creativeCanvasNodeViewportSize(node: CreativeCanvasNode): { width: numb
   if (node.weight === 'compact') return { width: 260, height: 180 }
   if (node.weight === 'normal') return { width: 340, height: 280 }
   return { width: 360, height: 300 }
+}
+
+function creativeCanvasContentNodeViewportSize(node: ContentCanvasNode): { width: number; height: number } {
+  return creativeCanvasNodeViewportSize(creativeNodeFromContentNode(node))
 }
 
 function selectionKindForPromptNode(node: ContentCanvasNode): InspectorSelection['kind'] {

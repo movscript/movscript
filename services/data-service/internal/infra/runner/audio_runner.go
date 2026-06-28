@@ -25,6 +25,7 @@ func (w *Worker) runAudioTTSJob(ctx context.Context, debugCtx context.Context, j
 	if err != nil {
 		return err
 	}
+	annotateDebugRouteContext(debugResult, route, job.JobType)
 	resp, err := w.aiService.CallTTSWithRouteUsage(debugCtx, job.UserID, route, req, w.usageContext(job))
 	if err != nil {
 		w.saveDebugInfo(job, debugResult)
@@ -59,6 +60,7 @@ func (w *Worker) runAudioGenerateJob(ctx context.Context, debugCtx context.Conte
 	if err != nil {
 		return err
 	}
+	annotateDebugRouteContext(debugResult, route, capability)
 	resp, err := w.aiService.CallAudioGenerateWithRouteUsage(debugCtx, job.UserID, route, capability, req, w.usageContext(job))
 	if err != nil {
 		w.saveDebugInfo(job, debugResult)
@@ -79,6 +81,7 @@ func (w *Worker) runAudioChatJob(ctx context.Context, debugCtx context.Context, 
 	if err != nil {
 		return err
 	}
+	annotateDebugRouteContext(debugResult, route, ai.CapabilityAudioChat)
 	req := media.AudioChatRequest{
 		Prompt:      job.Prompt,
 		Language:    params.String("language"),
@@ -112,6 +115,7 @@ func (w *Worker) runVoiceProfileJob(ctx context.Context, debugCtx context.Contex
 	if err != nil {
 		return err
 	}
+	annotateDebugRouteContext(debugResult, route, capability)
 	name := firstNonEmpty(params.String("name"), strings.TrimSpace(job.Title), "MovScript voice")
 	description := firstNonEmpty(params.String("description"), strings.TrimSpace(job.Prompt), name)
 	var resp media.VoiceProfileResponse
@@ -164,6 +168,7 @@ func (w *Worker) runSubtitleJob(ctx context.Context, debugCtx context.Context, j
 	if err != nil {
 		return err
 	}
+	annotateDebugRouteContext(debugResult, route, capability)
 
 	var resp media.SubtitleResponse
 	switch capability {

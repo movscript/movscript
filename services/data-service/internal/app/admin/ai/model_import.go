@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -62,19 +63,25 @@ type ModelImportApplyResult struct {
 }
 
 type ModelImportModelPlan struct {
-	ProviderModelID string   `json:"provider_model_id"`
-	PublicModelID   string   `json:"public_model_id"`
-	DisplayName     string   `json:"display_name"`
-	Capabilities    []string `json:"capabilities"`
-	TemplateID      string   `json:"template_id,omitempty"`
-	TemplateVersion string   `json:"template_version,omitempty"`
-	TemplateStatus  string   `json:"template_source_status,omitempty"`
-	AdapterType     string   `json:"adapter_type"`
-	Status          string   `json:"status"`
-	CatalogEntryID  uint     `json:"catalog_entry_id,omitempty"`
-	ExistingRouteID uint     `json:"existing_route_id,omitempty"`
-	Recommended     bool     `json:"recommended"`
-	Diagnostics     []string `json:"diagnostics,omitempty"`
+	ProviderModelID       string   `json:"provider_model_id"`
+	PublicModelID         string   `json:"public_model_id"`
+	DisplayName           string   `json:"display_name"`
+	Capabilities          []string `json:"capabilities"`
+	ModelCapabilitiesJSON string   `json:"model_capabilities_json,omitempty"`
+	TemplateID            string   `json:"template_id,omitempty"`
+	TemplateVersion       string   `json:"template_version,omitempty"`
+	TemplateStatus        string   `json:"template_source_status,omitempty"`
+	AdapterType           string   `json:"adapter_type"`
+	EndpointBaseURL       string   `json:"endpoint_base_url,omitempty"`
+	EndpointPathPrefix    string   `json:"endpoint_path_prefix,omitempty"`
+	EndpointMode          string   `json:"endpoint_mode,omitempty"`
+	OperationProfile      string   `json:"operation_profile,omitempty"`
+	RouteCapabilitiesJSON string   `json:"route_capabilities_json,omitempty"`
+	Status                string   `json:"status"`
+	CatalogEntryID        uint     `json:"catalog_entry_id,omitempty"`
+	ExistingRouteID       uint     `json:"existing_route_id,omitempty"`
+	Recommended           bool     `json:"recommended"`
+	Diagnostics           []string `json:"diagnostics,omitempty"`
 }
 
 type ModelImportApplyItem struct {
@@ -112,7 +119,16 @@ func (s *Service) PreviewModelImport(ctx context.Context, input ModelImportPrevi
 		return ModelImportPreviewResult{}, err
 	}
 	for i := range plans {
+		applyModelImportProviderProfile(&plans[i], providerInput.ProviderKind)
 		applyModelImportProviderBoundary(&plans[i], modelImportProviderCategoryForKind(providerInput.ProviderKind))
+		previewProvider := modelImportPreviewProviderModel(providerInput.ProviderKind)
+		if createDisabledRoute, disabledDiagnostic := modelImportPlanCreatesDisabledRouteForProvider(plans[i], previewProvider); createDisabledRoute {
+			plans[i].Recommended = false
+			if disabledDiagnostic != "" {
+				plans[i].Diagnostics = append(plans[i].Diagnostics, disabledDiagnostic)
+			}
+			plans[i] = modelImportDisabledRoutePlan(plans[i], previewProvider)
+		}
 	}
 	return ModelImportPreviewResult{
 		ProviderKind: providerInput.ProviderKind,
@@ -126,10 +142,18 @@ func (s *Service) PreviewModelImport(ctx context.Context, input ModelImportPrevi
 
 func (s *Service) ApplyModelImport(ctx context.Context, input ModelImportApplyInput) (ModelImportApplyResult, error) {
 	providerInput := normalizeModelImportProviderInput(input.Provider)
-	if len(input.Models) == 0 {
+	routeGroup := normalizeModelImportRouteGroup(input.RouteGroup)
+	models := input.Models
+	if len(models) == 0 {
+		ids, err := fetchOpenAICompatModelIDs(ctx, providerInput)
+		if err != nil {
+			return ModelImportApplyResult{}, err
+		}
+		models = modelImportModelInputsFromProviderModelIDs(ids)
+	}
+	if len(models) == 0 {
 		return ModelImportApplyResult{}, fmt.Errorf("%w: at least one model is required", ErrInvalidModelCatalog)
 	}
-	routeGroup := normalizeModelImportRouteGroup(input.RouteGroup)
 	enabled := true
 	if input.IsEnabled != nil {
 		enabled = *input.IsEnabled
@@ -146,7 +170,7 @@ func (s *Service) ApplyModelImport(ctx context.Context, input ModelImportApplyIn
 		}
 		result.Provider = providerFromModel(provider)
 
-		for _, item := range input.Models {
+		for _, item := range models {
 			applied, err := scoped.applyModelImportItem(ctx, provider, routeGroup, enabled, item)
 			if err != nil {
 				return err
@@ -209,6 +233,15 @@ func (s *Service) applyModelImportItem(ctx context.Context, provider persistence
 			}
 		}
 	}
+	applyModelImportProviderProfile(&plan, provider.ProviderKind)
+	createDisabledRoute, disabledDiagnostic := modelImportPlanCreatesDisabledRouteForProvider(plan, provider)
+	if createDisabledRoute {
+		plan.Recommended = false
+		if disabledDiagnostic != "" {
+			plan.Diagnostics = append(plan.Diagnostics, disabledDiagnostic)
+		}
+		plan = modelImportDisabledRoutePlan(plan, provider)
+	}
 
 	item := ModelImportApplyItem{ModelImportModelPlan: plan}
 	entry, createdEntry, err := s.findOrCreateImportedCatalogEntry(ctx, plan)
@@ -218,7 +251,7 @@ func (s *Service) applyModelImportItem(ctx context.Context, provider persistence
 	item.CatalogEntryID = entry.ID
 	item.CreatedCatalogEntry = createdEntry
 	item.ReusedCatalogEntry = !createdEntry
-	if skip, diagnostic := modelImportPlanSkipsRouteForProvider(plan, provider); skip {
+	if skip, diagnostic := modelImportPlanSkipsRouteForProvider(plan, provider); skip && !createDisabledRoute {
 		item.SkippedRouteBinding = true
 		item.Recommended = false
 		if createdEntry {
@@ -230,7 +263,7 @@ func (s *Service) applyModelImportItem(ctx context.Context, provider persistence
 		return item, nil
 	}
 
-	binding, createdBinding, err := s.findOrCreateImportedRouteBinding(ctx, entry.ID, provider, routeGroup, model.ProviderModelID, plan, enabled)
+	binding, createdBinding, err := s.findOrCreateImportedRouteBinding(ctx, entry.ID, provider, routeGroup, model.ProviderModelID, plan, enabled && !createDisabledRoute)
 	if err != nil {
 		return item, err
 	}
@@ -248,6 +281,14 @@ func (s *Service) applyModelImportItem(ctx context.Context, provider persistence
 	return item, nil
 }
 
+func modelImportModelInputsFromProviderModelIDs(ids []string) []ModelImportModelInput {
+	out := make([]ModelImportModelInput, 0, len(ids))
+	for _, id := range normalizeRemoteModelIDs(ids) {
+		out = append(out, ModelImportModelInput{ProviderModelID: id})
+	}
+	return out
+}
+
 func modelImportPlanSkipsRoute(plan ModelImportModelPlan) bool {
 	return strings.TrimSpace(plan.TemplateID) != "" && strings.TrimSpace(plan.TemplateStatus) == "template_only"
 }
@@ -262,6 +303,49 @@ func modelImportPlanSkipsRouteForProvider(plan ModelImportModelPlan, provider pe
 	return false, ""
 }
 
+func modelImportPlanCreatesDisabledRouteForProvider(plan ModelImportModelPlan, provider persistencemodel.AIProvider) (bool, string) {
+	if strings.TrimSpace(provider.ProviderKind) != persistencemodel.AIProviderKindYunwuGateway {
+		return false, ""
+	}
+	if modelImportPlanSkipsRoute(plan) || modelImportPlanRequiresLocalProvider(plan) {
+		return true, "Yunwu auto-sync created this route disabled because the matched template is not usable through the Yunwu gateway yet. Add a route adapter and capability mapping before enabling it."
+	}
+	if modelImportPlanLacksYunwuRouteMapping(plan) {
+		return true, "Yunwu auto-sync created this route disabled because MovScript does not yet have a route capability mapping for this model family. Add route capability details before enabling it."
+	}
+	return false, ""
+}
+
+func modelImportPlanLacksYunwuRouteMapping(plan ModelImportModelPlan) bool {
+	if strings.TrimSpace(plan.RouteCapabilitiesJSON) != "" {
+		return false
+	}
+	for _, capability := range plan.Capabilities {
+		switch strings.TrimSpace(capability) {
+		case infraai.CapabilityText, infraai.CapabilityReasoning, infraai.CapabilityImage, infraai.CapabilityImageEdit:
+			continue
+		default:
+			return true
+		}
+	}
+	return false
+}
+
+func modelImportDisabledRoutePlan(plan ModelImportModelPlan, provider persistencemodel.AIProvider) ModelImportModelPlan {
+	adapterType := strings.TrimSpace(provider.DefaultAdapterType)
+	if adapterType == "" {
+		adapterType = strings.TrimSpace(provider.AdapterKey)
+	}
+	if adapterType == "" || adapterType == infraai.AdapterLocal {
+		adapterType = infraai.AdapterOpenAICompat
+	}
+	plan.AdapterType = adapterType
+	if strings.TrimSpace(plan.RouteCapabilitiesJSON) == "" {
+		plan.RouteCapabilitiesJSON = modelImportStructuredCapabilitiesJSON(plan.Capabilities)
+	}
+	return plan
+}
+
 func applyModelImportProviderBoundary(plan *ModelImportModelPlan, providerCategory string) {
 	if plan == nil || !plan.Recommended {
 		return
@@ -272,8 +356,263 @@ func applyModelImportProviderBoundary(plan *ModelImportModelPlan, providerCatego
 	}
 }
 
+func applyModelImportProviderProfile(plan *ModelImportModelPlan, providerKind string) {
+	if plan == nil {
+		return
+	}
+	if plan.AdapterType == "" {
+		plan.AdapterType = modelImportDefaultAdapterForCapabilities(plan.Capabilities)
+	}
+	if combo, ok := modelImportComboTemplateForProvider(*plan, providerKind); ok {
+		plan.AdapterType = strings.TrimSpace(combo.AdapterType)
+	} else if modelImportTemplateHasOnlyLocalRouteTemplates(plan.TemplateID) {
+		plan.AdapterType = infraai.AdapterLocal
+	}
+	switch strings.TrimSpace(providerKind) {
+	case persistencemodel.AIProviderKindYunwuGateway:
+		applyYunwuModelImportRouteProfile(plan)
+	}
+	if strings.TrimSpace(plan.ModelCapabilitiesJSON) == "" {
+		plan.ModelCapabilitiesJSON = modelImportStructuredCapabilitiesJSON(plan.Capabilities)
+	}
+	if strings.TrimSpace(plan.RouteCapabilitiesJSON) == "" {
+		plan.RouteCapabilitiesJSON = plan.ModelCapabilitiesJSON
+	}
+}
+
+func modelImportComboTemplateForProvider(plan ModelImportModelPlan, providerKind string) (infraai.ComboTemplate, bool) {
+	templateID := strings.TrimSpace(plan.TemplateID)
+	providerKind = strings.TrimSpace(providerKind)
+	if templateID == "" || providerKind == "" {
+		return infraai.ComboTemplate{}, false
+	}
+	for _, combo := range infraai.ComboTemplates() {
+		if strings.TrimSpace(combo.ModelTemplateKey) == templateID && strings.TrimSpace(combo.ProviderKind) == providerKind {
+			return combo, true
+		}
+	}
+	return infraai.ComboTemplate{}, false
+}
+
+func modelImportTemplateHasOnlyLocalRouteTemplates(templateID string) bool {
+	templateID = strings.TrimSpace(templateID)
+	if templateID == "" {
+		return false
+	}
+	seenRouteTemplate := false
+	for _, combo := range infraai.ComboTemplates() {
+		if strings.TrimSpace(combo.ModelTemplateKey) != templateID {
+			continue
+		}
+		seenRouteTemplate = true
+		if strings.TrimSpace(combo.ProviderCategory) != persistencemodel.AIProviderCategoryLocalEndpoint &&
+			strings.TrimSpace(combo.AdapterType) != infraai.AdapterLocal {
+			return false
+		}
+	}
+	return seenRouteTemplate
+}
+
+func applyYunwuModelImportRouteProfile(plan *ModelImportModelPlan) {
+	if plan == nil {
+		return
+	}
+	if modelImportLooksAlibailianVideoModel(plan.ProviderModelID) {
+		applyYunwuAlibailianVideoRouteProfile(plan)
+		return
+	}
+	if !modelImportPlanHasAnyCapability(*plan, infraai.CapabilityVideo, infraai.CapabilityVideoI2V, infraai.CapabilityVideoV2V) {
+		return
+	}
+	switch strings.TrimSpace(plan.AdapterType) {
+	case infraai.AdapterOfficialVideoGenerations:
+		applyYunwuOfficialVideoGenerationsRouteProfile(plan)
+		return
+	case infraai.AdapterOpenAIVideoMultipart:
+		if strings.TrimSpace(plan.TemplateID) != "" {
+			applyYunwuOpenAIVideoMultipartRouteProfile(plan)
+			return
+		}
+	}
+	applyYunwuUnifiedVideoRouteProfile(plan)
+}
+
+func applyYunwuAlibailianVideoRouteProfile(plan *ModelImportModelPlan) {
+	plan.AdapterType = infraai.AdapterDashScope
+	plan.EndpointPathPrefix = "/alibailian/api/v1"
+	plan.EndpointMode = "replace_path"
+	plan.OperationProfile = "synthesis"
+	if !modelImportPlanHasAnyCapability(*plan, infraai.CapabilityVideo, infraai.CapabilityVideoI2V, infraai.CapabilityVideoV2V) {
+		plan.Capabilities = []string{infraai.CapabilityVideoI2V}
+	}
+	plan.RouteCapabilitiesJSON = `{"video_generation":{"operations":["prompt_to_video","image_to_video","reference_to_video","video_to_video"],"reference_assets":{"min":0,"max":4,"roles":["generic","reference_image","reference_video"],"modalities":["image","video"]},"requires_public_image_url":true,"requires_public_video_url":true}}`
+	plan.ModelCapabilitiesJSON = plan.RouteCapabilitiesJSON
+}
+
+func applyYunwuOfficialVideoGenerationsRouteProfile(plan *ModelImportModelPlan) {
+	plan.AdapterType = infraai.AdapterOfficialVideoGenerations
+	plan.EndpointPathPrefix = "/v1"
+	plan.EndpointMode = "replace_path"
+	plan.OperationProfile = "generation"
+	plan.RouteCapabilitiesJSON = `{"video_generation":{"operations":["prompt_to_video"]}}`
+	plan.ModelCapabilitiesJSON = plan.RouteCapabilitiesJSON
+}
+
+func applyYunwuOpenAIVideoMultipartRouteProfile(plan *ModelImportModelPlan) {
+	plan.AdapterType = infraai.AdapterOpenAIVideoMultipart
+	plan.EndpointPathPrefix = "/v1"
+	plan.EndpointMode = "replace_path"
+	plan.OperationProfile = "generation"
+	if strings.TrimSpace(plan.ModelCapabilitiesJSON) == "" {
+		plan.ModelCapabilitiesJSON = modelImportStructuredCapabilitiesJSON(plan.Capabilities)
+	}
+	plan.RouteCapabilitiesJSON = plan.ModelCapabilitiesJSON
+}
+
+func applyYunwuUnifiedVideoRouteProfile(plan *ModelImportModelPlan) {
+	plan.AdapterType = infraai.AdapterYunwuUnifiedVideo
+	plan.EndpointPathPrefix = "/v1"
+	plan.EndpointMode = "replace_path"
+	plan.OperationProfile = "generation"
+	plan.Capabilities = modelImportEnsureImageToVideoCapabilities(plan.Capabilities)
+	plan.RouteCapabilitiesJSON = `{"video_generation":{"operations":["image_to_video"],"reference_assets":{"min":1,"max":4,"roles":["generic","reference_image"],"modalities":["image"]},"requires_public_image_url":true}}`
+	plan.ModelCapabilitiesJSON = plan.RouteCapabilitiesJSON
+}
+
+func modelImportLooksAlibailianVideoModel(providerModelID string) bool {
+	id := normalizeModelImportTemplateID(providerModelID)
+	return strings.Contains(id, "wan") ||
+		strings.Contains(id, "wanx") ||
+		strings.Contains(id, "happyhorse") ||
+		strings.Contains(id, "dashscope") ||
+		strings.Contains(id, "alibailian") ||
+		strings.Contains(id, "qwen-video")
+}
+
+func modelImportEnsureImageToVideoCapabilities(capabilities []string) []string {
+	if len(capabilities) == 0 {
+		return []string{infraai.CapabilityVideoI2V}
+	}
+	out := make([]string, 0, len(capabilities)+1)
+	replacedVideo := false
+	for _, capability := range capabilities {
+		switch strings.TrimSpace(capability) {
+		case infraai.CapabilityVideo:
+			if !modelImportHasString(out, infraai.CapabilityVideoI2V) {
+				out = append(out, infraai.CapabilityVideoI2V)
+			}
+			replacedVideo = true
+		case "":
+		default:
+			if !modelImportHasString(out, capability) {
+				out = append(out, capability)
+			}
+		}
+	}
+	if !replacedVideo && !modelImportHasString(out, infraai.CapabilityVideoI2V) {
+		out = append(out, infraai.CapabilityVideoI2V)
+	}
+	return out
+}
+
+func modelImportDefaultAdapterForCapabilities(capabilities []string) string {
+	if modelImportHasString(capabilities, infraai.CapabilityVideo) || modelImportHasString(capabilities, infraai.CapabilityVideoI2V) || modelImportHasString(capabilities, infraai.CapabilityVideoV2V) {
+		return infraai.AdapterOpenAIVideoMultipart
+	}
+	return infraai.AdapterOpenAICompat
+}
+
+func modelImportStructuredCapabilitiesJSON(capabilities []string) string {
+	domains := map[string]map[string]any{}
+	addOps := func(capability string, operations ...string) {
+		if len(operations) == 0 {
+			return
+		}
+		domain := domains[capability]
+		if domain == nil {
+			domain = map[string]any{"operations": []string{}}
+			domains[capability] = domain
+		}
+		current, _ := domain["operations"].([]string)
+		for _, operation := range operations {
+			if !modelImportHasString(current, operation) {
+				current = append(current, operation)
+			}
+		}
+		domain["operations"] = current
+	}
+	if modelImportHasString(capabilities, infraai.CapabilityText) || modelImportHasString(capabilities, infraai.CapabilityReasoning) {
+		addOps(infraai.CapabilityFamilyTextGeneration, "chat", "responses")
+	}
+	if modelImportHasString(capabilities, infraai.CapabilityImage) {
+		addOps(infraai.CapabilityFamilyImageGeneration, infraai.ImageOperationPromptToImage)
+	}
+	if modelImportHasString(capabilities, infraai.CapabilityImageEdit) {
+		addOps(infraai.CapabilityFamilyImageGeneration, infraai.ImageOperationImageToImage, infraai.ImageOperationImageEdit)
+	}
+	switch {
+	case modelImportHasString(capabilities, infraai.CapabilityVideoV2V):
+		addOps(infraai.CapabilityFamilyVideoGeneration, infraai.VideoOperationReferenceToVideo, infraai.VideoOperationVideoToVideo)
+		domains[infraai.CapabilityFamilyVideoGeneration]["reference_assets"] = map[string]any{"min": 1, "max": 4, "roles": []string{"reference_video"}, "modalities": []string{"video"}}
+	case modelImportHasString(capabilities, infraai.CapabilityVideoI2V):
+		addOps(infraai.CapabilityFamilyVideoGeneration, infraai.VideoOperationImageToVideo)
+		domains[infraai.CapabilityFamilyVideoGeneration]["reference_assets"] = map[string]any{"min": 1, "max": 4, "roles": []string{"generic", "reference_image"}, "modalities": []string{"image"}}
+	case modelImportHasString(capabilities, infraai.CapabilityVideo):
+		addOps(infraai.CapabilityFamilyVideoGeneration, infraai.VideoOperationPromptToVideo)
+	}
+	if modelImportHasString(capabilities, infraai.CapabilityAudioTTS) {
+		addOps(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationTTS)
+	}
+	if modelImportHasString(capabilities, infraai.CapabilityAudioSTT) {
+		addOps(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationSTT)
+	}
+	if modelImportHasString(capabilities, infraai.CapabilityAudioMusic) {
+		addOps(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationMusic)
+	}
+	if modelImportHasString(capabilities, infraai.CapabilityAudioSFX) {
+		addOps(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationSFX)
+	}
+	if modelImportHasString(capabilities, infraai.CapabilityAudioChat) || modelImportHasString(capabilities, infraai.CapabilityAudio) {
+		addOps(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationAudioChat)
+	}
+	if modelImportHasString(capabilities, infraai.CapabilityVoiceClone) {
+		addOps(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationVoiceClone)
+	}
+	if modelImportHasString(capabilities, infraai.CapabilityVoiceDesign) {
+		addOps(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationVoiceDesign)
+	}
+	if len(domains) == 0 {
+		return ""
+	}
+	body, _ := json.Marshal(domains)
+	return string(body)
+}
+
+func modelImportPlanHasAnyCapability(plan ModelImportModelPlan, capabilities ...string) bool {
+	for _, capability := range capabilities {
+		if modelImportHasString(plan.Capabilities, capability) {
+			return true
+		}
+	}
+	return false
+}
+
+func modelImportHasString(values []string, target string) bool {
+	target = strings.TrimSpace(target)
+	if target == "" {
+		return false
+	}
+	for _, value := range values {
+		if strings.TrimSpace(value) == target {
+			return true
+		}
+	}
+	return false
+}
+
 func modelImportPlanRequiresLocalProvider(plan ModelImportModelPlan) bool {
-	return strings.TrimSpace(plan.TemplateID) != "" && strings.TrimSpace(plan.AdapterType) == infraai.AdapterLocal
+	return strings.TrimSpace(plan.TemplateID) != "" &&
+		(strings.TrimSpace(plan.AdapterType) == infraai.AdapterLocal || modelImportTemplateHasOnlyLocalRouteTemplates(plan.TemplateID))
 }
 
 func modelImportProviderCategoryForKind(providerKind string) string {
@@ -283,6 +622,18 @@ func modelImportProviderCategoryForKind(providerKind string) string {
 	return ""
 }
 
+func modelImportPreviewProviderModel(providerKind string) persistencemodel.AIProvider {
+	provider := persistencemodel.AIProvider{
+		ProviderKind:     strings.TrimSpace(providerKind),
+		ProviderCategory: modelImportProviderCategoryForKind(providerKind),
+	}
+	if template, ok := providerTemplateByKind(providerKind); ok {
+		provider.DefaultAdapterType = strings.TrimSpace(template.DefaultAdapterType)
+		provider.AdapterKey = strings.TrimSpace(template.DefaultAdapterType)
+	}
+	return provider
+}
+
 func (s *Service) findOrCreateImportedCatalogEntry(ctx context.Context, plan ModelImportModelPlan) (persistencemodel.AIModelCatalogEntry, bool, error) {
 	var entry persistencemodel.AIModelCatalogEntry
 	if err := s.db.WithContext(ctx).Where("public_model_id = ?", plan.PublicModelID).First(&entry).Error; err != nil {
@@ -290,14 +641,15 @@ func (s *Service) findOrCreateImportedCatalogEntry(ctx context.Context, plan Mod
 			return entry, false, err
 		}
 		entry = persistencemodel.AIModelCatalogEntry{
-			ModelTemplateKey: strings.TrimSpace(plan.TemplateID),
-			TemplateVersion:  strings.TrimSpace(plan.TemplateVersion),
-			PublicModelID:    strings.TrimSpace(plan.PublicModelID),
-			DisplayName:      firstNonEmpty(plan.DisplayName, plan.PublicModelID),
-			ShortName:        strings.TrimSpace(plan.PublicModelID),
-			IsEnabled:        true,
-			Capabilities:     strings.Join(plan.Capabilities, ","),
-			SupportedParams:  modelImportSupportedParams(plan.TemplateID),
+			ModelTemplateKey:      strings.TrimSpace(plan.TemplateID),
+			TemplateVersion:       strings.TrimSpace(plan.TemplateVersion),
+			PublicModelID:         strings.TrimSpace(plan.PublicModelID),
+			DisplayName:           firstNonEmpty(plan.DisplayName, plan.PublicModelID),
+			ShortName:             strings.TrimSpace(plan.PublicModelID),
+			IsEnabled:             true,
+			Capabilities:          strings.Join(plan.Capabilities, ","),
+			SupportedParams:       modelImportSupportedParams(plan.TemplateID),
+			ModelCapabilitiesJSON: strings.TrimSpace(plan.ModelCapabilitiesJSON),
 		}
 		if template, ok := catalogTemplateByID(plan.TemplateID); ok {
 			entry.AcceptsImage = template.AcceptsImageInput
@@ -328,7 +680,10 @@ func (s *Service) findOrCreateImportedRouteBinding(ctx context.Context, entryID 
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return binding, false, err
 		}
-		adapterType := strings.TrimSpace(provider.DefaultAdapterType)
+		adapterType := strings.TrimSpace(plan.AdapterType)
+		if adapterType == "" {
+			adapterType = strings.TrimSpace(provider.DefaultAdapterType)
+		}
 		if adapterType == "" {
 			adapterType = strings.TrimSpace(provider.AdapterKey)
 		}
@@ -336,14 +691,19 @@ func (s *Service) findOrCreateImportedRouteBinding(ctx context.Context, entryID 
 			adapterType = infraai.AdapterOpenAICompat
 		}
 		binding, err = s.createModelRouteBindingModel(ctx, strconv.FormatUint(uint64(entryID), 10), ModelRouteBindingInput{
-			TemplateVersion: modelImportTemplateVersion(plan.TemplateID),
-			RouteGroup:      routeGroup,
-			ProviderID:      provider.ProviderID,
-			AdapterType:     adapterType,
-			ProviderModelID: providerModelID,
-			IsEnabled:       &enabled,
-			Priority:        0,
-			CapacityWeight:  1,
+			TemplateVersion:       modelImportTemplateVersion(plan.TemplateID),
+			RouteGroup:            routeGroup,
+			ProviderID:            provider.ProviderID,
+			AdapterType:           adapterType,
+			ProviderModelID:       providerModelID,
+			EndpointBaseURL:       plan.EndpointBaseURL,
+			EndpointPathPrefix:    plan.EndpointPathPrefix,
+			EndpointMode:          plan.EndpointMode,
+			OperationProfile:      plan.OperationProfile,
+			RouteCapabilitiesJSON: plan.RouteCapabilitiesJSON,
+			IsEnabled:             &enabled,
+			Priority:              0,
+			CapacityWeight:        1,
 		})
 		if err != nil {
 			return binding, false, err
@@ -451,6 +811,11 @@ func normalizeModelImportProviderInput(input ModelImportProviderInput) ModelImpo
 	input.DisplayName = strings.TrimSpace(input.DisplayName)
 	input.BaseURLPrefix = strings.TrimRight(strings.TrimSpace(input.BaseURLPrefix), "/")
 	input.ProviderKind = inferModelImportGatewayProviderKind(input.ProviderKind, input.BaseURLPrefix)
+	if input.BaseURLPrefix == "" {
+		if template, ok := providerTemplateByKind(input.ProviderKind); ok {
+			input.BaseURLPrefix = strings.TrimRight(strings.TrimSpace(template.DefaultBaseURLPrefix), "/")
+		}
+	}
 	if input.DisplayName == "" {
 		if template, ok := providerTemplateByKind(input.ProviderKind); ok && strings.TrimSpace(template.DisplayName) != "" {
 			input.DisplayName = strings.TrimSpace(template.DisplayName)
@@ -487,6 +852,8 @@ func inferModelImportGatewayProviderKind(providerKind string, baseURLPrefix stri
 	switch {
 	case host == "api.apiyi.com" || host == "apiyi.com" || strings.HasSuffix(host, ".apiyi.com"):
 		return "apiyi_gateway"
+	case host == "yunwu.ai" || strings.HasSuffix(host, ".yunwu.ai"):
+		return persistencemodel.AIProviderKindYunwuGateway
 	default:
 		return providerKind
 	}
@@ -534,7 +901,7 @@ func modelImportPlanForModel(providerModelID string) ModelImportModelPlan {
 			PublicModelID:   providerModelID,
 			DisplayName:     providerModelID,
 			Capabilities:    capabilities,
-			AdapterType:     infraai.AdapterOpenAICompat,
+			AdapterType:     modelImportDefaultAdapterForCapabilities(capabilities),
 			Status:          modelImportStatusNew,
 			Recommended:     true,
 		}
@@ -749,7 +1116,7 @@ func modelImportPlanFromTemplate(providerModelID string, template infraai.Catalo
 		TemplateID:      template.ID,
 		TemplateVersion: modelCatalogTemplateVersion(template),
 		TemplateStatus:  template.SourceStatus,
-		AdapterType:     template.AdapterType,
+		AdapterType:     modelImportDefaultAdapterForCapabilities(template.Capabilities),
 		Status:          modelImportStatusNew,
 		Recommended:     true,
 	}

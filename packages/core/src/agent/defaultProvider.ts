@@ -102,13 +102,13 @@ export function selectDefaultAgentProviderModel<TModel extends AgentBackendPubli
   return models.find((model) => model.is_default) ?? models[0]
 }
 
-export function backendAgentProviderRef(model: Pick<AgentBackendPublicModel, 'provider_id' | 'catalog_entry_id' | 'id'>): string {
+export function backendAgentProviderRef(model: Pick<AgentBackendPublicModel, 'model_id' | 'catalog_entry_id' | 'id'>): string {
   return `backend:${backendAgentProviderId(model)}`
 }
 
-function backendAgentProviderId(model: Pick<AgentBackendPublicModel, 'provider_id' | 'catalog_entry_id' | 'id'>): string {
-  const providerID = model.provider_id?.trim()
-  if (providerID) return providerID
+function backendAgentProviderId(model: Pick<AgentBackendPublicModel, 'model_id' | 'catalog_entry_id' | 'id'>): string {
+  const modelID = model.model_id?.trim()
+  if (modelID) return `model:${modelID}`
   const catalogEntryID = typeof model.catalog_entry_id === 'number' && Number.isFinite(model.catalog_entry_id) && model.catalog_entry_id > 0
     ? model.catalog_entry_id
     : model.id

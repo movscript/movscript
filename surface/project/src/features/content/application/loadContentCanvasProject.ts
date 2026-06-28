@@ -178,6 +178,8 @@ function contentCanvasCandidateFromPreview(
     inputHash: candidate.inputHash,
     source: candidate.source || candidate.model,
     status: candidate.status,
+    decisionStatus: candidate.decisionStatus,
+    decisionReason: candidate.decisionReason,
     producer: candidate.producer,
     outputs: candidate.outputs,
     promptSnapshot: candidate.promptSnapshot,

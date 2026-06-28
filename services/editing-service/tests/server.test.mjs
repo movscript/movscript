@@ -106,6 +106,42 @@ test('editing-service executes pure MediaEditingProject commands', async () => {
   assert.equal(fromEditPlan.result.editing_project.projectId, 'project-service-test')
   assert.equal(fromEditPlan.result.editing_project.source.kind, 'movscript_edit_plan')
 
+  const fromEditDecisions = await postJSON(`${runtime.url}${EDITING_SERVICE_PROJECT_COMMAND_ENDPOINT}`, {
+    command: 'createProjectFromEditDecisions',
+    input: {
+      projectId: 'project-service-test',
+      title: 'Edit decisions cut',
+      productionId: 'pilot',
+      targetKind: 'timeline_assembly',
+      targetRef: 'timeline_assembly:production:pilot',
+      editDecisions: {
+        version: 1,
+        render_runtime: 'ffmpeg',
+        cuts: [{
+          id: 'cut_intro',
+          source: 'clip_intro',
+          in_seconds: 0,
+          out_seconds: 2,
+        }],
+      },
+      assetManifest: {
+        assets: [{
+          id: 'clip_intro',
+          type: 'video',
+          resource_id: 911,
+          label: 'Intro clip',
+        }],
+      },
+    },
+  })
+  assert.equal(fromEditDecisions.command, 'createProjectFromEditDecisions')
+  assert.equal(fromEditDecisions.result.status, 'ok')
+  assert.equal(fromEditDecisions.result.editing_project.projectId, 'project-service-test')
+  assert.equal(fromEditDecisions.result.editing_project.source.kind, 'edit_decisions')
+  assert.equal(fromEditDecisions.result.editing_project.timeline.tracks[0].id, 'track_primary_video')
+  assert.equal(fromEditDecisions.result.editing_project.timeline.tracks[0].clips[0].asset.resourceId, 911)
+  assert.equal(fromEditDecisions.result.editing_project.timeline.metadata.renderRuntime, 'ffmpeg')
+
   const fromPreviewTimeline = await postJSON(`${runtime.url}${EDITING_SERVICE_PROJECT_COMMAND_ENDPOINT}`, {
     command: 'createProjectFromPreviewTimeline',
     input: {

@@ -24,6 +24,7 @@ type VideoPollRequest = providercontract.VideoPollRequest
 type VideoCancelRequest = providercontract.VideoCancelRequest
 type DebugHTTPExchange = providercontract.DebugHTTPExchange
 type DebugCallResult = providercontract.DebugCallResult
+type DebugRouteTrace = providercontract.DebugRouteTrace
 type DebugPromptMessage = providercontract.DebugPromptMessage
 type ResourceDiagnostic = providercontract.ResourceDiagnostic
 

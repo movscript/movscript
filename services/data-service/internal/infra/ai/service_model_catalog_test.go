@@ -670,6 +670,333 @@ func TestAIServiceCatalogRouteCanCallLocalProviderWithProviderModelID(t *testing
 	}
 }
 
+func TestAIServiceCatalogRouteAppliesEndpointOverrideToProviderCredential(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-model-catalog-route-endpoint-runtime.db",
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+		&persistencemodel.UsageReservation{},
+		&persistencemodel.UsageLog{},
+	)
+	cred := persistencemodel.AICredential{
+		AdapterType: AdapterDashScope,
+		DisplayName: "Yunwu DashScope route",
+		BaseURL:     "https://yunwu.ai/v1",
+		IsEnabled:   true,
+	}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID: "video-ali",
+		DisplayName:   "Video Ali",
+		IsEnabled:     true,
+		Capabilities:  CapabilityVideo,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	binding := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:     entry.ID,
+		SourceType:         persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:         fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		AdapterType:        AdapterDashScope,
+		ProviderModelID:    "wan-video-v1",
+		EndpointPathPrefix: "/alibailian/api/v1",
+		EndpointMode:       RouteEndpointModeReplacePath,
+		CredentialID:       &cred.ID,
+		IsEnabled:          true,
+		CapacityWeight:     1,
+	}
+	if err := db.Create(&binding).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+	probe := &catalogRuntimeProbeProvider{}
+	seenBaseURL := ""
+	registry := NewRegistry(db, nil)
+	registry.providerFactory = func(cred persistencemodel.AICredential, _ *ModelDef) (Provider, error) {
+		seenBaseURL = cred.BaseURL
+		return probe, nil
+	}
+	service := NewAIService(db, registry)
+
+	route, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "video-ali", Capability: CapabilityVideo})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute() error = %v", err)
+	}
+	if route.EndpointPathPrefix != "/alibailian/api/v1" || route.EndpointMode != RouteEndpointModeReplacePath {
+		t.Fatalf("route endpoint fields = %#v, want binding endpoint strategy", route)
+	}
+	if _, err := service.CallVideoWithRouteUsage(context.Background(), 1, route, VideoRequest{Prompt: "move"}, UsageContext{}); err != nil {
+		t.Fatalf("CallVideoWithRouteUsage() error = %v", err)
+	}
+	if seenBaseURL != "https://yunwu.ai/alibailian/api/v1" {
+		t.Fatalf("provider credential base url = %q, want route-effective yunwu alibaba prefix", seenBaseURL)
+	}
+	if probe.seenVideoModel != "wan-video-v1" {
+		t.Fatalf("seen video model = %q, want provider model id", probe.seenVideoModel)
+	}
+}
+
+func TestAIServiceCatalogRouteEndpointCanBeLoadedFromRouteBindingID(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-model-catalog-route-endpoint-binding-id.db",
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+		&persistencemodel.UsageReservation{},
+		&persistencemodel.UsageLog{},
+	)
+	cred := persistencemodel.AICredential{
+		AdapterType: AdapterOpenAICompat,
+		DisplayName: "OpenAI compatible router",
+		BaseURL:     "https://router.example.test/v1",
+		IsEnabled:   true,
+	}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID: "writer",
+		DisplayName:   "Writer",
+		IsEnabled:     true,
+		Capabilities:  CapabilityText,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	binding := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:     entry.ID,
+		SourceType:         persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:         fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		ProviderModelID:    "provider-writer",
+		EndpointPathPrefix: "/gateway/openai/v1",
+		EndpointMode:       RouteEndpointModeReplacePath,
+		CredentialID:       &cred.ID,
+		IsEnabled:          true,
+		CapacityWeight:     1,
+	}
+	if err := db.Create(&binding).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+	seenBaseURL := ""
+	registry := NewRegistry(db, nil)
+	registry.providerFactory = func(cred persistencemodel.AICredential, _ *ModelDef) (Provider, error) {
+		seenBaseURL = cred.BaseURL
+		return &catalogRuntimeProbeProvider{}, nil
+	}
+	service := NewAIService(db, registry)
+
+	route := ModelRoute{
+		ModelID:         "writer",
+		RuntimeModelID:  entry.ID,
+		CatalogEntryID:  entry.ID,
+		RouteBindingID:  binding.ID,
+		CredentialID:    cred.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:      fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		ProviderModelID: "provider-writer",
+	}
+	if _, err := service.CallTextWithRouteUsage(context.Background(), 1, route, TextRequest{Messages: []Message{{Role: "user", Content: "hello"}}}, UsageContext{}); err != nil {
+		t.Fatalf("CallTextWithRouteUsage() error = %v", err)
+	}
+	if seenBaseURL != "https://router.example.test/gateway/openai/v1" {
+		t.Fatalf("provider credential base url = %q, want endpoint loaded from route binding id", seenBaseURL)
+	}
+}
+
+func TestAIServiceStructuredCapabilityRequiresOperation(t *testing.T) {
+	service := NewAIService(nil, nil)
+
+	_, err := service.ResolveModelRoute(ModelRouteRequest{
+		ModelID:    "story-video",
+		Capability: CapabilityFamilyVideoGeneration,
+	})
+	if err == nil || !strings.Contains(err.Error(), "missing_operation_intent") {
+		t.Fatalf("ResolveModelRoute() error = %v, want missing_operation_intent", err)
+	}
+}
+
+func TestAIServiceStructuredCapabilityRoutesByOperationAndInputRoles(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-model-catalog-structured-video-route.db",
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+	)
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID: "story-video",
+		DisplayName:   "Story Video",
+		IsEnabled:     true,
+		ModelCapabilitiesJSON: `{
+			"video_generation": {
+				"operations": ["image_to_video", "first_last_frame_to_video"],
+				"reference_assets": {
+					"min": 1,
+					"max": 2,
+					"modalities": ["image"],
+					"roles": ["generic", "first_frame", "last_frame"]
+				}
+			}
+		}`,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	imageOnlyRoute := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
+		RouteGroup:      "default",
+		ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
+		ProviderModelID: "provider-image-video",
+		IsEnabled:       true,
+		Priority:        20,
+		CapacityWeight:  1,
+		RouteCapabilitiesJSON: `{
+			"video_generation": {
+				"operations": ["image_to_video"],
+				"reference_assets": {
+					"min": 1,
+					"max": 1,
+					"modalities": ["image"],
+					"roles": ["generic"]
+				}
+			}
+		}`,
+	}
+	firstLastRoute := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
+		RouteGroup:      "default",
+		ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
+		ProviderModelID: "provider-first-last-video",
+		IsEnabled:       true,
+		Priority:        10,
+		CapacityWeight:  1,
+		RouteCapabilitiesJSON: `{
+			"video_generation": {
+				"operations": ["first_last_frame_to_video"],
+				"reference_assets": {
+					"min": 2,
+					"max": 2,
+					"modalities": ["image"],
+					"roles": ["first_frame", "last_frame"]
+				}
+			}
+		}`,
+	}
+	if err := db.Create(&imageOnlyRoute).Error; err != nil {
+		t.Fatalf("create image-only route: %v", err)
+	}
+	if err := db.Create(&firstLastRoute).Error; err != nil {
+		t.Fatalf("create first-last route: %v", err)
+	}
+	service := NewAIService(db, NewRegistry(db, nil))
+
+	models, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityFamilyVideoGeneration})
+	if err != nil {
+		t.Fatalf("ListModels() error = %v", err)
+	}
+	if len(models) != 1 || models[0].ModelID != "story-video" {
+		t.Fatalf("models = %#v, want structured video catalog model", models)
+	}
+
+	firstLastModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{
+		Capability: CapabilityFamilyVideoGeneration,
+		Operation:  VideoOperationFirstLastFrameToVideo,
+	})
+	if err != nil {
+		t.Fatalf("ListModels(first-last operation) error = %v", err)
+	}
+	if len(firstLastModels) != 1 || firstLastModels[0].ProviderModelID != "provider-first-last-video" {
+		t.Fatalf("first-last models = %#v, want first-last provider route", firstLastModels)
+	}
+
+	imageToVideoModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{
+		Capability: CapabilityFamilyVideoGeneration,
+		Operation:  VideoOperationImageToVideo,
+	})
+	if err != nil {
+		t.Fatalf("ListModels(image-to-video operation) error = %v", err)
+	}
+	if len(imageToVideoModels) != 1 || imageToVideoModels[0].ProviderModelID != "provider-image-video" {
+		t.Fatalf("image-to-video models = %#v, want image-to-video provider route", imageToVideoModels)
+	}
+
+	missingRoleModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{
+		Capability: CapabilityFamilyVideoGeneration,
+		Operation:  VideoOperationFirstLastFrameToVideo,
+		ReferenceAssets: []providercontract.AIReferenceAssetIntent{
+			{Role: "generic", MediaType: "image"},
+			{Role: "generic", MediaType: "image"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ListModels(first-last missing roles) error = %v", err)
+	}
+	if len(missingRoleModels) != 0 {
+		t.Fatalf("missing-role models = %#v, want none", missingRoleModels)
+	}
+
+	route, err := service.ResolveModelRoute(ModelRouteRequest{
+		ModelID:    "story-video",
+		Capability: CapabilityFamilyVideoGeneration,
+		Operation:  VideoOperationFirstLastFrameToVideo,
+		RouteGroup: "default",
+		ReferenceAssets: []RouteReferenceAssetIntent{
+			{Role: "first_frame", MediaType: "image"},
+			{Role: "last_frame", MediaType: "image"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute() error = %v", err)
+	}
+	if route.RouteBindingID != firstLastRoute.ID || route.ProviderModelID != "provider-first-last-video" {
+		t.Fatalf("route = %#v, want first-last route despite lower priority", route)
+	}
+
+	diagnosis, err := service.DiagnoseModelRoute(context.Background(), ModelRouteRequest{
+		ModelID:    "story-video",
+		Capability: CapabilityFamilyVideoGeneration,
+		Operation:  VideoOperationFirstLastFrameToVideo,
+		RouteGroup: "default",
+		ReferenceAssets: []RouteReferenceAssetIntent{
+			{Role: "first_frame", MediaType: "image"},
+			{Role: "last_frame", MediaType: "image"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("DiagnoseModelRoute() error = %v", err)
+	}
+	if diagnosis.SelectedRouteID != firstLastRoute.ID {
+		t.Fatalf("selected route id = %d, want %d", diagnosis.SelectedRouteID, firstLastRoute.ID)
+	}
+	var rejectedImageOnly *ModelRouteDiagnosticCandidate
+	for i := range diagnosis.Candidates {
+		if diagnosis.Candidates[i].RouteBindingID == imageOnlyRoute.ID {
+			rejectedImageOnly = &diagnosis.Candidates[i]
+			break
+		}
+	}
+	if rejectedImageOnly == nil {
+		t.Fatalf("diagnosis candidates = %#v, want image-only route candidate", diagnosis.Candidates)
+	}
+	if rejectedImageOnly.Status != ModelRouteDiagnosticStatusRejected || !hasString(rejectedImageOnly.Reasons, "missing_route_capability:missing_operation:first_last_frame_to_video") {
+		t.Fatalf("image-only route diagnosis = %#v, want rejected missing_operation reason", rejectedImageOnly)
+	}
+
+	_, err = service.ResolveModelRoute(ModelRouteRequest{
+		ModelID:    "story-video",
+		Capability: CapabilityFamilyVideoGeneration,
+		Operation:  VideoOperationFirstLastFrameToVideo,
+		RouteGroup: "default",
+		ReferenceAssets: []RouteReferenceAssetIntent{
+			{Role: "first_frame", MediaType: "image"},
+			{MediaType: "image"},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "missing_input_role") {
+		t.Fatalf("ResolveModelRoute(missing role) error = %v, want missing_input_role", err)
+	}
+}
+
 func TestAIServiceCatalogRouteRejectsUnsupportedSourceWithoutLegacyFallback(t *testing.T) {
 	db := testutil.OpenSQLite(t, "ai-model-catalog-route-no-legacy-fallback.db",
 		&persistencemodel.AIModelCatalogEntry{},

@@ -5,7 +5,7 @@ templates:
       lab: elevenlabs
       model_id: eleven_v3
       display_name: ElevenLabs Eleven v3 语音合成
-      adapter_type: elevenlabs
+      route_adapter_hint: elevenlabs
       capabilities:
         - audio_tts
       params:
@@ -60,7 +60,7 @@ templates:
       lab: elevenlabs
       model_id: eleven_multilingual_v2
       display_name: ElevenLabs Multilingual v2 语音合成
-      adapter_type: elevenlabs
+      route_adapter_hint: elevenlabs
       capabilities:
         - audio_tts
       params:
@@ -115,7 +115,7 @@ templates:
       lab: elevenlabs
       model_id: eleven_flash_v2_5
       display_name: ElevenLabs Flash v2.5 低延迟语音合成
-      adapter_type: elevenlabs
+      route_adapter_hint: elevenlabs
       capabilities:
         - audio_tts
       params:
@@ -170,7 +170,7 @@ templates:
       lab: elevenlabs
       model_id: eleven_flash_v2
       display_name: ElevenLabs Flash v2 英文低延迟语音合成
-      adapter_type: elevenlabs
+      route_adapter_hint: elevenlabs
       capabilities:
         - audio_tts
       params:
@@ -225,7 +225,7 @@ templates:
       lab: elevenlabs
       model_id: scribe_v2
       display_name: ElevenLabs Scribe v2 转写
-      adapter_type: elevenlabs
+      route_adapter_hint: elevenlabs
       capabilities:
         - audio_transcribe
       params:
@@ -246,7 +246,7 @@ templates:
       lab: elevenlabs
       model_id: scribe_v2_realtime
       display_name: ElevenLabs Scribe v2 Realtime 转写
-      adapter_type: elevenlabs
+      route_adapter_hint: elevenlabs
       capabilities:
         - audio_transcribe
       params:
@@ -297,7 +297,7 @@ templates:
       lab: elevenlabs
       model_id: music_v2
       display_name: ElevenLabs Music v2
-      adapter_type: elevenlabs
+      route_adapter_hint: elevenlabs
       capabilities:
         - audio_music
       params:
@@ -342,7 +342,7 @@ templates:
       lab: elevenlabs
       model_id: music_v1
       display_name: ElevenLabs Music v1
-      adapter_type: elevenlabs
+      route_adapter_hint: elevenlabs
       capabilities:
         - audio_music
       params:
@@ -384,7 +384,7 @@ templates:
       lab: elevenlabs
       model_id: eleven_text_to_sound_v2
       display_name: ElevenLabs Text to Sound v2
-      adapter_type: elevenlabs
+      route_adapter_hint: elevenlabs
       capabilities:
         - audio_sfx
       params:
@@ -431,7 +431,7 @@ templates:
       lab: elevenlabs
       model_id: instant_voice_clone
       display_name: ElevenLabs Instant Voice Clone
-      adapter_type: elevenlabs
+      route_adapter_hint: elevenlabs
       capabilities:
         - voice_clone
       source:
@@ -443,7 +443,7 @@ templates:
       lab: elevenlabs
       model_id: professional_voice_clone
       display_name: ElevenLabs Professional Voice Clone
-      adapter_type: elevenlabs
+      route_adapter_hint: elevenlabs
       capabilities:
         - voice_clone
       source:
@@ -455,7 +455,7 @@ templates:
       lab: elevenlabs
       model_id: voice_design
       display_name: ElevenLabs Voice Design
-      adapter_type: elevenlabs
+      route_adapter_hint: elevenlabs
       capabilities:
         - voice_design
       source:

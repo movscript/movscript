@@ -5,12 +5,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	appcontentcandidate "github.com/movscript/movscript/internal/app/contentcandidate"
+	appdecision "github.com/movscript/movscript/internal/app/decision"
+	domainjob "github.com/movscript/movscript/internal/domain/job"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/infra/storage"
@@ -75,6 +79,43 @@ func TestProviderGeneratedArtifactMetadataIncludesOriginRouteFacts(t *testing.T)
 		trust["requires_original_artifact"] != true ||
 		trust["origin_provider_id"] != "volc-ark-main" {
 		t.Fatalf("metadata provider_trust policy fields = %#v", trust)
+	}
+}
+
+func TestAnnotateDebugRouteContextCapturesRuntimeRouteFacts(t *testing.T) {
+	result := &ai.DebugCallResult{}
+	annotateDebugRouteContext(result, ai.ModelRoute{
+		ModelID:            "grok-video",
+		CatalogEntryID:     12,
+		RouteBindingID:     34,
+		SourceType:         model.ModelRouteSourceLocalProvider,
+		RouteGroup:         "yunwu_unified_video",
+		ProviderID:         "yunwu-main",
+		ProviderKind:       "yunwu",
+		AdapterKey:         "yunwu_unified_video",
+		AdapterType:        ai.AdapterYunwuUnifiedVideo,
+		ProviderModelID:    "grok-video-3",
+		Capability:         ai.CapabilityVideo,
+		Operation:          ai.VideoOperationFirstLastFrameToVideo,
+		APIKind:            ai.CapabilityVideoI2V,
+		EndpointPathPrefix: "/video",
+		EndpointMode:       ai.RouteEndpointModeReplacePath,
+		OperationProfile:   "yunwu_unified_video",
+		SelectionReason:    "route_binding_id",
+	}, ai.CapabilityVideo)
+
+	if result.RouteTrace == nil {
+		t.Fatal("route_trace is nil")
+	}
+	trace := result.RouteTrace
+	if trace.PublicModelID != "grok-video" || trace.RouteBindingID != 34 || trace.ProviderModelID != "grok-video-3" {
+		t.Fatalf("route_trace identity = %#v", trace)
+	}
+	if trace.AdapterType != ai.AdapterYunwuUnifiedVideo || trace.Capability != ai.CapabilityVideo || trace.Operation != ai.VideoOperationFirstLastFrameToVideo {
+		t.Fatalf("route_trace execution facts = %#v", trace)
+	}
+	if trace.EndpointPathPrefix != "/video" || trace.EndpointMode != ai.RouteEndpointModeReplacePath || trace.OperationProfile != "yunwu_unified_video" {
+		t.Fatalf("route_trace endpoint facts = %#v", trace)
 	}
 }
 
@@ -308,6 +349,53 @@ func TestBuildVideoRequestAppliesCertifiedProviderAssetsOnlyWhenRouteSupportsAss
 	}
 	if len(volcenReq.InputImageDataList) != 0 {
 		t.Fatalf("volcen route image data len = %d, want certified resource replaced by asset URI", len(volcenReq.InputImageDataList))
+	}
+}
+
+func TestPrepareVideoInputReferencesFailsWhenRouteRequiresPublicImageURL(t *testing.T) {
+	db := testutil.OpenSQLite(t, "worker_video_public_image_url_required.db", &model.RawResource{})
+	resource := model.RawResource{
+		OwnerID:  7,
+		Type:     "image",
+		Name:     "ref.png",
+		FilePath: "stored:ref.png",
+		MimeType: "image/png",
+	}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+	resourceID := resource.ID
+	job := &model.Job{Prompt: "animate", InputResourceID: &resourceID}
+	route := ai.ModelRoute{
+		RouteBindingID:        88,
+		Capability:            ai.CapabilityFamilyVideoGeneration,
+		AdapterType:           ai.AdapterOpenAICompat,
+		RouteCapabilitiesJSON: `{"video_generation":{"operations":["image_to_video"],"requires_public_image_url":true}}`,
+	}
+	imageData := []ai.MediaData{{ResourceID: resource.ID, MimeType: "image/png"}}
+	worker := NewWorker(db, nil, nil, nil)
+
+	err := worker.prepareVideoInputReferencesForRoute(job, route, imageData, nil, nil)
+	if err == nil {
+		t.Fatal("expected missing public URL error")
+	}
+	if !strings.Contains(err.Error(), "route 88 requires public image URL") || !strings.Contains(err.Error(), "resource #") {
+		t.Fatalf("error = %v, want route public URL diagnostic", err)
+	}
+}
+
+func TestPrepareVideoInputReferencesAcceptsExistingPublicImageURL(t *testing.T) {
+	worker := NewWorker(nil, nil, nil, nil)
+	route := ai.ModelRoute{
+		RouteBindingID:        89,
+		Capability:            ai.CapabilityFamilyVideoGeneration,
+		AdapterType:           ai.AdapterOpenAICompat,
+		RouteCapabilitiesJSON: `{"video_generation":{"operations":["image_to_video"],"requires_public_image_url":true}}`,
+	}
+	imageData := []ai.MediaData{{ResourceID: 12, PresignedURL: "https://cdn.example.test/ref.png", MimeType: "image/png"}}
+
+	if err := worker.prepareVideoInputReferencesForRoute(&model.Job{}, route, imageData, nil, nil); err != nil {
+		t.Fatalf("prepareVideoInputReferencesForRoute() error = %v", err)
 	}
 }
 
@@ -771,6 +859,135 @@ func TestClaimLocalJobEmptyQueueDoesNotLogRecordNotFound(t *testing.T) {
 	output := logs.String()
 	if strings.Contains(output, "record not found") {
 		t.Fatalf("claim empty queue logged record not found: %s", output)
+	}
+}
+
+func TestCompleteFailureSyncsBoundContentUnitCandidate(t *testing.T) {
+	db := testutil.OpenSQLite(t, "runner_content_candidate_failure.db",
+		&model.Job{},
+		&model.DecisionContext{},
+		&model.ProjectDataSpace{},
+		&model.ProjectDataDecisionContext{},
+	)
+	ctx := context.Background()
+	promptSnapshot := json.RawMessage(`{"schema":"movscript.content_unit_generation_prompt_snapshot.v1","prompt":"draw a frame"}`)
+	requestContext, err := json.Marshal(map[string]any{
+		"model": map[string]any{
+			"identifier": "gpt-image-2",
+		},
+		"content_unit_candidate": domainjob.ContentUnitCandidateBinding{
+			ProjectID:      7,
+			ProjectUID:     "prj_canvas_generate",
+			ProjectTitle:   "Canvas Generate",
+			ScopeKind:      appdecision.ProjectDataScopeUser,
+			ScopeID:        "5",
+			ContentUnitID:  "cu_failure",
+			TargetKind:     appcontentcandidate.TargetKindContentUnit,
+			TargetRef:      "content_units/cu_failure",
+			CandidateID:    "candidate_failure",
+			OutputKind:     "image",
+			PromptSnapshot: promptSnapshot,
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal request context: %v", err)
+	}
+	job := model.Job{
+		UserID:         5,
+		RuntimeModelID: 1,
+		JobType:        ai.CapabilityImage,
+		Status:         StatusRunning,
+		AttemptCount:   1,
+		MaxAttempts:    1,
+		RequestContext: string(requestContext),
+	}
+	if err := db.Create(&job).Error; err != nil {
+		t.Fatalf("create job: %v", err)
+	}
+	pending := json.RawMessage(fmt.Sprintf(`{
+		"schema":"movscript.content_candidate.v1",
+		"id":"candidate_failure",
+		"source":"ai_generate",
+		"status":"pending",
+		"producer":{"kind":"generation","job_id":%d,"model_id":"gpt-image-2"},
+		"outputs":[],
+		"prompt_snapshot":{"output_kind":"image","job_id":%d}
+	}`, job.ID, job.ID))
+	decisionService := appdecision.NewService(db)
+	if _, err := decisionService.UpsertCandidate(ctx, appdecision.UpsertCandidateInput{
+		TargetInput: appdecision.TargetInput{
+			ProjectID:  7,
+			TargetKind: appcontentcandidate.TargetKindContentUnit,
+			TargetRef:  "content_units/cu_failure",
+		},
+		Candidate: pending,
+	}); err != nil {
+		t.Fatalf("upsert pending candidate: %v", err)
+	}
+
+	worker := NewWorker(db, nil, nil, nil)
+	worker.completeFailure(&job, errors.New("provider rejected prompt"))
+
+	decision, err := decisionService.Get(ctx, appdecision.TargetInput{
+		ProjectID:  7,
+		TargetKind: appcontentcandidate.TargetKindContentUnit,
+		TargetRef:  "content_units/cu_failure",
+	})
+	if err != nil {
+		t.Fatalf("get decision: %v", err)
+	}
+	if len(decision.Candidates) != 1 {
+		t.Fatalf("candidate count = %d, want 1", len(decision.Candidates))
+	}
+	var candidate struct {
+		ID       string `json:"id"`
+		Status   string `json:"status"`
+		Producer struct {
+			Status       string `json:"status"`
+			ErrorMessage string `json:"error_message"`
+		} `json:"producer"`
+		Outputs []struct {
+			ResourceID uint `json:"resource_id"`
+		} `json:"outputs"`
+	}
+	if err := json.Unmarshal(decision.Candidates[0], &candidate); err != nil {
+		t.Fatalf("decode candidate: %v", err)
+	}
+	if candidate.ID != "candidate_failure" || candidate.Status != "failed" || candidate.Producer.Status != "failed" {
+		t.Fatalf("candidate = %#v, want failed candidate_failure", candidate)
+	}
+	if candidate.Producer.ErrorMessage != "provider rejected prompt" {
+		t.Fatalf("candidate error = %q, want provider rejected prompt", candidate.Producer.ErrorMessage)
+	}
+	if len(candidate.Outputs) != 0 {
+		t.Fatalf("outputs = %#v, want none for failed candidate", candidate.Outputs)
+	}
+
+	projectDataDecision, err := appdecision.NewProjectDataService(db).Get(ctx, appdecision.ProjectDataTargetInput{
+		ProjectDataSpaceInput: appdecision.ProjectDataSpaceInput{
+			ProjectDataScopeInput: appdecision.ProjectDataScopeInput{
+				ScopeKind: appdecision.ProjectDataScopeUser,
+				ScopeID:   "5",
+			},
+			ProjectUID: "prj_canvas_generate",
+		},
+		TargetKind: appcontentcandidate.TargetKindContentUnit,
+		TargetRef:  "content_units/cu_failure",
+	})
+	if err != nil {
+		t.Fatalf("get project data decision: %v", err)
+	}
+	if len(projectDataDecision.Candidates) != 1 {
+		t.Fatalf("project data candidate count = %d, want 1", len(projectDataDecision.Candidates))
+	}
+	var projectDataCandidate struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(projectDataDecision.Candidates[0], &projectDataCandidate); err != nil {
+		t.Fatalf("decode project data candidate: %v", err)
+	}
+	if projectDataCandidate.Status != "failed" {
+		t.Fatalf("project data candidate status = %q, want failed", projectDataCandidate.Status)
 	}
 }
 

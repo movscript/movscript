@@ -59,6 +59,9 @@ func TestListModelCatalogTemplatesReturnsDefaultPublicModelID(t *testing.T) {
 	if res.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d: %s", res.Code, http.StatusOK, res.Body.String())
 	}
+	if strings.Contains(res.Body.String(), "adapter_type") || strings.Contains(res.Body.String(), "route_adapter_hint") {
+		t.Fatalf("catalog template response must not expose adapter fields: %s", res.Body.String())
+	}
 	var body []struct {
 		ID                   string `json:"id"`
 		Lab                  string `json:"lab"`
@@ -185,6 +188,146 @@ func TestListModelCatalogEntriesReturnsProviderFirstRouteBindings(t *testing.T) 
 	}
 	if body[0].RouteBindings[0].ProviderID != providerID {
 		t.Fatalf("provider_id = %q, want stable provider id mapped from credential", body[0].RouteBindings[0].ProviderID)
+	}
+}
+
+func TestDiagnoseModelRouteExplainsStructuredRouteSelection(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := testutil.OpenSQLite(t, "handler-ai-model-route-diagnose.db",
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+	)
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID: "story-video",
+		DisplayName:   "Story Video",
+		IsEnabled:     true,
+		ModelCapabilitiesJSON: `{
+			"video_generation": {
+				"operations": ["image_to_video", "first_last_frame_to_video"],
+				"reference_assets": {
+					"min": 1,
+					"max": 2,
+					"modalities": ["image"],
+					"roles": ["generic", "first_frame", "last_frame"]
+				}
+			}
+		}`,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	imageOnlyRoute := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
+		RouteGroup:      "default",
+		ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
+		ProviderModelID: "provider-image-video",
+		IsEnabled:       true,
+		Priority:        20,
+		CapacityWeight:  1,
+		RouteCapabilitiesJSON: `{
+			"video_generation": {
+				"operations": ["image_to_video"],
+				"reference_assets": {
+					"min": 1,
+					"max": 1,
+					"modalities": ["image"],
+					"roles": ["generic"]
+				}
+			}
+		}`,
+	}
+	firstLastRoute := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:     entry.ID,
+		SourceType:         persistencemodel.ModelRouteSourceRelayGateway,
+		RouteGroup:         "default",
+		ProviderID:         persistencemodel.ModelRouteSourceRelayGateway,
+		ProviderModelID:    "provider-first-last-video",
+		IsEnabled:          true,
+		Priority:           10,
+		CapacityWeight:     1,
+		EndpointPathPrefix: "/v1/video/create",
+		EndpointMode:       ai.RouteEndpointModeReplacePath,
+		RouteCapabilitiesJSON: `{
+			"video_generation": {
+				"operations": ["first_last_frame_to_video"],
+				"reference_assets": {
+					"min": 2,
+					"max": 2,
+					"modalities": ["image"],
+					"roles": ["first_frame", "last_frame"]
+				}
+			}
+		}`,
+	}
+	if err := db.Create(&imageOnlyRoute).Error; err != nil {
+		t.Fatalf("create image-only route: %v", err)
+	}
+	if err := db.Create(&firstLastRoute).Error; err != nil {
+		t.Fatalf("create first-last route: %v", err)
+	}
+	h := NewAIHandler(db, testHandlerEncryptionKeyHex, ai.NewRegistry(db, nil))
+	router := gin.New()
+	router.POST("/admin/model-routes/diagnose", h.DiagnoseModelRoute)
+
+	body := `{
+		"public_model_id": "story-video",
+		"route_group": "default",
+		"capability": "video_generation",
+		"intent": {
+			"operation": "first_last_frame_to_video",
+			"reference_assets": [
+				{"role":"first_frame","media_type":"image"},
+				{"role":"last_frame","media_type":"image"}
+			]
+		}
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/admin/model-routes/diagnose", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+
+	router.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d: %s", res.Code, http.StatusOK, res.Body.String())
+	}
+	var out struct {
+		SelectedRouteID uint `json:"selected_route_id"`
+		Candidates      []struct {
+			RouteBindingID    uint     `json:"route_binding_id"`
+			Status            string   `json:"status"`
+			Reasons           []string `json:"reasons"`
+			EffectiveEndpoint *struct {
+				PathPrefix string `json:"path_prefix"`
+				Mode       string `json:"mode"`
+			} `json:"effective_endpoint"`
+		} `json:"candidates"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if out.SelectedRouteID != firstLastRoute.ID {
+		t.Fatalf("selected route id = %d, want %d; body=%s", out.SelectedRouteID, firstLastRoute.ID, res.Body.String())
+	}
+	var sawRejectedImageOnly bool
+	var sawSelectedEndpoint bool
+	for _, candidate := range out.Candidates {
+		if candidate.RouteBindingID == imageOnlyRoute.ID && candidate.Status == ai.ModelRouteDiagnosticStatusRejected {
+			for _, reason := range candidate.Reasons {
+				if reason == "missing_route_capability:missing_operation:first_last_frame_to_video" {
+					sawRejectedImageOnly = true
+				}
+			}
+		}
+		if candidate.RouteBindingID == firstLastRoute.ID && candidate.Status == ai.ModelRouteDiagnosticStatusSelected && candidate.EffectiveEndpoint != nil {
+			sawSelectedEndpoint = candidate.EffectiveEndpoint.PathPrefix == "/v1/video/create" && candidate.EffectiveEndpoint.Mode == ai.RouteEndpointModeReplacePath
+		}
+	}
+	if !sawRejectedImageOnly {
+		t.Fatalf("body=%s, want rejected image-only route reason", res.Body.String())
+	}
+	if !sawSelectedEndpoint {
+		t.Fatalf("body=%s, want selected endpoint diagnostics", res.Body.String())
 	}
 }
 

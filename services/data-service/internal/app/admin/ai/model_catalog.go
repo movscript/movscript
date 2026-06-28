@@ -14,33 +14,39 @@ import (
 )
 
 type ModelCatalogEntryInput struct {
-	ModelTemplateKey string `json:"model_template_key"`
-	TemplateVersion  string `json:"template_version"`
-	PublicModelID    string `json:"public_model_id"`
-	DisplayName      string `json:"display_name"`
-	ShortName        string `json:"short_name"`
-	IsEnabled        *bool  `json:"is_enabled"`
-	Capabilities     string `json:"capabilities"`
-	AcceptsImage     bool   `json:"accepts_image"`
-	MaxInputImages   int    `json:"max_input_images"`
-	MaxInputVideos   int    `json:"max_input_videos"`
-	ImageEditField   string `json:"image_edit_field"`
-	SupportedParams  string `json:"supported_params"`
-	ParamLimitsJSON  string `json:"param_limits_json"`
+	ModelTemplateKey      string `json:"model_template_key"`
+	TemplateVersion       string `json:"template_version"`
+	PublicModelID         string `json:"public_model_id"`
+	DisplayName           string `json:"display_name"`
+	ShortName             string `json:"short_name"`
+	IsEnabled             *bool  `json:"is_enabled"`
+	Capabilities          string `json:"capabilities"`
+	AcceptsImage          bool   `json:"accepts_image"`
+	MaxInputImages        int    `json:"max_input_images"`
+	MaxInputVideos        int    `json:"max_input_videos"`
+	ImageEditField        string `json:"image_edit_field"`
+	SupportedParams       string `json:"supported_params"`
+	ParamLimitsJSON       string `json:"param_limits_json"`
+	ModelCapabilitiesJSON string `json:"model_capabilities_json"`
 }
 
 type ModelRouteBindingInput struct {
-	ComboTemplateKey string `json:"combo_template_key"`
-	TemplateVersion  string `json:"template_version"`
-	RouteGroup       string `json:"route_group"`
-	ProviderID       string `json:"provider_id"`
-	AdapterType      string `json:"adapter_type"`
-	ProviderModelID  string `json:"provider_model_id"`
-	APIKinds         string `json:"api_kinds"`
-	IsEnabled        *bool  `json:"is_enabled"`
-	Priority         int    `json:"priority"`
-	CapacityWeight   int    `json:"capacity_weight"`
-	MaxConcurrency   int    `json:"max_concurrency"`
+	ComboTemplateKey      string `json:"combo_template_key"`
+	TemplateVersion       string `json:"template_version"`
+	RouteGroup            string `json:"route_group"`
+	ProviderID            string `json:"provider_id"`
+	AdapterType           string `json:"adapter_type"`
+	ProviderModelID       string `json:"provider_model_id"`
+	APIKinds              string `json:"api_kinds"`
+	EndpointBaseURL       string `json:"endpoint_base_url"`
+	EndpointPathPrefix    string `json:"endpoint_path_prefix"`
+	EndpointMode          string `json:"endpoint_mode"`
+	OperationProfile      string `json:"operation_profile"`
+	RouteCapabilitiesJSON string `json:"route_capabilities_json"`
+	IsEnabled             *bool  `json:"is_enabled"`
+	Priority              int    `json:"priority"`
+	CapacityWeight        int    `json:"capacity_weight"`
+	MaxConcurrency        int    `json:"max_concurrency"`
 }
 
 type EnableComboTemplateInput struct {
@@ -60,9 +66,48 @@ type EnableComboTemplateResult struct {
 	Diagnostics         []string              `json:"diagnostics"`
 }
 
-func (s *Service) ListModelCatalogTemplates(ctx context.Context, lab string) []infraai.CatalogTemplate {
+type ModelCatalogTemplate struct {
+	ID                   string             `json:"id"`
+	Lab                  string             `json:"lab"`
+	DefaultPublicModelID string             `json:"default_public_model_id"`
+	ModelID              string             `json:"model_id"`
+	DisplayName          string             `json:"display_name"`
+	Capabilities         []string           `json:"capabilities"`
+	SourceStatus         string             `json:"source_status,omitempty"`
+	APIKinds             []string           `json:"api_kinds,omitempty"`
+	AcceptsImageInput    bool               `json:"accepts_image_input"`
+	MaxInputImages       int                `json:"max_input_images"`
+	MaxInputVideos       int                `json:"max_input_videos"`
+	ImageEditField       string             `json:"image_edit_field,omitempty"`
+	SupportedParams      []infraai.ParamDef `json:"supported_params,omitempty"`
+}
+
+func (s *Service) ListModelCatalogTemplates(ctx context.Context, lab string) []ModelCatalogTemplate {
 	_ = ctx
-	return infraai.CatalogTemplatesByLab(lab)
+	templates := infraai.CatalogTemplatesByLab(lab)
+	out := make([]ModelCatalogTemplate, 0, len(templates))
+	for _, template := range templates {
+		out = append(out, modelCatalogTemplateFromInfra(template))
+	}
+	return out
+}
+
+func modelCatalogTemplateFromInfra(template infraai.CatalogTemplate) ModelCatalogTemplate {
+	return ModelCatalogTemplate{
+		ID:                   template.ID,
+		Lab:                  template.Lab,
+		DefaultPublicModelID: template.DefaultPublicModelID,
+		ModelID:              template.ModelID,
+		DisplayName:          template.DisplayName,
+		Capabilities:         append([]string(nil), template.Capabilities...),
+		SourceStatus:         template.SourceStatus,
+		APIKinds:             append([]string(nil), template.APIKinds...),
+		AcceptsImageInput:    template.AcceptsImageInput,
+		MaxInputImages:       template.MaxInputImages,
+		MaxInputVideos:       template.MaxInputVideos,
+		ImageEditField:       template.ImageEditField,
+		SupportedParams:      append([]infraai.ParamDef(nil), template.SupportedParams...),
+	}
 }
 
 func (s *Service) ListModelCatalogEntries(ctx context.Context) ([]ModelCatalogEntry, error) {
@@ -127,6 +172,9 @@ func (s *Service) UpdateModelCatalogEntry(ctx context.Context, id string, input 
 	}
 	if next.ParamLimitsJSON == "" {
 		next.ParamLimitsJSON = entry.ParamLimitsJSON
+	}
+	if next.ModelCapabilitiesJSON == "" {
+		next.ModelCapabilitiesJSON = entry.ModelCapabilitiesJSON
 	}
 	if next.Capabilities == "" {
 		next.Capabilities = entry.Capabilities
@@ -198,6 +246,9 @@ func (s *Service) createModelRouteBindingModel(ctx context.Context, catalogEntry
 	if err := validateModelRouteBinding(binding); err != nil {
 		return binding, err
 	}
+	if err := validateModelRouteBindingCapabilities(entry, binding); err != nil {
+		return binding, err
+	}
 	if err := s.validateRouteBindingProvider(ctx, binding); err != nil {
 		return binding, err
 	}
@@ -207,6 +258,12 @@ func (s *Service) createModelRouteBindingModel(ctx context.Context, catalogEntry
 	}
 	if err := s.db.WithContext(ctx).Create(&binding).Error; err != nil {
 		return binding, err
+	}
+	if input.IsEnabled != nil {
+		binding.IsEnabled = *input.IsEnabled
+		if err := s.db.WithContext(ctx).Model(&binding).Update("is_enabled", binding.IsEnabled).Error; err != nil {
+			return binding, err
+		}
 	}
 	return binding, nil
 }
@@ -239,7 +296,29 @@ func (s *Service) UpdateModelRouteBinding(ctx context.Context, id string, input 
 	if next.SourceType == "" {
 		next.SourceType = binding.SourceType
 	}
+	if next.EndpointMode == "" {
+		next.EndpointMode = binding.EndpointMode
+	}
+	if next.EndpointBaseURL == "" {
+		next.EndpointBaseURL = binding.EndpointBaseURL
+	}
+	if next.EndpointPathPrefix == "" {
+		next.EndpointPathPrefix = binding.EndpointPathPrefix
+	}
+	if next.OperationProfile == "" {
+		next.OperationProfile = binding.OperationProfile
+	}
+	if next.RouteCapabilitiesJSON == "" {
+		next.RouteCapabilitiesJSON = binding.RouteCapabilitiesJSON
+	}
 	if err := validateModelRouteBinding(next); err != nil {
+		return modelRouteBindingFromModel(next), err
+	}
+	var entry persistencemodel.AIModelCatalogEntry
+	if err := s.db.WithContext(ctx).First(&entry, next.CatalogEntryID).Error; err != nil {
+		return modelRouteBindingFromModel(next), err
+	}
+	if err := validateModelRouteBindingCapabilities(entry, next); err != nil {
 		return modelRouteBindingFromModel(next), err
 	}
 	if err := s.validateRouteBindingProvider(ctx, next); err != nil {
@@ -392,12 +471,15 @@ func (s *Service) EnableComboTemplate(ctx context.Context, comboTemplateKey stri
 				TemplateVersion:  combo.Version,
 				RouteGroup:       routeGroup,
 				ProviderID:       provider.ProviderID,
-				AdapterType:      template.AdapterType,
+				AdapterType:      combo.AdapterType,
 				ProviderModelID:  combo.ProviderModelID,
 				APIKinds:         strings.Join(infraai.NormalizeModelAPIKinds(combo.APIKinds), ","),
 				IsEnabled:        &enabled,
 				Priority:         combo.Priority,
 				CapacityWeight:   combo.CapacityWeight,
+				RouteCapabilitiesJSON: legacyModelCapabilitiesAsStructuredJSON(
+					strings.Join(template.Capabilities, ","),
+				),
 			})
 			if err != nil {
 				return err
@@ -546,19 +628,20 @@ func modelCatalogEntryFromInput(input ModelCatalogEntryInput) persistencemodel.A
 		enabled = *input.IsEnabled
 	}
 	return persistencemodel.AIModelCatalogEntry{
-		ModelTemplateKey: strings.TrimSpace(input.ModelTemplateKey),
-		TemplateVersion:  strings.TrimSpace(input.TemplateVersion),
-		PublicModelID:    strings.TrimSpace(input.PublicModelID),
-		DisplayName:      strings.TrimSpace(input.DisplayName),
-		ShortName:        strings.TrimSpace(input.ShortName),
-		IsEnabled:        enabled,
-		Capabilities:     strings.TrimSpace(input.Capabilities),
-		AcceptsImage:     input.AcceptsImage,
-		MaxInputImages:   input.MaxInputImages,
-		MaxInputVideos:   input.MaxInputVideos,
-		ImageEditField:   strings.TrimSpace(input.ImageEditField),
-		SupportedParams:  strings.TrimSpace(input.SupportedParams),
-		ParamLimitsJSON:  strings.TrimSpace(input.ParamLimitsJSON),
+		ModelTemplateKey:      strings.TrimSpace(input.ModelTemplateKey),
+		TemplateVersion:       strings.TrimSpace(input.TemplateVersion),
+		PublicModelID:         strings.TrimSpace(input.PublicModelID),
+		DisplayName:           strings.TrimSpace(input.DisplayName),
+		ShortName:             strings.TrimSpace(input.ShortName),
+		IsEnabled:             enabled,
+		Capabilities:          strings.TrimSpace(input.Capabilities),
+		AcceptsImage:          input.AcceptsImage,
+		MaxInputImages:        input.MaxInputImages,
+		MaxInputVideos:        input.MaxInputVideos,
+		ImageEditField:        strings.TrimSpace(input.ImageEditField),
+		SupportedParams:       strings.TrimSpace(input.SupportedParams),
+		ParamLimitsJSON:       strings.TrimSpace(input.ParamLimitsJSON),
+		ModelCapabilitiesJSON: strings.TrimSpace(input.ModelCapabilitiesJSON),
 	}
 }
 
@@ -580,6 +663,9 @@ func validateModelCatalogEntry(entry *persistencemodel.AIModelCatalogEntry) erro
 	if value := strings.TrimSpace(entry.ParamLimitsJSON); value != "" && !json.Valid([]byte(value)) {
 		return fmt.Errorf("%w: param_limits_json must be valid JSON", ErrInvalidModelCatalog)
 	}
+	if value := strings.TrimSpace(entry.ModelCapabilitiesJSON); value != "" && !json.Valid([]byte(value)) {
+		return fmt.Errorf("%w: model_capabilities_json must be valid JSON", ErrInvalidModelCatalog)
+	}
 	return nil
 }
 
@@ -587,7 +673,7 @@ func normalizeModelCatalogEntrySupportedParams(entry *persistencemodel.AIModelCa
 	if template, ok := catalogTemplateForCatalogEntry(*entry); ok {
 		baseParams := template.SupportedParams
 		if len(baseParams) == 0 {
-			baseParams = infraai.DefaultParamsForAdapter(template.AdapterType, template.Capabilities)
+			baseParams = infraai.DefaultParamsForAdapter(template.RouteAdapterHint, template.Capabilities)
 		}
 		if err := infraai.ValidateModelParamConfigWithBaseParams(baseParams, entry.SupportedParams); err != nil {
 			return fmt.Errorf("%w: %v", ErrInvalidModelCatalog, err)
@@ -657,7 +743,172 @@ func validateModelRouteBinding(binding persistencemodel.AIModelRouteBinding) err
 	if strings.TrimSpace(binding.ProviderModelID) == "" {
 		return fmt.Errorf("%w: provider_model_id is required for route bindings", ErrInvalidModelCatalog)
 	}
+	if err := validateModelRouteEndpointFields(binding); err != nil {
+		return err
+	}
 	return validateCapacityConfig(binding.CapacityWeight, binding.MaxConcurrency)
+}
+
+func validateModelRouteEndpointFields(binding persistencemodel.AIModelRouteBinding) error {
+	switch strings.TrimSpace(binding.EndpointMode) {
+	case "", "inherit", "replace_path", "absolute":
+	default:
+		return fmt.Errorf("%w: endpoint_mode %q is not supported", ErrInvalidModelCatalog, strings.TrimSpace(binding.EndpointMode))
+	}
+	if value := strings.TrimSpace(binding.RouteCapabilitiesJSON); value != "" && !json.Valid([]byte(value)) {
+		return fmt.Errorf("%w: route_capabilities_json must be valid JSON", ErrInvalidModelCatalog)
+	}
+	return nil
+}
+
+func validateModelRouteBindingCapabilities(entry persistencemodel.AIModelCatalogEntry, binding persistencemodel.AIModelRouteBinding) error {
+	routeRaw := strings.TrimSpace(binding.RouteCapabilitiesJSON)
+	if !binding.IsEnabled && routeRaw == "" {
+		return nil
+	}
+	if routeRaw == "" {
+		return fmt.Errorf("%w: route_capabilities_json is required for enabled route bindings", ErrInvalidModelCatalog)
+	}
+	routeOps, err := parseRouteCapabilityOperations(routeRaw)
+	if err != nil {
+		return fmt.Errorf("%w: route_capabilities_json must be valid JSON", ErrInvalidModelCatalog)
+	}
+	if binding.IsEnabled && len(routeOps) == 0 {
+		return fmt.Errorf("%w: route_capabilities_json must declare at least one operation for enabled route bindings", ErrInvalidModelCatalog)
+	}
+	modelRaw := strings.TrimSpace(entry.ModelCapabilitiesJSON)
+	if modelRaw == "" {
+		modelRaw = legacyModelCapabilitiesAsStructuredJSON(entry.Capabilities)
+	}
+	modelOps, err := parseRouteCapabilityOperations(modelRaw)
+	if err != nil {
+		return fmt.Errorf("%w: model_capabilities_json must be valid JSON", ErrInvalidModelCatalog)
+	}
+	if len(modelOps) == 0 {
+		return fmt.Errorf("%w: model_capabilities_json must declare catalog operations before enabling route bindings", ErrInvalidModelCatalog)
+	}
+	for capability, operations := range routeOps {
+		allowed := modelOps[capability]
+		if len(allowed) == 0 {
+			return fmt.Errorf("%w: route capability %q is not declared by catalog model capabilities", ErrInvalidModelCatalog, capability)
+		}
+		for operation := range operations {
+			if !allowed[operation] {
+				return fmt.Errorf("%w: route operation %q is not declared by catalog capability %q", ErrInvalidModelCatalog, operation, capability)
+			}
+		}
+	}
+	return nil
+}
+
+func parseRouteCapabilityOperations(raw string) (map[string]map[string]bool, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	var domains map[string]struct {
+		Operations []string `json:"operations"`
+	}
+	if err := json.Unmarshal([]byte(raw), &domains); err != nil {
+		return nil, err
+	}
+	out := make(map[string]map[string]bool, len(domains))
+	for capability, domain := range domains {
+		capability = strings.TrimSpace(capability)
+		if capability == "" {
+			continue
+		}
+		for _, operation := range domain.Operations {
+			operation = strings.TrimSpace(operation)
+			if operation == "" {
+				continue
+			}
+			if out[capability] == nil {
+				out[capability] = map[string]bool{}
+			}
+			out[capability][operation] = true
+		}
+	}
+	return out, nil
+}
+
+func legacyModelCapabilitiesAsStructuredJSON(capabilities string) string {
+	values := infraai.SplitCapabilities(capabilities)
+	has := func(capability string) bool {
+		for _, value := range values {
+			if strings.TrimSpace(value) == capability {
+				return true
+			}
+		}
+		return false
+	}
+	domains := map[string]map[string][]string{}
+	add := func(capability string, operations ...string) {
+		if len(operations) == 0 {
+			return
+		}
+		domain := domains[capability]
+		if domain == nil {
+			domain = map[string][]string{"operations": []string{}}
+			domains[capability] = domain
+		}
+		seen := map[string]bool{}
+		for _, existing := range domain["operations"] {
+			seen[existing] = true
+		}
+		for _, operation := range operations {
+			operation = strings.TrimSpace(operation)
+			if operation == "" || seen[operation] {
+				continue
+			}
+			domain["operations"] = append(domain["operations"], operation)
+			seen[operation] = true
+		}
+	}
+	if has(infraai.CapabilityText) || has(infraai.CapabilityReasoning) {
+		add(infraai.CapabilityFamilyTextGeneration, "chat", "responses")
+	}
+	if has(infraai.CapabilityImage) {
+		add(infraai.CapabilityFamilyImageGeneration, infraai.ImageOperationPromptToImage)
+	}
+	if has(infraai.CapabilityImageEdit) {
+		add(infraai.CapabilityFamilyImageGeneration, infraai.ImageOperationImageToImage, infraai.ImageOperationImageEdit)
+	}
+	if has(infraai.CapabilityVideo) {
+		add(infraai.CapabilityFamilyVideoGeneration, infraai.VideoOperationPromptToVideo)
+	}
+	if has(infraai.CapabilityVideoI2V) {
+		add(infraai.CapabilityFamilyVideoGeneration, infraai.VideoOperationImageToVideo, infraai.VideoOperationFirstFrameToVideo)
+	}
+	if has(infraai.CapabilityVideoV2V) {
+		add(infraai.CapabilityFamilyVideoGeneration, infraai.VideoOperationReferenceToVideo, infraai.VideoOperationVideoToVideo)
+	}
+	if has(infraai.CapabilityAudioTTS) {
+		add(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationTTS)
+	}
+	if has(infraai.CapabilityAudioSTT) {
+		add(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationSTT)
+	}
+	if has(infraai.CapabilityAudioMusic) {
+		add(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationMusic)
+	}
+	if has(infraai.CapabilityAudioSFX) {
+		add(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationSFX)
+	}
+	if has(infraai.CapabilityAudioChat) || has(infraai.CapabilityAudio) {
+		add(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationAudioChat)
+	}
+	if has(infraai.CapabilityVoiceClone) {
+		add(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationVoiceClone)
+	}
+	if has(infraai.CapabilityVoiceDesign) {
+		add(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationVoiceDesign)
+	}
+	if len(domains) == 0 {
+		return ""
+	}
+	raw, _ := json.Marshal(domains)
+	return string(raw)
 }
 
 func (s *Service) validateRouteBindingProvider(ctx context.Context, binding persistencemodel.AIModelRouteBinding) error {
@@ -688,6 +939,14 @@ func normalizeModelRouteBindingProviderID(binding *persistencemodel.AIModelRoute
 	binding.ProviderID = strings.TrimSpace(binding.ProviderID)
 	binding.AdapterType = strings.TrimSpace(binding.AdapterType)
 	binding.ProviderModelID = strings.TrimSpace(binding.ProviderModelID)
+	binding.EndpointBaseURL = strings.TrimRight(strings.TrimSpace(binding.EndpointBaseURL), "/")
+	binding.EndpointPathPrefix = normalizeRoutePathPrefix(binding.EndpointPathPrefix)
+	binding.EndpointMode = strings.TrimSpace(binding.EndpointMode)
+	if binding.EndpointMode == "" {
+		binding.EndpointMode = "inherit"
+	}
+	binding.OperationProfile = strings.TrimSpace(binding.OperationProfile)
+	binding.RouteCapabilitiesJSON = strings.TrimSpace(binding.RouteCapabilitiesJSON)
 	if binding.SourceType == "" {
 		binding.SourceType = sourceTypeFromRouteProviderID(binding.ProviderID)
 	}
@@ -706,6 +965,14 @@ func normalizeModelRouteBindingProviderID(binding *persistencemodel.AIModelRoute
 			binding.CredentialID = &credentialID
 		}
 	}
+}
+
+func normalizeRoutePathPrefix(value string) string {
+	value = strings.Trim(strings.TrimSpace(value), "/")
+	if value == "" {
+		return ""
+	}
+	return "/" + value
 }
 
 func (s *Service) normalizeModelRouteBindingAdapter(ctx context.Context, binding *persistencemodel.AIModelRouteBinding) error {
@@ -828,17 +1095,22 @@ func modelRouteBindingFromInput(catalogEntryID uint, input ModelRouteBindingInpu
 		enabled = *input.IsEnabled
 	}
 	return persistencemodel.AIModelRouteBinding{
-		CatalogEntryID:   catalogEntryID,
-		ComboTemplateKey: strings.TrimSpace(input.ComboTemplateKey),
-		TemplateVersion:  strings.TrimSpace(input.TemplateVersion),
-		RouteGroup:       strings.TrimSpace(input.RouteGroup),
-		ProviderID:       strings.TrimSpace(input.ProviderID),
-		AdapterType:      strings.TrimSpace(input.AdapterType),
-		ProviderModelID:  strings.TrimSpace(input.ProviderModelID),
-		APIKinds:         strings.TrimSpace(input.APIKinds),
-		IsEnabled:        enabled,
-		Priority:         input.Priority,
-		CapacityWeight:   input.CapacityWeight,
-		MaxConcurrency:   input.MaxConcurrency,
+		CatalogEntryID:        catalogEntryID,
+		ComboTemplateKey:      strings.TrimSpace(input.ComboTemplateKey),
+		TemplateVersion:       strings.TrimSpace(input.TemplateVersion),
+		RouteGroup:            strings.TrimSpace(input.RouteGroup),
+		ProviderID:            strings.TrimSpace(input.ProviderID),
+		AdapterType:           strings.TrimSpace(input.AdapterType),
+		ProviderModelID:       strings.TrimSpace(input.ProviderModelID),
+		APIKinds:              strings.TrimSpace(input.APIKinds),
+		EndpointBaseURL:       strings.TrimSpace(input.EndpointBaseURL),
+		EndpointPathPrefix:    strings.TrimSpace(input.EndpointPathPrefix),
+		EndpointMode:          strings.TrimSpace(input.EndpointMode),
+		OperationProfile:      strings.TrimSpace(input.OperationProfile),
+		RouteCapabilitiesJSON: strings.TrimSpace(input.RouteCapabilitiesJSON),
+		IsEnabled:             enabled,
+		Priority:              input.Priority,
+		CapacityWeight:        input.CapacityWeight,
+		MaxConcurrency:        input.MaxConcurrency,
 	}
 }

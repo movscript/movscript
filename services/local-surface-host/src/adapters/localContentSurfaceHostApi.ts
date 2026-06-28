@@ -121,6 +121,7 @@ function createLocalProjectContentAPI(options: LocalProjectContentAPIOptions): S
       return candidateRecordFromResult(result)
     },
     selectMovScriptEngineContentUnitCandidate: (input) => candidateAction('/v1/project/content-unit-candidates/select', stripProjectEnvelope(input)),
+    decideMovScriptEngineContentUnitCandidate: (input) => candidateAction('/v1/project/content-unit-candidates/decide', stripProjectEnvelope(input)),
     updateMovScriptEngineContentUnitEditPrompt: (input) => projectSourceOperation('/v1/project/content-units/edit-prompt/update', input),
     updateMovScriptEngineExpressionUnit: (input) => projectSourceOperation('/v1/project/expression-units/update', input),
     updateMovScriptEngineAudioCue: (input) => projectSourceOperation('/v1/project/audio-cues/update', input),

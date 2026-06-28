@@ -12,18 +12,17 @@ import (
 	"time"
 )
 
-// YunwuAdapter keeps OpenAI-compatible behavior for non-video calls, while using
-// Yunwu's native JSON video task endpoints for image-conditioned video.
-type YunwuAdapter struct {
+// YunwuUnifiedVideoAdapter implements Yunwu's native JSON video task endpoints.
+type YunwuUnifiedVideoAdapter struct {
 	BaseURL string
 	APIKey  string
 	openai  *OpenAIAdapter
 	rawHTTP *http.Client
 }
 
-func NewYunwuAdapter(apiKey, baseURL string) *YunwuAdapter {
+func NewYunwuUnifiedVideoAdapter(apiKey, baseURL string) *YunwuUnifiedVideoAdapter {
 	baseURL = normalizeYunwuBaseURL(baseURL)
-	return &YunwuAdapter{
+	return &YunwuUnifiedVideoAdapter{
 		BaseURL: baseURL,
 		APIKey:  apiKey,
 		openai:  NewOpenAIAdapter(baseURL, apiKey),
@@ -31,15 +30,15 @@ func NewYunwuAdapter(apiKey, baseURL string) *YunwuAdapter {
 	}
 }
 
-func (a *YunwuAdapter) TextGenerate(ctx context.Context, req TextRequest) (TextResponse, error) {
+func (a *YunwuUnifiedVideoAdapter) TextGenerate(ctx context.Context, req TextRequest) (TextResponse, error) {
 	return a.openai.TextGenerate(ctx, req)
 }
 
-func (a *YunwuAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (ImageResponse, error) {
+func (a *YunwuUnifiedVideoAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (ImageResponse, error) {
 	return a.openai.ImageGenerate(ctx, req)
 }
 
-func (a *YunwuAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (VideoResponse, error) {
+func (a *YunwuUnifiedVideoAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (VideoResponse, error) {
 	startResp, err := a.VideoStart(ctx, req)
 	if err != nil {
 		return startResp, err
@@ -67,11 +66,11 @@ func (a *YunwuAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (Vid
 	return VideoResponse{TaskID: startResp.TaskID, TaskKind: startResp.TaskKind, Status: VideoStatusProcessing}, fmt.Errorf("yunwu video generation timed out")
 }
 
-func (a *YunwuAdapter) Ping(ctx context.Context) error {
+func (a *YunwuUnifiedVideoAdapter) Ping(ctx context.Context) error {
 	return a.openai.Ping(ctx)
 }
 
-func (a *YunwuAdapter) VideoStart(ctx context.Context, req VideoRequest) (VideoResponse, error) {
+func (a *YunwuUnifiedVideoAdapter) VideoStart(ctx context.Context, req VideoRequest) (VideoResponse, error) {
 	imageURLs, err := yunwuVideoImageURLs(req)
 	if err != nil {
 		return VideoResponse{}, err
@@ -125,7 +124,7 @@ func (a *YunwuAdapter) VideoStart(ctx context.Context, req VideoRequest) (VideoR
 	return VideoResponse{TaskID: taskID, TaskKind: "yunwu_video", Status: firstNonEmptyAI(statusText, VideoStatusSubmitted), Debug: takeDebug(ctx)}, nil
 }
 
-func (a *YunwuAdapter) VideoPoll(ctx context.Context, req VideoPollRequest) (VideoResponse, error) {
+func (a *YunwuUnifiedVideoAdapter) VideoPoll(ctx context.Context, req VideoPollRequest) (VideoResponse, error) {
 	endpoint := strings.TrimRight(a.BaseURL, "/") + "/video/query"
 	u, err := url.Parse(endpoint)
 	if err != nil {
@@ -172,12 +171,12 @@ func (a *YunwuAdapter) VideoPoll(ctx context.Context, req VideoPollRequest) (Vid
 	}
 }
 
-func (a *YunwuAdapter) postJSON(ctx context.Context, method, endpoint string, body map[string]any) ([]byte, int, int64, error) {
+func (a *YunwuUnifiedVideoAdapter) postJSON(ctx context.Context, method, endpoint string, body map[string]any) ([]byte, int, int64, error) {
 	rawBody, _ := json.Marshal(body)
 	return a.doJSON(ctx, method, endpoint, rawBody)
 }
 
-func (a *YunwuAdapter) doJSON(ctx context.Context, method, endpoint string, rawBody []byte) ([]byte, int, int64, error) {
+func (a *YunwuUnifiedVideoAdapter) doJSON(ctx context.Context, method, endpoint string, rawBody []byte) ([]byte, int, int64, error) {
 	var reader io.Reader
 	if rawBody != nil {
 		reader = bytes.NewReader(rawBody)
@@ -200,7 +199,7 @@ func (a *YunwuAdapter) doJSON(ctx context.Context, method, endpoint string, rawB
 	return respBody, resp.StatusCode, latency, nil
 }
 
-func (a *YunwuAdapter) debugHeaders() map[string]string {
+func (a *YunwuUnifiedVideoAdapter) debugHeaders() map[string]string {
 	return map[string]string{
 		"Content-Type":  "application/json",
 		"Accept":        "application/json",

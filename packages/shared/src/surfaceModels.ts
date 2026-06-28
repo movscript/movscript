@@ -25,8 +25,24 @@ export function surfaceModelQueryCapability(capability: SurfaceModelCapability):
   return capability === 'audio' ? 'audio_tts' : capability
 }
 
-export async function listSurfaceModelsByCapability(capability: SurfaceModelCapability): Promise<PublicModel[]> {
+export type SurfaceModelReferenceAssetIntent = {
+  role: string
+  media_type?: 'image' | 'video' | 'audio' | string
+}
+
+export type SurfaceModelListOptions = {
+  operation?: string
+  referenceAssets?: SurfaceModelReferenceAssetIntent[]
+}
+
+export async function listSurfaceModelsByCapability(capability: SurfaceModelCapability, options: SurfaceModelListOptions = {}): Promise<PublicModel[]> {
   const queryCapability = surfaceModelQueryCapability(capability)
-  const response = await surfaceDataApi.get<PublicModel[]>(`/models?capability=${encodeURIComponent(queryCapability)}`)
+  const params = new URLSearchParams()
+  params.set('capability', queryCapability)
+  if (options.operation?.trim()) params.set('operation', options.operation.trim())
+  if (options.referenceAssets && options.referenceAssets.length > 0) {
+    params.set('reference_assets', JSON.stringify(options.referenceAssets))
+  }
+  const response = await surfaceDataApi.get<PublicModel[]>(`/models?${params.toString()}`)
   return Array.isArray(response.data) ? response.data : []
 }

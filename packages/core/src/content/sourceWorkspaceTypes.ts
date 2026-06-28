@@ -37,6 +37,8 @@ export interface PreviewCandidate {
   resourceKind?: string
   artifactRef?: string
   status?: string
+  decisionStatus?: string
+  decisionReason?: string
   source?: string
   producer?: Record<string, unknown>
   outputs?: unknown[]

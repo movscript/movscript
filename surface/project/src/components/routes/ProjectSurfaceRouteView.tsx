@@ -13,6 +13,7 @@ import {
 } from '../AgentSurfaceShell.js'
 import { ProjectProgressSurface } from '../progress/ProjectProgressSurface.js'
 import { ProjectOverviewSurface } from '../overview/ProjectOverviewSurface.js'
+import { ProjectEditDeskSurface } from '../edit-desk/ProjectEditDeskSurface.js'
 import { ProjectSettingsSurface } from '../settings/ProjectSettingsSurface.js'
 import { ProjectResourceViewSurface } from '../resource-view/ProjectResourceViewSurface.js'
 import { ProjectScriptsSurface } from '../scripts/ProjectScriptsSurface.js'
@@ -57,6 +58,19 @@ export function ProjectSurfaceRouteView({
         productionId={productionId}
         snapshot={snapshot}
         isLoading={readModelStatus === 'loading'}
+        error={error}
+      />
+    )
+  }
+
+  if (route.key === 'editDesk') {
+    return (
+      <ProjectEditDeskSurface
+        params={params}
+        productionId={productionId}
+        readModelStatus={readModelStatus}
+        readModel={readModel}
+        snapshot={snapshot}
         error={error}
       />
     )

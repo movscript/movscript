@@ -9,7 +9,6 @@ import (
 	"github.com/movscript/movscript/internal/infra/upload"
 	"log"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -44,12 +43,42 @@ func (w *Worker) prepareImageInputReferences(job *persistencemodel.Job, mediaLis
 // endpoint rejects base64 for video_url entirely, so this must succeed for any
 // v2v or multimodal-reference call against Volcen.
 func (w *Worker) prepareVideoInputReferences(job *persistencemodel.Job, imageData, videoData, audioData []ai.MediaData) {
+	if route, ok := w.catalogRouteForJob(context.Background(), job); ok {
+		_ = w.prepareVideoInputReferencesForRoute(job, route, imageData, videoData, audioData)
+		return
+	}
 	if len(imageData) == 0 && len(videoData) == 0 && len(audioData) == 0 {
 		return
 	}
 	if !w.videoRouteRequiresPublicMediaReferences(job) {
 		return
 	}
+	w.preparePublicVideoMediaReferences(job, imageData, videoData, audioData)
+}
+
+func (w *Worker) prepareVideoInputReferencesForRoute(job *persistencemodel.Job, route ai.ModelRoute, imageData, videoData, audioData []ai.MediaData) error {
+	if len(imageData) == 0 && len(videoData) == 0 && len(audioData) == 0 {
+		return nil
+	}
+	requirements := ai.RouteCapabilityPublicURLRequirements(route.RouteCapabilitiesJSON, route.Capability)
+	if !w.videoRouteRequiresPublicMediaReferencesForRoute(route) && !requirements.Image && !requirements.Video {
+		return nil
+	}
+	w.preparePublicVideoMediaReferences(job, imageData, videoData, audioData)
+	if requirements.Image {
+		if err := requirePreparedPublicMediaURLs("image", route, imageData); err != nil {
+			return err
+		}
+	}
+	if requirements.Video {
+		if err := requirePreparedPublicMediaURLs("video", route, videoData); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *Worker) preparePublicVideoMediaReferences(job *persistencemodel.Job, imageData, videoData, audioData []ai.MediaData) {
 	if len(imageData) > 0 {
 		w.preparePublicMediaReferences(job, imageData)
 	}
@@ -66,11 +95,33 @@ func (w *Worker) videoRouteRequiresPublicMediaReferences(job *persistencemodel.J
 	if !ok {
 		return false
 	}
-	switch w.adapterTypeForRoute(route) {
-	case ai.AdapterVolcen, ai.AdapterDashScope, ai.AdapterVidu, ai.AdapterYunwu:
+	return w.videoRouteRequiresPublicMediaReferencesForRoute(route)
+}
+
+func (w *Worker) videoRouteRequiresPublicMediaReferencesForRoute(route ai.ModelRoute) bool {
+	requirements := ai.RouteCapabilityPublicURLRequirements(route.RouteCapabilitiesJSON, route.Capability)
+	if requirements.Image || requirements.Video {
 		return true
 	}
-	return strings.TrimSpace(route.ProviderKind) == persistencemodel.AIProviderKindYunwuGateway
+	switch w.adapterTypeForRoute(route) {
+	case ai.AdapterVolcen, ai.AdapterDashScope, ai.AdapterVidu, ai.AdapterYunwuUnifiedVideo:
+		return true
+	}
+	return false
+}
+
+func requirePreparedPublicMediaURLs(kind string, route ai.ModelRoute, mediaList []ai.MediaData) error {
+	for _, media := range mediaList {
+		if media.PresignedURL != "" {
+			continue
+		}
+		resource := "input resource"
+		if media.ResourceID != 0 {
+			resource = fmt.Sprintf("resource #%d", media.ResourceID)
+		}
+		return fmt.Errorf("route %d requires public %s URL for %s; configure public storage or provide a resource with cached public URL before generation", route.RouteBindingID, kind, resource)
+	}
+	return nil
 }
 
 func (w *Worker) preparePublicMediaReferences(job *persistencemodel.Job, mediaList []ai.MediaData) {

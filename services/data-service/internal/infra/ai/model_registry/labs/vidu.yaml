@@ -1,6 +1,6 @@
 lab: vidu
 templates:
-    - adapter_type: vidu
+    - route_adapter_hint: vidu
       capabilities:
         - video
         - video_i2v

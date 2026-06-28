@@ -126,7 +126,6 @@ function providerConfig(patch: Partial<ProviderModelConfigPublic>): ProviderMode
 
 function model(patch: Pick<PublicModel, 'id' | 'model_id' | 'display_name'> & Partial<PublicModel>): PublicModel {
   return {
-    provider_id: 'local_provider:1',
     capabilities: ['text'],
     accepts_image_input: false,
     ...patch,

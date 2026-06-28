@@ -38,6 +38,22 @@ export {
   type TransitionSpec,
 } from './media-project.js'
 
+export {
+  createMediaEditingProjectFromEditDecisions,
+  type MediaEditDecisionsProjectOptions,
+  type MovScriptAssetManifest,
+  type MovScriptEditDecisionAudio,
+  type MovScriptEditDecisionAudioLayer,
+  type MovScriptEditDecisionAudioSegment,
+  type MovScriptEditDecisionCut,
+  type MovScriptEditDecisionNarration,
+  type MovScriptEditDecisionOverlay,
+  type MovScriptEditDecisionSubtitleSegment,
+  type MovScriptEditDecisionSubtitles,
+  type MovScriptEditDecisionsArtifact,
+  type MovScriptVideoComposeRenderRuntime,
+} from './video-compose.js'
+
 export type {
   EditingMediaPipelineAssetDescriptor,
   EditingMediaPipelineHlsVariantSpec,

@@ -28,6 +28,8 @@ type ModelRouteRequest struct {
 	CatalogEntryID        uint
 	RouteBindingID        uint
 	Capability            string
+	Operation             string
+	ReferenceAssets       []RouteReferenceAssetIntent
 	APIKind               string
 	APIKinds              []string
 	RouteGroup            string
@@ -36,20 +38,27 @@ type ModelRouteRequest struct {
 }
 
 type ModelRoute struct {
-	ModelID         string
-	RuntimeModelID  uint
-	CatalogEntryID  uint
-	RouteBindingID  uint
-	CredentialID    uint
-	SourceType      string
-	RouteGroup      string
-	ProviderID      string
-	ProviderKind    string
-	AdapterKey      string
-	AdapterType     string
-	ProviderModelID string
-	APIKind         string
-	SelectionReason string
+	ModelID               string
+	RuntimeModelID        uint
+	CatalogEntryID        uint
+	RouteBindingID        uint
+	CredentialID          uint
+	SourceType            string
+	RouteGroup            string
+	ProviderID            string
+	ProviderKind          string
+	AdapterKey            string
+	AdapterType           string
+	ProviderModelID       string
+	Capability            string
+	APIKind               string
+	Operation             string
+	EndpointBaseURL       string
+	EndpointPathPrefix    string
+	EndpointMode          string
+	OperationProfile      string
+	RouteCapabilitiesJSON string
+	SelectionReason       string
 }
 
 type ModelRoutePlan struct {
@@ -101,6 +110,7 @@ func (s *AIService) openAIProxyTargetForCredentialCatalogRoute(ctx context.Conte
 	if err != nil {
 		return OpenAIProxyTarget{}, true, err
 	}
+	cred = s.applyRouteEndpointToCredential(ctx, route, cred)
 	ctx = withProviderUserID(ctx, userID)
 	provider, err := s.registry.BuildForModelCredential(cred, definition.def)
 	if err != nil {
@@ -145,6 +155,9 @@ func (s *AIService) ResolveModelRoutePlan(req ModelRouteRequest) (ModelRoutePlan
 	capability := strings.TrimSpace(req.Capability)
 	if capability == "" {
 		return ModelRoutePlan{}, fmt.Errorf("model capability is required")
+	}
+	if err := validateStructuredCapabilityRequest(capability, req.Operation, req.ReferenceAssets); err != nil {
+		return ModelRoutePlan{}, err
 	}
 	modelID := strings.TrimSpace(req.ModelID)
 	if modelID != "" {

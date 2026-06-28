@@ -8,6 +8,7 @@ import { Sidebar, clampSidebarWidth } from '@/features/app-shell/components/Side
 import { OrgGuard, RouteErrorBoundary, RouteSuspense } from '@/features/app-shell/application/AppRouteBoundaries'
 import {
   AudioGenPage,
+  AudioToolPage,
   AudioChatPage,
   AudioSfxPage,
   AudioTranscribePage,
@@ -19,7 +20,10 @@ import {
   ProviderAssetLibraryPage,
   RefImageGenPage,
   RefVideoGenPage,
+  ImageToolPage,
   StyleTransferPage,
+  TextToolPage,
+  VideoToolPage,
   VoiceClonePage,
   VoiceDesignPage,
 } from '@/features/app-shell/application/appRouteComponents'
@@ -203,7 +207,11 @@ export function ToolShellRoute() {
           <RouteErrorBoundary>
             <RouteSuspense>
               <Routes>
-                <Route index element={<Navigate to={ROUTES.tools.refImageGen} replace />} />
+                <Route index element={<Navigate to={ROUTES.tools.image} replace />} />
+                <Route path="image" element={<ImageToolPage />} />
+                <Route path="video" element={<VideoToolPage />} />
+                <Route path="audio" element={<AudioToolPage />} />
+                <Route path="text" element={<TextToolPage />} />
                 <Route path="ref-image-gen" element={<RefImageGenPage />} />
                 <Route path="ref-video-gen" element={<RefVideoGenPage />} />
                 <Route path="audio-gen" element={<AudioGenPage />} />
@@ -219,7 +227,7 @@ export function ToolShellRoute() {
                 <Route path="multi-angle" element={<MultiAnglePage />} />
                 <Route path="private-assets" element={<ProviderAssetLibraryPage />} />
                 <Route path="plugin/:pluginId" element={<PluginToolPage />} />
-                <Route path="*" element={<Navigate to={ROUTES.tools.refImageGen} replace />} />
+                <Route path="*" element={<Navigate to={ROUTES.tools.image} replace />} />
               </Routes>
             </RouteSuspense>
           </RouteErrorBoundary>

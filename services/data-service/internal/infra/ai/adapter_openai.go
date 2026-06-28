@@ -1443,9 +1443,6 @@ func (a *OpenAIAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (Vi
 }
 
 func (a *OpenAIAdapter) VideoStart(ctx context.Context, req VideoRequest) (VideoResponse, error) {
-	if openAIShouldUseXAIVideoGenerations(req) {
-		return a.xaiVideoStart(ctx, req)
-	}
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	_ = w.WriteField("model", req.Model)
@@ -1559,15 +1556,7 @@ func (a *OpenAIAdapter) VideoStart(ctx context.Context, req VideoRequest) (Video
 	return VideoResponse{TaskID: result.ID, Status: VideoStatusSubmitted, Debug: takeDebug(ctx)}, nil
 }
 
-func openAIShouldUseXAIVideoGenerations(req VideoRequest) bool {
-	model := strings.ToLower(strings.TrimSpace(req.Model))
-	if !strings.HasPrefix(model, "grok-imagine-video") {
-		return false
-	}
-	return req.Image == "" && len(req.InputImages) == 0 && len(req.InputImageDataList) == 0
-}
-
-func (a *OpenAIAdapter) xaiVideoStart(ctx context.Context, req VideoRequest) (VideoResponse, error) {
+func (a *OpenAIAdapter) officialVideoGenerationsStart(ctx context.Context, req VideoRequest) (VideoResponse, error) {
 	dur := req.Duration
 	if dur <= 0 {
 		dur = 5

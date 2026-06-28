@@ -102,6 +102,69 @@ test('builds backend prompt by replacing selected upstream refs with resource to
   assert.deepEqual(result.prompt.replacements.map((replacement) => replacement.token), ['@[resource:123]', '@[resource:123]'])
 })
 
+test('builds backend prompt from promptText override without returning raw prompt refs', async () => {
+  const index = indexFromDocuments([
+    document('settings/hero/states/base/assets/portrait/asset.json', {
+      schema: 'movscript.asset.v1',
+      kind: 'asset',
+      id: 'hero_portrait',
+      title: 'Hero portrait',
+      slot: 'portrait',
+    }),
+    document('productions/p1/scene_moments/arrival/expression_units/arrival/expression_unit.json', {
+      schema: 'movscript.expression_unit.v1',
+      kind: 'expression_unit',
+      id: 'arrival',
+      expression_kind: 'shot',
+      title: 'Arrival shot',
+    }),
+    document('content_units/cu_hero_portrait_ref/content_unit.json', {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_hero_portrait_ref',
+      title: 'Hero portrait reference',
+      content_unit_type: 'asset_ref',
+      output_kind: 'image',
+      asset_ref: 'hero_portrait',
+      edit_prompt: { text: 'Generate hero portrait reference.' },
+    }),
+    document('content_units/cu_arrival_video/content_unit.json', {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_arrival_video',
+      title: 'Arrival video',
+      content_unit_type: 'expression_unit_ref',
+      output_kind: 'video',
+      expression_unit_ref: 'arrival',
+      edit_prompt: {
+        text: 'Saved prompt without semantic refs.',
+        negative_text: 'Avoid changing {{asset::hero_portrait}}.',
+      },
+    }),
+  ])
+
+  const result = await buildContentUnitBackendPromptById({
+    index,
+    contentUnitId: 'cu_arrival_video',
+    promptText: 'Canvas draft uses {{asset::hero_portrait}} as the character reference.',
+    decisionProvider: decisionProvider({
+      cu_hero_portrait_ref: {
+        candidates: [{ id: 'candidate_a', outputs: [{ kind: 'image', resource_id: 321 }] }],
+        selection: { candidate_id: 'candidate_a', resource_id: 321 },
+      },
+    }),
+  })
+
+  assert.equal(result.ok, true)
+  assert.equal(result.prompt.text, 'Canvas draft uses @[resource:321] as the character reference.')
+  assert.equal(result.prompt.negative_text, 'Avoid changing @[resource:321].')
+  assert.deepEqual(result.prompt.resource_ids, [321])
+  assert.deepEqual(result.prompt.replacements.map((replacement) => replacement.ref), [
+    '{{asset::hero_portrait}}',
+    '{{asset::hero_portrait}}',
+  ])
+})
+
 test('builds backend prompt from latest resource candidate when upstream has no selection', async () => {
   const index = indexFromDocuments([
     document('settings/hero/states/rain/assets/wet_hair/asset.json', {

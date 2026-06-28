@@ -9,7 +9,7 @@ export async function createCandidateFromContentUnit(
   contentUnitNode: ContentCanvasNode,
   position: { x: number; y: number } | undefined,
   gateway: ContentCanvasWorkspaceGateway,
-  options: Pick<ContentCanvasContentCandidateGenerateInput, 'modelId' | 'params' | 'supportedParams'> = {},
+  options: Pick<ContentCanvasContentCandidateGenerateInput, 'modelId' | 'params' | 'supportedParams' | 'generationIntent'> = {},
 ): Promise<ContentCanvasCommandResult> {
   assertContentUnitNode(contentUnitNode)
   const outputKind = contentUnitOutputKind(contentUnitNode)
@@ -32,6 +32,7 @@ export async function createCandidateFromContentUnit(
     ...(options.modelId ? { modelId: options.modelId } : {}),
     ...(options.params ? { params: options.params } : {}),
     ...(options.supportedParams ? { supportedParams: options.supportedParams } : {}),
+    ...(options.generationIntent ? { generationIntent: options.generationIntent } : {}),
     promptText: editPromptTextFromNode(contentUnitNode),
   })
   console.log('[content-canvas] create content unit candidate result', {
@@ -127,6 +128,33 @@ export async function selectContentUnitCandidateFromCanvas(
   }
 }
 
+export async function removeContentUnitCandidateFromCanvas(
+  projectId: number,
+  contentUnitNode: ContentCanvasNode,
+  candidate: ContentCanvasCandidate,
+  gateway: ContentCanvasWorkspaceGateway,
+): Promise<ContentCanvasCommandResult> {
+  assertContentUnitNode(contentUnitNode)
+  await gateway.decideContentUnitCandidate({
+    projectId,
+    contentUnitId: contentUnitNode.entityKey,
+    candidateId: candidate.id,
+    ...(candidate.resourceId ? { resourceId: candidate.resourceId } : {}),
+    decision: 'reject',
+    reason: 'content_canvas_removed_candidate',
+    metadata: {
+      source: 'content_prompt_canvas',
+      hidden_from_canvas: true,
+    },
+  })
+  return {
+    changedNodeIds: [contentUnitNode.id, `candidate:${contentUnitNode.entityKey}:${candidate.id}`],
+    affectedNodeIds: [contentUnitNode.id],
+    removedCandidates: [{ contentUnitId: contentUnitNode.entityKey, candidateId: candidate.id }],
+    message: `已将候选 ${candidate.title} 移出候选列表`,
+  }
+}
+
 export async function selectCandidateNodeFromCanvas(
   projectId: number,
   candidateNode: ContentCanvasNode,
@@ -217,6 +245,8 @@ function contentCanvasCandidateFromContentRecord(record: ContentCandidateRecord,
     ...(Array.isArray(record.outputs) ? { outputs: record.outputs } : {}),
     ...(isRecord(record.prompt_snapshot) ? { promptSnapshot: record.prompt_snapshot } : {}),
     ...(stringValue(record.created_at) ? { createdAt: stringValue(record.created_at) } : {}),
+    ...(stringValue(record.decision_status) ? { decisionStatus: stringValue(record.decision_status) } : {}),
+    ...(stringValue(record.decision_reason) ? { decisionReason: stringValue(record.decision_reason) } : {}),
     selected: false,
     notes: stringValue(record.status) ?? inputHash ?? '',
   }

@@ -9,6 +9,7 @@ import {
   EDITING_SERVICE_TIMELINE_VIEW_ENDPOINT,
   EDITING_SERVICE_TASK_REQUEST_ENDPOINT,
   EDITING_SERVICE_TASK_ACTION_ENDPOINT,
+  createMediaEditingProjectFromEditDecisions,
   createMediaEditingProjectFromMovScriptEditPlan,
   createMediaEditingProjectFromProductionTimelineClips,
   createMediaEditingProjectFromTimelineAssemblyClips,
@@ -30,6 +31,7 @@ export {
 export const EDITING_SERVICE_CAPABILITIES = Object.freeze([
   'timeline',
   'edit-plan',
+  'edit-decisions',
   'editing-project-command',
   'editing-timeline-view',
   'production-timeline-bundle',
@@ -37,6 +39,7 @@ export const EDITING_SERVICE_CAPABILITIES = Object.freeze([
   'preview-timeline',
   'render-request',
   'media-task-action',
+  'video-compose-project',
 ])
 
 export function createEditingServiceHandler(options = {}) {
@@ -971,6 +974,8 @@ async function executeEditingProjectCommand(command, input, context = {}) {
       return createProject(input)
     case 'createProjectFromEditPlan':
       return createProjectFromEditPlan(input)
+    case 'createProjectFromEditDecisions':
+      return createProjectFromEditDecisions(input)
     case 'createProjectFromPreviewTimeline':
       return createProjectFromPreviewTimeline(input)
     case 'saveProject':
@@ -1273,6 +1278,35 @@ function createProjectFromEditPlan(input) {
     fps: optionalNumber(input.fps),
     background: stringValue(input.background),
     defaultDurationMs: optionalNumber(input.defaultDurationMs ?? input.default_duration_ms),
+  })
+  return {
+    status: 'ok',
+    editing_project: editingProject,
+  }
+}
+
+function createProjectFromEditDecisions(input) {
+  const editDecisions = recordValue(input.editDecisions) ?? recordValue(input.edit_decisions)
+  if (!editDecisions) throw new Error('editDecisions is required')
+  const assetManifest = recordValue(input.assetManifest) ?? recordValue(input.asset_manifest)
+  const editingProject = createMediaEditingProjectFromEditDecisions(editDecisions, {
+    assetManifest,
+    id: stringValue(input.id ?? input.editingProjectId ?? input.editing_project_id),
+    projectId: projectIdValue(input) ?? 'standalone',
+    title: stringValue(input.title),
+    now: stringValue(input.now),
+    width: optionalNumber(input.width),
+    height: optionalNumber(input.height),
+    fps: optionalNumber(input.fps),
+    background: stringValue(input.background),
+    defaultDurationMs: optionalNumber(input.defaultDurationMs ?? input.default_duration_ms),
+    productionId: stringOrNumberValue(input.productionId ?? input.production_id),
+    productionPath: stringValue(input.productionPath ?? input.production_path),
+    targetKind: stringValue(input.targetKind ?? input.target_kind),
+    targetRef: stringValue(input.targetRef ?? input.target_ref),
+    scopeKind: stringValue(input.scopeKind ?? input.scope_kind),
+    scopeRef: stringOrNumberValue(input.scopeRef ?? input.scope_ref),
+    sourceHash: stringValue(input.sourceHash ?? input.source_hash),
   })
   return {
     status: 'ok',

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, Clock3, File, FileAudio, FileText, FolderOpen, Info, Plus, Save, Star, TextCursorInput, Upload, WandSparkles, X, type LucideIcon } from 'lucide-react'
-import { generationParamDefaults } from '@movscript/core/generation'
+import { generationParamDefaults, type GenerationIntentPayload } from '@movscript/core/generation'
 import { suggestMovScriptEntityId } from '@movscript/domain'
 
 import { ResourceFileAudio, ResourceFileImage, ResourceFileVideo } from '@movscript/resource-surface/resource-media-components'
@@ -34,6 +34,7 @@ export type ContentCanvasCandidateGenerationOptions = {
   modelId: string
   params: Record<string, string | number | boolean>
   supportedParams?: PublicModel['supported_params']
+  generationIntent?: GenerationIntentPayload
 }
 
 export type ContentCanvasCandidatePromptPreview = {
@@ -767,7 +768,7 @@ export function GenerationCandidateDialog({
       return
     }
     setParams(generationParamDefaults(selectedModel))
-  }, [selectedModel?.model_def_id, selectedModel?.model_id])
+  }, [selectedModel?.model_id])
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
