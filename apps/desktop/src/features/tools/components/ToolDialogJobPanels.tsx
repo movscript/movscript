@@ -46,7 +46,13 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
-function buildCurl(d: DebugCallResult): string {
+function isMultipartDebugSummary(body?: string | null): boolean {
+  const trimmed = body?.trim().toLowerCase() ?? ''
+  return trimmed.startsWith('(multipart:') || trimmed.startsWith('[multipart')
+}
+
+function buildCurl(d: DebugCallResult): string | null {
+  if (isMultipartDebugSummary(d.request_body)) return null
   const headers = Object.entries(d.request_headers ?? {})
     .map(([k, v]) => `-H '${k}: ${v}'`)
     .join(' \\\n  ')
@@ -62,6 +68,7 @@ function DebugPanel({ job }: { job: Job }) {
   const debug: DebugCallResult | null = job.debug_info ? (() => {
     try { return JSON.parse(job.debug_info!) } catch { return null }
   })() : null
+  const debugCurl = debug ? buildCurl(debug) : null
 
   function KV({ label, value, mono = true, color }: { label: string; value: string; mono?: boolean; color?: string }) {
     const tone = color === 'danger' ? 'danger' : color === 'success' ? 'success' : 'default'
@@ -160,9 +167,11 @@ function DebugPanel({ job }: { job: Job }) {
           {debug.request_body && debug.request_body !== '(no body)' && (
             <JsonBlock text={debug.request_body} />
           )}
-          <div className="flex items-center gap-1.5">
-            <CopyButton text={buildCurl(debug)} />
-          </div>
+          {debugCurl && (
+            <div className="flex items-center gap-1.5">
+              <CopyButton text={debugCurl} />
+            </div>
+          )}
         </Section>
       )}
 

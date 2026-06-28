@@ -33,7 +33,7 @@ export function createLocalAdminLaunchContext(): AdminLaunchContext {
       },
     ],
     current_org_id: 1,
-    api_base_url: `${window.location.origin}/local-api/data`,
+    api_base_url: window.location.origin,
     theme: readLocalTheme(),
     language: readLocalLanguage(),
   }

@@ -11,6 +11,7 @@ export default defineConfig({
     'src/backend/node/index.ts',
     'src/canvas/index.ts',
     'src/content/index.ts',
+    'src/content/node.ts',
     'src/generation/index.ts',
     'src/production/index.ts',
     'src/resources/index.ts',

@@ -19,7 +19,7 @@ import {
   useNodesState,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { ChevronRight, FileText, FolderOpen, GitBranch, Image as ImageIcon, Link2, LocateFixed, Move, Music, Plus, Search, Sparkles, Star, Video, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Clock3, FileText, FolderOpen, GitBranch, Image as ImageIcon, Info, Link2, LocateFixed, Move, Music, Pencil, Plus, RotateCcw, Save, Search, Sparkles, Star, Video, X, type LucideIcon } from 'lucide-react'
 
 import { generationParamDefaults } from '@movscript/core/generation'
 import { allocateMovScriptEntityId } from '@movscript/domain'
@@ -50,13 +50,16 @@ import {
 } from '../application/contentCreativeCanvasActions'
 import {
   buildCreativeCanvasGraph,
+  isCreativeCanvasVisibleNode,
   type CreativeCanvasNode,
 } from '../application/contentCreativeCanvasModel'
 import {
   layoutCreativeCanvas,
 } from '../application/contentCreativeCanvasLayout'
 import {
+  contentCanvasDocumentTitleValidationMessage,
   contentCanvasDocumentScope,
+  normalizeContentCanvasDocumentTitle,
   type ContentCanvasDocument,
   type ContentCanvasDocumentScope,
 } from '../application/contentCanvasDocuments'
@@ -79,6 +82,7 @@ import {
 import { contentCanvasGenerationTargetForNode } from './contentCanvasWorkspaceGenerationModel'
 import {
   appendContentNodeReferenceToPrompt,
+  candidateDecisionForNode,
   iconForContentNode,
   mediaKindForNode,
   mediaKindLabel,
@@ -112,7 +116,7 @@ type CreativeFlowNodeData = {
   onStructuredPromptCommit: (node: ContentCanvasNode, structured: Record<string, unknown>) => void
   onCandidatePreviewOpen: (preview: CreativeFlowNodeCandidatePreview) => void
   onCandidateSelect: (node: ContentCanvasNode, candidate: ContentCanvasCandidate) => void
-  onGenerateWithOptions: (node: ContentCanvasNode, options: ContentCanvasCandidateGenerationOptions) => void
+  onGenerateWithOptions: (node: ContentCanvasNode, options?: Partial<ContentCanvasCandidateGenerationOptions>) => void
   onReferenceToActivePrompt: (node: ContentCanvasNode) => void
   onReferenceDrop: (targetNode: ContentCanvasNode, sourceNodeId: string) => void
   onResourceDrop: (targetNode: ContentCanvasNode, resource: ContentCanvasUploadedResource, position?: ContentCanvasNodePosition) => void
@@ -124,11 +128,20 @@ type CreativeFlowNodeCandidatePreview = {
   id: string
   title: string
   status: string
+  statusTone: 'ready' | 'running' | 'failed' | 'imported' | 'neutral'
   resourceId?: number
   resourceKind?: string
   candidate?: ContentCanvasCandidate
+  failureReason?: string
   selected?: boolean
+  selectable?: boolean
+  retryable?: boolean
   candidateCount?: number
+}
+
+type CreativeFlowCandidatePreviewDialogState = {
+  preview: CreativeFlowNodeCandidatePreview
+  sourceNode: ContentCanvasNode
 }
 
 type CreativeCanvasContextMenuState = {
@@ -186,6 +199,10 @@ type CreativeCanvasQuickCreateDialogState = {
   position: ContentCanvasNodePosition
 }
 
+type ContentCanvasNameDialogState =
+  | { mode: 'create'; initialTitle: string }
+  | { mode: 'rename'; canvasId: string; initialTitle: string }
+
 type CreateReferenceMode = 'existing' | 'new'
 
 type QuickCreatePlanItem = {
@@ -208,8 +225,15 @@ type DragResourcePayloadResource = {
   mimeType?: string
 }
 
+type ContentPromptCanvasNodeDragPayload = {
+  nodeId: string
+}
+
 const CREATIVE_CANVAS_MINIMAP_NODE_LIMIT = 120
+const CONTENT_PROMPT_ASSET_LIBRARY_PAGE_SIZE = 9
+const CONTENT_PROMPT_NODE_CANDIDATE_PAGE_SIZE = 3
 const CONTENT_PROMPT_REFERENCE_DRAG_MIME = 'application/x-movscript-content-reference'
+const CONTENT_PROMPT_CANVAS_NODE_DRAG_MIME = 'application/x-movscript-content-canvas-node'
 const CONTENT_CANVAS_CREATE_SELECT_EMPTY_VALUE = '__empty__'
 
 const nodeTypes = {
@@ -229,6 +253,8 @@ export function ContentPromptCanvasPanel({
   manualPositions: persistedManualPositions,
   namespaceVocabulary,
   savedViewport,
+  savePending,
+  hasUnsavedChanges,
   nodes,
   onAddNodeToCanvas,
   onCandidateCreate,
@@ -251,6 +277,8 @@ export function ContentPromptCanvasPanel({
   onPromptChange,
   onPromptCommit,
   onRemoveNodeFromCanvas,
+  onRenameCanvas,
+  onSaveCanvas,
   onStructuredPromptCommit,
   onResourceOpen,
   onSelectCanvas,
@@ -268,9 +296,11 @@ export function ContentPromptCanvasPanel({
   manualPositions?: Record<string, { x: number; y: number }>
   namespaceVocabulary: ContentCanvasNamespaceVocabularyOptions
   savedViewport?: Viewport
+  savePending?: boolean
+  hasUnsavedChanges?: boolean
   nodes: ContentCanvasNode[]
   onAddNodeToCanvas: (nodeId: string, position?: ContentCanvasNodePosition) => void
-  onCandidateCreate: (node: ContentCanvasNode | undefined, options?: ContentCanvasCandidateGenerationOptions) => void
+  onCandidateCreate: (node: ContentCanvasNode | undefined, options?: Partial<ContentCanvasCandidateGenerationOptions>) => void
   onCandidatePromptPreview: (node: ContentCanvasNode | undefined) => Promise<ContentCanvasCandidatePromptPreview>
   onCandidateResourceSelect: (node: ContentCanvasNode | undefined, resource: ContentCanvasUploadedResource, position?: ContentCanvasNodePosition) => void
   onCandidateSelect: (node: ContentCanvasNode | undefined, candidate: ContentCanvasCandidate) => void
@@ -281,7 +311,7 @@ export function ContentPromptCanvasPanel({
   onClearManualPositionsForNodes: (nodeIds: string[]) => void
   onCreateAssembly: (node: ContentCanvasNode) => void
   onCreateChild: (node: ContentCanvasNode, childKind: CreativeCanvasChildKind, position?: ContentCanvasNodePosition, input?: ContentCanvasCreateNodeInput) => void
-  onCreateCanvas: () => void
+  onCreateCanvas: (title?: string) => void
   onCreateNode: (nodeKind: CreativeCanvasDirectKind, position: ContentCanvasNodePosition, input?: ContentCanvasCreateNodeInput) => void
   onDeleteNode: (node: ContentCanvasNode) => void
   onExpressionPromptChange: (nodeId: string, prompt: string) => void
@@ -290,6 +320,8 @@ export function ContentPromptCanvasPanel({
   onPromptChange: (assetId: string, prompt: string) => void
   onPromptCommit: (node: ContentCanvasNode | undefined, prompt: string) => void
   onRemoveNodeFromCanvas: (nodeId: string) => void
+  onRenameCanvas: (canvasId: string, title: string) => void
+  onSaveCanvas: () => void
   onStructuredPromptCommit: (node: ContentCanvasNode | undefined, structured: Record<string, unknown>) => void
   onResourceOpen: (node: ContentCanvasNode) => void
   onSelectCanvas: (canvasId: string) => void
@@ -307,13 +339,16 @@ export function ContentPromptCanvasPanel({
   const [contextMenu, setContextMenu] = useState<CreativeCanvasContextMenuState | null>(null)
   const [quickAddMenu, setQuickAddMenu] = useState<CreativeCanvasQuickAddMenuState | null>(null)
   const [quickCreateDialog, setQuickCreateDialog] = useState<CreativeCanvasQuickCreateDialogState | null>(null)
-  const [candidatePreviewDialog, setCandidatePreviewDialog] = useState<CreativeFlowNodeCandidatePreview | null>(null)
+  const [canvasNameDialog, setCanvasNameDialog] = useState<ContentCanvasNameDialogState | null>(null)
+  const [candidatePreviewDialog, setCandidatePreviewDialog] = useState<CreativeFlowCandidatePreviewDialogState | null>(null)
   const [assetLibraryOpen, setAssetLibraryOpen] = useState(false)
+  const [assetLibraryPage, setAssetLibraryPage] = useState(1)
   const [nodeLibraryOpen, setNodeLibraryOpen] = useState(false)
   const [nodeLibraryQuery, setNodeLibraryQuery] = useState('')
   const [assetLibraryNotice, setAssetLibraryNotice] = useState<string | null>(null)
   const [flowInstance, setFlowInstance] = useState<ReactFlowInstance<Node<CreativeFlowNodeData>, Edge> | null>(null)
   const consumedFocusRequestIdRef = useRef<number | null>(null)
+  const suppressNextNodeClickRef = useRef(false)
   const panelRef = useRef<HTMLElement | null>(null)
   useEffect(() => {
     setManualPositions(persistedManualPositions ?? {})
@@ -334,6 +369,17 @@ export function ContentPromptCanvasPanel({
       .sort((left, right) => left.title.localeCompare(right.title, 'zh-CN')),
     [nodes],
   )
+  const assetLibraryPageCount = Math.max(1, Math.ceil(assetLibraryNodes.length / CONTENT_PROMPT_ASSET_LIBRARY_PAGE_SIZE))
+  const pagedAssetLibraryNodes = useMemo(
+    () => assetLibraryNodes.slice(
+      (assetLibraryPage - 1) * CONTENT_PROMPT_ASSET_LIBRARY_PAGE_SIZE,
+      assetLibraryPage * CONTENT_PROMPT_ASSET_LIBRARY_PAGE_SIZE,
+    ),
+    [assetLibraryNodes, assetLibraryPage],
+  )
+  useEffect(() => {
+    setAssetLibraryPage((current) => Math.min(Math.max(current, 1), assetLibraryPageCount))
+  }, [assetLibraryPageCount])
   const promptByNodeId = useMemo(() => {
     const output: Record<string, string> = {}
     for (const node of nodes) output[node.id] = promptDraftForNode(node, draftAssetPrompts, draftExpressionPrompts)
@@ -388,8 +434,7 @@ export function ContentPromptCanvasPanel({
     const currentPrompt = promptByNodeId[target.id] ?? ''
     const nextPrompt = appendContentNodeReferenceToPrompt(currentPrompt, sourceNode)
     updatePromptDraft(target, nextPrompt)
-    onPromptCommit(target, nextPrompt)
-  }, [activePromptReferenceTargetId, nodeById, onPromptCommit, promptByNodeId, updatePromptDraft])
+  }, [activePromptReferenceTargetId, nodeById, promptByNodeId, updatePromptDraft])
   const appendReferenceToPromptTarget = useCallback((targetNode: ContentCanvasNode, sourceNodeId: string) => {
     if (targetNode.id === sourceNodeId) return
     const sourceNode = nodeById.get(sourceNodeId)
@@ -397,8 +442,7 @@ export function ContentPromptCanvasPanel({
     const currentPrompt = promptByNodeId[targetNode.id] ?? ''
     const nextPrompt = appendContentNodeReferenceToPrompt(currentPrompt, sourceNode)
     updatePromptDraft(targetNode, nextPrompt)
-    onPromptCommit(targetNode, nextPrompt)
-  }, [nodeById, onPromptCommit, promptByNodeId, updatePromptDraft])
+  }, [nodeById, promptByNodeId, updatePromptDraft])
   const initialFlowNodes = useMemo<Node<CreativeFlowNodeData>[]>(() => creativeGraph.nodes.map((item) => ({
     id: item.id,
     type: 'contentPrompt',
@@ -414,7 +458,7 @@ export function ContentPromptCanvasPanel({
       prompt: promptByNodeId[item.id] ?? '',
       referenceTargetNodeId: activePromptReferenceTargetId,
       onContextMenu: openNodeContextMenu,
-      onCandidatePreviewOpen: setCandidatePreviewDialog,
+      onCandidatePreviewOpen: (preview) => setCandidatePreviewDialog({ preview, sourceNode: item.source }),
       onCandidateSelect: (node, candidate) => onCandidateSelect(node, candidate),
       onGenerateWithOptions: (node, options) => onCandidateCreate(node, options),
       onReferenceToActivePrompt: appendReferenceToActivePrompt,
@@ -476,16 +520,30 @@ export function ContentPromptCanvasPanel({
     openQuickAddMenuAtClientPoint(clientX, clientY)
   }, [openQuickAddMenuAtClientPoint])
 
+  const flowPositionForClientPoint = useCallback((clientX: number, clientY: number): ContentCanvasNodePosition => (
+    flowInstance?.screenToFlowPosition({ x: clientX, y: clientY }) ?? { x: 0, y: 0 }
+  ), [flowInstance])
+
   const positionForCanvasLibraryInsert = useCallback((): ContentCanvasNodePosition => {
     const bounds = panelRef.current?.getBoundingClientRect()
     const clientX = bounds ? bounds.left + bounds.width / 2 : window.innerWidth / 2
     const clientY = bounds ? bounds.top + bounds.height / 2 : window.innerHeight / 2
-    return flowInstance?.screenToFlowPosition({ x: clientX, y: clientY }) ?? { x: 0, y: 0 }
-  }, [flowInstance])
+    return flowPositionForClientPoint(clientX, clientY)
+  }, [flowPositionForClientPoint])
+
+  const addLibraryNodeToCanvasAtPosition = useCallback((node: ContentCanvasNode, position: ContentCanvasNodePosition) => {
+    onAddNodeToCanvas(node.id, position)
+  }, [onAddNodeToCanvas])
 
   const addLibraryNodeToCanvas = useCallback((node: ContentCanvasNode) => {
-    onAddNodeToCanvas(node.id, positionForCanvasLibraryInsert())
-  }, [onAddNodeToCanvas, positionForCanvasLibraryInsert])
+    addLibraryNodeToCanvasAtPosition(node, positionForCanvasLibraryInsert())
+  }, [addLibraryNodeToCanvasAtPosition, positionForCanvasLibraryInsert])
+
+  const startCanvasNodeDrag = useCallback((event: ReactDragEvent, node: ContentCanvasNode) => {
+    event.dataTransfer.effectAllowed = 'copy'
+    event.dataTransfer.setData(CONTENT_PROMPT_CANVAS_NODE_DRAG_MIME, JSON.stringify({ nodeId: node.id } satisfies ContentPromptCanvasNodeDragPayload))
+    event.dataTransfer.setData('text/plain', node.title || node.id)
+  }, [])
 
   const useAssetLibraryNode = useCallback((node: ContentCanvasNode) => {
     if (activePromptReferenceTargetId && activePromptReferenceTargetId !== node.id) {
@@ -532,8 +590,7 @@ export function ContentPromptCanvasPanel({
     const currentPrompt = promptByNodeId[target.id] ?? ''
     const nextPrompt = appendContentNodeReferenceToPrompt(currentPrompt, source)
     updatePromptDraft(target, nextPrompt)
-    onPromptCommit(target, nextPrompt)
-  }, [editablePromptNodeIds, nodeById, onPromptCommit, promptByNodeId, updatePromptDraft])
+  }, [editablePromptNodeIds, nodeById, promptByNodeId, updatePromptDraft])
 
   const positionForContextChildCreate = useCallback((node: ContentCanvasNode): ContentCanvasNodePosition => {
     const flowNode = flowNodes.find((item) => item.id === node.id)
@@ -643,20 +700,32 @@ export function ContentPromptCanvasPanel({
     })
   }, [creativeGraph, flowInstance, flowNodes, onNodePositionsCommit, setFlowNodes])
 
-  const handleCanvasResourceDragOver = useCallback((event: ReactDragEvent) => {
-    if (!resourceDropAcceptsPayload(event.dataTransfer)) return
+  const handleCanvasDragOver = useCallback((event: ReactDragEvent) => {
+    if (!resourceDropAcceptsPayload(event.dataTransfer) && !contentPromptCanvasNodeDropAcceptsPayload(event.dataTransfer)) return
     event.preventDefault()
     event.dataTransfer.dropEffect = 'copy'
   }, [])
 
-  const handleCanvasResourceDrop = useCallback((event: ReactDragEvent) => {
+  const handleCanvasDrop = useCallback((event: ReactDragEvent) => {
+    const draggedNodeId = readContentPromptCanvasNodeDragPayload(event.dataTransfer)?.nodeId
+    if (draggedNodeId) {
+      const draggedNode = nodeById.get(draggedNodeId)
+      if (!draggedNode) return
+      event.preventDefault()
+      event.stopPropagation()
+      setContextMenu(null)
+      setQuickAddMenu(null)
+      addLibraryNodeToCanvasAtPosition(draggedNode, flowPositionForClientPoint(event.clientX, event.clientY))
+      return
+    }
     if (!resourceDropAcceptsPayload(event.dataTransfer)) return
     const resource = contentCanvasUploadedResourceFromDropEvent(event)
     if (!resource) return
     event.preventDefault()
+    event.stopPropagation()
     setContextMenu(null)
     setQuickAddMenu(null)
-    const position = flowInstance?.screenToFlowPosition({ x: event.clientX, y: event.clientY }) ?? { x: 0, y: 0 }
+    const position = flowPositionForClientPoint(event.clientX, event.clientY)
     const targetNode = creativeCanvasResourceTargetForPosition({
       flowNodes,
       focusedNodeId,
@@ -671,10 +740,32 @@ export function ContentPromptCanvasPanel({
     onCandidateResourceSelect(targetNode, resource, position)
     const targetLabel = contentCanvasGenerationTargetForNode(targetNode)?.label ?? targetNode.title
     setAssetLibraryNotice(`已加入 ${targetLabel} 的候选。`)
-  }, [flowInstance, flowNodes, focusedNodeId, nodeById, onCandidateResourceSelect])
+  }, [addLibraryNodeToCanvasAtPosition, flowNodes, flowPositionForClientPoint, focusedNodeId, nodeById, onCandidateResourceSelect])
 
   const generatableCount = creativeGraph.nodes.filter((node) => node.canGenerate).length
   const showMiniMap = creativeGraph.nodes.length <= CREATIVE_CANVAS_MINIMAP_NODE_LIMIT
+  const openCreateCanvasDialog = useCallback(() => {
+    setCanvasNameDialog({
+      mode: 'create',
+      initialTitle: nextContentCanvasTitleSuggestion(canvasDocuments),
+    })
+  }, [canvasDocuments])
+  const openRenameCanvasDialog = useCallback(() => {
+    if (!activeCanvasDocument) return
+    setCanvasNameDialog({
+      mode: 'rename',
+      canvasId: activeCanvasDocument.id,
+      initialTitle: activeCanvasDocument.title,
+    })
+  }, [activeCanvasDocument])
+  const submitCanvasNameDialog = useCallback((title: string) => {
+    if (!canvasNameDialog) return
+    if (canvasNameDialog.mode === 'create') {
+      onCreateCanvas(title)
+      return
+    }
+    onRenameCanvas(canvasNameDialog.canvasId, title)
+  }, [canvasNameDialog, onCreateCanvas, onRenameCanvas])
 
   return (
     <main
@@ -707,11 +798,32 @@ export function ContentPromptCanvasPanel({
         <em>{creativeGraph.nodes.length} 个创作节点，{generatableCount} 个可生成节点</em>
         <button
           type="button"
-          onClick={onCreateCanvas}
+          onClick={openCreateCanvasDialog}
           title="新建内容画布"
           aria-label="新建内容画布"
         >
           <Plus size={14} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          disabled={!activeCanvasDocument}
+          onClick={openRenameCanvasDialog}
+          title="重命名内容画布"
+          aria-label="重命名内容画布"
+        >
+          <Pencil size={14} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="content-prompt-canvas-panel__save-button"
+          data-dirty={hasUnsavedChanges ? 'true' : undefined}
+          disabled={!activeCanvasDocument || savePending}
+          onClick={onSaveCanvas}
+          title={hasUnsavedChanges ? '保存内容画布' : '内容画布已保存'}
+          aria-label="保存内容画布"
+        >
+          <Save size={14} aria-hidden="true" />
+          <span>{savePending ? '保存中' : hasUnsavedChanges ? '保存画布' : '已保存'}</span>
         </button>
         <button
           type="button"
@@ -732,6 +844,12 @@ export function ContentPromptCanvasPanel({
           <span>整理画布</span>
         </button>
       </div>
+      <ContentCanvasNameDialog
+        documents={canvasDocuments}
+        state={canvasNameDialog}
+        onClose={() => setCanvasNameDialog(null)}
+        onSubmit={submitCanvasNameDialog}
+      />
       <div className="content-prompt-canvas-panel__side-rail" onClick={(event) => event.stopPropagation()}>
         <button
           type="button"
@@ -812,6 +930,8 @@ export function ContentPromptCanvasPanel({
                   className="content-prompt-canvas-node-drawer__row"
                   data-added={alreadyAdded ? 'true' : undefined}
                   disabled={alreadyAdded}
+                  draggable={!alreadyAdded}
+                  onDragStart={(event) => startCanvasNodeDrag(event, node)}
                   onClick={() => addLibraryNodeToCanvas(node)}
                 >
                   <span className="content-prompt-canvas-node-drawer__icon">
@@ -856,34 +976,34 @@ export function ContentPromptCanvasPanel({
             <p className="content-prompt-canvas-asset-drawer__notice">{assetLibraryNotice}</p>
           ) : null}
           {assetLibraryNodes.length ? (
-            <div className="content-prompt-canvas-node-drawer__list">
-              {assetLibraryNodes.map((node) => {
-                const alreadyAdded = canvasNodeIdSet.has(node.id)
-                const Icon = iconForContentNode(node)
-                return (
-                  <button
-                    key={node.id}
-                    type="button"
-                    className="content-prompt-canvas-node-drawer__row"
-                    data-added={alreadyAdded ? 'true' : undefined}
-                    disabled={alreadyAdded && !(activePromptReferenceTargetId && activePromptReferenceTargetId !== node.id)}
-                    onClick={() => useAssetLibraryNode(node)}
-                  >
-                    <span className="content-prompt-canvas-node-drawer__icon">
-                      <Icon size={14} aria-hidden="true" />
-                    </span>
-                    <span className="content-prompt-canvas-node-drawer__copy">
-                      <strong>{node.title}</strong>
-                      <small>{contentCanvasNodeLibraryLabel(node)}</small>
-                    </span>
-                    <span className="content-prompt-canvas-node-drawer__action">
-                      {activePromptReferenceTargetId && activePromptReferenceTargetId !== node.id ? '引用' : alreadyAdded ? '已加入' : '加入'}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          ) : null}
+            <>
+              <div className="content-prompt-canvas-asset-drawer__grid">
+                {pagedAssetLibraryNodes.map((node) => {
+                  const alreadyAdded = canvasNodeIdSet.has(node.id)
+                  const canReference = Boolean(activePromptReferenceTargetId && activePromptReferenceTargetId !== node.id)
+                  return (
+                    <ContentPromptCanvasAssetLibraryCard
+                      key={node.id}
+                      node={node}
+                      candidateSelections={candidateSelections}
+                      actionLabel={canReference ? '引用' : alreadyAdded ? '已加入' : '加入'}
+                      disabled={alreadyAdded && !canReference}
+                      onDragStart={(event) => startCanvasNodeDrag(event, node)}
+                      onClick={() => useAssetLibraryNode(node)}
+                    />
+                  )
+                })}
+              </div>
+              <ContentPromptCanvasAssetDrawerPager
+                page={assetLibraryPage}
+                pageCount={assetLibraryPageCount}
+                total={assetLibraryNodes.length}
+                onPage={setAssetLibraryPage}
+              />
+            </>
+          ) : (
+            <p className="content-prompt-canvas-node-drawer__empty">暂无资产</p>
+          )}
           <ContentCanvasResourceCandidatePicker
             mediaKind={mediaKindForNode(activeAssetTarget?.generationTarget.node)}
             onSelect={selectAssetLibraryResource}
@@ -899,16 +1019,24 @@ export function ContentPromptCanvasPanel({
         defaultViewport={savedViewport}
         onNodesChange={onNodesChange}
         onMoveEnd={(_event, viewport) => onViewportCommit(viewport)}
-        onNodeClick={(_event, node) => selectPromptCanvasNode(node.id)}
-        onNodeDragStart={(_event, node) => selectPromptCanvasNode(node.id)}
+        onNodeClick={(_event, node) => {
+          if (suppressNextNodeClickRef.current) {
+            suppressNextNodeClickRef.current = false
+            return
+          }
+          selectPromptCanvasNode(node.id)
+        }}
+        onNodeDragStart={() => {
+          suppressNextNodeClickRef.current = true
+        }}
         onPaneClick={() => {
           setContextMenu(null)
           setQuickAddMenu(null)
           onCanvasDeselect()
         }}
         onPaneContextMenu={openQuickAddMenu}
-        onDragOver={handleCanvasResourceDragOver}
-        onDrop={handleCanvasResourceDrop}
+        onDragOver={handleCanvasDragOver}
+        onDrop={handleCanvasDrop}
         deleteKeyCode={null}
         selectionOnDrag
         panOnDrag={[1, 2]}
@@ -925,6 +1053,9 @@ export function ContentPromptCanvasPanel({
           }
           setManualPositions((current) => ({ ...current, ...visiblePositions }))
           onNodePositionsCommit(visiblePositions)
+          window.setTimeout(() => {
+            suppressNextNodeClickRef.current = false
+          }, 0)
         }}
         fitView={!savedViewport}
         fitViewOptions={{ padding: 0.18 }}
@@ -1029,11 +1160,224 @@ export function ContentPromptCanvasPanel({
       ) : null}
       {candidatePreviewDialog ? (
         <ContentPromptCandidatePreviewDialog
-          preview={candidatePreviewDialog}
+          preview={candidatePreviewDialog.preview}
+          sourceNode={candidatePreviewDialog.sourceNode}
+          onRetry={() => onCandidateCreate(candidatePreviewDialog.sourceNode, candidateRetryGenerationOptions(candidatePreviewDialog.preview))}
           onClose={() => setCandidatePreviewDialog(null)}
         />
       ) : null}
     </main>
+  )
+}
+
+function ContentPromptCanvasAssetLibraryCard({
+  actionLabel,
+  candidateSelections,
+  disabled,
+  node,
+  onClick,
+  onDragStart,
+}: {
+  actionLabel: string
+  candidateSelections: CandidateSelections
+  disabled: boolean
+  node: ContentCanvasNode
+  onClick: () => void
+  onDragStart: (event: ReactDragEvent) => void
+}) {
+  const preview = currentCandidatePreview(candidatePreviewsForNode(node, candidateSelections))
+  const mediaKind = preview ? candidatePreviewMediaKind(preview) : mediaKindForCurrentState(mediaKindForNode(node))
+  const canPreview = preview?.resourceId !== undefined && mediaKind !== 'file'
+  const decision = candidateDecisionForNode(node, candidateSelections)
+  const candidateCount = decision?.candidateCount ?? 0
+  const stateLabel = candidateCount > 0
+    ? decision?.label ?? '候选'
+    : '无候选'
+  const Icon = iconForContentNode(node)
+  return (
+    <button
+      type="button"
+      className="content-prompt-canvas-asset-card"
+      data-state={candidateCount > 0 ? decision?.tone ?? 'ready' : 'empty'}
+      disabled={disabled}
+      draggable={!disabled}
+      onDragStart={onDragStart}
+      onClick={onClick}
+    >
+      <span className="content-prompt-canvas-asset-card__thumb" data-has-media={canPreview ? 'true' : undefined}>
+        {preview?.resourceId !== undefined && mediaKind === 'image' ? (
+          <ResourceFileImage resourceId={preview.resourceId} alt={preview.title || preview.id} loading="lazy" thumbnailMaxSize={192} />
+        ) : null}
+        {preview?.resourceId !== undefined && mediaKind === 'video' ? (
+          <ResourceFileVideo resourceId={preview.resourceId} muted playsInline preload="metadata" />
+        ) : null}
+        {!canPreview ? (
+          <span>
+            <Icon size={22} aria-hidden="true" />
+          </span>
+        ) : null}
+        <em>{stateLabel}</em>
+      </span>
+      <span className="content-prompt-canvas-asset-card__copy">
+        <strong>{node.title}</strong>
+        <small>{candidateCount ? `${candidateCount} 候选` : contentCanvasNodeLibraryLabel(node)}</small>
+      </span>
+      <span className="content-prompt-canvas-asset-card__action">{actionLabel}</span>
+    </button>
+  )
+}
+
+function ContentPromptCanvasAssetDrawerPager({
+  page,
+  pageCount,
+  total,
+  onPage,
+}: {
+  page: number
+  pageCount: number
+  total: number
+  onPage: (page: number) => void
+}) {
+  return (
+    <div className="content-prompt-canvas-asset-drawer__pager">
+      <span>{total} 个资产 · {page}/{pageCount}</span>
+      <div>
+        <button
+          type="button"
+          disabled={page <= 1}
+          onClick={() => onPage(Math.max(1, page - 1))}
+          aria-label="上一页"
+          title="上一页"
+        >
+          <ChevronLeft size={13} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          disabled={page >= pageCount}
+          onClick={() => onPage(Math.min(pageCount, page + 1))}
+          aria-label="下一页"
+          title="下一页"
+        >
+          <ChevronRight size={13} aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ContentPromptFlowNodeCandidatePager({
+  page,
+  pageCount,
+  total,
+  onPage,
+}: {
+  page: number
+  pageCount: number
+  total: number
+  onPage: (page: number) => void
+}) {
+  return (
+    <div
+      className="content-prompt-flow-node__candidate-pager nodrag"
+      role="group"
+      aria-label={`${total} 个候选，第 ${page}/${pageCount} 页`}
+    >
+      <button
+        type="button"
+        disabled={page <= 1}
+        onClick={(event) => {
+          event.stopPropagation()
+          onPage(Math.max(1, page - 1))
+        }}
+        aria-label="上一页候选"
+        title="上一页候选"
+      >
+        <ChevronLeft size={12} aria-hidden="true" />
+      </button>
+      <span>{page}/{pageCount}</span>
+      <button
+        type="button"
+        disabled={page >= pageCount}
+        onClick={(event) => {
+          event.stopPropagation()
+          onPage(Math.min(pageCount, page + 1))
+        }}
+        aria-label="下一页候选"
+        title="下一页候选"
+      >
+        <ChevronRight size={12} aria-hidden="true" />
+      </button>
+    </div>
+  )
+}
+
+function ContentCanvasNameDialog({
+  documents,
+  state,
+  onClose,
+  onSubmit,
+}: {
+  documents: ContentCanvasDocument[]
+  state: ContentCanvasNameDialogState | null
+  onClose: () => void
+  onSubmit: (title: string) => void
+}) {
+  const [title, setTitle] = useState('')
+  useEffect(() => {
+    setTitle(state?.initialTitle ?? '')
+  }, [state])
+  const normalizedTitle = normalizeContentCanvasDocumentTitle(title)
+  const currentCanvasId = state?.mode === 'rename' ? state.canvasId : undefined
+  const validationMessage = state
+    ? contentCanvasDocumentTitleValidationMessage(title, documents, currentCanvasId)
+    : undefined
+  const unchanged = state?.mode === 'rename'
+    && normalizedTitle === normalizeContentCanvasDocumentTitle(state.initialTitle)
+  const canSubmit = Boolean(state && !validationMessage && !unchanged)
+  const titleInputId = state?.mode === 'rename'
+    ? 'content-canvas-rename-title'
+    : 'content-canvas-create-title'
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!canSubmit) return
+    onSubmit(normalizedTitle)
+    onClose()
+  }
+
+  return (
+    <Dialog open={Boolean(state)} onOpenChange={(open) => {
+      if (!open) onClose()
+    }}>
+      <DialogContent className="content-canvas-create-dialog">
+        <DialogHeader>
+          <DialogTitle>{state?.mode === 'rename' ? '重命名内容画布' : '新建内容画布'}</DialogTitle>
+        </DialogHeader>
+        <form className="content-canvas-create-dialog__form" onSubmit={handleSubmit}>
+          <Label className="content-canvas-create-dialog__field" htmlFor={titleInputId}>
+            <span>名称</span>
+            <Input
+              id={titleInputId}
+              autoFocus
+              value={title}
+              placeholder="例如：第一幕视觉候选"
+              onChange={(event) => setTitle(event.target.value)}
+            />
+          </Label>
+          {validationMessage ? (
+            <p className="content-canvas-create-dialog__error">{validationMessage}</p>
+          ) : null}
+          <DialogFooter className="content-canvas-create-dialog__footer">
+            <button type="button" className="content-canvas-create-dialog__button" onClick={onClose}>
+              取消
+            </button>
+            <button type="submit" className="content-canvas-create-dialog__button content-canvas-create-dialog__button--primary" disabled={!canSubmit}>
+              {state?.mode === 'rename' ? '保存名称' : '创建画布'}
+            </button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -1048,6 +1392,19 @@ function ContentPromptFlowNode({ data }: NodeProps<Node<CreativeFlowNodeData>>) 
   const focused = data.focused
   const expanded = focused
   const currentPreview = currentCandidatePreview(data.candidatePreviews)
+  const [candidatePage, setCandidatePage] = useState(1)
+  const candidatePageCount = Math.max(1, Math.ceil(data.candidatePreviews.length / CONTENT_PROMPT_NODE_CANDIDATE_PAGE_SIZE))
+  const safeCandidatePage = Math.min(Math.max(candidatePage, 1), candidatePageCount)
+  const pagedCandidatePreviews = data.candidatePreviews.slice(
+    (safeCandidatePage - 1) * CONTENT_PROMPT_NODE_CANDIDATE_PAGE_SIZE,
+    safeCandidatePage * CONTENT_PROMPT_NODE_CANDIDATE_PAGE_SIZE,
+  )
+  useEffect(() => {
+    setCandidatePage(1)
+  }, [node.id])
+  useEffect(() => {
+    setCandidatePage((current) => Math.min(Math.max(current, 1), candidatePageCount))
+  }, [candidatePageCount])
   return (
     <article
       className="content-prompt-flow-node"
@@ -1059,7 +1416,6 @@ function ContentPromptFlowNode({ data }: NodeProps<Node<CreativeFlowNodeData>>) 
       data-weight={data.item.weight}
       data-reference-drop-target={editablePrompt ? 'true' : undefined}
       onContextMenu={(event) => data.onContextMenu(event, node)}
-      onClick={() => data.onSelectNode(selectionKindForPromptNode(node), node.id)}
       onDragOver={(event) => {
         const acceptsPromptReference = editablePrompt && event.dataTransfer.types.includes(CONTENT_PROMPT_REFERENCE_DRAG_MIME)
         const acceptsResourceCandidate = data.item.canGenerate && resourceDropAcceptsPayload(event.dataTransfer)
@@ -1098,64 +1454,80 @@ function ContentPromptFlowNode({ data }: NodeProps<Node<CreativeFlowNodeData>>) 
             <Move size={12} aria-hidden="true" />
           </span>
         </div>
-        {node.kind !== 'resource' ? (
-          <div className="content-prompt-flow-node__media">
-            {expanded ? (
-              <div className="content-prompt-flow-node__state-grid">
-                <section className="content-prompt-flow-node__state-panel">
-                  <header>
-                    <span>当前状态</span>
-                    <button
-                      type="button"
-                      className="content-prompt-flow-node__role nodrag"
-                      onClick={() => data.onSelectNode(selectionKindForPromptNode(node), node.id)}
-                    >
-                      {display.badge}
-                    </button>
-                  </header>
-                  <ContentPromptFlowNodeCurrentState
-                    mediaKind={generationMediaKind}
-                    node={node}
-                    preview={currentPreview}
-                    onOpen={() => currentPreview ? data.onCandidatePreviewOpen(currentPreview) : undefined}
-                  />
-                </section>
-                <section className="content-prompt-flow-node__candidate-panel">
-                  <header>
-                    <span>候选</span>
-                    <em>{data.candidatePreviews.length}</em>
-                  </header>
-                  {data.candidatePreviews.length ? (
-                    <div className="content-prompt-flow-node__candidate-list">
-                      {data.candidatePreviews.map((preview) => (
-                        <ContentPromptFlowNodeCandidatePreview
-                          key={preview.key}
-                          preview={preview}
-                          variant={node.kind === 'resource' ? 'resource' : 'candidate'}
-                          canReference={Boolean(data.referenceTargetNodeId && data.referenceTargetNodeId !== node.id)}
-                          sourceNode={node}
-                          onOpen={() => data.onCandidatePreviewOpen(preview)}
-                          onReference={() => data.onReferenceToActivePrompt(node)}
-                          onSelect={() => preview.candidate ? data.onCandidateSelect(node, preview.candidate) : undefined}
-                        />
-                      ))}
-                    </div>
+        <div className="content-prompt-flow-node__media">
+          {node.kind === 'resource' ? (
+            <ContentPromptFlowNodeCurrentState
+              compact={!expanded}
+              mediaKind={generationMediaKind}
+              node={node}
+              preview={currentPreview}
+              onOpen={() => currentPreview ? data.onCandidatePreviewOpen(currentPreview) : undefined}
+            />
+          ) : expanded ? (
+            <div className="content-prompt-flow-node__state-grid">
+              <section className="content-prompt-flow-node__state-panel">
+                <header>
+                  <span>当前状态</span>
+                  <button
+                    type="button"
+                    className="content-prompt-flow-node__role nodrag"
+                    onClick={() => data.onSelectNode(selectionKindForPromptNode(node), node.id)}
+                  >
+                    {display.badge}
+                  </button>
+                </header>
+                <ContentPromptFlowNodeCurrentState
+                  mediaKind={generationMediaKind}
+                  node={node}
+                  preview={currentPreview}
+                  onOpen={() => currentPreview ? data.onCandidatePreviewOpen(currentPreview) : undefined}
+                />
+              </section>
+              <section className="content-prompt-flow-node__candidate-panel">
+                <header>
+                  <span>候选</span>
+                  {candidatePageCount > 1 ? (
+                    <ContentPromptFlowNodeCandidatePager
+                      page={safeCandidatePage}
+                      pageCount={candidatePageCount}
+                      total={data.candidatePreviews.length}
+                      onPage={setCandidatePage}
+                    />
                   ) : (
-                    <div className="content-prompt-flow-node__candidate-empty">暂无候选</div>
+                    <em>{data.candidatePreviews.length}</em>
                   )}
-                </section>
-              </div>
-            ) : (
-              <ContentPromptFlowNodeCurrentState
-                compact
-                mediaKind={generationMediaKind}
-                node={node}
-                preview={currentPreview}
-                onOpen={() => currentPreview ? data.onCandidatePreviewOpen(currentPreview) : undefined}
-              />
-            )}
-          </div>
-        ) : null}
+                </header>
+                {data.candidatePreviews.length ? (
+                  <div className="content-prompt-flow-node__candidate-list nowheel" data-paged="true">
+                    {pagedCandidatePreviews.map((preview) => (
+                      <ContentPromptFlowNodeCandidatePreview
+                        key={preview.key}
+                        preview={preview}
+                        variant={node.kind === 'resource' ? 'resource' : 'candidate'}
+                        canReference={Boolean(data.referenceTargetNodeId && data.referenceTargetNodeId !== node.id)}
+                        sourceNode={node}
+                        onOpen={() => data.onCandidatePreviewOpen(preview)}
+                        onReference={() => data.onReferenceToActivePrompt(node)}
+                        onRetry={() => data.onGenerateWithOptions(node, candidateRetryGenerationOptions(preview))}
+                        onSelect={() => preview.candidate ? data.onCandidateSelect(node, preview.candidate) : undefined}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="content-prompt-flow-node__candidate-empty">暂无候选</div>
+                )}
+              </section>
+            </div>
+          ) : (
+            <ContentPromptFlowNodeCurrentState
+              compact
+              mediaKind={generationMediaKind}
+              node={node}
+              preview={currentPreview}
+              onOpen={() => currentPreview ? data.onCandidatePreviewOpen(currentPreview) : undefined}
+            />
+          )}
+        </div>
         <div className="content-prompt-flow-node__meta">
           {data.item.canGenerate && canGenerateWithModel && !expanded ? (
             <button
@@ -2058,6 +2430,7 @@ function ContentPromptFlowNodeCandidatePreview({
   sourceNode,
   onOpen,
   onReference,
+  onRetry,
   onSelect,
 }: {
   preview: CreativeFlowNodeCandidatePreview
@@ -2066,10 +2439,42 @@ function ContentPromptFlowNodeCandidatePreview({
   sourceNode: ContentCanvasNode
   onOpen: () => void
   onReference: () => void
+  onRetry: () => void
   onSelect: () => void
 }) {
   const mediaKind = candidatePreviewMediaKind(preview)
   const canPreview = preview.resourceId !== undefined && mediaKind !== 'file'
+  const hasThumb = variant === 'candidate' || canPreview
+  const PlaceholderIcon = candidatePreviewPlaceholderIcon(preview)
+  const failureReason = preview.failureReason
+  const detailButton = variant !== 'resource' ? (
+    <button
+      type="button"
+      className="content-prompt-flow-node__candidate-detail"
+      onClick={(event) => {
+        event.stopPropagation()
+        onOpen()
+      }}
+      aria-label={`查看候选 ${preview.title || preview.id} 详情`}
+      title="查看详情"
+    >
+      <Info size={12} aria-hidden="true" />
+    </button>
+  ) : null
+  const retryButton = variant !== 'resource' && preview.retryable ? (
+    <button
+      type="button"
+      className="content-prompt-flow-node__candidate-retry"
+      onClick={(event) => {
+        event.stopPropagation()
+        onRetry()
+      }}
+      aria-label={`重新生成候选 ${preview.title || preview.id}`}
+      title="重新生成"
+    >
+      <RotateCcw size={12} aria-hidden="true" />
+    </button>
+  ) : null
   const referenceButton = canReference ? (
     <button
       type="button"
@@ -2090,17 +2495,19 @@ function ContentPromptFlowNodeCandidatePreview({
       className="content-prompt-flow-node__candidate-select"
       onClick={(event) => {
         event.stopPropagation()
-        if (!preview.selected) onSelect()
+        if (!preview.selected && preview.selectable) onSelect()
       }}
-      disabled={preview.selected}
+      disabled={preview.selected || !preview.selectable}
       aria-label={preview.selected ? `已选择候选 ${preview.title || preview.id}` : `选择候选 ${preview.title || preview.id}`}
-      title={preview.selected ? '已选择候选' : '选择候选'}
+      title={preview.selected ? '已选择候选' : preview.selectable ? '选择候选' : '当前候选不可选择'}
     >
       <Star size={12} aria-hidden="true" fill={preview.selected ? 'currentColor' : 'none'} />
     </button>
   ) : null
-  const actionButtons = variant !== 'resource' && (referenceButton || selectionButton) ? (
+  const actionButtons = variant !== 'resource' && (detailButton || retryButton || referenceButton || selectionButton) ? (
     <span className="content-prompt-flow-node__candidate-actions">
+      {detailButton}
+      {retryButton}
       {referenceButton}
       {selectionButton}
     </span>
@@ -2108,10 +2515,19 @@ function ContentPromptFlowNodeCandidatePreview({
   return (
     <div
       className="content-prompt-flow-node__candidate nodrag"
-      data-has-media={canPreview ? 'true' : undefined}
+      data-has-media={hasThumb ? 'true' : undefined}
       data-media-kind={mediaKind}
       data-preview-kind={variant}
+      data-status={preview.statusTone}
       draggable
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        onOpen()
+      }}
       onDragStart={(event) => {
         event.stopPropagation()
         event.dataTransfer.effectAllowed = 'copy'
@@ -2119,31 +2535,39 @@ function ContentPromptFlowNodeCandidatePreview({
         event.dataTransfer.setData('text/plain', sourceNode.title || preview.title || preview.id)
       }}
     >
-      {canPreview ? (
-        <span className="content-prompt-flow-node__candidate-thumb">
+      {hasThumb ? (
+        <span
+          className="content-prompt-flow-node__candidate-thumb"
+          data-placeholder={!canPreview ? 'true' : undefined}
+          data-status={preview.statusTone}
+        >
           {preview.resourceId !== undefined && mediaKind === 'image' ? (
             <ResourceFileImage resourceId={preview.resourceId} alt={preview.title || preview.id} loading="lazy" thumbnailMaxSize={96} />
           ) : null}
           {preview.resourceId !== undefined && mediaKind === 'video' ? (
             <ResourceFileVideo resourceId={preview.resourceId} muted playsInline preload="metadata" />
           ) : null}
-          <button
-            type="button"
-            className="content-prompt-flow-node__candidate-zoom"
-            onClick={(event) => {
-              event.stopPropagation()
-              onOpen()
-            }}
-            aria-label={`查看候选 ${preview.title || preview.id}`}
-          >
-            <Search size={14} aria-hidden="true" />
-          </button>
+          {!canPreview ? <PlaceholderIcon size={16} aria-hidden="true" /> : null}
+          {canPreview ? (
+            <button
+              type="button"
+              className="content-prompt-flow-node__candidate-zoom"
+              onClick={(event) => {
+                event.stopPropagation()
+                onOpen()
+              }}
+              aria-label={`查看候选 ${preview.title || preview.id}`}
+            >
+              <Search size={14} aria-hidden="true" />
+            </button>
+          ) : null}
         </span>
       ) : null}
       {variant !== 'resource' ? (
         <span>
           <strong>{preview.title || preview.id}</strong>
           <small>{previewStatusLabel(preview)}</small>
+          {failureReason ? <small className="content-prompt-flow-node__candidate-reason">{failureReason}</small> : null}
         </span>
       ) : null}
       {actionButtons}
@@ -2153,12 +2577,19 @@ function ContentPromptFlowNodeCandidatePreview({
 
 function ContentPromptCandidatePreviewDialog({
   preview,
+  sourceNode,
+  onRetry,
   onClose,
 }: {
   preview: CreativeFlowNodeCandidatePreview
+  sourceNode: ContentCanvasNode
+  onRetry: () => void
   onClose: () => void
 }) {
   const mediaKind = candidatePreviewMediaKind(preview)
+  const canPreview = preview.resourceId !== undefined && mediaKind !== 'file'
+  const PlaceholderIcon = candidatePreviewPlaceholderIcon(preview)
+  const canRetry = preview.retryable
   const dialog = (
     <div
       className="content-prompt-candidate-preview-dialog"
@@ -2187,12 +2618,86 @@ function ContentPromptCandidatePreviewDialog({
           {preview.resourceId !== undefined && mediaKind === 'video' ? (
             <ResourceFileVideo resourceId={preview.resourceId} controls autoPlay playsInline preload="metadata" />
           ) : null}
+          {!canPreview ? (
+            <div className="content-prompt-candidate-preview-dialog__placeholder" data-status={preview.statusTone}>
+              <PlaceholderIcon size={26} aria-hidden="true" />
+              <strong>{preview.status}</strong>
+              <span>{preview.failureReason ?? `${sourceNode.title} 暂无可预览媒体`}</span>
+            </div>
+          ) : null}
+        </div>
+        {preview.candidate ? (
+          <ContentPromptCandidatePreviewDiagnostics
+            preview={preview}
+            sourceNode={sourceNode}
+          />
+        ) : null}
+        <div className="content-prompt-candidate-preview-dialog__footer">
+          {canRetry ? (
+            <button
+              type="button"
+              className="content-prompt-candidate-preview-dialog__retry"
+              onClick={() => {
+                onRetry()
+                onClose()
+              }}
+            >
+              <RotateCcw size={13} aria-hidden="true" />
+              重新生成
+            </button>
+          ) : null}
+          <button type="button" onClick={onClose}>关闭</button>
         </div>
       </div>
     </div>
   )
   if (typeof document === 'undefined') return dialog
   return createPortal(dialog, document.body)
+}
+
+function ContentPromptCandidatePreviewDiagnostics({
+  preview,
+  sourceNode,
+}: {
+  preview: CreativeFlowNodeCandidatePreview
+  sourceNode: ContentCanvasNode
+}) {
+  const candidate = preview.candidate
+  if (!candidate) return null
+  const jobId = candidateJobId(candidate)
+  const modelId = candidateModelId(candidate)
+  const promptText = candidatePromptSnapshotText(candidate)
+  const details = [
+    ['节点', sourceNode.title],
+    ['状态', preview.status],
+    jobId ? ['Job', jobId] : undefined,
+    modelId ? ['模型', modelId] : undefined,
+    candidate.resourceId !== undefined ? ['资源', `Resource ${candidate.resourceId}`] : undefined,
+  ].filter((item): item is string[] => Boolean(item))
+  return (
+    <section className="content-prompt-candidate-preview-dialog__diagnostics">
+      {preview.failureReason ? (
+        <div className="content-prompt-candidate-preview-dialog__reason" data-status={preview.statusTone}>
+          <strong>失败原因</strong>
+          <p>{preview.failureReason}</p>
+        </div>
+      ) : null}
+      <dl>
+        {details.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {promptText ? (
+        <div className="content-prompt-candidate-preview-dialog__prompt">
+          <strong>提示词快照</strong>
+          <pre>{promptText}</pre>
+        </div>
+      ) : null}
+    </section>
+  )
 }
 
 function areCreativeFlowNodePropsEqual(
@@ -2255,17 +2760,26 @@ function candidatePreviewsForNode(
   if (!target?.candidates.length) return []
   const explicitSelectionId = explicitCandidateSelectionIdForNode(node, target.node, candidateSelections)
   const repeatedIds = repeatedCandidateIds(target.candidates)
-  return target.candidates.map((candidate, index) => ({
-    key: candidatePreviewKey(candidate, index),
-    id: candidate.id,
-    title: candidate.title || candidate.id,
-    status: candidate.selected ? '当前候选' : candidate.status ?? '候选',
-    ...(candidate.resourceId !== undefined ? { resourceId: candidate.resourceId } : {}),
-    resourceKind: candidate.resourceKind ?? mediaKindForNode(target.node),
-    candidate,
-    selected: candidate.selected || (explicitSelectionId === candidate.id && !repeatedIds.has(candidate.id)),
-    candidateCount: target.candidates.length,
-  }))
+  return target.candidates.map((candidate, index) => {
+    const selected = candidate.selected || (explicitSelectionId === candidate.id && !repeatedIds.has(candidate.id))
+    const statusView = candidatePreviewStatusView(candidate, selected)
+    const failureReason = candidateFailureReason(candidate)
+    return {
+      key: candidatePreviewKey(candidate, index),
+      id: candidate.id,
+      title: candidate.title || candidate.id,
+      status: statusView.label,
+      statusTone: statusView.tone,
+      ...(candidate.resourceId !== undefined ? { resourceId: candidate.resourceId } : {}),
+      resourceKind: candidate.resourceKind ?? mediaKindForNode(target.node),
+      candidate,
+      ...(failureReason ? { failureReason } : {}),
+      selected,
+      selectable: candidatePreviewCanSelect(candidate, selected),
+      retryable: candidatePreviewCanRetry(candidate),
+      candidateCount: target.candidates.length,
+    }
+  })
 }
 
 function resourcePreviewForNode(node: ContentCanvasNode): CreativeFlowNodeCandidatePreview | null {
@@ -2276,6 +2790,7 @@ function resourcePreviewForNode(node: ContentCanvasNode): CreativeFlowNodeCandid
     id: `resource:${resourceId}`,
     title: node.title || `Resource ${resourceId}`,
     status: node.record.source === 'prompt_reference' ? 'Raw Resource' : node.subtitle || '资源',
+    statusTone: 'ready',
     resourceId,
     resourceKind: resourceKindForNodeRecord(node.record) ?? 'image',
   }
@@ -2289,7 +2804,11 @@ function creativeFlowNodeCandidatePreviewsKey(previews: CreativeFlowNodeCandidat
     preview.status,
     preview.resourceId ?? '',
     preview.resourceKind ?? '',
+    preview.statusTone,
+    preview.failureReason ?? '',
     preview.selected ? 'selected' : '',
+    preview.selectable ? 'selectable' : '',
+    preview.retryable ? 'retryable' : '',
     preview.candidateCount ?? '',
   ].join(':')).join('|')
 }
@@ -2297,6 +2816,179 @@ function creativeFlowNodeCandidatePreviewsKey(previews: CreativeFlowNodeCandidat
 function previewStatusLabel(preview: CreativeFlowNodeCandidatePreview): string {
   const count = preview.candidateCount && preview.candidateCount > 1 ? ` · ${preview.candidateCount} 候选` : ''
   return `${preview.status}${count}`
+}
+
+function candidatePreviewStatusView(
+  candidate: ContentCanvasCandidate,
+  selected: boolean,
+): { label: string; tone: CreativeFlowNodeCandidatePreview['statusTone'] } {
+  if (selected) return { label: '当前候选', tone: 'ready' }
+  const status = normalizedCandidateStatus(candidate)
+  if (status === 'queued' || status === 'pending') return { label: '排队中', tone: 'running' }
+  if (status === 'running') return { label: '生成中', tone: 'running' }
+  if (status === 'failed') return { label: '生成失败', tone: 'failed' }
+  if (status === 'canceled' || status === 'cancelled') return { label: '已取消', tone: 'failed' }
+  if (status === 'imported') return { label: '已导入', tone: 'imported' }
+  if (status === 'succeeded' || candidate.resourceId !== undefined || candidate.artifactRef) return { label: '可选择', tone: 'ready' }
+  return { label: '候选', tone: 'neutral' }
+}
+
+function candidatePreviewCanSelect(candidate: ContentCanvasCandidate, selected: boolean): boolean {
+  if (selected) return true
+  const status = normalizedCandidateStatus(candidate)
+  if (status === 'queued' || status === 'pending' || status === 'running' || status === 'failed' || status === 'canceled' || status === 'cancelled') return false
+  return candidate.resourceId !== undefined || Boolean(candidate.artifactRef) || status === 'succeeded' || status === 'imported' || status === undefined
+}
+
+function candidatePreviewCanRetry(candidate: ContentCanvasCandidate): boolean {
+  const status = normalizedCandidateStatus(candidate)
+  return status === 'failed' || status === 'canceled' || status === 'cancelled'
+}
+
+function candidateRetryGenerationOptions(preview: CreativeFlowNodeCandidatePreview): Partial<ContentCanvasCandidateGenerationOptions> {
+  const candidate = preview.candidate
+  if (!candidate) return {}
+  const modelId = candidateModelId(candidate)
+  const params = candidateModelParams(candidate)
+  return {
+    ...(modelId ? { modelId } : {}),
+    ...(params ? { params } : {}),
+  }
+}
+
+function candidatePreviewPlaceholderIcon(preview: CreativeFlowNodeCandidatePreview): LucideIcon {
+  if (preview.statusTone === 'running') return Clock3
+  if (preview.statusTone === 'failed') return X
+  if (preview.statusTone === 'ready' || preview.statusTone === 'imported') return FileText
+  return Sparkles
+}
+
+function candidateFailureReason(candidate: ContentCanvasCandidate): string | undefined {
+  const status = normalizedCandidateStatus(candidate)
+  const producer = recordValue(candidate.producer)
+  const promptSnapshot = recordValue(candidate.promptSnapshot)
+  const output = firstRecord(candidate.outputs)
+  const outputMetadata = recordValue(output?.metadata)
+  const reason = firstText([
+    candidateNote(candidate),
+    producer?.error_message,
+    producer?.errorMessage,
+    producer?.failure_reason,
+    producer?.failureReason,
+    producer?.status_message,
+    producer?.statusMessage,
+    producer?.message,
+    producer?.error,
+    promptSnapshot?.error_message,
+    promptSnapshot?.errorMessage,
+    promptSnapshot?.message,
+    promptBlockerSummary(promptSnapshot?.blockers),
+    outputMetadata?.error_message,
+    outputMetadata?.errorMessage,
+    outputMetadata?.message,
+    outputMetadata?.error,
+  ])
+  if (reason) return reason
+  if (status === 'failed') return '生成任务失败，未返回具体错误。'
+  if (status === 'canceled' || status === 'cancelled') return '生成任务已取消。'
+  return undefined
+}
+
+function candidateNote(candidate: ContentCanvasCandidate): string | undefined {
+  const note = stringRecordField(candidate.notes)
+  if (!note) return undefined
+  const status = normalizedCandidateStatus(candidate)
+  return status && note.toLowerCase() === status ? undefined : note
+}
+
+function candidateJobId(candidate: ContentCanvasCandidate): string | undefined {
+  const producer = recordValue(candidate.producer)
+  const output = firstRecord(candidate.outputs)
+  const outputMetadata = recordValue(output?.metadata)
+  const promptSnapshot = recordValue(candidate.promptSnapshot)
+  return firstText([
+    producer?.job_id,
+    producer?.jobId,
+    producer?.task_id,
+    producer?.taskId,
+    outputMetadata?.job_id,
+    outputMetadata?.jobId,
+    outputMetadata?.task_id,
+    outputMetadata?.taskId,
+    promptSnapshot?.job_id,
+    promptSnapshot?.jobId,
+  ])
+}
+
+function candidateModelId(candidate: ContentCanvasCandidate): string | undefined {
+  const producer = recordValue(candidate.producer)
+  const promptSnapshot = recordValue(candidate.promptSnapshot)
+  return firstText([
+    producer?.model_id,
+    producer?.modelId,
+    producer?.model,
+    promptSnapshot?.model_id,
+    promptSnapshot?.modelId,
+  ])
+}
+
+function candidateModelParams(candidate: ContentCanvasCandidate): ContentCanvasCandidateGenerationOptions['params'] | undefined {
+  const producer = recordValue(candidate.producer)
+  const promptSnapshot = recordValue(candidate.promptSnapshot)
+  const params = recordValue(producer?.model_params)
+    ?? recordValue(producer?.modelParams)
+    ?? recordValue(promptSnapshot?.model_params)
+    ?? recordValue(promptSnapshot?.modelParams)
+  if (!params) return undefined
+  const output: ContentCanvasCandidateGenerationOptions['params'] = {}
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') output[key] = value
+  }
+  return Object.keys(output).length ? output : undefined
+}
+
+function candidatePromptSnapshotText(candidate: ContentCanvasCandidate): string | undefined {
+  const snapshot = recordValue(candidate.promptSnapshot)
+  if (!snapshot) return undefined
+  const compiledPrompt = recordValue(snapshot.compiled_prompt) ?? recordValue(snapshot.compiledPrompt)
+  return firstText([
+    compiledPrompt?.text,
+    snapshot.prompt_text,
+    snapshot.promptText,
+    snapshot.text,
+    snapshot.prompt,
+    editPromptTextFromUnknown(snapshot.edit_prompt),
+    editPromptTextFromUnknown(snapshot.editPrompt),
+  ])
+}
+
+function promptBlockerSummary(value: unknown): string | undefined {
+  if (!Array.isArray(value)) return undefined
+  const labels = value
+    .map((item) => recordValue(item))
+    .filter((item): item is Record<string, unknown> => Boolean(item))
+    .map((item) => firstText([item.message, item.ref, item.code]))
+    .filter((item): item is string => Boolean(item))
+  return labels.length ? labels.join('；') : undefined
+}
+
+function editPromptTextFromUnknown(value: unknown): string | undefined {
+  if (typeof value === 'string') return stringRecordField(value)
+  const record = recordValue(value)
+  return record ? firstText([record.text, record.prompt, record.description]) : undefined
+}
+
+function normalizedCandidateStatus(candidate: ContentCanvasCandidate): string | undefined {
+  return stringRecordField(candidate.status)?.toLowerCase()
+}
+
+function firstText(values: unknown[]): string | undefined {
+  for (const value of values) {
+    const text = stringRecordField(value)
+    if (text) return text
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  }
+  return undefined
 }
 
 function explicitCandidateSelectionIdForNode(
@@ -2374,6 +3066,14 @@ function stringRecordField(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
+function recordValue(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
+}
+
+function firstRecord(value: unknown): Record<string, unknown> | undefined {
+  return Array.isArray(value) ? value.find((item): item is Record<string, unknown> => Boolean(recordValue(item))) : undefined
+}
+
 function contentCanvasUploadedResourceFromDropEvent(event: ReactDragEvent): ContentCanvasUploadedResource | null {
   const payload = readResourceDragPayload<DragResourcePayloadResource>(event.dataTransfer)
   if (!payload) return null
@@ -2384,6 +3084,22 @@ function contentCanvasUploadedResourceFromDropEvent(event: ReactDragEvent): Cont
     name: stringRecordField(resource?.name) ?? `Resource ${payload.resourceId}`,
     type: contentCanvasUploadedResourceType(resource?.type),
     ...(mimeType ? { mimeType } : {}),
+  }
+}
+
+function contentPromptCanvasNodeDropAcceptsPayload(dataTransfer: DataTransfer): boolean {
+  return dataTransfer.types.includes(CONTENT_PROMPT_CANVAS_NODE_DRAG_MIME)
+}
+
+function readContentPromptCanvasNodeDragPayload(dataTransfer: DataTransfer): ContentPromptCanvasNodeDragPayload | null {
+  if (!contentPromptCanvasNodeDropAcceptsPayload(dataTransfer)) return null
+  try {
+    const payload = JSON.parse(dataTransfer.getData(CONTENT_PROMPT_CANVAS_NODE_DRAG_MIME)) as unknown
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
+    const nodeId = stringRecordField((payload as Record<string, unknown>).nodeId)
+    return nodeId ? { nodeId } : null
+  } catch {
+    return null
   }
 }
 
@@ -2408,7 +3124,7 @@ function contentCanvasNodeLibraryNodes(
   const needle = query.trim().toLowerCase()
   const productions = nodes.filter((node) => node.kind === 'production')
   return nodes
-    .filter((node) => contentCanvasNodeCanJoinDocument(node, scope))
+    .filter(contentCanvasNodeCanJoinDocument)
     .filter((node) => contentCanvasNodeCanJoinCanvasScope(node, scope, productions))
     .filter((node) => {
       if (!needle) return true
@@ -2427,12 +3143,12 @@ function contentCanvasNodeLibraryNodes(
     ))
 }
 
-function contentCanvasNodeCanJoinDocument(
-  node: ContentCanvasNode,
-  scope: ContentCanvasDocumentScope,
-): boolean {
-  if (scope.kind === 'production' && contentCanvasNodeIsGlobalSettingScoped(node)) return true
-  return contentCanvasNodeCanJoinFreeCanvas(node)
+function contentCanvasNodeCanJoinDocument(node: ContentCanvasNode): boolean {
+  return contentCanvasNodeCanRenderInPromptCanvas(node)
+}
+
+function contentCanvasNodeCanRenderInPromptCanvas(node: ContentCanvasNode): boolean {
+  return node.kind === 'resource' || isCreativeCanvasVisibleNode(node)
 }
 
 function contentCanvasNodeCanJoinCanvasScope(
@@ -2441,32 +3157,7 @@ function contentCanvasNodeCanJoinCanvasScope(
   productions: ContentCanvasNode[],
 ): boolean {
   if (scope.kind === 'global') return true
-  if (contentCanvasNodeIsGlobalSettingScoped(node)) return true
   return contentCanvasNodeBelongsToProductionScope(node, scope.productionId, productions)
-}
-
-function contentCanvasNodeIsGlobalSettingScoped(node: ContentCanvasNode): boolean {
-  return node.kind === 'setting' || node.kind === 'state' || node.kind === 'asset'
-}
-
-function contentCanvasNodeCanJoinFreeCanvas(node: ContentCanvasNode): boolean {
-  if (node.kind === 'content_unit') return contentCanvasNodeIsNakedGenerationTask(node)
-  return node.kind !== 'production'
-    && node.kind !== 'segment'
-    && node.kind !== 'setting'
-    && node.kind !== 'state'
-    && node.kind !== 'selection'
-    && node.kind !== 'candidate'
-    && node.kind !== 'actor'
-    && node.kind !== 'work_item'
-    && node.kind !== 'group'
-}
-
-function contentCanvasNodeIsNakedGenerationTask(node: ContentCanvasNode): boolean {
-  return node.kind === 'content_unit'
-    && String(node.record.model_intent && typeof node.record.model_intent === 'object' && !Array.isArray(node.record.model_intent)
-      ? (node.record.model_intent as Record<string, unknown>).source
-      : '').trim() === 'content_canvas_naked_task'
 }
 
 function contentCanvasNodeLibraryRank(node: ContentCanvasNode): number {
@@ -3284,6 +3975,23 @@ function timelineNamespaceLabel(node: ContentCanvasNode): string {
 function contentCanvasScopeLabel(scope: ContentCanvasDocumentScope): string {
   if (scope.kind === 'production') return scope.productionTitle ? `制作内容画布 · ${scope.productionTitle}` : `制作内容画布 · ${scope.productionId}`
   return '全局内容画布'
+}
+
+function nextContentCanvasTitleSuggestion(documents: ContentCanvasDocument[]): string {
+  const base = '自由内容画布'
+  if (!contentCanvasDocumentTitleExists(base, documents)) return base
+  for (let index = 2; index < 1000; index += 1) {
+    const title = `${base} ${index}`
+    if (!contentCanvasDocumentTitleExists(title, documents)) return title
+  }
+  return `${base} ${Date.now().toString(36)}`
+}
+
+function contentCanvasDocumentTitleExists(value: string, documents: ContentCanvasDocument[]): boolean {
+  const normalized = normalizeContentCanvasDocumentTitle(value).toLocaleLowerCase('zh-CN')
+  return documents.some((document) => (
+    normalizeContentCanvasDocumentTitle(document.title).toLocaleLowerCase('zh-CN') === normalized
+  ))
 }
 
 function stateNodeBelongsToSetting(node: ContentCanvasNode, settingId: string): boolean {

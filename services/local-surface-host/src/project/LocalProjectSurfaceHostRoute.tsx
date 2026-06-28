@@ -6,6 +6,8 @@ import {
   recordValue,
   type AgentSurfaceSnapshot,
 } from '@movscript/project-surface/data'
+import type { MovScriptContextEnvelope } from '@movscript/shared'
+import { movScriptContextProjectCwd, movScriptContextProjectId } from '@movscript/shared'
 import type { MovScriptNormalizedFocus } from '@movscript/domain'
 import {
   ProjectSurfaceProvider,
@@ -25,7 +27,6 @@ import {
 } from './localProjectSurfaceRuntime.js'
 import {
   hrefWithSearch,
-  normalizeBaseURL,
   projectRouteContext,
 } from '../routes/localRouteLinks.js'
 import { ROUTES } from '../routes/projectRoutes.js'
@@ -36,6 +37,12 @@ type ProjectReadModelState =
   | { status: 'loading'; snapshot?: undefined; readModel?: undefined; error?: undefined }
   | { status: 'ready'; snapshot: AgentSurfaceSnapshot; readModel: ProjectReadModelResponse; error?: undefined }
   | { status: 'error'; snapshot?: undefined; readModel?: undefined; error: Error }
+
+type DaemonContextState =
+  | { status: 'idle'; envelope?: undefined; error?: undefined }
+  | { status: 'loading'; envelope?: undefined; error?: undefined }
+  | { status: 'ready'; envelope: MovScriptContextEnvelope; error?: undefined }
+  | { status: 'error'; envelope?: undefined; error: Error }
 
 export function ProjectSurfaceHostRoute() {
   const location = useLocation()
@@ -106,27 +113,25 @@ function ProjectSurfaceHostView({
   routeContext: ReturnType<typeof projectRouteContext>
 }) {
   const mcpApiBaseURL = query.get('mcpApiBaseURL') ?? ''
-  const projectServiceBaseURL = normalizeBaseURL(
-    query.get('projectServiceBaseURL')
-      ?? query.get('projectServiceBaseUrl')
-      ?? query.get('projectServiceURL')
-      ?? query.get('projectServiceUrl'),
-  )
+  const daemonContext = useDaemonContextSession({ query, routeContext })
+  const contextEnvelope = daemonContext.status === 'ready' ? daemonContext.envelope : undefined
+  const contextProjectDir = movScriptContextProjectCwd(contextEnvelope)
+  const contextProjectId = movScriptContextProjectId(contextEnvelope) ?? routeContext.projectId
   const projectSurfaceRuntime = useMemo(() => createLocalHostProjectSurfaceRuntime({
-    projectId: routeContext.projectId,
-    projectDir: routeContext.projectDir,
-    projectUid: query.get('projectUid') ?? query.get('project_uid') ?? undefined,
+    projectId: contextProjectId,
+    projectDir: contextProjectDir,
+    projectUid: contextEnvelope?.session?.project?.uid ?? query.get('projectUid') ?? query.get('project_uid') ?? undefined,
     productionId: routeContext.productionId,
     mcpApiBaseURL,
-    projectServiceBaseURL,
     search: query,
+    context: contextEnvelope,
   }), [
-    routeContext.projectId,
-    routeContext.projectDir,
+    contextEnvelope,
+    contextProjectDir,
+    contextProjectId,
     query,
     routeContext.productionId,
     mcpApiBaseURL,
-    projectServiceBaseURL,
   ])
   const projectReadModel = useProjectReadModel({
     runtime: projectSurfaceRuntime,
@@ -134,24 +139,25 @@ function ProjectSurfaceHostView({
     domainFocus: routeContext.domainFocus,
   })
 
-  useMemo(() => {
+  useEffect(() => {
+    if (!contextProjectDir) return
     ensureLocalProjectContentAPI({
-      projectId: routeContext.projectId,
-      projectDir: routeContext.projectDir,
-      projectUid: query.get('projectUid') ?? query.get('project_uid') ?? undefined,
-      projectServiceBaseURL,
+      projectId: contextProjectId,
+      projectDir: contextProjectDir,
+      projectUid: contextEnvelope?.session?.project?.uid ?? query.get('projectUid') ?? query.get('project_uid') ?? undefined,
     })
-  }, [projectServiceBaseURL, query, routeContext.projectDir, routeContext.projectId])
+  }, [contextEnvelope, contextProjectDir, contextProjectId, query])
 
   useEffect(() => {
-    const projectPath = routeContext.projectDir || undefined
+    const projectPath = contextProjectDir || undefined
     if (!projectPath) return
-    const numericProjectId = localNumericProjectId(routeContext.projectId, projectPath)
+    const numericProjectId = localNumericProjectId(contextProjectId, projectPath)
     const projectName = query.get('projectName')
       ?? query.get('project_name')
+      ?? contextEnvelope?.session?.project?.title
       ?? projectPath.split('/').filter(Boolean).pop()
       ?? `Project ${numericProjectId}`
-    const projectUid = query.get('projectUid') ?? query.get('project_uid') ?? undefined
+    const projectUid = contextEnvelope?.session?.project?.uid ?? query.get('projectUid') ?? query.get('project_uid') ?? undefined
     const now = new Date().toISOString()
     const project = {
       ID: numericProjectId,
@@ -167,10 +173,14 @@ function ProjectSurfaceHostView({
     }
     useProjectStore.getState().setCurrent(project)
     rememberLocalProject(project)
-  }, [query, routeContext.projectDir, routeContext.projectId])
+  }, [contextEnvelope, contextProjectDir, contextProjectId, query])
 
   let content: React.ReactNode
-  if (routeContext.route?.key === 'contentCanvas') {
+  if (daemonContext.status === 'loading' || daemonContext.status === 'idle') {
+    content = <ProjectSurfaceContextStatus title="Preparing project session" />
+  } else if (daemonContext.status === 'error') {
+    content = <ProjectSurfaceContextStatus title="Project session unavailable" error={daemonContext.error} />
+  } else if (routeContext.route?.key === 'contentCanvas') {
     content = <ContentCanvasWorkspacePage mode="canvas" />
   } else if (
     routeContext.route?.key === 'content'
@@ -200,6 +210,74 @@ function ProjectSurfaceHostView({
     <ProjectSurfaceProvider runtime={projectSurfaceRuntime}>
       {content}
     </ProjectSurfaceProvider>
+  )
+}
+
+function useDaemonContextSession({
+  query,
+  routeContext,
+}: {
+  query: URLSearchParams
+  routeContext: ReturnType<typeof projectRouteContext>
+}): DaemonContextState {
+  const [state, setState] = useState<DaemonContextState>({ status: 'idle' })
+
+  useEffect(() => {
+    const projectDir = routeContext.projectDir?.trim()
+    if (!projectDir) {
+      setState({ status: 'idle' })
+      return
+    }
+
+    let cancelled = false
+    setState({ status: 'loading' })
+    fetch('/v1/context/sessions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        projectId: routeContext.projectId,
+        projectDir,
+        projectUid: query.get('projectUid') ?? query.get('project_uid') ?? undefined,
+        projectTitle: query.get('projectName') ?? query.get('project_name') ?? undefined,
+        capabilities: {
+          localFileAccess: true,
+          fileImport: true,
+          mediaPreview: true,
+        },
+      }),
+    })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          const record = recordValue(payload)
+          const message = typeof record?.message === 'string'
+            ? record.message
+            : typeof record?.error === 'string'
+              ? record.error
+              : `Daemon context request failed with HTTP ${response.status}.`
+          throw new Error(message)
+        }
+        if (!cancelled) setState({ status: 'ready', envelope: payload as MovScriptContextEnvelope })
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setState({ status: 'error', error: error instanceof Error ? error : new Error(String(error)) })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [query, routeContext.projectDir, routeContext.projectId])
+
+  return state
+}
+
+function ProjectSurfaceContextStatus({ title, error }: { title: string; error?: Error }) {
+  return (
+    <section className="surface-host-empty-route">
+      <div className="surface-host-empty-route__icon"><FolderArchive size={22} /></div>
+      <h1>{title}</h1>
+      {error ? <p>{error.message}</p> : <p>Opening project...</p>}
+    </section>
   )
 }
 

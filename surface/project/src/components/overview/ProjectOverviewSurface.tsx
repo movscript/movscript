@@ -38,7 +38,7 @@ export function ProjectOverviewSurface({
   return (
     <AgentSurfaceShell
       title="Overview"
-      description="Project Surface overview backed by the host runtime and Project Service read-model."
+      description="Project Surface overview backed by the host runtime and project read-model."
       ready={Boolean(runtime.project.projectId)}
       chips={[
         `project: ${runtime.project.projectId}`,
@@ -67,8 +67,8 @@ export function ProjectOverviewSurface({
 
         <AgentSurfacePanel title="Runtime">
           <AgentSurfaceKeyValues items={[
-            ['Project Service', runtime.services.projectServiceBaseURL ?? 'host proxy'],
-            ['MCP API', runtime.services.mcpApiBaseURL ?? 'not configured'],
+            ['Project Gateway', 'available'],
+            ['MCP API', runtime.diagnostics.endpoints?.mcpApi ?? 'not configured'],
             ['Generation', statusLabel(runtime.capabilities.generation)],
             ['Editing', statusLabel(runtime.capabilities.editing)],
             ['Media Pipeline', statusLabel(runtime.capabilities.mediaPipeline)],

@@ -13,18 +13,66 @@ import {
   PROJECT_SERVICE_CANDIDATE_COMMAND_ENDPOINT,
   PROJECT_SERVICE_CANDIDATE_VIEW_ENDPOINT,
   PROJECT_SERVICE_CAPABILITIES_ENDPOINT,
+  PROJECT_SERVICE_ASSET_CREATE_ENDPOINT,
+  PROJECT_SERVICE_ASSET_UPSERT_ENDPOINT,
+  PROJECT_SERVICE_ASSETS_QUERY_ENDPOINT,
+  PROJECT_SERVICE_AUDIO_CUE_CREATE_ENDPOINT,
+  PROJECT_SERVICE_AUDIO_CUE_UPDATE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANVASES_LIST_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANVAS_DELETE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANVAS_RENAME_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANVAS_RUN_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANVAS_WRITE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANDIDATE_CREATE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_WORKSPACE_READ_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_WORKSPACE_SNAPSHOT_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_CREATE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_EDIT_PROMPT_UPDATE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_ENSURE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_UPSERT_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_SELECT_ENDPOINT,
+  PROJECT_SERVICE_ENTITY_BASICS_UPDATE_ENDPOINT,
+  PROJECT_SERVICE_ENTITY_DELETE_ENDPOINT,
+  PROJECT_SERVICE_ENTITY_TRANSITION_UPDATE_ENDPOINT,
+  PROJECT_SERVICE_ENTITIES_QUERY_ENDPOINT,
+  PROJECT_SERVICE_EXPRESSION_UNIT_CREATE_ENDPOINT,
+  PROJECT_SERVICE_EXPRESSION_UNIT_UPDATE_ENDPOINT,
+  PROJECT_SERVICE_HIERARCHY_WRITE_ENDPOINT,
   PROJECT_SERVICE_LIFECYCLE_COMMAND_ENDPOINT,
   PROJECT_SERVICE_LOCATOR_RESOLVE_ENDPOINT,
   PROJECT_SERVICE_NAME,
+  PROJECT_SERVICE_NAMESPACE_WRITE_ENDPOINT,
   PROJECT_SERVICE_PROMPT_CONTEXT_ENDPOINT,
+  PROJECT_SERVICE_PRODUCTION_CREATE_ENDPOINT,
+  PROJECT_SERVICE_PRODUCTION_SNAPSHOT_SAVE_ENDPOINT,
   PROJECT_SERVICE_READ_MODEL_ENDPOINT,
   PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT,
+  PROJECT_SERVICE_SCRIPT_SOURCE_READ_ENDPOINT,
+  PROJECT_SERVICE_SCRIPT_UPSERT_ENDPOINT,
+  PROJECT_SERVICE_SCRIPT_VERSION_SNAPSHOT_ENDPOINT,
+  PROJECT_SERVICE_SCENE_MOMENT_CREATE_ENDPOINT,
+  PROJECT_SERVICE_SCENE_MOMENT_SETTING_CONNECT_ENDPOINT,
+  PROJECT_SERVICE_SEGMENT_CREATE_ENDPOINT,
+  PROJECT_SERVICE_SETTING_CREATE_ENDPOINT,
+  PROJECT_SERVICE_SETTING_STATE_CREATE_ENDPOINT,
+  PROJECT_SERVICE_SETTING_UPSERT_ENDPOINT,
+  PROJECT_SERVICE_SETTINGS_QUERY_ENDPOINT,
   PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT,
   PROJECT_SERVICE_SOURCE_INSPECT_ENDPOINT,
   PROJECT_SERVICE_SOURCE_INTERPRET_ENDPOINT,
   PROJECT_SERVICE_SOURCE_OVERVIEW_ENDPOINT,
   PROJECT_SERVICE_SOURCE_REGENERATION_PLAN_ENDPOINT,
   PROJECT_SERVICE_SOURCE_SNAPSHOT_ENDPOINT,
+  PROJECT_SERVICE_STANDARDS_UPSERT_ENDPOINT,
+  PROJECT_SERVICE_STORYBOARD_CREATE_ENDPOINT,
+  PROJECT_SERVICE_STORYBOARD_TIMELINE_UPDATE_ENDPOINT,
+  PROJECT_SERVICE_KEYFRAME_CREATE_ENDPOINT,
+  PROJECT_SERVICE_TIMELINE_ASSEMBLY_CONTENT_UNIT_ENSURE_ENDPOINT,
+  PROJECT_SERVICE_WORKSPACE_ASSET_SLOT_CANDIDATE_CREATE_ENDPOINT,
+  PROJECT_SERVICE_WORKSPACE_CANDIDATE_APPEND_ENDPOINT,
+  PROJECT_SERVICE_WORKSPACE_CANDIDATE_SELECT_ENDPOINT,
+  PROJECT_SERVICE_WORKSPACE_KEYFRAME_CANDIDATE_CREATE_ENDPOINT,
 } from '@movscript/project'
 import {
   interpretMovScriptWorkspace,
@@ -44,8 +92,12 @@ import {
 import {
   buildContentSourceWorkspaceProjectTimelineStatus,
   buildContentSourceWorkspaceData,
+  buildProjectContextSnapshot,
+  contentSourceWorkspaceContentUnitStatusSummaries,
+} from '@movscript/core/content'
+import {
   loadContentSourceWorkspaceSnapshotFromEngine,
-} from '@movscript/core'
+} from '@movscript/core/content/node'
 
 const DATA_SERVICE_NAME = 'movscript.data.service'
 const LOCAL_NODE_GATEWAY_SERVICE = 'movscript.local-node.gateway'
@@ -53,23 +105,73 @@ const CONTENT_CANVAS_DIRECTORY = 'content_canvases'
 const CONTENT_CANVAS_FILE_NAME = 'canvas.json'
 const CONTENT_CANVAS_SCHEMA = 'movscript.content_canvas.v1'
 const CONTENT_CANVASES_SCHEMA = 'movscript.content_canvases.v1'
+const CONTENT_CANVAS_TITLE_MAX_LENGTH = 80
+const CONTENT_CANVAS_TITLE_INVALID_PATTERN = /[<>:"/\\|?*\u0000-\u001F]/
 
 export {
   PROJECT_SERVICE_CANDIDATE_COMMAND_ENDPOINT,
   PROJECT_SERVICE_CANDIDATE_VIEW_ENDPOINT,
   PROJECT_SERVICE_CAPABILITIES_ENDPOINT,
+  PROJECT_SERVICE_ASSET_CREATE_ENDPOINT,
+  PROJECT_SERVICE_ASSET_UPSERT_ENDPOINT,
+  PROJECT_SERVICE_ASSETS_QUERY_ENDPOINT,
+  PROJECT_SERVICE_AUDIO_CUE_CREATE_ENDPOINT,
+  PROJECT_SERVICE_AUDIO_CUE_UPDATE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANVASES_LIST_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANVAS_DELETE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANVAS_RENAME_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANVAS_RUN_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANVAS_WRITE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANDIDATE_CREATE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_WORKSPACE_READ_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_WORKSPACE_SNAPSHOT_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_CREATE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_EDIT_PROMPT_UPDATE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_ENSURE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_UPSERT_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_SELECT_ENDPOINT,
+  PROJECT_SERVICE_ENTITY_BASICS_UPDATE_ENDPOINT,
+  PROJECT_SERVICE_ENTITY_DELETE_ENDPOINT,
+  PROJECT_SERVICE_ENTITY_TRANSITION_UPDATE_ENDPOINT,
+  PROJECT_SERVICE_ENTITIES_QUERY_ENDPOINT,
+  PROJECT_SERVICE_EXPRESSION_UNIT_CREATE_ENDPOINT,
+  PROJECT_SERVICE_EXPRESSION_UNIT_UPDATE_ENDPOINT,
+  PROJECT_SERVICE_HIERARCHY_WRITE_ENDPOINT,
   PROJECT_SERVICE_LIFECYCLE_COMMAND_ENDPOINT,
   PROJECT_SERVICE_LOCATOR_RESOLVE_ENDPOINT,
   PROJECT_SERVICE_NAME,
+  PROJECT_SERVICE_NAMESPACE_WRITE_ENDPOINT,
   PROJECT_SERVICE_PROMPT_CONTEXT_ENDPOINT,
+  PROJECT_SERVICE_PRODUCTION_CREATE_ENDPOINT,
+  PROJECT_SERVICE_PRODUCTION_SNAPSHOT_SAVE_ENDPOINT,
   PROJECT_SERVICE_READ_MODEL_ENDPOINT,
   PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT,
+  PROJECT_SERVICE_SCRIPT_SOURCE_READ_ENDPOINT,
+  PROJECT_SERVICE_SCRIPT_UPSERT_ENDPOINT,
+  PROJECT_SERVICE_SCRIPT_VERSION_SNAPSHOT_ENDPOINT,
+  PROJECT_SERVICE_SCENE_MOMENT_CREATE_ENDPOINT,
+  PROJECT_SERVICE_SCENE_MOMENT_SETTING_CONNECT_ENDPOINT,
+  PROJECT_SERVICE_SEGMENT_CREATE_ENDPOINT,
+  PROJECT_SERVICE_SETTING_CREATE_ENDPOINT,
+  PROJECT_SERVICE_SETTING_STATE_CREATE_ENDPOINT,
+  PROJECT_SERVICE_SETTING_UPSERT_ENDPOINT,
+  PROJECT_SERVICE_SETTINGS_QUERY_ENDPOINT,
   PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT,
   PROJECT_SERVICE_SOURCE_INSPECT_ENDPOINT,
   PROJECT_SERVICE_SOURCE_INTERPRET_ENDPOINT,
   PROJECT_SERVICE_SOURCE_OVERVIEW_ENDPOINT,
   PROJECT_SERVICE_SOURCE_REGENERATION_PLAN_ENDPOINT,
   PROJECT_SERVICE_SOURCE_SNAPSHOT_ENDPOINT,
+  PROJECT_SERVICE_STANDARDS_UPSERT_ENDPOINT,
+  PROJECT_SERVICE_STORYBOARD_CREATE_ENDPOINT,
+  PROJECT_SERVICE_STORYBOARD_TIMELINE_UPDATE_ENDPOINT,
+  PROJECT_SERVICE_KEYFRAME_CREATE_ENDPOINT,
+  PROJECT_SERVICE_TIMELINE_ASSEMBLY_CONTENT_UNIT_ENSURE_ENDPOINT,
+  PROJECT_SERVICE_WORKSPACE_ASSET_SLOT_CANDIDATE_CREATE_ENDPOINT,
+  PROJECT_SERVICE_WORKSPACE_CANDIDATE_APPEND_ENDPOINT,
+  PROJECT_SERVICE_WORKSPACE_CANDIDATE_SELECT_ENDPOINT,
+  PROJECT_SERVICE_WORKSPACE_KEYFRAME_CANDIDATE_CREATE_ENDPOINT,
 } from '@movscript/project'
 
 export const PROJECT_SERVICE_CAPABILITIES = Object.freeze([
@@ -81,6 +183,161 @@ export const PROJECT_SERVICE_CAPABILITIES = Object.freeze([
   'candidate-view',
   'prompt-context',
   'interpret',
+  'content-canvas-run',
+  'project-standards',
+  'project-scripts',
+  'workspace-candidate-actions',
+  'content-candidate-actions',
+])
+
+const PROJECT_SOURCE_OPERATION_ROUTES = new Map([
+  [PROJECT_SERVICE_ENTITIES_QUERY_ENDPOINT, {
+    schema: 'movscript.project-entities-query.v1',
+    run: (engine, input) => engine.workspaceService.queryEntities(input.query),
+  }],
+  [PROJECT_SERVICE_SETTINGS_QUERY_ENDPOINT, {
+    schema: 'movscript.project-settings-query.v1',
+    run: (engine, input) => engine.workspaceService.querySettings(input.query),
+  }],
+  [PROJECT_SERVICE_ASSETS_QUERY_ENDPOINT, {
+    schema: 'movscript.project-assets-query.v1',
+    run: (engine, input) => engine.workspaceService.queryAssets(input.query),
+  }],
+  [PROJECT_SERVICE_CONTENT_WORKSPACE_SNAPSHOT_ENDPOINT, {
+    schema: 'movscript.project-content-workspace-snapshot.v1',
+    run: (engine) => loadContentSourceWorkspaceSnapshotFromEngine(engine),
+  }],
+  [PROJECT_SERVICE_CONTENT_WORKSPACE_READ_ENDPOINT, {
+    schema: 'movscript.project-content-workspace-read.v1',
+    run: async (engine) => buildContentSourceWorkspaceData(await loadContentSourceWorkspaceSnapshotFromEngine(engine)),
+  }],
+  [PROJECT_SERVICE_SETTING_UPSERT_ENDPOINT, {
+    schema: 'movscript.project-setting-upsert.v1',
+    run: (engine, input) => engine.workspaceService.upsertSetting(input),
+  }],
+  [PROJECT_SERVICE_SETTING_CREATE_ENDPOINT, {
+    schema: 'movscript.project-setting-create.v1',
+    run: (engine, input) => engine.createSetting(input),
+  }],
+  [PROJECT_SERVICE_SETTING_STATE_CREATE_ENDPOINT, {
+    schema: 'movscript.project-setting-state-create.v1',
+    run: (engine, input) => engine.createSettingState(input),
+  }],
+  [PROJECT_SERVICE_ASSET_UPSERT_ENDPOINT, {
+    schema: 'movscript.project-asset-upsert.v1',
+    run: (engine, input) => engine.workspaceService.upsertAsset(input),
+  }],
+  [PROJECT_SERVICE_ASSET_CREATE_ENDPOINT, {
+    schema: 'movscript.project-asset-create.v1',
+    run: (engine, input) => engine.createAsset(input),
+  }],
+  [PROJECT_SERVICE_PRODUCTION_SNAPSHOT_SAVE_ENDPOINT, {
+    schema: 'movscript.project-production-snapshot-save.v1',
+    run: (engine, input) => engine.workspaceService.saveProductionSnapshot(input),
+  }],
+  [PROJECT_SERVICE_CONTENT_UNIT_UPSERT_ENDPOINT, {
+    schema: 'movscript.project-content-unit-upsert.v1',
+    run: (engine, input) => engine.workspaceService.upsertContentUnit(input),
+  }],
+  [PROJECT_SERVICE_CONTENT_UNIT_CREATE_ENDPOINT, {
+    schema: 'movscript.project-content-unit-create.v1',
+    run: (engine, input) => engine.createContentUnit(input),
+  }],
+  [PROJECT_SERVICE_CONTENT_UNIT_ENSURE_ENDPOINT, {
+    schema: 'movscript.project-content-unit-ensure.v1',
+    run: (engine, input) => engine.ensureContentUnitForEntity(input),
+  }],
+  [PROJECT_SERVICE_TIMELINE_ASSEMBLY_CONTENT_UNIT_ENSURE_ENDPOINT, {
+    schema: 'movscript.project-timeline-assembly-content-unit-ensure.v1',
+    run: (engine, input) => engine.ensureContentUnitForEntity(timelineAssemblyContentUnitInput(input)),
+  }],
+  [PROJECT_SERVICE_CONTENT_UNIT_EDIT_PROMPT_UPDATE_ENDPOINT, {
+    schema: 'movscript.project-content-unit-edit-prompt-update.v1',
+    run: (engine, input) => engine.workspaceService.updateContentUnitEditPrompt(input),
+  }],
+  [PROJECT_SERVICE_PRODUCTION_CREATE_ENDPOINT, {
+    schema: 'movscript.project-production-create.v1',
+    run: (engine, input) => engine.createProduction(input),
+  }],
+  [PROJECT_SERVICE_SEGMENT_CREATE_ENDPOINT, {
+    schema: 'movscript.project-segment-create.v1',
+    run: (engine, input) => engine.createSegment(input),
+  }],
+  [PROJECT_SERVICE_SCENE_MOMENT_CREATE_ENDPOINT, {
+    schema: 'movscript.project-scene-moment-create.v1',
+    run: (engine, input) => engine.createSceneMoment(input),
+  }],
+  [PROJECT_SERVICE_SCENE_MOMENT_SETTING_CONNECT_ENDPOINT, {
+    schema: 'movscript.project-scene-moment-setting-connect.v1',
+    run: (engine, input) => engine.connectSceneMomentSetting(input),
+  }],
+  [PROJECT_SERVICE_EXPRESSION_UNIT_CREATE_ENDPOINT, {
+    schema: 'movscript.project-expression-unit-create.v1',
+    run: (engine, input) => engine.createExpressionUnit(input),
+  }],
+  [PROJECT_SERVICE_EXPRESSION_UNIT_UPDATE_ENDPOINT, {
+    schema: 'movscript.project-expression-unit-update.v1',
+    run: (engine, input) => engine.workspaceService.updateExpressionUnitSource(input),
+  }],
+  [PROJECT_SERVICE_KEYFRAME_CREATE_ENDPOINT, {
+    schema: 'movscript.project-keyframe-create.v1',
+    run: (engine, input) => engine.createKeyframe(input),
+  }],
+  [PROJECT_SERVICE_STORYBOARD_CREATE_ENDPOINT, {
+    schema: 'movscript.project-storyboard-create.v1',
+    run: (engine, input) => engine.createStoryboard(input),
+  }],
+  [PROJECT_SERVICE_STORYBOARD_TIMELINE_UPDATE_ENDPOINT, {
+    schema: 'movscript.project-storyboard-timeline-update.v1',
+    run: (engine, input) => engine.workspaceService.updateStoryboardTimeline(input),
+  }],
+  [PROJECT_SERVICE_AUDIO_CUE_CREATE_ENDPOINT, {
+    schema: 'movscript.project-audio-cue-create.v1',
+    run: (engine, input) => engine.createAudioCue(input),
+  }],
+  [PROJECT_SERVICE_AUDIO_CUE_UPDATE_ENDPOINT, {
+    schema: 'movscript.project-audio-cue-update.v1',
+    run: (engine, input) => engine.workspaceService.updateAudioCueSource(input),
+  }],
+  [PROJECT_SERVICE_ENTITY_BASICS_UPDATE_ENDPOINT, {
+    schema: 'movscript.project-entity-basics-update.v1',
+    run: (engine, input) => engine.updateEntityBasics(input),
+  }],
+  [PROJECT_SERVICE_ENTITY_TRANSITION_UPDATE_ENDPOINT, {
+    schema: 'movscript.project-entity-transition-update.v1',
+    run: (engine, input) => engine.workspaceService.updateEntityTransition(input),
+  }],
+  [PROJECT_SERVICE_ENTITY_DELETE_ENDPOINT, {
+    schema: 'movscript.project-entity-delete.v1',
+    run: async (engine, input) => {
+      await engine.workspaceService.deleteEntity(input)
+      return { status: 'deleted' }
+    },
+  }],
+  [PROJECT_SERVICE_HIERARCHY_WRITE_ENDPOINT, {
+    schema: 'movscript.project-hierarchy-write.v1',
+    run: (engine, input) => engine.writeHierarchyNode(input),
+  }],
+  [PROJECT_SERVICE_NAMESPACE_WRITE_ENDPOINT, {
+    schema: 'movscript.project-namespace-write.v1',
+    run: (engine, input) => engine.writeHierarchyNode(namespaceHierarchyNodeInput(input)),
+  }],
+  [PROJECT_SERVICE_WORKSPACE_CANDIDATE_SELECT_ENDPOINT, {
+    schema: 'movscript.project-workspace-candidate-select.v1',
+    run: (engine, input) => engine.workspaceService.selectCandidate(input),
+  }],
+  [PROJECT_SERVICE_WORKSPACE_CANDIDATE_APPEND_ENDPOINT, {
+    schema: 'movscript.project-workspace-candidate-append.v1',
+    run: (engine, input) => engine.workspaceService.appendCandidate(input),
+  }],
+  [PROJECT_SERVICE_WORKSPACE_ASSET_SLOT_CANDIDATE_CREATE_ENDPOINT, {
+    schema: 'movscript.project-workspace-asset-slot-candidate-create.v1',
+    run: (engine, input) => engine.workspaceService.createAssetSlotCandidate(input),
+  }],
+  [PROJECT_SERVICE_WORKSPACE_KEYFRAME_CANDIDATE_CREATE_ENDPOINT, {
+    schema: 'movscript.project-workspace-keyframe-candidate-create.v1',
+    run: (engine, input) => engine.workspaceService.createKeyframeCandidate(input),
+  }],
 ])
 
 export function createProjectServiceHandler(options = {}) {
@@ -187,6 +444,112 @@ export function createProjectServiceHandler(options = {}) {
         })
         return
       }
+      if (request.method === 'POST' && url.pathname === PROJECT_SERVICE_STANDARDS_UPSERT_ENDPOINT) {
+        const context = await readProjectSourceContext(request)
+        const engine = createProjectWorkspaceEngine(context)
+        writeJSON(response, 200, projectSourceOperationEnvelope(
+          context.projectDir,
+          await engine.workspaceService.upsertProjectStandards(projectSourceOperationInput(context.body)),
+          'movscript.project-standards-upsert.v1',
+        ))
+        return
+      }
+      if (request.method === 'POST' && url.pathname === PROJECT_SERVICE_SCRIPT_SOURCE_READ_ENDPOINT) {
+        const context = await readProjectSourceContext(request)
+        const engine = createProjectWorkspaceEngine(context)
+        writeJSON(response, 200, projectSourceOperationEnvelope(
+          context.projectDir,
+          await engine.workspaceService.readScriptSource(projectSourceOperationInput(context.body)),
+          'movscript.project-script-source-read.v1',
+        ))
+        return
+      }
+      if (request.method === 'POST' && url.pathname === PROJECT_SERVICE_SCRIPT_UPSERT_ENDPOINT) {
+        const context = await readProjectSourceContext(request)
+        const engine = createProjectWorkspaceEngine(context)
+        writeJSON(response, 200, projectSourceOperationEnvelope(
+          context.projectDir,
+          await engine.workspaceService.upsertScript(projectSourceOperationInput(context.body)),
+          'movscript.project-script-upsert.v1',
+        ))
+        return
+      }
+      if (request.method === 'POST' && url.pathname === PROJECT_SERVICE_SCRIPT_VERSION_SNAPSHOT_ENDPOINT) {
+        const context = await readProjectSourceContext(request)
+        const engine = createProjectWorkspaceEngine(context)
+        writeJSON(response, 200, projectSourceOperationEnvelope(
+          context.projectDir,
+          await engine.workspaceService.snapshotScriptVersionFromMarkdown(projectSourceOperationInput(context.body)),
+          'movscript.project-script-version-snapshot.v1',
+        ))
+        return
+      }
+      const sourceOperation = PROJECT_SOURCE_OPERATION_ROUTES.get(url.pathname)
+      if (request.method === 'POST' && sourceOperation) {
+        const context = await readProjectSourceContext(request)
+        const engine = createProjectWorkspaceEngine(context)
+        writeJSON(response, 200, projectSourceOperationEnvelope(
+          context.projectDir,
+          await sourceOperation.run(engine, projectSourceOperationInput(context.body)),
+          sourceOperation.schema,
+        ))
+        return
+      }
+      if (request.method === 'POST' && url.pathname === PROJECT_SERVICE_CONTENT_CANVASES_LIST_ENDPOINT) {
+        const context = await readProjectSourceContext(request)
+        writeJSON(response, 200, projectContentCanvasEnvelope(
+          context.projectDir,
+          await listProjectContentCanvases(context.fileRepository),
+          'movscript.project-content-canvases-list.v1',
+        ))
+        return
+      }
+      if (request.method === 'POST' && url.pathname === PROJECT_SERVICE_CONTENT_CANVAS_WRITE_ENDPOINT) {
+        const context = await readProjectSourceContext(request)
+        writeJSON(response, 200, projectContentCanvasEnvelope(
+          context.projectDir,
+          await writeProjectContentCanvas(context.fileRepository, context.body),
+          'movscript.project-content-canvas-write.v1',
+        ))
+        return
+      }
+      if (request.method === 'POST' && url.pathname === PROJECT_SERVICE_CONTENT_CANVAS_RENAME_ENDPOINT) {
+        const context = await readProjectSourceContext(request)
+        writeJSON(response, 200, projectContentCanvasEnvelope(
+          context.projectDir,
+          await renameProjectContentCanvas(context.fileRepository, context.body),
+          'movscript.project-content-canvas-rename.v1',
+        ))
+        return
+      }
+      if (request.method === 'POST' && url.pathname === PROJECT_SERVICE_CONTENT_CANVAS_RUN_ENDPOINT) {
+        const context = await readProjectSourceContext(request)
+        const engine = createNodeMovScriptEngine({
+          projectDir: context.projectDir,
+          ...(context.decisionStore ? { decisionStore: context.decisionStore } : {}),
+        })
+        writeJSON(response, 200, projectContentCanvasEnvelope(
+          context.projectDir,
+          await runProjectContentCanvas({
+            projectDir: context.projectDir,
+            fileRepository: context.fileRepository,
+            engine,
+            input: context.body,
+            now: now(),
+          }),
+          'movscript.project-content-canvas-run.v1',
+        ))
+        return
+      }
+      if (request.method === 'POST' && url.pathname === PROJECT_SERVICE_CONTENT_CANVAS_DELETE_ENDPOINT) {
+        const context = await readProjectSourceContext(request)
+        writeJSON(response, 200, projectContentCanvasEnvelope(
+          context.projectDir,
+          await deleteProjectContentCanvas(context.fileRepository, context.body),
+          'movscript.project-content-canvas-delete.v1',
+        ))
+        return
+      }
       if (request.method === 'POST' && url.pathname === PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT) {
         const body = await readJSONBody(request)
         const projectDir = projectDirFromBody(body)
@@ -199,6 +562,7 @@ export function createProjectServiceHandler(options = {}) {
           command,
           input: recordValue(body.input) ?? {},
           decisionStore: await optionalDecisionStoreFromBody(body, projectDir),
+          now: now(),
         })
         writeJSON(response, 200, {
           schema: 'movscript.project-source-command-result.v1',
@@ -260,6 +624,33 @@ export function createProjectServiceHandler(options = {}) {
         })
         return
       }
+      if (request.method === 'POST' && url.pathname === PROJECT_SERVICE_CONTENT_CANDIDATE_CREATE_ENDPOINT) {
+        const context = await readProjectCandidateActionContext(request)
+        writeJSON(response, 200, projectCandidateActionEnvelope(
+          context.projectDir,
+          await executeProjectCandidateAction(context, 'createContentCandidate'),
+          'movscript.project-content-candidate-create.v1',
+        ))
+        return
+      }
+      if (request.method === 'POST' && url.pathname === PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_SELECT_ENDPOINT) {
+        const context = await readProjectCandidateActionContext(request)
+        writeJSON(response, 200, projectCandidateActionEnvelope(
+          context.projectDir,
+          await executeProjectCandidateAction(context, 'selectContentUnitCandidate'),
+          'movscript.project-content-unit-candidate-select.v1',
+        ))
+        return
+      }
+      if (request.method === 'POST' && url.pathname === PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT) {
+        const context = await readProjectCandidateActionContext(request)
+        writeJSON(response, 200, projectCandidateActionEnvelope(
+          context.projectDir,
+          await executeProjectCandidateAction(context, 'decideContentUnitCandidate'),
+          'movscript.project-content-unit-candidate-decide.v1',
+        ))
+        return
+      }
       if (request.method === 'POST' && url.pathname === PROJECT_SERVICE_CANDIDATE_COMMAND_ENDPOINT) {
         const body = await readJSONBody(request)
         const projectDir = projectDirFromBody(body)
@@ -267,11 +658,15 @@ export function createProjectServiceHandler(options = {}) {
         if (!command) {
           throw httpError(400, 'project_candidate_command_required', 'command is required')
         }
+        const decisionStore = await optionalDecisionStoreFromBody(body, projectDir)
+        if (!decisionStore) {
+          throw httpError(400, 'project_candidate_decision_store_required', 'decisionStore or projectUid is required')
+        }
         const result = await executeProjectCandidateCommand({
           projectDir,
           command,
           input: recordValue(body.input) ?? {},
-          decisionStore: decisionStoreFromBody(body),
+          decisionStore,
         })
         writeJSON(response, 200, {
           schema: 'movscript.project-candidate-command-result.v1',
@@ -394,6 +789,7 @@ async function readProjectSourceContext(request) {
   const body = await readJSONBody(request)
   const projectDir = projectDirFromBody(body)
   return {
+    body,
     projectDir,
     fileRepository: createNodeMovScriptWorkspaceFileRepository(projectDir),
     decisionStore: await optionalDecisionStoreFromBody(body, projectDir),
@@ -415,7 +811,73 @@ async function readProjectSourceContext(request) {
   }
 }
 
-async function executeProjectSourceCommand({ projectDir, command, input, decisionStore }) {
+function projectContentCanvasEnvelope(projectDir, result, fallbackSchema) {
+  const record = recordValue(result) ?? {}
+  return {
+    ...record,
+    schema: stringValue(record.schema) ?? fallbackSchema,
+    projectDir,
+  }
+}
+
+function projectSourceOperationEnvelope(projectDir, result, fallbackSchema) {
+  return {
+    schema: fallbackSchema,
+    projectDir,
+    result,
+  }
+}
+
+function createProjectWorkspaceEngine(context) {
+  return createNodeMovScriptEngine({
+    projectDir: context.projectDir,
+    ...(context.decisionStore ? { decisionStore: context.decisionStore } : {}),
+  })
+}
+
+function projectSourceOperationInput(body) {
+  const explicit = recordValue(body.input)
+  if (explicit) return explicit
+  const {
+    projectDir: _projectDir,
+    project_dir: _project_dir,
+    projectId: _projectId,
+    project_id: _project_id,
+    projectUid: _projectUid,
+    project_uid: _project_uid,
+    userId: _userId,
+    user_id: _user_id,
+    orgId: _orgId,
+    org_id: _org_id,
+    scopeId: _scopeId,
+    scope_id: _scope_id,
+    movScriptHomeDir: _movScriptHomeDir,
+    movscript_home_dir: _movscript_home_dir,
+    workspaceDir: _workspaceDir,
+    workspace_dir: _workspace_dir,
+    decisionStore: _decisionStore,
+    decision_store: _decision_store,
+    context: _context,
+    command: _command,
+    includeSource: _includeSource,
+    include_source: _include_source,
+    includeInspection: _includeInspection,
+    include_inspection: _include_inspection,
+    includeContentUnitDecisionDocuments: _includeContentUnitDecisionDocuments,
+    include_content_unit_decision_documents: _include_content_unit_decision_documents,
+    debugArtifacts: _debugArtifacts,
+    debug_artifacts: _debug_artifacts,
+    commit: _commit,
+    checkpointHash: _checkpointHash,
+    checkpoint_hash: _checkpoint_hash,
+    expectedWorkspaceVersions: _expectedWorkspaceVersions,
+    expected_workspace_versions: _expected_workspace_versions,
+    ...input
+  } = body
+  return input
+}
+
+async function executeProjectSourceCommand({ projectDir, command, input, decisionStore, now = new Date() }) {
   const fileRepository = createNodeMovScriptWorkspaceFileRepository(projectDir)
   const engine = createNodeMovScriptEngine({ projectDir, ...(decisionStore ? { decisionStore } : {}) })
   switch (command) {
@@ -439,10 +901,18 @@ async function executeProjectSourceCommand({ projectDir, command, input, decisio
       return listProjectContentCanvases(fileRepository)
     case 'writeContentCanvas':
       return writeProjectContentCanvas(fileRepository, input)
+    case 'renameContentCanvas':
+      return renameProjectContentCanvas(fileRepository, input)
+    case 'runContentCanvas':
+      return runProjectContentCanvas({ projectDir, fileRepository, engine, input, now })
     case 'deleteContentCanvas':
       return deleteProjectContentCanvas(fileRepository, input)
     case 'upsertProjectStandards':
       return engine.workspaceService.upsertProjectStandards(input)
+    case 'upsertSetting':
+      return engine.workspaceService.upsertSetting(input)
+    case 'upsertAsset':
+      return engine.workspaceService.upsertAsset(input)
     case 'createSetting':
       return engine.createSetting(input)
     case 'createSettingState':
@@ -453,6 +923,18 @@ async function executeProjectSourceCommand({ projectDir, command, input, decisio
       return engine.workspaceService.upsertScript(input)
     case 'snapshotScriptVersionFromMarkdown':
       return engine.workspaceService.snapshotScriptVersionFromMarkdown(input)
+    case 'saveProductionSnapshot':
+      return engine.workspaceService.saveProductionSnapshot(input)
+    case 'upsertContentUnit':
+      return engine.workspaceService.upsertContentUnit(input)
+    case 'selectCandidate':
+      return engine.workspaceService.selectCandidate(input)
+    case 'appendCandidate':
+      return engine.workspaceService.appendCandidate(input)
+    case 'createAssetSlotCandidate':
+      return engine.workspaceService.createAssetSlotCandidate(input)
+    case 'createKeyframeCandidate':
+      return engine.workspaceService.createKeyframeCandidate(input)
     case 'createContentUnit':
       return engine.createContentUnit(input)
     case 'ensureContentUnitForEntity':
@@ -521,6 +1003,9 @@ async function listProjectContentCanvases(fileRepository) {
     if (!file) continue
     const record = parseProjectContentCanvasFile(file.content, path)
     canvases.push({
+      canvasKind: 'content',
+      canvas_kind: 'content',
+      owner: 'project-service',
       path: file.path,
       version: file.version,
       updatedAt: file.updatedAt,
@@ -539,6 +1024,8 @@ async function listProjectContentCanvases(fileRepository) {
 
 async function writeProjectContentCanvas(fileRepository, input) {
   const record = projectContentCanvasRecordFromInput(input)
+  const titleValidationError = validateProjectContentCanvasTitle(record.title)
+  if (titleValidationError) throw titleValidationError
   const path = contentCanvasProjectFilePath(record.id)
   const source = recordValue(input) ?? {}
   const expectedVersion = stringValue(source.expectedVersion ?? source.expected_version)
@@ -549,9 +1036,110 @@ async function writeProjectContentCanvas(fileRepository, input) {
   })
   return {
     status: 'written',
+    canvasKind: 'content',
+    canvas_kind: 'content',
     path: written.path,
     version: written.version,
+    title: record.title,
+    normalizedTitle: record.title,
     record,
+    diagnostics: [],
+  }
+}
+
+async function renameProjectContentCanvas(fileRepository, input) {
+  const source = recordValue(input) ?? {}
+  const id = stringValue(source.id ?? source.canvasId ?? source.canvas_id)
+  if (!id) throw httpError(400, 'project_content_canvas_id_required', 'canvas id is required')
+  const title = normalizeProjectContentCanvasTitle(source.title ?? source.name)
+  const titleValidationError = validateProjectContentCanvasTitle(title)
+  if (titleValidationError) throw titleValidationError
+  const path = contentCanvasProjectFilePath(id)
+  const file = await fileRepository.read({ path }).catch((error) => {
+    if (isNotFoundError(error)) return undefined
+    throw error
+  })
+  if (!file) throw httpError(404, 'project_content_canvas_not_found', `content canvas not found: ${id}`)
+  const current = parseProjectContentCanvasFile(file.content, path)
+  const now = new Date().toISOString()
+  const record = {
+    ...current,
+    title,
+    name: title,
+    updated_at: now,
+  }
+  const expectedVersion = stringValue(source.expectedVersion ?? source.expected_version)
+  const written = await fileRepository.write({
+    path,
+    content: `${JSON.stringify(record, null, 2)}\n`,
+    ...(expectedVersion !== undefined ? { expectedVersion } : {}),
+  })
+  return {
+    status: 'renamed',
+    canvasKind: 'content',
+    canvas_kind: 'content',
+    path: written.path,
+    version: written.version,
+    title,
+    normalizedTitle: title,
+    record,
+    diagnostics: [],
+  }
+}
+
+async function runProjectContentCanvas({ projectDir, fileRepository, engine, input, now }) {
+  const source = recordValue(input) ?? {}
+  const canvasId = stringValue(source.id ?? source.canvasId ?? source.canvas_id)
+  if (!canvasId) throw httpError(400, 'project_content_canvas_id_required', 'canvas id is required')
+  const canvas = await readProjectContentCanvas(fileRepository, canvasId)
+  const interpretation = await engine.interpret()
+  const contentSnapshot = await loadContentSourceWorkspaceSnapshotFromEngine(engine)
+  const contentData = buildContentSourceWorkspaceData(contentSnapshot)
+  const contentUnitSummaries = contentSourceWorkspaceContentUnitStatusSummaries(contentSnapshot)
+  const affectedContentUnitIds = contentCanvasRunAffectedContentUnitIds(canvas.record, contentSnapshot)
+  const candidateImpact = contentCanvasRunCandidateImpact({
+    affectedContentUnitIds,
+    contentUnitSummaries,
+    contentData,
+  })
+  const projectTimelineStatus = buildContentSourceWorkspaceProjectTimelineStatus(contentSnapshot, contentUnitSummaries)
+  const operationId = `content-canvas-run:${contentCanvasProjectPathSegment(canvas.record.id)}:${now.getTime()}`
+  return {
+    schema: 'movscript.content_canvas_run.v1',
+    status: 'completed',
+    operationId,
+    operation_id: operationId,
+    canvasId: canvas.record.id,
+    canvas_id: canvas.record.id,
+    canvas: {
+      canvasKind: 'content',
+      canvas_kind: 'content',
+      owner: 'project-service',
+      path: canvas.path,
+      version: canvas.version,
+      record: canvas.record,
+    },
+    trace: {
+      projectDir,
+      command: 'runContentCanvas',
+      interpretationId: interpretation?.manifest?.interpretationId,
+      interpretation_id: interpretation?.manifest?.interpretationId,
+      editorStatePath: interpretation?.manifest?.output?.editorStatePath,
+      completedAt: now.toISOString(),
+      completed_at: now.toISOString(),
+    },
+    readModel: {
+      schema: 'movscript.content_canvas_run_read_model_summary.v1',
+      status: projectTimelineStatus.status,
+      timelineNamespaceCount: projectTimelineStatus.timeline_namespace_count,
+      timeline_namespace_count: projectTimelineStatus.timeline_namespace_count,
+      timelineAssemblyCount: projectTimelineStatus.timeline_assembly_count,
+      timeline_assembly_count: projectTimelineStatus.timeline_assembly_count,
+      systemPrimitives: projectTimelineStatus.system_primitives,
+      system_primitives: projectTimelineStatus.system_primitives,
+    },
+    candidateImpact,
+    candidate_impact: candidateImpact,
   }
 }
 
@@ -562,38 +1150,182 @@ async function deleteProjectContentCanvas(fileRepository, input) {
   await fileRepository.delete({ path })
   return {
     status: 'deleted',
+    canvasKind: 'content',
+    canvas_kind: 'content',
     path,
+  }
+}
+
+async function readProjectContentCanvas(fileRepository, id) {
+  const path = contentCanvasProjectFilePath(id)
+  const file = await fileRepository.read({ path }).catch((error) => {
+    if (isNotFoundError(error)) return undefined
+    throw error
+  })
+  if (!file) throw httpError(404, 'project_content_canvas_not_found', `content canvas not found: ${id}`)
+  return {
+    canvasKind: 'content',
+    canvas_kind: 'content',
+    owner: 'project-service',
+    path: file.path,
+    version: file.version,
+    updatedAt: file.updatedAt,
+    record: parseProjectContentCanvasFile(file.content, path),
   }
 }
 
 function parseProjectContentCanvasFile(content, path) {
   try {
-    return projectContentCanvasRecordFromInput(JSON.parse(content))
+    return projectContentCanvasRecordFromInput(JSON.parse(content), { path })
   } catch (error) {
     if (error?.statusCode) throw error
     throw httpError(400, 'project_content_canvas_invalid', `content canvas file is invalid: ${path}`)
   }
 }
 
-function projectContentCanvasRecordFromInput(input) {
+function contentCanvasRunAffectedContentUnitIds(canvasRecord, snapshot) {
+  const nodeRefs = new Set()
+  for (const node of Array.isArray(canvasRecord.nodes) ? canvasRecord.nodes : []) {
+    const nodeId = stringValue(node.node_id ?? node.nodeId ?? node.id)
+    const kind = stringValue(node.kind)
+    if (!nodeId) continue
+    const suffix = contentCanvasNodeIdSuffix(nodeId)
+    nodeRefs.add(nodeId)
+    nodeRefs.add(suffix)
+    if (kind) {
+      nodeRefs.add(`${kind}:${suffix}`)
+      nodeRefs.add(`${kind}:${nodeId}`)
+    }
+  }
+  const affected = []
+  for (const unit of snapshot.contentUnits ?? []) {
+    const unitId = idValue(unit.id ?? unit.record?.id ?? pathSegmentAfter(unit.path, 'content_units'))
+    if (unitId === undefined) continue
+    const refs = contentUnitRunRefs(unit)
+    if (refs.some((ref) => nodeRefs.has(ref) || nodeRefs.has(contentCanvasNodeIdSuffix(ref)))) {
+      affected.push(String(unitId))
+    }
+  }
+  return affected
+}
+
+function contentUnitRunRefs(unit) {
+  const record = recordValue(unit.record) ?? {}
+  const id = idValue(unit.id ?? record.id ?? pathSegmentAfter(unit.path, 'content_units'))
+  const refs = [
+    id,
+    id !== undefined ? `content_unit:${id}` : undefined,
+    unit.path,
+    id !== undefined ? `content_units/${id}` : undefined,
+    record.target_ref,
+    record.targetRef,
+    record.expression_unit_ref,
+    record.expressionUnitRef,
+    record.storyboard_ref,
+    record.storyboardRef,
+    record.keyframe_ref,
+    record.keyframeRef,
+    record.audio_cue_ref,
+    record.audioCueRef,
+    record.asset_ref,
+    record.assetRef,
+    record.scene_moment_ref,
+    record.sceneMomentRef,
+  ].map(idValue).filter((value) => value !== undefined).map(String)
+  return [...new Set(refs.flatMap((ref) => [ref, contentCanvasNodeIdSuffix(ref)]))]
+}
+
+function contentCanvasNodeIdSuffix(value) {
+  const text = String(value ?? '').trim()
+  if (!text) return ''
+  const colonParts = text.split(':').filter(Boolean)
+  if (colonParts.length > 1) return colonParts[colonParts.length - 1]
+  const slashParts = text.split('/').filter(Boolean)
+  return slashParts[slashParts.length - 1] ?? text
+}
+
+function contentCanvasRunCandidateImpact({ affectedContentUnitIds, contentUnitSummaries, contentData }) {
+  const affected = new Set(affectedContentUnitIds.map(String))
+  const summaries = contentUnitSummaries.filter((summary) => {
+    if (affected.size === 0) return false
+    return affected.has(String(summary.content_unit_id))
+  })
+  const candidateCounts = Object.fromEntries(summaries.map((summary) => [
+    String(summary.content_unit_id),
+    numberValue(summary.candidate_count) ?? 0,
+  ]))
+  const selectedContentUnitIds = summaries
+    .filter((summary) => summary.selected_candidate !== undefined)
+    .map((summary) => String(summary.content_unit_id))
+  const missingSelectionContentUnitIds = summaries
+    .filter((summary) => Array.isArray(summary.blocking_refs) && summary.blocking_refs.includes('selection_missing'))
+    .map((summary) => String(summary.content_unit_id))
+  return {
+    schema: 'movscript.content_canvas_candidate_impact.v1',
+    affectedContentUnitIds: summaries.map((summary) => String(summary.content_unit_id)),
+    affected_content_unit_ids: summaries.map((summary) => String(summary.content_unit_id)),
+    affectedContentUnitCount: summaries.length,
+    affected_content_unit_count: summaries.length,
+    candidateCounts: candidateCounts,
+    candidate_counts: candidateCounts,
+    selectedContentUnitIds,
+    selected_content_unit_ids: selectedContentUnitIds,
+    missingSelectionContentUnitIds,
+    missing_selection_content_unit_ids: missingSelectionContentUnitIds,
+    totalCandidateCount: summaries.reduce((sum, summary) => sum + (numberValue(summary.candidate_count) ?? 0), 0),
+    total_candidate_count: summaries.reduce((sum, summary) => sum + (numberValue(summary.candidate_count) ?? 0), 0),
+    workspaceCandidateMapCount: Object.keys(recordValue(contentData.contentUnitCandidates) ?? {}).length,
+    workspace_candidate_map_count: Object.keys(recordValue(contentData.contentUnitCandidates) ?? {}).length,
+  }
+}
+
+function projectContentCanvasRecordFromInput(input, options = {}) {
   const source = recordValue(input)
   const record = source ? recordValue(source.canvas ?? source.record) ?? source : undefined
   if (!record) throw httpError(400, 'project_content_canvas_required', 'content canvas record is required')
-  const id = stringValue(record.id)
-  if (!id) throw httpError(400, 'project_content_canvas_id_required', 'canvas id is required')
+  const id = stringValue(record.id ?? record.canvasId ?? record.canvas_id)
+    ?? contentCanvasProjectIdFromPath(options.path)
+    ?? createProjectContentCanvasId()
   const updatedAt = stringValue(record.updated_at ?? record.updatedAt) ?? new Date().toISOString()
+  const titleInput = contentCanvasTitleInput(record)
+  const title = titleInput === undefined
+    ? contentCanvasTitleFromProjectPath(options.path) ?? 'Untitled Canvas'
+    : normalizeProjectContentCanvasTitle(titleInput)
   return pruneUndefinedRecord({
     schema: CONTENT_CANVAS_SCHEMA,
     kind: 'content_canvas',
+    canvasKind: 'content',
+    canvas_kind: 'content',
     id,
-    title: stringValue(record.title) ?? 'Untitled Canvas',
+    title,
+    name: title,
     scope: projectContentCanvasScope(record.scope),
     nodes: projectContentCanvasNodes(record.nodes),
     layouts: projectContentCanvasLayouts(record.layouts ?? record.node_layouts ?? record.nodeLayouts),
-    viewport: projectContentCanvasViewport(record.viewport),
     updated_at: updatedAt,
     created_at: stringValue(record.created_at ?? record.createdAt),
   })
+}
+
+function contentCanvasTitleInput(record) {
+  if (Object.prototype.hasOwnProperty.call(record, 'title')) return record.title
+  if (Object.prototype.hasOwnProperty.call(record, 'name')) return record.name
+  return undefined
+}
+
+function normalizeProjectContentCanvasTitle(value) {
+  return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : ''
+}
+
+function validateProjectContentCanvasTitle(title) {
+  if (!title) return httpError(400, 'project_content_canvas_title_required', 'content canvas title is required')
+  if (title.length > CONTENT_CANVAS_TITLE_MAX_LENGTH) {
+    return httpError(400, 'project_content_canvas_title_too_long', `content canvas title must be at most ${CONTENT_CANVAS_TITLE_MAX_LENGTH} characters`)
+  }
+  if (CONTENT_CANVAS_TITLE_INVALID_PATTERN.test(title)) {
+    return httpError(400, 'project_content_canvas_title_invalid', 'content canvas title contains unsupported characters')
+  }
+  return undefined
 }
 
 function projectContentCanvasScope(value) {
@@ -660,16 +1392,6 @@ function projectContentCanvasLayout(value) {
   })
 }
 
-function projectContentCanvasViewport(value) {
-  const viewport = recordValue(value)
-  if (!viewport) return undefined
-  const x = numberValue(viewport.x)
-  const y = numberValue(viewport.y)
-  const zoom = numberValue(viewport.zoom)
-  if (x === undefined || y === undefined || zoom === undefined) return undefined
-  return { x, y, zoom }
-}
-
 function contentCanvasProjectFilePath(id) {
   return `${CONTENT_CANVAS_DIRECTORY}/${contentCanvasProjectPathSegment(id)}/${CONTENT_CANVAS_FILE_NAME}`
 }
@@ -677,6 +1399,31 @@ function contentCanvasProjectFilePath(id) {
 function contentCanvasProjectPathSegment(id) {
   const safe = String(id).trim().replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '')
   return safe || 'canvas'
+}
+
+function contentCanvasProjectIdFromPath(path) {
+  const segment = contentCanvasProjectPathSegmentFromPath(path)
+  return segment ? String(segment).trim() : undefined
+}
+
+function contentCanvasTitleFromProjectPath(path) {
+  const segment = contentCanvasProjectPathSegmentFromPath(path)
+  if (!segment) return undefined
+  return segment
+    .replace(/^canvas[_-]?/i, '')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    || undefined
+}
+
+function contentCanvasProjectPathSegmentFromPath(path) {
+  const parts = String(path ?? '').split(/[\\/]+/).filter(Boolean)
+  const candidate = parts.at(-1) === CONTENT_CANVAS_FILE_NAME ? parts.at(-2) : parts.at(-1)
+  return stringValue(candidate)
+}
+
+function createProjectContentCanvasId() {
+  return `canvas:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`
 }
 
 function timelineAssemblyContentUnitInput(input) {
@@ -831,6 +1578,16 @@ async function resolveProjectLocator({ projectDir, workspaceDir, projectUid }) {
 
 async function readProjectResourceView({ projectDir, kind }) {
   const engine = createNodeMovScriptEngine({ projectDir })
+  if (kind === 'project-context') {
+    const [records, index] = await Promise.all([
+      engine.workspaceService.queryEntities({ entityKind: 'project_standards', limit: 1 }),
+      engine.workspaceService.loadIndex(),
+    ])
+    return [buildProjectContextSnapshot({
+      standardsEntity: records[0],
+      namespaceVocabulary: index.namespaceVocabulary,
+    })]
+  }
   if (isProjectDomainResourceKind(kind)) {
     const index = await engine.workspaceService.loadIndex()
     return projectDomainResourceItems(index, kind)
@@ -1108,8 +1865,12 @@ function localProjectLocator(projectDir, metadata) {
 }
 
 async function executeProjectCandidateCommand({ projectDir, command, input, decisionStore }) {
+  return executeProjectCandidateAction({ projectDir, input, decisionStore }, command)
+}
+
+async function executeProjectCandidateAction({ projectDir, input, decisionStore }, action) {
   const engine = createNodeMovScriptEngine({ projectDir, decisionStore })
-  switch (command) {
+  switch (action) {
     case 'createContentCandidate':
       return engine.createContentCandidate(input)
     case 'selectContentUnitCandidate':
@@ -1117,7 +1878,29 @@ async function executeProjectCandidateCommand({ projectDir, command, input, deci
     case 'decideContentUnitCandidate':
       return engine.workspaceService.decideContentUnitCandidate(input)
     default:
-      throw httpError(400, 'project_candidate_command_unsupported', `unsupported project candidate command: ${command}`)
+      throw httpError(400, 'project_candidate_command_unsupported', `unsupported project candidate command: ${action}`)
+  }
+}
+
+async function readProjectCandidateActionContext(request) {
+  const body = await readJSONBody(request)
+  const projectDir = projectDirFromBody(body)
+  const decisionStore = await optionalDecisionStoreFromBody(body, projectDir)
+  if (!decisionStore) {
+    throw httpError(400, 'project_candidate_decision_store_required', 'decisionStore or projectUid is required')
+  }
+  return {
+    projectDir,
+    input: recordValue(body.input) ?? {},
+    decisionStore,
+  }
+}
+
+function projectCandidateActionEnvelope(projectDir, result, schema) {
+  return {
+    schema,
+    projectDir,
+    result,
   }
 }
 
@@ -1370,11 +2153,22 @@ function httpError(statusCode, code, message) {
 }
 
 function writeProjectServiceError(response, error) {
+  if (isWorkspaceFileVersionConflict(error)) {
+    writeJSON(response, 409, {
+      error: 'project_workspace_file_version_conflict',
+      message: 'workspace file changed before the write could be committed',
+    })
+    return
+  }
   const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500
   writeJSON(response, statusCode, {
     error: error?.code ?? 'project_service_error',
     message: error?.message ?? 'project service error',
   })
+}
+
+function isWorkspaceFileVersionConflict(error) {
+  return error instanceof Error && /^workspace file changed:/.test(error.message)
 }
 
 function waitForShutdown(runtime) {

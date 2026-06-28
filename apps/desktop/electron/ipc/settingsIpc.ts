@@ -32,24 +32,30 @@ export function registerSettingsIpcHandlers(deps: SettingsIpcDependencies): void
     if (!settings?.onboardingCompleted) {
       return
     }
-    if (settings.launchMode === 'local') {
+    const dataConnection = runtimeDataConnectionFromSettings(settings)
+    const configuredByDaemon = await configureDaemonRuntime(movScriptHomeDir, dataConnection)
+    if (dataConnection.kind === 'local') {
       deps.broadcastBackendStatus({ state: 'starting', baseURL: LOCAL_BACKEND_URL })
-      await ensureDesktopLocalRuntime({
-        homeDir: movScriptHomeDir,
-        dataPlane: 'local',
-      })
+      if (!configuredByDaemon) {
+        await ensureDesktopLocalRuntime({
+          homeDir: movScriptHomeDir,
+          dataPlane: 'local',
+        })
+      }
       setBackendStatus({ state: 'ready', baseURL: resolveGatewayURL(movScriptHomeDir) ?? resolveDataServiceURL(movScriptHomeDir) ?? settings.apiBaseURL ?? LOCAL_BACKEND_URL }, deps.broadcastBackendStatus)
-    } else if (settings.launchMode === 'cloud') {
+    } else {
       await stopBackend(deps.broadcastBackendStatus, { terminate: true })
-      await ensureDesktopLocalRuntime({
-        homeDir: movScriptHomeDir,
-        dataPlane: dataPlaneForAPIBaseURL(settings.apiBaseURL),
-        ...(settings.apiBaseURL ? { dataServiceURL: settings.apiBaseURL } : {}),
-      })
-      setBackendStatus({ state: 'ready', baseURL: resolveGatewayURL(movScriptHomeDir) ?? settings.apiBaseURL }, deps.broadcastBackendStatus)
+      if (!configuredByDaemon) {
+        await ensureDesktopLocalRuntime({
+          homeDir: movScriptHomeDir,
+          dataPlane: dataConnection.kind,
+          ...(dataConnection.url ? { dataServiceURL: dataConnection.url } : {}),
+        })
+      }
+      setBackendStatus({ state: 'ready', baseURL: resolveGatewayURL(movScriptHomeDir) ?? dataConnection.url ?? settings.apiBaseURL }, deps.broadcastBackendStatus)
     }
-    if (settings.launchMode === 'cloud' && settings.apiBaseURL) {
-      writeMovScriptDataServiceConfig(movScriptHomeDir, { baseURL: settings.apiBaseURL })
+    if (dataConnection.kind !== 'local' && dataConnection.url) {
+      writeMovScriptDataServiceConfig(movScriptHomeDir, { baseURL: dataConnection.url })
     }
     void deps.ensureMCPServerReady().catch((error) => {
       console.warn('[settings] failed to prepare MCP server after settings update', error)
@@ -79,13 +85,33 @@ export function registerSettingsIpcHandlers(deps: SettingsIpcDependencies): void
   })
 }
 
-function dataPlaneForAPIBaseURL(apiBaseURL: string | undefined): 'cloud' | 'external' {
-  if (!apiBaseURL) return 'cloud'
+function runtimeDataConnectionFromSettings(settings: AppSettings): {
+  kind: 'local' | 'cloud' | 'external'
+  url?: string
+} {
+  const kind = settings.dataConnection?.kind ?? (settings.launchMode === 'local' ? 'local' : 'cloud')
+  const url = settings.dataConnection?.url ?? (kind === 'local' ? settings.daemonGatewayBaseURL : settings.apiBaseURL)
+  return {
+    kind,
+    ...(url ? { url } : {}),
+  }
+}
+
+async function configureDaemonRuntime(
+  homeDir: string,
+  dataConnection: ReturnType<typeof runtimeDataConnectionFromSettings>,
+): Promise<boolean> {
+  const gatewayURL = resolveGatewayURL(homeDir)
+  if (!gatewayURL) return false
   try {
-    const url = new URL(apiBaseURL)
-    return ['localhost', '127.0.0.1', '::1'].includes(url.hostname) ? 'external' : 'cloud'
+    const response = await fetch(`${gatewayURL}/v1/runtime/configure`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ dataConnection }),
+    })
+    return response.ok
   } catch {
-    return 'cloud'
+    return false
   }
 }
 

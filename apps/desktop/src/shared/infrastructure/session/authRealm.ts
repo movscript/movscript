@@ -1,9 +1,19 @@
-import type { AppSettings } from '@/shared/contracts/appSettings'
 import { normalizeAPIBaseURL } from '@/shared/infrastructure/config'
 
-export function authRealmKey(settings: Pick<AppSettings, 'launchMode' | 'apiBaseURL' | 'cloudAPIBaseURL' | 'localAPIBaseURL'> | undefined): string {
-  if (settings?.launchMode === 'local') return 'local'
-  const baseURL = normalizeAPIBaseURL(settings?.apiBaseURL || settings?.cloudAPIBaseURL || '')
+type AuthRealmSettings = {
+  dataConnection?: {
+    kind?: string | null
+    url?: string | null
+  } | null
+  /** @deprecated Use dataConnection.kind. */
+  launchMode?: string | null
+  apiBaseURL?: string | null
+  cloudAPIBaseURL?: string | null
+}
+
+export function authRealmKey(settings: AuthRealmSettings | undefined): string {
+  if (settings?.dataConnection?.kind === 'local' || settings?.launchMode === 'local') return 'local'
+  const baseURL = normalizeAPIBaseURL(settings?.dataConnection?.url || settings?.cloudAPIBaseURL || settings?.apiBaseURL || '')
   return `cloud:${stableRealmHash(baseURL || 'cloud')}`
 }
 

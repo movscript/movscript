@@ -62,7 +62,7 @@ export const EditingListPage = lazyWithRetry(() => import('@movscript/editing-su
 export const EditingWorkspacePage = lazyWithRetry(() => import('@movscript/editing-surface/pages/EditingWorkspacePage'))
 export const EditingListSurfaceRoute = lazyWithRetry(() => import('@movscript/editing-surface/surface-routes').then((module) => ({ default: module.EditingListSurfaceRoute })))
 export const EditingWorkspaceSurfaceRoute = lazyWithRetry(() => import('@movscript/editing-surface/surface-routes').then((module) => ({ default: module.EditingWorkspaceSurfaceRoute })))
-export const ProjectOverviewPage = lazyWithRetry(() => import('@movscript/project-surface/pages').then((module) => ({ default: module.ProjectOverviewPage })))
+export const ProjectOverviewPage = lazyWithRetry(() => import('./DesktopProjectSurfaceRoutes').then((module) => ({ default: module.ProjectOverviewPage })))
 export const ProjectSettingsPage = lazyWithRetry(() => import('./DesktopProjectSurfaceRoutes').then((module) => ({ default: module.ProjectSettingsPage })))
 export const ProjectStandardsPage = lazyWithRetry(() => import('./DesktopProjectSurfaceRoutes').then((module) => ({ default: module.ProjectStandardsPage })))
 export const AgentModePage = lazyWithRetry(() => import('@/pages/agent-mode/AgentModePage'))

@@ -24,8 +24,11 @@ export function writeDesktopAppSettings(movScriptHomeDir: string, settings: AppS
 }
 
 function sanitizeDesktopAppSettings(settings: AppSettings): AppSettings {
+  const { localAPIBaseURL: _legacyLocalAPIBaseURL, ...settingsWithoutLegacy } = settings as AppSettings & {
+    localAPIBaseURL?: string
+  }
   return {
-    ...settings,
+    ...settingsWithoutLegacy,
     shotLibrarySources: settings.shotLibrarySources?.map((source) => ({
       id: source.id,
       name: source.name,

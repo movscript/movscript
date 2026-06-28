@@ -12,13 +12,12 @@ import type {
 } from './contracts'
 
 export interface LocalEditingMediaAPIInput {
-  editingServiceBaseURL: string
-  mediaPipelineBaseURL: string
+  daemonGatewayBaseURL: string
 }
 
 export function createLocalEditingMediaAPI(input: LocalEditingMediaAPIInput): ElectronAPI {
-  const editingService = new EditingServiceClient({ baseUrl: input.editingServiceBaseURL })
-  const mediaPipeline = new MediaPipelineServiceClient({ baseUrl: input.mediaPipelineBaseURL })
+  const editingService = new EditingServiceClient({ baseUrl: input.daemonGatewayBaseURL })
+  const mediaPipeline = new MediaPipelineServiceClient({ baseUrl: input.daemonGatewayBaseURL })
   const taskListeners = new Set<(event: ElectronMediaPipelineTaskEvent) => void>()
   const projectListeners = new Set<(event: ElectronMediaEditingProjectEvent) => void>()
   const activeTaskPollers = new Map<string, number>()
@@ -170,7 +169,7 @@ async function pickLocalSurfaceFile(): Promise<string | null> {
   if (typeof document === 'undefined') return null
   const file = await selectBrowserFile()
   if (!file) return null
-  const response = await fetch(`/local-api/editing/import-file?filename=${encodeURIComponent(file.name)}`, {
+  const response = await fetch(`/v1/host/editing/import-file?filename=${encodeURIComponent(file.name)}`, {
     method: 'POST',
     headers: {
       'content-type': file.type || 'application/octet-stream',

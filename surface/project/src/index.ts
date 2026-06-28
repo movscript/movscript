@@ -109,6 +109,8 @@ export type {
   GenerationServiceGateway,
   ProjectServiceGateway,
   ProjectSurfaceCapabilities,
+  ProjectSurfaceDiagnosticEndpoints,
+  ProjectSurfaceDiagnostics,
   ProjectSurfaceGateways,
   ProjectSurfaceNavigator,
   ProjectSurfaceNotifier,
@@ -119,8 +121,6 @@ export type {
   ProjectSurfaceRouteParams,
   ProjectSurfaceRuntime,
   ProjectSurfaceRuntimeInput,
-  ProjectSurfaceServiceEndpoints,
-  ProjectSurfaceSourceCommandInput,
   ResourceServiceGateway,
 } from './runtime/index.js'
 

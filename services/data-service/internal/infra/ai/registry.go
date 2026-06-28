@@ -113,6 +113,8 @@ func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelD
 		return NewMurekaAdapter(apiKey, baseURL), nil
 	case AdapterStability:
 		return NewStabilityAdapter(apiKey, baseURL), nil
+	case AdapterYunwu:
+		return NewYunwuAdapter(apiKey, baseURL), nil
 	default: // openai_compat — handles text, image (text-to-image), image_edit, and openai-compat video
 		return NewOpenAIAdapter(baseURL, apiKey), nil
 	}

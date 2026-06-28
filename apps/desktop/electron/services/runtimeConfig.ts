@@ -9,16 +9,19 @@ import {
   normalizeDataServiceRootBaseURL,
   resolveMovScriptDataServiceSession,
 } from '@movscript/data-client'
+import type {
+  MovScriptDataConnectionContext,
+  MovScriptRuntimeDescriptor,
+} from '@movscript/shared'
 import type { ElectronRuntimeConfig } from '../../src/shared/contracts/electronApi'
 import { readDesktopAppSettings } from './appSettings'
 import { getBackendStatus, LOCAL_BACKEND_URL } from './backend'
 import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
 import { providerRuntimeEnvSnapshot } from './providerRuntimeEnv'
 
-const CANVAS_SERVICE_NAME = 'movscript.canvas.service'
-const PROJECT_SERVICE_NAME = 'movscript.project.service'
 const DATA_SERVICE_NAME = 'movscript.data.service'
 const LOCAL_NODE_GATEWAY_SERVICE = 'movscript.local-node.gateway'
+const LOCAL_NODE_RUNTIME_OWNER = 'movscript.local-node'
 
 export function getElectronRuntimeConfig(): ElectronRuntimeConfig {
   const movScriptHomeDir = resolveDesktopDefaultMovScriptWorkspaceDir()
@@ -27,35 +30,33 @@ export function getElectronRuntimeConfig(): ElectronRuntimeConfig {
   const session = resolveMovScriptDataServiceSession({ workspaceDir: movScriptHomeDir })
   const gatewayBaseURL = resolveGatewayBaseURL(movScriptHomeDir)
   const dataServiceBaseURL = resolveDataServiceBaseURL(movScriptHomeDir)
-  const apiBaseURL = resolveEffectiveAPIBaseURL({
+  const shouldPreferLocalBackend = appSettings?.onboardingCompleted === true && appSettings.launchMode === 'local'
+  const apiBaseURL = resolveRendererAPIGatewayBaseURL({
     configuredBaseURL: appSettings?.apiBaseURL ?? session.baseURL,
     backendStatus,
     gatewayBaseURL,
     dataServiceBaseURL,
-    shouldPreferLocalBackend: appSettings?.onboardingCompleted === true && appSettings.launchMode === 'local',
+    shouldPreferLocalBackend,
   })
-  const canvasServiceBaseURL = resolveCanvasServiceBaseURL(movScriptHomeDir)
-  const canvasServiceV1BaseURL = gatewayBaseURL
-    ? `${gatewayBaseURL}/local-api`
-    : canvasServiceBaseURL
-      ? `${canvasServiceBaseURL}/v1`
-      : undefined
-  const projectServiceBaseURL = resolveProjectServiceBaseURL(movScriptHomeDir)
+  const dataConnection = resolveRuntimeDataConnection({
+    configuredKind: appSettings?.launchMode === 'local' ? 'local' : 'cloud',
+    backendStatus,
+    gatewayBaseURL,
+    dataServiceBaseURL,
+    shouldPreferLocalBackend,
+  })
+  const runtime = createRuntimeDescriptor({
+    gatewayBaseURL: gatewayBaseURL ?? apiBaseURL,
+    dataConnection,
+  })
   return {
     movScriptHomeDir,
     workspaceDir: movScriptHomeDir,
+    runtime,
+    dataConnection,
     ...(gatewayBaseURL ? { gatewayBaseURL } : {}),
-    ...(dataServiceBaseURL ? { dataServiceBaseURL } : {}),
     apiBaseURL,
     apiV1BaseURL: normalizeDataServiceAPIBaseURL(apiBaseURL),
-    ...(projectServiceBaseURL ? {
-      projectServiceBaseURL,
-    } : {}),
-    ...(canvasServiceBaseURL ? {
-      canvasServiceBaseURL,
-    } : {}),
-    ...(canvasServiceV1BaseURL ? { canvasServiceV1BaseURL } : {}),
-    localAPIBaseURL: normalizeDataServiceRootBaseURL(gatewayBaseURL ?? LOCAL_BACKEND_URL),
     providerRuntimeEnv: providerRuntimeEnvSnapshot(process.env),
     backendStatus: {
       ...backendStatus,
@@ -64,14 +65,66 @@ export function getElectronRuntimeConfig(): ElectronRuntimeConfig {
   }
 }
 
-function resolveEffectiveAPIBaseURL(input: {
+function createRuntimeDescriptor(input: {
+  gatewayBaseURL: string
+  dataConnection: MovScriptDataConnectionContext
+}): MovScriptRuntimeDescriptor {
+  return {
+    schema: 'movscript.runtime-descriptor.v1',
+    runtime: {
+      owner: LOCAL_NODE_RUNTIME_OWNER,
+      appId: LOCAL_NODE_RUNTIME_OWNER,
+      name: 'MovScript Local Node Daemon',
+    },
+    gateway: {
+      baseURL: normalizeDataServiceRootBaseURL(input.gatewayBaseURL),
+      canonicalPrefix: '/v1',
+    },
+    dataConnection: input.dataConnection,
+    capabilities: {
+      project: true,
+      canvas: true,
+      resources: true,
+      editing: true,
+      media: true,
+    },
+  }
+}
+
+function resolveRuntimeDataConnection(input: {
+  configuredKind: MovScriptDataConnectionContext['kind']
+  backendStatus: ReturnType<typeof getBackendStatus>
+  gatewayBaseURL?: string
+  dataServiceBaseURL?: string
+  shouldPreferLocalBackend: boolean
+}): MovScriptDataConnectionContext {
+  const kind = input.shouldPreferLocalBackend ? 'local' : input.configuredKind
+  return {
+    kind,
+    authMode: kind === 'local' ? 'local-owner' : 'session',
+    status: runtimeDataConnectionStatus(input),
+    displayName: kind === 'local' ? 'Local daemon data' : 'Cloud data connection',
+  }
+}
+
+function runtimeDataConnectionStatus(input: {
+  backendStatus: ReturnType<typeof getBackendStatus>
+  gatewayBaseURL?: string
+  dataServiceBaseURL?: string
+}): NonNullable<MovScriptDataConnectionContext['status']> {
+  if (input.gatewayBaseURL || input.dataServiceBaseURL || input.backendStatus.state === 'ready') return 'connected'
+  if (input.backendStatus.state === 'error' || input.backendStatus.state === 'stopped') return 'unavailable'
+  return 'degraded'
+}
+
+function resolveRendererAPIGatewayBaseURL(input: {
   configuredBaseURL: string
   backendStatus: ReturnType<typeof getBackendStatus>
   gatewayBaseURL?: string
   dataServiceBaseURL?: string
   shouldPreferLocalBackend: boolean
 }): string {
-  if (input.shouldPreferLocalBackend && input.gatewayBaseURL) {
+  if (input.gatewayBaseURL) {
     return normalizeDataServiceRootBaseURL(input.gatewayBaseURL)
   }
   if (input.shouldPreferLocalBackend && input.dataServiceBaseURL) {
@@ -106,30 +159,6 @@ function resolveDataServiceBaseURL(movScriptHomeDir: string): string | undefined
   const snapshot = readRuntimeHomeSnapshot(movScriptHomeDir)
   const endpoint = findRuntimeEndpoint(snapshot, DATA_SERVICE_NAME)
     ?? findRuntimeService(snapshot, DATA_SERVICE_NAME)?.endpoint
-  return normalizeHTTPBaseURL(endpointURL(endpoint))
-}
-
-function resolveProjectServiceBaseURL(movScriptHomeDir: string): string | undefined {
-  const explicit = normalizeHTTPBaseURL(
-    process.env.MOVSCRIPT_PROJECT_SERVICE_URL
-      || process.env.MOVSCRIPT_PROJECT_SERVICE_BASE_URL,
-  )
-  if (explicit) return explicit
-  const snapshot = readRuntimeHomeSnapshot(movScriptHomeDir)
-  const endpoint = findRuntimeEndpoint(snapshot, PROJECT_SERVICE_NAME)
-    ?? findRuntimeService(snapshot, PROJECT_SERVICE_NAME)?.endpoint
-  return normalizeHTTPBaseURL(endpointURL(endpoint))
-}
-
-function resolveCanvasServiceBaseURL(movScriptHomeDir: string): string | undefined {
-  const explicit = normalizeHTTPBaseURL(
-    process.env.MOVSCRIPT_CANVAS_SERVICE_URL
-      || process.env.MOVSCRIPT_CANVAS_SERVICE_BASE_URL,
-  )
-  if (explicit) return explicit
-  const snapshot = readRuntimeHomeSnapshot(movScriptHomeDir)
-  const endpoint = findRuntimeEndpoint(snapshot, CANVAS_SERVICE_NAME)
-    ?? findRuntimeService(snapshot, CANVAS_SERVICE_NAME)?.endpoint
   return normalizeHTTPBaseURL(endpointURL(endpoint))
 }
 

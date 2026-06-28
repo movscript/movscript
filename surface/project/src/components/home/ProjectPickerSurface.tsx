@@ -165,8 +165,8 @@ function defaultProjectHref(project: ProjectPickerProject): string {
 }
 
 function defaultAPIBaseURL(): string {
-  if (typeof window === 'undefined') return '/local-api/data/api/v1'
-  return `${window.location.origin}/local-api/data/api/v1`
+  if (typeof window === 'undefined') return '/api/v1'
+  return `${window.location.origin}/api/v1`
 }
 
 function trimTrailingSlash(value: string): string {

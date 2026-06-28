@@ -38,6 +38,7 @@ export interface EnsureLocalRuntimeDaemonOptions {
   cwd?: string
   env?: NodeJS.ProcessEnv
   identity?: LocalRuntimeIdentity
+  forceRestart?: boolean
   startupTimeoutMs?: number
   stopTimeoutMs?: number
 }
@@ -51,7 +52,7 @@ export async function ensureLocalRuntimeDaemon(options: EnsureLocalRuntimeDaemon
   const startupTimeoutMs = options.startupTimeoutMs ?? 15_000
   const stopTimeoutMs = options.stopTimeoutMs ?? 5_000
   const initial = await probeLocalRuntimeDaemon(options.homeDir)
-  if (initial.available && localRuntimeServicesReady(initial) && localRuntimeMatchesRequest(initial, options)) {
+  if (!options.forceRestart && initial.available && localRuntimeServicesReady(initial) && localRuntimeMatchesRequest(initial, options)) {
     await localRuntimeControlRequest(options.homeDir, 'POST', '/touch').catch(() => undefined)
     return { status: 'ready', reused: true, ...initial }
   }
@@ -67,7 +68,7 @@ export async function ensureLocalRuntimeDaemon(options: EnsureLocalRuntimeDaemon
   try {
     const probe = await probeLocalRuntimeDaemon(options.homeDir)
     if (probe.available) {
-      if (localRuntimeServicesReady(probe) && localRuntimeMatchesRequest(probe, options)) {
+      if (!options.forceRestart && localRuntimeServicesReady(probe) && localRuntimeMatchesRequest(probe, options)) {
         await localRuntimeControlRequest(options.homeDir, 'POST', '/touch').catch(() => undefined)
         return { status: 'ready', reused: true, ...probe }
       }

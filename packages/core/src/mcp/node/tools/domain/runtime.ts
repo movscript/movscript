@@ -7,9 +7,31 @@ import {
 } from '@movscript/workspace/node'
 import {
   createProjectServiceClientFromRuntime,
-  type ProjectCandidateCommandName,
+  PROJECT_SERVICE_ASSET_CREATE_ENDPOINT,
+  PROJECT_SERVICE_ASSET_UPSERT_ENDPOINT,
+  PROJECT_SERVICE_AUDIO_CUE_CREATE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_CREATE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_EDIT_PROMPT_UPDATE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_ENSURE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_UPSERT_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANDIDATE_CREATE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_SELECT_ENDPOINT,
+  PROJECT_SERVICE_ENTITY_DELETE_ENDPOINT,
+  PROJECT_SERVICE_ENTITY_TRANSITION_UPDATE_ENDPOINT,
+  PROJECT_SERVICE_EXPRESSION_UNIT_CREATE_ENDPOINT,
+  PROJECT_SERVICE_HIERARCHY_WRITE_ENDPOINT,
+  PROJECT_SERVICE_KEYFRAME_CREATE_ENDPOINT,
+  PROJECT_SERVICE_NAMESPACE_WRITE_ENDPOINT,
+  PROJECT_SERVICE_PRODUCTION_CREATE_ENDPOINT,
+  PROJECT_SERVICE_SCENE_MOMENT_CREATE_ENDPOINT,
+  PROJECT_SERVICE_SEGMENT_CREATE_ENDPOINT,
+  PROJECT_SERVICE_SETTING_CREATE_ENDPOINT,
+  PROJECT_SERVICE_SETTING_STATE_CREATE_ENDPOINT,
+  PROJECT_SERVICE_SETTING_UPSERT_ENDPOINT,
+  PROJECT_SERVICE_STORYBOARD_CREATE_ENDPOINT,
+  PROJECT_SERVICE_STORYBOARD_TIMELINE_UPDATE_ENDPOINT,
   type ProjectDecisionStoreConfig,
-  type ProjectSourceCommandName,
   type ProjectServiceClient,
 } from '@movscript/project'
 import {
@@ -19,10 +41,12 @@ import {
 import { resolveMovScriptBackendSession } from '../../../../backend/node/config.js'
 import {
   buildContentSourceWorkspaceData,
-  loadContentSourceWorkspaceSnapshotFromEngine,
   type ContentSourceWorkspaceData,
   type ContentSourceWorkspaceSnapshot,
 } from '../../../../content/index.js'
+import {
+  loadContentSourceWorkspaceSnapshotFromEngine,
+} from '../../../../content/sourceWorkspaceEngine.js'
 import { getMCPAuthToken } from '../focus/store.js'
 
 export interface MovScriptDomainRuntimeInput {
@@ -87,28 +111,32 @@ function createMovScriptDomainRuntimeFromEngine(
     projectCwd,
     projectDir: projectCwd,
     decisionStore,
-    upsertProjectStandards: (input) => projectService.sourceCommand('upsertProjectStandards', input),
-    createSetting: (input) => projectService.sourceCommand('createSetting', input),
-    createSettingState: (input) => projectService.sourceCommand('createSettingState', input),
-    createAsset: (input) => projectService.sourceCommand('createAsset', input),
-    upsertScript: (input) => projectService.sourceCommand('upsertScript', input),
-    snapshotScriptVersionFromMarkdown: (input) => projectService.sourceCommand('snapshotScriptVersionFromMarkdown', input),
-    createContentUnit: (input) => projectService.sourceCommand('createContentUnit', input),
-    writeHierarchyNode: (input) => projectService.sourceCommand(isNamespaceHierarchyWrite(input) ? 'writeNamespaceNode' : 'writeHierarchyNode', input),
-    createProduction: (input) => projectService.sourceCommand('createProduction', input),
-    createSegment: (input) => projectService.sourceCommand('createSegment', input),
-    createSceneMoment: (input) => projectService.sourceCommand('createSceneMoment', input),
-    createStoryboard: (input) => projectService.sourceCommand('createStoryboard', input),
-    createKeyframe: (input) => projectService.sourceCommand('createKeyframe', input),
-    createAudioCue: (input) => projectService.sourceCommand('createAudioCue', input),
-    createExpressionUnit: (input) => projectService.sourceCommand('createExpressionUnit', input),
-    updateContentUnitEditPrompt: (input) => projectService.sourceCommand('updateContentUnitEditPrompt', input),
-    updateEntityTransition: (input) => projectService.sourceCommand('updateEntityTransition', input),
-    updateStoryboardTimeline: (input) => projectService.sourceCommand('updateStoryboardTimeline', input),
-    deleteEntity: (input) => projectService.sourceCommand('deleteEntity', input).then(() => undefined),
-    createContentCandidate: (input) => projectService.candidateCommand('createContentCandidate', input),
-    selectContentUnitCandidate: (input) => projectService.candidateCommand('selectContentUnitCandidate', input),
-    decideContentUnitCandidate: (input) => projectService.candidateCommand('decideContentUnitCandidate', input),
+    upsertProjectStandards: (input) => projectService.upsertProjectStandards(input),
+    upsertSetting: (input) => projectService.sourceOperation(PROJECT_SERVICE_SETTING_UPSERT_ENDPOINT, input),
+    createSetting: (input) => projectService.sourceOperation(PROJECT_SERVICE_SETTING_CREATE_ENDPOINT, input),
+    createSettingState: (input) => projectService.sourceOperation(PROJECT_SERVICE_SETTING_STATE_CREATE_ENDPOINT, input),
+    upsertAsset: (input) => projectService.sourceOperation(PROJECT_SERVICE_ASSET_UPSERT_ENDPOINT, input),
+    createAsset: (input) => projectService.sourceOperation(PROJECT_SERVICE_ASSET_CREATE_ENDPOINT, input),
+    upsertScript: (input) => projectService.upsertScript(input),
+    snapshotScriptVersionFromMarkdown: (input) => projectService.snapshotScriptVersionFromMarkdown(input),
+    upsertContentUnit: (input) => projectService.sourceOperation(PROJECT_SERVICE_CONTENT_UNIT_UPSERT_ENDPOINT, input),
+    createContentUnit: (input) => projectService.sourceOperation(PROJECT_SERVICE_CONTENT_UNIT_CREATE_ENDPOINT, input),
+    ensureContentUnitForEntity: (input) => projectService.sourceOperation(PROJECT_SERVICE_CONTENT_UNIT_ENSURE_ENDPOINT, input),
+    writeHierarchyNode: (input) => projectService.sourceOperation(isNamespaceHierarchyWrite(input) ? PROJECT_SERVICE_NAMESPACE_WRITE_ENDPOINT : PROJECT_SERVICE_HIERARCHY_WRITE_ENDPOINT, input),
+    createProduction: (input) => projectService.sourceOperation(PROJECT_SERVICE_PRODUCTION_CREATE_ENDPOINT, input),
+    createSegment: (input) => projectService.sourceOperation(PROJECT_SERVICE_SEGMENT_CREATE_ENDPOINT, input),
+    createSceneMoment: (input) => projectService.sourceOperation(PROJECT_SERVICE_SCENE_MOMENT_CREATE_ENDPOINT, input),
+    createStoryboard: (input) => projectService.sourceOperation(PROJECT_SERVICE_STORYBOARD_CREATE_ENDPOINT, input),
+    createKeyframe: (input) => projectService.sourceOperation(PROJECT_SERVICE_KEYFRAME_CREATE_ENDPOINT, input),
+    createAudioCue: (input) => projectService.sourceOperation(PROJECT_SERVICE_AUDIO_CUE_CREATE_ENDPOINT, input),
+    createExpressionUnit: (input) => projectService.sourceOperation(PROJECT_SERVICE_EXPRESSION_UNIT_CREATE_ENDPOINT, input),
+    updateContentUnitEditPrompt: (input) => projectService.sourceOperation(PROJECT_SERVICE_CONTENT_UNIT_EDIT_PROMPT_UPDATE_ENDPOINT, input),
+    updateEntityTransition: (input) => projectService.sourceOperation(PROJECT_SERVICE_ENTITY_TRANSITION_UPDATE_ENDPOINT, input),
+    updateStoryboardTimeline: (input) => projectService.sourceOperation(PROJECT_SERVICE_STORYBOARD_TIMELINE_UPDATE_ENDPOINT, input),
+    deleteEntity: (input) => projectService.sourceOperation(PROJECT_SERVICE_ENTITY_DELETE_ENDPOINT, input).then(() => undefined),
+    createContentCandidate: (input) => projectService.candidateAction(PROJECT_SERVICE_CONTENT_CANDIDATE_CREATE_ENDPOINT, input),
+    selectContentUnitCandidate: (input) => projectService.candidateAction(PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_SELECT_ENDPOINT, input),
+    decideContentUnitCandidate: (input) => projectService.candidateAction(PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT, input),
     readContentUnitGenerationPrompt: async (contentUnitId) => (await projectService.promptContext(contentUnitId)).generationPrompt,
     buildContentUnitBackendPrompt: async (contentUnitId) => (await projectService.promptContext(contentUnitId)).backendPrompt,
     reviewWorkspace: (inspectInput = {}) => projectService.inspectWorkspace(inspectInput),
@@ -132,8 +160,11 @@ function createProjectServiceAccessor(projectDir: string, decisionStoreConfig?: 
   overviewWorkspace(): Promise<unknown>
   interpretWorkspace(): ReturnType<NodeMovScriptEngine['interpret']>
   regenerationPlan(): Promise<unknown>
-  sourceCommand(command: ProjectSourceCommandName, input?: unknown): Promise<any>
-  candidateCommand(command: ProjectCandidateCommandName, input?: unknown): Promise<any>
+  upsertProjectStandards(input?: unknown): Promise<any>
+  upsertScript(input?: unknown): Promise<any>
+  snapshotScriptVersionFromMarkdown(input?: unknown): Promise<any>
+  sourceOperation(endpoint: string, input?: unknown): Promise<any>
+  candidateAction(endpoint: string, input?: unknown): Promise<any>
   promptContext(contentUnitId: string | number): Promise<any>
 } {
   let client: ProjectServiceClient | undefined
@@ -146,20 +177,30 @@ function createProjectServiceAccessor(projectDir: string, decisionStoreConfig?: 
     overviewWorkspace: async () => (await getClient().overviewSource({ projectDir })).overview,
     interpretWorkspace: async () => (await getClient().interpretSource({ projectDir })).interpretation as Awaited<ReturnType<NodeMovScriptEngine['interpret']>>,
     regenerationPlan: async () => (await getClient().regenerationPlan({ projectDir })).regenerationPlan,
-    sourceCommand: async (command, input = {}) => (await getClient().sourceCommand({
+    upsertProjectStandards: async (input = {}) => (await getClient().upsertProjectStandards({
       projectDir,
-      command,
-      input: sourceCommandInput(input),
+      input: sourceOperationInput(input),
     })).result,
-    candidateCommand: async (command, input = {}) => {
+    upsertScript: async (input = {}) => (await getClient().upsertScript({
+      projectDir,
+      input: sourceOperationInput(input),
+    })).result,
+    snapshotScriptVersionFromMarkdown: async (input = {}) => (await getClient().snapshotScriptVersionFromMarkdown({
+      projectDir,
+      input: sourceOperationInput(input),
+    })).result,
+    sourceOperation: async (endpoint, input = {}) => (await getClient().sourceOperation(endpoint, {
+      projectDir,
+      input: sourceOperationInput(input),
+    })).result,
+    candidateAction: async (endpoint, input = {}) => {
       const resolvedDecisionStoreConfig = await decisionStoreConfig?.()
       if (!resolvedDecisionStoreConfig) {
-        throw new Error('content unit candidate command requires a scoped project data decisionStore')
+        throw new Error('content unit candidate action requires a scoped project data decisionStore')
       }
-      return (await getClient().candidateCommand({
+      return (await getClient().candidateAction(endpoint, {
         projectDir,
-        command,
-        input: sourceCommandInput(input),
+        input: sourceOperationInput(input),
         decisionStore: resolvedDecisionStoreConfig,
       })).result
     },
@@ -174,7 +215,7 @@ function createProjectServiceAccessor(projectDir: string, decisionStoreConfig?: 
   }
 }
 
-function sourceCommandInput(input: unknown): Record<string, unknown> {
+function sourceOperationInput(input: unknown): Record<string, unknown> {
   return input && typeof input === 'object' && !Array.isArray(input)
     ? input as Record<string, unknown>
     : {}

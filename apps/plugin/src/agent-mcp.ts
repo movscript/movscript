@@ -59,7 +59,76 @@ const PROJECT_SERVICE_NAME = 'movscript.project.service'
 const CANVAS_SERVICE_NAME = 'movscript.canvas.service'
 const DATA_SERVICE_NAME = 'movscript.data.service'
 const DEFAULT_LOCAL_NODE_GATEWAY_PORT = 8766
+const RUNTIME_ENDPOINT_WAIT_TIMEOUT_MS = 5000
+const RUNTIME_ENDPOINT_WAIT_INTERVAL_MS = 100
+const DAEMON_RUNTIME_DESCRIPTOR_ENDPOINT = '/v1/runtime/descriptor'
+const DAEMON_RUNTIME_STATUS_ENDPOINT = '/v1/runtime/status'
+const DAEMON_RUNTIME_DIAGNOSTICS_ENDPOINT = '/v1/runtime/diagnostics'
+const DAEMON_RUNTIME_CONFIGURE_ENDPOINT = '/v1/runtime/configure'
+const DAEMON_CONTEXT_ENDPOINT = '/v1/context'
+const DAEMON_CONTEXT_SESSIONS_ENDPOINT = '/v1/context/sessions'
 const LOCAL_PROJECT_SERVICE_PROXY_ROUTES = new Map<string, string>([
+  ['/v1/project/read-model', '/v1/project/read-model'],
+  ['/v1/project/lifecycle/command', '/v1/project/lifecycle/command'],
+  ['/v1/project/locator/resolve', '/v1/project/locator/resolve'],
+  ['/v1/project/source/snapshot', '/v1/project/source/snapshot'],
+  ['/v1/project/source/inspect', '/v1/project/source/inspect'],
+  ['/v1/project/source/overview', '/v1/project/source/overview'],
+  ['/v1/project/source/interpret', '/v1/project/source/interpret'],
+  ['/v1/project/source/regeneration-plan', '/v1/project/source/regeneration-plan'],
+  ['/v1/project/source/command', '/v1/project/source/command'],
+  ['/v1/project/entities/query', '/v1/project/entities/query'],
+  ['/v1/project/settings/query', '/v1/project/settings/query'],
+  ['/v1/project/assets/query', '/v1/project/assets/query'],
+  ['/v1/project/content-workspace/snapshot', '/v1/project/content-workspace/snapshot'],
+  ['/v1/project/content-workspace/read', '/v1/project/content-workspace/read'],
+  ['/v1/project/standards/upsert', '/v1/project/standards/upsert'],
+  ['/v1/project/scripts/source/read', '/v1/project/scripts/source/read'],
+  ['/v1/project/scripts/upsert', '/v1/project/scripts/upsert'],
+  ['/v1/project/scripts/versions/snapshot', '/v1/project/scripts/versions/snapshot'],
+  ['/v1/project/settings/upsert', '/v1/project/settings/upsert'],
+  ['/v1/project/settings/create', '/v1/project/settings/create'],
+  ['/v1/project/settings/states/create', '/v1/project/settings/states/create'],
+  ['/v1/project/assets/upsert', '/v1/project/assets/upsert'],
+  ['/v1/project/assets/create', '/v1/project/assets/create'],
+  ['/v1/project/productions/snapshot/save', '/v1/project/productions/snapshot/save'],
+  ['/v1/project/content-units/upsert', '/v1/project/content-units/upsert'],
+  ['/v1/project/content-units/create', '/v1/project/content-units/create'],
+  ['/v1/project/content-units/ensure', '/v1/project/content-units/ensure'],
+  ['/v1/project/timeline-assemblies/content-unit/ensure', '/v1/project/timeline-assemblies/content-unit/ensure'],
+  ['/v1/project/content-units/edit-prompt/update', '/v1/project/content-units/edit-prompt/update'],
+  ['/v1/project/productions/create', '/v1/project/productions/create'],
+  ['/v1/project/segments/create', '/v1/project/segments/create'],
+  ['/v1/project/scene-moments/create', '/v1/project/scene-moments/create'],
+  ['/v1/project/scene-moments/settings/connect', '/v1/project/scene-moments/settings/connect'],
+  ['/v1/project/expression-units/create', '/v1/project/expression-units/create'],
+  ['/v1/project/expression-units/update', '/v1/project/expression-units/update'],
+  ['/v1/project/keyframes/create', '/v1/project/keyframes/create'],
+  ['/v1/project/storyboards/create', '/v1/project/storyboards/create'],
+  ['/v1/project/storyboards/timeline/update', '/v1/project/storyboards/timeline/update'],
+  ['/v1/project/audio-cues/create', '/v1/project/audio-cues/create'],
+  ['/v1/project/audio-cues/update', '/v1/project/audio-cues/update'],
+  ['/v1/project/entities/basics/update', '/v1/project/entities/basics/update'],
+  ['/v1/project/entities/transition/update', '/v1/project/entities/transition/update'],
+  ['/v1/project/entities/delete', '/v1/project/entities/delete'],
+  ['/v1/project/hierarchy/write', '/v1/project/hierarchy/write'],
+  ['/v1/project/namespaces/write', '/v1/project/namespaces/write'],
+  ['/v1/project/content-canvases/list', '/v1/project/content-canvases/list'],
+  ['/v1/project/content-canvases/write', '/v1/project/content-canvases/write'],
+  ['/v1/project/content-canvases/rename', '/v1/project/content-canvases/rename'],
+  ['/v1/project/content-canvases/run', '/v1/project/content-canvases/run'],
+  ['/v1/project/content-canvases/delete', '/v1/project/content-canvases/delete'],
+  ['/v1/project/workspace-candidates/select', '/v1/project/workspace-candidates/select'],
+  ['/v1/project/workspace-candidates/append', '/v1/project/workspace-candidates/append'],
+  ['/v1/project/workspace-candidates/asset-slots/create', '/v1/project/workspace-candidates/asset-slots/create'],
+  ['/v1/project/workspace-candidates/keyframes/create', '/v1/project/workspace-candidates/keyframes/create'],
+  ['/v1/project/content-candidates/create', '/v1/project/content-candidates/create'],
+  ['/v1/project/content-unit-candidates/select', '/v1/project/content-unit-candidates/select'],
+  ['/v1/project/content-unit-candidates/decide', '/v1/project/content-unit-candidates/decide'],
+  ['/v1/project/resources/view', '/v1/project/resources/view'],
+  ['/v1/project/candidates/command', '/v1/project/candidates/command'],
+  ['/v1/project/candidates/view', '/v1/project/candidates/view'],
+  ['/v1/project/prompt/context', '/v1/project/prompt/context'],
   ['/local-api/project/read-model', '/v1/project/read-model'],
   ['/local-api/project/lifecycle/command', '/v1/project/lifecycle/command'],
   ['/local-api/project/locator/resolve', '/v1/project/locator/resolve'],
@@ -69,11 +138,60 @@ const LOCAL_PROJECT_SERVICE_PROXY_ROUTES = new Map<string, string>([
   ['/local-api/project/source/interpret', '/v1/project/source/interpret'],
   ['/local-api/project/source/regeneration-plan', '/v1/project/source/regeneration-plan'],
   ['/local-api/project/source/command', '/v1/project/source/command'],
+  ['/local-api/project/entities/query', '/v1/project/entities/query'],
+  ['/local-api/project/settings/query', '/v1/project/settings/query'],
+  ['/local-api/project/assets/query', '/v1/project/assets/query'],
+  ['/local-api/project/content-workspace/snapshot', '/v1/project/content-workspace/snapshot'],
+  ['/local-api/project/content-workspace/read', '/v1/project/content-workspace/read'],
+  ['/local-api/project/standards/upsert', '/v1/project/standards/upsert'],
+  ['/local-api/project/scripts/source/read', '/v1/project/scripts/source/read'],
+  ['/local-api/project/scripts/upsert', '/v1/project/scripts/upsert'],
+  ['/local-api/project/scripts/versions/snapshot', '/v1/project/scripts/versions/snapshot'],
+  ['/local-api/project/settings/upsert', '/v1/project/settings/upsert'],
+  ['/local-api/project/settings/create', '/v1/project/settings/create'],
+  ['/local-api/project/settings/states/create', '/v1/project/settings/states/create'],
+  ['/local-api/project/assets/upsert', '/v1/project/assets/upsert'],
+  ['/local-api/project/assets/create', '/v1/project/assets/create'],
+  ['/local-api/project/productions/snapshot/save', '/v1/project/productions/snapshot/save'],
+  ['/local-api/project/content-units/upsert', '/v1/project/content-units/upsert'],
+  ['/local-api/project/content-units/create', '/v1/project/content-units/create'],
+  ['/local-api/project/content-units/ensure', '/v1/project/content-units/ensure'],
+  ['/local-api/project/timeline-assemblies/content-unit/ensure', '/v1/project/timeline-assemblies/content-unit/ensure'],
+  ['/local-api/project/content-units/edit-prompt/update', '/v1/project/content-units/edit-prompt/update'],
+  ['/local-api/project/productions/create', '/v1/project/productions/create'],
+  ['/local-api/project/segments/create', '/v1/project/segments/create'],
+  ['/local-api/project/scene-moments/create', '/v1/project/scene-moments/create'],
+  ['/local-api/project/scene-moments/settings/connect', '/v1/project/scene-moments/settings/connect'],
+  ['/local-api/project/expression-units/create', '/v1/project/expression-units/create'],
+  ['/local-api/project/expression-units/update', '/v1/project/expression-units/update'],
+  ['/local-api/project/keyframes/create', '/v1/project/keyframes/create'],
+  ['/local-api/project/storyboards/create', '/v1/project/storyboards/create'],
+  ['/local-api/project/storyboards/timeline/update', '/v1/project/storyboards/timeline/update'],
+  ['/local-api/project/audio-cues/create', '/v1/project/audio-cues/create'],
+  ['/local-api/project/audio-cues/update', '/v1/project/audio-cues/update'],
+  ['/local-api/project/entities/basics/update', '/v1/project/entities/basics/update'],
+  ['/local-api/project/entities/transition/update', '/v1/project/entities/transition/update'],
+  ['/local-api/project/entities/delete', '/v1/project/entities/delete'],
+  ['/local-api/project/hierarchy/write', '/v1/project/hierarchy/write'],
+  ['/local-api/project/namespaces/write', '/v1/project/namespaces/write'],
+  ['/local-api/project/content-canvases/list', '/v1/project/content-canvases/list'],
+  ['/local-api/project/content-canvases/write', '/v1/project/content-canvases/write'],
+  ['/local-api/project/content-canvases/rename', '/v1/project/content-canvases/rename'],
+  ['/local-api/project/content-canvases/run', '/v1/project/content-canvases/run'],
+  ['/local-api/project/content-canvases/delete', '/v1/project/content-canvases/delete'],
+  ['/local-api/project/workspace-candidates/select', '/v1/project/workspace-candidates/select'],
+  ['/local-api/project/workspace-candidates/append', '/v1/project/workspace-candidates/append'],
+  ['/local-api/project/workspace-candidates/asset-slots/create', '/v1/project/workspace-candidates/asset-slots/create'],
+  ['/local-api/project/workspace-candidates/keyframes/create', '/v1/project/workspace-candidates/keyframes/create'],
+  ['/local-api/project/content-candidates/create', '/v1/project/content-candidates/create'],
+  ['/local-api/project/content-unit-candidates/select', '/v1/project/content-unit-candidates/select'],
+  ['/local-api/project/content-unit-candidates/decide', '/v1/project/content-unit-candidates/decide'],
   ['/local-api/project/resources/view', '/v1/project/resources/view'],
   ['/local-api/project/candidates/command', '/v1/project/candidates/command'],
   ['/local-api/project/candidates/view', '/v1/project/candidates/view'],
   ['/local-api/project/prompt/context', '/v1/project/prompt/context'],
 ])
+const daemonContextSessions = new Map<string, DaemonContextEnvelope>()
 const PLUGIN_ROOT = resolve(import.meta.dirname, '..')
 const DEV_REPO_ROOT = resolve(import.meta.dirname, '../../..')
 const BUNDLED_RUNTIME_ROOT = resolve(PLUGIN_ROOT, 'runtime')
@@ -229,6 +347,89 @@ interface LocalDaemonCLIOptions {
   idleTimeout?: string
 }
 
+interface DaemonContextEnvelope {
+  schema: 'movscript.context-envelope.v1'
+  contextId: string
+  revision: number
+  issuedAt: string
+  runtime: {
+    owner: 'local-node'
+    appId: string
+    gatewayPrefix: '/v1'
+  }
+  principal: {
+    userId: string
+    kind: 'local-owner' | 'cloud-user' | 'service-account' | 'external-user'
+    accountId?: string
+    displayName?: string
+    scopeKind?: 'user' | 'org' | 'local'
+    scopeId?: string | number
+  }
+  dataConnection: {
+    kind: LocalDaemonDataPlane
+    authMode: 'local-owner' | 'session' | 'external'
+    status: 'connected' | 'degraded' | 'unavailable'
+    displayName: string
+  }
+  session?: DaemonWorkspaceSessionContext
+}
+
+interface DaemonRuntimeDescriptor {
+  schema: 'movscript.runtime-descriptor.v1'
+  runtime: {
+    owner: 'movscript.local-node'
+    appId: 'movscript.local-node'
+    name: 'MovScript Local Node Daemon'
+  }
+  gateway: {
+    baseURL: string
+    canonicalPrefix: '/v1'
+  }
+  dataConnection: DaemonContextEnvelope['dataConnection']
+  capabilities: {
+    project: boolean
+    canvas: boolean
+    resources: boolean
+    editing: boolean
+    media: boolean
+  }
+}
+
+interface DaemonWorkspaceSessionContext {
+  sessionId: string
+  windowId?: string
+  project?: {
+    id: string
+    uid?: string
+    slug?: string
+    title?: string
+  }
+  workspace?: {
+    kind: 'local-fs' | 'cloud' | 'external'
+    projectCwd?: string
+    rootUri?: string
+  }
+  capabilities: {
+    localFileAccess: boolean
+    fileImport: boolean
+    mediaPreview: boolean
+  }
+}
+
+interface DaemonContextSessionInput {
+  sessionId?: string
+  windowId?: string
+  projectId?: string | number
+  projectUid?: string
+  projectSlug?: string
+  projectTitle?: string
+  projectDir?: string
+  workspaceRootUri?: string
+  workspaceKind?: 'local-fs' | 'cloud' | 'external'
+  capabilities?: Partial<DaemonWorkspaceSessionContext['capabilities']>
+  principal?: Partial<DaemonContextEnvelope['principal']>
+}
+
 function parseLocalDaemonArgs(command: string, rawArgs: string[]): { subcommand: string | undefined; options: LocalDaemonCLIOptions } {
   const options: LocalDaemonCLIOptions = {}
   let subcommand: string | undefined
@@ -347,13 +548,13 @@ async function runPersistentLocalNode(): Promise<void> {
   const homeDir = resolveMovScriptHomeDir()
   const idleTimeoutMs = parseIdleTimeout(process.env.MOVSCRIPT_LOCAL_DAEMON_IDLE_TIMEOUT ?? process.env.MOVSCRIPT_LOCAL_NODE_IDLE_TIMEOUT)
   const pluginIdentity = currentPluginIdentity()
-  const dataPlane = resolveLocalDaemonDataPlane(process.env)
-  const dataServiceURL = resolveDataServiceURL(homeDir)
-  const startupPolicy = localNodeStartupPolicyForDataPlane(dataPlane)
   let shouldExit = false
   let restartCount = 0
 
   while (!shouldExit) {
+    const dataPlane = resolveLocalDaemonDataPlane(process.env)
+    const dataServiceURL = configuredDataServiceURLForDataPlane(dataPlane)
+    const startupPolicy = localNodeStartupPolicyForDataPlane(dataPlane)
     let resolveAction!: (action: LocalNodeAction) => void
     const actionPromise = new Promise<LocalNodeAction>((resolveActionPromise) => {
       resolveAction = resolveActionPromise
@@ -500,6 +701,11 @@ function isLocalHTTPURL(value: string): boolean {
 
 function localNodeStartupPolicyForDataPlane(dataPlane: LocalDaemonDataPlane): ScenarioPolicyManifest {
   return dataPlane === 'local' ? localNodeStartupPolicy : localNodeCloudDataStartupPolicy
+}
+
+function configuredDataServiceURLForDataPlane(dataPlane: LocalDaemonDataPlane): string | undefined {
+  const dataServiceURL = process.env.MOVSCRIPT_DATA_SERVICE_URL?.trim()
+  return dataPlane === 'local' ? undefined : dataServiceURL || undefined
 }
 
 function createProgramAdapters(options: { includeMCPHost?: boolean; controlState?: LocalNodeControlState } = {}): ProgramAdapter[] {
@@ -978,7 +1184,7 @@ async function startLocalNodeControlServer(state: LocalNodeControlState, staticR
       setImmediate(() => state.requestAction({ type: 'restart', reason: 'explicit_restart' }))
       return
     }
-    if (await handleLocalSurfaceGatewayRequest(staticRoot, state.homeDir, request, response, url)) {
+    if (await handleLocalSurfaceGatewayRequest(staticRoot, state.homeDir, request, response, url, state)) {
       return
     }
     send(404, { error: 'not_found' })
@@ -1078,6 +1284,7 @@ async function handleLocalSurfaceGatewayRequest(
   request: IncomingMessage,
   response: ServerResponse,
   url: URL,
+  localNodeState?: LocalNodeControlState,
 ): Promise<boolean> {
   if (isGatewayAPIPath(url.pathname)) {
     applyCORSHeaders(response, request)
@@ -1087,20 +1294,43 @@ async function handleLocalSurfaceGatewayRequest(
       return true
     }
   }
+  if (url.pathname === DAEMON_CONTEXT_ENDPOINT || url.pathname.startsWith(`${DAEMON_CONTEXT_SESSIONS_ENDPOINT}`)) {
+    await handleDaemonContextRequest(homeDir, request, response, url)
+    return true
+  }
+  if (
+    url.pathname === DAEMON_RUNTIME_DESCRIPTOR_ENDPOINT
+    || url.pathname === DAEMON_RUNTIME_STATUS_ENDPOINT
+    || url.pathname === DAEMON_RUNTIME_DIAGNOSTICS_ENDPOINT
+    || url.pathname === DAEMON_RUNTIME_CONFIGURE_ENDPOINT
+  ) {
+    await handleDaemonRuntimeRequest(homeDir, request, response, url, localNodeState)
+    return true
+  }
   if (LOCAL_PROJECT_SERVICE_PROXY_ROUTES.has(url.pathname)) {
     await proxyProjectServiceRequest(homeDir, request, response, url)
     return true
   }
-  if (request.method === 'POST' && url.pathname === '/local-api/editing/import-file') {
+  if (
+    request.method === 'POST'
+    && (url.pathname === '/v1/host/editing/import-file' || url.pathname === '/local-api/editing/import-file')
+  ) {
     await importLocalSurfaceEditingFile(homeDir, request, response, url)
     return true
   }
-  if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname === '/local-api/editing/media-file') {
+  if (
+    (request.method === 'GET' || request.method === 'HEAD')
+    && (url.pathname === '/v1/host/editing/media-file' || url.pathname === '/local-api/editing/media-file')
+  ) {
     await serveLocalSurfaceEditingMediaFile(homeDir, request, response, url)
     return true
   }
+  if (url.pathname === '/v1/canvas' || url.pathname.startsWith('/v1/canvas/')) {
+    await proxyCanvasServiceRequest(homeDir, request, response, url, '/v1/canvas')
+    return true
+  }
   if (url.pathname === '/local-api/canvas' || url.pathname.startsWith('/local-api/canvas/')) {
-    await proxyCanvasServiceRequest(homeDir, request, response, url)
+    await proxyCanvasServiceRequest(homeDir, request, response, url, '/local-api/canvas')
     return true
   }
   if (url.pathname === '/local-api/data' || url.pathname.startsWith('/local-api/data/')) {
@@ -1125,6 +1355,18 @@ function isGatewayAPIPath(pathname: string): boolean {
     || pathname.startsWith('/local-api/data/')
     || pathname === '/local-api/canvas'
     || pathname.startsWith('/local-api/canvas/')
+    || pathname === '/v1/canvas'
+    || pathname.startsWith('/v1/canvas/')
+    || pathname === DAEMON_CONTEXT_ENDPOINT
+    || pathname === DAEMON_CONTEXT_SESSIONS_ENDPOINT
+    || pathname.startsWith(`${DAEMON_CONTEXT_SESSIONS_ENDPOINT}/`)
+    || pathname === DAEMON_RUNTIME_DESCRIPTOR_ENDPOINT
+    || pathname === DAEMON_RUNTIME_STATUS_ENDPOINT
+    || pathname === DAEMON_RUNTIME_DIAGNOSTICS_ENDPOINT
+    || pathname === DAEMON_RUNTIME_CONFIGURE_ENDPOINT
+    || pathname.startsWith('/v1/project/')
+    || pathname === '/v1/host/editing'
+    || pathname.startsWith('/v1/host/editing/')
     || pathname === '/local-api/editing'
     || pathname.startsWith('/local-api/editing/')
     || pathname.startsWith('/local-api/project/')
@@ -1160,6 +1402,519 @@ function localSurfaceHostStaticRoot(): string {
     resolve(PLUGIN_ROOT, 'runtime/services/local-surface-host/dist'),
     resolve(DEV_REPO_ROOT, 'services/local-surface-host/dist'),
   )
+}
+
+async function handleDaemonRuntimeRequest(
+  homeDir: string,
+  request: IncomingMessage,
+  response: ServerResponse,
+  url: URL,
+  localNodeState?: LocalNodeControlState,
+): Promise<void> {
+  if (url.pathname === DAEMON_RUNTIME_CONFIGURE_ENDPOINT) {
+    await handleDaemonRuntimeConfigureRequest(homeDir, request, response, localNodeState)
+    return
+  }
+  if (request.method !== 'GET') {
+    writeLocalSurfaceJSON(response, 405, {
+      error: 'method_not_allowed',
+      message: 'Daemon runtime descriptor only supports GET.',
+    })
+    return
+  }
+  const descriptor = issueDaemonRuntimeDescriptor(homeDir, request)
+  if (url.pathname === DAEMON_RUNTIME_DIAGNOSTICS_ENDPOINT) {
+    if (!daemonRuntimeDiagnosticsEnabled()) {
+      writeLocalSurfaceJSON(response, 404, {
+        error: 'diagnostics_not_enabled',
+        message: 'Daemon runtime diagnostics are debug-only and are not enabled for this process.',
+      })
+      return
+    }
+    writeLocalSurfaceJSON(response, 200, issueDaemonRuntimeDiagnostics(homeDir, descriptor))
+    return
+  }
+  if (url.pathname === DAEMON_RUNTIME_STATUS_ENDPOINT) {
+    writeLocalSurfaceJSON(response, 200, {
+      schema: 'movscript.runtime-status.v1',
+      runtime: descriptor.runtime,
+      gateway: descriptor.gateway,
+      dataConnection: descriptor.dataConnection,
+      capabilities: descriptor.capabilities,
+      status: descriptor.dataConnection.status === 'unavailable' ? 'unavailable' : 'ready',
+    })
+    return
+  }
+  writeLocalSurfaceJSON(response, 200, descriptor)
+}
+
+async function handleDaemonRuntimeConfigureRequest(
+  homeDir: string,
+  request: IncomingMessage,
+  response: ServerResponse,
+  localNodeState: LocalNodeControlState | undefined,
+): Promise<void> {
+  if (request.method !== 'POST') {
+    writeLocalSurfaceJSON(response, 405, {
+      error: 'method_not_allowed',
+      message: 'Daemon runtime configure only supports POST.',
+    })
+    return
+  }
+  if (!localNodeState) {
+    writeLocalSurfaceJSON(response, 409, {
+      error: 'runtime_configure_unavailable',
+      message: 'Daemon runtime configure must be handled by movscript.local-node.',
+    })
+    return
+  }
+
+  try {
+    const input = await readDaemonRuntimeConfigureInput(request)
+    localNodeState.lastActivityAt = new Date()
+    if (daemonRuntimeConfigureMatchesCurrent(localNodeState, input)) {
+      writeLocalSurfaceJSON(response, 200, {
+        schema: 'movscript.runtime-configure-result.v1',
+        status: 'ready',
+        restarted: false,
+        dataConnection: daemonDataConnectionContext(homeDir),
+      })
+      return
+    }
+    process.env.MOVSCRIPT_LOCAL_DAEMON_DATA_PLANE = input.dataPlane
+    if (input.dataPlane === 'local' || !input.dataServiceURL) {
+      delete process.env.MOVSCRIPT_DATA_SERVICE_URL
+    } else {
+      process.env.MOVSCRIPT_DATA_SERVICE_URL = input.dataServiceURL
+    }
+    writeLocalSurfaceJSON(response, 202, {
+      schema: 'movscript.runtime-configure-result.v1',
+      status: 'restarting',
+      restarted: true,
+      dataConnection: daemonDataConnectionContext(homeDir),
+    })
+    setImmediate(() => localNodeState.requestAction({ type: 'restart', reason: 'runtime_configure' }))
+  } catch (error) {
+    writeLocalSurfaceJSON(response, 400, {
+      error: 'invalid_runtime_configure_request',
+      message: errorMessage(error),
+    })
+  }
+}
+
+function daemonRuntimeConfigureMatchesCurrent(
+  state: LocalNodeControlState,
+  input: { dataPlane: LocalDaemonDataPlane; dataServiceURL?: string },
+): boolean {
+  if (state.dataPlane !== input.dataPlane) return false
+  if (input.dataPlane === 'local') return true
+  return normalizeDataServiceURL(state.dataServiceURL) === normalizeDataServiceURL(input.dataServiceURL)
+}
+
+async function readDaemonRuntimeConfigureInput(request: IncomingMessage): Promise<{
+  dataPlane: LocalDaemonDataPlane
+  dataServiceURL?: string
+}> {
+  const text = (await readRequestText(request)).trim()
+  const value = text ? JSON.parse(text) as unknown : {}
+  const record = recordFromUnknown(value) ?? {}
+  const dataConnection = recordFromUnknown(record.dataConnection)
+  const dataPlane = localDaemonDataPlaneValue(
+    dataConnection?.kind
+      ?? record.dataPlane
+      ?? record.data_connection_kind
+      ?? record.kind,
+  )
+  if (!dataPlane) throw new Error('dataConnection.kind must be local, cloud, or external')
+  const dataServiceURL = trimmedString(
+    dataConnection?.url
+      ?? record.dataServiceURL
+      ?? record.data_service_url
+      ?? record.url,
+  )
+  return {
+    dataPlane,
+    ...(dataPlane !== 'local' && dataServiceURL ? { dataServiceURL } : {}),
+  }
+}
+
+function normalizeDataServiceURL(value: string | undefined): string | undefined {
+  const raw = value?.trim()
+  if (!raw) return undefined
+  try {
+    const url = new URL(raw)
+    url.hash = ''
+    url.pathname = url.pathname.replace(/\/+$/, '') || '/'
+    return url.toString().replace(/\/$/, '')
+  } catch {
+    return raw.replace(/\/+$/, '')
+  }
+}
+
+function localDaemonDataPlaneValue(value: unknown): LocalDaemonDataPlane | undefined {
+  return value === 'local' || value === 'cloud' || value === 'external' ? value : undefined
+}
+
+function daemonRuntimeDiagnosticsEnabled(): boolean {
+  return process.env.MOVSCRIPT_RUNTIME_DIAGNOSTICS === '1'
+    || process.env.MOVSCRIPT_LOCAL_NODE_DEBUG === '1'
+}
+
+function issueDaemonRuntimeDiagnostics(homeDir: string, descriptor: DaemonRuntimeDescriptor) {
+  const snapshot = readRuntimeHomeSnapshot(homeDir)
+  return {
+    schema: 'movscript.runtime-diagnostics.v1',
+    debugOnly: true,
+    runtime: descriptor.runtime,
+    gateway: descriptor.gateway,
+    dataConnection: descriptor.dataConnection,
+    services: snapshot.services.map((record) => ({
+      serviceName: record.serviceName,
+      ownerApplicationId: record.ownerApplicationId,
+      profile: record.profile,
+      status: record.status,
+      ready: record.ready,
+      pidAlive: record.pid ? pidIsAlive(record.pid) : undefined,
+      endpoint: record.endpoint ? redactedEndpoint(record.endpoint) : undefined,
+      updatedAt: record.updatedAt,
+    })),
+    endpoints: snapshot.endpoints.map(redactedEndpoint),
+  }
+}
+
+function redactedEndpoint(endpoint: { serviceName?: string; applicationId?: string; protocol?: string; port?: number; status: string; ready: boolean; updatedAt?: string }) {
+  return {
+    serviceName: endpoint.serviceName,
+    applicationId: endpoint.applicationId,
+    protocol: endpoint.protocol,
+    port: endpoint.port,
+    status: endpoint.status,
+    ready: endpoint.ready,
+    updatedAt: endpoint.updatedAt,
+  }
+}
+
+function issueDaemonRuntimeDescriptor(homeDir: string, request?: IncomingMessage): DaemonRuntimeDescriptor {
+  return {
+    schema: 'movscript.runtime-descriptor.v1',
+    runtime: {
+      owner: 'movscript.local-node',
+      appId: 'movscript.local-node',
+      name: 'MovScript Local Node Daemon',
+    },
+    gateway: {
+      baseURL: daemonGatewayBaseURL(homeDir, request),
+      canonicalPrefix: '/v1',
+    },
+    dataConnection: daemonDataConnectionContext(homeDir),
+    capabilities: {
+      project: true,
+      canvas: true,
+      resources: true,
+      editing: true,
+      media: true,
+    },
+  }
+}
+
+function daemonGatewayBaseURL(homeDir: string, request?: IncomingMessage): string {
+  return trimURLTrailingSlash(
+    resolveGatewayURL(homeDir)
+      ?? requestOrigin(request)
+      ?? `http://127.0.0.1:${DEFAULT_LOCAL_NODE_GATEWAY_PORT}`,
+  )
+}
+
+function requestOrigin(request: IncomingMessage | undefined): string | undefined {
+  const host = request?.headers.host
+  if (typeof host !== 'string' || !host.trim()) return undefined
+  const protoHeader = request?.headers['x-forwarded-proto']
+  const protocol = typeof protoHeader === 'string' && protoHeader.trim() ? protoHeader.trim().split(',')[0] : 'http'
+  return `${protocol}://${host.trim()}`
+}
+
+function trimURLTrailingSlash(value: string): string {
+  return value.trim().replace(/\/+$/, '')
+}
+
+function daemonDataConnectionContext(homeDir: string): DaemonContextEnvelope['dataConnection'] {
+  const dataPlane = resolveLocalDaemonDataPlane(process.env)
+  return {
+    kind: dataPlane,
+    authMode: dataPlane === 'local' ? 'local-owner' : dataPlane === 'cloud' ? 'session' : 'external',
+    status: dataPlane === 'external' && !resolveDataServiceURL(homeDir) ? 'degraded' : 'connected',
+    displayName: dataPlane === 'local' ? 'Local Data Plane' : dataPlane === 'cloud' ? 'Cloud Data Plane' : 'External Data Plane',
+  }
+}
+
+async function handleDaemonContextRequest(
+  homeDir: string,
+  request: IncomingMessage,
+  response: ServerResponse,
+  url: URL,
+): Promise<void> {
+  try {
+    if (request.method === 'GET' && url.pathname === DAEMON_CONTEXT_ENDPOINT) {
+      const sessionId = trimmedString(url.searchParams.get('sessionId'))
+      const existing = sessionId ? daemonContextSessions.get(sessionId) : undefined
+      writeLocalSurfaceJSON(response, 200, existing ?? issueDaemonContextEnvelope(homeDir, contextSessionInputFromSearch(url.searchParams)))
+      return
+    }
+
+    if (request.method === 'POST' && url.pathname === DAEMON_CONTEXT_SESSIONS_ENDPOINT) {
+      const input = {
+        ...contextSessionInputFromSearch(url.searchParams),
+        ...await readDaemonContextSessionInput(request),
+      }
+      const envelope = issueDaemonContextEnvelope(homeDir, input)
+      if (envelope.session) daemonContextSessions.set(envelope.session.sessionId, envelope)
+      writeLocalSurfaceJSON(response, 201, envelope)
+      return
+    }
+
+    const sessionMatch = new RegExp(`^${escapeRegExp(DAEMON_CONTEXT_SESSIONS_ENDPOINT)}/([^/]+)$`).exec(url.pathname)
+    if (sessionMatch) {
+      const sessionId = decodeURIComponent(sessionMatch[1] ?? '')
+      const existing = daemonContextSessions.get(sessionId)
+      if (request.method === 'GET') {
+        if (!existing) {
+          writeLocalSurfaceJSON(response, 404, {
+            error: 'context_session_not_found',
+            message: `Daemon context session was not found: ${sessionId}`,
+          })
+          return
+        }
+        writeLocalSurfaceJSON(response, 200, existing)
+        return
+      }
+
+      if (request.method === 'PATCH') {
+        const input = {
+          ...contextSessionInputFromSearch(url.searchParams),
+          ...await readDaemonContextSessionInput(request),
+          sessionId,
+        }
+        const envelope = issueDaemonContextEnvelope(homeDir, input, existing)
+        if (envelope.session) daemonContextSessions.set(envelope.session.sessionId, envelope)
+        writeLocalSurfaceJSON(response, existing ? 200 : 201, envelope)
+        return
+      }
+    }
+
+    writeLocalSurfaceJSON(response, 404, {
+      error: 'context_route_not_found',
+      message: `Daemon context route was not found: ${url.pathname}`,
+    })
+  } catch (error) {
+    writeLocalSurfaceJSON(response, 500, {
+      error: 'context_request_failed',
+      message: errorMessage(error),
+    })
+  }
+}
+
+async function readDaemonContextSessionInput(request: IncomingMessage): Promise<DaemonContextSessionInput> {
+  const text = (await readRequestText(request)).trim()
+  if (!text) return {}
+  const value = JSON.parse(text) as unknown
+  const record = recordFromUnknown(value)
+  if (!record) return {}
+  const principal = recordFromUnknown(record.principal)
+  const capabilities = recordFromUnknown(record.capabilities)
+  return {
+    sessionId: trimmedString(record.sessionId),
+    windowId: trimmedString(record.windowId),
+    projectId: contextStringOrNumber(record.projectId ?? record.project_id),
+    projectUid: trimmedString(record.projectUid ?? record.project_uid),
+    projectSlug: trimmedString(record.projectSlug ?? record.project_slug),
+    projectTitle: trimmedString(record.projectTitle ?? record.title ?? record.project_name),
+    projectDir: trimmedString(record.projectDir ?? record.projectPath ?? record.project_cwd),
+    workspaceRootUri: trimmedString(record.workspaceRootUri ?? record.rootUri),
+    workspaceKind: contextWorkspaceKind(record.workspaceKind),
+    ...(capabilities ? {
+      capabilities: {
+        ...(typeof capabilities.localFileAccess === 'boolean' ? { localFileAccess: capabilities.localFileAccess } : {}),
+        ...(typeof capabilities.fileImport === 'boolean' ? { fileImport: capabilities.fileImport } : {}),
+        ...(typeof capabilities.mediaPreview === 'boolean' ? { mediaPreview: capabilities.mediaPreview } : {}),
+      },
+    } : {}),
+    ...(principal ? {
+      principal: {
+        userId: trimmedString(principal.userId ?? principal.user_id),
+        kind: contextPrincipalKind(principal.kind),
+        accountId: trimmedString(principal.accountId ?? principal.account_id),
+        displayName: trimmedString(principal.displayName ?? principal.display_name),
+        scopeKind: contextScopeKind(principal.scopeKind ?? principal.scope_kind),
+        scopeId: contextStringOrNumber(principal.scopeId ?? principal.scope_id),
+      },
+    } : {}),
+  }
+}
+
+function contextSessionInputFromSearch(params: URLSearchParams): DaemonContextSessionInput {
+  return {
+    sessionId: trimmedString(params.get('sessionId') ?? params.get('session_id')),
+    windowId: trimmedString(params.get('windowId') ?? params.get('window_id')),
+    projectId: contextStringOrNumber(params.get('projectId') ?? params.get('project_id')),
+    projectUid: trimmedString(params.get('projectUid') ?? params.get('project_uid')),
+    projectSlug: trimmedString(params.get('projectSlug') ?? params.get('project_slug')),
+    projectTitle: trimmedString(params.get('projectTitle') ?? params.get('projectName') ?? params.get('project_name')),
+    projectDir: trimmedString(params.get('projectDir') ?? params.get('projectPath') ?? params.get('project_cwd')),
+    workspaceRootUri: trimmedString(params.get('workspaceRootUri') ?? params.get('rootUri')),
+    workspaceKind: contextWorkspaceKind(params.get('workspaceKind')),
+  }
+}
+
+function issueDaemonContextEnvelope(
+  homeDir: string,
+  input: DaemonContextSessionInput = {},
+  previous?: DaemonContextEnvelope,
+): DaemonContextEnvelope {
+  const dataPlane = resolveLocalDaemonDataPlane(process.env)
+  const dataConnection = daemonDataConnectionContext(homeDir)
+  const issuedAt = new Date().toISOString()
+  const revision = (previous?.revision ?? 0) + 1
+  const session = issueDaemonWorkspaceSession(input, previous?.session, dataPlane)
+  return {
+    schema: 'movscript.context-envelope.v1',
+    contextId: `${session?.sessionId ?? 'system'}:${revision}`,
+    revision,
+    issuedAt,
+    runtime: {
+      owner: 'local-node',
+      appId: LOCAL_NODE_APP_ID,
+      gatewayPrefix: '/v1',
+    },
+    principal: daemonPrincipalContext(dataPlane, input.principal, previous?.principal),
+    dataConnection,
+    ...(session ? { session } : {}),
+  }
+}
+
+function issueDaemonWorkspaceSession(
+  input: DaemonContextSessionInput,
+  previous: DaemonWorkspaceSessionContext | undefined,
+  dataPlane: LocalDaemonDataPlane,
+): DaemonWorkspaceSessionContext | undefined {
+  const projectDir = trimmedString(input.projectDir) ?? previous?.workspace?.projectCwd
+  const explicitLocalFileAccess = input.capabilities?.localFileAccess
+  const localFileAccess = explicitLocalFileAccess ?? previous?.capabilities.localFileAccess ?? Boolean(projectDir)
+  const projectCwd = localFileAccess && projectDir ? resolve(projectDir) : undefined
+  const projectId = contextString(input.projectId)
+    ?? previous?.project?.id
+    ?? (projectCwd ? `local:${stableContextId(projectCwd)}` : undefined)
+  const hasSessionInput = Boolean(
+    input.sessionId
+      || input.windowId
+      || projectId
+      || projectCwd
+      || input.projectUid
+      || input.projectTitle
+      || previous,
+  )
+  if (!hasSessionInput) return undefined
+  const sessionId = trimmedString(input.sessionId)
+    ?? previous?.sessionId
+    ?? `wks_${Date.now().toString(36)}_${randomBytes(4).toString('hex')}`
+  const workspaceKind = projectCwd
+    ? 'local-fs'
+    : input.workspaceKind ?? previous?.workspace?.kind ?? (dataPlane === 'cloud' ? 'cloud' : dataPlane === 'external' ? 'external' : undefined)
+
+  return {
+    sessionId,
+    ...(trimmedString(input.windowId) ?? previous?.windowId ? { windowId: trimmedString(input.windowId) ?? previous?.windowId } : {}),
+    ...(projectId ? {
+      project: {
+        id: projectId,
+        ...(trimmedString(input.projectUid) ?? previous?.project?.uid ? { uid: trimmedString(input.projectUid) ?? previous?.project?.uid } : {}),
+        ...(trimmedString(input.projectSlug) ?? previous?.project?.slug ? { slug: trimmedString(input.projectSlug) ?? previous?.project?.slug } : {}),
+        ...(trimmedString(input.projectTitle) ?? previous?.project?.title ? { title: trimmedString(input.projectTitle) ?? previous?.project?.title } : {}),
+      },
+    } : {}),
+    ...(workspaceKind ? {
+      workspace: {
+        kind: workspaceKind,
+        ...(projectCwd ? { projectCwd } : {}),
+        ...(trimmedString(input.workspaceRootUri) ?? previous?.workspace?.rootUri ? { rootUri: trimmedString(input.workspaceRootUri) ?? previous?.workspace?.rootUri } : {}),
+      },
+    } : {}),
+    capabilities: {
+      localFileAccess,
+      fileImport: input.capabilities?.fileImport ?? previous?.capabilities.fileImport ?? localFileAccess,
+      mediaPreview: input.capabilities?.mediaPreview ?? previous?.capabilities.mediaPreview ?? localFileAccess,
+    },
+  }
+}
+
+function daemonPrincipalContext(
+  dataPlane: LocalDaemonDataPlane,
+  input: Partial<DaemonContextEnvelope['principal']> | undefined,
+  previous: DaemonContextEnvelope['principal'] | undefined,
+): DaemonContextEnvelope['principal'] {
+  if (dataPlane === 'local') {
+    return {
+      userId: '1',
+      kind: 'local-owner',
+      accountId: 'local-owner',
+      displayName: 'Local Workspace',
+      scopeKind: 'user',
+      scopeId: 1,
+    }
+  }
+  const userId = trimmedString(input?.userId) ?? previous?.userId ?? (dataPlane === 'cloud' ? 'cloud-user' : 'external-user')
+  return {
+    userId,
+    kind: input?.kind ?? previous?.kind ?? (dataPlane === 'cloud' ? 'cloud-user' : 'external-user'),
+    ...(trimmedString(input?.accountId) ?? previous?.accountId ? { accountId: trimmedString(input?.accountId) ?? previous?.accountId } : {}),
+    ...(trimmedString(input?.displayName) ?? previous?.displayName ? { displayName: trimmedString(input?.displayName) ?? previous?.displayName } : {}),
+    ...(input?.scopeKind ?? previous?.scopeKind ? { scopeKind: input?.scopeKind ?? previous?.scopeKind } : {}),
+    ...(input?.scopeId ?? previous?.scopeId ? { scopeId: input?.scopeId ?? previous?.scopeId } : {}),
+  }
+}
+
+function recordFromUnknown(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined
+}
+
+function contextStringOrNumber(value: unknown): string | number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  return trimmedString(value)
+}
+
+function contextString(value: string | number | undefined): string | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return trimmedString(value)
+}
+
+function trimmedString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function contextWorkspaceKind(value: unknown): DaemonContextSessionInput['workspaceKind'] {
+  return value === 'local-fs' || value === 'cloud' || value === 'external' ? value : undefined
+}
+
+function contextPrincipalKind(value: unknown): DaemonContextEnvelope['principal']['kind'] | undefined {
+  return value === 'local-owner' || value === 'cloud-user' || value === 'service-account' || value === 'external-user'
+    ? value
+    : undefined
+}
+
+function contextScopeKind(value: unknown): DaemonContextEnvelope['principal']['scopeKind'] | undefined {
+  return value === 'user' || value === 'org' || value === 'local' ? value : undefined
+}
+
+function stableContextId(value: string): string {
+  let hash = 2166136261
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0).toString(36)
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 async function importLocalSurfaceEditingFile(
@@ -1258,9 +2013,8 @@ async function serveLocalSurfaceEditingMediaFile(
   }
 }
 
-async function proxyCanvasServiceRequest(homeDir: string, request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
-  const endpoint = findRuntimeEndpoint(readRuntimeHomeSnapshot(homeDir), CANVAS_SERVICE_NAME)
-  const baseURL = endpointURL(endpoint)
+async function proxyCanvasServiceRequest(homeDir: string, request: IncomingMessage, response: ServerResponse, url: URL, gatewayPrefix: '/local-api/canvas' | '/v1/canvas'): Promise<void> {
+  const baseURL = await waitForRuntimeServiceURL(homeDir, CANVAS_SERVICE_NAME)
   if (!baseURL) {
     writeLocalSurfaceJSON(response, 503, {
       error: 'canvas_service_unavailable',
@@ -1269,7 +2023,7 @@ async function proxyCanvasServiceRequest(homeDir: string, request: IncomingMessa
     return
   }
 
-  const upstreamPath = `/v1/canvas${url.pathname.slice('/local-api/canvas'.length)}${url.search}`
+  const upstreamPath = `/v1/canvas${url.pathname.slice(gatewayPrefix.length)}${url.search}`
   try {
     const body = request.method === 'GET' || request.method === 'HEAD'
       ? undefined
@@ -1295,7 +2049,7 @@ async function proxyDataServiceRequest(
   url: URL,
   localPrefix: string,
 ): Promise<void> {
-  const baseURL = resolveDataServiceURL(homeDir)
+  const baseURL = await waitForDataServiceURL(homeDir)
   if (!baseURL) {
     writeLocalSurfaceJSON(response, 503, {
       error: 'data_service_unavailable',
@@ -1324,8 +2078,6 @@ async function proxyDataServiceRequest(
 }
 
 async function proxyProjectServiceRequest(homeDir: string, request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
-  const endpoint = findRuntimeEndpoint(readRuntimeHomeSnapshot(homeDir), PROJECT_SERVICE_NAME)
-  const baseURL = endpointURL(endpoint)
   const upstreamPath = LOCAL_PROJECT_SERVICE_PROXY_ROUTES.get(url.pathname)
   if (!upstreamPath) {
     writeLocalSurfaceJSON(response, 404, {
@@ -1334,6 +2086,7 @@ async function proxyProjectServiceRequest(homeDir: string, request: IncomingMess
     })
     return
   }
+  const baseURL = await waitForRuntimeServiceURL(homeDir, PROJECT_SERVICE_NAME)
   if (!baseURL) {
     writeLocalSurfaceJSON(response, 503, {
       error: 'project_service_unavailable',
@@ -1441,7 +2194,7 @@ function proxyHeaders(request: IncomingMessage): Record<string, string> {
   return headers
 }
 
-function writeLocalSurfaceJSON(response: ServerResponse, statusCode: number, payload: Record<string, unknown>): void {
+function writeLocalSurfaceJSON(response: ServerResponse, statusCode: number, payload: unknown): void {
   response.writeHead(statusCode, { 'content-type': 'application/json; charset=utf-8' })
   response.end(JSON.stringify(payload))
 }
@@ -1539,11 +2292,29 @@ function endpointURL(endpoint: { url?: string; baseURL?: string; port?: number; 
 
 function resolveDataServiceURL(homeDir: string): string | undefined {
   return process.env.MOVSCRIPT_DATA_SERVICE_URL?.trim()
-    || endpointURL(findRuntimeEndpoint(readRuntimeHomeSnapshot(homeDir), 'movscript.data.service'))
+    || endpointURL(findRuntimeEndpoint(readRuntimeHomeSnapshot(homeDir), DATA_SERVICE_NAME))
 }
 
 function resolveGatewayURL(homeDir: string): string | undefined {
   return endpointURL(findRuntimeEndpoint(readRuntimeHomeSnapshot(homeDir), LOCAL_NODE_GATEWAY_SERVICE))
+}
+
+async function waitForDataServiceURL(homeDir: string): Promise<string | undefined> {
+  return waitForRuntimeEndpointURL(() => resolveDataServiceURL(homeDir))
+}
+
+async function waitForRuntimeServiceURL(homeDir: string, serviceName: string): Promise<string | undefined> {
+  return waitForRuntimeEndpointURL(() => endpointURL(findRuntimeEndpoint(readRuntimeHomeSnapshot(homeDir), serviceName)))
+}
+
+async function waitForRuntimeEndpointURL(resolveURL: () => string | undefined): Promise<string | undefined> {
+  const deadline = Date.now() + RUNTIME_ENDPOINT_WAIT_TIMEOUT_MS
+  let url = resolveURL()
+  while (!url && Date.now() < deadline) {
+    await delay(RUNTIME_ENDPOINT_WAIT_INTERVAL_MS)
+    url = resolveURL()
+  }
+  return url
 }
 
 function delay(ms: number): Promise<void> {

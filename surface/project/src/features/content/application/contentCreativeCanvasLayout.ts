@@ -21,6 +21,12 @@ const DEFAULT_NODE_SIZES: Record<CreativeCanvasNode['weight'], CreativeCanvasNod
   compact: { width: 260, height: 240 },
 }
 
+const EXPANDED_NODE_HEIGHT_RESERVE: Record<CreativeCanvasNode['weight'], number> = {
+  primary: 620,
+  normal: 560,
+  compact: 460,
+}
+
 const COLUMN_GAP = 420
 const ROW_GAP = 120
 const SCENE_BAND_GAP = 360
@@ -68,7 +74,7 @@ export function layoutCreativeCanvas(input: CreativeCanvasLayoutInput): Creative
     Object.assign(positions, lanePositions)
     for (const node of laneNodes) {
       const position = lanePositions[node.id]
-      const size = input.measuredNodeSizes?.[node.id] ?? DEFAULT_NODE_SIZES[node.weight]
+      const size = creativeCanvasLayoutNodeSize(node, input.measuredNodeSizes)
       if (position) positionedCenterY.set(node.id, position.y + size.height / 2)
     }
   }
@@ -139,7 +145,7 @@ function creativeCanvasLanePlacement(input: {
     desiredCenterY: downstreamCenters.length
       ? downstreamCenters.reduce((sum, center) => sum + center, 0) / downstreamCenters.length
       : fallbackCenter,
-    height: (input.measuredNodeSizes?.[input.node.id] ?? DEFAULT_NODE_SIZES[input.node.weight]).height,
+    height: creativeCanvasLayoutNodeSize(input.node, input.measuredNodeSizes).height,
   }
 }
 
@@ -207,7 +213,7 @@ function creativeCanvasSceneBandCenters(
     }
     for (const [band, nodes] of grouped) {
       const span = nodes.reduce((sum, node, index) => (
-        sum + (measuredNodeSizes?.[node.id] ?? DEFAULT_NODE_SIZES[node.weight]).height + (index > 0 ? ROW_GAP : 0)
+        sum + creativeCanvasLayoutNodeSize(node, measuredNodeSizes).height + (index > 0 ? ROW_GAP : 0)
       ), 0)
       spanByBand.set(band, Math.max(spanByBand.get(band) ?? 0, span))
     }
@@ -235,11 +241,23 @@ function creativeCanvasColumnXByRank(
     output.set(rank, nextX)
     const laneWidth = Math.max(
       0,
-      ...(lanesByRank.get(rank) ?? []).map((node) => (measuredNodeSizes?.[node.id] ?? DEFAULT_NODE_SIZES[node.weight]).width),
+      ...(lanesByRank.get(rank) ?? []).map((node) => creativeCanvasLayoutNodeSize(node, measuredNodeSizes).width),
     )
     nextX += laneWidth + COLUMN_GAP
   }
   return output
+}
+
+function creativeCanvasLayoutNodeSize(
+  node: CreativeCanvasNode,
+  measuredNodeSizes: Record<string, CreativeCanvasNodeSize> | undefined,
+): CreativeCanvasNodeSize {
+  const measured = measuredNodeSizes?.[node.id]
+  const fallback = DEFAULT_NODE_SIZES[node.weight]
+  return {
+    width: measured?.width ?? fallback.width,
+    height: Math.max(measured?.height ?? fallback.height, EXPANDED_NODE_HEIGHT_RESERVE[node.weight]),
+  }
 }
 
 function creativeCanvasNodeRanks(nodes: CreativeCanvasNode[], edges: CreativeCanvasEdge[]): Map<string, number> {

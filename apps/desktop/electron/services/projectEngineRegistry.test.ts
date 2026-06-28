@@ -21,6 +21,7 @@ import {
   loadMovScriptEngineContentWorkspace,
   loadMovScriptEngineContentWorkspaceSnapshot,
   projectEngineRegistry,
+  renameMovScriptEngineContentCanvas,
   saveMovScriptEngineWorkspaceProductionSnapshot,
   syncMovScriptEngineContentWorkspace,
   upsertMovScriptEngineWorkspaceSetting,
@@ -159,12 +160,32 @@ test('content canvas project storage writes, lists, and deletes project files', 
     const canvasFile = JSON.parse(await readFile(join(projectDir, 'content_canvases', 'canvas_pilot', 'canvas.json'), 'utf8')) as Record<string, unknown>
     assert.equal(canvasFile.schema, 'movscript.content_canvas.v1')
     assert.equal(canvasFile.kind, 'content_canvas')
+    assert.equal(canvasFile.title, 'Pilot Canvas')
+    assert.equal(canvasFile.name, 'Pilot Canvas')
     assert.equal((canvasFile.scope as Record<string, unknown>).production_id, 'pilot')
     assert.deepEqual((canvasFile.nodes as Array<Record<string, unknown>>).map((node) => node.node_id), ['scene_moment:opening'])
 
     const listed = await listMovScriptEngineContentCanvases({ workspaceDir, projectDir, userId: 1, projectId: 7 })
     assert.equal(listed.schema, 'movscript.content_canvases.v1')
     assert.equal(listed.canvases.find((item) => item.record.id === 'canvas:pilot')?.path, 'content_canvases/canvas_pilot/canvas.json')
+    assert.equal(listed.canvases.find((item) => item.record.id === 'canvas:pilot')?.record.title, 'Pilot Canvas')
+
+    const renamed = await renameMovScriptEngineContentCanvas({
+      workspaceDir,
+      projectDir,
+      userId: 1,
+      projectId: 7,
+      id: 'canvas:pilot',
+      title: 'Pilot Storyboard Canvas',
+      expectedVersion: listed.canvases.find((item) => item.record.id === 'canvas:pilot')?.version,
+    })
+    assert.equal(renamed.status, 'renamed')
+    assert.equal(renamed.title, 'Pilot Storyboard Canvas')
+    assert.equal(renamed.record.title, 'Pilot Storyboard Canvas')
+    assert.equal(renamed.record.name, 'Pilot Storyboard Canvas')
+    const renamedCanvasFile = JSON.parse(await readFile(join(projectDir, 'content_canvases', 'canvas_pilot', 'canvas.json'), 'utf8')) as Record<string, unknown>
+    assert.equal(renamedCanvasFile.title, 'Pilot Storyboard Canvas')
+    assert.equal(renamedCanvasFile.name, 'Pilot Storyboard Canvas')
 
     const deleted = await deleteMovScriptEngineContentCanvas({ workspaceDir, projectDir, userId: 1, projectId: 7, id: 'canvas:pilot' })
     assert.equal(deleted.status, 'deleted')
@@ -173,7 +194,7 @@ test('content canvas project storage writes, lists, and deletes project files', 
       readFile(join(projectDir, 'content_canvases', 'canvas_pilot', 'canvas.json'), 'utf8'),
       /ENOENT/,
     )
-    assert.equal(events.filter((event) => (event as { reason?: string }).reason === 'source-updated').length, 2)
+    assert.equal(events.filter((event) => (event as { reason?: string }).reason === 'source-updated').length, 3)
   } finally {
     restoreBroadcast()
     await rm(workspaceDir, { recursive: true, force: true })
@@ -597,6 +618,9 @@ function fakeEngine(input: {
         documents: input.documents ?? [],
         entities: [...byKind.values()].flat(),
         byKind,
+        domainNodes: [],
+        domainEdges: [],
+        namespaceVocabulary: {},
       }
     },
     async querySettings() {

@@ -10,6 +10,7 @@ import {
 test('app settings store owns onboarding preflight settings before completion', () => {
   useAppSettingsStore.setState({
     settings: {
+      dataConnection: { kind: 'cloud', url: 'http://localhost:8765' },
       apiBaseURL: 'http://localhost:8765',
       launchMode: 'cloud',
       workMode: 'project',
@@ -50,6 +51,7 @@ test('app settings store owns onboarding preflight settings before completion', 
 
 test('app settings persistence strips shot library source auth tokens', () => {
   const settings = {
+    dataConnection: { kind: 'cloud' as const, url: 'http://localhost:8765' },
     apiBaseURL: 'http://localhost:8765',
     launchMode: 'cloud' as const,
     workMode: 'project' as const,
@@ -76,6 +78,7 @@ test('app settings persistence strips shot library source auth tokens', () => {
 
 test('app settings secrets merge shot library tokens into memory only', () => {
   const settings = {
+    dataConnection: { kind: 'cloud' as const, url: 'http://localhost:8765' },
     apiBaseURL: 'http://localhost:8765',
     launchMode: 'cloud' as const,
     workMode: 'project' as const,
@@ -99,12 +102,13 @@ test('app settings secrets merge shot library tokens into memory only', () => {
   assert.equal(sanitizeAppSettingsForPersistence(merged).shotLibrarySources?.[0]?.authToken, undefined)
 })
 
-test('app settings store remembers cloud and local service URLs separately', () => {
+test('app settings store remembers cloud API and daemon gateway separately', () => {
   useAppSettingsStore.setState({
     settings: {
+      dataConnection: { kind: 'cloud', url: 'https://cloud.example' },
       apiBaseURL: 'https://cloud.example',
       cloudAPIBaseURL: 'https://cloud.example',
-      localAPIBaseURL: 'http://localhost:8766',
+      daemonGatewayBaseURL: 'http://localhost:8766',
       launchMode: 'cloud',
       workMode: 'project',
       onboardingCompleted: true,
@@ -115,16 +119,26 @@ test('app settings store remembers cloud and local service URLs separately', () 
 
   useAppSettingsStore.getState().setLaunchMode('local')
   assert.equal(useAppSettingsStore.getState().settings.apiBaseURL, 'http://localhost:8766')
+  assert.deepEqual(useAppSettingsStore.getState().settings.dataConnection, { kind: 'local', url: 'http://localhost:8766' })
   assert.equal(useAppSettingsStore.getState().settings.cloudAPIBaseURL, 'https://cloud.example')
 
   useAppSettingsStore.getState().setAPIBaseURL('http://localhost:9876/api/v1')
   assert.equal(useAppSettingsStore.getState().settings.apiBaseURL, 'http://localhost:9876')
-  assert.equal(useAppSettingsStore.getState().settings.localAPIBaseURL, 'http://localhost:9876')
+  assert.deepEqual(useAppSettingsStore.getState().settings.dataConnection, { kind: 'local', url: 'http://localhost:9876' })
+  assert.equal(useAppSettingsStore.getState().settings.daemonGatewayBaseURL, 'http://localhost:9876')
+  assert.equal('localAPIBaseURL' in useAppSettingsStore.getState().settings, false)
   assert.equal(useAppSettingsStore.getState().settings.cloudAPIBaseURL, 'https://cloud.example')
 
   useAppSettingsStore.getState().setLaunchMode('cloud')
   assert.equal(useAppSettingsStore.getState().settings.apiBaseURL, 'https://cloud.example')
-  assert.equal(useAppSettingsStore.getState().settings.localAPIBaseURL, 'http://localhost:9876')
+  assert.deepEqual(useAppSettingsStore.getState().settings.dataConnection, { kind: 'cloud', url: 'https://cloud.example' })
+  assert.equal(useAppSettingsStore.getState().settings.daemonGatewayBaseURL, 'http://localhost:9876')
+  assert.equal('localAPIBaseURL' in useAppSettingsStore.getState().settings, false)
+
+  useAppSettingsStore.getState().setDataConnectionURL('https://team.example/api/v1')
+  assert.equal(useAppSettingsStore.getState().settings.apiBaseURL, 'https://team.example')
+  assert.deepEqual(useAppSettingsStore.getState().settings.dataConnection, { kind: 'cloud', url: 'https://team.example' })
+  assert.equal(useAppSettingsStore.getState().settings.cloudAPIBaseURL, 'https://team.example')
 })
 
 function pickOnboardingSettings(settings: ReturnType<typeof useAppSettingsStore.getState>['settings']) {

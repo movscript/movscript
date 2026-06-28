@@ -10,7 +10,7 @@ import {
 import { ResourceLibraryView } from '@movscript/resource-surface/pages'
 
 const localDataAPI = axios.create({
-  baseURL: '/local-api/data/api/v1',
+  baseURL: '/api/v1',
 })
 
 interface LocalRawResource {
@@ -111,7 +111,7 @@ function LocalResourcePreview({ resource }: { resource: LocalRawResource }) {
 
 function localResourceURL(url: string): string {
   if (/^https?:\/\//.test(url) || url.startsWith('blob:') || url.startsWith('data:')) return url
-  if (url.startsWith('/')) return `/local-api/data${url}`
+  if (url.startsWith('/')) return url
   return url
 }
 

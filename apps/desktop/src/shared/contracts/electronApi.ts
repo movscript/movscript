@@ -49,6 +49,8 @@ import type {
   ElectronMovScriptEngineContentCandidateSelectInput,
   ElectronMovScriptEngineContentCanvasDeleteResult,
   ElectronMovScriptEngineContentCanvasInput,
+  ElectronMovScriptEngineContentCanvasRenameResult,
+  ElectronMovScriptEngineContentCanvasRunResult,
   ElectronMovScriptEngineContentCanvasWriteResult,
   ElectronMovScriptEngineContentCanvasesListResult,
   ElectronMovScriptEngineContentUnitBackendPromptBuildInput,
@@ -275,6 +277,8 @@ export type ElectronAPI = {
   loadMovScriptEngineContentWorkspace?: (input: ElectronMovScriptEngineProjectInput) => Promise<ContentSourceWorkspaceData>
   listMovScriptEngineContentCanvases?: (input: ElectronMovScriptEngineProjectInput) => Promise<ElectronMovScriptEngineContentCanvasesListResult>
   writeMovScriptEngineContentCanvas?: (input: ElectronMovScriptEngineContentCanvasInput) => Promise<ElectronMovScriptEngineContentCanvasWriteResult>
+  renameMovScriptEngineContentCanvas?: (input: ElectronMovScriptEngineContentCanvasInput) => Promise<ElectronMovScriptEngineContentCanvasRenameResult>
+  runMovScriptEngineContentCanvas?: (input: ElectronMovScriptEngineContentCanvasInput) => Promise<ElectronMovScriptEngineContentCanvasRunResult>
   deleteMovScriptEngineContentCanvas?: (input: ElectronMovScriptEngineContentCanvasInput) => Promise<ElectronMovScriptEngineContentCanvasDeleteResult>
   createMovScriptEngineContentCandidate?: (input: ElectronMovScriptEngineContentCandidateCreateInput) => Promise<ContentCandidateRecord>
   selectMovScriptEngineContentUnitCandidate?: (input: ElectronMovScriptEngineContentCandidateSelectInput) => Promise<void>

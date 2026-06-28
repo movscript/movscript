@@ -4,6 +4,15 @@ import type {
 } from '@/shared/contracts/electronApi'
 import { currentWorkspaceOwnerContext, currentWorkspaceProjectDir } from '@/shared/infrastructure/session/workspaceOwnerContext'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
+import {
+  getAPIBaseURL,
+  getRuntimeConfigSnapshot,
+  refreshRuntimeConfigSnapshot,
+} from '@/shared/infrastructure/config'
+
+const PROJECT_STANDARDS_UPSERT_ENDPOINT = '/v1/project/standards/upsert'
+const PROJECT_SCRIPT_SOURCE_READ_ENDPOINT = '/v1/project/scripts/source/read'
+const PROJECT_SCRIPT_UPSERT_ENDPOINT = '/v1/project/scripts/upsert'
 
 type WorkspaceElectronAPI = Pick<
   ElectronAPI,
@@ -168,10 +177,10 @@ function createElectronMovScriptEngineWorkspaceService(
 	      return api.upsertMovScriptEngineWorkspaceAsset({ ...mutationContext(context, payload), payload })
 	    },
 	    async upsertScript(payload) {
-	      return api.upsertMovScriptEngineWorkspaceScript({ ...mutationContext(context, payload), payload })
+	      return daemonProjectSourceOperation(context, PROJECT_SCRIPT_UPSERT_ENDPOINT, payload)
 	    },
     async readScriptSource(payload) {
-      return api.readMovScriptEngineWorkspaceScriptSource({ ...context, payload })
+      return daemonProjectSourceOperation(context, PROJECT_SCRIPT_SOURCE_READ_ENDPOINT, payload) as Promise<string>
     },
     async readContentUnitGenerationPrompt(contentUnitId) {
       return api.readMovScriptEngineContentUnitGenerationPrompt({ ...context, contentUnitId })
@@ -183,7 +192,7 @@ function createElectronMovScriptEngineWorkspaceService(
 	      return api.saveMovScriptEngineWorkspaceProductionSnapshot({ ...mutationContext(context, payload), payload })
 	    },
 	    async upsertProjectStandards(payload) {
-	      return api.upsertMovScriptEngineWorkspaceProjectStandards({ ...mutationContext(context, payload), payload })
+	      return daemonProjectSourceOperation(context, PROJECT_STANDARDS_UPSERT_ENDPOINT, payload)
 	    },
 	    async upsertContentUnit(payload) {
 	      return api.upsertMovScriptEngineWorkspaceContentUnit({ ...mutationContext(context, payload), payload })
@@ -224,6 +233,44 @@ function createElectronMovScriptEngineWorkspaceService(
       return undefined
     },
   }) as MovScriptWorkspaceService
+}
+
+async function daemonProjectSourceOperation(
+  context: ElectronMovScriptWorkspaceFileRepositoryContext,
+  endpoint: string,
+  input: unknown,
+): Promise<any> {
+  const projectDir = context.projectDir?.trim()
+  if (!projectDir) throw new Error('Project directory is required for daemon project source operations.')
+  const payload = await postDaemonGateway(endpoint, {
+    projectDir,
+    ...(isRecord(input) ? input : {}),
+  })
+  return isRecord(payload) && 'result' in payload ? payload.result : payload
+}
+
+async function postDaemonGateway(path: string, body: Record<string, unknown>): Promise<unknown> {
+  const baseURL = await readDaemonGatewayBaseURL()
+  const response = await fetch(`${baseURL.replace(/\/+$/, '')}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const record = isRecord(payload) ? payload : {}
+    const message = stringValue(record.message)
+      ?? stringValue(record.error)
+      ?? `Daemon gateway request failed with HTTP ${response.status}.`
+    throw new Error(message)
+  }
+  return payload
+}
+
+async function readDaemonGatewayBaseURL(): Promise<string> {
+  const config = await refreshRuntimeConfigSnapshot()
+  const snapshot = config ?? getRuntimeConfigSnapshot()
+  return snapshot?.gatewayBaseURL ?? snapshot?.apiBaseURL ?? getAPIBaseURL()
 }
 
 function repositoryArgs(

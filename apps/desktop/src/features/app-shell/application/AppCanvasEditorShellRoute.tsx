@@ -25,7 +25,7 @@ export function CanvasEditorShellRoute() {
   const routeLayout = getAppRouteLayoutSpec(pathname)
   const canvasQuery = useQuery<Canvas>({
     queryKey: canvasKeys.detail(id ?? ''),
-    queryFn: () => canvasApi.get(`/canvas/canvases/${id}`).then((response) => response.data),
+    queryFn: () => canvasApi.get(`/v1/canvas/canvases/${id}`).then((response) => response.data),
     enabled: Boolean(id),
   })
 

@@ -47,9 +47,29 @@ export const emptyProjectOverviewData: ProjectOverviewData = {
 export interface ProjectOverviewLoadContext {
   projectDir?: string
   projectUid?: string
-  projectServiceBaseURL?: string
   userId?: string | number
   orgId?: string | number
+  scopeKind?: 'user' | 'org'
+  scopeId?: string | number
+  gatewayBaseURL?: string
+  projectGateway?: ProjectOverviewProjectGateway
+}
+
+export interface ProjectOverviewProjectGateway {
+  resourceView?: (input: {
+    projectId?: string
+    projectDir?: string
+    projectUid?: string
+    kind: string
+    input?: unknown
+  }) => Promise<unknown>
+  candidateView?: (input: {
+    projectId?: string
+    projectDir?: string
+    projectUid?: string
+    contentUnitIds: string[]
+    input?: unknown
+  }) => Promise<unknown>
 }
 
 export async function loadProjectOverviewData(
@@ -154,40 +174,44 @@ async function safeProjectCandidateView(
   settings: ProjectOverviewRecord[],
   contentUnits: ProjectOverviewRecord[],
 ): Promise<ProjectOverviewCandidateView | undefined> {
-  if (!context.projectDir || typeof window === 'undefined') return undefined
+  if (!context.projectDir) return undefined
   const contentUnitIds = projectOverviewCandidateContentUnitIds(settings, contentUnits)
   if (!contentUnitIds.length) return undefined
   try {
-    const projectServiceBaseURL = projectOverviewProjectServiceBaseURL(context)
-    const decisionStore = context.projectUid && !projectServiceBaseURL ? {
+    if (context.projectGateway?.candidateView) {
+      const payload = await context.projectGateway.candidateView({
+        projectDir: context.projectDir,
+        projectUid: context.projectUid,
+        contentUnitIds,
+        input: projectOverviewScopePayload(context),
+      })
+      return isRecord(payload) ? payload as ProjectOverviewCandidateView : undefined
+    }
+    const baseURL = projectOverviewGatewayBaseURL(context)
+    if (!baseURL) return undefined
+    const scope = projectOverviewDataScope(context)
+    const decisionStore = context.projectUid && scope ? {
       kind: 'scoped-project-data',
-      baseUrl: `${window.location.origin}/local-api/data`,
+      baseUrl: baseURL,
       projectUid: context.projectUid,
-      scopeKind: 'user',
-      scopeId: 1,
+      scopeKind: scope.kind,
+      scopeId: scope.id,
     } : undefined
-    const response = await fetch(projectOverviewServiceEndpoint(
-      context,
-      '/local-api/project/candidates/view',
-      '/v1/project/candidates/view',
-    ), {
+    const response = await fetch(`${baseURL}/v1/project/candidates/view`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         projectDir: context.projectDir,
         contentUnitIds,
-        ...(context.projectUid ? { projectUid: context.projectUid, scopeKind: 'user', scopeId: 1 } : {}),
+        ...(context.projectUid ? { projectUid: context.projectUid } : {}),
+        ...projectOverviewScopePayload(context),
         ...(decisionStore ? { decisionStore } : {}),
       }),
     })
     if (!response.ok) {
       console.warn('[project-home] failed to load candidate view', {
         status: response.status,
-        endpoint: projectOverviewServiceEndpoint(
-          context,
-          '/local-api/project/candidates/view',
-          '/v1/project/candidates/view',
-        ),
+        endpoint: '/v1/project/candidates/view',
         contentUnitCount: contentUnitIds.length,
       })
       return undefined
@@ -204,13 +228,19 @@ async function safeProjectResourceViewRecords(
   context: ProjectOverviewLoadContext,
   kind: 'assets' | 'content-units',
 ): Promise<ProjectOverviewRecord[]> {
-  if (!context.projectDir || typeof window === 'undefined') return []
+  if (!context.projectDir) return []
   try {
-    const response = await fetch(projectOverviewServiceEndpoint(
-      context,
-      '/local-api/project/resources/view',
-      '/v1/project/resources/view',
-    ), {
+    if (context.projectGateway?.resourceView) {
+      const payload = await context.projectGateway.resourceView({
+        projectDir: context.projectDir,
+        projectUid: context.projectUid,
+        kind,
+      })
+      return projectOverviewResourceItems(payload)
+    }
+    const baseURL = projectOverviewGatewayBaseURL(context)
+    if (!baseURL) return []
+    const response = await fetch(`${baseURL}/v1/project/resources/view`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -222,21 +252,51 @@ async function safeProjectResourceViewRecords(
       console.warn('[project-home] failed to load project resource view', {
         kind,
         status: response.status,
-        endpoint: projectOverviewServiceEndpoint(
-          context,
-          '/local-api/project/resources/view',
-          '/v1/project/resources/view',
-        ),
+        endpoint: '/v1/project/resources/view',
       })
       return []
     }
     const payload = await response.json().catch(() => undefined)
-    const items = isRecord(payload) && Array.isArray(payload.items) ? payload.items : []
-    return items.filter(isRecord) as ProjectOverviewRecord[]
+    return projectOverviewResourceItems(payload)
   } catch (error) {
     console.warn('[project-home] failed to load project resource view', { kind, error })
     return []
   }
+}
+
+function projectOverviewGatewayBaseURL(context: ProjectOverviewLoadContext): string | undefined {
+  return normalizeProjectOverviewBaseURL(context.gatewayBaseURL) ?? browserHTTPOrigin()
+}
+
+function normalizeProjectOverviewBaseURL(value: string | undefined): string | undefined {
+  const baseURL = value?.trim()
+  if (!baseURL || !/^https?:\/\//i.test(baseURL)) return undefined
+  return baseURL.replace(/\/+$/, '')
+}
+
+function browserHTTPOrigin(): string | undefined {
+  if (typeof window === 'undefined') return undefined
+  const { protocol, host } = window.location
+  if (protocol !== 'http:' && protocol !== 'https:') return undefined
+  return normalizeProjectOverviewBaseURL(`${protocol}//${host}`)
+}
+
+function projectOverviewDataScope(context: ProjectOverviewLoadContext): { kind: 'user' | 'org'; id: string | number } | undefined {
+  if (context.scopeKind === 'org' && context.scopeId !== undefined) return { kind: 'org', id: context.scopeId }
+  if (context.scopeKind === 'user' && context.scopeId !== undefined) return { kind: 'user', id: context.scopeId }
+  if (context.orgId !== undefined) return { kind: 'org', id: context.orgId }
+  if (context.userId !== undefined) return { kind: 'user', id: context.userId }
+  return undefined
+}
+
+function projectOverviewScopePayload(context: ProjectOverviewLoadContext): Record<string, unknown> {
+  const scope = projectOverviewDataScope(context)
+  return scope ? { scopeKind: scope.kind, scopeId: scope.id } : {}
+}
+
+function projectOverviewResourceItems(payload: unknown): ProjectOverviewRecord[] {
+  const items = isRecord(payload) && Array.isArray(payload.items) ? payload.items : []
+  return items.filter(isRecord) as ProjectOverviewRecord[]
 }
 
 function projectOverviewCandidateContentUnitIds(
@@ -291,39 +351,6 @@ function projectOverviewContentUnitSettingHaystack(record: ProjectOverviewRecord
     record.title,
     record.name,
   ].map((part) => stringValue(part)).filter(Boolean).join(' ')
-}
-
-function projectOverviewServiceEndpoint(
-  context: ProjectOverviewLoadContext,
-  localEndpoint: string,
-  projectServicePath: string,
-): string {
-  const projectServiceBaseURL = projectOverviewProjectServiceBaseURL(context)
-  return projectServiceBaseURL ? `${projectServiceBaseURL}${projectServicePath}` : localEndpoint
-}
-
-function projectOverviewProjectServiceBaseURL(context: ProjectOverviewLoadContext): string | undefined {
-  return normalizeProjectOverviewBaseURL(context.projectServiceBaseURL)
-    ?? projectOverviewProjectServiceBaseURLFromLocation()
-}
-
-function projectOverviewProjectServiceBaseURLFromLocation(): string | undefined {
-  if (typeof window === 'undefined') return undefined
-  const query = new URLSearchParams(window.location.search)
-  return normalizeProjectOverviewBaseURL(
-    query.get('projectServiceBaseURL')
-      ?? query.get('projectServiceBaseUrl')
-      ?? query.get('projectServiceURL')
-      ?? query.get('projectServiceUrl'),
-  )
-}
-
-function normalizeProjectOverviewBaseURL(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined
-  const normalized = value.trim().replace(/\/+$/, '')
-  if (!normalized) return undefined
-  if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) return undefined
-  return normalized
 }
 
 function numberIdValue(value: unknown): string | undefined {

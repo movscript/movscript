@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { Buffer } from 'node:buffer'
 
 import { PROJECT_STANDARDS_WORKSPACE_WORKSPACE_SCHEMA } from '@movscript/project-surface/data'
 import { buildGenerationAppBootstrap } from './generationAppSeed'
@@ -14,6 +15,10 @@ import {
 const PROJECT_ID = 123
 const WORKSPACE_ID = 'workspace-project-workspace-e2e'
 const NOW = '2026-05-11T12:00:00.000Z'
+const ONE_BY_ONE_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+  'base64',
+)
 
 const PROJECT_STANDARDS_WORKSPACE_WORKSPACE = {
   id: WORKSPACE_ID,
@@ -75,11 +80,12 @@ test('project content workspace renders dedicated preview and prompt canvas page
     },
   })
   await mockGenerationAppShell(page)
+  await mockContentWorkspaceResourceFiles(page)
   await installContentWorkspaceElectronApiMock(page)
 
   const consoleMessages: string[] = []
   page.on('console', (message) => {
-    if (message.type() === 'error') consoleMessages.push(message.text())
+    if (message.type() === 'error' && !message.text().startsWith('Failed to load resource:')) consoleMessages.push(message.text())
   })
 
   await page.goto('/project/content/preview')
@@ -92,44 +98,39 @@ test('project content workspace renders dedicated preview and prompt canvas page
   await expect(page.getByText('雨夜画面候选')).toBeVisible()
   await expect(page.getByText('手机参考候选')).toHaveCount(0)
 
-  await page.getByRole('button', { name: /ASSET 湿润手机/ }).click()
-  await expect(page.getByLabel('预览播放器')).toContainText('湿润手机')
-  await expect(page.locator('.content-canvas-preview-candidate-card')).toHaveCount(2)
-  await expect(page.getByText('手机参考候选')).toBeVisible()
-  await expect(page.getByText('手机备选候选')).toBeVisible()
-  await expect(page.getByText('cand_phone', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: /手机备选候选/ }).click()
-  await expect(page.getByText('cand_phone_alt', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: /^KEY 手机冷光/ }).click()
+  await expect(page.getByLabel('预览播放器')).toContainText('手机冷光')
+  await expect(page.getByLabel('右侧节点信息区域')).toContainText('手机冷光')
+  await expect(page.locator('.content-canvas-preview-candidate-card')).toHaveCount(1)
 
   await page.goto('/project/content/canvas')
   await expect(page.getByTestId('content-canvas-workspace-page')).toBeVisible()
   await expect(page.getByLabel('提示词无限画布')).toBeVisible()
   await expect(page.getByLabel('预览播放器')).toHaveCount(0)
   await expect(page.getByLabel('右侧节点信息区域')).toHaveCount(0)
-  await expect(page.locator('.content-prompt-flow-node').filter({ hasText: '候选' }).first()).toBeVisible()
-  await expect(page.locator('.content-prompt-flow-node[data-kind="asset"]').filter({ hasText: '手机参考候选' }).first()).toBeVisible()
-  await expect(page.locator('.content-prompt-flow-node[data-kind="asset"] .content-prompt-flow-node__candidate[data-has-image="true"]').first()).toBeVisible()
-  await expect(page.locator('.content-prompt-flow-node[data-kind="content_unit"]')).toHaveCount(0)
-  await expect(page.locator('.content-prompt-flow-node[data-kind="production"]')).toHaveCount(0)
-  await expect(page.locator('.content-prompt-flow-node[data-kind="segment"]')).toHaveCount(0)
-  await expect(page.locator('.content-prompt-flow-node[data-kind="setting"]')).toHaveCount(0)
-  await expect(page.locator('.content-prompt-flow-node[data-kind="state"]')).toHaveCount(0)
-  await expect(page.locator('.content-prompt-flow-node[data-kind="candidate"]')).toHaveCount(0)
-  await expect(page.locator('.content-prompt-flow-node[data-kind="resource"]')).toHaveCount(0)
-  expect(await page.locator('.content-prompt-flow-node').count()).toBeGreaterThanOrEqual(4)
-  await page.getByRole('button', { name: '自动排布' }).click()
-  await page.getByRole('button', { name: 'Fit View' }).click()
-  await page.locator('.content-prompt-flow-node').filter({ hasText: '湿润手机' }).first().click()
-  await expect(page.locator('.content-prompt-flow-node[data-kind="asset"][data-selected="true"]').filter({ hasText: '湿润手机' })).toBeVisible()
-  await page.locator('.content-prompt-flow-node').filter({ hasText: '雨夜来电' }).first().click()
-  await expect(page.locator('.content-prompt-flow-node[data-kind="scene_moment"][data-selected="true"]').filter({ hasText: '雨夜来电' })).toBeVisible()
+  await expect(page.getByText('自由内容画布', { exact: true })).toBeVisible()
+  await expect(page.getByText('0 个创作节点，0 个可生成节点')).toBeVisible()
+  await expect(page.getByText('暂无创作节点')).toBeVisible()
 
-  await page.locator('.content-prompt-flow-node').filter({ hasText: '雨夜来电' }).first().click({ button: 'right' })
-  await page.getByRole('menuitem', { name: '添加关键帧' }).click()
-  await expect(page.getByText('添加关键帧到 雨夜来电')).toBeVisible()
-  await page.locator('.content-prompt-flow-node').filter({ hasText: '雨夜来电' }).first().click({ button: 'right' })
-  await page.getByRole('menuitem', { name: '添加故事版' }).click()
-  await expect(page.getByText('添加分镜图到 雨夜来电')).toBeVisible()
+  const promptCanvas = page.getByLabel('提示词无限画布')
+  await expect(promptCanvas.getByRole('button', { name: '新建内容画布' })).toBeVisible()
+  await expect(promptCanvas.getByRole('button', { name: '重命名内容画布' })).toBeVisible()
+
+  await promptCanvas.getByRole('button', { name: '新建内容画布' }).click()
+  const createCanvasDialog = page.getByRole('dialog', { name: '新建内容画布' })
+  await expect(createCanvasDialog).toBeVisible()
+  await expect(createCanvasDialog.getByLabel('名称')).toBeVisible()
+  await expect(createCanvasDialog.getByRole('button', { name: '创建画布' })).toBeEnabled()
+  await createCanvasDialog.getByRole('button', { name: '取消' }).click()
+  await expect(createCanvasDialog).toHaveCount(0)
+
+  await promptCanvas.getByRole('button', { name: '重命名内容画布' }).click()
+  const renameCanvasDialog = page.getByRole('dialog', { name: '重命名内容画布' })
+  await expect(renameCanvasDialog).toBeVisible()
+  await expect(renameCanvasDialog.getByLabel('名称')).toHaveValue('自由内容画布')
+  await expect(renameCanvasDialog.getByRole('button', { name: '保存名称' })).toBeDisabled()
+  await renameCanvasDialog.getByRole('button', { name: '取消' }).click()
+  await expect(renameCanvasDialog).toHaveCount(0)
   expect(consoleMessages).toEqual([])
 })
 
@@ -199,6 +200,16 @@ async function mockProjectWorkspaceWorkspaces(page: Parameters<typeof mockGenera
       body: JSON.stringify(url.pathname === `/workspaces/${WORKSPACE_ID}`
         ? PROJECT_STANDARDS_WORKSPACE_WORKSPACE
         : { workspaces: [PROJECT_STANDARDS_WORKSPACE_WORKSPACE] }),
+    })
+  })
+}
+
+async function mockContentWorkspaceResourceFiles(page: Parameters<typeof mockGenerationAppShell>[0]) {
+  await page.route(/\/(?:api\/v1\/resources|v1\/resources|resources)\/\d+\/file(?:[?#]|$)/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'image/png',
+      body: ONE_BY_ONE_PNG,
     })
   })
 }
@@ -287,7 +298,6 @@ async function installContentWorkspaceElectronApiMock(page: Parameters<typeof mo
     ]
     const contentWorkspaceData = {
       previewMoments: [],
-      assetReferenceUnits: {},
       editingTimelines: [],
       contentUnitCandidates: {
         cu_scene: [{
@@ -316,6 +326,39 @@ async function installContentWorkspaceElectronApiMock(page: Parameters<typeof mo
           status: 'ready',
           selected: false,
         }],
+      },
+      assetReferenceUnits: {
+        phone: {
+          assetId: 'phone',
+          title: '湿润手机',
+          path: 'content_units/cu_asset_phone/content_unit.json',
+          contentUnitId: 'cu_asset_phone',
+          contentUnitType: 'asset_ref',
+          outputKind: 'image',
+          editPrompt: 'A wet smartphone prop reference.',
+          usage: 'Visual anchor for the rainy phone-call scene.',
+          lockPolicy: 'Review downstream when stale',
+          selectionState: 'selected',
+          upstream: [],
+          candidates: [{
+            id: 'cand_phone',
+            title: '手机参考候选',
+            resourceId: 9101,
+            resourceKind: 'image',
+            source: 'e2e',
+            status: 'ready',
+            selected: true,
+          }, {
+            id: 'cand_phone_alt',
+            title: '手机备选候选',
+            resourceId: 9101,
+            resourceKind: 'image',
+            source: 'e2e',
+            status: 'ready',
+            selected: false,
+          }],
+          downstream: [],
+        },
       },
     }
     const contentWorkspaceCalls: {

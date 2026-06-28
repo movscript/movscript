@@ -2,7 +2,7 @@ import { create } from 'zustand'
 
 export interface AppSettings {
   apiBaseURL?: string
-  localAPIBaseURL?: string
+  daemonGatewayBaseURL?: string
   launchMode?: 'cloud' | 'local'
   workMode?: 'project' | 'tool' | 'agent'
   onboardingCompleted?: boolean
@@ -23,8 +23,8 @@ interface AppSettingsStore {
 
 export const useAppSettingsStore = create<AppSettingsStore>()((set) => ({
   settings: {
-    apiBaseURL: '/local-api/data',
-    localAPIBaseURL: '/local-api/data',
+    apiBaseURL: '',
+    daemonGatewayBaseURL: '',
     launchMode: 'local',
     workMode: 'project',
     onboardingCompleted: true,

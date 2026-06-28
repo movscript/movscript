@@ -69,7 +69,6 @@ test('script workspace repository accepts wrapped query results', async () => {
     const scripts = await listWorkspaceScripts(9, {
       projectDir: '/tmp/project',
       projectUid: 'prj_abc',
-      projectServiceBaseURL: 'http://127.0.0.1:4101',
     })
     assert.equal(scripts.length, 1)
     assert.equal(scripts[0].ID, 21)
@@ -78,7 +77,6 @@ test('script workspace repository accepts wrapped query results', async () => {
     assert.deepEqual(calls.contexts[0], {
       projectDir: '/tmp/project',
       projectUid: 'prj_abc',
-      projectServiceBaseURL: 'http://127.0.0.1:4101',
       projectId: 9,
     })
   } finally {

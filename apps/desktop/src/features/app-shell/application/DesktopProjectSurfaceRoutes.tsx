@@ -3,11 +3,20 @@ import {
   ProjectSettingsSurface,
   ProjectStandardsSurface,
 } from '@movscript/project-surface/react'
+import { ProjectOverviewPage as ProjectSurfaceOverviewPage } from '@movscript/project-surface/pages'
 import { useSearchParams } from 'react-router-dom'
 
 import {
   DesktopProjectSurfaceProvider,
 } from './desktopProjectSurfaceRuntime'
+
+export function ProjectOverviewPage() {
+  return (
+    <DesktopProjectSurfaceProvider>
+      <ProjectSurfaceOverviewPage />
+    </DesktopProjectSurfaceProvider>
+  )
+}
 
 export function ProjectSettingsPage() {
   return (

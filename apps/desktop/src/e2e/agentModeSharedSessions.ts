@@ -27,6 +27,7 @@ export function buildAgentModeSharedSessionsBootstrap(apiBaseURL: string): E2EBo
 
   return {
     appSettings: {
+      dataConnection: { kind: 'cloud', url: apiBaseURL },
       apiBaseURL,
       launchMode: 'cloud',
       onboardingCompleted: true,

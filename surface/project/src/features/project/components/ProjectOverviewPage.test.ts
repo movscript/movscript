@@ -145,3 +145,18 @@ test('project home routes production and setting previews through focused conten
   assert.match(source, /surfaceRoutePath\('project\.settingPreview'/)
   assert.match(source, /canvasNode: `setting:\$\{setting\.id\}`/)
 })
+
+test('project home uses the injected desktop project gateway for project resource data', () => {
+  const pageSource = readFileSync(resolve('src/features/project/components/ProjectOverviewPage.tsx'), 'utf8')
+  const dataSource = readFileSync(resolve('src/features/project/application/projectOverviewData.ts'), 'utf8')
+  const desktopRoutesSource = readFileSync(resolve('../../apps/desktop/src/features/app-shell/application/DesktopProjectSurfaceRoutes.tsx'), 'utf8')
+  const appRouteSource = readFileSync(resolve('../../apps/desktop/src/features/app-shell/application/appRouteComponents.tsx'), 'utf8')
+
+  assert.match(pageSource, /useOptionalProjectSurfaceRuntime/)
+  assert.match(pageSource, /projectGateway: projectSurfaceRuntime\.gateways\.project/)
+  assert.match(desktopRoutesSource, /<DesktopProjectSurfaceProvider>/)
+  assert.match(desktopRoutesSource, /<ProjectSurfaceOverviewPage \/>/)
+  assert.match(appRouteSource, /ProjectOverviewPage = lazyWithRetry\(\(\) => import\('\.\/DesktopProjectSurfaceRoutes'\)/)
+  assert.doesNotMatch(dataSource, /fetch\('\/v1\/project\/resources\/view'/)
+  assert.doesNotMatch(dataSource, /window\.location\.origin/)
+})

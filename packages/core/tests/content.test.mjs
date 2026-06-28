@@ -20,7 +20,6 @@ import {
   contentUnitWorkStatus,
   contentWorkbenchUnitRequiresKeyframe,
   findHierarchyNode,
-  loadContentSourceWorkspaceSnapshotFromEngine,
   normalizeAssetSlotStatus,
   pickPreviewTimelineItemForUnit,
   pickContentWorkbenchUploadTarget,
@@ -30,6 +29,16 @@ import {
   productionWorkItemsForTarget,
   reorderContentWorkbenchUnits,
 } from '../dist/content/index.js'
+import {
+  loadContentSourceWorkspaceSnapshotFromEngine,
+} from '../dist/content/node.js'
+import {
+  deriveMovScriptWorkspaceDomainIndex,
+} from '@movscript/workspace'
+
+function testDomainIndex(documents) {
+  return deriveMovScriptWorkspaceDomainIndex(documents)
+}
 
 test('core content normalizes asset slot status and work status decisions', () => {
   assert.equal(normalizeAssetSlotStatus('candidate'), 'candidate')
@@ -661,6 +670,7 @@ test('core content source workspace derives UI context from custom namespace pat
 
 test('core content source workspace exposes production MediaEditingProject timelines from preview selections', async () => {
   const production = entity('production', 'pilot', 'productions/pilot/production.json', { title: 'Pilot' })
+  const segment = entity('segment', 'opening', 'productions/pilot/segments/opening/segment.json', { title: 'Opening', order: 1 })
   const moment = entity('scene_moment', 'rain_call', 'productions/pilot/segments/opening/scene_moments/rain_call/scene_moment.json', { title: 'Rain call', order: 1 })
   const contentUnit = entity('content_unit', 'cu_rain_call', 'content_units/cu_rain_call/content_unit.json', {
     title: 'Rain call render',
@@ -676,10 +686,11 @@ test('core content source workspace exposes production MediaEditingProject timel
     outputs: [{ kind: 'video', resource_id: 612, duration_sec: 7 }],
   }
   const fakeEngine = {
+    projectDir: '/tmp/movscript-core-content-test',
     workspaceService: {
-      loadIndex: async () => ({
-        documents: [
+      loadIndex: async () => testDomainIndex([
           { path: production.path, data: production.record },
+          { path: segment.path, data: segment.record },
           { path: moment.path, data: moment.record },
           { path: contentUnit.path, data: contentUnit.record },
           { path: 'content_units/cu_rain_call/candidates/cand_scene/content_candidate.json', data: candidate },
@@ -690,8 +701,7 @@ test('core content source workspace exposes production MediaEditingProject timel
               selection: { candidate_id: 'cand_scene' },
             },
           },
-        ],
-      }),
+      ]),
       querySettings: async () => [],
       queryEntities: async () => [],
       queryAssets: async () => ({ assets: [] }),
@@ -765,9 +775,9 @@ test('core content source workspace exposes timeline assembly MediaEditingProjec
     outputs: [{ kind: 'video', resource_id: 612, duration_sec: 7 }],
   }
   const fakeEngine = {
+    projectDir: '/tmp/movscript-core-content-test',
     workspaceService: {
-      loadIndex: async () => ({
-        documents: [
+      loadIndex: async () => testDomainIndex([
           { path: production.path, data: production.record },
           { path: segment.path, data: segment.record },
           { path: moment.path, data: moment.record },
@@ -781,8 +791,7 @@ test('core content source workspace exposes timeline assembly MediaEditingProjec
               selection: { candidate_id: 'cand_scene' },
             },
           },
-        ],
-      }),
+      ]),
       querySettings: async () => [],
       queryEntities: async () => [],
       queryAssets: async () => ({ assets: [] }),

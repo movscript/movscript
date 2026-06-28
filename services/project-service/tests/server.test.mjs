@@ -6,20 +6,39 @@ import test from 'node:test'
 
 import {
   PROJECT_SERVICE_CAPABILITIES,
-  PROJECT_SERVICE_CANDIDATE_COMMAND_ENDPOINT,
   PROJECT_SERVICE_CANDIDATE_VIEW_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANVASES_LIST_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANVAS_DELETE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANVAS_RENAME_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANVAS_RUN_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANVAS_WRITE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANDIDATE_CREATE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_WORKSPACE_READ_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_CREATE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_SELECT_ENDPOINT,
+  PROJECT_SERVICE_TIMELINE_ASSEMBLY_CONTENT_UNIT_ENSURE_ENDPOINT,
+  PROJECT_SERVICE_ENTITIES_QUERY_ENDPOINT,
+  PROJECT_SERVICE_HIERARCHY_WRITE_ENDPOINT,
   PROJECT_SERVICE_LIFECYCLE_COMMAND_ENDPOINT,
   PROJECT_SERVICE_LOCATOR_RESOLVE_ENDPOINT,
   PROJECT_SERVICE_NAME,
   PROJECT_SERVICE_PROMPT_CONTEXT_ENDPOINT,
   PROJECT_SERVICE_READ_MODEL_ENDPOINT,
   PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT,
+  PROJECT_SERVICE_SCRIPT_SOURCE_READ_ENDPOINT,
+  PROJECT_SERVICE_SCRIPT_UPSERT_ENDPOINT,
+  PROJECT_SERVICE_SCRIPT_VERSION_SNAPSHOT_ENDPOINT,
   PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT,
   PROJECT_SERVICE_SOURCE_INSPECT_ENDPOINT,
   PROJECT_SERVICE_SOURCE_INTERPRET_ENDPOINT,
   PROJECT_SERVICE_SOURCE_OVERVIEW_ENDPOINT,
   PROJECT_SERVICE_SOURCE_REGENERATION_PLAN_ENDPOINT,
   PROJECT_SERVICE_SOURCE_SNAPSHOT_ENDPOINT,
+  PROJECT_SERVICE_SETTING_CREATE_ENDPOINT,
+  PROJECT_SERVICE_STANDARDS_UPSERT_ENDPOINT,
+  PROJECT_SERVICE_WORKSPACE_CANDIDATE_APPEND_ENDPOINT,
+  PROJECT_SERVICE_WORKSPACE_CANDIDATE_SELECT_ENDPOINT,
   startProjectService,
 } from '../src/server.mjs'
 import { sourceFileEntries } from '../../../packages/interpreter/tests/helpers.mjs'
@@ -170,7 +189,7 @@ test('project-service exposes a stable project read-model endpoint', async () =>
   assert.equal(readModel.projectReadModel.inspection.schema, 'movscript.workspace-inspection.v1')
   assert.equal(readModel.projectReadModel.sourceSummary.documentCount >= 2, true)
   assert.equal(readModel.projectReadModel.projectTimelineStatus.schema, 'movscript.project_timeline_status.v1')
-  assert.deepEqual(readModel.projectReadModel.projectTimelineStatus.namespace_vocabulary.timeline_namespaces, ['series', 'season', 'episode', 'act', 'beat'])
+  assert.deepEqual(readModel.projectReadModel.projectTimelineStatus.namespace_vocabulary.timeline_namespaces, ['act', 'sequence', 'beat', 'episode'])
   assert.equal(readModel.projectReadModel.projectTimelineStatus.timeline_namespaces.find(item => item.id === 'p8f3')?.kind, 'episode')
   assert.equal(readModel.projectReadModel.projectTimelineStatus.timeline_namespaces.find(item => item.id === 'a19d')?.kind, 'beat')
   const assembly = readModel.projectReadModel.projectTimelineStatus.timeline_assemblies.find(item => item.content_unit_id === 'cu_opening_assembly')
@@ -386,8 +405,18 @@ test('project-service exposes project resource views through the shared workspac
     kind: 'namespace-vocabulary',
   })
   assert.equal(namespaceVocabulary.kind, 'namespace-vocabulary')
-  assert.deepEqual(namespaceVocabulary.items.find(item => item.id === 'timeline')?.timelineNamespaces, ['series', 'season', 'episode', 'act', 'beat', 'sequence'])
+  assert.deepEqual(namespaceVocabulary.items.find(item => item.id === 'timeline')?.timelineNamespaces, ['act', 'sequence', 'beat'])
   assert.deepEqual(namespaceVocabulary.items.find(item => item.id === 'setting')?.settingNamespaces, ['character', 'costume_state'])
+
+  const projectContext = await postJSON(`${runtime.url}${PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT}`, {
+    projectDir,
+    kind: 'project-context',
+  })
+  assert.equal(projectContext.kind, 'project-context')
+  assert.equal(projectContext.items[0]?.schema, 'movscript.project_context_snapshot.v1')
+  assert.equal(projectContext.items[0]?.namespace_vocabulary.timeline_template, 'series')
+  assert.deepEqual(projectContext.items[0]?.namespace_vocabulary.timeline_namespaces, ['act', 'sequence', 'beat'])
+  assert.deepEqual(projectContext.items[0]?.namespace_vocabulary.setting_namespaces, ['character', 'costume_state'])
 
   const segments = await postJSON(`${runtime.url}${PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT}`, {
     projectDir,
@@ -507,6 +536,77 @@ test('project-service executes whitelisted source commands through the shared en
   assert.equal(written.id, 'villain')
   assert.equal(written.title, 'Villain')
 
+  const standardsCommand = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
+    projectDir,
+    command: 'upsertProjectStandards',
+    input: {
+      projectStyle: {
+        aspect_ratio: '16:9',
+        visual_style: 'Cinematic service realism',
+        lighting_style: 'soft contrast',
+      },
+    },
+  })
+  assert.equal(standardsCommand.command, 'upsertProjectStandards')
+  assert.equal(standardsCommand.result.path, 'project_standards.json')
+  assert.equal(standardsCommand.result.record.visual_style, 'Cinematic service realism')
+  const standardSkillPaths = [
+    '.codex/skills/plugins/movscript_project-standards/project-standards/SKILL.md',
+    '.claude/skills/plugins/movscript_project-standards/project-standards/SKILL.md',
+    '.mova/skills/plugins/movscript_project-standards/project-standards/SKILL.md',
+  ]
+  assert.deepEqual(standardsCommand.result.standardSkillFiles.map(file => file.path), standardSkillPaths)
+  for (const skillPath of standardSkillPaths) {
+    const skillContent = await readFile(join(projectDir, skillPath), 'utf8')
+    assert.match(skillContent, /Generated from `project_standards\.json`/)
+    assert.match(skillContent, /Cinematic service realism/)
+  }
+
+  const typedStandards = await postJSON(`${runtime.url}${PROJECT_SERVICE_STANDARDS_UPSERT_ENDPOINT}`, {
+    projectDir,
+    projectStyle: {
+      aspect_ratio: '9:16',
+      visual_style: 'Typed standards realism',
+      lighting_style: 'morning haze',
+    },
+  })
+  assert.equal(typedStandards.schema, 'movscript.project-standards-upsert.v1')
+  assert.equal(typedStandards.projectDir, projectDir)
+  assert.equal(typedStandards.result.path, 'project_standards.json')
+  assert.equal(typedStandards.result.record.visual_style, 'Typed standards realism')
+  assert.deepEqual(typedStandards.result.standardSkillFiles.map(file => file.path), standardSkillPaths)
+
+  const typedScript = await postJSON(`${runtime.url}${PROJECT_SERVICE_SCRIPT_UPSERT_ENDPOINT}`, {
+    projectDir,
+    scriptId: 'typed',
+    sourceText: 'INT. TYPED SERVICE - DAWN',
+    metadata: {
+      title: 'Typed Service Script',
+      script_type: 'draft',
+    },
+  })
+  assert.equal(typedScript.schema, 'movscript.project-script-upsert.v1')
+  assert.equal(typedScript.projectDir, projectDir)
+  assert.equal(typedScript.result.scriptPath, 'scripts/typed/script.json')
+  assert.equal(typedScript.result.record.title, 'Typed Service Script')
+
+  const typedScriptSource = await postJSON(`${runtime.url}${PROJECT_SERVICE_SCRIPT_SOURCE_READ_ENDPOINT}`, {
+    projectDir,
+    record: typedScript.result.record,
+  })
+  assert.equal(typedScriptSource.schema, 'movscript.project-script-source-read.v1')
+  assert.equal(typedScriptSource.result, 'INT. TYPED SERVICE - DAWN')
+
+  const typedScriptSnapshot = await postJSON(`${runtime.url}${PROJECT_SERVICE_SCRIPT_VERSION_SNAPSHOT_ENDPOINT}`, {
+    projectDir,
+    scriptId: 'typed',
+    versionId: 'v1',
+    versionLabel: 'V1',
+  })
+  assert.equal(typedScriptSnapshot.schema, 'movscript.project-script-version-snapshot.v1')
+  assert.equal(typedScriptSnapshot.result.versionPath, 'scripts/typed/versions/v1/script_version.json')
+  assert.equal(typedScriptSnapshot.result.blockCount, 1)
+
   const namespaceCommand = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
     projectDir,
     command: 'writeNamespaceNode',
@@ -559,6 +659,10 @@ test('project-service executes whitelisted source commands through the shared en
           node_id: 'scene_moment:opening',
           kind: 'scene_moment',
           added_at: '2026-06-07T00:00:00.000Z',
+        }, {
+          node_id: 'content_unit:cu_pilot_assembly',
+          kind: 'content_unit',
+          added_at: '2026-06-07T00:00:00.000Z',
         }],
         layouts: {
           'scene_moment:opening': {
@@ -577,13 +681,67 @@ test('project-service executes whitelisted source commands through the shared en
     },
   })
   assert.equal(canvasCommand.command, 'writeContentCanvas')
+  assert.equal(canvasCommand.result.canvasKind, 'content')
   assert.equal(canvasCommand.result.path, 'content_canvases/canvas_pilot/canvas.json')
+  assert.equal(canvasCommand.result.title, 'Pilot Canvas')
+  assert.equal(canvasCommand.result.normalizedTitle, 'Pilot Canvas')
+  assert.deepEqual(canvasCommand.result.diagnostics, [])
   const canvasFile = JSON.parse(await readFile(join(projectDir, 'content_canvases', 'canvas_pilot', 'canvas.json'), 'utf8'))
   assert.equal(canvasFile.schema, 'movscript.content_canvas.v1')
   assert.equal(canvasFile.kind, 'content_canvas')
+  assert.equal(canvasFile.canvasKind, 'content')
   assert.equal(canvasFile.scope.production_id, 'pilot')
-  assert.deepEqual(canvasFile.nodes.map(node => node.node_id), ['scene_moment:opening'])
+  assert.deepEqual(canvasFile.nodes.map(node => node.node_id), ['content_unit:cu_pilot_assembly', 'scene_moment:opening'])
   assert.deepEqual(canvasFile.layouts['scene_moment:opening'].updated_at, '2026-06-07T00:10:00.000Z')
+  assert.equal(canvasFile.viewport, undefined)
+
+  const duplicateCanvasTitle = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
+    projectDir,
+    command: 'writeContentCanvas',
+    input: {
+      canvas: {
+        id: 'canvas:duplicate',
+        title: 'Pilot Canvas',
+      },
+    },
+  })
+  assert.equal(duplicateCanvasTitle.command, 'writeContentCanvas')
+  assert.equal(duplicateCanvasTitle.result.record.id, 'canvas:duplicate')
+  assert.equal(duplicateCanvasTitle.result.record.title, 'Pilot Canvas')
+  assert.equal(duplicateCanvasTitle.result.path, 'content_canvases/canvas_duplicate/canvas.json')
+
+  const blankCanvasTitle = await fetch(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      projectDir,
+      command: 'writeContentCanvas',
+      input: {
+        canvas: {
+          id: 'canvas:blank',
+          title: '   ',
+        },
+      },
+    }),
+  })
+  assert.equal(blankCanvasTitle.status, 400)
+  assert.deepEqual(await blankCanvasTitle.json(), {
+    error: 'project_content_canvas_title_required',
+    message: 'content canvas title is required',
+  })
+
+  const legacyCanvasPath = join(projectDir, 'content_canvases', 'legacy_board', 'canvas.json')
+  await mkdir(dirname(legacyCanvasPath), { recursive: true })
+  await writeFile(legacyCanvasPath, `${JSON.stringify({
+    schema: 'movscript.content_canvas.v1',
+    kind: 'content_canvas',
+    title: 'Legacy Board',
+    nodes: [],
+    layouts: {},
+    updated_at: '2026-06-07T00:12:00.000Z',
+  }, null, 2)}\n`)
 
   const canvasList = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
     projectDir,
@@ -592,6 +750,118 @@ test('project-service executes whitelisted source commands through the shared en
   assert.equal(canvasList.command, 'listContentCanvases')
   assert.equal(canvasList.result.schema, 'movscript.content_canvases.v1')
   assert.equal(canvasList.result.canvases.find(item => item.record.id === 'canvas:pilot')?.path, 'content_canvases/canvas_pilot/canvas.json')
+  assert.equal(canvasList.result.canvases.find(item => item.record.id === 'canvas:pilot')?.canvasKind, 'content')
+  assert.equal(canvasList.result.canvases.find(item => item.record.id === 'canvas:pilot')?.owner, 'project-service')
+  assert.equal(canvasList.result.canvases.find(item => item.record.id === 'canvas:pilot')?.record.title, 'Pilot Canvas')
+  assert.equal(canvasList.result.canvases.find(item => item.record.id === 'legacy_board')?.record.title, 'Legacy Board')
+
+  const typedCanvasWrite = await postJSON(`${runtime.url}${PROJECT_SERVICE_CONTENT_CANVAS_WRITE_ENDPOINT}`, {
+    projectDir,
+    canvas: {
+      id: 'canvas:typed',
+      title: 'Typed Canvas',
+      nodes: [],
+      layouts: {},
+    },
+  })
+  assert.equal(typedCanvasWrite.schema, 'movscript.project-content-canvas-write.v1')
+  assert.equal(typedCanvasWrite.canvasKind, 'content')
+  assert.equal(typedCanvasWrite.title, 'Typed Canvas')
+  assert.equal(typedCanvasWrite.projectDir, projectDir)
+
+  const typedCanvasList = await postJSON(`${runtime.url}${PROJECT_SERVICE_CONTENT_CANVASES_LIST_ENDPOINT}`, { projectDir })
+  assert.equal(typedCanvasList.schema, 'movscript.content_canvases.v1')
+  assert.equal(typedCanvasList.projectDir, projectDir)
+  assert.equal(typedCanvasList.canvases.find(item => item.record.id === 'canvas:typed')?.record.title, 'Typed Canvas')
+
+  const typedCanvasRename = await postJSON(`${runtime.url}${PROJECT_SERVICE_CONTENT_CANVAS_RENAME_ENDPOINT}`, {
+    projectDir,
+    id: 'canvas:typed',
+    title: 'Typed Canvas Renamed',
+    expectedVersion: typedCanvasList.canvases.find(item => item.record.id === 'canvas:typed')?.version,
+  })
+  assert.equal(typedCanvasRename.schema, 'movscript.project-content-canvas-rename.v1')
+  assert.equal(typedCanvasRename.canvasKind, 'content')
+  assert.equal(typedCanvasRename.title, 'Typed Canvas Renamed')
+
+  const typedCanvasStaleRename = await fetch(`${runtime.url}${PROJECT_SERVICE_CONTENT_CANVAS_RENAME_ENDPOINT}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      projectDir,
+      id: 'canvas:typed',
+      title: 'Typed Canvas Stale Rename',
+      expectedVersion: typedCanvasList.canvases.find(item => item.record.id === 'canvas:typed')?.version,
+    }),
+  })
+  assert.equal(typedCanvasStaleRename.status, 409)
+  assert.deepEqual(await typedCanvasStaleRename.json(), {
+    error: 'project_workspace_file_version_conflict',
+    message: 'workspace file changed before the write could be committed',
+  })
+
+  const typedCanvasRun = await postJSON(`${runtime.url}${PROJECT_SERVICE_CONTENT_CANVAS_RUN_ENDPOINT}`, {
+    projectDir,
+    id: 'canvas:typed',
+  })
+  assert.equal(typedCanvasRun.schema, 'movscript.content_canvas_run.v1')
+  assert.equal(typedCanvasRun.projectDir, projectDir)
+  assert.equal(typedCanvasRun.canvas.canvasKind, 'content')
+  assert.equal(typedCanvasRun.canvas.record.title, 'Typed Canvas Renamed')
+
+  const typedCanvasDelete = await postJSON(`${runtime.url}${PROJECT_SERVICE_CONTENT_CANVAS_DELETE_ENDPOINT}`, {
+    projectDir,
+    id: 'canvas:typed',
+  })
+  assert.equal(typedCanvasDelete.schema, 'movscript.project-content-canvas-delete.v1')
+  assert.equal(typedCanvasDelete.canvasKind, 'content')
+  assert.equal(typedCanvasDelete.path, 'content_canvases/canvas_typed/canvas.json')
+
+  const renamedCanvas = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
+    projectDir,
+    command: 'renameContentCanvas',
+    input: {
+      id: 'canvas:pilot',
+      title: 'Pilot Storyboard Canvas',
+      expectedVersion: canvasList.result.canvases.find(item => item.record.id === 'canvas:pilot')?.version,
+    },
+  })
+  assert.equal(renamedCanvas.command, 'renameContentCanvas')
+  assert.equal(renamedCanvas.result.status, 'renamed')
+  assert.equal(renamedCanvas.result.canvasKind, 'content')
+  assert.equal(renamedCanvas.result.title, 'Pilot Storyboard Canvas')
+  assert.equal(renamedCanvas.result.normalizedTitle, 'Pilot Storyboard Canvas')
+  assert.equal(renamedCanvas.result.record.title, 'Pilot Storyboard Canvas')
+  assert.equal(renamedCanvas.result.record.name, 'Pilot Storyboard Canvas')
+  const renamedCanvasFile = JSON.parse(await readFile(join(projectDir, 'content_canvases', 'canvas_pilot', 'canvas.json'), 'utf8'))
+  assert.equal(renamedCanvasFile.title, 'Pilot Storyboard Canvas')
+  assert.equal(renamedCanvasFile.name, 'Pilot Storyboard Canvas')
+
+  const relistedCanvases = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
+    projectDir,
+    command: 'listContentCanvases',
+  })
+  assert.equal(relistedCanvases.result.canvases.find(item => item.record.id === 'canvas:pilot')?.record.title, 'Pilot Storyboard Canvas')
+
+  const runCanvas = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
+    projectDir,
+    command: 'runContentCanvas',
+    input: {
+      id: 'canvas:pilot',
+    },
+  })
+  assert.equal(runCanvas.command, 'runContentCanvas')
+  assert.equal(runCanvas.result.schema, 'movscript.content_canvas_run.v1')
+  assert.equal(runCanvas.result.status, 'completed')
+  assert.match(runCanvas.result.operationId, /^content-canvas-run:canvas_pilot:/)
+  assert.equal(runCanvas.result.canvas.canvasKind, 'content')
+  assert.equal(runCanvas.result.canvas.record.title, 'Pilot Storyboard Canvas')
+  assert.equal(typeof runCanvas.result.trace.interpretationId, 'string')
+  assert.equal(runCanvas.result.readModel.schema, 'movscript.content_canvas_run_read_model_summary.v1')
+  assert.equal(runCanvas.result.readModel.timelineAssemblyCount >= 1, true)
+  assert.deepEqual(runCanvas.result.candidateImpact.affectedContentUnitIds, ['cu_pilot_assembly'])
 
   const canvasDelete = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
     projectDir,
@@ -599,6 +869,7 @@ test('project-service executes whitelisted source commands through the shared en
     input: { id: 'canvas:pilot' },
   })
   assert.equal(canvasDelete.command, 'deleteContentCanvas')
+  assert.equal(canvasDelete.result.canvasKind, 'content')
   assert.equal(canvasDelete.result.path, 'content_canvases/canvas_pilot/canvas.json')
 
   const readModel = await postJSON(`${runtime.url}${PROJECT_SERVICE_READ_MODEL_ENDPOINT}`, { projectDir })
@@ -616,7 +887,123 @@ test('project-service executes whitelisted source commands through the shared en
   assert.equal((await unsupported.json()).error, 'project_source_command_unsupported')
 })
 
-test('project-service executes content-unit candidate commands through scoped project data decisions', async () => {
+test('project-service executes typed source operation endpoints through the shared engine/workspace service', async () => {
+  const projectDir = await createProjectSource()
+  const runtime = await startProjectService()
+  tAfterClose(runtime)
+  test.after(async () => {
+    await rm(projectDir, { recursive: true, force: true })
+  })
+
+  const typedSetting = await postJSON(`${runtime.url}${PROJECT_SERVICE_SETTING_CREATE_ENDPOINT}`, {
+    projectDir,
+    id: 'typed_hero',
+    title: 'Typed Hero',
+    kind: 'character',
+    description: 'Created through typed Project Service API.',
+  })
+  assert.equal(typedSetting.schema, 'movscript.project-setting-create.v1')
+  assert.equal(typedSetting.result.record.id, 'typed_hero')
+  assert.equal(typedSetting.result.path, 'settings/typed_hero/setting.json')
+
+  const typedContentUnit = await postJSON(`${runtime.url}${PROJECT_SERVICE_CONTENT_UNIT_CREATE_ENDPOINT}`, {
+    projectDir,
+    id: 'cu_typed',
+    title: 'Typed Content Unit',
+    contentUnitType: 'asset_ref',
+    targetKind: 'asset',
+    targetRef: 'asset:phone',
+    prompt: 'Create a typed content unit.',
+  })
+  assert.equal(typedContentUnit.schema, 'movscript.project-content-unit-create.v1')
+  assert.equal(typedContentUnit.result.record.id, 'cu_typed')
+
+  const typedTimelineAssemblyContentUnit = await postJSON(`${runtime.url}${PROJECT_SERVICE_CONTENT_UNIT_CREATE_ENDPOINT}`, {
+    projectDir,
+    id: 'cu_typed_assembly',
+    title: 'Typed Assembly',
+    contentUnitType: 'timeline_assembly_ref',
+    outputKind: 'video',
+    targetCategory: 'timeline_assembly',
+    targetKind: 'timeline_assembly',
+    targetRef: 'timeline_assembly:episode:typed_episode',
+    scopeKind: 'episode',
+    scopeRef: 'typed_episode',
+    prompt: 'Assemble the typed episode.',
+  })
+  assert.equal(typedTimelineAssemblyContentUnit.result.record.content_unit_type, 'timeline_assembly_ref')
+  assert.equal(typedTimelineAssemblyContentUnit.result.record.target_kind, 'timeline_assembly')
+  assert.equal(typedTimelineAssemblyContentUnit.result.record.target_ref, 'timeline_assembly:episode:typed_episode')
+  assert.equal(typedTimelineAssemblyContentUnit.result.record.scope_kind, 'episode')
+  assert.equal(typedTimelineAssemblyContentUnit.result.record.scope_ref, 'typed_episode')
+
+  const ensuredTimelineAssemblyContentUnit = await postJSON(`${runtime.url}${PROJECT_SERVICE_TIMELINE_ASSEMBLY_CONTENT_UNIT_ENSURE_ENDPOINT}`, {
+    projectDir,
+    id: 'cu_typed_assembly_ensure',
+    title: 'Typed Assembly Ensure',
+    outputKind: 'video',
+    scopeKind: 'beat',
+    scopeRef: 'typed_beat',
+    prompt: 'Assemble the typed beat.',
+  })
+  assert.equal(ensuredTimelineAssemblyContentUnit.schema, 'movscript.project-timeline-assembly-content-unit-ensure.v1')
+  assert.equal(ensuredTimelineAssemblyContentUnit.result.record.content_unit_type, 'timeline_assembly_ref')
+  assert.equal(ensuredTimelineAssemblyContentUnit.result.record.target_kind, 'timeline_assembly')
+  assert.equal(ensuredTimelineAssemblyContentUnit.result.record.target_ref, 'timeline_assembly:beat:typed_beat')
+  assert.equal(ensuredTimelineAssemblyContentUnit.result.record.scope_kind, 'beat')
+  assert.equal(ensuredTimelineAssemblyContentUnit.result.record.scope_ref, 'typed_beat')
+
+  const typedHierarchy = await postJSON(`${runtime.url}${PROJECT_SERVICE_HIERARCHY_WRITE_ENDPOINT}`, {
+    projectDir,
+    targetPath: 'timeline/typed/production.json',
+    record: {
+      kind: 'production',
+      id: 'typed',
+      title: 'Typed Production',
+    },
+  })
+  assert.equal(typedHierarchy.schema, 'movscript.project-hierarchy-write.v1')
+  assert.equal(typedHierarchy.result.path, 'timeline/typed/production.json')
+
+  const typedEntities = await postJSON(`${runtime.url}${PROJECT_SERVICE_ENTITIES_QUERY_ENDPOINT}`, {
+    projectDir,
+    query: { entityKind: 'setting' },
+  })
+  assert.equal(typedEntities.schema, 'movscript.project-entities-query.v1')
+  assert.equal(typedEntities.result.some(entity => entity.record.id === 'typed_hero'), true)
+
+  const typedContentWorkspace = await postJSON(`${runtime.url}${PROJECT_SERVICE_CONTENT_WORKSPACE_READ_ENDPOINT}`, {
+    projectDir,
+  })
+  assert.equal(typedContentWorkspace.schema, 'movscript.project-content-workspace-read.v1')
+  assert.equal(typedContentWorkspace.result.source, 'workspace')
+  assert.equal(Array.isArray(typedContentWorkspace.result.hierarchyTree), true)
+
+  const appendedCandidate = await postJSON(`${runtime.url}${PROJECT_SERVICE_WORKSPACE_CANDIDATE_APPEND_ENDPOINT}`, {
+    projectDir,
+    targetPath: 'settings/typed_hero/setting.json',
+    targetKind: 'setting',
+    payload: {
+      id: 'candidate_typed_hero',
+      resource_id: 1001,
+      source: 'typed-project-service-test',
+    },
+  })
+  assert.equal(appendedCandidate.schema, 'movscript.project-workspace-candidate-append.v1')
+  assert.equal(appendedCandidate.result.candidate.id, 'candidate_typed_hero')
+
+  const selectedCandidate = await postJSON(`${runtime.url}${PROJECT_SERVICE_WORKSPACE_CANDIDATE_SELECT_ENDPOINT}`, {
+    projectDir,
+    targetPath: 'settings/typed_hero/setting.json',
+    targetKind: 'setting',
+    candidateId: 'candidate_typed_hero',
+    reason: 'typed Project Service test',
+  })
+  assert.equal(selectedCandidate.schema, 'movscript.project-workspace-candidate-select.v1')
+  assert.equal(selectedCandidate.result.candidate.id, 'candidate_typed_hero')
+})
+
+test('project-service executes typed content-unit candidate actions through scoped project data decisions', async () => {
   const projectDir = await createProjectSource()
   const originalFetch = globalThis.fetch
   const contexts = new Map()
@@ -666,9 +1053,8 @@ test('project-service executes content-unit candidate commands through scoped pr
     headers: { 'X-User-ID': '99' },
   }
 
-  const created = await postJSON(`${runtime.url}${PROJECT_SERVICE_CANDIDATE_COMMAND_ENDPOINT}`, {
+  const created = await postJSON(`${runtime.url}${PROJECT_SERVICE_CONTENT_CANDIDATE_CREATE_ENDPOINT}`, {
     projectDir,
-    command: 'createContentCandidate',
     decisionStore,
     input: {
       contentUnitId: 'k41m',
@@ -678,8 +1064,7 @@ test('project-service executes content-unit candidate commands through scoped pr
     },
   })
 
-  assert.equal(created.schema, 'movscript.project-candidate-command-result.v1')
-  assert.equal(created.command, 'createContentCandidate')
+  assert.equal(created.schema, 'movscript.project-content-candidate-create.v1')
   assert.equal(created.result.record.id, 'candidate_image_1')
   assert.equal(contexts.get('content_units/k41m').candidates.length, 1)
 
@@ -704,9 +1089,8 @@ test('project-service executes content-unit candidate commands through scoped pr
   assert.equal(inferredViewed.contexts.length, 1)
   assert.equal(inferredViewed.contexts[0].candidates[0].id, 'candidate_image_1')
 
-  const selected = await postJSON(`${runtime.url}${PROJECT_SERVICE_CANDIDATE_COMMAND_ENDPOINT}`, {
+  const selected = await postJSON(`${runtime.url}${PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_SELECT_ENDPOINT}`, {
     projectDir,
-    command: 'selectContentUnitCandidate',
     decisionStore,
     input: {
       contentUnitId: 'k41m',
@@ -717,9 +1101,8 @@ test('project-service executes content-unit candidate commands through scoped pr
   assert.equal(selected.result.record.selection.candidate_id, 'candidate_image_1')
   assert.equal(selected.result.record.selection.resource_id, 101)
 
-  const adopted = await postJSON(`${runtime.url}${PROJECT_SERVICE_CANDIDATE_COMMAND_ENDPOINT}`, {
+  const adopted = await postJSON(`${runtime.url}${PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT}`, {
     projectDir,
-    command: 'decideContentUnitCandidate',
     decisionStore,
     input: {
       contentUnitId: 'k41m',
@@ -740,12 +1123,11 @@ test('project-service executes content-unit candidate commands through scoped pr
   assert.equal(contentWorkspace.result.contentUnitCandidates.k41m[0].selected, true)
   assert.equal(contentWorkspace.result.contentUnitCandidates.k41m[0].resourceId, 101)
 
-  const missingDecisionStore = await fetch(`${runtime.url}${PROJECT_SERVICE_CANDIDATE_COMMAND_ENDPOINT}`, {
+  const missingDecisionStore = await fetch(`${runtime.url}${PROJECT_SERVICE_CONTENT_CANDIDATE_CREATE_ENDPOINT}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       projectDir,
-      command: 'createContentCandidate',
       input: {
         contentUnitId: 'k41m',
         outputs: [{ kind: 'image', resource_id: 101 }],

@@ -1,14 +1,20 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import type { ElectronRuntimeConfig } from '@/shared/contracts/electronApi'
 
 import {
   APP_SETTINGS_STORAGE_KEY,
   getDefaultAPIBaseURL,
   getAPIBaseURL,
   getAPIV1BaseURL,
-  getCanvasServiceBaseURL,
-  getCanvasServiceV1BaseURL,
+  getCanvasGatewayBaseURL,
+  getDaemonGatewayBaseURL,
+  getRuntimeDataConnection,
   getRuntimeConfigSnapshot,
+  getRuntimeDescriptor,
+  getSettingsDaemonGatewayBaseURL,
+  getSettingsDataConnectionBaseURL,
+  isLocalDataConnection,
   isLocalLaunchMode,
   normalizeAPIBaseURL,
   setRuntimeConfigSnapshot,
@@ -22,14 +28,35 @@ test('app settings config keeps URL and launch mode normalization behind core he
   assert.equal(isLocalLaunchMode({ launchMode: 'cloud' }), false)
 })
 
+test('app settings data connection helpers prefer daemon gateway and typed connection URLs', () => {
+  assert.equal(isLocalDataConnection({ dataConnection: { kind: 'local', url: 'http://localhost:8766' } }), true)
+  assert.equal(isLocalDataConnection({ dataConnection: { kind: 'cloud', url: 'https://api.example' } }), false)
+  assert.equal(
+    getSettingsDaemonGatewayBaseURL({
+      dataConnection: { kind: 'local', url: 'http://data.example:8766/' },
+      daemonGatewayBaseURL: 'http://daemon.example:8766/',
+      apiBaseURL: 'http://legacy.example:8766/',
+    }),
+    'http://daemon.example:8766',
+  )
+  assert.equal(
+    getSettingsDataConnectionBaseURL({
+      dataConnection: { kind: 'cloud', url: 'https://team.example/api/v1' },
+      cloudAPIBaseURL: 'https://legacy-cloud.example',
+      apiBaseURL: 'https://legacy.example',
+    }),
+    'https://team.example',
+  )
+})
+
 test('runtime config snapshot is the preferred API base URL source', () => {
   setRuntimeConfigSnapshot({
     movScriptHomeDir: '/tmp/movscript-home',
+    gatewayBaseURL: 'http://localhost:8766/',
+    runtime: runtimeDescriptor('http://localhost:8766/', 'local'),
+    dataConnection: { kind: 'local', authMode: 'local-owner', status: 'connected' },
     apiBaseURL: 'http://localhost:8766/',
     apiV1BaseURL: 'http://localhost:8766/api/v1',
-    projectServiceBaseURL: 'http://localhost:9005/',
-    canvasServiceBaseURL: 'http://localhost:9777/',
-    localAPIBaseURL: 'http://localhost:8766',
     workspaceDir: '/tmp/movscript-home',
     providerRuntimeEnv: {
       MOVSCRIPT_CODEX_RUNTIME_API: ' codex-sdk ',
@@ -40,14 +67,19 @@ test('runtime config snapshot is the preferred API base URL source', () => {
 
   assert.equal(getRuntimeConfigSnapshot()?.apiBaseURL, 'http://localhost:8766')
   assert.equal(getRuntimeConfigSnapshot()?.movScriptHomeDir, '/tmp/movscript-home')
+  assert.equal(getRuntimeDescriptor()?.runtime.owner, 'movscript.local-node')
+  assert.equal(getRuntimeDescriptor()?.gateway.canonicalPrefix, '/v1')
+  assert.equal(getRuntimeDescriptor()?.gateway.baseURL, 'http://localhost:8766')
+  assert.equal(getRuntimeDataConnection()?.kind, 'local')
   assert.deepEqual(getRuntimeConfigSnapshot()?.providerRuntimeEnv, {
     MOVSCRIPT_CODEX_RUNTIME_API: 'codex-sdk',
   })
   assert.equal(getAPIBaseURL(), 'http://localhost:8766')
   assert.equal(getAPIV1BaseURL(), 'http://localhost:8766/api/v1')
-  assert.equal(getRuntimeConfigSnapshot()?.projectServiceBaseURL, 'http://localhost:9005')
-  assert.equal(getCanvasServiceBaseURL(), 'http://localhost:9777')
-  assert.equal(getCanvasServiceV1BaseURL(), 'http://localhost:9777/v1')
+  assert.equal(getCanvasGatewayBaseURL(), 'http://localhost:8766')
+  assert.equal('projectServiceBaseURL' in (getRuntimeConfigSnapshot() ?? {}), false)
+  assert.equal('canvasServiceBaseURL' in (getRuntimeConfigSnapshot() ?? {}), false)
+  assert.equal('localAPIBaseURL' in (getRuntimeConfigSnapshot() ?? {}), false)
 
   setRuntimeConfigSnapshot(null)
 })
@@ -57,16 +89,50 @@ test('runtime config snapshot derives local canvas API from daemon gateway', () 
     movScriptHomeDir: '/tmp/movscript-home',
     workspaceDir: '/tmp/movscript-home',
     gatewayBaseURL: 'http://localhost:8766/',
-    dataServiceBaseURL: 'http://localhost:9001/',
+    runtime: runtimeDescriptor('http://localhost:8766/', 'local'),
+    dataConnection: { kind: 'local', authMode: 'local-owner', status: 'connected' },
     apiBaseURL: 'http://localhost:8766/',
     apiV1BaseURL: 'http://localhost:8766/api/v1',
-    localAPIBaseURL: 'http://localhost:8766',
     backendStatus: { state: 'ready', baseURL: 'http://localhost:8766/' },
   })
 
   assert.equal(getRuntimeConfigSnapshot()?.gatewayBaseURL, 'http://localhost:8766')
-  assert.equal(getRuntimeConfigSnapshot()?.dataServiceBaseURL, 'http://localhost:9001')
-  assert.equal(getCanvasServiceV1BaseURL(), 'http://localhost:8766/local-api')
+  assert.equal(getRuntimeConfigSnapshot()?.runtime.gateway.baseURL, 'http://localhost:8766')
+  assert.equal('dataServiceBaseURL' in (getRuntimeConfigSnapshot() ?? {}), false)
+  assert.equal(getDaemonGatewayBaseURL(), 'http://localhost:8766')
+  assert.equal(getCanvasGatewayBaseURL(), 'http://localhost:8766')
+
+  setRuntimeConfigSnapshot(null)
+})
+
+test('runtime config snapshot normalizes legacy canvas gateway aliases to daemon root', () => {
+  setRuntimeConfigSnapshot(legacyRuntimeConfigSnapshot({
+    movScriptHomeDir: '/tmp/movscript-home',
+    workspaceDir: '/tmp/movscript-home',
+    gatewayBaseURL: 'http://localhost:8766/',
+    canvasServiceV1BaseURL: 'http://localhost:8766/local-api',
+    apiBaseURL: 'http://localhost:8766/',
+    apiV1BaseURL: 'http://localhost:8766/api/v1',
+    localAPIBaseURL: 'http://localhost:8766',
+    backendStatus: { state: 'ready', baseURL: 'http://localhost:8766/' },
+  }))
+
+  assert.equal(getCanvasGatewayBaseURL(), 'http://localhost:8766')
+  assert.equal('canvasServiceV1BaseURL' in (getRuntimeConfigSnapshot() ?? {}), false)
+  assert.equal('localAPIBaseURL' in (getRuntimeConfigSnapshot() ?? {}), false)
+
+  setRuntimeConfigSnapshot(legacyRuntimeConfigSnapshot({
+    movScriptHomeDir: '/tmp/movscript-home',
+    workspaceDir: '/tmp/movscript-home',
+    canvasServiceBaseURL: 'http://localhost:9777/',
+    canvasServiceV1BaseURL: 'http://localhost:9777/v1',
+    apiBaseURL: 'http://localhost:8766/',
+    apiV1BaseURL: 'http://localhost:8766/api/v1',
+    localAPIBaseURL: 'http://localhost:8766',
+    backendStatus: { state: 'ready', baseURL: 'http://localhost:8766/' },
+  }))
+
+  assert.equal(getCanvasGatewayBaseURL(), 'http://localhost:8766')
 
   setRuntimeConfigSnapshot(null)
 })
@@ -100,9 +166,11 @@ test('browser app settings are only an API base URL fallback outside Electron ru
         getRuntimeConfig: async () => ({
           movScriptHomeDir: '/tmp/movscript-home',
           workspaceDir: '/tmp/movscript-home',
+          runtime: runtimeDescriptor('http://home-runtime:8766', 'local'),
+          dataConnection: { kind: 'local', authMode: 'local-owner', status: 'connected' },
           apiBaseURL: 'http://home-runtime:8766',
           apiV1BaseURL: 'http://home-runtime:8766/api/v1',
-          localAPIBaseURL: 'http://home-runtime:8766',
+          gatewayBaseURL: 'http://home-runtime:8766',
           backendStatus: { state: 'ready', baseURL: 'http://home-runtime:8766' },
         }),
       },
@@ -114,3 +182,37 @@ test('browser app settings are only an API base URL fallback outside Electron ru
     globalThis.window = previousWindow
   }
 })
+
+function runtimeDescriptor(
+  gatewayBaseURL: string,
+  dataConnectionKind: 'local' | 'cloud' | 'external',
+): ElectronRuntimeConfig['runtime'] {
+  return {
+    schema: 'movscript.runtime-descriptor.v1',
+    runtime: {
+      owner: 'movscript.local-node',
+      appId: 'movscript.local-node',
+      name: 'MovScript Local Node Daemon',
+    },
+    gateway: {
+      baseURL: gatewayBaseURL,
+      canonicalPrefix: '/v1',
+    },
+    dataConnection: {
+      kind: dataConnectionKind,
+      authMode: dataConnectionKind === 'local' ? 'local-owner' : 'session',
+      status: 'connected',
+    },
+    capabilities: {
+      project: true,
+      canvas: true,
+      resources: true,
+      editing: true,
+      media: true,
+    },
+  }
+}
+
+function legacyRuntimeConfigSnapshot(input: Partial<ElectronRuntimeConfig> & Record<string, unknown>): ElectronRuntimeConfig {
+  return input as ElectronRuntimeConfig
+}

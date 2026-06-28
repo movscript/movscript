@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { surfaceDataApi as api } from '@movscript/shared/surface-http'
 import {
+  isLocalDataConnection,
   isSurfaceLocalProjectEntry,
   mergeSurfaceRecentProjects,
   openSurfaceAdminConsole,
@@ -27,7 +28,6 @@ import {
   Textarea
 } from '@movscript/ui/primitives'
 import { useTranslation } from 'react-i18next'
-import { isLocalLaunchMode } from '@movscript/shared'
 import { readSurfaceHostApi } from '@movscript/shared'
 import { projectKeys } from '../application/projectQueries'
 import {
@@ -383,7 +383,7 @@ export default function ProjectsPage() {
     saveLocalAdminPromptDismissed()
   }
 
-  const showAdminPrompt = isLocalLaunchMode(settings)
+  const showAdminPrompt = isLocalDataConnection(settings)
     && currentUser?.system_role === 'super_admin'
     && !adminPromptDismissed
 

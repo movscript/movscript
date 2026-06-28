@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Blocks, Clapperboard, FilePlus2, FileText, FolderKanban, GitBranch, ImageOff, MonitorPlay, Plus, Settings } from 'lucide-react'
 import { AppContentLayout } from '@movscript/ui/layout'
@@ -81,6 +81,7 @@ import {
   contentCanvasTimelineRootDefaultPreviewKind,
   type ContentCanvasTimelineProfileId,
 } from '../../content/domain/contentCanvasTimelineProfiles'
+import { useOptionalProjectSurfaceRuntime } from '../../../runtime/ProjectSurfaceProvider'
 
 const PROJECT_HOME_CARD_PAGE_SIZE = 3
 const PROJECT_HOME_CANVAS_PAGE_SIZE = 8
@@ -155,35 +156,45 @@ interface ProjectHomeProductionCreateInput {
 
 export default function ProjectOverviewPage() {
   const navigate = useNavigate()
-  const location = useLocation()
   const queryClient = useQueryClient()
+  const projectSurfaceRuntime = useOptionalProjectSurfaceRuntime()
   const currentProject = useSurfaceHostState((state) => state.currentProject)
   const currentUser = useSurfaceHostState((state) => state.currentUser)
   const currentOrgID = useSurfaceHostState((state) => state.currentOrgID)
   const orgMemberships = useSurfaceHostState((state) => state.orgMemberships)
   const projectId = currentProject?.ID
-  const projectDir = currentProject?.workspace_path ?? currentProject?.project_path
+  const runtimeProjectDir = projectSurfaceRuntime?.project.projectDir
+  const projectDir = currentProject?.workspace_path ?? currentProject?.project_path ?? runtimeProjectDir
   const currentProjectRecord = currentProject as unknown as Record<string, unknown> | undefined
-  const projectUid = stringValue(currentProjectRecord?.project_uid ?? currentProjectRecord?.projectUid ?? currentProjectRecord?.uid)
-  const projectServiceBaseURL = useMemo(
-    () => projectHomeProjectServiceBaseURLFromSearch(location.search),
-    [location.search],
-  )
+  const runtimeProjectUid = projectSurfaceRuntime?.project.projectUid
+  const projectUid = stringValue(currentProjectRecord?.project_uid ?? currentProjectRecord?.projectUid ?? currentProjectRecord?.uid) ?? runtimeProjectUid
   const enabled = Number.isInteger(projectId) && Number(projectId) > 0
+  const ownerContext = useMemo(
+    () => surfaceWorkspaceOwnerContext({ currentUser, currentOrgID, orgMemberships }),
+    [currentOrgID, currentUser, orgMemberships],
+  )
   const workspaceContext = useMemo(
     () => projectDir
-      ? { projectDir, ...(projectUid ? { projectUid } : {}), ...(projectServiceBaseURL ? { projectServiceBaseURL } : {}) }
-      : surfaceWorkspaceOwnerContext({ currentUser, currentOrgID, orgMemberships }),
-    [currentOrgID, currentUser, orgMemberships, projectDir, projectServiceBaseURL, projectUid],
+      ? { ...ownerContext, projectDir, ...(projectUid ? { projectUid } : {}) }
+      : ownerContext,
+    [ownerContext, projectDir, projectUid],
+  )
+  const overviewLoadContext = useMemo(
+    () => ({
+      ...workspaceContext,
+      ...(projectSurfaceRuntime?.diagnostics.endpoints?.gateway ? { gatewayBaseURL: projectSurfaceRuntime.diagnostics.endpoints.gateway } : {}),
+      ...(projectSurfaceRuntime?.gateways.project ? { projectGateway: projectSurfaceRuntime.gateways.project } : {}),
+    }),
+    [projectSurfaceRuntime?.diagnostics.endpoints?.gateway, projectSurfaceRuntime?.gateways.project, workspaceContext],
   )
   const { data = emptyProjectOverviewData, error, isFetching } = useQuery({
     queryKey: [
       ...projectOverviewKeys.detail(projectId),
       projectDir ?? 'remote',
       projectUid ?? 'project-uidless',
-      projectServiceBaseURL ?? 'project-service-proxy',
+      projectSurfaceRuntime?.diagnostics.endpoints?.gateway ?? 'gatewayless',
     ],
-    queryFn: () => loadProjectOverviewData(projectId as number, workspaceContext),
+    queryFn: () => loadProjectOverviewData(projectId as number, overviewLoadContext),
     enabled,
   })
   const scriptsQuery = useQuery<Script[]>({
@@ -286,7 +297,6 @@ export default function ProjectOverviewPage() {
             ...projectOverviewKeys.detail(projectId),
             projectDir ?? 'remote',
             projectUid ?? 'project-uidless',
-            projectServiceBaseURL ?? 'project-service-proxy',
           ],
         })
       }
@@ -1484,23 +1494,6 @@ function projectHomeAssetSettingIdMap(records: ProjectOverviewRecord[]): Map<str
     }
   }
   return result
-}
-
-function projectHomeProjectServiceBaseURLFromSearch(search: string): string | undefined {
-  const query = new URLSearchParams(search)
-  return normalizeProjectHomeBaseURL(
-    query.get('projectServiceBaseURL')
-      ?? query.get('projectServiceBaseUrl')
-      ?? query.get('projectServiceURL')
-      ?? query.get('projectServiceUrl'),
-  )
-}
-
-function normalizeProjectHomeBaseURL(value: string | null): string | undefined {
-  const normalized = value?.trim().replace(/\/+$/, '')
-  if (!normalized) return undefined
-  if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) return undefined
-  return normalized
 }
 
 function projectHomeSettingIdFromPath(path: string | undefined): string | undefined {

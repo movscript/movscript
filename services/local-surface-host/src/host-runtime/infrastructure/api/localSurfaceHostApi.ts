@@ -9,8 +9,8 @@ import type {
 } from '@movscript/shared'
 import { mergeLocalSurfaceHostAPI } from '../../../adapters/localContentSurfaceHostApi.js'
 
-const LOCAL_PROJECT_LIFECYCLE_ENDPOINT = '/local-api/project/lifecycle/command'
-const LOCAL_PROJECT_LOCATOR_ENDPOINT = '/local-api/project/locator/resolve'
+const LOCAL_PROJECT_LIFECYCLE_ENDPOINT = '/v1/project/lifecycle/command'
+const LOCAL_PROJECT_LOCATOR_ENDPOINT = '/v1/project/locator/resolve'
 
 mergeLocalSurfaceHostAPI({
   openDirectory: async () => {
@@ -103,7 +103,7 @@ async function postLocalProjectService(endpoint: string, body: Record<string, un
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) {
     const record = recordValue(payload)
-    const message = stringValue(record.message) ?? stringValue(record.error) ?? `Project Service request failed: ${response.status}`
+    const message = stringValue(record.message) ?? stringValue(record.error) ?? `Project runtime request failed: ${response.status}`
     throw new Error(message)
   }
   return recordValue(recordValue(payload).result ?? payload)

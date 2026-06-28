@@ -12,11 +12,11 @@ import './api/workspaceDomain'
 import './api/resourceMediaBrowser'
 
 export const api = axios.create({
-  baseURL: '/local-api/data/api/v1',
+  baseURL: '/api/v1',
 })
 
 export const canvasApi = axios.create({
-  baseURL: '/local-api',
+  baseURL: '',
 })
 
 configureSurfaceHttpClients({

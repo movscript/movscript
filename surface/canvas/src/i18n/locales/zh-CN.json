@@ -86,7 +86,7 @@
       "currentProject": "当前项目",
       "globalLibrary": "全局工作流画布库",
       "workspaceSummary": "当前工作区共 {{count}} 个工作流画布",
-      "invalidListResponse": "工作流画布服务返回了无效的列表响应。请检查 /local-api/canvas/canvases 是否已代理到 Canvas Service。"
+      "invalidListResponse": "工作流画布运行时返回了无效的列表响应。请确认 daemon gateway 已就绪后重试。"
     },
     "jobs": {
       "generationFailed": "生成失败",

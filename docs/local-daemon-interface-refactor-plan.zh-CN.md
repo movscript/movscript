@@ -911,6 +911,17 @@ type ProjectServicePerformanceTrace = {
   - 避免大对象在 daemon gateway 与 Project Service 间重复 JSON 序列化。
 - 输出 baseline 与优化后对比，作为后续 regression benchmark。
 
+当前实测记录（2026-06-28）：
+
+- 环境：`MOVSCRIPT_HOME=$HOME/.movscript`，真实项目 `/Users/zhaoqian/Desktop/漫剧1`，source documents 113，Project Service 诊断进程使用当前源码启动，Data Service 使用 `http://127.0.0.1:54372`。
+- 注意：当时 `movscript.local-node.gateway` endpoint 记录指向 `http://127.0.0.1:8766`，但 gateway 已不可连；因此本轮数字覆盖 Project Service 本体和 Data Service decision store，不覆盖 daemon gateway proxy overhead。
+- 优化前 warm p50：`source/overview` 约 745ms，`read-model` 约 846ms，`source-command loadContentWorkspace` 约 198ms，`interpret + candidate-view` 约 211ms。
+- 首轮瓶颈：`source/overview` 内部重复做 `review` / `resolveWorkspaceSource` / regeneration planning，`read-model` 继承该开销；content workspace snapshot 也存在重复 `loadIndex`。
+- 已完成首轮优化：content workspace snapshot 复用同一次 index；overview 复用 inspection/review 结果直接生成 regeneration plan，避免二次 review。
+- 优化后 warm p50：`source/overview` 约 368ms，`read-model` 约 470ms，`interpret` 约 210ms，`candidate-view` 约 5.7ms，`interpret + candidate-view` 约 205ms，`resource-view:namespace-vocabulary` 约 21ms。
+- 当前真实 daemon smoke（2026-06-28 11:34 Asia/Shanghai）：`MOVSCRIPT_HOME=$HOME/.movscript`，Project Service `http://127.0.0.1:54380`，Data Service `http://127.0.0.1:54372`，项目 `/Users/zhaoqian/Desktop/漫剧1`，`projectUid=prj_dce53776a6164d3780fa3710d1978d9a`，source documents 111，3 runs 全部成功。warm p50：`source-overview` 约 733ms，`interpret` 约 235ms，`candidate-view` 约 5ms，`interpret+candidate-view` 约 243ms，`read-model` 约 771ms，`resource-view:scripts` 约 20ms。
+- 可复跑脚本：`pnpm run benchmark:project-service`。默认读取 `~/.movscript/runtime/endpoints`、Desktop 当前项目、项目 `workspace.json` 中的 `project_uid`，并显式构造 scoped decision store；也可通过 `MOVSCRIPT_PROJECT_SERVICE_URL`、`MOVSCRIPT_PROJECT_DIR`、`MOVSCRIPT_PROJECT_UID`、`MOVSCRIPT_DATA_SERVICE_BASE_URL`、`MOVSCRIPT_CONTENT_UNIT_ID`、`MOVSCRIPT_PROJECT_RESOURCE_VIEW_KIND`、`MOVSCRIPT_PROJECT_BENCHMARK_RUNS` 指定。
+
 交付标准：
 
 - 能用真实 `~/.movscript` local daemon 复现并解释当前 `interpret + candidate` 约 1s 的耗时构成。
@@ -1076,6 +1087,42 @@ type ProjectServicePerformanceTrace = {
 7. surface domain 的 UI 和 runtime contract 可以跟着 host 改造逐步替换。
 8. internal clients 最后清理，不要一开始动太多服务内部发现逻辑。
 
+## 当前落地状态（2026-06-28）
+
+本轮已经把高风险的 public contract 泄漏面先收住，并把验收条件固化到静态边界测试和服务单测里：
+
+- canonical gateway 已统一以 `/v1` 作为 Desktop、Surface Host、surface domain 的业务入口；`/local-api` 只保留为 daemon gateway compatibility alias 和兼容测试概念。
+- daemon gateway 已提供业务安全的 `GET /v1/runtime/descriptor` 与 `GET /v1/runtime/status`，只返回 `movscript.local-node` owner、gateway `/v1` prefix、data connection summary 和 capabilities，不返回内部 service topology。
+- daemon gateway 已提供 debug-only 的 `GET /v1/runtime/diagnostics`；默认关闭，仅在 debug flag 下返回 redacted service/endpoint 摘要，不进入业务 descriptor/status。
+- daemon gateway 已提供 `POST /v1/runtime/configure`，接收 typed `dataConnection` intent，由 `movscript.local-node` 更新 data-plane 配置并触发 daemon restart。
+- Desktop settings IPC 已优先调用 `POST /v1/runtime/configure`；只有 daemon gateway 不可用时才 fallback 到 Desktop 内部 ensure runtime 兼容路径。
+- Desktop renderer 的 `ElectronRuntimeConfig` 已新增 `runtime: MovScriptRuntimeDescriptor` 与 `dataConnection`；新代码应优先使用 `runtime.gateway.baseURL` 和 `dataConnection`，不再把旧 `apiBaseURL` 当作 runtime 主契约。
+- Desktop renderer 的 `ElectronRuntimeConfig` 不再暴露 `dataServiceBaseURL`、`projectServiceBaseURL`、`canvasServiceBaseURL`、`canvasServiceV1BaseURL`、`localAPIBaseURL`；Electron main 可以内部发现 Data Service，但不会把 endpoint 返回给 renderer。
+- `AppSettings` 已新增正式 `dataConnection` intent；`launchMode/apiBaseURL/cloudAPIBaseURL` 暂时保留为兼容字段，并由 normalizer 与 store 写入路径同步派生。
+- Desktop 设置页和 onboarding 的新 UI 调用点已开始以 `dataConnection` / `dataConnectionURL` 为主语；`setAPIBaseURL` 仅作为 store 兼容 alias 保留。
+- Desktop renderer 的 `apiBaseURL/apiV1BaseURL` 暂时作为旧字段名保留，但有 daemon gateway 时它们解析到 daemon gateway data facade，不再因 local/cloud data connection 切换业务 origin。
+- Desktop main 已去掉按 API URL hostname 推断 `cloud/external` data plane 的逻辑；`launchMode=cloud` 只表达 cloud 连接意图，后续 external 应通过显式 data connection intent 进入 daemon configure API。
+- `AppSettings` public contract 已移除 `localAPIBaseURL`；normalizer 只在 legacy migration 中读取旧字段，并保证 normalized output 不再产出旧字段。
+- daemon gateway 已产出 system context 与 workspace session context，Desktop 和 local-surface-host 注入 `MovScriptContextEnvelope`，Project Surface 从 context envelope 读取 `projectId/projectCwd/sessionId/revision`。
+- Project Service 已成为 project source command、read model、resource view、project context snapshot、project standards provider skill sync、scripts/source read/write/version snapshot、内容画布存储/列表/保存/重命名/运行的公开 owner。
+- Project Service 已新增 typed standards/scripts APIs：`/v1/project/standards/upsert`、`/v1/project/scripts/source/read`、`/v1/project/scripts/upsert`、`/v1/project/scripts/versions/snapshot`；Desktop preload、Desktop Project Surface runtime、local-surface-host Project runtime、local content surface API 和 MCP/domain runtime 已改走这些 daemon gateway path，不再通过 generic source command 字符串分发 standards/scripts。
+- Project Service 已新增 typed source write operation APIs，覆盖 settings/assets、content units、productions/segments/scene moments/expression units/keyframes/storyboards/audio cues、entity update/delete、hierarchy/namespace write 等常用 project source mutation；Desktop preload、local-surface-host content API 和 MCP/domain runtime 已改走这些 daemon gateway path，不再通过 generic source command 字符串分发这批写操作。
+- Project Service 已新增 typed source read/action APIs，覆盖 entity/settings/assets query、content workspace snapshot/read、prompt context、source interpret sync、workspace candidate select/append/asset-slot/keyframe create、content candidate create/content-unit candidate select/decide；Desktop preload、Desktop workspace facade、Project Surface runtime、local-surface-host content API 和 MCP/domain runtime 不再保留 generic Project source/candidate command helper。
+- 内容画布 response 已带 `canvasKind/canvas_kind = "content"`，保存、列表、重命名、运行、删除都由 Project Service 返回稳定 discriminator。
+- 内容画布创建/保存与重命名都由 Project Service 执行 title normalization 和 validation；显式空名称、超长/非法名称、重复名称会在服务边界被拒绝，成功 response 返回 normalized title 与 diagnostics。
+- Project Service 已新增 typed content canvas APIs：`/v1/project/content-canvases/list|write|rename|run|delete`；Desktop preload 与 local-surface-host 的内容画布入口已改走这些 daemon gateway path，不再通过 generic source command 字符串分发。
+- 内容画布 typed write/rename 会透传 workspace `expectedVersion`，stale revision 被 Project Service 统一映射为 HTTP 409 `project_workspace_file_version_conflict`，不再 silent overwrite。
+- 工作流画布 storage 仍归 Canvas Service，测试覆盖 create/list/open/save/delete，并验证 workflow document 中的 typed raw-resource refs 会完整透传保存。
+- raw resource public identity 已收敛到 `RawResourceRef` normalizer，HTTP/file URL 只作为 resolve 后的读取结果，不作为业务身份扩散。
+- Project Service 性能已用真实 `~/.movscript` 项目跑过基线和首轮优化，`pnpm run benchmark:project-service` 可复跑。
+- 新增 `tests/scripts/local-daemon-interface-boundary.test.mjs` 作为本文件的验收护栏；`pnpm run test:scripts` 会覆盖 gateway、runtime config、AppSettings、context、Project Service source、内容/工作流画布、raw resource 等边界。
+
+仍建议后续继续推进的深水区：
+
+- 继续把剩余内部调用点从 `apiBaseURL/cloudAPIBaseURL/launchMode` 迁移到 `dataConnection` intent，并由 daemon configure API 完成持久化、验证和重启/热更新；legacy 字段保留为迁移兼容，不再作为新调用点主语。
+- generic `POST /v1/project/source/command` 和 `POST /v1/project/candidates/command` 只作为 Project Service compatibility facade 和旧调用方迁移入口保留；Desktop preload、local-surface-host、Project Surface runtime 与 MCP/domain runtime 的新增/已迁移业务能力应继续优先走 typed `/v1/project/...` API。后续重点是清点第三方/旧脚本调用方，并继续压缩 compatibility facade 的对外可见面。
+- 继续为内容画布和工作流画布补端到端级别的 autosave/manual save、validation recovery、reopen 一致性测试；内容画布 stale revision 已有 Project Service 409 服务级测试，仍需要浏览器工作流级覆盖。
+
 ## 验收条件
 
 这次收口的验收对象是 runtime/surface/project 的 public contract，不是内部服务是否改名。`services/local-surface-host`、workspace package、service-level discovery 可以作为 daemon 内部实现继续存在；只要它们不泄漏到 Desktop、Surface Host、surface domain、Plugin/MCP 的业务入口里，就不阻塞验收。
@@ -1133,6 +1180,7 @@ type ProjectServicePerformanceTrace = {
 
 - Project Service 是 project source、read model、resource view、context snapshot 和 source-derived artifacts 的唯一公开 owner。
 - `project.json`、`project_standards.json`、`settings/**`、`scripts/**`、`content_units/**`、`productions/**` 的产品级读写都走 daemon gateway 下的 Project Service API。
+- Desktop preload、Surface Host、Project Surface runtime 和 MCP/domain runtime 不保留 generic Project source/candidate command helper；query/read/prompt/sync/source mutation/workspace candidate action/content candidate action 都必须调用 typed Project Service API。
 - `project_standards.json -> .codex/.claude/.mova provider skill files` 的编译/同步由 Project Service command 触发、记录并返回 `standardSkillFiles` 或等价 diagnostics。
 - scripts 的 metadata、`script.md`、script version、script blocks、diagnostics 都通过 Project Service 读写和投影。
 - project resource view 覆盖 `project-standards`、`scripts`、`script-versions`，并与 source revision 对齐。
@@ -1237,4 +1285,4 @@ type ProjectServicePerformanceTrace = {
 
 ## 一句话结论
 
-当前代码已经有 `movscript.local-node` 作为唯一 daemon owner 的骨架，但 Desktop、local-surface-host 和 surface runtime 仍把 `/local-api`、内部服务 URL、project source 文件结构、canvas owner、raw resource URL/ID、以及 user/project/workspace 上下文当成各自可拼装的 contract。下一步不应该先大规模删除代码，而是先补 daemon descriptor/config/context API，并把 project standards、scripts、内容画布、context snapshot、standard skill compilation 完全收口到 Project Service；把工作流画布的 document CRUD 稳定收口到 Canvas Service；同时用真实 `~/.movscript` local daemon 排查 `interpret + candidate` 约 1s 的 Project Service 性能链路，再逐层把 Desktop 和 surface 的 contract 收到 daemon gateway 与 daemon-issued context envelope 上。本地/云端只作为 daemon 的 data connection 状态存在，不再成为 UI 层选择 API、拼装系统上下文、直接读写 project source、猜测 canvas owner、保存 raw resource URL 或绕过 Project Service 性能诊断的依据。
+当前代码已经把最容易造成心智负担的 public contract 泄漏面收回到 daemon gateway、runtime descriptor/configure、debug-only diagnostics、daemon-issued context envelope、Project Service 和 Canvas Service 的明确 owner 边界上；下一步应继续清理剩余内部调用点里的 legacy data connection 字段名，并补齐更完整的端到端行为验收。本地/云端只作为 daemon 的 data connection 状态存在，不再成为 UI 层选择 API、拼装系统上下文、直接读写 project source、猜测 canvas owner、保存 raw resource URL 或绕过 Project Service 性能诊断的依据。

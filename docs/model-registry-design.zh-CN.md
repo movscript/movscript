@@ -13,6 +13,9 @@ MovScript 需要一套可维护、可验证、可生成代码的模型模板来�
 - 支持每个模板记录官方来源和验证日期，降低模型参数维护时的猜测成本。
 - 使用 `models.dev`、LiteLLM、OpenRouter 等外部 catalog 做辅助 audit，不把它们作为最终 truth source。
 
+运行时路由、endpoint profile、route-level capability 和 Admin 路由诊断的后续改造见
+[`model-routing-adapter-refactor-plan.zh-CN.md`](./model-routing-adapter-refactor-plan.zh-CN.md)。
+
 ## 非目标
 
 第一版不做下面这些事情：

@@ -56,6 +56,11 @@
       "import": "./dist/content/index.js",
       "require": "./dist/content/index.cjs"
     },
+    "./content/node": {
+      "types": "./dist/content/node.d.ts",
+      "import": "./dist/content/node.js",
+      "require": "./dist/content/node.cjs"
+    },
     "./generation": {
       "types": "./dist/generation/index.d.ts",
       "import": "./dist/generation/index.js",

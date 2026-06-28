@@ -15,8 +15,9 @@ import {
   AppSettingsSection,
 } from '@/features/settings/components/AppSettingsUi'
 import {
+  getDaemonGatewayBaseURL,
   getDefaultAPIBaseURL,
-  getLocalAPIBaseURL,
+  getSettingsDataConnectionBaseURL,
   normalizeAPIBaseURL,
   type AppSettings,
 } from '@/shared/infrastructure/config'
@@ -38,12 +39,13 @@ export function ModeSelectionPanel({ variant = 'onboarding' }: { variant?: ModeS
   const navigate = useNavigate()
   const settings = useAppSettingsStore((s) => s.settings)
   const completeOnboarding = useAppSettingsStore((s) => s.completeOnboarding)
+  const currentMode = modeFromDataConnection(settings)
   const [selectedMode, setSelectedMode] = useState<AppSettings['launchMode'] | null>(
-    variant === 'settings' ? settings.launchMode : null,
+    variant === 'settings' ? currentMode : null,
   )
-  const [apiBaseURL, setAPIBaseURL] = useState(
-    settings.launchMode === 'cloud'
-      ? settings.apiBaseURL
+  const [dataConnectionURL, setDataConnectionURL] = useState(
+    currentMode === 'cloud'
+      ? getSettingsDataConnectionBaseURL(settings)
       : settings.cloudAPIBaseURL ?? getDefaultAPIBaseURL(),
   )
   const [movScriptHomeDir, setMovScriptHomeDir] = useState(settings.movScriptWorkspaceDir ?? '')
@@ -55,11 +57,11 @@ export function ModeSelectionPanel({ variant = 'onboarding' }: { variant?: ModeS
 
   const normalizedCloudAPIBaseURL = useMemo(() => {
     try {
-      return normalizeAPIBaseURL(apiBaseURL)
+      return normalizeAPIBaseURL(dataConnectionURL)
     } catch {
-      return apiBaseURL.trim()
+      return dataConnectionURL.trim()
     }
-  }, [apiBaseURL])
+  }, [dataConnectionURL])
   const isValidCloudURL = /^https?:\/\/.+/i.test(normalizedCloudAPIBaseURL)
   const pending = pendingMode !== null
   const modeTitle = variant === 'settings' ? t('appSettings.switchModeTitle') : t('onboarding.title')
@@ -82,15 +84,19 @@ export function ModeSelectionPanel({ variant = 'onboarding' }: { variant?: ModeS
     setSavedMode(null)
     setError('')
     try {
-      const localAPIBaseURL = getLocalAPIBaseURL()
+      const daemonGatewayBaseURL = getDaemonGatewayBaseURL()
       const cloudAPIBaseURL = mode === 'cloud'
         ? normalizedCloudAPIBaseURL
         : settings.cloudAPIBaseURL ?? getDefaultAPIBaseURL()
       const nextPartial: Partial<AppSettings> = {
         launchMode: mode,
-        apiBaseURL: mode === 'local' ? localAPIBaseURL : cloudAPIBaseURL,
+        dataConnection: {
+          kind: mode,
+          url: mode === 'local' ? daemonGatewayBaseURL : cloudAPIBaseURL,
+        },
+        apiBaseURL: mode === 'local' ? daemonGatewayBaseURL : cloudAPIBaseURL,
         cloudAPIBaseURL,
-        localAPIBaseURL,
+        daemonGatewayBaseURL,
         movScriptWorkspaceDir: movScriptHomeDir,
       }
       const nextSettings: AppSettings = {
@@ -210,13 +216,13 @@ export function ModeSelectionPanel({ variant = 'onboarding' }: { variant?: ModeS
           <AppSettingsField
             label={t('appSettings.apiBaseURL')}
             htmlFor="modeSelectionApiBaseURL"
-            error={!isValidCloudURL && apiBaseURL.trim() ? t('appSettings.invalidURL') : undefined}
+            error={!isValidCloudURL && dataConnectionURL.trim() ? t('appSettings.invalidURL') : undefined}
           >
             <AppSettingsInput
               id="modeSelectionApiBaseURL"
-              value={apiBaseURL}
+              value={dataConnectionURL}
               onChange={(event) => {
-                setAPIBaseURL(event.target.value)
+                setDataConnectionURL(event.target.value)
                 setError('')
               }}
               placeholder="https://api.movscript.com"
@@ -341,6 +347,10 @@ function localPreparationStage(elapsedMs: number): PendingStage {
 function localPreparationProgress(elapsedMs: number): number {
   if (elapsedMs <= 0) return 8
   return Math.min(92, 8 + (elapsedMs / LOCAL_PREPARATION_TIMEOUT_MS) * 84)
+}
+
+function modeFromDataConnection(settings: AppSettings): AppSettings['launchMode'] {
+  return settings.dataConnection.kind === 'local' ? 'local' : 'cloud'
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {

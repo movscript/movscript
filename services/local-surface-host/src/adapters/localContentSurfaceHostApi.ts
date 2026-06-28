@@ -4,7 +4,6 @@ export interface LocalProjectContentAPIOptions {
   projectDir?: string
   projectId?: string | number
   projectUid?: string
-  projectServiceBaseURL?: string
 }
 
 type ProjectInput = Record<string, unknown>
@@ -29,107 +28,134 @@ export function mergeLocalSurfaceHostAPI(api: SurfaceHostApi | undefined): void 
 }
 
 function createLocalProjectContentAPI(options: LocalProjectContentAPIOptions): SurfaceHostApi {
-  const sourceCommand = (command: string, input: ProjectInput, useDecisionStore = true) => {
-    const decisionStore = useDecisionStore ? decisionStoreConfig(input, options) : undefined
-    const decisionScope = useDecisionStore ? decisionScopeConfig(input, options) : undefined
-    return projectCommand({
-      localEndpoint: '/local-api/project/source/command',
-      servicePath: '/v1/project/source/command',
-      projectServiceBaseURL: options.projectServiceBaseURL,
-      body: {
-        projectDir: projectDirFromInput(input, options),
-        command,
-        input,
-        ...(decisionScope ? decisionScope : {}),
-        ...(decisionStore ? { decisionStore } : {}),
-      },
-    })
-  }
-  const candidateCommand = async (command: string, input: ProjectInput) => {
+  const candidateAction = async (localEndpoint: string, input: ProjectInput) => {
     const projectDir = projectDirFromInput(input, options)
     const decisionStore = await requiredDecisionStoreConfig(input, options, projectDir)
     return projectCommand({
-      localEndpoint: '/local-api/project/candidates/command',
-      servicePath: '/v1/project/candidates/command',
-      projectServiceBaseURL: options.projectServiceBaseURL,
+      localEndpoint,
       body: {
         projectDir,
-        command,
         input,
         decisionStore,
       },
     })
   }
+  const contentCanvasCommand = (localEndpoint: string, input: ProjectInput) => {
+    const payload = contentCanvasProjectCommandInput(input)
+    return projectCommand({
+      localEndpoint,
+      body: {
+        ...payload,
+        projectDir: projectDirFromInput(payload, options),
+      },
+    })
+  }
+  const projectSourceOperation = (localEndpoint: string, input: ProjectInput, useDecisionStore = true) => {
+    const payload = payloadInput(input)
+    const projectDir = projectDirFromInput({ ...recordValue(input), ...payload }, options)
+    const decisionStore = useDecisionStore ? decisionStoreConfig(input, options) : undefined
+    return projectCommand({
+      localEndpoint,
+      body: {
+        ...payload,
+        projectDir,
+        ...(decisionStore ? { decisionStore } : {}),
+      },
+    })
+  }
+  const promptContext = async (input: ProjectInput, field: 'generationPrompt' | 'backendPrompt') => {
+    const response = await projectCommand({
+      localEndpoint: '/v1/project/prompt/context',
+      body: {
+        projectDir: projectDirFromInput(input, options),
+        contentUnitId: recordValue(input).contentUnitId ?? recordValue(input).content_unit_id,
+        ...localDecisionBody(input, options),
+      },
+    })
+    return recordValue(response)[field] ?? response
+  }
 
   return {
-    queryMovScriptEngineWorkspaceEntities: (input) => sourceCommand('queryEntities', { query: recordValue(input).query }),
-    queryMovScriptEngineWorkspaceSettings: (input) => sourceCommand('querySettings', { query: recordValue(input).query }),
-    queryMovScriptEngineWorkspaceAssets: (input) => sourceCommand('queryAssets', { query: recordValue(input).query }),
-    readMovScriptEngineWorkspaceScriptSource: (input) => sourceCommand('readScriptSource', payloadInput(input)) as Promise<string>,
-    upsertMovScriptEngineWorkspaceScript: (input) => sourceCommand('upsertScript', payloadInput(input)),
-    readMovScriptEngineContentUnitGenerationPrompt: (input) => sourceCommand('readContentUnitGenerationPrompt', {
-      contentUnitId: recordValue(input).contentUnitId,
-    }),
+    queryMovScriptEngineWorkspaceEntities: (input) => projectSourceOperation('/v1/project/entities/query', { ...projectEnvelope(input), query: recordValue(input).query }),
+    queryMovScriptEngineWorkspaceSettings: (input) => projectSourceOperation('/v1/project/settings/query', { ...projectEnvelope(input), query: recordValue(input).query }),
+    queryMovScriptEngineWorkspaceAssets: (input) => projectSourceOperation('/v1/project/assets/query', { ...projectEnvelope(input), query: recordValue(input).query }),
+    readMovScriptEngineWorkspaceScriptSource: (input) => projectSourceOperation('/v1/project/scripts/source/read', input) as Promise<string>,
+    upsertMovScriptEngineWorkspaceScript: (input) => projectSourceOperation('/v1/project/scripts/upsert', input),
+    readMovScriptEngineContentUnitGenerationPrompt: (input) => promptContext(input, 'generationPrompt'),
     buildMovScriptEngineContentUnitBackendPrompt: async (input) => {
-      const result = await sourceCommand('buildContentUnitBackendPrompt', {
-        contentUnitId: recordValue(input).contentUnitId,
-      })
+      const result = await promptContext(input, 'backendPrompt')
       return isRecord(result) && isRecord(result.prompt)
         ? result as { ok?: boolean; prompt?: Record<string, unknown>; blockers?: unknown[] }
         : { ok: true, prompt: result as Record<string, unknown> }
     },
-    loadMovScriptEngineContentWorkspaceSnapshot: (input) => sourceCommand('loadContentWorkspaceSnapshot', projectEnvelope(input)),
-    loadMovScriptEngineContentWorkspace: (input) => sourceCommand('loadContentWorkspace', projectEnvelope(input)),
-    listMovScriptEngineContentCanvases: (input) => sourceCommand('listContentCanvases', projectEnvelope(input), false),
-    writeMovScriptEngineContentCanvas: (input) => sourceCommand('writeContentCanvas', contentCanvasProjectCommandInput(input), false),
-    deleteMovScriptEngineContentCanvas: (input) => sourceCommand('deleteContentCanvas', contentCanvasProjectCommandInput(input), false),
-    createMovScriptEngineSetting: (input) => sourceCommand('createSetting', payloadInput(input)),
-    createMovScriptEngineSettingState: (input) => sourceCommand('createSettingState', payloadInput(input)),
-    createMovScriptEngineAsset: (input) => sourceCommand('createAsset', payloadInput(input)),
-    updateMovScriptEngineEntityBasics: (input) => sourceCommand('updateEntityBasics', payloadInput(input)),
-    deleteMovScriptEngineWorkspaceEntity: (input) => sourceCommand('deleteEntity', payloadInput(input)),
-    connectMovScriptEngineSceneMomentSetting: (input) => sourceCommand('connectSceneMomentSetting', payloadInput(input)),
-    createMovScriptEngineProduction: (input) => sourceCommand('createProduction', payloadInput(input)),
-    createMovScriptEngineSegment: (input) => sourceCommand('createSegment', payloadInput(input)),
-    createMovScriptEngineSceneMoment: (input) => sourceCommand('createSceneMoment', payloadInput(input)),
-    createMovScriptEngineExpressionUnit: (input) => sourceCommand('createExpressionUnit', payloadInput(input)),
-    createMovScriptEngineKeyframe: (input) => sourceCommand('createKeyframe', payloadInput(input)),
-    createMovScriptEngineStoryboard: (input) => sourceCommand('createStoryboard', payloadInput(input)),
+    loadMovScriptEngineContentWorkspaceSnapshot: (input) => projectSourceOperation('/v1/project/content-workspace/snapshot', projectEnvelope(input), false),
+    loadMovScriptEngineContentWorkspace: (input) => projectSourceOperation('/v1/project/content-workspace/read', projectEnvelope(input), false),
+    listMovScriptEngineContentCanvases: (input) => contentCanvasCommand('/v1/project/content-canvases/list', projectEnvelope(input)),
+    writeMovScriptEngineContentCanvas: (input) => contentCanvasCommand('/v1/project/content-canvases/write', contentCanvasProjectCommandInput(input)),
+    renameMovScriptEngineContentCanvas: (input) => contentCanvasCommand('/v1/project/content-canvases/rename', contentCanvasProjectCommandInput(input)),
+    runMovScriptEngineContentCanvas: (input) => contentCanvasCommand('/v1/project/content-canvases/run', contentCanvasProjectCommandInput(input)),
+    deleteMovScriptEngineContentCanvas: (input) => contentCanvasCommand('/v1/project/content-canvases/delete', contentCanvasProjectCommandInput(input)),
+    createMovScriptEngineSetting: (input) => projectSourceOperation('/v1/project/settings/create', input),
+    createMovScriptEngineSettingState: (input) => projectSourceOperation('/v1/project/settings/states/create', input),
+    createMovScriptEngineAsset: (input) => projectSourceOperation('/v1/project/assets/create', input),
+    updateMovScriptEngineEntityBasics: (input) => projectSourceOperation('/v1/project/entities/basics/update', input),
+    deleteMovScriptEngineWorkspaceEntity: (input) => projectSourceOperation('/v1/project/entities/delete', input),
+    connectMovScriptEngineSceneMomentSetting: (input) => projectSourceOperation('/v1/project/scene-moments/settings/connect', input),
+    createMovScriptEngineProduction: (input) => projectSourceOperation('/v1/project/productions/create', input),
+    createMovScriptEngineSegment: (input) => projectSourceOperation('/v1/project/segments/create', input),
+    createMovScriptEngineSceneMoment: (input) => projectSourceOperation('/v1/project/scene-moments/create', input),
+    createMovScriptEngineExpressionUnit: (input) => projectSourceOperation('/v1/project/expression-units/create', input),
+    createMovScriptEngineKeyframe: (input) => projectSourceOperation('/v1/project/keyframes/create', input),
+    createMovScriptEngineStoryboard: (input) => projectSourceOperation('/v1/project/storyboards/create', input),
     ensureMovScriptEngineContentUnitForEntity: (input) => {
       const payload = payloadInput(input)
-      return sourceCommand(isTimelineAssemblyContentUnitInput(payload) ? 'ensureTimelineAssemblyContentUnit' : 'ensureContentUnitForEntity', payload)
+      return projectSourceOperation(
+        isTimelineAssemblyContentUnitInput(payload)
+          ? '/v1/project/timeline-assemblies/content-unit/ensure'
+          : '/v1/project/content-units/ensure',
+        input,
+      )
     },
     createMovScriptEngineContentCandidate: async (input) => {
-      const result = await candidateCommand('createContentCandidate', stripProjectEnvelope(input))
+      const result = await candidateAction('/v1/project/content-candidates/create', stripProjectEnvelope(input))
       return candidateRecordFromResult(result)
     },
-    selectMovScriptEngineContentUnitCandidate: (input) => candidateCommand('selectContentUnitCandidate', stripProjectEnvelope(input)),
-    updateMovScriptEngineContentUnitEditPrompt: (input) => sourceCommand('updateContentUnitEditPrompt', stripProjectEnvelope(input)),
-    updateMovScriptEngineExpressionUnit: (input) => sourceCommand('updateExpressionUnit', stripProjectEnvelope(input)),
-    updateMovScriptEngineAudioCue: (input) => sourceCommand('updateAudioCue', stripProjectEnvelope(input)),
-    updateMovScriptEngineTransition: (input) => sourceCommand('updateEntityTransition', stripProjectEnvelope(input)),
-    updateMovScriptEngineStoryboardTimeline: (input) => sourceCommand('updateStoryboardTimeline', stripProjectEnvelope(input)),
+    selectMovScriptEngineContentUnitCandidate: (input) => candidateAction('/v1/project/content-unit-candidates/select', stripProjectEnvelope(input)),
+    updateMovScriptEngineContentUnitEditPrompt: (input) => projectSourceOperation('/v1/project/content-units/edit-prompt/update', input),
+    updateMovScriptEngineExpressionUnit: (input) => projectSourceOperation('/v1/project/expression-units/update', input),
+    updateMovScriptEngineAudioCue: (input) => projectSourceOperation('/v1/project/audio-cues/update', input),
+    updateMovScriptEngineTransition: (input) => projectSourceOperation('/v1/project/entities/transition/update', input),
+    updateMovScriptEngineStoryboardTimeline: (input) => projectSourceOperation('/v1/project/storyboards/timeline/update', input),
     writeMovScriptEngineHierarchyNode: (input) => {
       const payload = stripProjectEnvelope(input)
-      return sourceCommand(isNamespaceHierarchyNodeInput(payload) ? 'writeNamespaceNode' : 'writeHierarchyNode', payload)
+      return projectSourceOperation(isNamespaceHierarchyNodeInput(payload) ? '/v1/project/namespaces/write' : '/v1/project/hierarchy/write', input)
     },
-    syncMovScriptEngineContentWorkspace: (input) => sourceCommand('syncContentWorkspace', projectEnvelope(input), false),
+    syncMovScriptEngineContentWorkspace: async (input) => {
+      const response = await projectCommand({
+        localEndpoint: '/v1/project/source/interpret',
+        body: {
+          ...projectEnvelope(input),
+          projectDir: projectDirFromInput(recordValue(input), options),
+        },
+      })
+      return recordValue(response).interpretation ?? response
+    },
   }
+}
+
+function localDecisionBody(input: ProjectInput, options: LocalProjectContentAPIOptions): Record<string, unknown> {
+  const decisionStore = decisionStoreConfig(input, options)
+  return decisionStore ? { decisionStore } : {}
 }
 
 async function projectCommand({
   localEndpoint,
-  servicePath,
-  projectServiceBaseURL,
   body,
 }: {
   localEndpoint: string
-  servicePath: string
-  projectServiceBaseURL?: string
   body: Record<string, unknown>
 }): Promise<unknown> {
-  const url = projectServiceBaseURL ? `${projectServiceBaseURL}${servicePath}` : localEndpoint
-  const response = await fetch(url, {
+  const response = await fetch(localEndpoint, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -137,7 +163,7 @@ async function projectCommand({
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) {
     const record = recordValue(payload)
-    const message = stringValue(record.message) ?? stringValue(record.error) ?? `Project Service request failed: ${response.status}`
+    const message = stringValue(record.message) ?? stringValue(record.error) ?? `Project runtime request failed: ${response.status}`
     throw new Error(message)
   }
   return recordValue(payload).result ?? payload
@@ -150,25 +176,12 @@ function projectDirFromInput(input: ProjectInput, options: LocalProjectContentAP
 }
 
 function decisionStoreConfig(input: ProjectInput, options: LocalProjectContentAPIOptions): Record<string, unknown> | undefined {
-  if (options.projectServiceBaseURL) return undefined
   const projectUid = stringValue(input.projectUid ?? input.project_uid)
     ?? options.projectUid
   if (!projectUid) return undefined
   return {
     kind: 'scoped-project-data',
-    baseUrl: `${window.location.origin}/local-api/data`,
-    projectUid,
-    scopeKind: 'user',
-    scopeId: 1,
-  }
-}
-
-function decisionScopeConfig(input: ProjectInput, options: LocalProjectContentAPIOptions): Record<string, unknown> | undefined {
-  if (!options.projectServiceBaseURL) return undefined
-  const projectUid = stringValue(input.projectUid ?? input.project_uid)
-    ?? options.projectUid
-  if (!projectUid) return undefined
-  return {
+    baseUrl: window.location.origin,
     projectUid,
     scopeKind: 'user',
     scopeId: 1,
@@ -193,9 +206,7 @@ async function inferDecisionStoreConfig(
   projectDir: string,
 ): Promise<Record<string, unknown> | undefined> {
   const locatorResponse = await projectCommand({
-    localEndpoint: '/local-api/project/locator/resolve',
-    servicePath: '/v1/project/locator/resolve',
-    projectServiceBaseURL: options.projectServiceBaseURL,
+    localEndpoint: '/v1/project/locator/resolve',
     body: { projectDir },
   }).catch(() => undefined)
   const locator = recordValue(recordValue(locatorResponse).locator ?? locatorResponse)

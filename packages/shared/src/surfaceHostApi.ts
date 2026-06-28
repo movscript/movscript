@@ -200,6 +200,8 @@ export interface SurfaceHostApi {
   loadMovScriptEngineContentWorkspace?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   listMovScriptEngineContentCanvases?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   writeMovScriptEngineContentCanvas?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
+  renameMovScriptEngineContentCanvas?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
+  runMovScriptEngineContentCanvas?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   deleteMovScriptEngineContentCanvas?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   createMovScriptEngineSetting?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   createMovScriptEngineSettingState?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>

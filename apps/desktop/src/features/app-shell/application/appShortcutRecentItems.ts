@@ -32,7 +32,7 @@ export function useAppShortcutRecentItems(limit = DEFAULT_RECENT_SHORTCUT_LIMIT)
   })
   const canvasesQuery = useQuery<Canvas[]>({
     queryKey: canvasKeys.list(),
-    queryFn: () => canvasApi.get('/canvas/canvases').then((response) => response.data),
+    queryFn: () => canvasApi.get('/v1/canvas/canvases').then((response) => response.data),
   })
   const recentProjects = useMemo(() => {
     return mergeRecentProjects(projectsQuery.data ?? [], localRecentProjects, dismissedProjectKeys).slice(0, limit)

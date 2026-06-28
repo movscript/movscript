@@ -14,18 +14,26 @@ import {
   activeContentCanvasDocument,
   addContentCanvasDocumentNodes,
   clearContentCanvasDocumentNodePositions,
+  contentCanvasDocumentsHaveUnsavedProjectChanges,
   contentCanvasDocumentNodeIds,
   contentCanvasDocumentPositions,
   createContentCanvasDocument,
   ensureContentCanvasDocumentsState,
   readContentCanvasDocumentsState,
+  renameContentCanvasDocument,
   removeContentCanvasDocumentNodesEverywhere,
   removeContentCanvasDocumentNodes,
+  saveContentCanvasDocumentsToProject,
   selectContentCanvasDocument,
   subscribeContentCanvasDocumentsState,
   updateContentCanvasDocumentNodePositions,
-  updateContentCanvasDocumentViewport,
 } from '../application/contentCanvasDocuments'
+import {
+  readContentCanvasViewState,
+  subscribeContentCanvasViewState,
+  updateContentCanvasViewport,
+  type ContentCanvasViewStateScope,
+} from '../application/contentCanvasViewState'
 import { contentCanvasDocumentNodeInputsWithReferences } from '../application/contentCreativeCanvasReferences'
 import { resolveContentCanvasProjectEntrySessionState } from '../application/contentCanvasProjectEntrySession'
 import { loadContentCanvasProject } from '../application/loadContentCanvasProject'
@@ -85,8 +93,15 @@ import {
 import { useSurfaceHostState } from '../../project/application/surfaceHostStateHooks'
 import type { ProjectEntrySessionId } from '../../project/application/projectEntrySessionStore'
 
+const CONTENT_CANVAS_PROJECT_QUERY_STALE_MS = 12_000
+const CONTENT_CANVAS_ACTIVE_CANDIDATE_REFRESH_MS = 10_000
+
 interface UseContentCanvasWorkspaceControllerInput {
   workspaceMode?: ContentWorkspaceTab
+}
+
+type RunCanvasCommandOptions = {
+  silentSuccess?: boolean
 }
 
 export function useContentCanvasWorkspaceController({
@@ -123,9 +138,11 @@ export function useContentCanvasWorkspaceController({
   const [candidateSelections, setCandidateSelections] = useState<CandidateSelections>({})
   const [localContentUnitCandidates, setLocalContentUnitCandidates] = useState<LocalContentCanvasCandidates>({})
   const [pendingCanvasAction, setPendingCanvasAction] = useState<string | null>(null)
+  const [creativeCanvasSavePending, setCreativeCanvasSavePending] = useState(false)
   const [settingCreateDialog, setSettingCreateDialog] = useState<SettingCreateDialogState | null>(null)
   const [structureCreateDialog, setStructureCreateDialog] = useState<StructureCreateDialogState | null>(null)
   const [canvasDocumentsVersion, setCanvasDocumentsVersion] = useState(0)
+  const [canvasViewStateVersion, setCanvasViewStateVersion] = useState(0)
   const lastCommittedPromptByNodeIdRef = useRef<Record<string, string>>({})
   const gateway = useMemo(
     () => projectId ? createElectronContentCanvasWorkspaceGateway(projectId, { projectDir }) : null,
@@ -136,6 +153,9 @@ export function useContentCanvasWorkspaceController({
     queryKey: contentCanvasKeys.project(projectId, projectDir),
     queryFn: () => loadContentCanvasProject(projectId!, gateway!),
     enabled: Boolean(projectId && gateway),
+    staleTime: CONTENT_CANVAS_PROJECT_QUERY_STALE_MS,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 
   useEffect(() => {
@@ -177,9 +197,33 @@ export function useContentCanvasWorkspaceController({
     [canvasDocumentsState],
   )
   const creativeCanvasDocumentId = creativeCanvasDocument?.id
+  const creativeCanvasViewStateScope = useMemo(
+    () => contentCanvasDocumentViewStateScope(creativeCanvasDocumentId),
+    [creativeCanvasDocumentId],
+  )
+  const creativeCanvasViewState = useMemo(
+    () => {
+      void canvasViewStateVersion
+      return readContentCanvasViewState(projectId, creativeCanvasViewStateScope)
+    },
+    [canvasViewStateVersion, creativeCanvasViewStateScope, projectId],
+  )
+  useEffect(() => {
+    if (!projectId) return undefined
+    return subscribeContentCanvasViewState(projectId, creativeCanvasViewStateScope, () => {
+      setCanvasViewStateVersion((version) => version + 1)
+    })
+  }, [creativeCanvasViewStateScope, projectId])
   const creativeCanvasDocuments = useMemo(
     () => Object.values(canvasDocumentsState?.documents ?? {}),
     [canvasDocumentsState?.documents],
+  )
+  const creativeCanvasHasUnsavedChanges = useMemo(
+    () => {
+      void canvasDocumentsVersion
+      return contentCanvasDocumentsHaveUnsavedProjectChanges(projectId)
+    },
+    [canvasDocumentsVersion, projectId],
   )
   const creativeCanvasNodeIds = useMemo(
     () => contentCanvasDocumentNodeIds(creativeCanvasDocument),
@@ -236,15 +280,15 @@ export function useContentCanvasWorkspaceController({
   )
 
   useEffect(() => {
-    if (!projectId || !hasActiveContentUnitCandidate) return undefined
+    if (!projectId || !hasActiveContentUnitCandidate || activeContentUnitCandidateJobIds.length === 0) return undefined
     const timer = window.setInterval(() => {
       invalidateContentCanvasMutationResult(queryClient, contentCanvasProjectChangedResult({
         projectId,
         changedIds: [],
       }))
-    }, 3000)
+    }, CONTENT_CANVAS_ACTIVE_CANDIDATE_REFRESH_MS)
     return () => window.clearInterval(timer)
-  }, [hasActiveContentUnitCandidate, projectId, queryClient])
+  }, [activeContentUnitCandidateJobIdKey, activeContentUnitCandidateJobIds.length, hasActiveContentUnitCandidate, projectId, queryClient])
 
   useEffect(() => {
     if (!projectId) return undefined
@@ -285,6 +329,7 @@ export function useContentCanvasWorkspaceController({
   const runCanvasCommand = useCallback(async (
     actionKey: string,
     command: () => Promise<ContentCanvasCommandResult>,
+    options: RunCanvasCommandOptions = {},
   ) => {
     if (!projectId || !gateway) return undefined
     setPendingCanvasAction(actionKey)
@@ -298,7 +343,7 @@ export function useContentCanvasWorkspaceController({
       })
       setLocalContentUnitCandidates((current) => mergeContentCanvasCommandCandidates(current, result))
       setCandidateSelections((current) => mergeContentCanvasCommandSelections(current, result))
-      toast.success(result.message)
+      if (!options.silentSuccess) toast.success(result.message)
       const focusState = contentCanvasCommandFocusState(result.focusNodeId)
       if (focusState) {
         if (focusState.activeCanvasNodeId !== undefined) setActiveCanvasNodeId(focusState.activeCanvasNodeId)
@@ -430,8 +475,8 @@ export function useContentCanvasWorkspaceController({
   }, [creativeCanvasDocumentId, projectId])
 
   const commitCreativeCanvasViewport = useCallback((viewport: Viewport) => {
-    updateContentCanvasDocumentViewport(projectId, creativeCanvasDocumentId, viewport)
-  }, [creativeCanvasDocumentId, projectId])
+    updateContentCanvasViewport(projectId, viewport, creativeCanvasViewStateScope)
+  }, [creativeCanvasViewStateScope, projectId])
 
   const clearCreativeCanvasManualPositions = useCallback(() => {
     clearContentCanvasDocumentNodePositions(projectId, creativeCanvasDocumentId)
@@ -441,13 +486,42 @@ export function useContentCanvasWorkspaceController({
     removeContentCanvasDocumentNodes(projectId, creativeCanvasDocumentId, nodeIds)
   }, [creativeCanvasDocumentId, projectId])
 
-  const createFreeCreativeCanvasDocument = useCallback(() => {
-    createContentCanvasDocument(projectId)
+  const createFreeCreativeCanvasDocument = useCallback((title?: string) => {
+    try {
+      createContentCanvasDocument(projectId, title !== undefined ? { title } : {})
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '内容画布创建失败')
+    }
+  }, [projectId])
+
+  const renameFreeCreativeCanvasDocument = useCallback((canvasId: string, title: string) => {
+    try {
+      renameContentCanvasDocument(projectId, canvasId, title)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '内容画布重命名失败')
+    }
   }, [projectId])
 
   const selectFreeCreativeCanvasDocument = useCallback((canvasId: string) => {
     selectContentCanvasDocument(projectId, canvasId)
   }, [projectId])
+
+  const saveCreativeCanvasDocuments = useCallback(() => {
+    if (!projectId || creativeCanvasSavePending) return
+    setCreativeCanvasSavePending(true)
+    void saveContentCanvasDocumentsToProject(projectId)
+      .then((result) => {
+        toast.success(result.savedCount === 0
+          ? '没有需要保存的内容画布'
+          : result.savedCount > 1
+            ? `已保存 ${result.savedCount} 个内容画布`
+            : '内容画布已保存')
+      })
+      .catch((error: unknown) => {
+        toast.error(error instanceof Error ? error.message : '内容画布保存失败')
+      })
+      .finally(() => setCreativeCanvasSavePending(false))
+  }, [creativeCanvasSavePending, projectId])
 
   const addNodeToCreativeCanvas = useCallback((nodeId: string, position?: ContentCanvasNodePosition) => {
     const node = viewModel.graphIndex.nodeById.get(nodeId)
@@ -602,25 +676,35 @@ export function useContentCanvasWorkspaceController({
   const previewCandidatePromptForNode = useCallback(async (node: ContentCanvasNode | undefined): Promise<ContentCanvasGenerationPromptPreview> => {
     const target = contentCanvasGenerationTargetForNode(node)
     if (!node || !target || !projectId || !gateway) return emptyPromptPreview()
-    const contentUnitNode = await ensureCandidateContentUnitWithPrompt(node)
-    const outputKind = contentUnitGenerationOutputKind(contentUnitNode)
+    const promptDraft = draftPromptForCandidateNode(node)
+    const previewPromptText = promptDraft ?? promptFromContentNode(target.node) ?? ''
+    const outputKind = contentUnitGenerationOutputKind(target.node)
     if (outputKind !== 'image' && outputKind !== 'video') return emptyPromptPreview()
+    if (!target.node.sourcePath) {
+      return {
+        text: previewPromptText,
+        compiledText: previewPromptText,
+        resourceIds: [],
+        replacements: [],
+        blockers: [],
+      }
+    }
     const preview = await gateway.previewContentUnitGenerationPrompt({
       projectId,
-      contentUnitId: contentUnitNode.entityKey,
+      contentUnitId: target.contentUnitId,
       candidateId: 'preview',
       outputKind,
-      promptText: promptFromContentNode(contentUnitNode),
+      promptText: previewPromptText,
     })
     console.info('[content-canvas] preview compiled candidate prompt', JSON.stringify({
       sourceNodeId: node.id,
-      contentUnitId: contentUnitNode.entityKey,
+      contentUnitId: target.contentUnitId,
       textPreview: preview.text.slice(0, 200),
       blockerCount: preview.blockers.length,
       blockers: preview.blockers,
     }))
     return preview
-  }, [ensureCandidateContentUnitWithPrompt, gateway, projectId])
+  }, [draftPromptForCandidateNode, gateway, projectId])
 
   const createCandidateForNode = useCallback((
     node: ContentCanvasNode | undefined,
@@ -679,7 +763,7 @@ export function useContentCanvasWorkspaceController({
     void runCanvasCommand(`prompt:${targetNode.id}`, () => (
       ensureDefaultContentUnitFromCanvasNode(projectId, targetNode, gateway, prompt)
         .then((ensuredContentUnitNode) => updateContentUnitPromptFromCanvas(projectId, ensuredContentUnitNode, prompt, gateway))
-    ))
+    ), { silentSuccess: true })
   }, [gateway, projectId, runCanvasCommand])
 
   const commitStructuredPromptDraft = useCallback((node: ContentCanvasNode | undefined, structured: Record<string, unknown>) => {
@@ -689,7 +773,7 @@ export function useContentCanvasWorkspaceController({
     void runCanvasCommand(`prompt-structured:${targetNode.id}`, () => (
       ensureDefaultContentUnitFromCanvasNode(projectId, targetNode, gateway)
         .then((ensuredContentUnitNode) => updateContentUnitStructuredPromptFromCanvas(projectId, ensuredContentUnitNode, structured, gateway))
-    ))
+    ), { silentSuccess: true })
   }, [gateway, projectId, runCanvasCommand])
 
   const saveExpressionUnit = useCallback((node: ContentCanvasNode, input: ContentCanvasExpressionUnitEditorInput) => {
@@ -751,9 +835,11 @@ export function useContentCanvasWorkspaceController({
     createFreeCreativeCanvasDocument,
     creativeCanvasFocusRequest,
     creativeCanvasDocuments,
+    creativeCanvasHasUnsavedChanges,
     creativeCanvasNodeIds,
     creativeCanvasNodePositions,
-    creativeCanvasViewport: creativeCanvasDocument?.viewport,
+    creativeCanvasSavePending,
+    creativeCanvasViewport: creativeCanvasViewState?.viewport ?? creativeCanvasDocument?.viewport,
     closeStructureCreateDialog,
     createCandidateForNode,
     createTimelineAssemblyForNamespace,
@@ -770,7 +856,9 @@ export function useContentCanvasWorkspaceController({
     projectId,
     projectQuery,
     removeNodeFromCreativeCanvas,
+    renameFreeCreativeCanvasDocument,
     runCanvasCommand,
+    saveCreativeCanvasDocuments,
     selectCandidate,
     selectCandidateNode,
     selectFreeCreativeCanvasDocument,
@@ -791,6 +879,10 @@ export function useContentCanvasWorkspaceController({
     viewModel,
     workspaceTab,
   }
+}
+
+function contentCanvasDocumentViewStateScope(canvasId: string | undefined): ContentCanvasViewStateScope | undefined {
+  return canvasId ? { mode: `content-canvas:${canvasId}` } : undefined
 }
 
 function addCommandResultNodesToActiveCanvas(input: {

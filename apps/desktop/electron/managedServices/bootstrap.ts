@@ -16,6 +16,7 @@ export type ManagedServicesBootstrapResult = {
     enabled: boolean
     dataPlane: 'local' | 'cloud' | 'external'
     dataServiceURL?: string
+    forceRestart?: boolean
   }
 }
 
@@ -41,7 +42,8 @@ export async function bootstrapManagedServicesBeforeWindow(): Promise<ManagedSer
     localRuntime: smokeLocalRuntime ?? (appSettings?.onboardingCompleted === true
       ? {
           enabled: true,
-          dataPlane: appSettings.launchMode === 'local' ? 'local' : localRuntimeDataPlaneForAPIBaseURL(appSettings.apiBaseURL),
+          dataPlane: appSettings.launchMode === 'local' ? 'local' : 'cloud',
+          forceRestart: shouldForceRefreshLocalRuntimeDaemon(),
           ...(appSettings.launchMode !== 'local' && appSettings.apiBaseURL ? { dataServiceURL: appSettings.apiBaseURL } : {}),
         }
       : undefined),
@@ -56,16 +58,12 @@ function desktopSmokeLocalRuntimeFromEnv(env: NodeJS.ProcessEnv = process.env): 
   return {
     enabled: true,
     dataPlane,
+    forceRestart: shouldForceRefreshLocalRuntimeDaemon(env),
     ...(dataServiceURL ? { dataServiceURL } : {}),
   }
 }
 
-function localRuntimeDataPlaneForAPIBaseURL(apiBaseURL: string | undefined): 'cloud' | 'external' {
-  if (!apiBaseURL) return 'cloud'
-  try {
-    const url = new URL(apiBaseURL)
-    return ['localhost', '127.0.0.1', '::1'].includes(url.hostname) ? 'external' : 'cloud'
-  } catch {
-    return 'cloud'
-  }
+function shouldForceRefreshLocalRuntimeDaemon(env: NodeJS.ProcessEnv = process.env): boolean {
+  const value = env.MOVSCRIPT_DESKTOP_FORCE_DAEMON_REFRESH?.trim().toLowerCase()
+  return value !== '0' && value !== 'false' && value !== 'no'
 }

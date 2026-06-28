@@ -1,4 +1,4 @@
-import { normalizeAPIBaseURL, type AppSettings } from '@/shared/infrastructure/config'
+import { getSettingsDataConnectionBaseURL, normalizeAPIBaseURL, type AppSettings } from '@/shared/infrastructure/config'
 import type { ExternalResourceSource } from '@/types'
 
 export type AppSettingsTestState =
@@ -51,7 +51,7 @@ export function formatShotLibrarySources(settings: AppSettings): string {
     : [{
         id: 'default',
         name: 'Movscript',
-        baseURL: settings.apiBaseURL,
+        baseURL: getSettingsDataConnectionBaseURL(settings),
         enabled: true,
       }]
   return JSON.stringify({

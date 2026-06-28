@@ -5,6 +5,7 @@ import {
   defaultRuntimeValueForPort,
   encodeRuntimePortValue as encodeCoreRuntimePortValue,
 } from '@movscript/core/canvas'
+import { resourceFileUrl } from '@movscript/core/resources'
 
 import type { CanvasNodeData, CanvasPortDef, CanvasPortValue, RawResource } from '@movscript/shared'
 import { compareWorkflowIoNodes, workflowIoOrder } from '../domain/graph'
@@ -94,7 +95,7 @@ export function resourceFromOutputValue(label: string, value: CanvasPortValue): 
     owner_id: 0,
     type: resourceTypeForPortValue(value),
     name: resourceNameForOutput(label, value),
-    url: `/api/v1/resources/${value.resource_id}/file`,
+    url: resourceFileUrl(value.resource_id) ?? '',
     size: 0,
     mime_type: '',
   }

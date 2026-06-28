@@ -2,11 +2,47 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { createElectronMovScriptWorkspaceService } from './workspaceDomainRepository'
+import { setRuntimeConfigSnapshot } from './config'
 
-test('workspace domain repository uses Electron engine workspace API when available', async () => {
+test('workspace domain repository routes project source reads and writes through daemon gateway', async () => {
   const previousWindow = globalThis.window
+  const previousFetch = globalThis.fetch
   const calls: Array<{ method: string; input: Record<string, unknown> }> = []
+  const requests: Array<{ url: string; body: Record<string, unknown> }> = []
   const api = {
+    getRuntimeConfig: async () => ({
+      movScriptHomeDir: '/tmp/movscript-home',
+      workspaceDir: '/tmp/movscript-home',
+      gatewayBaseURL: 'http://127.0.0.1:8766',
+      runtime: {
+        schema: 'movscript.runtime-descriptor.v1',
+        runtime: {
+          owner: 'movscript.local-node',
+          appId: 'movscript.local-node',
+          name: 'MovScript Local Node Daemon',
+        },
+        gateway: {
+          baseURL: 'http://127.0.0.1:8766',
+          canonicalPrefix: '/v1',
+        },
+        dataConnection: { kind: 'local', authMode: 'local-owner', status: 'connected' },
+        capabilities: {
+          project: true,
+          canvas: true,
+          resources: true,
+          editing: true,
+          media: true,
+        },
+      },
+      dataConnection: { kind: 'local', authMode: 'local-owner', status: 'connected' },
+      apiBaseURL: 'http://127.0.0.1:8766',
+      apiV1BaseURL: 'http://127.0.0.1:8766/api/v1',
+      localAPIBaseURL: 'http://127.0.0.1:8766',
+      backendStatus: {
+        state: 'ready' as const,
+        baseURL: 'http://127.0.0.1:8766',
+      },
+    }),
     queryMovScriptEngineWorkspaceEntities: async (input: Record<string, unknown>) => {
       calls.push({ method: 'queryEntities', input })
       return [{
@@ -114,6 +150,32 @@ test('workspace domain repository uses Electron engine workspace API when availa
     },
   }
 
+  Object.defineProperty(globalThis, 'fetch', {
+    configurable: true,
+    value: async (url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
+      requests.push({ url, body })
+      const result = String(url).endsWith('/v1/project/scripts/upsert')
+        ? {
+            scriptId: 'script_1',
+            scriptPath: 'scripts/script_1/script.json',
+            sourcePath: 'scripts/script_1/script.md',
+            record: {},
+            sourceText: '',
+          }
+        : String(url).endsWith('/v1/project/scripts/source/read')
+          ? 'script text'
+          : { ok: true }
+      return new Response(JSON.stringify({
+        schema: 'movscript.project-source-operation-result.v1',
+        projectDir: body.projectDir,
+        result,
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    },
+  })
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
     value: { api },
@@ -122,6 +184,12 @@ test('workspace domain repository uses Electron engine workspace API when availa
   try {
 	    const service = createElectronMovScriptWorkspaceService({ projectId: 9, projectDir: '/tmp/movscript-project-9', orgId: 22 })
 	    const entities = await service.queryEntities({ entityKind: 'script' })
+    const savedScript = await service.upsertScript({
+      scriptId: 'script_1',
+      sourceText: 'updated',
+      metadata: { title: 'Updated script' },
+    })
+    const sourceText = await service.readScriptSource({ record: { id: 'script_1' } })
     await service.upsertSetting({
       payload: {
         id: 'setting_1',
@@ -136,6 +204,21 @@ test('workspace domain repository uses Electron engine workspace API when availa
     })
 
     assert.equal(entities[0]?.id, 'script_1')
+    assert.equal(savedScript.scriptId, 'script_1')
+    assert.equal(sourceText, 'script text')
+    assert.deepEqual(requests.map((request) => request.body), [{
+      projectDir: '/tmp/movscript-project-9',
+      scriptId: 'script_1',
+      sourceText: 'updated',
+      metadata: { title: 'Updated script' },
+    }, {
+      projectDir: '/tmp/movscript-project-9',
+      record: { id: 'script_1' },
+    }])
+    assert.deepEqual(requests.map((request) => request.url), [
+      'http://127.0.0.1:8766/v1/project/scripts/upsert',
+      'http://127.0.0.1:8766/v1/project/scripts/source/read',
+    ])
     assert.deepEqual(calls[0], {
       method: 'queryEntities',
       input: {
@@ -148,19 +231,19 @@ test('workspace domain repository uses Electron engine workspace API when availa
     assert.deepEqual(calls[1], {
       method: 'upsertSetting',
       input: {
-	        projectId: 9,
-	        projectDir: '/tmp/movscript-project-9',
-	        orgId: 22,
-	        expectedWorkspaceVersions: { 'settings/setting_1/setting.json': 'v1' },
-	        payload: {
-	          payload: {
-	            id: 'setting_1',
-	            title: 'A',
-	            __workspace_path: 'settings/setting_1/setting.json',
-	            __workspace_version: 'v1',
-	          },
-	        },
-	      },
+        projectId: 9,
+        projectDir: '/tmp/movscript-project-9',
+        orgId: 22,
+        expectedWorkspaceVersions: { 'settings/setting_1/setting.json': 'v1' },
+        payload: {
+          payload: {
+            id: 'setting_1',
+            title: 'A',
+            __workspace_path: 'settings/setting_1/setting.json',
+            __workspace_version: 'v1',
+          },
+        },
+      },
     })
     assert.deepEqual(calls[2], {
       method: 'updateContentUnitEditPrompt',
@@ -174,6 +257,11 @@ test('workspace domain repository uses Electron engine workspace API when availa
       },
     })
   } finally {
+    setRuntimeConfigSnapshot(null)
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      value: previousFetch,
+    })
     Object.defineProperty(globalThis, 'window', {
       configurable: true,
       value: previousWindow,

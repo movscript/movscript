@@ -9,7 +9,12 @@ import {
   AppSettingsShell
 } from '@/features/settings/components/AppSettingsUi'
 import { AppSettingsContent } from '@/features/settings/components/AppSettingsSections'
-import { getDefaultAPIBaseURL, isLocalLaunchMode, normalizeAPIBaseURL } from '@/shared/infrastructure/config'
+import {
+  getDefaultAPIBaseURL,
+  getSettingsDataConnectionBaseURL,
+  isLocalDataConnection,
+  normalizeAPIBaseURL,
+} from '@/shared/infrastructure/config'
 import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
@@ -39,11 +44,11 @@ export function AppSettingsPanel({
   const user = useUserStore((s) => s.currentUser)
   const currentProject = useProjectStore((s) => s.current)
   const settings = useAppSettingsStore((s) => s.settings)
-  const setAPIBaseURL = useAppSettingsStore((s) => s.setAPIBaseURL)
+  const setDataConnectionURL = useAppSettingsStore((s) => s.setDataConnectionURL)
   const setMovScriptWorkspaceDir = useAppSettingsStore((s) => s.setMovScriptWorkspaceDir)
   const setShotLibrarySources = useAppSettingsStore((s) => s.setShotLibrarySources)
   const resetSettings = useAppSettingsStore((s) => s.reset)
-  const [apiBaseURL, setAPIBaseURLInput] = useState(settings.apiBaseURL)
+  const [dataConnectionURL, setDataConnectionURLInput] = useState(getSettingsDataConnectionBaseURL(settings))
   const [movScriptHomeDir, setMovScriptHomeDirInput] = useState(settings.movScriptWorkspaceDir ?? '')
   const [shotSourcesText, setShotSourcesText] = useState(formatShotLibrarySources(settings))
   const [saved, setSaved] = useState(false)
@@ -54,23 +59,23 @@ export function AppSettingsPanel({
 
   const normalized = useMemo(() => {
     try {
-      return normalizeAPIBaseURL(apiBaseURL)
+      return normalizeAPIBaseURL(dataConnectionURL)
     } catch {
-      return apiBaseURL.trim()
+      return dataConnectionURL.trim()
     }
-  }, [apiBaseURL])
-  const hasChanged = normalized !== settings.apiBaseURL
+  }, [dataConnectionURL])
+  const hasChanged = normalized !== getSettingsDataConnectionBaseURL(settings)
   const movScriptHomeDirChanged = movScriptHomeDir.trim() !== (settings.movScriptWorkspaceDir ?? '')
   const isValid = /^https?:\/\/.+/i.test(normalized)
   const parsedShotSources = useMemo(() => parseShotLibrarySources(shotSourcesText), [shotSourcesText])
   const shotSourcesValid = parsedShotSources.ok
   const shotSourcesChanged = shotSourcesText.trim() !== formatShotLibrarySources(settings).trim()
-  const localMode = isLocalLaunchMode(settings)
+  const localMode = isLocalDataConnection(settings)
   const canOpenAdmin = user?.system_role === 'super_admin'
 
   async function saveSettings() {
     if (!isValid) return
-    setAPIBaseURL(normalized)
+    setDataConnectionURL(normalized)
     setSaved(true)
     setTestState({ status: 'idle', message: '' })
     setTimeout(() => {
@@ -98,7 +103,7 @@ export function AppSettingsPanel({
 
   function resetToDefault() {
     resetSettings()
-    setAPIBaseURLInput(getDefaultAPIBaseURL())
+    setDataConnectionURLInput(getDefaultAPIBaseURL())
     setMovScriptHomeDirInput('')
     setSaved(true)
     setWorkspaceSaved(false)
@@ -156,14 +161,14 @@ export function AppSettingsPanel({
   }
 
   function resetShotLibrarySources() {
-    const resetValue = formatDefaultShotLibrarySources(settings.apiBaseURL)
+    const resetValue = formatDefaultShotLibrarySources(getSettingsDataConnectionBaseURL(settings))
     setShotSourcesText(resetValue)
     setShotSourcesSaved(false)
   }
 
   const content = (
     <AppSettingsContent
-      apiBaseURL={apiBaseURL}
+      dataConnectionURL={dataConnectionURL}
       canOpenAdmin={canOpenAdmin}
       collectResourceBlobs={(dryRun) => void collectResourceBlobs(dryRun)}
       chooseMovScriptHomeDir={() => void chooseMovScriptHomeDir()}
@@ -180,7 +185,7 @@ export function AppSettingsPanel({
       saveShotLibrarySources={saveShotLibrarySources}
       saveWorkspaceRoot={saveWorkspaceRoot}
       saved={saved}
-      setAPIBaseURLInput={setAPIBaseURLInput}
+      setDataConnectionURLInput={setDataConnectionURLInput}
       setSaved={setSaved}
       setShotSourcesSaved={setShotSourcesSaved}
       setShotSourcesText={setShotSourcesText}

@@ -3,7 +3,9 @@ import test from 'node:test'
 
 import {
   canManageLocalBackend,
+  getLocalDaemonGatewayBaseURL,
   probeLocalBackendStatus,
+  shouldGateLocalBackendRequests,
   waitForLocalBackendReady,
 } from '@/shared/infrastructure/backendBoot'
 import {
@@ -49,6 +51,55 @@ test('probeLocalBackendStatus returns actionable error when local HTTP health is
   })
 })
 
+test('getLocalDaemonGatewayBaseURL prefers daemon gateway settings over legacy API URL fields', () => {
+  assert.equal(
+    getLocalDaemonGatewayBaseURL({
+      dataConnection: { kind: 'local', url: 'http://data-plane.example:8766/' },
+      daemonGatewayBaseURL: 'http://daemon.example:8766/',
+      apiBaseURL: 'http://legacy.example:8766/',
+    }),
+    'http://daemon.example:8766',
+  )
+})
+
+test('shouldGateLocalBackendRequests follows dataConnection intent instead of legacy launch settings', () => {
+  const previousSettings = useAppSettingsStore.getState().settings
+  try {
+    withWindow({
+      api: {
+        getBackendStatus: async () => ({ state: 'ready', baseURL: 'http://localhost:8766' }),
+        setAppSettings: async () => {},
+      },
+    }, () => {
+      useAppSettingsStore.setState({
+        settings: {
+          ...previousSettings,
+          onboardingCompleted: true,
+          launchMode: 'local',
+          dataConnection: { kind: 'cloud', url: 'https://cloud.example' },
+          apiBaseURL: getLocalAPIBaseURL(),
+          daemonGatewayBaseURL: getLocalAPIBaseURL(),
+        },
+      })
+      assert.equal(shouldGateLocalBackendRequests(), false)
+
+      useAppSettingsStore.setState({
+        settings: {
+          ...previousSettings,
+          onboardingCompleted: true,
+          launchMode: 'cloud',
+          dataConnection: { kind: 'local', url: 'http://localhost:9876' },
+          apiBaseURL: 'https://cloud.example',
+          daemonGatewayBaseURL: 'http://localhost:9876',
+        },
+      })
+      assert.equal(shouldGateLocalBackendRequests(), true)
+    })
+  } finally {
+    useAppSettingsStore.setState({ settings: previousSettings })
+  }
+})
+
 test('waitForLocalBackendReady trusts daemon-owned Electron status over the legacy local URL', async () => {
   const previousSettings = useAppSettingsStore.getState().settings
   const runtimeBaseURL = 'http://127.0.0.1:45678'
@@ -57,8 +108,9 @@ test('waitForLocalBackendReady trusts daemon-owned Electron status over the lega
       ...previousSettings,
       launchMode: 'local',
       onboardingCompleted: true,
+      dataConnection: { kind: 'local', url: getLocalAPIBaseURL() },
       apiBaseURL: getLocalAPIBaseURL(),
-      localAPIBaseURL: getLocalAPIBaseURL(),
+      daemonGatewayBaseURL: getLocalAPIBaseURL(),
     },
   })
   setRuntimeConfigSnapshot(null)
@@ -73,6 +125,27 @@ test('waitForLocalBackendReady trusts daemon-owned Electron status over the lega
         getRuntimeConfig: async () => ({
           movScriptHomeDir: '/tmp/movscript-home',
           workspaceDir: '/tmp/movscript-home',
+          runtime: {
+            schema: 'movscript.runtime-descriptor.v1',
+            runtime: {
+              owner: 'movscript.local-node',
+              appId: 'movscript.local-node',
+              name: 'MovScript Local Node Daemon',
+            },
+            gateway: {
+              baseURL: runtimeBaseURL,
+              canonicalPrefix: '/v1',
+            },
+            dataConnection: { kind: 'local', authMode: 'local-owner', status: 'connected' },
+            capabilities: {
+              project: true,
+              canvas: true,
+              resources: true,
+              editing: true,
+              media: true,
+            },
+          },
+          dataConnection: { kind: 'local', authMode: 'local-owner', status: 'connected' },
           apiBaseURL: runtimeBaseURL,
           apiV1BaseURL: `${runtimeBaseURL}/api/v1`,
           localAPIBaseURL: getLocalAPIBaseURL(),

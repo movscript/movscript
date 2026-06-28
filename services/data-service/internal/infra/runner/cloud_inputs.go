@@ -9,6 +9,7 @@ import (
 	"github.com/movscript/movscript/internal/infra/upload"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -46,9 +47,7 @@ func (w *Worker) prepareVideoInputReferences(job *persistencemodel.Job, imageDat
 	if len(imageData) == 0 && len(videoData) == 0 && len(audioData) == 0 {
 		return
 	}
-	switch w.modelAdapterTypeForJob(job) {
-	case ai.AdapterVolcen, ai.AdapterDashScope, ai.AdapterVidu:
-	default:
+	if !w.videoRouteRequiresPublicMediaReferences(job) {
 		return
 	}
 	if len(imageData) > 0 {
@@ -60,6 +59,18 @@ func (w *Worker) prepareVideoInputReferences(job *persistencemodel.Job, imageDat
 	if len(audioData) > 0 {
 		w.preparePublicMediaReferences(job, audioData)
 	}
+}
+
+func (w *Worker) videoRouteRequiresPublicMediaReferences(job *persistencemodel.Job) bool {
+	route, ok := w.catalogRouteForJob(context.Background(), job)
+	if !ok {
+		return false
+	}
+	switch w.adapterTypeForRoute(route) {
+	case ai.AdapterVolcen, ai.AdapterDashScope, ai.AdapterVidu, ai.AdapterYunwu:
+		return true
+	}
+	return strings.TrimSpace(route.ProviderKind) == persistencemodel.AIProviderKindYunwuGateway
 }
 
 func (w *Worker) preparePublicMediaReferences(job *persistencemodel.Job, mediaList []ai.MediaData) {

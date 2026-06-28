@@ -634,6 +634,11 @@ func (s *AIService) catalogRouteRuntime(ctx context.Context, userID uint, route 
 		if err != nil {
 			return catalogRouteRuntime{}, true, err
 		}
+		adapterType := routeAdapterType(route, cred.AdapterType)
+		if shouldUseYunwuAdapter(route, adapterType) {
+			cred.AdapterType = AdapterYunwu
+			adapterType = AdapterYunwu
+		}
 		provider, err := s.registry.buildProvider(cred, definition.def)
 		if err != nil {
 			return catalogRouteRuntime{}, true, err
@@ -643,7 +648,7 @@ func (s *AIService) catalogRouteRuntime(ctx context.Context, userID uint, route 
 			model:       definition.model,
 			def:         definition.def,
 			provider:    provider,
-			adapterType: routeAdapterType(route, cred.AdapterType),
+			adapterType: adapterType,
 		}, true, nil
 	}
 	provider, adapterType, handled, err := s.editionProviderForCatalogRoute(ctx, userID, route, capability)
@@ -790,6 +795,18 @@ func routeAdapterType(route ModelRoute, fallback string) string {
 		return adapterKey
 	}
 	return strings.TrimSpace(route.SourceType)
+}
+
+func shouldUseYunwuAdapter(route ModelRoute, adapterType string) bool {
+	if strings.TrimSpace(route.ProviderKind) != persistencemodel.AIProviderKindYunwuGateway {
+		return false
+	}
+	switch strings.TrimSpace(adapterType) {
+	case "", AdapterOpenAICompat, AdapterYunwu:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *AIService) legacyCredentialIDForProvider(ctx context.Context, providerID string) (uint, error) {

@@ -6,11 +6,13 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import {
   buildContentSourceWorkspaceData,
-  loadContentSourceWorkspaceSnapshotFromEngine,
   type ContentCandidateRecord,
   type ContentSourceWorkspaceData,
   type ContentSourceWorkspaceSnapshot,
 } from '@movscript/core/content'
+import {
+  loadContentSourceWorkspaceSnapshotFromEngine,
+} from '@movscript/core/content/node'
 import {
   createNodeMovScriptEngine,
   type NodeMovScriptEngine,
@@ -32,6 +34,7 @@ import type {
   ElectronMovScriptEngineContentCanvasDeleteResult,
   ElectronMovScriptEngineContentCanvasInput,
   ElectronMovScriptEngineContentCanvasRecord,
+  ElectronMovScriptEngineContentCanvasRenameResult,
   ElectronMovScriptEngineContentCanvasWriteResult,
   ElectronMovScriptEngineContentCanvasesListResult,
   ElectronMovScriptEngineContentUnitBackendPromptBuildInput,
@@ -78,6 +81,8 @@ const CONTENT_CANVAS_DIRECTORY = 'content_canvases'
 const CONTENT_CANVAS_FILE_NAME = 'canvas.json'
 const CONTENT_CANVAS_SCHEMA = 'movscript.content_canvas.v1'
 const CONTENT_CANVASES_SCHEMA = 'movscript.content_canvases.v1'
+const CONTENT_CANVAS_TITLE_MAX_LENGTH = 80
+const CONTENT_CANVAS_TITLE_INVALID_PATTERN = /[<>:"/\\|?*\u0000-\u001F]/
 
 type NormalizedProjectEngineInput = {
   workspaceDir: string
@@ -594,6 +599,8 @@ export async function writeMovScriptEngineContentCanvas(
     const context = normalizeProjectEngineInput(input)
     const projectDir = requireProjectDir(context)
     const record = projectContentCanvasRecordFromInput(input)
+    const titleValidationError = validateProjectContentCanvasTitle(String(record.title ?? ''))
+    if (titleValidationError) throw titleValidationError
     const path = contentCanvasProjectFilePath(String(record.id))
     const absolutePath = resolve(projectDir, path)
     if (!isInsideProjectDir(projectDir, absolutePath)) throw new Error('content canvas path must stay inside the project workspace root')
@@ -612,6 +619,48 @@ export async function writeMovScriptEngineContentCanvas(
       path,
       version: workspaceFileVersion(Number(fileStat.mtimeMs), fileStat.size),
       record,
+    }
+  })
+}
+
+export async function renameMovScriptEngineContentCanvas(
+  input: ElectronMovScriptEngineContentCanvasInput,
+): Promise<ElectronMovScriptEngineContentCanvasRenameResult> {
+  return enqueueProjectEngineOperation(input, async () => {
+    const context = normalizeProjectEngineInput(input)
+    const projectDir = requireProjectDir(context)
+    const id = stringValue(input.id ?? input.canvasId ?? input.canvas_id)
+    if (!id) throw new Error('canvas id is required')
+    const title = normalizeProjectContentCanvasTitle(input.title ?? input.name)
+    const titleValidationError = validateProjectContentCanvasTitle(title)
+    if (titleValidationError) throw titleValidationError
+    const path = contentCanvasProjectFilePath(id)
+    const absolutePath = resolve(projectDir, path)
+    if (!isInsideProjectDir(projectDir, absolutePath)) throw new Error('content canvas path must stay inside the project workspace root')
+    const expectedVersion = stringValue(input.expectedVersion ?? input.expected_version)
+    if (expectedVersion !== undefined) {
+      const currentVersion = await readWorkspaceFileVersion(projectDir, path)
+      if (currentVersion !== expectedVersion) throw new Error(`workspace file changed: ${path}`)
+    }
+    const current = parseProjectContentCanvasFile(await readFile(absolutePath, 'utf8'), path)
+    const record = {
+      ...current,
+      title,
+      name: title,
+      updated_at: new Date().toISOString(),
+    }
+    await writeFile(absolutePath, `${JSON.stringify(record, null, 2)}\n`, 'utf8')
+    const fileStat = await stat(absolutePath)
+    projectEngineRegistry.invalidate(input)
+    emitProjectWorkspaceUpdated(input, 'source-updated')
+    return {
+      status: 'renamed',
+      path,
+      version: workspaceFileVersion(Number(fileStat.mtimeMs), fileStat.size),
+      title,
+      normalizedTitle: title,
+      record,
+      diagnostics: [],
     }
   })
 }
@@ -872,31 +921,49 @@ function readWorkspaceManifest(projectDir: string): { project_uid?: string; titl
 
 function parseProjectContentCanvasFile(content: string, path: string): ElectronMovScriptEngineContentCanvasRecord {
   try {
-    return projectContentCanvasRecordFromInput(JSON.parse(content) as unknown)
+    return projectContentCanvasRecordFromInput(JSON.parse(content) as unknown, { path })
   } catch (error) {
     throw new Error(`content canvas file is invalid: ${path}${error instanceof Error ? `: ${error.message}` : ''}`)
   }
 }
 
-function projectContentCanvasRecordFromInput(input: unknown): ElectronMovScriptEngineContentCanvasRecord {
+function projectContentCanvasRecordFromInput(
+  input: unknown,
+  options: { path?: string } = {},
+): ElectronMovScriptEngineContentCanvasRecord {
   const source = recordValue(input)
   const record = source ? recordValue(source.canvas ?? source.record) ?? source : undefined
   if (!record) throw new Error('content canvas record is required')
-  const id = stringValue(record.id)
-  if (!id) throw new Error('canvas id is required')
+  const id = stringValue(record.id ?? record.canvasId ?? record.canvas_id)
+    ?? contentCanvasProjectIdFromPath(options.path)
+    ?? createProjectContentCanvasId()
   const updatedAt = stringValue(record.updated_at ?? record.updatedAt) ?? new Date().toISOString()
+  const title = normalizeProjectContentCanvasTitle(record.title ?? record.name)
+    || contentCanvasTitleFromProjectPath(options.path)
+    || 'Untitled Canvas'
   return pruneUndefinedRecord({
     schema: CONTENT_CANVAS_SCHEMA,
     kind: 'content_canvas',
     id,
-    title: stringValue(record.title) ?? 'Untitled Canvas',
+    title,
+    name: title,
     scope: projectContentCanvasScope(record.scope),
     nodes: projectContentCanvasNodes(record.nodes),
     layouts: projectContentCanvasLayouts(record.layouts ?? record.node_layouts ?? record.nodeLayouts),
-    viewport: projectContentCanvasViewport(record.viewport),
     updated_at: updatedAt,
     created_at: stringValue(record.created_at ?? record.createdAt),
   })
+}
+
+function normalizeProjectContentCanvasTitle(value: unknown): string {
+  return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : ''
+}
+
+function validateProjectContentCanvasTitle(title: string): Error | undefined {
+  if (!title) return new Error('content canvas title is required')
+  if (title.length > CONTENT_CANVAS_TITLE_MAX_LENGTH) return new Error(`content canvas title must be at most ${CONTENT_CANVAS_TITLE_MAX_LENGTH} characters`)
+  if (CONTENT_CANVAS_TITLE_INVALID_PATTERN.test(title)) return new Error('content canvas title contains unsupported characters')
+  return undefined
 }
 
 function projectContentCanvasScope(value: unknown): Record<string, unknown> {
@@ -963,16 +1030,6 @@ function projectContentCanvasLayout(value: unknown): Record<string, unknown> | u
   })
 }
 
-function projectContentCanvasViewport(value: unknown): { x: number; y: number; zoom: number } | undefined {
-  const viewport = recordValue(value)
-  if (!viewport) return undefined
-  const x = numberValue(viewport.x)
-  const y = numberValue(viewport.y)
-  const zoom = numberValue(viewport.zoom)
-  if (x === undefined || y === undefined || zoom === undefined) return undefined
-  return { x, y, zoom }
-}
-
 function contentCanvasProjectFilePath(id: string): string {
   return `${CONTENT_CANVAS_DIRECTORY}/${contentCanvasProjectPathSegment(id)}/${CONTENT_CANVAS_FILE_NAME}`
 }
@@ -980,6 +1037,31 @@ function contentCanvasProjectFilePath(id: string): string {
 function contentCanvasProjectPathSegment(id: string): string {
   const safe = id.trim().replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '')
   return safe || 'canvas'
+}
+
+function contentCanvasProjectIdFromPath(path: string | undefined): string | undefined {
+  const segment = contentCanvasProjectPathSegmentFromPath(path)
+  return segment ? segment.trim() : undefined
+}
+
+function contentCanvasTitleFromProjectPath(path: string | undefined): string | undefined {
+  const segment = contentCanvasProjectPathSegmentFromPath(path)
+  if (!segment) return undefined
+  return segment
+    .replace(/^canvas[_-]?/i, '')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    || undefined
+}
+
+function contentCanvasProjectPathSegmentFromPath(path: string | undefined): string | undefined {
+  const parts = String(path ?? '').split(/[\\/]+/).filter(Boolean)
+  const candidate = parts.at(-1) === CONTENT_CANVAS_FILE_NAME ? parts.at(-2) : parts.at(-1)
+  return stringValue(candidate)
+}
+
+function createProjectContentCanvasId(): string {
+  return `canvas:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`
 }
 
 function contentUnitInputFromWorkspacePayload(payload: MovScriptWorkspaceService['upsertContentUnit'] extends (input: infer Input) => unknown ? Input : never): MovScriptEngineContentUnitInput {

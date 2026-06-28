@@ -2,6 +2,7 @@ export {
   createProjectSurfaceRuntime,
   defaultProjectSurfaceCapabilities,
   noopProjectSurfaceNotifier,
+  projectSurfaceProjectFromContext,
   withProjectSurfaceProjectRequest,
 } from './ProjectSurfaceRuntime.js'
 export { PROJECT_SURFACE_ROUTE_KEYS } from '../domain/index.js'
@@ -12,10 +13,13 @@ export type {
   ProjectSurfaceDataScopeKind,
   ProjectSurfaceDataSpaceSummary,
   ProjectSurfaceDataSpacesResult,
+  ProjectSurfaceDiagnosticEndpoints,
+  ProjectSurfaceDiagnostics,
   ProjectSurfaceGitAction,
   ProjectSurfaceGitActionInput,
   ProjectSurfaceGitActionResult,
   ProjectSurfaceCapabilities,
+  ProjectSurfaceCandidateViewInput,
   ProjectSurfaceGateways,
   ProjectSurfaceNavigator,
   ProjectSurfaceNotifier,
@@ -27,11 +31,11 @@ export type {
   ProjectSurfaceRouteParams,
   ProjectSurfaceRuntime,
   ProjectSurfaceRuntimeInput,
-  ProjectSurfaceServiceEndpoints,
-  ProjectSurfaceSourceCommandInput,
+  ProjectSurfaceWorkspaceOperationInput,
   ProjectSurfaceWorkspaceMetadata,
   ResourceServiceGateway,
 } from './ProjectSurfaceRuntime.js'
+export type { MovScriptContextEnvelope } from '@movscript/shared'
 export {
   ProjectSurfaceProvider,
   useOptionalProjectSurfaceRuntime,

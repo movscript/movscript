@@ -186,6 +186,50 @@ test('Desktop local runtime restarts daemon when installed plugin identity chang
   }
 })
 
+test('Desktop local runtime force refreshes daemon on startup when requested', async () => {
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-desktop-local-runtime-refresh-home-'))
+  const pluginRoot = join(homeDir, 'installed-plugin')
+  const entrypoint = join(pluginRoot, 'bin', 'movscript-agent-mcp.mjs')
+  mkdirSync(dirname(entrypoint), { recursive: true })
+  writeFileSync(join(pluginRoot, 'manifest.runtime.json'), JSON.stringify({ version: 'desktop-installed-version' }), 'utf8')
+  writeFileSync(entrypoint, fakeDaemonSource({
+    includeDataService: true,
+    pluginVersion: 'desktop-installed-version',
+    pluginVersionEnv: 'MOVSCRIPT_FAKE_DAEMON_PLUGIN_VERSION',
+    pluginRoot,
+    pluginRootEnv: 'MOVSCRIPT_FAKE_DAEMON_PLUGIN_ROOT',
+  }), 'utf8')
+
+  try {
+    const old = await startFakeDesktopDaemon(homeDir, entrypoint, {
+      MOVSCRIPT_FAKE_DAEMON_PLUGIN_VERSION: 'desktop-installed-version',
+      MOVSCRIPT_FAKE_DAEMON_PLUGIN_ROOT: pluginRoot,
+      MOVSCRIPT_LOCAL_DAEMON_DATA_PLANE: 'local',
+    })
+    await startDesktopApplicationRuntime({
+      homeDir,
+      scenario: desktopRuntimeLocalStartupPolicy,
+      localRuntime: {
+        enabled: true,
+        dataPlane: 'local',
+        entrypoint,
+        forceRestart: true,
+      },
+    })
+
+    const snapshot = readRuntimeHomeSnapshot(homeDir)
+    const daemonAppRecord = snapshot.apps.find((record) => record.applicationId === LOCAL_NODE_APP_ID && record.status === 'ready')
+    assert.notEqual(daemonAppRecord?.pid, old.pid)
+    const metadata = daemonAppRecord?.raw.metadata as Record<string, unknown> | undefined
+    assert.equal(metadata?.pluginVersion, 'desktop-installed-version')
+    assert.equal(metadata?.pluginRoot, pluginRoot)
+  } finally {
+    await shutdownDesktopApplicationRuntime()
+    await stopLocalRuntimeDaemon(homeDir, { force: true }).catch(() => undefined)
+    rmSync(homeDir, { recursive: true, force: true })
+  }
+})
+
 test('Desktop runtime trace identities match daemon-attached Desktop application manifests', () => {
   const desktopAppManifest = readFileSync(resolve(REPO_ROOT, 'apps/desktop/application.manifest.ts'), 'utf8')
   const desktopShellManifest = readFileSync(resolve(REPO_ROOT, 'apps/desktop/programs/desktop-shell.program.manifest.ts'), 'utf8')

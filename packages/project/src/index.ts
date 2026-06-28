@@ -20,6 +20,54 @@ export const PROJECT_SERVICE_LIFECYCLE_COMMAND_ENDPOINT = '/v1/project/lifecycle
 export const PROJECT_SERVICE_SOURCE_INTERPRET_ENDPOINT = '/v1/project/source/interpret'
 export const PROJECT_SERVICE_SOURCE_REGENERATION_PLAN_ENDPOINT = '/v1/project/source/regeneration-plan'
 export const PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT = '/v1/project/source/command'
+export const PROJECT_SERVICE_ENTITIES_QUERY_ENDPOINT = '/v1/project/entities/query'
+export const PROJECT_SERVICE_SETTINGS_QUERY_ENDPOINT = '/v1/project/settings/query'
+export const PROJECT_SERVICE_ASSETS_QUERY_ENDPOINT = '/v1/project/assets/query'
+export const PROJECT_SERVICE_CONTENT_WORKSPACE_SNAPSHOT_ENDPOINT = '/v1/project/content-workspace/snapshot'
+export const PROJECT_SERVICE_CONTENT_WORKSPACE_READ_ENDPOINT = '/v1/project/content-workspace/read'
+export const PROJECT_SERVICE_STANDARDS_UPSERT_ENDPOINT = '/v1/project/standards/upsert'
+export const PROJECT_SERVICE_SCRIPT_SOURCE_READ_ENDPOINT = '/v1/project/scripts/source/read'
+export const PROJECT_SERVICE_SCRIPT_UPSERT_ENDPOINT = '/v1/project/scripts/upsert'
+export const PROJECT_SERVICE_SCRIPT_VERSION_SNAPSHOT_ENDPOINT = '/v1/project/scripts/versions/snapshot'
+export const PROJECT_SERVICE_SETTING_UPSERT_ENDPOINT = '/v1/project/settings/upsert'
+export const PROJECT_SERVICE_SETTING_CREATE_ENDPOINT = '/v1/project/settings/create'
+export const PROJECT_SERVICE_SETTING_STATE_CREATE_ENDPOINT = '/v1/project/settings/states/create'
+export const PROJECT_SERVICE_ASSET_UPSERT_ENDPOINT = '/v1/project/assets/upsert'
+export const PROJECT_SERVICE_ASSET_CREATE_ENDPOINT = '/v1/project/assets/create'
+export const PROJECT_SERVICE_PRODUCTION_SNAPSHOT_SAVE_ENDPOINT = '/v1/project/productions/snapshot/save'
+export const PROJECT_SERVICE_CONTENT_UNIT_UPSERT_ENDPOINT = '/v1/project/content-units/upsert'
+export const PROJECT_SERVICE_CONTENT_UNIT_CREATE_ENDPOINT = '/v1/project/content-units/create'
+export const PROJECT_SERVICE_CONTENT_UNIT_ENSURE_ENDPOINT = '/v1/project/content-units/ensure'
+export const PROJECT_SERVICE_TIMELINE_ASSEMBLY_CONTENT_UNIT_ENSURE_ENDPOINT = '/v1/project/timeline-assemblies/content-unit/ensure'
+export const PROJECT_SERVICE_CONTENT_UNIT_EDIT_PROMPT_UPDATE_ENDPOINT = '/v1/project/content-units/edit-prompt/update'
+export const PROJECT_SERVICE_PRODUCTION_CREATE_ENDPOINT = '/v1/project/productions/create'
+export const PROJECT_SERVICE_SEGMENT_CREATE_ENDPOINT = '/v1/project/segments/create'
+export const PROJECT_SERVICE_SCENE_MOMENT_CREATE_ENDPOINT = '/v1/project/scene-moments/create'
+export const PROJECT_SERVICE_SCENE_MOMENT_SETTING_CONNECT_ENDPOINT = '/v1/project/scene-moments/settings/connect'
+export const PROJECT_SERVICE_EXPRESSION_UNIT_CREATE_ENDPOINT = '/v1/project/expression-units/create'
+export const PROJECT_SERVICE_EXPRESSION_UNIT_UPDATE_ENDPOINT = '/v1/project/expression-units/update'
+export const PROJECT_SERVICE_KEYFRAME_CREATE_ENDPOINT = '/v1/project/keyframes/create'
+export const PROJECT_SERVICE_STORYBOARD_CREATE_ENDPOINT = '/v1/project/storyboards/create'
+export const PROJECT_SERVICE_STORYBOARD_TIMELINE_UPDATE_ENDPOINT = '/v1/project/storyboards/timeline/update'
+export const PROJECT_SERVICE_AUDIO_CUE_CREATE_ENDPOINT = '/v1/project/audio-cues/create'
+export const PROJECT_SERVICE_AUDIO_CUE_UPDATE_ENDPOINT = '/v1/project/audio-cues/update'
+export const PROJECT_SERVICE_ENTITY_BASICS_UPDATE_ENDPOINT = '/v1/project/entities/basics/update'
+export const PROJECT_SERVICE_ENTITY_TRANSITION_UPDATE_ENDPOINT = '/v1/project/entities/transition/update'
+export const PROJECT_SERVICE_ENTITY_DELETE_ENDPOINT = '/v1/project/entities/delete'
+export const PROJECT_SERVICE_HIERARCHY_WRITE_ENDPOINT = '/v1/project/hierarchy/write'
+export const PROJECT_SERVICE_NAMESPACE_WRITE_ENDPOINT = '/v1/project/namespaces/write'
+export const PROJECT_SERVICE_CONTENT_CANVASES_LIST_ENDPOINT = '/v1/project/content-canvases/list'
+export const PROJECT_SERVICE_CONTENT_CANVAS_WRITE_ENDPOINT = '/v1/project/content-canvases/write'
+export const PROJECT_SERVICE_CONTENT_CANVAS_RENAME_ENDPOINT = '/v1/project/content-canvases/rename'
+export const PROJECT_SERVICE_CONTENT_CANVAS_RUN_ENDPOINT = '/v1/project/content-canvases/run'
+export const PROJECT_SERVICE_CONTENT_CANVAS_DELETE_ENDPOINT = '/v1/project/content-canvases/delete'
+export const PROJECT_SERVICE_WORKSPACE_CANDIDATE_SELECT_ENDPOINT = '/v1/project/workspace-candidates/select'
+export const PROJECT_SERVICE_WORKSPACE_CANDIDATE_APPEND_ENDPOINT = '/v1/project/workspace-candidates/append'
+export const PROJECT_SERVICE_WORKSPACE_ASSET_SLOT_CANDIDATE_CREATE_ENDPOINT = '/v1/project/workspace-candidates/asset-slots/create'
+export const PROJECT_SERVICE_WORKSPACE_KEYFRAME_CANDIDATE_CREATE_ENDPOINT = '/v1/project/workspace-candidates/keyframes/create'
+export const PROJECT_SERVICE_CONTENT_CANDIDATE_CREATE_ENDPOINT = '/v1/project/content-candidates/create'
+export const PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_SELECT_ENDPOINT = '/v1/project/content-unit-candidates/select'
+export const PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT = '/v1/project/content-unit-candidates/decide'
 export const PROJECT_SERVICE_CANDIDATE_COMMAND_ENDPOINT = '/v1/project/candidates/command'
 export const PROJECT_SERVICE_CANDIDATE_VIEW_ENDPOINT = '/v1/project/candidates/view'
 export const PROJECT_SERVICE_PROMPT_CONTEXT_ENDPOINT = '/v1/project/prompt/context'
@@ -34,6 +82,8 @@ export type ProjectSourceCommandName =
   | 'loadContentWorkspace'
   | 'listContentCanvases'
   | 'writeContentCanvas'
+  | 'renameContentCanvas'
+  | 'runContentCanvas'
   | 'deleteContentCanvas'
   | 'upsertProjectStandards'
   | 'createSetting'
@@ -77,6 +127,11 @@ export interface ProjectSourceCommandRequest {
   input?: Record<string, unknown>
 }
 
+export interface ProjectSourceOperationRequest {
+  projectDir: string
+  input?: Record<string, unknown>
+}
+
 export type ProjectCandidateCommandName =
   | 'createContentCandidate'
   | 'selectContentUnitCandidate'
@@ -94,6 +149,7 @@ export type ProjectResourceViewKind =
   | 'setting-states'
   | 'states'
   | 'assets'
+  | 'project-context'
   | 'namespace-vocabulary'
   | 'timeline-namespaces'
   | 'setting-namespaces'
@@ -139,6 +195,12 @@ export interface ProjectDecisionStoreConfig {
 export interface ProjectCandidateCommandRequest {
   projectDir: string
   command: ProjectCandidateCommandName
+  input?: Record<string, unknown>
+  decisionStore: ProjectDecisionStoreConfig
+}
+
+export interface ProjectCandidateActionRequest {
+  projectDir: string
   input?: Record<string, unknown>
   decisionStore: ProjectDecisionStoreConfig
 }
@@ -196,6 +258,10 @@ export type ProjectSourceCommandResponse = ProjectServiceEnvelope<unknown> & {
   result: unknown
 }
 
+export type ProjectSourceOperationResponse = ProjectServiceEnvelope<unknown> & {
+  result: unknown
+}
+
 export type ProjectLifecycleCommandResponse = ProjectServiceEnvelope<unknown> & {
   command: ProjectLifecycleCommandName
   result: unknown
@@ -221,6 +287,10 @@ export type ProjectResourceViewResponse = ProjectServiceEnvelope<unknown> & {
 
 export type ProjectCandidateCommandResponse = ProjectServiceEnvelope<unknown> & {
   command: ProjectCandidateCommandName
+  result: unknown
+}
+
+export type ProjectCandidateActionResponse = ProjectServiceEnvelope<unknown> & {
   result: unknown
 }
 
@@ -297,6 +367,54 @@ export class ProjectServiceClient {
     }, signal)
   }
 
+  async upsertProjectStandards(request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectSourceOperationResponse> {
+    return this.request('POST', PROJECT_SERVICE_STANDARDS_UPSERT_ENDPOINT, projectSourceOperationPayload(request), signal)
+  }
+
+  async readScriptSource(request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectSourceOperationResponse> {
+    return this.request('POST', PROJECT_SERVICE_SCRIPT_SOURCE_READ_ENDPOINT, projectSourceOperationPayload(request), signal)
+  }
+
+  async upsertScript(request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectSourceOperationResponse> {
+    return this.request('POST', PROJECT_SERVICE_SCRIPT_UPSERT_ENDPOINT, projectSourceOperationPayload(request), signal)
+  }
+
+  async snapshotScriptVersionFromMarkdown(request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectSourceOperationResponse> {
+    return this.request('POST', PROJECT_SERVICE_SCRIPT_VERSION_SNAPSHOT_ENDPOINT, projectSourceOperationPayload(request), signal)
+  }
+
+  async sourceOperation(endpoint: string, request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectSourceOperationResponse> {
+    return this.request('POST', endpoint, projectSourceOperationPayload(request), signal)
+  }
+
+  async selectWorkspaceCandidate(request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectSourceOperationResponse> {
+    return this.sourceOperation(PROJECT_SERVICE_WORKSPACE_CANDIDATE_SELECT_ENDPOINT, request, signal)
+  }
+
+  async appendWorkspaceCandidate(request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectSourceOperationResponse> {
+    return this.sourceOperation(PROJECT_SERVICE_WORKSPACE_CANDIDATE_APPEND_ENDPOINT, request, signal)
+  }
+
+  async createWorkspaceAssetSlotCandidate(request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectSourceOperationResponse> {
+    return this.sourceOperation(PROJECT_SERVICE_WORKSPACE_ASSET_SLOT_CANDIDATE_CREATE_ENDPOINT, request, signal)
+  }
+
+  async createWorkspaceKeyframeCandidate(request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectSourceOperationResponse> {
+    return this.sourceOperation(PROJECT_SERVICE_WORKSPACE_KEYFRAME_CANDIDATE_CREATE_ENDPOINT, request, signal)
+  }
+
+  async createContentCandidate(request: ProjectCandidateActionRequest, signal?: AbortSignal): Promise<ProjectCandidateActionResponse> {
+    return this.candidateAction(PROJECT_SERVICE_CONTENT_CANDIDATE_CREATE_ENDPOINT, request, signal)
+  }
+
+  async selectContentUnitCandidate(request: ProjectCandidateActionRequest, signal?: AbortSignal): Promise<ProjectCandidateActionResponse> {
+    return this.candidateAction(PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_SELECT_ENDPOINT, request, signal)
+  }
+
+  async decideContentUnitCandidate(request: ProjectCandidateActionRequest, signal?: AbortSignal): Promise<ProjectCandidateActionResponse> {
+    return this.candidateAction(PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT, request, signal)
+  }
+
   async lifecycleCommand(request: ProjectLifecycleCommandRequest, signal?: AbortSignal): Promise<ProjectLifecycleCommandResponse> {
     return this.request('POST', PROJECT_SERVICE_LIFECYCLE_COMMAND_ENDPOINT, {
       projectDir: request.projectDir,
@@ -324,6 +442,14 @@ export class ProjectServiceClient {
     return this.request('POST', PROJECT_SERVICE_CANDIDATE_COMMAND_ENDPOINT, {
       projectDir: request.projectDir,
       command: request.command,
+      input: request.input ?? {},
+      decisionStore: request.decisionStore,
+    }, signal)
+  }
+
+  async candidateAction(endpoint: string, request: ProjectCandidateActionRequest, signal?: AbortSignal): Promise<ProjectCandidateActionResponse> {
+    return this.request('POST', endpoint, {
+      projectDir: request.projectDir,
       input: request.input ?? {},
       decisionStore: request.decisionStore,
     }, signal)
@@ -425,6 +551,13 @@ function projectSourcePayload(request: ProjectSourceRequest): Record<string, unk
     ...(request.debugArtifacts !== undefined ? { debugArtifacts: request.debugArtifacts } : {}),
     ...(request.commit ? { commit: request.commit } : {}),
     ...(request.checkpointHash ? { checkpointHash: request.checkpointHash } : {}),
+  }
+}
+
+function projectSourceOperationPayload(request: ProjectSourceOperationRequest): Record<string, unknown> {
+  return {
+    projectDir: request.projectDir,
+    ...(request.input ?? {}),
   }
 }
 

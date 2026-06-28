@@ -104,7 +104,7 @@ function ProjectRouteReadModelSurface({
   return (
     <AgentSurfaceShell
       title={route.label}
-      description="Project route is hosted by the active surface host and backed by Project Service read-model data."
+      description="Project route is hosted by the active surface host and backed by project read-model data."
       ready
       chips={[
         `project: ${runtime.project.projectId}`,

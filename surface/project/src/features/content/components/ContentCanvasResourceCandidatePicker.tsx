@@ -48,6 +48,7 @@ export function ContentCanvasResourceCandidatePicker({
       total={total}
       isLoading={query.isLoading || query.isFetching}
       typeOptions={typeOptions}
+      layout="grid"
       className="content-canvas-resource-candidate-picker"
       listClassName="content-canvas-resource-candidate-picker__list"
       onSearch={(value) => {

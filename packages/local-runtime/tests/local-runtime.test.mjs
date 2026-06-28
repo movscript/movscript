@@ -228,6 +228,50 @@ test('ensureLocalRuntimeDaemon reuses matching cloud Data Service URL and restar
   }
 })
 
+test('ensureLocalRuntimeDaemon force restart replaces a healthy matching daemon', async () => {
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-local-runtime-home-'))
+  const entrypoint = join(homeDir, 'fake-local-daemon.mjs')
+  writeFileSync(entrypoint, fakeDaemonSource(), 'utf8')
+
+  try {
+    const first = await ensureLocalRuntimeDaemon({
+      homeDir,
+      entrypoint,
+      runArgs: [],
+      identity: { pluginVersion: 'test-version', pluginRoot: 'test-root' },
+      startupTimeoutMs: 5000,
+      env: {
+        MOVSCRIPT_FAKE_DAEMON_PLUGIN_VERSION: 'test-version',
+        MOVSCRIPT_FAKE_DAEMON_PLUGIN_ROOT: 'test-root',
+        MOVSCRIPT_LOCAL_DAEMON_DATA_PLANE: 'local',
+      },
+    })
+
+    const refreshed = await ensureLocalRuntimeDaemon({
+      homeDir,
+      entrypoint,
+      runArgs: [],
+      identity: { pluginVersion: 'test-version', pluginRoot: 'test-root' },
+      forceRestart: true,
+      startupTimeoutMs: 5000,
+      stopTimeoutMs: 2000,
+      env: {
+        MOVSCRIPT_FAKE_DAEMON_PLUGIN_VERSION: 'test-version',
+        MOVSCRIPT_FAKE_DAEMON_PLUGIN_ROOT: 'test-root',
+        MOVSCRIPT_LOCAL_DAEMON_DATA_PLANE: 'local',
+      },
+    })
+
+    assert.equal(first.reused, false)
+    assert.equal(refreshed.reused, false)
+    assert.notEqual(refreshed.pid, first.pid)
+    assert.equal(refreshed.dataPlane, 'local')
+  } finally {
+    await stopLocalRuntimeDaemon(homeDir, { force: true }).catch(() => undefined)
+    rmSync(homeDir, { recursive: true, force: true })
+  }
+})
+
 test('ensureLocalRuntimeDaemon stops reachable daemon with incomplete services before starting replacement', async () => {
   const homeDir = mkdtempSync(join(tmpdir(), 'movscript-local-runtime-home-'))
   const entrypoint = join(homeDir, 'fake-local-daemon.mjs')

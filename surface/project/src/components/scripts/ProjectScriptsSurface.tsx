@@ -53,7 +53,7 @@ export function ProjectScriptsSurface({ params }: ProjectScriptsSurfaceProps = {
     queryKey: ['project-surface', 'scripts', runtime.project.projectId, runtime.project.projectDir ?? ''],
     queryFn: async () => {
       const resourceView = runtime.gateways.project.resourceView
-      if (!resourceView) throw new Error('Project Service resource view gateway is not available.')
+      if (!resourceView) throw new Error('Project runtime resource gateway is not available.')
       const response = await resourceView({
         projectId: runtime.project.projectId,
         projectDir: runtime.project.projectDir,
@@ -69,7 +69,7 @@ export function ProjectScriptsSurface({ params }: ProjectScriptsSurfaceProps = {
     queryKey: ['project-surface', 'script-versions', runtime.project.projectId, runtime.project.projectDir ?? ''],
     queryFn: async () => {
       const resourceView = runtime.gateways.project.resourceView
-      if (!resourceView) throw new Error('Project Service resource view gateway is not available.')
+      if (!resourceView) throw new Error('Project runtime resource gateway is not available.')
       try {
         const response = await resourceView({
           projectId: runtime.project.projectId,
@@ -150,15 +150,14 @@ export function ProjectScriptsSurface({ params }: ProjectScriptsSurfaceProps = {
     mutationFn: async () => {
       if (!selected) throw new Error('请选择手记')
       const saved = await saveWorkspaceScript(selected, workspace)
-      const sourceCommand = runtime.gateways.project.sourceCommand
-      if (!sourceCommand) throw new Error('Project Service source command gateway is not available.')
+      const snapshotScriptVersionFromMarkdown = runtime.gateways.project.snapshotScriptVersionFromMarkdown
+      if (!snapshotScriptVersionFromMarkdown) throw new Error('Project script version gateway is not available.')
       const versionNumber = nextVersionNumber(versionsForSelected)
       const versionId = `v${versionNumber}`
-      await sourceCommand({
+      await snapshotScriptVersionFromMarkdown({
         projectId: runtime.project.projectId,
         projectDir: runtime.project.projectDir,
         projectUid: runtime.project.projectUid,
-        command: 'snapshotScriptVersionFromMarkdown',
         input: {
           scriptId: String(saved.id ?? saved.ID),
           versionId,
@@ -180,8 +179,8 @@ export function ProjectScriptsSurface({ params }: ProjectScriptsSurfaceProps = {
   })
 
   async function saveWorkspaceScript(selectedScript: Script, data: Partial<Script>): Promise<Script> {
-    const sourceCommand = runtime.gateways.project.sourceCommand
-    if (!sourceCommand) throw new Error('Project Service source command gateway is not available.')
+    const upsertScript = runtime.gateways.project.upsertScript
+    if (!upsertScript) throw new Error('Project script gateway is not available.')
     if (!runtime.project.projectDir) throw new Error('Project directory is not configured for this surface.')
     const sourceText = scriptWorkspaceSourceText(data, selectedScript)
     const metadata = {
@@ -193,11 +192,10 @@ export function ProjectScriptsSurface({ params }: ProjectScriptsSurfaceProps = {
       content: sourceText,
       raw_source: sourceText,
     }
-    const result = await sourceCommand({
+    const result = await upsertScript({
       projectId: runtime.project.projectId,
       projectDir: runtime.project.projectDir,
       projectUid: runtime.project.projectUid,
-      command: 'upsertScript',
       input: {
         scriptId: String(selectedScript.id ?? selectedScript.ID),
         record: selectedScript.record ?? null,

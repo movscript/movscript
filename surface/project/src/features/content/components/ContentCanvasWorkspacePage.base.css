@@ -156,31 +156,81 @@
   opacity: 0.46;
 }
 
+.content-canvas-create-dialog,
+.content-canvas-create-dialog__select-content {
+  --cc-bg: var(--ms-color-app-background, #09090b);
+  --cc-panel: var(--ms-surface-raised-background, var(--ms-color-surface-raised, #111114));
+  --cc-panel-soft: color-mix(in srgb, var(--ms-color-muted, #18181b) 58%, var(--cc-panel));
+  --cc-field: color-mix(in srgb, var(--cc-panel) 92%, var(--cc-text, #fafafa) 8%);
+  --cc-border: var(--ms-surface-border, var(--ms-color-border, #2a2a2f));
+  --cc-muted: var(--ms-color-muted-foreground, #a1a1aa);
+  --cc-text: var(--ms-color-foreground, #fafafa);
+  --cc-accent: var(--ms-color-primary, #fafafa);
+  --cc-accent-soft: color-mix(in srgb, var(--cc-accent) 11%, var(--cc-panel));
+}
+
 .content-canvas-create-dialog {
-  width: min(540px, calc(100vw - 32px));
-  max-height: min(760px, calc(100vh - 40px));
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(780px, calc(100vh - 40px));
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--cc-border) 76%, transparent);
+  gap: 0;
+  border: 1px solid color-mix(in srgb, var(--cc-border) 88%, var(--cc-text) 12%);
+  border-radius: 12px;
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--cc-panel) 98%, var(--cc-accent) 2%), var(--cc-panel) 34%),
+    linear-gradient(180deg, color-mix(in srgb, var(--cc-panel) 88%, var(--cc-accent) 12%) 0 1px, transparent 1px),
+    linear-gradient(180deg, color-mix(in srgb, var(--cc-panel) 97%, var(--cc-accent) 3%) 0%, var(--cc-panel) 120px),
     var(--cc-panel);
-  box-shadow: 0 22px 68px color-mix(in srgb, var(--cc-text) 18%, transparent);
+  color: var(--cc-text);
+  padding: 0;
+  box-shadow:
+    0 28px 80px color-mix(in srgb, #000 46%, transparent),
+    0 8px 28px color-mix(in srgb, #000 24%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 16%, transparent);
+}
+
+.content-canvas-create-dialog .ms-dialog__header {
+  border-bottom: 1px solid color-mix(in srgb, var(--cc-border) 70%, transparent);
+  padding: 20px 22px 14px;
+  background:
+    radial-gradient(circle at 18px 12px, color-mix(in srgb, var(--cc-accent) 18%, transparent), transparent 34px),
+    color-mix(in srgb, var(--cc-panel-soft) 38%, transparent);
+}
+
+.content-canvas-create-dialog .ms-dialog__title {
+  color: var(--cc-text);
+  font-size: 15px;
+  font-weight: 820;
+  line-height: 1.35;
+}
+
+.content-canvas-create-dialog .ms-dialog__close {
+  top: 14px;
+  right: 14px;
+  border: 1px solid transparent;
+  background: color-mix(in srgb, var(--cc-panel-soft) 70%, transparent);
+  color: var(--cc-muted);
+}
+
+.content-canvas-create-dialog .ms-dialog__close:hover {
+  border-color: color-mix(in srgb, var(--cc-border) 72%, transparent);
+  background: var(--cc-field);
+  color: var(--cc-text);
 }
 
 .content-canvas-create-dialog__form {
   display: grid;
   gap: 0;
-  max-height: calc(100vh - 150px);
+  max-height: calc(100vh - 158px);
   overflow: auto;
-  padding-top: 2px;
+  padding: 0 22px 20px;
 }
 
 .content-canvas-create-dialog__section {
   display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
-  gap: 14px;
-  border-top: 1px solid color-mix(in srgb, var(--cc-border) 66%, transparent);
-  padding: 14px 0;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 16px;
+  border-top: 1px solid color-mix(in srgb, var(--cc-border) 72%, transparent);
+  padding: 16px 0;
 }
 
 .content-canvas-create-dialog__section:first-child {
@@ -189,9 +239,9 @@
 }
 
 .content-canvas-create-dialog__section-title {
-  color: var(--cc-muted);
+  color: color-mix(in srgb, var(--cc-muted) 92%, var(--cc-text) 8%);
   font-size: 11px;
-  font-weight: 840;
+  font-weight: 860;
   line-height: 1.4;
 }
 
@@ -213,10 +263,32 @@
 
 .content-canvas-create-dialog__field {
   display: grid;
-  gap: 6px;
+  gap: 7px;
   color: var(--cc-text);
   font-size: 12px;
   font-weight: 760;
+}
+
+.content-canvas-create-dialog__field input,
+.content-canvas-create-dialog__field textarea {
+  border-color: color-mix(in srgb, var(--cc-border) 82%, transparent);
+  background: var(--cc-field);
+  color: var(--cc-text);
+}
+
+.content-canvas-create-dialog__field input:focus-visible,
+.content-canvas-create-dialog__field textarea:focus-visible,
+.content-canvas-create-dialog__select:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--cc-accent) 38%, transparent);
+  outline-offset: 2px;
+}
+
+.content-canvas-create-dialog__error {
+  margin: 8px 0 0;
+  color: var(--ms-color-danger, #b42318);
+  font-size: 12px;
+  font-weight: 720;
+  line-height: 1.45;
 }
 
 .content-canvas-create-dialog__advanced {
@@ -240,12 +312,23 @@
 .content-canvas-create-dialog__select {
   height: 36px;
   width: 100%;
-  border: 1px solid var(--cc-border);
+  border: 1px solid color-mix(in srgb, var(--cc-border) 82%, transparent);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--cc-panel) 92%, transparent);
+  background: var(--cc-field);
   color: var(--cc-text);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+}
+
+.content-canvas-create-dialog__select-content {
+  border: 1px solid color-mix(in srgb, var(--cc-border) 88%, var(--cc-text) 8%);
+  border-radius: 10px;
+  background: var(--cc-panel);
+  color: var(--cc-text);
+  box-shadow:
+    0 18px 48px color-mix(in srgb, #000 34%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 12%, transparent);
 }
 
 .content-canvas-create-dialog__grid {
@@ -264,27 +347,39 @@
   height: 32px;
   border: 1px solid color-mix(in srgb, var(--cc-border) 86%, transparent);
   border-radius: 7px;
-  background: color-mix(in srgb, var(--cc-panel) 93%, var(--cc-muted));
+  background: color-mix(in srgb, var(--cc-field) 82%, var(--cc-panel));
   color: var(--cc-muted);
   font-size: 12px;
   font-weight: 760;
-  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 7%, transparent);
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.content-canvas-create-dialog__mode-button:hover {
+  border-color: color-mix(in srgb, var(--cc-border) 88%, var(--cc-text) 12%);
+  background: var(--cc-field);
+  color: var(--cc-text);
 }
 
 .content-canvas-create-dialog__mode-button[data-active='true'] {
-  border-color: color-mix(in srgb, var(--cc-accent) 52%, var(--cc-border));
+  border-color: color-mix(in srgb, var(--cc-accent) 58%, var(--cc-border));
   background: var(--cc-accent-soft);
   color: var(--cc-accent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 11%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--cc-accent) 14%, transparent);
 }
 
 .content-canvas-create-dialog__plan {
   display: grid;
   gap: 8px;
-  border: 1px solid color-mix(in srgb, var(--cc-accent) 22%, var(--cc-border));
+  border: 1px solid color-mix(in srgb, var(--cc-accent) 26%, var(--cc-border));
   border-radius: 8px;
-  margin-top: 2px;
+  margin-top: 4px;
   padding: 12px;
-  background: color-mix(in srgb, var(--cc-accent-soft) 36%, var(--cc-panel));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--cc-accent-soft) 72%, transparent), transparent),
+    color-mix(in srgb, var(--cc-panel-soft) 44%, var(--cc-panel));
 }
 
 .content-canvas-create-dialog__plan-title {
@@ -326,9 +421,9 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  border-top: 1px solid color-mix(in srgb, var(--cc-border) 66%, transparent);
-  padding-top: 14px;
-  margin-top: 2px;
+  border-top: 1px solid color-mix(in srgb, var(--cc-border) 72%, transparent);
+  padding-top: 16px;
+  margin-top: 4px;
 }
 
 .content-canvas-create-dialog__button {
@@ -338,18 +433,29 @@
   gap: 5px;
   min-width: 72px;
   height: 32px;
-  border: 1px solid var(--cc-border);
+  border: 1px solid color-mix(in srgb, var(--cc-border) 84%, transparent);
   border-radius: 7px;
-  background: var(--cc-panel);
+  background: var(--cc-field);
   color: var(--cc-text);
   font-size: 12px;
   font-weight: 760;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+}
+
+.content-canvas-create-dialog__button:hover {
+  border-color: color-mix(in srgb, var(--cc-border) 88%, var(--cc-text) 12%);
+  background: color-mix(in srgb, var(--cc-field) 86%, var(--cc-text) 14%);
 }
 
 .content-canvas-create-dialog__button--primary {
-  border-color: color-mix(in srgb, var(--cc-accent) 52%, var(--cc-border));
-  background: var(--cc-accent-soft);
-  color: var(--cc-accent);
+  border-color: color-mix(in srgb, var(--cc-accent) 68%, var(--cc-border));
+  background: var(--cc-accent);
+  color: var(--ms-color-primary-foreground, var(--cc-bg));
+}
+
+.content-canvas-create-dialog__button--primary:hover {
+  background: color-mix(in srgb, var(--cc-accent) 86%, var(--cc-panel));
+  color: var(--ms-color-primary-foreground, var(--cc-bg));
 }
 
 @media (max-width: 560px) {

@@ -5,7 +5,7 @@ import {
 } from '@movscript/editing-surface/media-probe'
 
 const EDITING_LOCAL_FILE_MEDIA_URL = 'movscript-media://local-file/'
-const EDITING_LOCAL_SURFACE_MEDIA_URL = '/local-api/editing/media-file'
+const EDITING_LOCAL_SURFACE_MEDIA_URL = '/v1/host/editing/media-file'
 const EDITING_LOCAL_MEDIA_PROBE_TIMEOUT_MS = 5000
 
 export function localMediaUrl(asset: ElectronMediaPipelineAssetDescriptor) {

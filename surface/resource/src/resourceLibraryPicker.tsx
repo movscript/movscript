@@ -30,6 +30,7 @@ export interface ResourceLibraryPickerProps {
   onSelect: (resource: RawResource) => void
   onClear?: () => void
   variant?: 'default' | 'prep-dialog'
+  layout?: 'list' | 'grid'
   className?: string
   listClassName?: string
 }
@@ -50,6 +51,7 @@ export function ResourceLibraryPicker({
   onSelect,
   onClear,
   variant = 'default',
+  layout = 'list',
   className,
   listClassName,
 }: ResourceLibraryPickerProps) {
@@ -98,6 +100,7 @@ export function ResourceLibraryPicker({
       pageCount={pageCount}
       showClear={!!selectedResource}
       variant={variant}
+      layout={layout}
       className={className}
       listClassName={listClassName}
       onSearch={onSearch}

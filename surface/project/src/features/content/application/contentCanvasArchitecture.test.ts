@@ -77,14 +77,17 @@ import {
   contentCanvasDocumentNodeIds,
   contentCanvasDocumentPositions,
   contentCanvasDocumentFromProjectDocument,
+  contentCanvasDocumentsHaveUnsavedProjectChanges,
   contentCanvasDocumentsStateFromProjectCanvases,
   contentCanvasDocumentScope,
   contentCanvasProjectDocumentFromDocument,
   createContentCanvasDocument,
   ensureContentCanvasDocumentsState,
   readContentCanvasDocumentsState,
+  renameContentCanvasDocument,
   removeContentCanvasDocumentNodes,
   removeContentCanvasDocumentNodesEverywhere,
+  saveContentCanvasDocumentsToProject,
   selectContentCanvasDocument,
   updateContentCanvasDocumentViewport,
 } from './contentCanvasDocuments'
@@ -750,6 +753,10 @@ test('content canvas workspace page delegates pane layout to route layout contro
   const inspectorCandidatesCssSource = readFileSync(resolve('src/features/content/components/ContentCanvasWorkspacePage.inspector-candidates.css'), 'utf8')
   const promptCanvasCssSource = readFileSync(resolve('src/features/content/components/ContentCanvasWorkspacePage.prompt-canvas.css'), 'utf8')
   const workspaceCssSource = readFileSync(resolve('src/features/content/components/ContentCanvasWorkspacePage.css'), 'utf8')
+  const previewCandidatePromptSource = controllerSource.slice(
+    controllerSource.indexOf('const previewCandidatePromptForNode'),
+    controllerSource.indexOf('const createCandidateForNode'),
+  )
   const cssSource = [
     'ContentCanvasWorkspacePage.base.css',
     'ContentCanvasWorkspacePage.layout.css',
@@ -816,6 +823,10 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(createDialogSource, /CreateDialogPlanPreview/)
   assert.match(createDialogSource, /structureCreateDialogPlanItems/)
   assert.match(createDialogSource, /settingCreateDialogPlanItems/)
+  assert.match(cssSource, /\.content-canvas-create-dialog,\s*\n\.content-canvas-create-dialog__select-content\s*\{[\s\S]*--cc-panel:/)
+  assert.match(cssSource, /\.content-canvas-create-dialog\s*\{[\s\S]*background:[\s\S]*var\(--cc-panel\)/)
+  assert.match(cssSource, /\.content-canvas-create-dialog\s+\.ms-dialog__header/)
+  assert.match(cssSource, /\.content-canvas-create-dialog__select-content\s*\{[\s\S]*background:\s*var\(--cc-panel\)/)
   assert.match(promptCanvasPanelSource, /groups: quickAdd\.groups/)
   assert.match(promptCanvasPanelSource, /primaryOption: directQuickAddOption\('task_image', '图片'\)/)
   assert.match(promptCanvasPanelSource, /primaryOption: directQuickAddOption\('task_video', '视频'\)/)
@@ -853,6 +864,8 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(promptCanvasPanelSource, /<ContentCanvasPromptEditor/)
   assert.match(promptCanvasPanelSource, /onChange=\{\(prompt\) => data\.onPromptDraftChange/)
   assert.match(promptCanvasPanelSource, /onBlur=\{\(prompt\) => data\.onPromptCommit/)
+  assert.doesNotMatch(promptCanvasPanelSource, /appendContentNodeReferenceToPrompt\(currentPrompt, sourceNode\)[\s\S]{0,180}onPromptCommit/)
+  assert.doesNotMatch(promptCanvasPanelSource, /appendContentNodeReferenceToPrompt\(currentPrompt, source\)[\s\S]{0,180}onPromptCommit/)
   assert.match(promptCanvasPanelSource, /editablePromptNodeIds\.has\(target\.id\)/)
   assert.match(promptCanvasPanelSource, /buildCreativeCanvasGraph/)
   assert.match(promptCanvasPanelSource, /buildCreativeCanvasGraph\(\{ nodes, edges \}, \{ nodeIds: canvasNodeIds \}\)/)
@@ -861,6 +874,10 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(promptCanvasPanelSource, /creativeCanvasActionsForNode/)
   assert.match(promptCanvasPanelSource, /onNodeDragStop/)
   assert.match(promptCanvasPanelSource, /onNodeClick=/)
+  assert.match(promptCanvasPanelSource, /suppressNextNodeClickRef/)
+  assert.match(promptCanvasPanelSource, /if \(suppressNextNodeClickRef\.current\)/)
+  assert.match(promptCanvasPanelSource, /onNodeDragStart=\{\(\) => \{[\s\S]*suppressNextNodeClickRef\.current = true/)
+  assert.doesNotMatch(promptCanvasPanelSource, /onNodeDragStart=\{\(_event, node\) => selectPromptCanvasNode\(node\.id\)\}/)
   assert.doesNotMatch(promptCanvasPanelSource, /onDoubleClick=\{\(\) => data\.onSelectNode/)
   assert.match(promptCanvasPanelSource, /onContextMenu/)
   assert.match(promptCanvasPanelSource, /zoomOnScroll=\{false\}/)
@@ -881,7 +898,8 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(promptCanvasPanelSource, /const focused = data\.focused/)
   assert.match(promptCanvasPanelSource, /const expanded = focused/)
   assert.doesNotMatch(promptCanvasPanelSource, /const expanded = Boolean\(selected\)/)
-  assert.match(promptCanvasPanelSource, /onNodeDragStart=\{\(_event, node\) => selectPromptCanvasNode\(node\.id\)\}/)
+  assert.match(promptCanvasPanelSource, /onNodeDragStart=\{\(\) => \{[\s\S]*suppressNextNodeClickRef\.current = true/)
+  assert.doesNotMatch(promptCanvasPanelSource, /onNodeDragStart=\{\(_event, node\) => selectPromptCanvasNode\(node\.id\)\}/)
   assert.match(promptCanvasPanelSource, /flowNodes\.find\(\(node\) => node\.selected\)[\s\S]*flowNodes\.find\(\(node\) => node\.id === focusedNodeId\)/)
   assert.match(promptCanvasPanelSource, /flowInstance\.setCenter/)
   assert.match(promptCanvasPanelSource, /onInit=\{setFlowInstance\}/)
@@ -901,21 +919,34 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(promptCanvasPanelSource, /resourceDropAcceptsPayload/)
   assert.match(promptCanvasPanelSource, /readResourceDragPayload/)
   assert.match(promptCanvasPanelSource, /onResourceDrop/)
-  assert.match(promptCanvasPanelSource, /onDrop=\{handleCanvasResourceDrop\}/)
-  assert.match(promptCanvasPanelSource, /screenToFlowPosition\(\{ x: event\.clientX, y: event\.clientY \}\)/)
+  assert.match(promptCanvasPanelSource, /CONTENT_PROMPT_CANVAS_NODE_DRAG_MIME/)
+  assert.match(promptCanvasPanelSource, /onDrop=\{handleCanvasDrop\}/)
+  assert.match(promptCanvasPanelSource, /onDragOver=\{handleCanvasDragOver\}/)
+  assert.match(promptCanvasPanelSource, /flowPositionForClientPoint\(event\.clientX, event\.clientY\)/)
   assert.match(promptCanvasPanelSource, /creativeCanvasResourceTargetForPosition/)
   assert.match(promptCanvasPanelSource, /contentCanvasUploadedResourceFromDropEvent/)
+  assert.match(promptCanvasPanelSource, /contentCanvasNodeCanRenderInPromptCanvas/)
+  assert.match(promptCanvasPanelSource, /isCreativeCanvasVisibleNode\(node\)/)
   assert.match(controllerSource, /position\?: ContentCanvasNodePosition/)
   assert.match(controllerSource, /createCandidateFromResourceForContentUnit\(projectId, contentUnitNode, resource, position, gateway\)/)
   assert.match(promptCanvasPanelSource, /appendReferenceToActivePrompt/)
   assert.match(promptCanvasPanelSource, /content-prompt-flow-node__candidate-reference/)
   assert.match(promptCanvasPanelSource, /draggable/)
+  assert.match(promptCanvasPanelSource, /draggable=\{!alreadyAdded\}/)
+  assert.match(promptCanvasPanelSource, /draggable=\{!disabled\}/)
   assert.match(resourceLibraryPickerSource, /startResourceDragSource/)
   assert.match(resourceLibraryPickerUiSource, /onDragStart/)
   assert.match(resourceLibraryPickerUiSource, /draggable=\{Boolean\(item\.onDragStart\)\}/)
   assert.match(promptCanvasPanelSource, /candidatePreviews: CreativeFlowNodeCandidatePreview\[\]/)
   assert.match(promptCanvasPanelSource, /candidatePreviewsForNode/)
-  assert.match(promptCanvasPanelSource, /data\.candidatePreviews\.map/)
+  assert.match(promptCanvasPanelSource, /statusTone: 'ready' \| 'running' \| 'failed' \| 'imported' \| 'neutral'/)
+  assert.match(promptCanvasPanelSource, /failureReason\?: string/)
+  assert.match(promptCanvasPanelSource, /candidateFailureReason/)
+  assert.match(promptCanvasPanelSource, /content-prompt-flow-node__candidate-detail/)
+  assert.match(promptCanvasPanelSource, /content-prompt-flow-node__candidate-retry/)
+  assert.match(promptCanvasPanelSource, /ContentPromptCandidatePreviewDiagnostics/)
+  assert.match(promptCanvasPanelSource, /candidateRetryGenerationOptions/)
+  assert.match(promptCanvasPanelSource, /pagedCandidatePreviews\.map/)
   assert.match(promptCanvasPanelSource, /variant !== 'resource'/)
   assert.match(promptCanvasPanelSource, /memo\(ContentPromptFlowNode,\s*areCreativeFlowNodePropsEqual\)/)
   assert.match(promptCanvasPanelSource, /onlyRenderVisibleElements/)
@@ -936,10 +967,17 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.doesNotMatch(creativeLayoutSource, /lanesByRank\.set\(rank,\s*\[\.\.\./)
   assert.doesNotMatch(creativeLayoutSource, /outgoing\.set\(edge\.source,\s*\[\.\.\./)
   assert.doesNotMatch(promptCanvasCssSource.match(/\.content-prompt-flow-node__candidate-list\s*\{[\s\S]*?\}/)?.[0] ?? '', /max-height|overflow/)
-  assert.match(promptCanvasCssSource.match(/\.content-prompt-flow-node__candidate-panel \.content-prompt-flow-node__candidate-list\s*\{[\s\S]*?\}/)?.[0] ?? '', /max-height:\s*142px/)
+  assert.match(promptCanvasCssSource.match(/\.content-prompt-flow-node__candidate-panel \.content-prompt-flow-node__candidate-list\s*\{[\s\S]*?\}/)?.[0] ?? '', /max-height:\s*220px/)
   assert.match(promptCanvasCssSource.match(/\.content-prompt-flow-node__candidate-panel \.content-prompt-flow-node__candidate-list\s*\{[\s\S]*?\}/)?.[0] ?? '', /overflow:\s*auto/)
+  assert.match(promptCanvasCssSource.match(/\.content-prompt-flow-node__candidate-panel \.content-prompt-flow-node__candidate-list\[data-paged="true"\]\s*\{[\s\S]*?\}/)?.[0] ?? '', /max-height:\s*162px/)
+  assert.match(promptCanvasPanelSource, /content-prompt-flow-node__candidate-list nowheel/)
   assert.match(promptCanvasCssSource.match(/\.content-prompt-flow-node__candidate\[data-preview-kind="resource"\]\s*\{[\s\S]*?\}/)?.[0] ?? '', /display:\s*block/)
   assert.match(promptCanvasCssSource, /\.content-prompt-flow-node__candidate-reference/)
+  assert.match(promptCanvasCssSource, /\.content-prompt-flow-node__candidate-detail/)
+  assert.match(promptCanvasCssSource, /\.content-prompt-flow-node__candidate-retry/)
+  assert.match(promptCanvasCssSource, /\.content-prompt-flow-node__candidate\[data-status="failed"\]/)
+  assert.match(promptCanvasCssSource, /\.content-prompt-candidate-preview-dialog__diagnostics/)
+  assert.match(promptCanvasCssSource, /\.content-prompt-candidate-preview-dialog__retry/)
   assert.match(promptCanvasCssSource, /\.content-prompt-flow-node__preview-card/)
   assert.match(promptCanvasCssSource, /\.content-prompt-flow-node__prompt-panel/)
   assert.match(promptCanvasCssSource.match(/\.content-prompt-flow-node\[data-expanded="true"\] \.content-prompt-flow-node__preview-card\s*\{[\s\S]*?\}/)?.[0] ?? '', /justify-self:\s*center/)
@@ -954,26 +992,47 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(promptCanvasCssSource, /\.content-prompt-canvas-node-drawer__row\s*\{/)
   assert.match(promptCanvasCssSource, /\.content-prompt-canvas-panel__canvas-select\s*\{/)
   assert.match(promptCanvasCssSource, /\.content-prompt-canvas-asset-drawer \.content-canvas-resource-candidate-picker\s*\{/)
+  assert.match(promptCanvasCssSource, /\.content-prompt-canvas-asset-drawer__grid\s*\{/)
+  assert.match(promptCanvasCssSource, /\.content-prompt-canvas-asset-card__thumb\s*\{/)
+  assert.match(promptCanvasPanelSource, /aria-label="保存内容画布"/)
+  assert.match(promptCanvasPanelSource, /onSaveCanvas/)
   assert.match(promptCanvasPanelSource, /contentCanvasDocumentScope\(activeCanvasDocument\)/)
   assert.match(promptCanvasPanelSource, /contentCanvasNodeLibraryNodes\(nodes, nodeLibraryQuery, activeCanvasScope\)/)
   assert.match(promptCanvasPanelSource, /ContentPromptCanvasQuickCreateDialog[\s\S]*activeCanvasScope=\{activeCanvasScope\}/)
   assert.match(promptCanvasPanelSource, /contentCanvasTimelineNamespaceParentsForSceneMoment\(nodes, activeCanvasScope\)/)
   assert.match(promptCanvasPanelSource, /disabled=\{Boolean\(scopedProductionId\)\}/)
   assert.match(promptCanvasPanelSource, /contentCanvasNodeCanJoinDocument/)
-  assert.match(promptCanvasPanelSource, /contentCanvasNodeIsGlobalSettingScoped/)
+  assert.doesNotMatch(promptCanvasPanelSource, /contentCanvasNodeIsGlobalSettingScoped/)
 
   assert.doesNotMatch(panelsSource, /CanvasStagePanel/)
   assert.doesNotMatch(panelsSource, /ContentCanvasStarCanvas/)
   assert.doesNotMatch(panelsSource, /useContentCanvasRadialLayout/)
 
   assert.match(controllerSource, /useQuery/)
+  assert.match(controllerSource, /staleTime: CONTENT_CANVAS_PROJECT_QUERY_STALE_MS/)
+  assert.match(controllerSource, /refetchOnWindowFocus: false/)
+  assert.match(controllerSource, /refetchOnReconnect: false/)
+  assert.match(controllerSource, /CONTENT_CANVAS_ACTIVE_CANDIDATE_REFRESH_MS = 10_000/)
+  assert.match(controllerSource, /activeContentUnitCandidateJobIds\.length === 0/)
   assert.match(controllerSource, /buildContentCanvasWorkspaceViewModel/)
   assert.match(controllerSource, /lastCommittedPromptByNodeIdRef/)
+  assert.match(controllerSource, /type RunCanvasCommandOptions = \{[\s\S]*silentSuccess\?: boolean/)
+  assert.match(controllerSource, /if \(!options\.silentSuccess\) toast\.success\(result\.message\)/)
+  assert.match(controllerSource, /runCanvasCommand\(`prompt:\$\{targetNode\.id\}`[\s\S]*\{ silentSuccess: true \}/)
+  assert.match(previewCandidatePromptSource, /const previewPromptText = promptDraft \?\? promptFromContentNode\(target\.node\) \?\? ''/)
+  assert.match(previewCandidatePromptSource, /if \(!target\.node\.sourcePath\)/)
+  assert.match(previewCandidatePromptSource, /promptText: previewPromptText/)
+  assert.doesNotMatch(previewCandidatePromptSource, /ensureCandidateContentUnitWithPrompt/)
+  assert.match(electronGatewaySource, /promptText: input\.promptText/)
+  assert.match(electronGatewaySource, /text: promptText/)
   assert.doesNotMatch(controllerSource, /const lastCommittedPromptByNodeId: Record/)
   assert.match(controllerSource, /readContentCanvasDocumentsState/)
   assert.match(controllerSource, /addContentCanvasDocumentNodes/)
   assert.match(controllerSource, /updateContentCanvasDocumentNodePositions/)
-  assert.match(controllerSource, /updateContentCanvasDocumentViewport/)
+  assert.match(controllerSource, /readContentCanvasViewState/)
+  assert.match(controllerSource, /updateContentCanvasViewport/)
+  assert.match(controllerSource, /saveContentCanvasDocumentsToProject/)
+  assert.doesNotMatch(controllerSource, /updateContentCanvasDocumentViewport/)
   assert.match(controllerSource, /const selectNode = useCallback\(\(kind: InspectorSelectionRef\['kind'\], nodeId: string\) => \{[\s\S]*setActiveCanvasNodeId\(nodeId\)[\s\S]*setSelection\(\{ kind, nodeId \}\)/)
   assert.match(controllerSource, /commitCreativeCanvasViewport/)
   assert.match(controllerSource, /addCommandResultNodesToActiveCanvas/)
@@ -1012,7 +1071,7 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(workspaceCreationCommandsSource, /export function useContentCanvasWorkspaceCreationCommands/)
   assert.match(workspaceCreationCommandsSource, /createRootContentCanvasNode/)
   assert.match(workspaceCreationCommandsSource, /createChildContentCanvasNode/)
-  assert.match(workspaceCreationCommandsSource, /\{ input, position \}/)
+  assert.match(workspaceCreationCommandsSource, /\{\s*input: [\s\S]*?position[\s\S]*?\}/)
   assert.doesNotMatch(workspaceCreationCommandsSource, /ensureDefaultContentUnitFromCanvasNode/)
   assert.doesNotMatch(workspaceCreationCommandsSource, /childKind === 'content_unit'/)
   assert.match(workspaceCreationCommandsSource, /createSceneMomentCanvasNode/)
@@ -1078,6 +1137,9 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(promptReferencesSource, /:\{1,2\}/)
   assert.doesNotMatch(promptCanvasPanelSource, /<PromptReferenceStrip/)
   assert.match(promptReferencesSource, /serializePromptEditor/)
+  assert.match(promptReferencesSource, /onBlur\(serializePromptEditor\(event\.currentTarget\)\)/)
+  assert.doesNotMatch(promptReferencesSource, /onBlur\(nextPrompt\)/)
+  assert.doesNotMatch(promptReferencesSource, /insertPromptReferenceToken\(\{[\s\S]*onBlur,[\s\S]*setMentionRange/)
   assert.match(promptReferencesSource, /data-state=\{reference\.state\}/)
   assert.match(promptReferencesSource, /selectedResourceId/)
   assert.match(promptReferencesSource, /explicitSelectedCandidateForNode/)
@@ -1792,6 +1854,7 @@ test('content canvas documents store project-scoped node refs and layout', () =>
     }])
     const secondState = createContentCanvasDocument(91, { title: '收尾帧互联' })
     const secondCanvasId = secondState?.activeCanvasId ?? ''
+    assert.equal(secondState?.documents[secondCanvasId]?.title, '收尾帧互联')
     assert.deepEqual(contentCanvasDocumentScope(secondState?.documents[secondCanvasId]), { kind: 'global' })
     addContentCanvasDocumentNodes(91, secondCanvasId, [{
       nodeId: 'scene_moment:ending',
@@ -1829,6 +1892,7 @@ test('content canvas documents store project-scoped node refs and layout', () =>
     const projectDocument = contentCanvasProjectDocumentFromDocument(productionCanvas!)
     assert.equal(projectDocument.schema, CONTENT_CANVAS_PROJECT_DOCUMENT_SCHEMA)
     assert.equal(projectDocument.kind, 'content_canvas')
+    assert.equal(projectDocument.name, 'Pilot 画布')
     assert.deepEqual(projectDocument.scope, {
       kind: 'production',
       production_id: 'pilot',
@@ -1847,7 +1911,11 @@ test('content canvas documents store project-scoped node refs and layout', () =>
       source: 'manual',
       updated_at: second?.nodeLayouts?.['scene_moment:ending']?.updatedAt,
     })
-    assert.deepEqual(contentCanvasDocumentFromProjectDocument(secondProjectDocument)?.viewport, { x: -200, y: -80, zoom: 0.72 })
+    assert.equal('viewport' in secondProjectDocument, false)
+    assert.deepEqual(contentCanvasDocumentFromProjectDocument({
+      ...secondProjectDocument,
+      viewport: { x: -200, y: -80, zoom: 0.72 },
+    })?.viewport, { x: -200, y: -80, zoom: 0.72 })
     const projectState = contentCanvasDocumentsStateFromProjectCanvases(91, {
       canvases: [
         { record: projectDocument },
@@ -1860,6 +1928,38 @@ test('content canvas documents store project-scoped node refs and layout', () =>
       productionId: 'pilot',
       productionTitle: 'Pilot',
     })
+    const legacyProjectState = contentCanvasDocumentsStateFromProjectCanvases(91, {
+      canvases: [
+        {
+          path: 'content_canvases/legacy_board/canvas.json',
+          canvas: {
+            name: '旧画布',
+            nodes: {
+              opening: { nodeId: 'scene_moment:opening', kind: 'scene_moment' },
+            },
+          },
+        },
+        {
+          path: 'content_canvases/nameless/canvas.json',
+          record: {
+            canvas_id: 'canvas:old-id',
+            nodes: [],
+          },
+        },
+      ],
+    })
+    const legacyCanvas = Object.values(legacyProjectState?.documents ?? {}).find((document) => document.title === '旧画布')
+    assert.equal(legacyCanvas?.id, 'legacy_board')
+    assert.deepEqual(contentCanvasDocumentNodeIds(legacyCanvas), ['scene_moment:opening'])
+    assert.equal(legacyProjectState?.documents['canvas:old-id']?.title, 'nameless')
+    renameContentCanvasDocument(91, secondCanvasId, '收尾帧镜头关系')
+    assert.equal(readContentCanvasDocumentsState(91)?.documents[secondCanvasId]?.title, '收尾帧镜头关系')
+    renameContentCanvasDocument(91, secondCanvasId, 'Pilot 画布')
+    assert.equal(readContentCanvasDocumentsState(91)?.documents[secondCanvasId]?.title, 'Pilot 画布')
+    assert.throws(
+      () => createContentCanvasDocument(91, { title: '' }),
+      /请输入内容画布名称/,
+    )
 
     removeContentCanvasDocumentNodes(91, firstCanvasId, ['scene_moment:ending'])
     assert.deepEqual(contentCanvasDocumentNodeIds(readContentCanvasDocumentsState(91)?.documents[firstCanvasId]), [])
@@ -1871,6 +1971,59 @@ test('content canvas documents store project-scoped node refs and layout', () =>
 
     selectContentCanvasDocument(91, firstCanvasId)
     assert.equal(readContentCanvasDocumentsState(91)?.activeCanvasId, firstCanvasId)
+  } finally {
+    restoreWindow()
+  }
+})
+
+test('content canvas explicit save writes only dirty canvas documents', async () => {
+  const restoreWindow = installLocalStorageFixture()
+  try {
+    const writes: Record<string, unknown>[] = []
+    Object.assign((globalThis as typeof globalThis & { window: { api?: Record<string, unknown> } }).window, {
+      api: {
+        setDesktopState: async () => ({}),
+        writeMovScriptEngineContentCanvas: async (input: Record<string, unknown>) => {
+          writes.push(input)
+          return { status: 'written' }
+        },
+      },
+    })
+
+    const initial = ensureContentCanvasDocumentsState(92)
+    const firstCanvasId = initial?.activeCanvasId ?? ''
+    assert.ok(firstCanvasId)
+    assert.equal(contentCanvasDocumentsHaveUnsavedProjectChanges(92), true)
+
+    assert.deepEqual(await saveContentCanvasDocumentsToProject(92), { savedCount: 1 })
+    assert.equal(writes.length, 1)
+    assert.equal((writes[0]?.canvas as { id?: string } | undefined)?.id, firstCanvasId)
+    assert.equal(contentCanvasDocumentsHaveUnsavedProjectChanges(92), false)
+
+    const secondState = createContentCanvasDocument(92, { title: '第二张画布' })
+    const secondCanvasId = secondState?.activeCanvasId ?? ''
+    assert.ok(secondCanvasId)
+    selectContentCanvasDocument(92, firstCanvasId)
+    assert.equal(contentCanvasDocumentsHaveUnsavedProjectChanges(92), true)
+
+    writes.length = 0
+    assert.deepEqual(await saveContentCanvasDocumentsToProject(92), { savedCount: 1 })
+    assert.equal(writes.length, 1)
+    assert.equal((writes[0]?.canvas as { id?: string } | undefined)?.id, secondCanvasId)
+    assert.equal(contentCanvasDocumentsHaveUnsavedProjectChanges(92), false)
+
+    updateContentCanvasDocumentViewport(92, firstCanvasId, { x: -100, y: -50, zoom: 0.8 })
+    assert.equal(contentCanvasDocumentsHaveUnsavedProjectChanges(92), false)
+
+    addContentCanvasDocumentNodes(92, firstCanvasId, [{
+      nodeId: 'scene_moment:dirty',
+      kind: 'scene_moment',
+      position: { x: 10, y: 20 },
+    }])
+    writes.length = 0
+    assert.deepEqual(await saveContentCanvasDocumentsToProject(92), { savedCount: 1 })
+    assert.equal(writes.length, 1)
+    assert.equal((writes[0]?.canvas as { id?: string } | undefined)?.id, firstCanvasId)
   } finally {
     restoreWindow()
   }
@@ -1898,12 +2051,37 @@ test('content canvas storage stays separate from workflow canvas service', () =>
   assert.match(documentsSource, /listMovScriptEngineContentCanvases/)
   assert.match(documentsSource, /writeMovScriptEngineContentCanvas/)
   assert.match(documentsSource, /contentCanvasProjectEnvelope/)
+  assert.match(documentsSource, /contentCanvasDocumentsProjectDirtyCanvasIds/)
+  assert.match(documentsSource, /persistProjectContentCanvasDocumentsState\(projectId, current, api, dirtyCanvasIds\)/)
+  assert.match(contentCanvasSources[1][1], /title="新建内容画布"/)
+  assert.match(contentCanvasSources[1][1], /title="重命名内容画布"/)
+  assert.match(contentCanvasSources[1][1], /<ContentCanvasNameDialog/)
+  assert.match(contentCanvasSources[1][1], /CONTENT_PROMPT_NODE_CANDIDATE_PAGE_SIZE = 3/)
+  assert.match(contentCanvasSources[1][1], /<ContentPromptFlowNodeCandidatePager/)
+  assert.match(contentCanvasSources[1][1], /contentCanvasDocumentTitleValidationMessage/)
   assert.match(contentCanvasSources[3][1], /\[canvasDocumentsVersion, projectId, requestedCanvasId\]/)
-  assert.match(hostApiSource, /sourceCommand\('listContentCanvases'/)
-  assert.match(hostApiSource, /sourceCommand\('writeContentCanvas'/)
+  assert.match(hostApiSource, /\/v1\/project\/content-canvases\/list/)
+  assert.match(hostApiSource, /\/v1\/project\/content-canvases\/write/)
+  assert.match(hostApiSource, /\/v1\/project\/content-canvases\/rename/)
+  assert.match(hostApiSource, /\/v1\/project\/content-canvases\/run/)
+  assert.doesNotMatch(hostApiSource, /sourceCommand\('(listContentCanvases|writeContentCanvas|renameContentCanvas|runContentCanvas|deleteContentCanvas)'/)
   assert.match(projectServiceSource, /CONTENT_CANVAS_DIRECTORY = 'content_canvases'/)
+  assert.match(projectServiceSource, /renameProjectContentCanvas/)
+  assert.match(projectServiceSource, /runProjectContentCanvas/)
+  assert.match(projectServiceSource, /movscript\.content_canvas_run\.v1/)
+  assert.match(projectServiceSource, /name: title/)
   assert.match(desktopPreloadSource, /listMovScriptEngineContentCanvases/)
   assert.match(desktopPreloadSource, /writeMovScriptEngineContentCanvas/)
+  assert.match(desktopPreloadSource, /renameMovScriptEngineContentCanvas/)
+  assert.match(desktopPreloadSource, /runMovScriptEngineContentCanvas/)
+  assert.match(desktopPreloadSource, /PROJECT_CONTENT_CANDIDATE_CREATE_ENDPOINT = '\/v1\/project\/content-candidates\/create'/)
+  assert.match(desktopPreloadSource, /PROJECT_CONTENT_CANVAS_RENAME_ENDPOINT = '\/v1\/project\/content-canvases\/rename'/)
+  assert.match(desktopPreloadSource, /daemonProjectContentCanvasRequest\(ipcRenderer, PROJECT_CONTENT_CANVAS_RUN_ENDPOINT/)
+  assert.doesNotMatch(desktopPreloadSource, /PROJECT_CANDIDATE_COMMAND_ENDPOINT|\/v1\/project\/candidates\/command/)
+  assert.doesNotMatch(desktopPreloadSource, /PROJECT_SOURCE_COMMAND_ENDPOINT/)
+  assert.doesNotMatch(desktopPreloadSource, /\bdaemonProjectSourceCommand\b/)
+  assert.doesNotMatch(desktopPreloadSource, /daemonProjectSourceCommand\(ipcRenderer, '(listContentCanvases|writeContentCanvas|renameContentCanvas|runContentCanvas|deleteContentCanvas)'/)
+  assert.doesNotMatch(desktopPreloadSource, /ipcRenderer\.invoke\('movscript:engine-/)
   assert.match(desktopIpcSource, /movscript:engine-content-canvases-list/)
   assert.match(desktopIpcSource, /movscript:engine-content-canvas-write/)
   assert.match(desktopProjectEngineSource, /CONTENT_CANVAS_DIRECTORY = 'content_canvases'/)
@@ -6734,6 +6912,9 @@ function installLocalStorageFixture(): () => void {
     value: {
       localStorage: storage,
       sessionStorage: storage,
+      location: {
+        search: '',
+      },
     },
     configurable: true,
   })

@@ -71,6 +71,7 @@ import {
   queryMovScriptEngineWorkspaceEntities,
   queryMovScriptEngineWorkspaceSettings,
   readMovScriptEngineWorkspaceScriptSource,
+  renameMovScriptEngineContentCanvas,
   saveMovScriptEngineWorkspaceProductionSnapshot,
   selectMovScriptEngineWorkspaceCandidate,
   selectMovScriptEngineContentUnitCandidate,
@@ -102,6 +103,9 @@ export function registerMovScriptEngineIpcHandlers(): void {
   })
   ipcMain.handle('movscript:engine-content-canvas-write', (_event, input: ElectronMovScriptEngineContentCanvasInput) => {
     return writeMovScriptEngineContentCanvas(input)
+  })
+  ipcMain.handle('movscript:engine-content-canvas-rename', (_event, input: ElectronMovScriptEngineContentCanvasInput) => {
+    return renameMovScriptEngineContentCanvas(input)
   })
   ipcMain.handle('movscript:engine-content-canvas-delete', (_event, input: ElectronMovScriptEngineContentCanvasInput) => {
     return deleteMovScriptEngineContentCanvas(input)

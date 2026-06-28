@@ -209,6 +209,7 @@ export function buildGenerationAppBootstrapScenario(
 
   return {
     appSettings: {
+      dataConnection: { kind: 'cloud', url: apiBaseURL },
       apiBaseURL,
       launchMode: 'cloud',
       onboardingCompleted: true,

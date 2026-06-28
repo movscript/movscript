@@ -105,10 +105,9 @@ export function PromptReferenceInlineEditor({
       token: promptResourceReferenceToken(payload.resourceId),
       prompt,
       onChange,
-      onBlur,
       setMentionRange,
     })
-  }, [onBlur, onChange, prompt])
+  }, [onChange, prompt])
   const handleMouseDown = useCallback((event: MouseEvent<HTMLDivElement>) => {
     const target = event.target instanceof HTMLElement
       ? event.target.closest<HTMLElement>('[data-prompt-reference-raw]')
@@ -136,7 +135,6 @@ export function PromptReferenceInlineEditor({
         token: mentionOptions[0].raw,
         prompt,
         onChange,
-        onBlur,
         setMentionRange,
         range: mentionRange,
       })
@@ -145,7 +143,7 @@ export function PromptReferenceInlineEditor({
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
       event.currentTarget.blur()
     }
-  }, [mentionOptions, mentionRange, onBlur, onChange, prompt])
+  }, [mentionOptions, mentionRange, onChange, prompt])
 
   return (
     <div className="content-canvas-prompt-inline-editor-shell">
@@ -177,7 +175,6 @@ export function PromptReferenceInlineEditor({
               token: option.raw,
               prompt,
               onChange,
-              onBlur,
               setMentionRange,
               range: mentionRange,
             })
@@ -486,7 +483,6 @@ function insertPromptReferenceToken({
   token,
   prompt,
   onChange,
-  onBlur,
   setMentionRange,
   range,
 }: {
@@ -494,7 +490,6 @@ function insertPromptReferenceToken({
   token: string
   prompt: string
   onChange: (prompt: string) => void
-  onBlur: (prompt: string) => void
   setMentionRange: (range: PromptMentionRange | null) => void
   range?: PromptMentionRange | null
 }) {
@@ -505,7 +500,6 @@ function insertPromptReferenceToken({
     if (range) {
       const nextPrompt = `${value.slice(0, range.start)}${value.slice(range.end)}`.replace(/[ \t]{2,}/g, ' ')
       onChange(nextPrompt)
-      onBlur(nextPrompt)
     }
     return
   }
@@ -518,7 +512,6 @@ function insertPromptReferenceToken({
   const nextPrompt = `${prefix}${separatorBefore}${token}${separatorAfter}${suffix}`
   setMentionRange(null)
   onChange(nextPrompt)
-  onBlur(nextPrompt)
   requestAnimationFrame(() => {
     editor.focus()
     placeCaretAtEnd(editor)

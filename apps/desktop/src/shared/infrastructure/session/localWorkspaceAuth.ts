@@ -1,4 +1,4 @@
-import { isLocalLaunchMode } from '@/shared/infrastructure/config'
+import { isLocalDataConnection } from '@/shared/infrastructure/config'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import {
   LOCAL_WORKSPACE_ORG,
@@ -25,7 +25,7 @@ async function ensureLocalWorkspaceAuthSessionOnce(options: {
 }): Promise<AuthSession> {
   if (options.requireActiveLocalMode !== false) {
     const latestSettings = useAppSettingsStore.getState().settings
-    if (!latestSettings.onboardingCompleted || !isLocalLaunchMode(latestSettings)) {
+    if (!latestSettings.onboardingCompleted || !isLocalDataConnection(latestSettings)) {
       throw new Error('Local workspace mode is no longer active.')
     }
   }

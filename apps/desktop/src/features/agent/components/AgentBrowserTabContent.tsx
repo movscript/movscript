@@ -5,13 +5,14 @@ import {
 } from '@/features/agent/components/AgentBrowserUi'
 
 import { CanvasListView } from '@movscript/canvas-surface/pages'
-import { ProjectStandardsContent } from '@movscript/project-surface/react'
+import { ProjectStandardsSurface } from '@movscript/project-surface/react'
 import { ExternalResourceSearchPage, ResourceLibraryView } from '@movscript/resource-surface/pages'
 import type { Project } from '@/types'
 import { AgentSessionOutputPane } from '@/features/agent/components/AgentSessionOutputPane'
 import { AgentBrowserEditingProjectsPane } from '@/features/agent/components/AgentBrowserEditingProjectsPane'
 import { ProjectHomeBrowserPage } from '@/features/agent/components/AgentBrowserProjectHomePage'
 import { AgentBrowserBlankWebTab } from '@/features/agent/components/AgentBrowserBlankWebTab'
+import { DesktopProjectSurfaceProvider } from '@/features/app-shell/application/desktopProjectSurfaceRuntime'
 import type {
   AgentBrowserContentTab,
   AgentBrowserWebTabState,
@@ -96,7 +97,9 @@ export function AgentBrowserTabContent({
   if (activeTab?.kind === 'project_standards') {
     return (
       <AgentBrowserInternalPane>
-        <ProjectStandardsContent />
+        <DesktopProjectSurfaceProvider>
+          <ProjectStandardsSurface />
+        </DesktopProjectSurfaceProvider>
       </AgentBrowserInternalPane>
     )
   }

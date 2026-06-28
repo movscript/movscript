@@ -94,6 +94,8 @@ export default function ContentCanvasWorkspacePage({
           manualPositions={controller.creativeCanvasNodePositions}
           namespaceVocabulary={controller.namespaceVocabulary}
           savedViewport={controller.creativeCanvasViewport}
+          savePending={controller.creativeCanvasSavePending}
+          hasUnsavedChanges={controller.creativeCanvasHasUnsavedChanges}
           nodes={workspaceNodes}
           onAddNodeToCanvas={controller.addNodeToCreativeCanvas}
           onCandidateCreate={controller.createCandidateForNode}
@@ -118,6 +120,8 @@ export default function ContentCanvasWorkspacePage({
           onRemoveNodeFromCanvas={controller.removeNodeFromCreativeCanvas}
           onStructuredPromptCommit={controller.commitStructuredPromptDraft}
           onResourceOpen={controller.openResourceNode}
+          onRenameCanvas={controller.renameFreeCreativeCanvasDocument}
+          onSaveCanvas={controller.saveCreativeCanvasDocuments}
           onSelectCanvas={controller.selectFreeCreativeCanvasDocument}
           onSelectNode={controller.selectNode}
         />

@@ -1,6 +1,6 @@
 import { readBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
-import { getAPIBaseURL, getLocalAPIBaseURL, isLocalLaunchMode } from '@/shared/infrastructure/config'
+import { getAPIBaseURL, getSettingsDaemonGatewayBaseURL, isLocalDataConnection } from '@/shared/infrastructure/config'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { LOCAL_WORKSPACE_ORG, LOCAL_WORKSPACE_USER, useUserStore } from '@/shared/infrastructure/session/userStore'
 import i18n from '@/i18n'
@@ -27,8 +27,8 @@ export async function openAdminConsole(baseURL?: string, path = ''): Promise<voi
   const electronApi = readElectronApi()
   const state = useUserStore.getState()
   const settings = useAppSettingsStore.getState().settings
-  const localMode = isLocalLaunchMode(settings)
-  const adminBaseURL = baseURL ?? (localMode ? settings.localAPIBaseURL || getLocalAPIBaseURL() : getAPIBaseURL())
+  const localMode = isLocalDataConnection(settings)
+  const adminBaseURL = baseURL ?? (localMode ? getSettingsDaemonGatewayBaseURL(settings) : getAPIBaseURL())
   const language = resolveAdminLanguage()
   const theme = resolveAdminTheme()
   const authSession = createAdminConsoleAuthSession({

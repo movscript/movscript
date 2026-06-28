@@ -24,8 +24,9 @@ test('local workspace auth establishes local owner identity without a token', as
     settings: {
       ...state.settings,
       launchMode: 'local',
+      dataConnection: { kind: 'local', url: 'http://localhost:8766' },
       apiBaseURL: 'http://localhost:8766',
-      localAPIBaseURL: 'http://localhost:8766',
+      daemonGatewayBaseURL: 'http://localhost:8766',
       onboardingCompleted: true,
     },
     hydrated: true,

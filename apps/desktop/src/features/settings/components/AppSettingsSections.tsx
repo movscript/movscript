@@ -24,7 +24,7 @@ import type {
 } from '@/features/settings/presentation/appSettingsPageModel'
 
 interface AppSettingsContentProps {
-  apiBaseURL: string
+  dataConnectionURL: string
   canOpenAdmin: boolean
   chooseMovScriptHomeDir: () => void
   collectResourceBlobs: (dryRun: boolean) => void
@@ -41,7 +41,7 @@ interface AppSettingsContentProps {
   saveShotLibrarySources: () => void
   saveWorkspaceRoot: () => void
   saved: boolean
-  setAPIBaseURLInput: (value: string) => void
+  setDataConnectionURLInput: (value: string) => void
   setSaved: (saved: boolean) => void
   setShotSourcesSaved: (saved: boolean) => void
   setShotSourcesText: (value: string) => void
@@ -62,7 +62,7 @@ interface AppSettingsContentProps {
 }
 
 export function AppSettingsContent({
-  apiBaseURL,
+  dataConnectionURL,
   canOpenAdmin,
   chooseMovScriptHomeDir,
   collectResourceBlobs,
@@ -79,7 +79,7 @@ export function AppSettingsContent({
   saveShotLibrarySources,
   saveWorkspaceRoot,
   saved,
-  setAPIBaseURLInput,
+  setDataConnectionURLInput,
   setSaved,
   setShotSourcesSaved,
   setShotSourcesText,
@@ -158,15 +158,15 @@ export function AppSettingsContent({
       >
         <AppSettingsField
           label={t('appSettings.apiBaseURL')}
-          htmlFor="apiBaseURL"
+          htmlFor="dataConnectionURL"
           help={t('appSettings.apiBaseURLHelp')}
-          error={!isValid && apiBaseURL.trim() ? t('appSettings.invalidURL') : undefined}
+          error={!isValid && dataConnectionURL.trim() ? t('appSettings.invalidURL') : undefined}
         >
           <AppSettingsInput
-            id="apiBaseURL"
-            value={apiBaseURL}
+            id="dataConnectionURL"
+            value={dataConnectionURL}
             onChange={(e) => {
-              setAPIBaseURLInput(e.target.value)
+              setDataConnectionURLInput(e.target.value)
               setSaved(false)
             }}
             placeholder="https://api.example.com"

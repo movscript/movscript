@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Settings } from 'lucide-react'
 import { api } from '@/shared/infrastructure/api'
 import { authKeys } from '@/features/auth/application/authQueryKeys'
-import { getAPIBaseURL, isLocalLaunchMode } from '@/shared/infrastructure/config'
+import { getSettingsDataConnectionBaseURL, isLocalDataConnection } from '@/shared/infrastructure/config'
 import { translateApiError } from '@/shared/infrastructure/apiError'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { type AuthSession, useUserStore } from '@/shared/infrastructure/session/userStore'
@@ -83,7 +83,7 @@ export default function AuthPage() {
     enabled: settings.onboardingCompleted,
   })
   const config = authConfig.data
-  const localMode = isLocalLaunchMode(settings)
+  const localMode = isLocalDataConnection(settings)
   const bootstrapRequired = !!config?.bootstrap_required
   const registrationEnabled = !!config?.registration_enabled || bootstrapRequired
   const requiresEmail = tab === 'register' && !bootstrapRequired && !!config?.require_email_verification
@@ -266,11 +266,11 @@ export default function AuthPage() {
 
         <AuthFooterText>
           {t('appSettings.currentApi')}: <AuthInlineMeta asChild>
-            <span>{getAPIBaseURL()}</span>
+            <span>{getSettingsDataConnectionBaseURL(settings)}</span>
           </AuthInlineMeta>
         </AuthFooterText>
         <AuthFooterText>
-          {t('appSettings.launchMode')}: {isLocalLaunchMode(settings) ? t('appSettings.localMode') : t('appSettings.cloudMode')}
+          {t('appSettings.launchMode')}: {isLocalDataConnection(settings) ? t('appSettings.localMode') : t('appSettings.cloudMode')}
         </AuthFooterText>
 
         {tab === 'login' && (

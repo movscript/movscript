@@ -1,5 +1,6 @@
 import type { RawResource } from '@/types'
 import { isRecord } from '@/shared/domain/jsonValue.ts'
+import { resourceFileUrl } from '@movscript/core/resources'
 
 export interface GenerationProgressState {
   jobId?: number
@@ -55,7 +56,7 @@ export function rawResourceFromUnknown(value: unknown): RawResource | undefined 
     owner_id: Number(value.owner_id ?? value.ownerId ?? 0),
     type,
     name: typeof value.name === 'string' && value.name.trim() ? value.name : `resource-${id}`,
-    url: typeof value.url === 'string' && value.url ? value.url : `/api/v1/resources/${id}/file`,
+    url: typeof value.url === 'string' && value.url ? value.url : resourceFileUrl(id) ?? '',
     size: typeof value.size === 'number' ? value.size : 0,
     mime_type: typeof value.mime_type === 'string'
       ? value.mime_type

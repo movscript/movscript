@@ -71,10 +71,18 @@ export type {
 
 export async function overviewMovScriptWorkspace(input: MovScriptWorkspaceInterpretInput): Promise<MovScriptWorkspaceOverviewResult> {
   const now = input.now ?? new Date()
-  const inspection = await inspectMovScriptWorkspace({ ...input, now })
-  const source = await resolveWorkspaceSource(input.fileRepository, workspaceSourceOptions(input))
-  const latestInterpretation = await loadLatestInterpretManifest(input.fileRepository)
-  const regeneration = await planMovScriptWorkspaceRegeneration({ ...input, now })
+  const [inspection, source, latestInterpretation] = await Promise.all([
+    inspectMovScriptWorkspace({ ...input, now }),
+    resolveWorkspaceSource(input.fileRepository, workspaceSourceOptions(input)),
+    loadLatestInterpretManifest(input.fileRepository),
+  ])
+  const impactReport = await loadLatestImpactReport(input.fileRepository, latestInterpretation)
+  const regeneration = deriveV1RegenerationPlan({
+    review: inspection,
+    latestInterpretation,
+    impactReport,
+    createdAt: now.toISOString(),
+  })
   return interpretWorkspaceOverview({
     createdAt: now.toISOString(),
     inspection,

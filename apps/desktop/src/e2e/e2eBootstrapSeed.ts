@@ -11,7 +11,7 @@ export async function installE2EBootstrapSeed(page: Page, seed: E2EBootstrapSeed
     launchMode: seed.appSettings?.launchMode === 'local' ? 'local' : 'cloud',
     apiBaseURL: seed.appSettings?.apiBaseURL ?? '',
     cloudAPIBaseURL: seed.appSettings?.cloudAPIBaseURL ?? '',
-    localAPIBaseURL: seed.appSettings?.localAPIBaseURL ?? '',
+    daemonGatewayBaseURL: seed.appSettings?.daemonGatewayBaseURL ?? '',
   })
   await page.addInitScript(({ bootstrapKey, seed, seedAuthRealmKey }) => {
     window.localStorage.setItem(bootstrapKey, JSON.stringify(seed))

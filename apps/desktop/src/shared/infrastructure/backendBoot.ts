@@ -1,8 +1,9 @@
 import {
-  getLocalAPIBaseURL,
-  isLocalLaunchMode,
+  getSettingsDaemonGatewayBaseURL,
+  isLocalDataConnection,
   normalizeAPIBaseURL,
   refreshRuntimeConfigSnapshot,
+  type AppSettings,
 } from '@/shared/infrastructure/config'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
@@ -54,8 +55,17 @@ export function shouldGateLocalBackendRequests(): boolean {
   if (!readElectronApi()?.getBackendStatus || !readElectronApi()?.setAppSettings) return false
   const settings = useAppSettingsStore.getState().settings
   if (!settings.onboardingCompleted) return false
-  if (!isLocalLaunchMode(settings)) return false
-  return normalizeAPIBaseURL(settings.apiBaseURL) === getLocalAPIBaseURL()
+  return shouldUseLocalDaemonGateway(settings)
+}
+
+export function shouldUseLocalDaemonGateway(settings: Pick<AppSettings, 'dataConnection'> | null | undefined): boolean {
+  return isLocalDataConnection(settings)
+}
+
+export function getLocalDaemonGatewayBaseURL(
+  settings: Pick<AppSettings, 'daemonGatewayBaseURL' | 'dataConnection' | 'apiBaseURL'> | null | undefined,
+): string {
+  return getSettingsDaemonGatewayBaseURL(settings)
 }
 
 export function canManageLocalBackend(): boolean {
@@ -92,6 +102,7 @@ async function waitForLocalBackendReadyOnce(timeoutMs: number): Promise<void> {
   const setAppSettings = api.setAppSettings
 
   const settings = useAppSettingsStore.getState().settings
+  const localDaemonGatewayBaseURL = getLocalDaemonGatewayBaseURL(settings)
   const initial = await getBackendStatus().catch(() => null)
   if (isBackendBootStatus(initial)) {
     if (initial.state === 'ready') {
@@ -102,7 +113,7 @@ async function waitForLocalBackendReadyOnce(timeoutMs: number): Promise<void> {
       throw new BackendBootError(initial.message || 'Local runtime failed to start.', initial)
     }
   }
-  if (await isLocalBackendHTTPReady(isBackendBootStatus(initial) ? initial.baseURL : settings.apiBaseURL)) return
+  if (await isLocalBackendHTTPReady(isBackendBootStatus(initial) ? initial.baseURL : localDaemonGatewayBaseURL)) return
 
   await setAppSettings(settings).catch((error) => {
     throw new BackendBootError(error instanceof Error ? error.message : String(error))
@@ -118,7 +129,7 @@ async function waitForLocalBackendReadyOnce(timeoutMs: number): Promise<void> {
       throw new BackendBootError(afterStart.message || 'Local runtime failed to start.', afterStart)
     }
   }
-  if (await isLocalBackendHTTPReady(isBackendBootStatus(afterStart) ? afterStart.baseURL : settings.apiBaseURL)) return
+  if (await isLocalBackendHTTPReady(isBackendBootStatus(afterStart) ? afterStart.baseURL : localDaemonGatewayBaseURL)) return
 
   await new Promise<void>((resolve, reject) => {
     let settled = false
@@ -136,7 +147,7 @@ async function waitForLocalBackendReadyOnce(timeoutMs: number): Promise<void> {
           finish(resolve)
         })
       } else if (next.state === 'starting' || next.state === 'idle' || next.state === 'stopped') {
-        void isLocalBackendHTTPReady(next.baseURL || settings.apiBaseURL).then((ready) => {
+        void isLocalBackendHTTPReady(next.baseURL || localDaemonGatewayBaseURL).then((ready) => {
           if (ready) finish(resolve)
         })
       } else if (next.state === 'error') {
@@ -149,7 +160,7 @@ async function waitForLocalBackendReadyOnce(timeoutMs: number): Promise<void> {
           void refreshRuntimeConfigSnapshot().catch(() => null).then(() => finish(resolve))
           return
         }
-        finish(() => reject(new BackendBootError(`Timed out waiting for local runtime data plane at ${settings.apiBaseURL}.`)))
+        finish(() => reject(new BackendBootError(`Timed out waiting for local runtime daemon gateway at ${localDaemonGatewayBaseURL}.`)))
       })
     }, timeoutMs)
   })

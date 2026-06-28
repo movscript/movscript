@@ -42,6 +42,111 @@ test('canvas-service rejects unknown routes', async () => {
   assert.deepEqual(await response.json(), { error: 'not_found' })
 })
 
+test('canvas-service proxies workflow canvas create list open save and delete storage APIs to data-service', async () => {
+  const upstreamCalls = []
+  const upstream = await startUpstream((request, response) => {
+    const call = {
+      method: request.method,
+      url: request.url,
+      authorization: request.headers.authorization,
+      org: request.headers['x-org-id'],
+      body: '',
+    }
+    upstreamCalls.push(call)
+    request.on('data', (chunk) => {
+      call.body += chunk.toString('utf8')
+    })
+    request.on('end', () => {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ ok: true, url: request.url, method: request.method }))
+    })
+  })
+  tAfterClose(upstream)
+
+  const runtime = await startCanvasService({ dataServiceBaseURL: upstream.url })
+  tAfterClose(runtime)
+
+  const headers = {
+    authorization: 'Bearer user-token',
+    'x-org-id': '42',
+  }
+  const list = await fetchJSON(`${runtime.url}${CANVAS_SERVICE_CANVASES_ENDPOINT}?project_id=7`, { headers })
+  assert.equal(list.url, '/api/v1/canvases?project_id=7')
+  assert.equal(list.method, 'GET')
+
+  const created = await postJSON(`${runtime.url}${CANVAS_SERVICE_CANVASES_ENDPOINT}`, {
+    name: 'Launch workflow',
+    canvas_type: 'workflow',
+    project_id: 7,
+  }, headers)
+  assert.equal(created.url, '/api/v1/canvases')
+  assert.equal(created.method, 'POST')
+
+  const opened = await fetchJSON(`${runtime.url}${CANVAS_SERVICE_CANVASES_ENDPOINT}/88`, { headers })
+  assert.equal(opened.url, '/api/v1/canvases/88')
+  assert.equal(opened.method, 'GET')
+
+  const saved = await fetchJSON(`${runtime.url}${CANVAS_SERVICE_CANVASES_ENDPOINT}/88`, {
+    method: 'PUT',
+    headers: {
+      ...headers,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: 'Launch workflow v2',
+      canvas_type: 'workflow',
+      nodes: [
+        { id: 'input-1', type: 'input' },
+        {
+          id: 'resource-1',
+          type: 'resource',
+          ref: { kind: 'raw-resource', resourceId: 'res_123' },
+        },
+      ],
+      edges: [{ id: 'edge-1', source: 'input-1', target: 'resource-1' }],
+      metadata: { canvasKind: 'workflow' },
+    }),
+  })
+  assert.equal(saved.url, '/api/v1/canvases/88')
+  assert.equal(saved.method, 'PUT')
+
+  const deleted = await fetchJSON(`${runtime.url}${CANVAS_SERVICE_CANVASES_ENDPOINT}/88`, {
+    method: 'DELETE',
+    headers,
+  })
+  assert.equal(deleted.url, '/api/v1/canvases/88')
+  assert.equal(deleted.method, 'DELETE')
+
+  assert.deepEqual(upstreamCalls.map((call) => [call.method, call.url]), [
+    ['GET', '/api/v1/canvases?project_id=7'],
+    ['POST', '/api/v1/canvases'],
+    ['GET', '/api/v1/canvases/88'],
+    ['PUT', '/api/v1/canvases/88'],
+    ['DELETE', '/api/v1/canvases/88'],
+  ])
+  assert.equal(upstreamCalls[0].authorization, 'Bearer user-token')
+  assert.equal(upstreamCalls[0].org, '42')
+  assert.deepEqual(JSON.parse(upstreamCalls[1].body), {
+    name: 'Launch workflow',
+    canvas_type: 'workflow',
+    project_id: 7,
+  })
+  assert.deepEqual(JSON.parse(upstreamCalls[3].body), {
+    name: 'Launch workflow v2',
+    canvas_type: 'workflow',
+    nodes: [
+      { id: 'input-1', type: 'input' },
+      {
+        id: 'resource-1',
+        type: 'resource',
+        ref: { kind: 'raw-resource', resourceId: 'res_123' },
+      },
+    ],
+    edges: [{ id: 'edge-1', source: 'input-1', target: 'resource-1' }],
+    metadata: { canvasKind: 'workflow' },
+  })
+})
+
 test('canvas-service proxies canvas storage APIs to data-service', async () => {
   const upstreamCalls = []
   const upstream = await startUpstream((request, response) => {

@@ -1,5 +1,6 @@
 import type { AgentAttachment, AgentChatMessage, AgentConversation, AgentConversationWorkspace, AgentConversationWorkspaceContext } from '@movscript/agent-protocol'
 import { normalizeDomainFocus } from '@movscript/domain'
+import { resourceFileUrl } from '@movscript/core/resources'
 import type {
   AgentConversationNormalizeOptions,
   AgentConversationShape,
@@ -208,7 +209,7 @@ export function normalizeAttachment<Attachment extends AgentAttachment = AgentAt
 
 function normalizeAttachmentUrl(url: string | undefined, resourceId: number | undefined): string | undefined {
   if (resourceId !== undefined && (!url || url.startsWith('blob:') || url.startsWith('data:'))) {
-    return `/api/v1/resources/${resourceId}/file`
+    return resourceFileUrl(resourceId)
   }
   return url
 }

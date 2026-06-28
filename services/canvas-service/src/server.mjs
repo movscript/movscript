@@ -326,11 +326,13 @@ function normalizeBaseURL(value, label = 'base URL') {
 }
 
 function resolveDataServiceBaseURL(options) {
+  if (options.dataServiceBaseURL) {
+    return normalizeBaseURL(options.dataServiceBaseURL, 'data service base URL')
+  }
   const runtimeEndpoint = resolveRuntimeDataServiceBaseURL(options)
   if (runtimeEndpoint) return runtimeEndpoint
   return normalizeBaseURL(
-    options.dataServiceBaseURL
-      ?? options.env?.MOVSCRIPT_DATA_SERVICE_URL
+    options.env?.MOVSCRIPT_DATA_SERVICE_URL
       ?? options.env?.MOVSCRIPT_DATA_SERVICE_BASE_URL
       ?? options.env?.MOVSCRIPT_API_BASE_URL
       ?? process.env.MOVSCRIPT_DATA_SERVICE_URL

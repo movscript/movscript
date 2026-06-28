@@ -9,6 +9,12 @@ import {
 } from '@movscript/domain'
 
 const STUDIO_ROOT = '/studio'
+const PROJECT_SERVICE_BASE_URL_QUERY_KEYS = [
+  'projectServiceBaseURL',
+  'projectServiceBaseUrl',
+  'projectServiceURL',
+  'projectServiceUrl',
+] as const
 
 export interface LocalProjectRouteProject {
   ID?: number | string
@@ -19,30 +25,19 @@ export interface LocalProjectRouteProject {
   project_path?: string
 }
 
-export function serviceBaseURLFromSearch(kind: 'editing' | 'mediaPipeline', query: URLSearchParams): string {
-  if (kind === 'editing') {
-    return normalizeBaseURL(query.get('editingServiceBaseURL') ?? query.get('editingServiceBaseUrl') ?? query.get('editingServiceURL') ?? query.get('editingServiceUrl')) ?? ''
-  }
-  return normalizeBaseURL(query.get('mediaPipelineBaseURL') ?? query.get('mediaPipelineBaseUrl') ?? query.get('mediaPipelineURL') ?? query.get('mediaPipelineUrl')) ?? ''
-}
-
-export function normalizeProjectServiceBaseURL(query: URLSearchParams): string | undefined {
-  return normalizeBaseURL(
-    query.get('projectServiceBaseURL')
-      ?? query.get('projectServiceBaseUrl')
-      ?? query.get('projectServiceURL')
-      ?? query.get('projectServiceUrl'),
-  )
-}
-
 export function hrefWithSearch(pathname: string, query: URLSearchParams): string {
   const search = query.toString()
   return search ? `${pathname}?${search}` : pathname
 }
 
+export function removeProjectServiceBaseURLQuery(query: URLSearchParams): URLSearchParams {
+  for (const key of PROJECT_SERVICE_BASE_URL_QUERY_KEYS) query.delete(key)
+  return query
+}
+
 export function localDataAPIV1BaseURL(): string {
-  if (typeof window === 'undefined') return '/local-api/data/api/v1'
-  return `${window.location.origin}/local-api/data/api/v1`
+  if (typeof window === 'undefined') return '/api/v1'
+  return `${window.location.origin}/api/v1`
 }
 
 export function projectHomeHrefForProject(project: LocalProjectRouteProject, baseQuery: URLSearchParams): string {
@@ -64,6 +59,7 @@ export function projectSurfaceHrefForLocalProject(
   query.delete('project_id')
   query.delete('projectName')
   query.delete('project_name')
+  removeProjectServiceBaseURLQuery(query)
   const projectPath = projectPathFromProject(project)
   const routeProjectId = localProjectRouteId(project, projectPath)
   if (projectPath) query.set('projectDir', projectPath)
@@ -119,11 +115,6 @@ export function routeDomainFocus(query: URLSearchParams, projectId?: string): Mo
   })
 }
 
-export function normalizeBaseURL(value: string | null | undefined): string | undefined {
-  if (!value?.trim()) return undefined
-  return value.trim().replace(/\/+$/, '')
-}
-
 function routeProductionId(query: URLSearchParams): string | undefined {
   const record = recordFromQuery(query)
   if (hasNormalizedFocus(record)) return legacyProductionIdFromFocusRecord(record)
@@ -145,6 +136,7 @@ function recordFromQuery(query: URLSearchParams): Record<string, string> {
 
 function withCompatibleProjectId(query: URLSearchParams, projectId: string): URLSearchParams {
   const next = new URLSearchParams(query)
+  removeProjectServiceBaseURLQuery(next)
   if (projectId && projectId !== 'local-project' && !next.get('projectId')) next.set('projectId', projectId)
   normalizeTimelineFocusQuery(next)
   return next

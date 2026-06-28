@@ -1,4 +1,6 @@
 import { projectSurfacePath } from '@movscript/project-surface/routes'
+import type { MovScriptContextEnvelope } from '@movscript/shared'
+import { movScriptContextProjectCwd, movScriptContextProjectId } from '@movscript/shared'
 import {
   recordValue,
   stringValue,
@@ -9,16 +11,22 @@ import {
   type ProjectSurfaceRouteParams,
   type ProjectSurfaceRuntime,
 } from '@movscript/project-surface/runtime'
-import { normalizeTimelineFocusQuery } from '../routes/localRouteLinks'
+import {
+  normalizeTimelineFocusQuery,
+  removeProjectServiceBaseURLQuery,
+} from '../routes/localRouteLinks'
 
-export const LOCAL_PROJECT_READ_MODEL_ENDPOINT = '/local-api/project/read-model'
-export const LOCAL_PROJECT_SOURCE_SNAPSHOT_ENDPOINT = '/local-api/project/source/snapshot'
-export const LOCAL_PROJECT_SOURCE_INSPECT_ENDPOINT = '/local-api/project/source/inspect'
-export const LOCAL_PROJECT_SOURCE_OVERVIEW_ENDPOINT = '/local-api/project/source/overview'
-export const LOCAL_PROJECT_SOURCE_INTERPRET_ENDPOINT = '/local-api/project/source/interpret'
-export const LOCAL_PROJECT_SOURCE_REGENERATION_PLAN_ENDPOINT = '/local-api/project/source/regeneration-plan'
-export const LOCAL_PROJECT_SOURCE_COMMAND_ENDPOINT = '/local-api/project/source/command'
-export const LOCAL_PROJECT_RESOURCE_VIEW_ENDPOINT = '/local-api/project/resources/view'
+export const LOCAL_PROJECT_READ_MODEL_ENDPOINT = '/v1/project/read-model'
+export const LOCAL_PROJECT_SOURCE_SNAPSHOT_ENDPOINT = '/v1/project/source/snapshot'
+export const LOCAL_PROJECT_SOURCE_INSPECT_ENDPOINT = '/v1/project/source/inspect'
+export const LOCAL_PROJECT_SOURCE_OVERVIEW_ENDPOINT = '/v1/project/source/overview'
+export const LOCAL_PROJECT_SOURCE_INTERPRET_ENDPOINT = '/v1/project/source/interpret'
+export const LOCAL_PROJECT_SOURCE_REGENERATION_PLAN_ENDPOINT = '/v1/project/source/regeneration-plan'
+export const LOCAL_PROJECT_STANDARDS_UPSERT_ENDPOINT = '/v1/project/standards/upsert'
+export const LOCAL_PROJECT_SCRIPT_SOURCE_READ_ENDPOINT = '/v1/project/scripts/source/read'
+export const LOCAL_PROJECT_SCRIPT_UPSERT_ENDPOINT = '/v1/project/scripts/upsert'
+export const LOCAL_PROJECT_SCRIPT_VERSION_SNAPSHOT_ENDPOINT = '/v1/project/scripts/versions/snapshot'
+export const LOCAL_PROJECT_RESOURCE_VIEW_ENDPOINT = '/v1/project/resources/view'
 
 export interface LocalHostProjectSurfaceRuntimeInput {
   projectId: string
@@ -26,8 +34,8 @@ export interface LocalHostProjectSurfaceRuntimeInput {
   projectUid?: string
   productionId?: string
   mcpApiBaseURL?: string
-  projectServiceBaseURL?: string
   search?: URLSearchParams
+  context?: MovScriptContextEnvelope
 }
 
 export interface ProjectReadModelResponse {
@@ -38,17 +46,37 @@ export interface ProjectReadModelResponse {
 }
 
 export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurfaceRuntimeInput): ProjectSurfaceRuntime {
-  const projectId = input.projectId || 'sample-project'
+  const projectId = (movScriptContextProjectId(input.context) ?? input.projectId) || 'sample-project'
+  const projectDir = movScriptContextProjectCwd(input.context)
+  const postProjectWorkspaceOperation = async (
+    endpoint: string,
+    request: { projectDir?: string; projectUid?: string; input?: unknown } = {},
+  ): Promise<unknown> => {
+    const payload = await fetchProjectServiceEndpoint({
+      endpoint,
+      body: {
+        projectDir: request.projectDir ?? projectDir ?? '',
+        ...localContextCommandEnvelope(input.context),
+        ...(recordValue(request.input) ?? {}),
+        ...localProjectDecisionConfig(input, request),
+      },
+    })
+    return Object.prototype.hasOwnProperty.call(payload, 'result') ? payload.result : payload
+  }
 
   return createProjectSurfaceRuntime({
+    context: input.context,
     project: {
       projectId,
-      location: 'local',
-      ...(input.projectDir ? { projectDir: input.projectDir } : {}),
+      location: projectDir ? 'local' : 'remote',
+      ...(projectDir ? { projectDir } : {}),
+      ...(input.context?.session?.project?.uid ?? input.projectUid ? { projectUid: input.context?.session?.project?.uid ?? input.projectUid } : {}),
+      ...(input.context?.session?.project?.title ? { title: input.context.session.project.title } : {}),
     },
-    services: {
-      ...(input.mcpApiBaseURL ? { mcpApiBaseURL: input.mcpApiBaseURL } : {}),
-      ...(input.projectServiceBaseURL ? { projectServiceBaseURL: input.projectServiceBaseURL } : {}),
+    diagnostics: {
+      endpoints: {
+        ...(input.mcpApiBaseURL ? { mcpApi: input.mcpApiBaseURL } : {}),
+      },
     },
     capabilities: {
       localGit: true,
@@ -61,7 +89,7 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
       href: (route, params) => localProjectSurfaceHref({
         route,
         projectId,
-        projectDir: input.projectDir,
+        projectDir,
         productionId: input.productionId,
         search: input.search,
         params,
@@ -70,7 +98,7 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
         window.location.assign(localProjectSurfaceHref({
           route,
           projectId,
-          projectDir: input.projectDir,
+          projectDir,
           productionId: input.productionId,
           search: input.search,
           params,
@@ -89,81 +117,49 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
     gateways: {
       project: {
         readModel: () => fetchProjectReadModel({
-          projectDir: input.projectDir ?? '',
-          projectUid: input.projectUid,
-          projectServiceBaseURL: input.projectServiceBaseURL,
+          projectDir: projectDir ?? '',
+          projectUid: input.context?.session?.project?.uid ?? input.projectUid,
+          context: input.context,
         }),
         sourceSnapshot: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_SNAPSHOT_ENDPOINT,
-          projectServiceBaseURL: input.projectServiceBaseURL,
-          projectServicePath: '/v1/project/source/snapshot',
-          body: { projectDir: input.projectDir ?? '' },
+          body: { projectDir: projectDir ?? '', ...localContextCommandEnvelope(input.context) },
         }),
         readSource: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_SNAPSHOT_ENDPOINT,
-          projectServiceBaseURL: input.projectServiceBaseURL,
-          projectServicePath: '/v1/project/source/snapshot',
-          body: { projectDir: input.projectDir ?? '' },
+          body: { projectDir: projectDir ?? '', ...localContextCommandEnvelope(input.context) },
         }),
         inspectSource: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_INSPECT_ENDPOINT,
-          projectServiceBaseURL: input.projectServiceBaseURL,
-          projectServicePath: '/v1/project/source/inspect',
-          body: { projectDir: input.projectDir ?? '' },
+          body: { projectDir: projectDir ?? '', ...localContextCommandEnvelope(input.context) },
         }),
         overviewSource: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_OVERVIEW_ENDPOINT,
-          projectServiceBaseURL: input.projectServiceBaseURL,
-          projectServicePath: '/v1/project/source/overview',
-          body: { projectDir: input.projectDir ?? '' },
+          body: { projectDir: projectDir ?? '', ...localContextCommandEnvelope(input.context) },
         }),
         interpretSource: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_INTERPRET_ENDPOINT,
-          projectServiceBaseURL: input.projectServiceBaseURL,
-          projectServicePath: '/v1/project/source/interpret',
-          body: { projectDir: input.projectDir ?? '' },
+          body: { projectDir: projectDir ?? '', ...localContextCommandEnvelope(input.context) },
         }),
         interpret: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_INTERPRET_ENDPOINT,
-          projectServiceBaseURL: input.projectServiceBaseURL,
-          projectServicePath: '/v1/project/source/interpret',
-          body: { projectDir: input.projectDir ?? '' },
+          body: { projectDir: projectDir ?? '', ...localContextCommandEnvelope(input.context) },
         }),
         regenerationPlan: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_REGENERATION_PLAN_ENDPOINT,
-          projectServiceBaseURL: input.projectServiceBaseURL,
-          projectServicePath: '/v1/project/source/regeneration-plan',
-          body: { projectDir: input.projectDir ?? '' },
+          body: { projectDir: projectDir ?? '', ...localContextCommandEnvelope(input.context) },
         }),
-        sourceCommand: (request) => fetchProjectServiceEndpoint({
-          endpoint: LOCAL_PROJECT_SOURCE_COMMAND_ENDPOINT,
-          projectServiceBaseURL: input.projectServiceBaseURL,
-          projectServicePath: '/v1/project/source/command',
-          body: {
-            projectDir: request.projectDir ?? input.projectDir ?? '',
-            command: request.command,
-            input: request.input,
-            ...localProjectDecisionConfig(input, request),
-          },
-        }),
-        upsertSource: (request) => fetchProjectServiceEndpoint({
-          endpoint: LOCAL_PROJECT_SOURCE_COMMAND_ENDPOINT,
-          projectServiceBaseURL: input.projectServiceBaseURL,
-          projectServicePath: '/v1/project/source/command',
-          body: {
-            projectDir: request.projectDir ?? input.projectDir ?? '',
-            command: 'upsertSource',
-            input: { source: request.source },
-          },
-        }),
+        upsertProjectStandards: (request) => postProjectWorkspaceOperation(LOCAL_PROJECT_STANDARDS_UPSERT_ENDPOINT, request),
+        readScriptSource: (request) => postProjectWorkspaceOperation(LOCAL_PROJECT_SCRIPT_SOURCE_READ_ENDPOINT, request),
+        upsertScript: (request) => postProjectWorkspaceOperation(LOCAL_PROJECT_SCRIPT_UPSERT_ENDPOINT, request),
+        snapshotScriptVersionFromMarkdown: (request) => postProjectWorkspaceOperation(LOCAL_PROJECT_SCRIPT_VERSION_SNAPSHOT_ENDPOINT, request),
         resourceView: (request) => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_RESOURCE_VIEW_ENDPOINT,
-          projectServiceBaseURL: input.projectServiceBaseURL,
-          projectServicePath: '/v1/project/resources/view',
           body: {
-            projectDir: request.projectDir ?? input.projectDir ?? '',
+            projectDir: projectDir ?? '',
             kind: request.kind,
             input: request.input,
+            ...localContextCommandEnvelope(input.context),
           },
         }),
       },
@@ -175,15 +171,16 @@ function localProjectDecisionStoreConfig(
   input: LocalHostProjectSurfaceRuntimeInput,
   request?: { projectUid?: string },
 ): Record<string, unknown> | undefined {
-  if (input.projectServiceBaseURL) return undefined
-  const projectUid = stringValue(request?.projectUid) ?? input.projectUid
+  const projectUid = stringValue(request?.projectUid) ?? input.context?.session?.project?.uid ?? input.projectUid
   if (!projectUid) return undefined
+  const principal = input.context?.principal
+  const scopeId = principal?.scopeId ?? principal?.userId ?? 1
   return {
     kind: 'scoped-project-data',
-    baseUrl: `${window.location.origin}/local-api/data`,
+    baseUrl: window.location.origin,
     projectUid,
-    scopeKind: 'user',
-    scopeId: 1,
+    scopeKind: principal?.scopeKind === 'org' ? 'org' : 'user',
+    scopeId,
   }
 }
 
@@ -193,53 +190,49 @@ function localProjectDecisionConfig(
 ): Record<string, unknown> {
   const decisionStore = localProjectDecisionStoreConfig(input, request)
   if (decisionStore) return { decisionStore }
-  if (!input.projectServiceBaseURL) return {}
-  const projectUid = stringValue(request?.projectUid) ?? input.projectUid
-  if (!projectUid) return {}
-  return {
-    projectUid,
-    scopeKind: 'user',
-    scopeId: 1,
-  }
+  return {}
 }
 
 export async function fetchProjectReadModel({
   projectDir,
   projectUid,
-  projectServiceBaseURL,
+  context,
 }: {
   projectDir: string
   projectUid?: string
-  projectServiceBaseURL?: string
+  context?: MovScriptContextEnvelope
 }): Promise<ProjectReadModelResponse> {
   return fetchProjectServiceEndpoint({
     endpoint: LOCAL_PROJECT_READ_MODEL_ENDPOINT,
-    projectServiceBaseURL,
-    projectServicePath: '/v1/project/read-model',
     body: {
       projectDir,
       includeSource: false,
       includeInspection: false,
-      ...localProjectDecisionConfig({ projectId: '', projectDir, projectUid, projectServiceBaseURL }),
+      ...localContextCommandEnvelope(context),
+      ...localProjectDecisionConfig({ projectId: '', projectDir, projectUid, context }),
     },
   }) as Promise<ProjectReadModelResponse>
 }
 
+function localContextCommandEnvelope(context: MovScriptContextEnvelope | undefined): Record<string, unknown> {
+  const sessionId = context?.session?.sessionId
+  if (!sessionId) return {}
+  return {
+    context: {
+      sessionId,
+      revision: context.revision,
+    },
+  }
+}
+
 async function fetchProjectServiceEndpoint({
   endpoint,
-  projectServiceBaseURL,
-  projectServicePath,
   body,
 }: {
   endpoint: string
-  projectServiceBaseURL?: string
-  projectServicePath: string
   body: Record<string, unknown>
 }): Promise<Record<string, unknown>> {
-  const url = projectServiceBaseURL
-    ? `${projectServiceBaseURL}${projectServicePath}`
-    : endpoint
-  const response = await fetch(url, {
+  const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -248,7 +241,7 @@ async function fetchProjectServiceEndpoint({
   if (!response.ok) {
     const message = stringValue(recordValue(payload)?.message)
       ?? stringValue(recordValue(payload)?.error)
-      ?? `Project Service request failed with HTTP ${response.status}.`
+      ?? `Project runtime request failed with HTTP ${response.status}.`
     throw new Error(message)
   }
   return recordValue(payload) ?? {}
@@ -270,6 +263,7 @@ function localProjectSurfaceHref({
   params?: ProjectSurfaceRouteParams
 }): string {
   const next = new URLSearchParams(search)
+  removeProjectServiceBaseURLQuery(next)
   if (projectDir) next.set('projectDir', projectDir)
   if (productionId) next.set('productionId', productionId)
   for (const [key, value] of Object.entries(params ?? {})) {

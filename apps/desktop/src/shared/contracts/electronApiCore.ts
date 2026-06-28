@@ -1,5 +1,9 @@
 import type { AgentConversationRegistryRecord } from '@movscript/core/agent'
 import type { AgentConversationWorkspace } from '@movscript/agent-protocol'
+import type {
+  MovScriptDataConnectionContext,
+  MovScriptRuntimeDescriptor,
+} from '@movscript/shared'
 
 export type ElectronMovScriptHomeInput = {
   movScriptHomeDir?: string
@@ -20,14 +24,14 @@ export type ElectronRuntimeConfig = {
   movScriptHomeDir: string
   /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
   workspaceDir: string
+  runtime: MovScriptRuntimeDescriptor
+  dataConnection: MovScriptDataConnectionContext
+  /** @deprecated Use runtime.gateway.baseURL. */
   gatewayBaseURL?: string
-  dataServiceBaseURL?: string
+  /** @deprecated Use runtime.gateway.baseURL for daemon calls and dataConnection for status/config intent. */
   apiBaseURL: string
+  /** @deprecated Use daemon gateway clients; this remains only for legacy Data API callers. */
   apiV1BaseURL: string
-  projectServiceBaseURL?: string
-  canvasServiceBaseURL?: string
-  canvasServiceV1BaseURL?: string
-  localAPIBaseURL: string
   providerRuntimeEnv?: Record<string, string>
   backendStatus: ElectronBackendStatus
 }

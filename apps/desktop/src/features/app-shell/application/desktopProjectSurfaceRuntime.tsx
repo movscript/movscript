@@ -1,6 +1,8 @@
 import { type ReactNode, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { projectSurfacePath } from '@movscript/project-surface/routes'
+import type { MovScriptContextEnvelope } from '@movscript/shared'
+import { movScriptContextProjectCwd, movScriptContextProjectId } from '@movscript/shared'
 import {
   ProjectSurfaceProvider,
   useProjectSurfaceRuntime,
@@ -29,10 +31,12 @@ import { toast } from '@movscript/ui/toast'
 
 const PROJECT_SERVICE_READ_MODEL_ENDPOINT = '/v1/project/read-model'
 const PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT = '/v1/project/resources/view'
-const PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT = '/v1/project/source/command'
-const LOCAL_PROJECT_READ_MODEL_ENDPOINT = '/local-api/project/read-model'
-const LOCAL_PROJECT_RESOURCE_VIEW_ENDPOINT = '/local-api/project/resources/view'
-const LOCAL_PROJECT_SOURCE_COMMAND_ENDPOINT = '/local-api/project/source/command'
+const PROJECT_SERVICE_CANDIDATES_VIEW_ENDPOINT = '/v1/project/candidates/view'
+const PROJECT_SERVICE_STANDARDS_UPSERT_ENDPOINT = '/v1/project/standards/upsert'
+const PROJECT_SERVICE_SCRIPT_SOURCE_READ_ENDPOINT = '/v1/project/scripts/source/read'
+const PROJECT_SERVICE_SCRIPT_UPSERT_ENDPOINT = '/v1/project/scripts/upsert'
+const PROJECT_SERVICE_SCRIPT_VERSION_SNAPSHOT_ENDPOINT = '/v1/project/scripts/versions/snapshot'
+const DAEMON_CONTEXT_SESSIONS_ENDPOINT = '/v1/context/sessions'
 
 export interface DesktopProjectSurfaceProviderProps {
   children: ReactNode
@@ -66,141 +70,214 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
     staleTime: 5_000,
   })
   const runtimeConfig = runtimeConfigQuery.data ?? getRuntimeConfigSnapshot()
-  const projectServiceBaseURL = runtimeConfig?.projectServiceBaseURL
-
-  return useMemo(() => createProjectSurfaceRuntime({
-    project: {
+  const daemonGatewayBaseURL = readDesktopDaemonGatewayBaseURL(runtimeConfig)
+  const contextQuery = useQuery({
+    queryKey: [
+      'desktop-project-surface',
+      'context',
+      daemonGatewayBaseURL,
       projectId,
-      location: projectDir ? 'local' : 'remote',
-      ...(projectDir ? { projectDir } : {}),
-      ...(project?.project_uid ? { projectUid: project.project_uid } : {}),
-      ...(project?.name ? { title: project.name } : {}),
+      projectDir,
+      project?.project_uid,
+      project?.name,
+      owner.userId,
+      owner.orgId,
+    ],
+    queryFn: async () => {
+      const latestConfig = await refreshRuntimeConfigSnapshot()
+      const gatewayBaseURL = readDesktopDaemonGatewayBaseURL(latestConfig ?? runtimeConfig)
+      if (!gatewayBaseURL) throw new Error('Daemon gateway endpoint is not available in Desktop runtime config.')
+      return await postDaemonGateway(
+        gatewayBaseURL,
+        DAEMON_CONTEXT_SESSIONS_ENDPOINT,
+        {
+          projectId,
+          ...(projectDir ? { projectDir } : {}),
+          ...(project?.project_uid ? { projectUid: project.project_uid } : {}),
+          ...(project?.name ? { projectTitle: project.name } : {}),
+          capabilities: {
+            localFileAccess: Boolean(projectDir),
+            fileImport: Boolean(projectDir),
+            mediaPreview: Boolean(projectDir),
+          },
+          principal: desktopPrincipalHint(owner),
+        },
+      ) as unknown as MovScriptContextEnvelope
     },
-    services: {
-      ...(projectServiceBaseURL ? { projectServiceBaseURL } : {}),
-      ...(runtimeConfig?.apiBaseURL ? { dataServiceBaseURL: runtimeConfig.apiBaseURL } : {}),
-      ...(runtimeConfig?.canvasServiceBaseURL ? { controlBaseURL: runtimeConfig.canvasServiceBaseURL } : {}),
-    },
-    capabilities: {
-      nativeWindowControls: true,
-      localFilePicker: true,
-      localDirectoryPicker: true,
-      localGit: Boolean(projectDir),
-      resourceUpload: true,
-      generation: true,
-      editing: true,
-      mediaPipeline: true,
-    },
-    navigator: {
-      href: (route, params) => desktopProjectSurfaceHref(route, projectId, params),
-      open: (route, params) => {
-        window.location.assign(desktopProjectSurfaceHref(route, projectId, params))
-      },
-      openExternal: (url) => {
-        window.open(url, '_blank', 'noopener,noreferrer')
-      },
-    },
-    notifier: {
-      success: (message, detail) => toast.success(message, detail),
-      warning: (message, detail) => toast.info(message, detail),
-      error: (message, detail) => toast.error(message, detail),
-      info: (message, detail) => toast.info(message, detail),
-    },
-    gateways: {
+    enabled: Boolean(daemonGatewayBaseURL),
+    staleTime: 5_000,
+  })
+  const contextEnvelope = contextQuery.data
+  const contextProjectDir = movScriptContextProjectCwd(contextEnvelope)
+  const contextProjectId = movScriptContextProjectId(contextEnvelope) ?? projectId
+  const contextProjectUid = contextEnvelope?.session?.project?.uid ?? project?.project_uid
+
+  return useMemo(() => {
+    const postProjectWorkspaceOperation = async (
+      endpoint: string,
+      input: { projectDir?: string; projectUid?: string; input?: unknown } = {},
+    ): Promise<unknown> => {
+      const latestConfig = await refreshRuntimeConfigSnapshot()
+      const daemonGatewayBaseURL = readDesktopDaemonGatewayBaseURL(latestConfig ?? runtimeConfig)
+      const nextProjectDir = input.projectDir ?? contextProjectDir
+      if (!nextProjectDir) throw new Error('Project directory is not configured for this Desktop project.')
+      if (!daemonGatewayBaseURL) throw new Error('Daemon gateway endpoint is not available in Desktop runtime config.')
+      const decisionStore = desktopProjectDecisionStoreConfig({
+        projectUid: input.projectUid ?? contextProjectUid,
+        title: project?.name,
+        baseURL: daemonGatewayBaseURL,
+        context: contextEnvelope,
+        owner,
+      })
+      const payload = await postDaemonGateway(
+        daemonGatewayBaseURL,
+        endpoint,
+        {
+          projectDir: nextProjectDir,
+          ...desktopContextCommandEnvelope(contextEnvelope),
+          ...(recordValue(input.input) ?? {}),
+          ...(decisionStore ? { decisionStore } : {}),
+        },
+      )
+      return Object.prototype.hasOwnProperty.call(payload, 'result') ? payload.result : payload
+    }
+
+    return createProjectSurfaceRuntime({
+      context: contextEnvelope,
       project: {
-        readModel: async () => {
+        projectId: contextProjectId,
+        location: contextProjectDir ? 'local' : 'remote',
+        ...(contextProjectDir ? { projectDir: contextProjectDir } : {}),
+        ...(contextProjectUid ? { projectUid: contextProjectUid } : {}),
+        ...(project?.name ? { title: project.name } : {}),
+      },
+      diagnostics: {
+        endpoints: {
+          ...(readDesktopDaemonGatewayBaseURL(runtimeConfig) ? { gateway: readDesktopDaemonGatewayBaseURL(runtimeConfig) } : {}),
+        },
+      },
+      capabilities: {
+        nativeWindowControls: true,
+        localFilePicker: true,
+        localDirectoryPicker: true,
+        localGit: Boolean(projectDir),
+        resourceUpload: true,
+        generation: true,
+        editing: true,
+        mediaPipeline: true,
+      },
+      navigator: {
+        href: (route, params) => desktopProjectSurfaceHref(route, contextProjectId, params),
+        open: (route, params) => {
+          window.location.assign(desktopProjectSurfaceHref(route, contextProjectId, params))
+        },
+        openExternal: (url) => {
+          window.open(url, '_blank', 'noopener,noreferrer')
+        },
+      },
+      notifier: {
+        success: (message, detail) => toast.success(message, detail),
+        warning: (message, detail) => toast.info(message, detail),
+        error: (message, detail) => toast.error(message, detail),
+        info: (message, detail) => toast.info(message, detail),
+      },
+      gateways: {
+        project: {
+          readModel: async () => {
           const latestConfig = await refreshRuntimeConfigSnapshot()
-          const latestGatewayBaseURL = latestConfig?.gatewayBaseURL ?? runtimeConfig?.gatewayBaseURL
-          const latestProjectServiceBaseURL = latestConfig?.projectServiceBaseURL ?? projectServiceBaseURL
-          if (!projectDir) throw new Error('Project directory is not configured for this Desktop project.')
-          if (!latestGatewayBaseURL && !latestProjectServiceBaseURL) throw new Error('Project Service endpoint is not available in Desktop runtime config.')
+          const daemonGatewayBaseURL = readDesktopDaemonGatewayBaseURL(latestConfig ?? runtimeConfig)
+          if (!contextProjectDir) throw new Error('Daemon context does not expose a local project workspace for this Desktop project.')
+          if (!daemonGatewayBaseURL) throw new Error('Daemon gateway endpoint is not available in Desktop runtime config.')
           const decisionStore = desktopProjectDecisionStoreConfig({
-            projectUid: project?.project_uid,
+            projectUid: contextProjectUid,
             title: project?.name,
-            dataServiceBaseURL: latestGatewayBaseURL ?? latestConfig?.apiBaseURL ?? runtimeConfig?.apiBaseURL,
+            baseURL: daemonGatewayBaseURL,
+            context: contextEnvelope,
             owner,
           })
-          return postProjectGateway({
-            gatewayBaseURL: latestGatewayBaseURL,
-            serviceBaseURL: latestProjectServiceBaseURL,
-            gatewayPath: LOCAL_PROJECT_READ_MODEL_ENDPOINT,
-            servicePath: PROJECT_SERVICE_READ_MODEL_ENDPOINT,
-            body: {
-              projectDir,
+          return postDaemonGateway(
+            daemonGatewayBaseURL,
+            PROJECT_SERVICE_READ_MODEL_ENDPOINT,
+            {
+              projectDir: contextProjectDir,
               includeSource: false,
               includeInspection: false,
+              ...desktopContextCommandEnvelope(contextEnvelope),
               ...(decisionStore ? { decisionStore } : {}),
             },
-          })
-        },
-        resourceView: async (input) => {
+          )
+          },
+          resourceView: async (input) => {
           const latestConfig = await refreshRuntimeConfigSnapshot()
-          const latestGatewayBaseURL = latestConfig?.gatewayBaseURL ?? runtimeConfig?.gatewayBaseURL
-          const latestProjectServiceBaseURL = latestConfig?.projectServiceBaseURL ?? projectServiceBaseURL
-          const nextProjectDir = input.projectDir ?? projectDir
+          const daemonGatewayBaseURL = readDesktopDaemonGatewayBaseURL(latestConfig ?? runtimeConfig)
+          const nextProjectDir = contextProjectDir
           if (!nextProjectDir) throw new Error('Project directory is not configured for this Desktop project.')
-          if (!latestGatewayBaseURL && !latestProjectServiceBaseURL) throw new Error('Project Service endpoint is not available in Desktop runtime config.')
-          return postProjectGateway({
-            gatewayBaseURL: latestGatewayBaseURL,
-            serviceBaseURL: latestProjectServiceBaseURL,
-            gatewayPath: LOCAL_PROJECT_RESOURCE_VIEW_ENDPOINT,
-            servicePath: PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT,
-            body: {
+          if (!daemonGatewayBaseURL) throw new Error('Daemon gateway endpoint is not available in Desktop runtime config.')
+          return postDaemonGateway(
+            daemonGatewayBaseURL,
+            PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT,
+            {
               projectDir: nextProjectDir,
               kind: input.kind,
+              ...desktopContextCommandEnvelope(contextEnvelope),
               ...(input.input !== undefined ? { input: input.input } : {}),
             },
-          })
-        },
-        sourceCommand: async (input) => {
+          )
+          },
+          candidateView: async (input) => {
           const latestConfig = await refreshRuntimeConfigSnapshot()
-          const latestGatewayBaseURL = latestConfig?.gatewayBaseURL ?? runtimeConfig?.gatewayBaseURL
-          const latestProjectServiceBaseURL = latestConfig?.projectServiceBaseURL ?? projectServiceBaseURL
-          const nextProjectDir = input.projectDir ?? projectDir
+          const daemonGatewayBaseURL = readDesktopDaemonGatewayBaseURL(latestConfig ?? runtimeConfig)
+          const nextProjectDir = input.projectDir ?? contextProjectDir
           if (!nextProjectDir) throw new Error('Project directory is not configured for this Desktop project.')
-          if (!latestGatewayBaseURL && !latestProjectServiceBaseURL) throw new Error('Project Service endpoint is not available in Desktop runtime config.')
+          if (!daemonGatewayBaseURL) throw new Error('Daemon gateway endpoint is not available in Desktop runtime config.')
           const decisionStore = desktopProjectDecisionStoreConfig({
-            projectUid: project?.project_uid,
+            projectUid: input.projectUid ?? contextProjectUid,
             title: project?.name,
-            dataServiceBaseURL: latestGatewayBaseURL ?? latestConfig?.apiBaseURL ?? runtimeConfig?.apiBaseURL,
+            baseURL: daemonGatewayBaseURL,
+            context: contextEnvelope,
             owner,
           })
-          return postProjectGateway({
-            gatewayBaseURL: latestGatewayBaseURL,
-            serviceBaseURL: latestProjectServiceBaseURL,
-            gatewayPath: LOCAL_PROJECT_SOURCE_COMMAND_ENDPOINT,
-            servicePath: PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT,
-            body: {
+          return postDaemonGateway(
+            daemonGatewayBaseURL,
+            PROJECT_SERVICE_CANDIDATES_VIEW_ENDPOINT,
+            {
               projectDir: nextProjectDir,
-              command: input.command,
-              ...(input.input !== undefined ? { input: input.input } : {}),
+              contentUnitIds: input.contentUnitIds,
+              ...(input.projectUid ?? contextProjectUid ? { projectUid: input.projectUid ?? contextProjectUid } : {}),
+              ...desktopContextCommandEnvelope(contextEnvelope),
+              ...(recordValue(input.input) ?? {}),
               ...(decisionStore ? { decisionStore } : {}),
             },
-          })
-        },
-        gitStatus: async () => {
-          if (!projectDir) throw new Error('Project directory is not configured for this Desktop project.')
+          )
+          },
+          upsertProjectStandards: (input) => postProjectWorkspaceOperation(PROJECT_SERVICE_STANDARDS_UPSERT_ENDPOINT, input),
+          readScriptSource: (input) => postProjectWorkspaceOperation(PROJECT_SERVICE_SCRIPT_SOURCE_READ_ENDPOINT, input),
+          upsertScript: (input) => postProjectWorkspaceOperation(PROJECT_SERVICE_SCRIPT_UPSERT_ENDPOINT, input),
+          snapshotScriptVersionFromMarkdown: (input) => postProjectWorkspaceOperation(PROJECT_SERVICE_SCRIPT_VERSION_SNAPSHOT_ENDPOINT, input),
+          gitStatus: async () => {
+          if (!contextProjectDir) throw new Error('Daemon context does not expose a local project workspace for this Desktop project.')
           const result = await readElectronApi()?.getProjectGitWorkspaceStatus?.({
-            projectDir,
+            projectDir: contextProjectDir,
             ...(project && project.ID > 0 ? { projectId: project.ID } : {}),
           })
           if (!result) throw new Error('Desktop project Git status API is not available.')
           return result
-        },
-        gitAction: async (input) => {
-          if (!projectDir) throw new Error('Project directory is not configured for this Desktop project.')
+          },
+          gitAction: async (input) => {
+          if (!contextProjectDir) throw new Error('Daemon context does not expose a local project workspace for this Desktop project.')
           const result = await runDesktopGitAction(input.action, {
-            projectDir,
+            projectDir: contextProjectDir,
             ...(project && project.ID > 0 ? { projectId: project.ID } : {}),
             ...(input.remoteURL ? { remoteURL: input.remoteURL } : {}),
           })
           if (!result) throw new Error('Desktop project Git action API is not available.')
           return result
-        },
-        listDataSpaces: async () => {
-          const owner = workspaceOwnerContext({ currentUser, currentOrgID, orgMemberships })
-          const scopeKind = owner.orgId !== undefined ? 'org' : 'user'
-          const scopeId = owner.orgId ?? owner.userId
+          },
+          listDataSpaces: async () => {
+          const scope = desktopDataScopeFromContext(contextEnvelope)
+            ?? desktopDataScopeFromOwner(workspaceOwnerContext({ currentUser, currentOrgID, orgMemberships }))
+          const scopeKind = scope.scopeKind
+          const scopeId = scope.scopeId
           const response = await api.get<{ items: Array<Record<string, unknown>> }>('/project-data/spaces', {
             params: { scope_kind: scopeKind },
           })
@@ -209,29 +286,31 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
             scopeId,
             items: response.data.items,
           }
-        },
-        readWorkspaceMetadata: async () => {
+          },
+          readWorkspaceMetadata: async () => {
           if (!project || project.ID <= 0) return undefined
           const response = await api.get<Record<string, unknown>>(`/projects/${project.ID}/workspace`)
           return {
             ...response.data,
             gitRemoteUrl: resolveBackendGitRemoteURL(readString(response.data.gitRemoteUrl)),
           }
+          },
         },
       },
-    },
-  }), [
+    })
+  }, [
+    contextEnvelope,
+    contextProjectDir,
+    contextProjectId,
+    contextProjectUid,
     currentOrgID,
     currentUser,
     orgMemberships,
     owner,
     project,
-    projectDir,
     projectId,
-    projectServiceBaseURL,
     runtimeConfig?.gatewayBaseURL,
     runtimeConfig?.apiBaseURL,
-    runtimeConfig?.canvasServiceBaseURL,
     workspaceRoot,
   ])
 }
@@ -239,14 +318,16 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
 function desktopProjectDecisionStoreConfig(input: {
   projectUid?: string
   title?: string
-  dataServiceBaseURL?: string
+  baseURL?: string
+  context?: MovScriptContextEnvelope
   owner: ReturnType<typeof workspaceOwnerContext>
 }): Record<string, unknown> | undefined {
   const projectUid = input.projectUid?.trim()
-  const baseUrl = input.dataServiceBaseURL?.trim()
+  const baseUrl = input.baseURL?.trim()
   if (!projectUid || !baseUrl) return undefined
-  const scopeKind = input.owner.orgId !== undefined ? 'org' : 'user'
-  const scopeId = input.owner.orgId ?? input.owner.userId
+  const contextScope = desktopDataScopeFromContext(input.context)
+  const scopeKind = contextScope?.scopeKind ?? (input.owner.orgId !== undefined ? 'org' : 'user')
+  const scopeId = contextScope?.scopeId ?? input.owner.orgId ?? input.owner.userId
   if (scopeId === undefined) return undefined
   return {
     kind: 'scoped-project-data',
@@ -258,11 +339,45 @@ function desktopProjectDecisionStoreConfig(input: {
   }
 }
 
+function desktopPrincipalHint(owner: ReturnType<typeof workspaceOwnerContext>): Record<string, unknown> {
+  if (owner.orgId !== undefined) {
+    return { scopeKind: 'org', scopeId: owner.orgId, userId: String(owner.orgId) }
+  }
+  if (owner.userId !== undefined) {
+    return { scopeKind: 'user', scopeId: owner.userId, userId: String(owner.userId) }
+  }
+  return {}
+}
+
+function desktopDataScopeFromContext(context: MovScriptContextEnvelope | undefined): { scopeKind: 'user' | 'org'; scopeId: string | number } | undefined {
+  const principal = context?.principal
+  if (!principal) return undefined
+  if (principal.scopeKind === 'org' && principal.scopeId !== undefined) return { scopeKind: 'org', scopeId: principal.scopeId }
+  const scopeId = principal.scopeId ?? principal.userId
+  return scopeId !== undefined ? { scopeKind: 'user', scopeId } : undefined
+}
+
+function desktopDataScopeFromOwner(owner: ReturnType<typeof workspaceOwnerContext>): { scopeKind: 'user' | 'org'; scopeId: string | number | undefined } {
+  return owner.orgId !== undefined
+    ? { scopeKind: 'org', scopeId: owner.orgId }
+    : { scopeKind: 'user', scopeId: owner.userId }
+}
+
+function desktopContextCommandEnvelope(context: MovScriptContextEnvelope | undefined): Record<string, unknown> {
+  const sessionId = context?.session?.sessionId
+  if (!sessionId) return {}
+  return {
+    context: {
+      sessionId,
+      revision: context.revision,
+    },
+  }
+}
+
 export function useDesktopProjectReadModel() {
   const runtime = useProjectSurfaceRuntime()
   const projectDir = runtime.project.projectDir
-  const projectServiceBaseURL = runtime.services.projectServiceBaseURL
-  const gatewayBaseURL = getRuntimeConfigSnapshot()?.gatewayBaseURL
+  const daemonGatewayBaseURL = readDesktopDaemonGatewayBaseURL(getRuntimeConfigSnapshot())
 
   const query = useQuery({
     queryKey: [
@@ -270,11 +385,10 @@ export function useDesktopProjectReadModel() {
       'read-model',
       runtime.project.projectId,
       projectDir,
-      gatewayBaseURL,
-      projectServiceBaseURL,
+      daemonGatewayBaseURL,
     ],
     queryFn: () => runtime.gateways.project.readModel(),
-    enabled: Boolean(projectDir && (gatewayBaseURL || projectServiceBaseURL)),
+    enabled: Boolean(projectDir && daemonGatewayBaseURL),
   })
   const status: ProjectSurfaceReadModelStatus = query.isLoading
     ? 'loading'
@@ -330,7 +444,7 @@ async function runDesktopGitAction(
   return electronApi?.pushProjectGitWorkspace?.(input)
 }
 
-async function postProjectService(
+async function postDaemonGateway(
   baseURL: string,
   path: string,
   body: Record<string, unknown>,
@@ -344,26 +458,14 @@ async function postProjectService(
   if (!response.ok) {
     const message = readString(recordValue(payload)?.message)
       ?? readString(recordValue(payload)?.error)
-      ?? `Project Service request failed with HTTP ${response.status}.`
+      ?? `Daemon gateway request failed with HTTP ${response.status}.`
     throw new Error(message)
   }
   return recordValue(payload) ?? {}
 }
 
-async function postProjectGateway(input: {
-  gatewayBaseURL?: string
-  serviceBaseURL?: string
-  gatewayPath: string
-  servicePath: string
-  body: Record<string, unknown>
-}): Promise<Record<string, unknown>> {
-  if (input.gatewayBaseURL) {
-    return postProjectService(input.gatewayBaseURL, input.gatewayPath, input.body)
-  }
-  if (input.serviceBaseURL) {
-    return postProjectService(input.serviceBaseURL, input.servicePath, input.body)
-  }
-  throw new Error('Project Service endpoint is not available in Desktop runtime config.')
+function readDesktopDaemonGatewayBaseURL(config: { gatewayBaseURL?: string; apiBaseURL?: string } | null | undefined): string | undefined {
+  return config?.gatewayBaseURL ?? config?.apiBaseURL
 }
 
 function resolveBackendGitRemoteURL(value: string | undefined): string | undefined {

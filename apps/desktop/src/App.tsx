@@ -1,7 +1,7 @@
 import { useUserStore } from './shared/infrastructure/session/userStore'
 import { useAppSettingsStore } from './shared/infrastructure/appSettingsStore'
 import { useAppWindowContextStore } from './shared/infrastructure/appWindowContext'
-import { isLocalLaunchMode } from './shared/infrastructure/config'
+import { isLocalDataConnection } from './shared/infrastructure/config'
 import { LoadingScreen } from './features/app-shell/application/AppRouteBoundaries'
 import { AppStartupTasks } from './features/app-shell/application/AppStartupTasks'
 import { AnonymousAppRouter, AuthenticatedAppRouter } from './features/app-shell/application/AppRouterConfig'
@@ -14,7 +14,7 @@ export default function App() {
   const settingsHydrated = useAppSettingsStore((s) => s.hydrated)
   const settings = useAppSettingsStore((s) => s.settings)
   const windowContextHydrated = useAppWindowContextStore((s) => s.hydrated)
-  const localModeReady = settings.onboardingCompleted && isLocalLaunchMode(settings)
+  const localModeReady = settings.onboardingCompleted && isLocalDataConnection(settings)
 
   return (
     <>

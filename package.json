@@ -34,6 +34,7 @@
     "frontend:audit": "node apps/desktop/scripts/check-frontend-quality.mjs",
     "frontend:contracts": "pnpm quality:frontend && node scripts/run-node-tests.mjs --suite frontend-contracts",
     "frontend:state-consistency": "pnpm --filter @movscript/core build && node scripts/run-node-tests.mjs --suite frontend-state-consistency",
+    "benchmark:project-service": "node scripts/benchmark-project-service-performance.mjs",
     "prepare:sdk-runtimes": "node scripts/prepare-sdk-runtime-seed.mjs",
     "smoke:sdk-runtimes": "node scripts/smoke-sdk-runtimes.mjs",
     "verify:package-resources": "node scripts/release/verify-package-resources.mjs",

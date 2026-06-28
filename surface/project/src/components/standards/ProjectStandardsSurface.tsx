@@ -150,13 +150,12 @@ function useProjectStandardsSurfaceController() {
 
   const saveMutation = useMutation({
     mutationFn: async (input: { projectStyle: Record<string, unknown>; successMessage: string }) => {
-      const sourceCommand = runtime.gateways.project.sourceCommand
-      if (!sourceCommand) throw new Error('Project Service source command gateway is not available.')
-      await sourceCommand({
+      const upsertProjectStandards = runtime.gateways.project.upsertProjectStandards
+      if (!upsertProjectStandards) throw new Error('Project standards gateway is not available.')
+      await upsertProjectStandards({
         projectId: runtime.project.projectId,
         projectDir: runtime.project.projectDir,
         projectUid: runtime.project.projectUid,
-        command: 'upsertProjectStandards',
         input: {
           record: data.project ?? undefined,
           projectStyle: projectStandardsPayload({
@@ -417,7 +416,7 @@ function useProjectStandardsSurfaceController() {
 
 async function readProjectStandardsWorkspaceData(runtime: ReturnType<typeof useProjectSurfaceRuntime>): Promise<WorkspaceData> {
   const resourceView = runtime.gateways.project.resourceView
-  if (!resourceView) throw new Error('Project Service resource view gateway is not available.')
+  if (!resourceView) throw new Error('Project runtime resource gateway is not available.')
   const base = {
     projectId: runtime.project.projectId,
     projectDir: runtime.project.projectDir,

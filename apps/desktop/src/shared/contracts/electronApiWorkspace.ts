@@ -195,6 +195,8 @@ export type ElectronMovScriptEngineContentCanvasInput = ElectronMovScriptEngineP
   id?: string
   canvasId?: string
   canvas_id?: string
+  title?: string
+  name?: string
   expectedVersion?: string | null
   expected_version?: string | null
 }
@@ -218,6 +220,34 @@ export type ElectronMovScriptEngineContentCanvasWriteResult = {
   path: string
   version: string
   record: ElectronMovScriptEngineContentCanvasRecord
+}
+
+export type ElectronMovScriptEngineContentCanvasRenameResult = {
+  status: 'renamed'
+  path: string
+  version: string
+  title: string
+  normalizedTitle: string
+  record: ElectronMovScriptEngineContentCanvasRecord
+  diagnostics: unknown[]
+}
+
+export type ElectronMovScriptEngineContentCanvasRunResult = {
+  schema: 'movscript.content_canvas_run.v1'
+  status: 'completed'
+  operationId: string
+  operation_id: string
+  canvasId: string
+  canvas_id: string
+  canvas: {
+    path: string
+    version?: string
+    record: ElectronMovScriptEngineContentCanvasRecord
+  }
+  trace: Record<string, unknown>
+  readModel: Record<string, unknown>
+  candidateImpact: Record<string, unknown>
+  candidate_impact: Record<string, unknown>
 }
 
 export type ElectronMovScriptEngineContentCanvasDeleteResult = {
@@ -272,6 +302,7 @@ export type ElectronMovScriptEngineContentUnitGenerationPromptReadInput = Electr
 
 export type ElectronMovScriptEngineContentUnitBackendPromptBuildInput = ElectronMovScriptEngineProjectInput & {
   contentUnitId: string | number
+  promptText?: string
 }
 
 export type ElectronMovScriptEngineContentUnitBackendPromptBuildResult = MovScriptContentUnitPromptBuildResult

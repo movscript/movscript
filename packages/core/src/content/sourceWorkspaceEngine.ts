@@ -1,4 +1,6 @@
 import type { NodeMovScriptEngine } from '@movscript/engine/node'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import {
   createMediaEditingProjectFromProductionTimelineClips,
   createMediaEditingProjectFromTimelineAssemblyClips,
@@ -9,7 +11,16 @@ import {
   implicitTimelineAssemblyRef,
   timelineAssemblyScopeFromContentUnitRecord,
 } from '@movscript/domain'
-import type { MovScriptWorkspaceIndexedEntity } from '@movscript/workspace'
+import {
+  MOVSCRIPT_INTERPRET_CURRENT_DIR,
+  deriveMovScriptWorkspacePreviewTimelines,
+  deriveMovScriptWorkspaceTimelineAssemblyPreviewTimeline,
+  queryMovScriptWorkspaceAssets,
+  queryMovScriptWorkspaceEntities,
+  queryMovScriptWorkspaceProductionContext,
+  queryMovScriptWorkspaceSettings,
+  type MovScriptWorkspaceIndexedEntity,
+} from '@movscript/workspace'
 import type {
   ContentCandidateRecord,
   ContentSourceWorkspaceEditingTimeline,
@@ -22,49 +33,40 @@ export async function loadContentSourceWorkspaceSnapshotFromEngine(
   engine: NodeMovScriptEngine,
 ): Promise<ContentSourceWorkspaceSnapshot> {
   const service = engine.workspaceService
-  const [
-    index,
-    settings,
-    settingStates,
-    assetsResult,
-    context,
-    review,
-  ] = await Promise.all([
+  const [index, review] = await Promise.all([
     service.loadIndex(),
-    service.querySettings({ limit: 500 }),
-    service.queryEntities({ entityKind: 'setting_state', limit: 500 }),
-    service.queryAssets({ limit: 500 }),
-    service.queryProductionContext({
-      include: ['productions', 'segments', 'scene_moments', 'storyboards', 'audio_cues', 'expression_units', 'content_units', 'keyframes'],
-      limit: 1000,
-    }),
     engine.review(),
   ])
 
+  const settings = queryMovScriptWorkspaceSettings(index, { limit: 500 })
+  const settingStates = queryMovScriptWorkspaceEntities(index, { entityKind: 'setting_state', limit: 500 })
+  const assetsResult = queryMovScriptWorkspaceAssets(index, { limit: 500 })
+  const context = queryMovScriptWorkspaceProductionContext(index, {
+    include: ['productions', 'segments', 'scene_moments', 'storyboards', 'audio_cues', 'expression_units', 'content_units', 'keyframes'],
+    limit: 1000,
+  })
   const productions = context.productions ?? []
   const sceneMoments = context.scene_moments ?? []
   const contentUnits = context.content_units ?? []
-  const legacyPreviewTimelines = (await Promise.all(
-    productions
-      .map((production) => String(production.id ?? production.record.id ?? production.record.ID ?? production.path))
-      .map((productionId) => service.readPreviewTimeline(productionId) as Promise<WorkspacePreviewTimelineArtifact | undefined>),
-  )).filter(isDefined)
+  const productionIds = new Set(productions.map((production) => String(production.id ?? production.record.id ?? production.record.ID ?? production.path)))
+  const legacyPreviewTimelines = deriveMovScriptWorkspacePreviewTimelines(index)
+    .filter((timeline) => productionIds.has(String(timeline.productionId ?? timeline.productionPath)))
+    .filter(isDefined) as WorkspacePreviewTimelineArtifact[]
   const timelineAssemblyScopes = timelineAssemblyScopesFromContentUnits(contentUnits)
-  const assemblyPreviewTimelines = (await Promise.all(
-    timelineAssemblyScopes.map((scope) =>
-      service.readTimelineAssemblyPreviewTimeline({
+  const assemblyPreviewTimelines = timelineAssemblyScopes
+    .map((scope) =>
+      deriveMovScriptWorkspaceTimelineAssemblyPreviewTimeline(index, {
         scopeKind: scope.kind,
         scopeRef: scope.ref,
         targetRef: implicitTimelineAssemblyRef(scope.kind, scope.ref),
-      }) as Promise<WorkspacePreviewTimelineArtifact | undefined>,
-    ),
-  )).filter(isDefined)
+      }) as WorkspacePreviewTimelineArtifact | undefined)
+    .filter(isDefined)
   const previewTimelines = uniquePreviewTimelines([...legacyPreviewTimelines, ...assemblyPreviewTimelines])
   const editingTimelines = (await Promise.all(
     sceneMoments.map(async (sceneMoment): Promise<ContentSourceWorkspaceEditingTimeline | undefined> => {
       const sceneMomentId = idField(sceneMoment.id ?? sceneMoment.record.id ?? sceneMoment.record.ID)
       if (sceneMomentId === undefined) return undefined
-      const editPlan = await service.readSceneMomentEditPlan(sceneMomentId).catch(() => undefined)
+      const editPlan = await readSceneMomentEditPlanForIndexedEntity(engine, sceneMoment).catch(() => undefined)
       if (!isRecord(editPlan)) return undefined
       const mediaEditingProject = createMediaEditingProjectFromMovScriptEditPlan(editPlan as unknown as MovScriptEditPlanArtifact, {
         projectId: String(editPlan.productionId ?? 'MovScript'),
@@ -116,6 +118,17 @@ export async function loadContentSourceWorkspaceSnapshotFromEngine(
     editingTimelines: [...productionEditingTimelines, ...assemblyEditingTimelines, ...editingTimelines],
     productionWorkPlan: productionWorkPlanFromReview(review),
   }
+}
+
+async function readSceneMomentEditPlanForIndexedEntity(
+  engine: NodeMovScriptEngine,
+  sceneMoment: MovScriptWorkspaceIndexedEntity,
+): Promise<Record<string, unknown> | undefined> {
+  const sceneMomentDir = sceneMoment.path.replace(/\/scene_moment\.json$/, '')
+  if (sceneMomentDir === sceneMoment.path) return undefined
+  const path = join(engine.projectDir, MOVSCRIPT_INTERPRET_CURRENT_DIR, sceneMomentDir, 'edit_plan.json')
+  const parsed = JSON.parse(await readFile(path, 'utf8')) as unknown
+  return isRecord(parsed) ? parsed : undefined
 }
 
 function productionTimelineFromPreview(input: {

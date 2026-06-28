@@ -22,7 +22,7 @@ export function ProjectResourceViewSurface({ kind }: ProjectResourceViewSurfaceP
     queryKey: ['project-surface', 'resource-view', runtime.project.projectId, runtime.project.projectDir ?? '', resourceViewKind],
     queryFn: () => {
       const resourceView = runtime.gateways.project.resourceView
-      if (!resourceView) throw new Error('Project Service resource view gateway is not available.')
+      if (!resourceView) throw new Error('Project runtime resource gateway is not available.')
       return resourceView({
         projectId: runtime.project.projectId,
         projectDir: runtime.project.projectDir,
@@ -39,7 +39,7 @@ export function ProjectResourceViewSurface({ kind }: ProjectResourceViewSurfaceP
   return (
     <AgentSurfaceShell
       title={title}
-      description="Project resource view backed by Project Service, independent of the active host."
+      description="Project resource view backed by the active project runtime."
       ready={Boolean(runtime.project.projectId)}
       chips={[
         `project: ${runtime.project.projectId}`,
@@ -52,8 +52,7 @@ export function ProjectResourceViewSurface({ kind }: ProjectResourceViewSurfaceP
           <AgentSurfaceKeyValues items={[
             ['Project', runtime.project.projectId],
             ['Project Dir', runtime.project.projectDir ?? 'not configured'],
-            ['Project Service', runtime.services.projectServiceBaseURL ?? 'host proxy'],
-            ['Gateway', runtime.gateways.project.resourceView ? 'available' : 'missing'],
+            ['Project Gateway', runtime.gateways.project.resourceView ? 'available' : 'missing'],
           ]} />
         </AgentSurfacePanel>
 

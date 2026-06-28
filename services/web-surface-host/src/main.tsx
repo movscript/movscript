@@ -39,10 +39,6 @@ function WebSurfaceHostApp() {
   const runtime = useMemo(() => createWebHostProjectSurfaceRuntime({
     projectId: routeContext.projectId,
     projectUid: query.get('projectUid') ?? undefined,
-    projectServiceBaseURL: query.get('projectServiceBaseURL') ?? undefined,
-    dataServiceBaseURL: query.get('dataServiceBaseURL') ?? undefined,
-    editingServiceBaseURL: query.get('editingServiceBaseURL') ?? undefined,
-    mediaPipelineBaseURL: query.get('mediaPipelineBaseURL') ?? undefined,
     mcpApiBaseURL: query.get('mcpApiBaseURL') ?? undefined,
     search: query,
   }), [routeContext.projectId, query])

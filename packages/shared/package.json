@@ -69,6 +69,10 @@
       "types": "./dist/workspaceCandidates.d.ts",
       "import": "./dist/workspaceCandidates.js"
     },
+    "./system-context": {
+      "types": "./dist/systemContext.d.ts",
+      "import": "./dist/systemContext.js"
+    },
     "./workspace-domain": {
       "types": "./dist/workspaceDomain.d.ts",
       "import": "./dist/workspaceDomain.js"

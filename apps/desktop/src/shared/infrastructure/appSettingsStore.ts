@@ -5,8 +5,8 @@ import { createJSONStorage, persist, type StateStorage } from 'zustand/middlewar
 import { readBrowserStorageItem, removeBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 import {
   APP_SETTINGS_STORAGE_KEY,
+  getDaemonGatewayBaseURL,
   getDefaultAPIBaseURL,
-  getLocalAPIBaseURL,
   normalizeAPIBaseURL,
   refreshRuntimeConfigSnapshot,
   type AppSettings,
@@ -24,6 +24,7 @@ interface AppSettingsStore {
   setLaunchMode: (launchMode: AppSettings['launchMode']) => void
   setWorkMode: (workMode: AppSettings['workMode']) => void
   setLanguage: (language: SupportedLanguage) => void
+  setDataConnectionURL: (url: string) => void
   setAPIBaseURL: (apiBaseURL: string) => void
   setMovScriptWorkspaceDir: (workspaceDir: string) => void
   setShotLibrarySources: (sources: ShotLibrarySourceConfig[], defaultSourceId?: string) => void
@@ -31,9 +32,10 @@ interface AppSettingsStore {
 }
 
 const defaultSettings: AppSettings = {
+  dataConnection: { kind: 'cloud', url: getDefaultAPIBaseURL() },
   apiBaseURL: getDefaultAPIBaseURL(),
   cloudAPIBaseURL: getDefaultAPIBaseURL(),
-  localAPIBaseURL: getLocalAPIBaseURL(),
+  daemonGatewayBaseURL: getDaemonGatewayBaseURL(),
   launchMode: 'cloud',
   workMode: 'project',
   language: isSupportedLanguage(i18n.language) ? i18n.language : undefined,
@@ -63,7 +65,45 @@ function isElectronAppSettingsStorage(): boolean {
 function normalizeSettings(settings?: Partial<AppSettings> | null): AppSettings {
   return normalizeAppSettings(settings, {
     defaultSettings,
-    localAPIBaseURL: getLocalAPIBaseURL(),
+    daemonGatewayBaseURL: getDaemonGatewayBaseURL(),
+  })
+}
+
+function dataConnectionForSettingsPatch(
+  current: AppSettings,
+  patch: Partial<AppSettings>,
+): AppSettings['dataConnection'] | undefined {
+  const kind = patch.dataConnection?.kind ?? patch.launchMode
+  if (!kind) return patch.dataConnection
+  const patchAPIBaseURL = patch.apiBaseURL?.trim() ? normalizeAPIBaseURL(patch.apiBaseURL) : undefined
+  const cloudAPIBaseURL = patch.cloudAPIBaseURL
+    ?? (kind !== 'local' ? patchAPIBaseURL : undefined)
+    ?? current.cloudAPIBaseURL
+    ?? getDefaultAPIBaseURL()
+  const daemonGatewayBaseURL = patch.daemonGatewayBaseURL
+    ?? (kind === 'local' ? patchAPIBaseURL : undefined)
+    ?? current.daemonGatewayBaseURL
+    ?? getDaemonGatewayBaseURL()
+  return {
+    kind,
+    url: patch.dataConnection?.url ?? (kind === 'local' ? daemonGatewayBaseURL : cloudAPIBaseURL),
+  }
+}
+
+function settingsWithDataConnectionURL(current: AppSettings, url: string): AppSettings {
+  const normalizedURL = normalizeAPIBaseURL(url)
+  return normalizeSettings({
+    ...current,
+    apiBaseURL: normalizedURL,
+    ...(current.dataConnection.kind === 'local'
+      ? {
+          daemonGatewayBaseURL: normalizedURL,
+          dataConnection: { kind: 'local', url: normalizedURL },
+        }
+      : {
+          cloudAPIBaseURL: normalizedURL,
+          dataConnection: { kind: current.dataConnection.kind === 'external' ? 'external' : 'cloud', url: normalizedURL },
+        }),
   })
 }
 
@@ -167,9 +207,12 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
       savedAt: null,
       hydrated: false,
       completeOnboarding: (partial) => {
+        const current = useAppSettingsStore.getState().settings
+        const dataConnection = dataConnectionForSettingsPatch(current, partial)
         const next = normalizeSettings({
-          ...useAppSettingsStore.getState().settings,
+          ...current,
           ...partial,
+          ...(dataConnection ? { dataConnection } : {}),
           onboardingCompleted: true,
         })
         set({ settings: next, savedAt: new Date().toISOString() })
@@ -177,9 +220,11 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
       },
       setOnboardingSettings: (partial) => {
         const current = useAppSettingsStore.getState().settings
+        const dataConnection = dataConnectionForSettingsPatch(current, partial)
         const next = normalizeSettings({
           ...current,
           ...partial,
+          ...(dataConnection ? { dataConnection } : {}),
           onboardingCompleted: partial.onboardingCompleted ?? current.onboardingCompleted,
         })
         set({ settings: next, savedAt: new Date().toISOString() })
@@ -188,13 +233,17 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
       setLaunchMode: (launchMode) => {
         const current = useAppSettingsStore.getState().settings
         const cloudAPIBaseURL = current.cloudAPIBaseURL ?? getDefaultAPIBaseURL()
-        const localAPIBaseURL = current.localAPIBaseURL ?? getLocalAPIBaseURL()
+        const daemonGatewayBaseURL = current.daemonGatewayBaseURL ?? getDaemonGatewayBaseURL()
         const next = normalizeSettings({
           ...current,
           launchMode,
+          dataConnection: {
+            kind: launchMode,
+            url: launchMode === 'local' ? daemonGatewayBaseURL : cloudAPIBaseURL,
+          },
           cloudAPIBaseURL,
-          localAPIBaseURL,
-          apiBaseURL: launchMode === 'local' ? localAPIBaseURL : cloudAPIBaseURL,
+          daemonGatewayBaseURL,
+          apiBaseURL: launchMode === 'local' ? daemonGatewayBaseURL : cloudAPIBaseURL,
         })
         set({ settings: next, savedAt: new Date().toISOString() })
         syncElectronSettings(next)
@@ -211,18 +260,14 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
         void i18n.changeLanguage(language)
         syncElectronSettings(next)
       },
-      setAPIBaseURL: (apiBaseURL) => {
+      setDataConnectionURL: (url) => {
         const current = useAppSettingsStore.getState().settings
-        const normalizedAPIBaseURL = normalizeAPIBaseURL(apiBaseURL)
-        const next = normalizeSettings({
-          ...current,
-          apiBaseURL: normalizedAPIBaseURL,
-          ...(current.launchMode === 'local'
-            ? { localAPIBaseURL: normalizedAPIBaseURL }
-            : { cloudAPIBaseURL: normalizedAPIBaseURL }),
-        })
+        const next = settingsWithDataConnectionURL(current, url)
         set({ settings: next, savedAt: new Date().toISOString() })
         syncElectronSettings(next)
+      },
+      setAPIBaseURL: (apiBaseURL) => {
+        useAppSettingsStore.getState().setDataConnectionURL(apiBaseURL)
       },
       setMovScriptWorkspaceDir: (movScriptWorkspaceDir) => {
         const next = normalizeSettings({ ...useAppSettingsStore.getState().settings, movScriptWorkspaceDir })

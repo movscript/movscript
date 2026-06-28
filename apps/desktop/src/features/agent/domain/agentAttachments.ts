@@ -1,14 +1,15 @@
-import { getAPIBaseURL, getAPIV1BaseURL } from '@/shared/infrastructure/config'
+import { getAPIBaseURL } from '@/shared/infrastructure/config'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 import type { RawResource } from '@/types'
+import {
+  resourceFileUrl,
+  resolveResourceUrl as resolveCoreResourceUrl,
+} from '@movscript/core/resources'
 
 export function resourceUrl(resource: Pick<RawResource, 'url' | 'direct_url'>): string {
   const url = resource.direct_url || resource.url
   if (!url) return ''
-  if (/^(https?:|blob:|data:)/i.test(url)) return url
-  if (url.startsWith('/api/v1/')) return `${getAPIBaseURL()}${url}`
-  if (url.startsWith('/')) return `${getAPIV1BaseURL()}${url}`
-  return url
+  return resolveCoreResourceUrl({ url, direct_url: resource.direct_url }, getAPIBaseURL())
 }
 
 export function attachmentKind(mimeType: string, fallbackName = ''): AgentAttachment['type'] {
@@ -66,7 +67,7 @@ export function attachmentDisplayUrl(attachment: AgentAttachment) {
 }
 
 export function attachmentToResource(attachment: AgentAttachment): RawResource | null {
-  const url = attachmentDisplayUrl(attachment) || (attachment.resourceId !== undefined ? `/api/v1/resources/${attachment.resourceId}/file` : '')
+  const url = attachmentDisplayUrl(attachment) || resourceFileUrl(attachment.resourceId) || ''
   if (!url) return null
   return {
     ID: attachment.resourceId ?? 0,

@@ -13,7 +13,7 @@ export function isLocalLaunchMode(value: string | { launchMode?: string } | unde
 }
 
 export function getAPIBaseURL(): string {
-  return typeof window === 'undefined' ? '/local-api/data' : `${window.location.origin}/local-api/data`
+  return typeof window === 'undefined' ? '' : window.location.origin
 }
 
 export function getAPIV1BaseURL(): string {

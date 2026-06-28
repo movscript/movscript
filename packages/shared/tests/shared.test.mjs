@@ -4,7 +4,10 @@ import test from 'node:test'
 
 import {
   defaultShotLibrarySource,
+  getSettingsDaemonGatewayBaseURL,
+  getSettingsDataConnectionBaseURL,
   isActiveSemanticEntityRecord,
+  isLocalDataConnection,
   isRecord,
   normalizeAPIBaseURL,
   normalizeAppSettings,
@@ -45,6 +48,7 @@ test('shared package semantic entity visibility hides deleted records', () => {
 
 test('shared package app settings normalize URLs, modes, and shot library sources', () => {
   const defaultSettings = {
+    dataConnection: { kind: 'cloud', url: 'http://localhost:8765' },
     apiBaseURL: 'http://localhost:8765',
     launchMode: 'cloud',
     workMode: 'project',
@@ -52,6 +56,18 @@ test('shared package app settings normalize URLs, modes, and shot library source
   }
 
   assert.equal(normalizeAPIBaseURL(' http://localhost:8765/api/v1/ '), 'http://localhost:8765')
+  assert.equal(isLocalDataConnection({ dataConnection: { kind: 'local', url: 'http://localhost:8766' } }), true)
+  assert.equal(isLocalDataConnection({ dataConnection: { kind: 'cloud', url: 'https://api.test' } }), false)
+  assert.equal(getSettingsDataConnectionBaseURL({
+    dataConnection: { kind: 'cloud', url: ' https://team.test/api/v1 ' },
+    cloudAPIBaseURL: 'https://legacy-cloud.test',
+    apiBaseURL: 'https://legacy.test',
+  }), 'https://team.test')
+  assert.equal(getSettingsDaemonGatewayBaseURL({
+    dataConnection: { kind: 'local', url: 'http://data.test:8766' },
+    daemonGatewayBaseURL: ' http://daemon.test:8766/api/v1 ',
+    apiBaseURL: 'http://legacy.test:8766',
+  }), 'http://daemon.test:8766')
   assert.deepEqual(defaultShotLibrarySource('http://api.test'), {
     id: 'default',
     name: 'Movscript',
@@ -91,9 +107,10 @@ test('shared package app settings normalize URLs, modes, and shot library source
     defaultSettings,
     localAPIBaseURL: 'http://localhost:8766',
   }), {
+    dataConnection: { kind: 'local', url: 'http://api.test' },
     apiBaseURL: 'http://api.test',
     cloudAPIBaseURL: 'http://localhost:8765',
-    localAPIBaseURL: 'http://api.test',
+    daemonGatewayBaseURL: 'http://api.test',
     launchMode: 'local',
     workMode: 'agent',
     onboardingCompleted: true,
@@ -115,9 +132,10 @@ test('shared package app settings normalize URLs, modes, and shot library source
     defaultSettings,
     localAPIBaseURL: 'http://localhost:8766',
   }), {
+    dataConnection: { kind: 'cloud', url: 'https://cloud.example' },
     apiBaseURL: 'https://cloud.example',
     cloudAPIBaseURL: 'https://cloud.example',
-    localAPIBaseURL: 'http://localhost:8766',
+    daemonGatewayBaseURL: 'http://localhost:8766',
     launchMode: 'cloud',
     workMode: 'project',
     onboardingCompleted: false,

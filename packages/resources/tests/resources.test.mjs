@@ -27,18 +27,25 @@ import {
   normalizeExternalMediaTypes,
   normalizeExternalOrientation,
   normalizeExternalSnapshotPage,
+  normalizeRawResourceRef,
+  normalizeRawResourceRefs,
   normalizeTimelineSpeed,
   normalizeTimelineVideoClips,
   parseClipTimecode,
   parseExternalResourceSearchSnapshot,
+  rawResourceId,
+  rawResourceRef,
+  rawResourceRefKey,
   readResourceDragPayload,
   readResourceFromDragPayload,
   readResourceIdDragPayload,
   resourceAuthCacheScopeKey,
   resourceDropAcceptsPayload,
+  resourceFilePath,
   resourceFileImageUrl,
   resourceFileUrl,
   resourceMediaCacheKey,
+  resolveResourcePathUrl,
   resolveResourceDropResource,
   resolveResourceUrl,
   scriptDocumentBaseTitleFromName,
@@ -240,10 +247,42 @@ test('resources package URL rules prefer provider URLs and resolve backend paths
   assert.equal(resolveResourceUrl({
     url: '/api/v1/resources/42/file',
   }, 'http://localhost:8765'), 'http://localhost:8765/api/v1/resources/42/file')
+  assert.equal(resolveResourceUrl({
+    url: '/resources/42/file',
+  }, 'http://localhost:8765'), 'http://localhost:8765/api/v1/resources/42/file')
+  assert.equal(resolveResourcePathUrl('/resources/43/file', 'http://localhost:8765/'), 'http://localhost:8765/api/v1/resources/43/file')
+  assert.equal(resolveResourcePathUrl('resources/43/file', 'http://localhost:8765'), 'resources/43/file')
+  assert.equal(resourceFilePath('asset/42'), '/api/v1/resources/asset%2F42/file')
   assert.equal(resourceFileUrl(42), '/api/v1/resources/42/file')
+  assert.equal(resourceFileUrl(rawResourceRef(42)), '/api/v1/resources/42/file')
   assert.equal(resourceFileUrl(null), undefined)
   assert.equal(resourceFileImageUrl(42, '/api/v1/resources/99/file'), '/api/v1/resources/99/file')
   assert.equal(resourceFileImageUrl(undefined, 'https://cdn.example.com/frame.jpg'), 'https://cdn.example.com/frame.jpg')
+})
+
+test('resources package typed resource refs normalize legacy ids without accepting URLs as identity', () => {
+  assert.deepEqual(rawResourceRef(42), { kind: 'raw-resource', resourceId: '42' })
+  assert.deepEqual(rawResourceRef('asset/42', { projectId: 'project-1', revision: 3 }), {
+    kind: 'raw-resource',
+    resourceId: 'asset/42',
+    projectId: 'project-1',
+    revision: 3,
+  })
+  assert.deepEqual(normalizeRawResourceRef('{{resource::42}}'), { kind: 'raw-resource', resourceId: '42' })
+  assert.deepEqual(normalizeRawResourceRef('[[resource:asset/42]]'), { kind: 'raw-resource', resourceId: 'asset/42' })
+  assert.deepEqual(normalizeRawResourceRef({ kind: 'raw-resource', resource_id: 7, project_id: 'p1', scope: 'project', revision: 'r2' }), {
+    kind: 'raw-resource',
+    resourceId: '7',
+    projectId: 'p1',
+    scope: 'project',
+    revision: 'r2',
+  })
+  assert.equal(normalizeRawResourceRef('https://cdn.example.com/resource.png'), undefined)
+  assert.equal(normalizeRawResourceRef('blob:http://localhost/resource'), undefined)
+  assert.equal(normalizeRawResourceRef('/api/v1/resources/42/file'), undefined)
+  assert.equal(rawResourceId({ kind: 'raw-resource', resourceId: '42' }), '42')
+  assert.equal(rawResourceRefKey({ scope: 'project', projectId: 'p1', resourceId: '42' }), 'project:p1:42')
+  assert.deepEqual(normalizeRawResourceRefs(['42', '{{resource::42}}', 'resource:7']).map((ref) => ref.resourceId), ['42', '7'])
 })
 
 test('resources package media cache rules scope protected resource URLs by auth', () => {

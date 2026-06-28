@@ -19,6 +19,7 @@ const (
 	AdapterXiaomiMimo   = "xiaomi_mimo"
 	AdapterMureka       = "mureka"
 	AdapterStability    = "stability"
+	AdapterYunwu        = "yunwu"
 	AdapterLocal        = "local"
 )
 
@@ -291,6 +292,15 @@ func openAICompatVideoParams() []ParamDef {
 			Options: []string{"normal", "fun", "spicy", "custom"}, Default: "normal"},
 		{Key: "quality", Label: "质量", Type: "select",
 			Options: []string{"standard", "pro"}, Default: "standard"},
+	}
+}
+
+func yunwuVideoParams() []ParamDef {
+	return []ParamDef{
+		{Key: "aspect_ratio", Label: "画面比例", Type: "select",
+			Options: []string{"2:3", "3:2", "1:1"}, Default: "1:1"},
+		{Key: "size", Label: "清晰度", Type: "select",
+			Options: []string{"720P", "1080P"}, Default: "720P"},
 	}
 }
 
@@ -620,6 +630,23 @@ var AdapterDefs = []AdapterDef{
 			{Capability: CapabilityAudioSTT, Params: openAICompatAudioTranscribeParams()},
 			{Capability: CapabilityAudioChat, Params: openAICompatAudioChatParams()},
 			{Capability: CapabilitySubAlign, Params: openAICompatAudioTranscribeParams()},
+		},
+	},
+	{
+		AdapterType:    AdapterYunwu,
+		DisplayName:    "云雾中转站",
+		Description:    "云雾聚合网关：文本/图片复用 OpenAI 兼容接口，视频任务使用云雾 /v1/video/create 协议",
+		DefaultBaseURL: "https://yunwu.ai/v1",
+		CredFields: []CredField{
+			{Key: "api_key", Label: "API Key", Required: true},
+			{Key: "base_url", Label: "Base URL（可选，用于 api3.wlai.vip 等云雾入口）", Required: false},
+		},
+		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityText, Params: commonTextParams()},
+			{Capability: CapabilityImage, Params: commonImageParams()},
+			{Capability: CapabilityImageEdit, Params: commonImageParams()},
+			{Capability: CapabilityVideo, Params: yunwuVideoParams()},
+			{Capability: CapabilityVideoI2V, Params: yunwuVideoParams()},
 		},
 	},
 	{

@@ -6,6 +6,8 @@ import {
   isLocalLaunchMode,
   normalizeAPIBaseURL,
   trimTrailingSlash,
+  type MovScriptDataConnectionContext,
+  type MovScriptRuntimeDescriptor,
 } from '@movscript/shared'
 
 const DEFAULT_API_ORIGIN = 'https://api.movscript.com'
@@ -45,6 +47,12 @@ export function getLocalAPIBaseURL(): string {
   return normalizeAPIBaseURL(readImportMetaEnv().VITE_LOCAL_API_BASE_URL || LOCAL_API_ORIGIN)
 }
 
+export function getDaemonGatewayBaseURL(): string {
+  return runtimeConfigSnapshot?.runtime.gateway.baseURL
+    || runtimeConfigSnapshot?.gatewayBaseURL
+    || getLocalAPIBaseURL()
+}
+
 export function getAPIBaseURL(): string {
   return runtimeConfigSnapshot?.apiBaseURL || readStoredAPIBaseURL() || getDefaultAPIBaseURL()
 }
@@ -53,16 +61,46 @@ export function getAPIV1BaseURL(): string {
   return runtimeConfigSnapshot?.apiV1BaseURL || `${getAPIBaseURL()}/api/v1`
 }
 
-export function getCanvasServiceBaseURL(): string {
-  return runtimeConfigSnapshot?.canvasServiceBaseURL || getAPIBaseURL()
-}
-
-export function getCanvasServiceV1BaseURL(): string {
-  return runtimeConfigSnapshot?.canvasServiceV1BaseURL || `${getCanvasServiceBaseURL()}/v1`
+export function getCanvasGatewayBaseURL(): string {
+  return getDaemonGatewayBaseURL()
 }
 
 export function getRuntimeConfigSnapshot(): ElectronRuntimeConfig | null {
   return runtimeConfigSnapshot
+}
+
+export function getRuntimeDescriptor(): MovScriptRuntimeDescriptor | null {
+  return runtimeConfigSnapshot?.runtime ?? null
+}
+
+export function getRuntimeDataConnection(): MovScriptDataConnectionContext | null {
+  return runtimeConfigSnapshot?.dataConnection ?? runtimeConfigSnapshot?.runtime.dataConnection ?? null
+}
+
+export function isLocalDataConnection(settings?: Pick<AppSettings, 'dataConnection'> | null): boolean {
+  return settings?.dataConnection?.kind === 'local'
+}
+
+export function getSettingsDaemonGatewayBaseURL(
+  settings?: Pick<AppSettings, 'daemonGatewayBaseURL' | 'dataConnection' | 'apiBaseURL'> | null,
+): string {
+  return normalizeAPIBaseURL(
+    settings?.daemonGatewayBaseURL?.trim()
+      || (isLocalDataConnection(settings) ? settings?.dataConnection?.url?.trim() : '')
+      || settings?.apiBaseURL?.trim()
+      || getDaemonGatewayBaseURL(),
+  )
+}
+
+export function getSettingsDataConnectionBaseURL(
+  settings?: Pick<AppSettings, 'dataConnection' | 'cloudAPIBaseURL' | 'apiBaseURL'> | null,
+): string {
+  return normalizeAPIBaseURL(
+    settings?.dataConnection?.url?.trim()
+      || settings?.cloudAPIBaseURL?.trim()
+      || settings?.apiBaseURL?.trim()
+      || getAPIBaseURL(),
+  )
 }
 
 export function setRuntimeConfigSnapshot(snapshot: ElectronRuntimeConfig | null | undefined): void {
@@ -82,41 +120,78 @@ function readImportMetaEnv(): Record<string, string | undefined> {
 }
 
 function normalizeRuntimeConfigSnapshot(snapshot: ElectronRuntimeConfig): ElectronRuntimeConfig {
-  const apiBaseURL = normalizeAPIBaseURL(snapshot.apiBaseURL)
-  const localAPIBaseURL = normalizeAPIBaseURL(snapshot.localAPIBaseURL)
-  const gatewayBaseURL = snapshot.gatewayBaseURL?.trim()
-    ? trimTrailingSlash(snapshot.gatewayBaseURL)
-    : undefined
-  const canvasServiceBaseURL = snapshot.canvasServiceBaseURL?.trim()
-    ? trimTrailingSlash(snapshot.canvasServiceBaseURL)
-    : undefined
+  const legacySnapshot = snapshot as ElectronRuntimeConfig & Record<string, unknown>
+  const legacyRuntime = legacySnapshot.runtime as Partial<MovScriptRuntimeDescriptor> | undefined
+  const dataConnection = normalizeRuntimeDataConnection(
+    legacySnapshot.dataConnection as Partial<MovScriptDataConnectionContext> | undefined
+      ?? legacyRuntime?.dataConnection,
+  )
+  const gatewayBaseURL = legacyRuntime?.gateway?.baseURL?.trim()
+    ? trimTrailingSlash(legacyRuntime.gateway.baseURL)
+    : snapshot.gatewayBaseURL?.trim()
+      ? trimTrailingSlash(snapshot.gatewayBaseURL)
+    : typeof legacySnapshot.localAPIBaseURL === 'string' && legacySnapshot.localAPIBaseURL.trim()
+      ? normalizeAPIBaseURL(legacySnapshot.localAPIBaseURL)
+      : undefined
+  const apiBaseURL = normalizeAPIBaseURL(
+    typeof legacySnapshot.apiBaseURL === 'string' && legacySnapshot.apiBaseURL.trim()
+      ? legacySnapshot.apiBaseURL
+      : gatewayBaseURL ?? getDefaultAPIBaseURL(),
+  )
+  const apiV1BaseURL = snapshot.apiV1BaseURL?.trim()
+    ? normalizeAPIBaseURL(snapshot.apiV1BaseURL) + '/api/v1'
+    : `${apiBaseURL}/api/v1`
+  const runtime = normalizeRuntimeDescriptor(legacyRuntime, gatewayBaseURL ?? apiBaseURL, dataConnection)
   return {
-    ...snapshot,
-    ...(gatewayBaseURL ? { gatewayBaseURL } : {}),
-    ...(snapshot.dataServiceBaseURL?.trim() ? {
-      dataServiceBaseURL: trimTrailingSlash(snapshot.dataServiceBaseURL),
-    } : {}),
     movScriptHomeDir: snapshot.movScriptHomeDir?.trim() || snapshot.workspaceDir.trim(),
     workspaceDir: snapshot.workspaceDir.trim(),
+    runtime,
+    dataConnection,
+    ...(gatewayBaseURL ? { gatewayBaseURL } : {}),
     apiBaseURL,
-    apiV1BaseURL: snapshot.apiV1BaseURL?.trim() ? normalizeAPIBaseURL(snapshot.apiV1BaseURL) + '/api/v1' : `${apiBaseURL}/api/v1`,
-    ...(snapshot.projectServiceBaseURL?.trim() ? {
-      projectServiceBaseURL: trimTrailingSlash(snapshot.projectServiceBaseURL),
-    } : {}),
-    ...(canvasServiceBaseURL ? { canvasServiceBaseURL } : {}),
-    ...(snapshot.canvasServiceV1BaseURL?.trim() ? {
-      canvasServiceV1BaseURL: trimTrailingSlash(snapshot.canvasServiceV1BaseURL),
-    } : gatewayBaseURL ? {
-      canvasServiceV1BaseURL: `${gatewayBaseURL}/local-api`,
-    } : canvasServiceBaseURL ? {
-      canvasServiceV1BaseURL: `${canvasServiceBaseURL}/v1`,
-    } : {}),
-    localAPIBaseURL,
+    apiV1BaseURL,
     providerRuntimeEnv: normalizeProviderRuntimeEnv(snapshot.providerRuntimeEnv),
     backendStatus: {
       ...snapshot.backendStatus,
       baseURL: normalizeAPIBaseURL(snapshot.backendStatus.baseURL),
     },
+  }
+}
+
+function normalizeRuntimeDescriptor(
+  runtime: Partial<MovScriptRuntimeDescriptor> | undefined,
+  gatewayBaseURL: string,
+  dataConnection: MovScriptDataConnectionContext,
+): MovScriptRuntimeDescriptor {
+  return {
+    schema: 'movscript.runtime-descriptor.v1',
+    runtime: {
+      owner: 'movscript.local-node',
+      appId: 'movscript.local-node',
+      name: 'MovScript Local Node Daemon',
+    },
+    gateway: {
+      baseURL: normalizeAPIBaseURL(runtime?.gateway?.baseURL || gatewayBaseURL),
+      canonicalPrefix: '/v1',
+    },
+    dataConnection,
+    capabilities: {
+      project: runtime?.capabilities?.project ?? true,
+      canvas: runtime?.capabilities?.canvas ?? true,
+      resources: runtime?.capabilities?.resources ?? true,
+      editing: runtime?.capabilities?.editing ?? true,
+      media: runtime?.capabilities?.media ?? true,
+    },
+  }
+}
+
+function normalizeRuntimeDataConnection(input: Partial<MovScriptDataConnectionContext> | undefined): MovScriptDataConnectionContext {
+  const kind = input?.kind === 'local' || input?.kind === 'external' ? input.kind : 'cloud'
+  return {
+    kind,
+    authMode: input?.authMode ?? (kind === 'local' ? 'local-owner' : kind === 'external' ? 'external' : 'session'),
+    status: input?.status ?? 'degraded',
+    displayName: input?.displayName?.trim() || (kind === 'local' ? 'Local daemon data' : kind === 'external' ? 'External data connection' : 'Cloud data connection'),
   }
 }
 

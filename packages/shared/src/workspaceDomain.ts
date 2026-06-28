@@ -5,7 +5,6 @@ export interface SurfaceWorkspaceDomainContext {
   orgId?: string | number
   projectId?: string | number
   projectUid?: string
-  projectServiceBaseURL?: string
   expectedWorkspaceVersions?: Record<string, string | null>
 }
 

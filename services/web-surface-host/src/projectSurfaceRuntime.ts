@@ -7,10 +7,6 @@ import { webProjectSurfaceHref } from './projectSurfaceRouting.js'
 export interface WebHostProjectSurfaceRuntimeInput {
   projectId: string
   projectUid?: string
-  projectServiceBaseURL?: string
-  dataServiceBaseURL?: string
-  editingServiceBaseURL?: string
-  mediaPipelineBaseURL?: string
   mcpApiBaseURL?: string
   search?: URLSearchParams
 }
@@ -24,12 +20,10 @@ export function createWebHostProjectSurfaceRuntime(input: WebHostProjectSurfaceR
       location: 'remote',
       ...(input.projectUid ? { projectUid: input.projectUid } : {}),
     },
-    services: {
-      ...(input.projectServiceBaseURL ? { projectServiceBaseURL: input.projectServiceBaseURL } : {}),
-      ...(input.dataServiceBaseURL ? { dataServiceBaseURL: input.dataServiceBaseURL } : {}),
-      ...(input.editingServiceBaseURL ? { editingServiceBaseURL: input.editingServiceBaseURL } : {}),
-      ...(input.mediaPipelineBaseURL ? { mediaPipelineBaseURL: input.mediaPipelineBaseURL } : {}),
-      ...(input.mcpApiBaseURL ? { mcpApiBaseURL: input.mcpApiBaseURL } : {}),
+    diagnostics: {
+      endpoints: {
+        ...(input.mcpApiBaseURL ? { mcpApi: input.mcpApiBaseURL } : {}),
+      },
     },
     capabilities: {
       resourceUpload: true,

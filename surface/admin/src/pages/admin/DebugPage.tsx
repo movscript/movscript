@@ -40,14 +40,20 @@ function tryFormatJSON(s: string): string {
   try { return JSON.stringify(JSON.parse(s), null, 2) } catch { return s }
 }
 
-function buildCurlCommand(method: string, url: string, headers: Record<string, string>, body?: string): string {
+function isMultipartDebugSummary(body?: string): boolean {
+  const trimmed = body?.trim().toLowerCase() ?? ''
+  return trimmed.startsWith('(multipart:') || trimmed.startsWith('[multipart')
+}
+
+function buildCurlCommand(method: string, url: string, headers: Record<string, string>, body?: string): string | null {
+  if (isMultipartDebugSummary(body)) return null
   const parts = [`curl -X ${method}`]
   for (const [k, v] of Object.entries(headers)) {
     parts.push(`  -H ${JSON.stringify(`${k}: ${v}`)}`)
   }
   if (body && method !== 'GET') {
     const trimmed = body.trim()
-    if (trimmed && trimmed !== '(no body)' && !trimmed.startsWith('[multipart')) {
+    if (trimmed && trimmed !== '(no body)') {
       parts.push(`  -d ${JSON.stringify(trimmed)}`)
     }
   }

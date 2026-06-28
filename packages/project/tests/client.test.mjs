@@ -5,8 +5,8 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import {
-  PROJECT_SERVICE_CANDIDATE_COMMAND_ENDPOINT,
   PROJECT_SERVICE_CANDIDATE_VIEW_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANDIDATE_CREATE_ENDPOINT,
   PROJECT_SERVICE_LIFECYCLE_COMMAND_ENDPOINT,
   PROJECT_SERVICE_LOCATOR_RESOLVE_ENDPOINT,
   PROJECT_SERVICE_NAME,
@@ -260,7 +260,7 @@ test('project service client posts source commands through the command endpoint'
   }])
 })
 
-test('project service client posts candidate command and view requests', async () => {
+test('project service client posts typed candidate action and view requests', async () => {
   const requests = []
   const decisionStore = {
     kind: 'scoped-project-data',
@@ -285,17 +285,15 @@ test('project service client posts candidate command and view requests', async (
         }), { status: 200 })
       }
       return new Response(JSON.stringify({
-        schema: 'movscript.project-candidate-command-result.v1',
+        schema: 'movscript.project-content-candidate-create.v1',
         projectDir: '/tmp/project',
-        command: 'createContentCandidate',
         result: { record: { id: 'candidate_a' } },
       }), { status: 200 })
     },
   })
 
-  const command = await client.candidateCommand({
+  const created = await client.createContentCandidate({
     projectDir: '/tmp/project',
-    command: 'createContentCandidate',
     input: { contentUnitId: 'opening', outputs: [{ kind: 'image', resource_id: 101 }] },
     decisionStore,
   })
@@ -305,15 +303,14 @@ test('project service client posts candidate command and view requests', async (
     decisionStore,
   })
 
-  assert.equal(command.command, 'createContentCandidate')
+  assert.equal(created.result.record.id, 'candidate_a')
   assert.equal(view.contexts.length, 0)
   assert.deepEqual(requests, [
     {
-      url: `http://127.0.0.1:9003${PROJECT_SERVICE_CANDIDATE_COMMAND_ENDPOINT}`,
+      url: `http://127.0.0.1:9003${PROJECT_SERVICE_CONTENT_CANDIDATE_CREATE_ENDPOINT}`,
       method: 'POST',
       body: {
         projectDir: '/tmp/project',
-        command: 'createContentCandidate',
         input: { contentUnitId: 'opening', outputs: [{ kind: 'image', resource_id: 101 }] },
         decisionStore,
       },

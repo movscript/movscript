@@ -5,7 +5,7 @@ import {
   Film,
 } from 'lucide-react'
 import { surfaceDataApi as api } from '@movscript/shared/surface-http'
-import { normalizeAPIBaseURL } from '@movscript/shared'
+import { getSettingsDataConnectionBaseURL, normalizeAPIBaseURL } from '@movscript/shared'
 import { resourceKeys } from '@movscript/resource-surface/data'
 import { invalidateResourceMutationResult, resourceLibraryChangedResult } from '@movscript/resource-surface/data'
 import { shotLibraryKeys } from '../application/shotLibraryQueryKeys'
@@ -51,6 +51,7 @@ import { useSurfaceHostState } from '../application/surfaceHostStateHooks'
 import './ShotLibraryPage.css'
 const EMPTY_FACET_FILTERS: ShotLibraryFacetFilters = {}
 const FALLBACK_APP_SETTINGS = {
+  dataConnection: { kind: 'local', url: '' },
   apiBaseURL: '',
   launchMode: 'local',
   workMode: 'project',
@@ -71,6 +72,7 @@ export default function ShotLibraryPage() {
   const [activeSourceId, setActiveSourceId] = useState<string | 'all'>(settings.defaultShotLibrarySourceId ?? 'all')
   const [facetFilters, setFacetFilters] = useState<ShotLibraryFacetFilters>(EMPTY_FACET_FILTERS)
   const [shotPage, setShotPage] = useState(1)
+  const dataConnectionBaseURL = getSettingsDataConnectionBaseURL(settings)
   const {
     importDialogOpen,
     importSession,
@@ -98,15 +100,15 @@ export default function ShotLibraryPage() {
   })
 
   const shotSources = useMemo(
-    () => normalizeShotLibrarySources(settings.shotLibrarySources, settings.apiBaseURL, t('pages.shotLibrary.defaultSourceName')),
-    [settings.apiBaseURL, settings.shotLibrarySources, t],
+    () => normalizeShotLibrarySources(settings.shotLibrarySources, dataConnectionBaseURL, t('pages.shotLibrary.defaultSourceName')),
+    [dataConnectionBaseURL, settings.shotLibrarySources, t],
   )
   const enabledSources = useMemo(() => shotSources.filter(source => source.enabled), [shotSources])
   const writableSources = useMemo(() => enabledSources.filter(source => !source.readOnly), [enabledSources])
   const uploadSource = writableSources.find(source => source.id === activeSourceId)
     ?? writableSources.find(source => source.id === settings.defaultShotLibrarySourceId)
     ?? writableSources[0]
-  const currentApiSource = writableSources.find(source => source.baseURL === normalizeAPIBaseURL(settings.apiBaseURL)) ?? uploadSource
+  const currentApiSource = writableSources.find(source => source.baseURL === normalizeAPIBaseURL(dataConnectionBaseURL)) ?? uploadSource
 
   const removeShotReference = useMutation({
     mutationFn: async (entry: ShotLibraryEntry) => {

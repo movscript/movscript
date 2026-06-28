@@ -25,6 +25,7 @@ export function listProjectResources(): MCPResource[] {
       resource(`movscript://project/${id}/settings`, 'Settings', 'Legacy setting source records with namespace projection fields.'),
       resource(`movscript://project/${id}/setting-states`, 'Setting states', 'Legacy setting-state alias; prefer setting-namespaces for namespace-aware work.'),
       resource(`movscript://project/${id}/assets`, 'Assets', 'System primitive asset records.'),
+      resource(`movscript://project/${id}/project-context`, 'Project context', 'Project standards, namespace vocabulary, hash, and agent guidance from Project Service.'),
       resource(`movscript://project/${id}/namespace-vocabulary`, 'Namespace vocabulary', 'Project namespace vocabulary, templates, aliases, and diagnostics.'),
       resource(`movscript://project/${id}/timeline-namespaces`, 'Timeline namespaces', 'Canonical timeline namespace nodes using project vocabulary.'),
       resource(`movscript://project/${id}/setting-namespaces`, 'Setting namespaces', 'Canonical setting namespace nodes using project vocabulary.'),
@@ -81,6 +82,8 @@ function projectResourceViewKind(kind: string): ProjectResourceViewKind {
       return 'assets'
     case 'namespace-vocabulary':
       return 'namespace-vocabulary'
+    case 'project-context':
+      return 'project-context'
     case 'timeline-namespaces':
       return 'timeline-namespaces'
     case 'setting-namespaces':

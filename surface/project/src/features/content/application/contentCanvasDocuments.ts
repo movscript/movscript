@@ -9,9 +9,11 @@ export const CONTENT_CANVAS_DOCUMENTS_SCHEMA = 'movscript.content_canvas_documen
 export const CONTENT_CANVAS_DOCUMENTS_DESKTOP_PREFIX = 'movscript-content-canvas-documents-v1'
 export const CONTENT_CANVAS_PROJECT_DOCUMENT_SCHEMA = 'movscript.content_canvas.v1'
 export const CONTENT_CANVAS_PROJECT_DOCUMENTS_SCHEMA = 'movscript.content_canvases.v1'
+export const CONTENT_CANVAS_TITLE_MAX_LENGTH = 80
 
 const CONTENT_CANVAS_DOCUMENTS_STORAGE_PREFIX = 'movscript.contentCanvas.documents.v1'
 const CONTENT_CANVAS_DOCUMENTS_CHANGED_EVENT = 'movscript:content-canvas-documents-changed'
+const CONTENT_CANVAS_TITLE_INVALID_PATTERN = /[<>:"/\\|?*\u0000-\u001F]/
 
 export interface ContentCanvasDocumentNodeRef {
   nodeId: string
@@ -70,6 +72,7 @@ export interface ContentCanvasProjectDocument {
   kind: 'content_canvas'
   id: string
   title: string
+  name: string
   scope: ContentCanvasProjectDocumentScope
   nodes: ContentCanvasProjectDocumentNodeRef[]
   layouts: Record<string, ContentCanvasProjectNodeLayout>
@@ -94,8 +97,14 @@ export type ContentCanvasDocumentNodeInput = {
 
 const contentCanvasDocumentsCache = new Map<number, ContentCanvasDocumentsState | undefined>()
 const contentCanvasDocumentsHydrations = new Set<number>()
+const contentCanvasDocumentsProjectHydrations = new Set<number>()
 const contentCanvasDocumentsVersions = new Map<number, number>()
+const contentCanvasDocumentsProjectDirtyCanvasIds = new Map<number, Set<string>>()
 let contentCanvasDocumentsWindow: Window | undefined
+
+type ContentCanvasDocumentsWriteOptions = {
+  dirtyCanvasIds?: Iterable<string>
+}
 
 export function readContentCanvasDocumentsState(projectId: number | undefined): ContentCanvasDocumentsState | undefined {
   if (!projectId) return undefined
@@ -111,16 +120,10 @@ export function ensureContentCanvasDocumentsState(projectId: number | undefined)
   if (!projectId) return undefined
   const current = readContentCanvasDocumentsState(projectId)
   if (current && current.documents[current.activeCanvasId]) return current
+  if (contentCanvasDocumentsProjectHydrations.has(projectId)) return current
   const now = new Date().toISOString()
-  const document = createBlankContentCanvasDocument({ title: '自由内容画布', now })
-  const next: ContentCanvasDocumentsState = {
-    schema: CONTENT_CANVAS_DOCUMENTS_SCHEMA,
-    projectId,
-    activeCanvasId: document.id,
-    documents: { [document.id]: document },
-    updatedAt: now,
-  }
-  saveContentCanvasDocumentsState(projectId, next)
+  const next = createDefaultContentCanvasDocumentsState(projectId, now)
+  saveContentCanvasDocumentsState(projectId, next, { dirtyCanvasIds: [next.activeCanvasId] })
   return next
 }
 
@@ -147,6 +150,30 @@ export function subscribeContentCanvasDocumentsState(
   }
 }
 
+export function contentCanvasDocumentsHaveUnsavedProjectChanges(projectId: number | undefined): boolean {
+  return Boolean(projectId && contentCanvasDirtyDocumentIds(projectId).length > 0)
+}
+
+export async function saveContentCanvasDocumentsToProject(
+  projectId: number | undefined,
+): Promise<{ savedCount: number }> {
+  if (!projectId) throw new Error('内容画布未连接项目')
+  const current = ensureContentCanvasDocumentsState(projectId)
+  if (!current) throw new Error('没有可保存的内容画布')
+  const api = readSurfaceHostApi()
+  if (!api?.writeMovScriptEngineContentCanvas) throw new Error('当前运行环境不支持保存内容画布')
+  const dirtyCanvasIds = contentCanvasDirtyDocumentIds(projectId).filter((canvasId) => current.documents[canvasId])
+  if (dirtyCanvasIds.length === 0) {
+    clearContentCanvasDirtyDocumentIds(projectId)
+    dispatchContentCanvasDocumentsChanged(projectId)
+    return { savedCount: 0 }
+  }
+  await persistProjectContentCanvasDocumentsState(projectId, current, api, dirtyCanvasIds)
+  clearContentCanvasDirtyDocumentIds(projectId, dirtyCanvasIds)
+  dispatchContentCanvasDocumentsChanged(projectId)
+  return { savedCount: dirtyCanvasIds.length }
+}
+
 export function createContentCanvasDocument(
   projectId: number | undefined,
   input: { title?: string; scope?: ContentCanvasDocumentScope } = {},
@@ -155,8 +182,14 @@ export function createContentCanvasDocument(
   const current = ensureContentCanvasDocumentsState(projectId)
   if (!current) return undefined
   const now = new Date().toISOString()
+  const existingDocuments = Object.values(current.documents)
+  const title = input.title !== undefined
+    ? normalizeContentCanvasDocumentTitle(input.title)
+    : nextContentCanvasDocumentTitle(existingDocuments)
+  const validationMessage = contentCanvasDocumentTitleValidationMessage(title, existingDocuments)
+  if (validationMessage) throw new Error(validationMessage)
   const document = createBlankContentCanvasDocument({
-    title: input.title?.trim() || `自由内容画布 ${Object.keys(current.documents).length + 1}`,
+    title,
     now,
     scope: input.scope,
   })
@@ -168,7 +201,39 @@ export function createContentCanvasDocument(
       [document.id]: document,
     },
     updatedAt: now,
-  })
+  }, { dirtyCanvasIds: [document.id] })
+}
+
+export function renameContentCanvasDocument(
+  projectId: number | undefined,
+  canvasId: string | undefined,
+  title: string,
+): ContentCanvasDocumentsState | undefined {
+  if (!projectId || !canvasId) return readContentCanvasDocumentsState(projectId)
+  const current = ensureContentCanvasDocumentsState(projectId)
+  const document = current?.documents[canvasId]
+  if (!current || !document) return current
+  const nextTitle = normalizeContentCanvasDocumentTitle(title)
+  const validationMessage = contentCanvasDocumentTitleValidationMessage(
+    nextTitle,
+    Object.values(current.documents),
+    canvasId,
+  )
+  if (validationMessage) throw new Error(validationMessage)
+  if (document.title === nextTitle) return current
+  const now = new Date().toISOString()
+  return writeContentCanvasDocumentsState(projectId, {
+    ...current,
+    documents: {
+      ...current.documents,
+      [canvasId]: {
+        ...document,
+        title: nextTitle,
+        updatedAt: now,
+      },
+    },
+    updatedAt: now,
+  }, { dirtyCanvasIds: [canvasId] })
 }
 
 export function selectContentCanvasDocument(
@@ -181,7 +246,6 @@ export function selectContentCanvasDocument(
   return writeContentCanvasDocumentsState(projectId, {
     ...current,
     activeCanvasId: canvasId,
-    updatedAt: new Date().toISOString(),
   })
 }
 
@@ -234,7 +298,7 @@ export function addContentCanvasDocumentNodes(
       },
     },
     updatedAt: now,
-  })
+  }, { dirtyCanvasIds: [canvasId] })
 }
 
 export function removeContentCanvasDocumentNodes(
@@ -271,7 +335,7 @@ export function removeContentCanvasDocumentNodes(
       },
     },
     updatedAt: now,
-  })
+  }, { dirtyCanvasIds: [canvasId] })
 }
 
 export function removeContentCanvasDocumentNodesEverywhere(
@@ -311,7 +375,7 @@ export function removeContentCanvasDocumentNodesEverywhere(
     ...current,
     documents,
     updatedAt: now,
-  })
+  }, { dirtyCanvasIds: Object.keys(documents).filter((canvasId) => documents[canvasId] !== current.documents[canvasId]) })
 }
 
 export function updateContentCanvasDocumentNodePositions(
@@ -352,7 +416,7 @@ export function updateContentCanvasDocumentNodePositions(
       },
     },
     updatedAt: now,
-  })
+  }, { dirtyCanvasIds: [canvasId] })
 }
 
 export function updateContentCanvasDocumentViewport(
@@ -399,7 +463,7 @@ export function clearContentCanvasDocumentNodePositions(
       },
     },
     updatedAt: now,
-  })
+  }, { dirtyCanvasIds: [canvasId] })
 }
 
 export function activeContentCanvasDocument(state: ContentCanvasDocumentsState | undefined): ContentCanvasDocument | undefined {
@@ -428,6 +492,7 @@ export function contentCanvasProjectDocumentFromDocument(document: ContentCanvas
     kind: 'content_canvas',
     id: document.id,
     title: document.title,
+    name: document.title,
     scope: contentCanvasProjectScopeFromDocumentScope(contentCanvasDocumentScope(document)),
     nodes: Object.values(document.nodes)
       .map((node) => ({
@@ -437,19 +502,19 @@ export function contentCanvasProjectDocumentFromDocument(document: ContentCanvas
       }))
       .sort((left, right) => left.node_id.localeCompare(right.node_id)),
     layouts: contentCanvasProjectLayoutsFromDocumentLayouts(document.nodeLayouts),
-    ...(document.viewport ? { viewport: document.viewport } : {}),
     updated_at: document.updatedAt,
   }
 }
 
 export function contentCanvasDocumentFromProjectDocument(value: unknown): ContentCanvasDocument | undefined {
   if (!isRecord(value)) return undefined
-  const id = stringValue(value.id)
+  const id = contentCanvasDocumentIdFromProjectDocument(value)
   if (!id) return undefined
   const updatedAt = stringValue(value.updated_at ?? value.updatedAt) ?? new Date().toISOString()
+  const title = stringValue(value.title ?? value.name ?? value.label) ?? contentCanvasDocumentFallbackTitle(value, id)
   const document: ContentCanvasDocument = {
     id,
-    title: stringValue(value.title) ?? 'Untitled Canvas',
+    title,
     scope: contentCanvasDocumentScopeFromProjectScope(value.scope),
     nodes: contentCanvasDocumentNodesFromProjectNodes(value.nodes),
     nodeLayouts: contentCanvasDocumentLayoutsFromProjectLayouts(value.layouts ?? value.node_layouts ?? value.nodeLayouts),
@@ -457,6 +522,68 @@ export function contentCanvasDocumentFromProjectDocument(value: unknown): Conten
     updatedAt,
   }
   return isContentCanvasDocument(document) ? document : undefined
+}
+
+function contentCanvasDocumentIdFromProjectDocument(value: Record<string, unknown>): string | undefined {
+  return stringValue(value.id ?? value.canvasId ?? value.canvas_id)
+    ?? legacyContentCanvasDocumentId(value)
+}
+
+function legacyContentCanvasDocumentId(value: Record<string, unknown>): string | undefined {
+  const pathId = contentCanvasDocumentIdFromPath(stringValue(value.__legacy_path ?? value.path ?? value.filePath ?? value.file_path))
+  if (pathId) return pathId
+  const legacyIndex = typeof value.__legacy_index === 'number' ? `index:${value.__legacy_index}` : undefined
+  const source = stringValue(value.__legacy_path ?? value.path ?? value.filePath ?? value.file_path ?? value.title ?? value.name ?? value.label)
+    ?? legacyIndex
+  if (!source) return undefined
+  return `canvas:legacy:${stableContentCanvasToken(source)}`
+}
+
+function contentCanvasDocumentFallbackTitle(value: Record<string, unknown>, id: string): string {
+  const path = stringValue(value.__legacy_path ?? value.path ?? value.filePath ?? value.file_path)
+  const pathTitle = path ? contentCanvasTitleFromPath(path) : undefined
+  if (pathTitle) return pathTitle
+  if (id.startsWith('canvas:legacy:')) return '旧内容画布'
+  if (/^\d+$/.test(id)) return '旧内容画布'
+  return id
+}
+
+export function normalizeContentCanvasDocumentTitle(value: string): string {
+  return value.trim().replace(/\s+/g, ' ')
+}
+
+export function contentCanvasDocumentTitleValidationMessage(
+  value: string,
+  _documents: ContentCanvasDocument[],
+  _currentCanvasId?: string,
+): string | undefined {
+  const title = normalizeContentCanvasDocumentTitle(value)
+  if (!title) return '请输入内容画布名称'
+  if (title.length > CONTENT_CANVAS_TITLE_MAX_LENGTH) return `名称不能超过 ${CONTENT_CANVAS_TITLE_MAX_LENGTH} 个字符`
+  if (CONTENT_CANVAS_TITLE_INVALID_PATTERN.test(title)) return '名称不能包含 < > : " / \\ | ? * 或控制字符'
+  return undefined
+}
+
+function nextContentCanvasDocumentTitle(documents: ContentCanvasDocument[]): string {
+  const base = '自由内容画布'
+  if (!contentCanvasDocumentTitleExists(base, documents)) return base
+  for (let index = 2; index < 1000; index += 1) {
+    const title = `${base} ${index}`
+    if (!contentCanvasDocumentTitleExists(title, documents)) return title
+  }
+  return `${base} ${Date.now().toString(36)}`
+}
+
+function contentCanvasDocumentTitleExists(
+  value: string,
+  documents: ContentCanvasDocument[],
+  currentCanvasId?: string,
+): boolean {
+  const normalized = normalizeContentCanvasDocumentTitle(value).toLocaleLowerCase('zh-CN')
+  return documents.some((document) => (
+    document.id !== currentCanvasId
+    && normalizeContentCanvasDocumentTitle(document.title).toLocaleLowerCase('zh-CN') === normalized
+  ))
 }
 
 export function contentCanvasDocumentsStateFromProjectCanvases(
@@ -495,8 +622,9 @@ export function contentCanvasDocumentsStateFromProjectCanvases(
 function writeContentCanvasDocumentsState(
   projectId: number,
   state: ContentCanvasDocumentsState,
+  options: ContentCanvasDocumentsWriteOptions = {},
 ): ContentCanvasDocumentsState {
-  saveContentCanvasDocumentsState(projectId, state)
+  saveContentCanvasDocumentsState(projectId, state, options)
   return state
 }
 
@@ -512,6 +640,17 @@ function createBlankContentCanvasDocument(input: {
     nodes: {},
     nodeLayouts: {},
     updatedAt: input.now,
+  }
+}
+
+function createDefaultContentCanvasDocumentsState(projectId: number, now = new Date().toISOString()): ContentCanvasDocumentsState {
+  const document = createBlankContentCanvasDocument({ title: '自由内容画布', now })
+  return {
+    schema: CONTENT_CANVAS_DOCUMENTS_SCHEMA,
+    projectId,
+    activeCanvasId: document.id,
+    documents: { [document.id]: document },
+    updatedAt: now,
   }
 }
 
@@ -629,11 +768,24 @@ function contentCanvasProjectDocumentRecords(result: unknown): unknown[] {
       : Array.isArray(result)
         ? result
         : []
-  return canvases.map((item) => isRecord(item) && item.record !== undefined ? item.record : item)
+  return canvases.map((item, index) => {
+    if (!isRecord(item)) return item
+    const record = recordValue(item.record ?? item.canvas ?? item.document) ?? item
+    return {
+      ...record,
+      __legacy_path: stringValue(item.path ?? record.path ?? record.__legacy_path),
+      __legacy_index: index,
+    }
+  })
 }
 
-function saveContentCanvasDocumentsState(projectId: number, state: ContentCanvasDocumentsState): void {
+function saveContentCanvasDocumentsState(
+  projectId: number,
+  state: ContentCanvasDocumentsState,
+  options: ContentCanvasDocumentsWriteOptions = {},
+): void {
   contentCanvasDocumentsCache.set(projectId, state)
+  markContentCanvasDirtyDocumentIds(projectId, options.dirtyCanvasIds)
   bumpContentCanvasDocumentsVersion(projectId)
   persistContentCanvasDocumentsState(projectId, state)
   dispatchContentCanvasDocumentsChanged(projectId)
@@ -642,9 +794,10 @@ function saveContentCanvasDocumentsState(projectId: number, state: ContentCanvas
 function hydrateContentCanvasDocumentsState(projectId: number): void {
   if (contentCanvasDocumentsHydrations.has(projectId)) return
   contentCanvasDocumentsHydrations.add(projectId)
+  const cachedState = contentCanvasDocumentsCache.get(projectId)
   const legacy = readBrowserStorageItem('local', contentCanvasDocumentsStorageKey(projectId))
   const legacyState = parseContentCanvasDocumentsState(legacy, projectId)
-  contentCanvasDocumentsCache.set(projectId, legacyState)
+  contentCanvasDocumentsCache.set(projectId, cachedState ?? legacyState)
   const hydrationVersion = contentCanvasDocumentsVersions.get(projectId) ?? 0
   const api = readSurfaceHostApi()
   if (!api?.listMovScriptEngineContentCanvases && !api?.getDesktopState) {
@@ -665,25 +818,44 @@ async function hydrateProjectContentCanvasDocumentsState(
   legacyRaw: string | null,
   hydrationVersion: number,
 ): Promise<void> {
-  const desktopState = await readDesktopContentCanvasDocumentsState(projectId, api)
-  const localState = desktopState ?? legacyState
-  const projectResult = await api.listMovScriptEngineContentCanvases?.(contentCanvasProjectEnvelope(projectId)).catch((error: unknown) => {
-    warnContentCanvasProjectPersistence('list', error)
-    return undefined
-  })
-  if ((contentCanvasDocumentsVersions.get(projectId) ?? 0) !== hydrationVersion) return
-  const projectState = contentCanvasDocumentsStateFromProjectCanvases(projectId, projectResult, localState)
-  if (projectState) {
-    contentCanvasDocumentsCache.set(projectId, projectState)
-    removeBrowserStorageItem('local', contentCanvasDocumentsStorageKey(projectId))
-    dispatchContentCanvasDocumentsChanged(projectId)
-    return
-  }
-  if (localState) {
-    contentCanvasDocumentsCache.set(projectId, localState)
-    persistProjectContentCanvasDocumentsState(projectId, localState, api)
-    if (legacyRaw !== null) removeBrowserStorageItem('local', contentCanvasDocumentsStorageKey(projectId))
-    dispatchContentCanvasDocumentsChanged(projectId)
+  contentCanvasDocumentsProjectHydrations.add(projectId)
+  try {
+    const desktopState = await readDesktopContentCanvasDocumentsState(projectId, api)
+    const localState = desktopState ?? legacyState
+    const projectResult = await api.listMovScriptEngineContentCanvases?.(contentCanvasProjectEnvelope(projectId)).catch((error: unknown) => {
+      warnContentCanvasProjectPersistence('list', error)
+      return undefined
+    })
+    if ((contentCanvasDocumentsVersions.get(projectId) ?? 0) !== hydrationVersion) return
+    const projectState = contentCanvasDocumentsStateFromProjectCanvases(projectId, projectResult, localState)
+    if (projectState) {
+      const nextState = newerContentCanvasDocumentsState(localState, projectState)
+      contentCanvasDocumentsCache.set(projectId, nextState)
+      if (nextState === localState) {
+        const dirtyCanvasIds = changedContentCanvasDocumentIds(localState, projectState)
+        if (dirtyCanvasIds.length > 0) {
+          markContentCanvasDirtyDocumentIds(projectId, dirtyCanvasIds)
+        } else {
+          clearContentCanvasDirtyDocumentIds(projectId)
+        }
+      } else {
+        clearContentCanvasDirtyDocumentIds(projectId)
+        removeBrowserStorageItem('local', contentCanvasDocumentsStorageKey(projectId))
+      }
+      dispatchContentCanvasDocumentsChanged(projectId)
+      return
+    }
+    if (localState) {
+      contentCanvasDocumentsCache.set(projectId, localState)
+      markContentCanvasDirtyDocumentIds(projectId, Object.keys(localState.documents))
+      void legacyRaw
+      dispatchContentCanvasDocumentsChanged(projectId)
+      return
+    }
+    const next = createDefaultContentCanvasDocumentsState(projectId)
+    saveContentCanvasDocumentsState(projectId, next, { dirtyCanvasIds: [next.activeCanvasId] })
+  } finally {
+    contentCanvasDocumentsProjectHydrations.delete(projectId)
   }
 }
 
@@ -731,29 +903,31 @@ function persistContentCanvasDocumentsState(projectId: number, state: ContentCan
   const serialized = JSON.stringify(state)
   const api = readSurfaceHostApi()
   const legacyKey = contentCanvasDocumentsStorageKey(projectId)
-  if (api?.writeMovScriptEngineContentCanvas) {
-    persistProjectContentCanvasDocumentsState(projectId, state, api)
-  }
-  if (api?.setDesktopState) {
+  if (api?.setDesktopState && api?.getDesktopState) {
     void api.setDesktopState({ key: contentCanvasDocumentsDesktopKey(projectId), value: serialized })
       .then(() => removeBrowserStorageItem('local', legacyKey))
       .catch(() => writeBrowserStorageItem('local', legacyKey, serialized))
     return
   }
+  if (api?.setDesktopState) {
+    void api.setDesktopState({ key: contentCanvasDocumentsDesktopKey(projectId), value: serialized })
+      .catch(() => undefined)
+  }
   writeBrowserStorageItem('local', legacyKey, serialized)
 }
 
-function persistProjectContentCanvasDocumentsState(
+async function persistProjectContentCanvasDocumentsState(
   projectId: number,
   state: ContentCanvasDocumentsState,
   api: NonNullable<ReturnType<typeof readSurfaceHostApi>>,
-): void {
-  for (const document of Object.values(state.documents)) {
-    void api.writeMovScriptEngineContentCanvas?.({
+  canvasIds: readonly string[],
+): Promise<void> {
+  await Promise.all(canvasIds.map((canvasId) => state.documents[canvasId]).filter((document): document is ContentCanvasDocument => Boolean(document)).map((document) => (
+    api.writeMovScriptEngineContentCanvas?.({
       ...contentCanvasProjectEnvelope(projectId),
       canvas: contentCanvasProjectDocumentFromDocument(document),
-    }).catch((error: unknown) => warnContentCanvasProjectPersistence('write', error))
-  }
+    })
+  )))
 }
 
 function contentCanvasProjectEnvelope(projectId: number): Record<string, unknown> {
@@ -769,15 +943,113 @@ function warnContentCanvasProjectPersistence(operation: 'list' | 'write' | 'dele
   console.warn(`[content-canvas] project ${operation} failed`, error)
 }
 
+function contentCanvasDirtyDocumentIds(projectId: number): string[] {
+  return [...(contentCanvasDocumentsProjectDirtyCanvasIds.get(projectId) ?? [])]
+}
+
+function markContentCanvasDirtyDocumentIds(projectId: number, canvasIds: Iterable<string> | undefined): void {
+  if (!canvasIds) return
+  const ids = [...canvasIds].filter((canvasId) => canvasId.trim())
+  if (!ids.length) return
+  const current = contentCanvasDocumentsProjectDirtyCanvasIds.get(projectId) ?? new Set<string>()
+  for (const canvasId of ids) current.add(canvasId)
+  contentCanvasDocumentsProjectDirtyCanvasIds.set(projectId, current)
+}
+
+function clearContentCanvasDirtyDocumentIds(projectId: number, canvasIds?: Iterable<string>): void {
+  if (!canvasIds) {
+    contentCanvasDocumentsProjectDirtyCanvasIds.delete(projectId)
+    return
+  }
+  const current = contentCanvasDocumentsProjectDirtyCanvasIds.get(projectId)
+  if (!current) return
+  for (const canvasId of canvasIds) current.delete(canvasId)
+  if (current.size === 0) {
+    contentCanvasDocumentsProjectDirtyCanvasIds.delete(projectId)
+  }
+}
+
+function changedContentCanvasDocumentIds(
+  localState: ContentCanvasDocumentsState | undefined,
+  projectState: ContentCanvasDocumentsState,
+): string[] {
+  if (!localState) return []
+  return Object.values(localState.documents)
+    .filter((document) => {
+      const projectDocument = projectState.documents[document.id]
+      return contentCanvasProjectDocumentSignature(document) !== (
+        projectDocument ? contentCanvasProjectDocumentSignature(projectDocument) : undefined
+      )
+    })
+    .map((document) => document.id)
+}
+
+function contentCanvasProjectDocumentSignature(document: ContentCanvasDocument): string {
+  const projectDocument: Partial<ContentCanvasProjectDocument> = { ...contentCanvasProjectDocumentFromDocument(document) }
+  delete projectDocument.updated_at
+  return JSON.stringify(projectDocument)
+}
+
+function newerContentCanvasDocumentsState(
+  localState: ContentCanvasDocumentsState | undefined,
+  projectState: ContentCanvasDocumentsState,
+): ContentCanvasDocumentsState {
+  if (!localState) return projectState
+  const localTime = Date.parse(localState.updatedAt)
+  const projectTime = Date.parse(projectState.updatedAt)
+  if (!Number.isFinite(localTime) || !Number.isFinite(projectTime)) return projectState
+  return localTime > projectTime ? localState : projectState
+}
+
 function parseContentCanvasDocumentsState(raw: string | null | undefined, projectId: number): ContentCanvasDocumentsState | undefined {
   if (!raw) return undefined
   try {
     const parsed = JSON.parse(raw) as unknown
-    if (!isDocumentsState(parsed, projectId)) return undefined
-    return parsed
+    return normalizeContentCanvasDocumentsState(parsed, projectId)
   } catch {
     return undefined
   }
+}
+
+function normalizeContentCanvasDocumentsState(value: unknown, projectId: number): ContentCanvasDocumentsState | undefined {
+  if (!isRecord(value)) return undefined
+  const rawDocuments = isRecord(value.documents)
+    ? Object.entries(value.documents)
+    : Array.isArray(value.documents)
+      ? value.documents.map((document, index) => [String(index), document] as const)
+      : []
+  const documents = Object.fromEntries(
+    rawDocuments
+      .map(([fallbackId, document]) => contentCanvasDocumentFromLegacyState(document, fallbackId))
+      .filter((document): document is ContentCanvasDocument => Boolean(document))
+      .map((document) => [document.id, document]),
+  )
+  const canvasIds = Object.keys(documents)
+  if (!canvasIds.length) return undefined
+  const activeCanvasId = stringValue(value.activeCanvasId ?? value.active_canvas_id)
+  const resolvedActiveCanvasId = activeCanvasId && documents[activeCanvasId] ? activeCanvasId : canvasIds[0]
+  if (!resolvedActiveCanvasId) return undefined
+  return {
+    schema: CONTENT_CANVAS_DOCUMENTS_SCHEMA,
+    projectId,
+    activeCanvasId: resolvedActiveCanvasId,
+    documents,
+    updatedAt: stringValue(value.updatedAt ?? value.updated_at) ?? new Date().toISOString(),
+  }
+}
+
+function contentCanvasDocumentFromLegacyState(value: unknown, fallbackId: string): ContentCanvasDocument | undefined {
+  const record = recordValue(value)
+  if (!record) return undefined
+  const id = stringValue(record.id ?? record.canvasId ?? record.canvas_id)
+    ?? (/^\d+$/.test(fallbackId) ? undefined : stringValue(fallbackId))
+    ?? legacyContentCanvasDocumentId({ ...record, __legacy_index: Number(fallbackId) })
+  const withFallbacks = {
+    ...record,
+    id,
+    title: stringValue(record.title ?? record.name ?? record.label) ?? contentCanvasDocumentFallbackTitle(record, id ?? fallbackId),
+  }
+  return contentCanvasDocumentFromProjectDocument(withFallbacks)
 }
 
 function contentCanvasDocumentsStorageKey(projectId: number): string {
@@ -793,7 +1065,9 @@ function syncContentCanvasDocumentsCacheWindow(): void {
     if (contentCanvasDocumentsWindow !== undefined) {
       contentCanvasDocumentsCache.clear()
       contentCanvasDocumentsHydrations.clear()
+      contentCanvasDocumentsProjectHydrations.clear()
       contentCanvasDocumentsVersions.clear()
+      contentCanvasDocumentsProjectDirtyCanvasIds.clear()
       contentCanvasDocumentsWindow = undefined
     }
     return
@@ -801,7 +1075,9 @@ function syncContentCanvasDocumentsCacheWindow(): void {
   if (contentCanvasDocumentsWindow === window) return
   contentCanvasDocumentsCache.clear()
   contentCanvasDocumentsHydrations.clear()
+  contentCanvasDocumentsProjectHydrations.clear()
   contentCanvasDocumentsVersions.clear()
+  contentCanvasDocumentsProjectDirtyCanvasIds.clear()
   contentCanvasDocumentsWindow = window
 }
 
@@ -814,17 +1090,6 @@ function dispatchContentCanvasDocumentsChanged(projectId: number): void {
   publishWindowEvent(new CustomEvent(CONTENT_CANVAS_DOCUMENTS_CHANGED_EVENT, {
     detail: { projectId },
   }))
-}
-
-function isDocumentsState(value: unknown, projectId: number): value is ContentCanvasDocumentsState {
-  if (!isRecord(value)) return false
-  if (value.schema !== CONTENT_CANVAS_DOCUMENTS_SCHEMA) return false
-  if (value.projectId !== projectId) return false
-  if (typeof value.activeCanvasId !== 'string') return false
-  if (!isRecord(value.documents)) return false
-  if (typeof value.updatedAt !== 'string') return false
-  return Object.values(value.documents).every(isContentCanvasDocument)
-    && Object.prototype.hasOwnProperty.call(value.documents, value.activeCanvasId)
 }
 
 function isContentCanvasDocument(value: unknown): value is ContentCanvasDocument {
@@ -875,8 +1140,39 @@ function isViewport(value: unknown): value is Viewport {
     && typeof value.zoom === 'number'
 }
 
+function contentCanvasTitleFromPath(path: string): string | undefined {
+  const parts = path.split(/[\\/]+/).filter(Boolean)
+  const candidate = parts.at(-1) === 'canvas.json' ? parts.at(-2) : parts.at(-1)
+  if (!candidate) return undefined
+  return candidate
+    .replace(/^canvas[_-]?/i, '')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    || undefined
+}
+
+function contentCanvasDocumentIdFromPath(path: string | undefined): string | undefined {
+  if (!path) return undefined
+  const parts = path.split(/[\\/]+/).filter(Boolean)
+  const candidate = parts.at(-1) === 'canvas.json' ? parts.at(-2) : parts.at(-1)
+  return stringValue(candidate)
+}
+
+function stableContentCanvasToken(value: string): string {
+  let hash = 2166136261
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0).toString(36)
+}
+
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function recordValue(value: unknown): Record<string, unknown> | undefined {
+  return isRecord(value) ? value : undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

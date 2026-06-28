@@ -25,6 +25,7 @@ export interface DesktopLocalRuntimeOptions {
   dataPlane: DesktopLocalRuntimeDataPlane
   entrypoint?: string
   dataServiceURL?: string
+  forceRestart?: boolean
 }
 
 export function resolveDesktopRuntimeRepoRoot(input: {
@@ -106,6 +107,7 @@ export async function ensureDesktopLocalRuntime(input: {
   dataPlane: DesktopLocalRuntimeDataPlane
   entrypoint?: string
   dataServiceURL?: string
+  forceRestart?: boolean
 }): Promise<Record<string, unknown>> {
   const homeDir = input.homeDir ?? resolveMovScriptHomeDir()
   const entrypoint = input.entrypoint ?? resolveDesktopLocalRuntimeDaemonEntrypoint()
@@ -119,6 +121,7 @@ export async function ensureDesktopLocalRuntime(input: {
       ...(input.dataServiceURL ? { MOVSCRIPT_DATA_SERVICE_URL: input.dataServiceURL } : {}),
     },
     identity: resolveDesktopLocalRuntimeIdentity(entrypoint),
+    ...(input.forceRestart ? { forceRestart: true } : {}),
   })
 }
 

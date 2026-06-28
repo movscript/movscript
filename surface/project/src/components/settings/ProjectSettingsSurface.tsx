@@ -27,7 +27,7 @@ function gatewayStatus(value: unknown): string {
 export function ProjectSettingsSurface() {
   const runtime = useProjectSurfaceRuntime()
   const project = runtime.project
-  const services = runtime.services
+  const endpoints = runtime.diagnostics.endpoints ?? {}
   const capabilities = runtime.capabilities
   const projectGateway = runtime.gateways.project
   const [remoteURL, setRemoteURL] = useState('')
@@ -195,12 +195,10 @@ export function ProjectSettingsSurface() {
         </AgentSurfacePanel>
         <AgentSurfacePanel title="Services">
           <AgentSurfaceKeyValues items={[
-            ['Control', services.controlBaseURL ?? 'not configured'],
-            ['Data Service', services.dataServiceBaseURL ?? 'not configured'],
-            ['Project Service', services.projectServiceBaseURL ?? 'local host proxy'],
-            ['Editing Service', services.editingServiceBaseURL ?? 'not configured'],
-            ['Media Pipeline', services.mediaPipelineBaseURL ?? 'not configured'],
-            ['MCP API', services.mcpApiBaseURL ?? 'not configured'],
+            ['Daemon Gateway', endpoints.gateway ?? 'not configured'],
+            ['Editing', endpoints.editing ?? 'not configured'],
+            ['Media Pipeline', endpoints.mediaPipeline ?? 'not configured'],
+            ['MCP API', endpoints.mcpApi ?? 'not configured'],
           ]} />
         </AgentSurfacePanel>
         <AgentSurfacePanel title="Project Gateway">
@@ -211,7 +209,8 @@ export function ProjectSettingsSurface() {
             ['Overview Source', gatewayStatus(projectGateway.overviewSource)],
             ['Interpret Source', gatewayStatus(projectGateway.interpretSource ?? projectGateway.interpret)],
             ['Regeneration Plan', gatewayStatus(projectGateway.regenerationPlan)],
-            ['Source Command', gatewayStatus(projectGateway.sourceCommand ?? projectGateway.upsertSource)],
+            ['Project Standards', gatewayStatus(projectGateway.upsertProjectStandards)],
+            ['Project Scripts', gatewayStatus(projectGateway.readScriptSource ?? projectGateway.upsertScript)],
             ['Resource View', gatewayStatus(projectGateway.resourceView)],
             ['Git Status', gatewayStatus(projectGateway.gitStatus)],
             ['Git Action', gatewayStatus(projectGateway.gitAction)],

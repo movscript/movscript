@@ -86,7 +86,7 @@
       "currentProject": "Current project",
       "globalLibrary": "Global workflow canvas library",
       "workspaceSummary": "{{count}} workflow canvases in this workspace",
-      "invalidListResponse": "Workflow Canvas Service returned an invalid list response. Check that /local-api/canvas/canvases is proxied to Canvas Service."
+      "invalidListResponse": "Workflow canvas runtime returned an invalid list response. Check that the daemon gateway is ready and try again."
     },
     "jobs": {
       "generationFailed": "Generation failed",

@@ -433,9 +433,14 @@ async function buildContentUnitBackendPromptForCanvas(
     ...(currentSurfaceWorkspaceProjectDir() ? { projectDir: currentSurfaceWorkspaceProjectDir() } : {}),
     projectId: input.projectId,
     contentUnitId: input.contentUnitId,
+    promptText: input.promptText,
   })
+  const promptText = typeof input.promptText === 'string' ? input.promptText : undefined
+  const prompt = promptText === undefined
+    ? result.prompt
+    : { ...(result.prompt ?? {}), text: promptText }
   return {
-    ...result.prompt,
+    ...prompt,
     ...(result.ok ? {} : { blockers: result.blockers }),
   }
 }

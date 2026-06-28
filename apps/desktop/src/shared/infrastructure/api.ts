@@ -13,7 +13,7 @@ import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { toast } from '@movscript/ui/toast'
 import {
   getAPIV1BaseURL,
-  getCanvasServiceV1BaseURL,
+  getCanvasGatewayBaseURL,
   getRuntimeConfigSnapshot,
   refreshRuntimeConfigSnapshot,
 } from '@/shared/infrastructure/config'
@@ -27,7 +27,7 @@ export const api = axios.create({
 })
 
 export const canvasApi = axios.create({
-  baseURL: getCanvasServiceV1BaseURL()
+  baseURL: getCanvasGatewayBaseURL()
 })
 
 let agentBrowserAPIV1BaseURL: string | null = null
@@ -63,7 +63,7 @@ async function applyCanvasAuthenticatedRequestConfig(config: any) {
   await waitForLocalBackendReady()
   const { token, currentOrgID } = useUserStore.getState()
   if (config.baseURL === undefined || config.baseURL === canvasApi.defaults.baseURL) {
-    config.baseURL = getCanvasServiceV1BaseURL()
+    config.baseURL = getCanvasGatewayBaseURL()
   }
   if (token && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${token}`

@@ -14,6 +14,7 @@ const coreSharedAlias = {
 
 const coreNodeAlias = {
   '@movscript/core/backend/node': resolve('../../packages/core/src/backend/node/index.ts'),
+  '@movscript/core/content/node': resolve('../../packages/core/src/content/node.ts'),
 }
 
 const workspaceSharedAlias = {

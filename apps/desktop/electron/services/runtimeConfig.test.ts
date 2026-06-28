@@ -31,39 +31,41 @@ test('Electron runtime config exposes only provider runtime environment override
   }
 })
 
-test('Electron runtime config exposes Canvas Service endpoint discovery contract', () => {
+test('Electron runtime config does not expose Canvas Service endpoint discovery to renderer', () => {
   const source = readFileSync(resolve(import.meta.dirname, 'runtimeConfig.ts'), 'utf8')
 
-  assert.match(source, /CANVAS_SERVICE_NAME = 'movscript\.canvas\.service'/)
-  assert.match(source, /canvasServiceBaseURL/)
-  assert.match(source, /const canvasServiceV1BaseURL = gatewayBaseURL/)
-  assert.match(source, /`\$\{gatewayBaseURL\}\/local-api`/)
-  assert.match(source, /`\$\{canvasServiceBaseURL\}\/v1`/)
-  assert.match(source, /MOVSCRIPT_CANVAS_SERVICE_URL/)
-  assert.match(source, /findRuntimeEndpoint\(snapshot, CANVAS_SERVICE_NAME\)/)
+  assert.doesNotMatch(source, /CANVAS_SERVICE_NAME = 'movscript\.canvas\.service'/)
+  assert.doesNotMatch(source, /canvasServiceBaseURL/)
+  assert.doesNotMatch(source, /canvasServiceV1BaseURL/)
+  assert.doesNotMatch(source, /`\$\{gatewayBaseURL\}\/local-api`/)
+  assert.doesNotMatch(source, /`\$\{canvasServiceBaseURL\}\/v1`/)
+  assert.doesNotMatch(source, /MOVSCRIPT_CANVAS_SERVICE_URL/)
+  assert.doesNotMatch(source, /findRuntimeEndpoint\(snapshot, CANVAS_SERVICE_NAME\)/)
 })
 
-test('Electron runtime config exposes Project Service endpoint discovery contract', () => {
+test('Electron runtime config does not expose Project Service endpoint discovery to renderer', () => {
   const source = readFileSync(resolve(import.meta.dirname, 'runtimeConfig.ts'), 'utf8')
 
-  assert.match(source, /PROJECT_SERVICE_NAME = 'movscript\.project\.service'/)
-  assert.match(source, /projectServiceBaseURL/)
-  assert.match(source, /MOVSCRIPT_PROJECT_SERVICE_URL/)
-  assert.match(source, /MOVSCRIPT_PROJECT_SERVICE_BASE_URL/)
-  assert.match(source, /findRuntimeEndpoint\(snapshot, PROJECT_SERVICE_NAME\)/)
+  assert.doesNotMatch(source, /PROJECT_SERVICE_NAME = 'movscript\.project\.service'/)
+  assert.doesNotMatch(source, /projectServiceBaseURL/)
+  assert.doesNotMatch(source, /MOVSCRIPT_PROJECT_SERVICE_URL/)
+  assert.doesNotMatch(source, /MOVSCRIPT_PROJECT_SERVICE_BASE_URL/)
+  assert.doesNotMatch(source, /findRuntimeEndpoint\(snapshot, PROJECT_SERVICE_NAME\)/)
 })
 
-test('Electron runtime config prefers daemon gateway endpoint for local launch mode', () => {
+test('Electron runtime config prefers daemon gateway endpoint and keeps data service discovery internal', () => {
   const source = readFileSync(resolve(import.meta.dirname, 'runtimeConfig.ts'), 'utf8')
 
   assert.match(source, /LOCAL_NODE_GATEWAY_SERVICE = 'movscript\.local-node\.gateway'/)
   assert.match(source, /gatewayBaseURL/)
   assert.match(source, /findRuntimeEndpoint\(snapshot, LOCAL_NODE_GATEWAY_SERVICE\)/)
-  assert.match(source, /input\.shouldPreferLocalBackend && input\.gatewayBaseURL/)
+  assert.match(source, /function resolveRendererAPIGatewayBaseURL/, 'renderer API base must be a daemon gateway resolver')
+  assert.match(source, /if \(input\.gatewayBaseURL\) \{[\s\S]*?return normalizeDataServiceRootBaseURL\(input\.gatewayBaseURL\)/, 'renderer API base must prefer daemon gateway for every data plane')
   assert.match(source, /DATA_SERVICE_NAME = 'movscript\.data\.service'/)
   assert.match(source, /dataServiceBaseURL/)
   assert.match(source, /MOVSCRIPT_DATA_SERVICE_URL/)
   assert.match(source, /findRuntimeEndpoint\(snapshot, DATA_SERVICE_NAME\)/)
+  assert.doesNotMatch(source, /\.\.\.\(dataServiceBaseURL \? \{ dataServiceBaseURL \} : \{\}\)/)
 })
 
 function restoreEnv(name: string, value: string | undefined): void {

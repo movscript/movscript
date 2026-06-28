@@ -55,6 +55,12 @@ export function applyE2EBootstrapSeed(seed: E2EBootstrapSeed): void {
       ...current,
       ...seed.appSettings,
       launchMode: seed.appSettings.launchMode === 'local' ? 'local' : 'cloud',
+      dataConnection: {
+        kind: seed.appSettings.launchMode === 'local' ? 'local' : seed.appSettings.dataConnection?.kind ?? 'cloud',
+        url: seed.appSettings.dataConnection?.url
+          ?? seed.appSettings.apiBaseURL
+          ?? current.dataConnection.url,
+      },
       onboardingCompleted: seed.appSettings.onboardingCompleted ?? true,
       apiBaseURL: seed.appSettings.apiBaseURL?.trim() ? seed.appSettings.apiBaseURL : current.apiBaseURL,
     }

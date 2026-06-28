@@ -2,7 +2,14 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { AlertTriangle, Loader2 } from 'lucide-react'
 import { AppBackendBootActionButton, AppBackendBootOverlay as AppBackendBootOverlayFrame } from '@movscript/ui/business/app'
-import { canManageLocalBackend, isBackendBootStatus, probeLocalBackendStatus, type BackendBootStatus } from '@/shared/infrastructure/backendBoot'
+import {
+  canManageLocalBackend,
+  getLocalDaemonGatewayBaseURL,
+  isBackendBootStatus,
+  probeLocalBackendStatus,
+  shouldUseLocalDaemonGateway,
+  type BackendBootStatus,
+} from '@/shared/infrastructure/backendBoot'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { ROUTES } from '@/routes/projectRoutes'
 import i18n from '@/i18n'
@@ -21,11 +28,13 @@ export function BackendBootBoundary() {
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const [progressTick, setProgressTick] = useState(0)
   const setBackendStatus = useSystemStatusStore((state) => state.setBackendStatus)
+  const localDaemonGatewayBaseURL = getLocalDaemonGatewayBaseURL(settings)
+  const usesLocalDaemonGateway = shouldUseLocalDaemonGateway(settings)
 
   useEffect(() => {
     let disposed = false
     let timeout: number | undefined
-    const shouldStartLocalBackend = settings.launchMode === 'local' && settings.onboardingCompleted
+    const shouldStartLocalBackend = usesLocalDaemonGateway && settings.onboardingCompleted
 
     if (!shouldStartLocalBackend) {
       setStatus(null)
@@ -86,7 +95,7 @@ export function BackendBootBoundary() {
             return
           }
         }
-        const targetBaseURL = isBackendBootStatus(next) ? next.baseURL : settings.apiBaseURL
+        const targetBaseURL = isBackendBootStatus(next) ? next.baseURL : localDaemonGatewayBaseURL
         const probed = await probeLocalBackendStatus(targetBaseURL)
         if (probed.state === 'ready') {
           updateIfLive(probed)
@@ -101,7 +110,7 @@ export function BackendBootBoundary() {
     }
 
     if (!canManageLocalBackend()) {
-      void probeLocalBackendStatus(settings.apiBaseURL).then((next) => {
+      void probeLocalBackendStatus(localDaemonGatewayBaseURL).then((next) => {
         if (!disposed) setCheckingInitialStatus(false)
         updateIfLive(next)
       })
@@ -116,7 +125,7 @@ export function BackendBootBoundary() {
       updateIfLive(next)
       if (next.state === 'ready') return
       if (next.state === 'starting' || next.state === 'idle' || next.state === 'stopped') {
-        void probeLocalBackendStatus(next.baseURL || settings.apiBaseURL).then((probed) => {
+        void probeLocalBackendStatus(next.baseURL || localDaemonGatewayBaseURL).then((probed) => {
           if (probed.state === 'ready') updateIfLive(probed)
         })
       }
@@ -124,7 +133,7 @@ export function BackendBootBoundary() {
     void readElectronApi()?.getBackendStatus?.().then((next) => {
       if (isBackendBootStatus(next)) updateIfLive(next)
       if (isBackendBootStatus(next) && (next.state === 'ready' || next.state === 'error')) return
-      const targetBaseURL = isBackendBootStatus(next) ? next.baseURL : settings.apiBaseURL
+      const targetBaseURL = isBackendBootStatus(next) ? next.baseURL : localDaemonGatewayBaseURL
       void probeLocalBackendStatus(targetBaseURL).then((probed) => {
         if (probed.state === 'ready') {
           updateIfLive(probed)
@@ -133,14 +142,14 @@ export function BackendBootBoundary() {
         ensureLocalRuntime(targetBaseURL)
       })
     }).catch(() => {
-      ensureLocalRuntime(settings.apiBaseURL)
+      ensureLocalRuntime(localDaemonGatewayBaseURL)
     })
     return () => {
       disposed = true
       window.clearTimeout(timeout)
       off?.()
     }
-  }, [settings, settings.apiBaseURL, settings.launchMode, settings.onboardingCompleted, setBackendStatus])
+  }, [settings, localDaemonGatewayBaseURL, usesLocalDaemonGateway, settings.onboardingCompleted, setBackendStatus])
 
   useEffect(() => {
     if (!startedAt || status?.state === 'ready' || status?.state === 'error') return
@@ -151,13 +160,13 @@ export function BackendBootBoundary() {
   const isRecoveryRoute = pathname === ROUTES.appSettings
 
   if (!settings.onboardingCompleted) return null
-  if (settings.launchMode !== 'local' || isRecoveryRoute) return null
+  if (!usesLocalDaemonGateway || isRecoveryRoute) return null
   if (status?.state === 'ready') return null
   if (checkingInitialStatus) return null
 
   const displayStatus: BackendBootStatus = status ?? {
     state: 'starting',
-    baseURL: settings.apiBaseURL,
+    baseURL: localDaemonGatewayBaseURL,
   }
   const isError = displayStatus.state === 'error'
   const errorDescription = isError
@@ -169,10 +178,10 @@ export function BackendBootBoundary() {
   const progressStage = backendBootProgressStage(elapsedMs)
   async function retryLocalBackend() {
     setRetrying(true)
-    updateBackendStatus({ state: 'starting', baseURL: settings.apiBaseURL })
+    updateBackendStatus({ state: 'starting', baseURL: localDaemonGatewayBaseURL })
     try {
       if (!canManageLocalBackend()) {
-        updateBackendStatus(await probeLocalBackendStatus(settings.apiBaseURL))
+        updateBackendStatus(await probeLocalBackendStatus(localDaemonGatewayBaseURL))
         return
       }
       await readElectronApi()?.setAppSettings?.(settings)
@@ -181,7 +190,7 @@ export function BackendBootBoundary() {
     } catch (error) {
       updateBackendStatus({
         state: 'error',
-        baseURL: settings.apiBaseURL,
+        baseURL: localDaemonGatewayBaseURL,
         message: error instanceof Error ? error.message : String(error),
       })
     } finally {

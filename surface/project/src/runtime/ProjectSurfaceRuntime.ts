@@ -1,4 +1,6 @@
 import type { ProjectSurfaceRouteKey } from '../domain/index.js'
+import type { MovScriptContextEnvelope } from '@movscript/shared'
+import { movScriptContextProjectCwd, movScriptContextProjectId } from '@movscript/shared'
 
 export type ProjectSurfaceProjectLocation = 'local' | 'remote'
 
@@ -12,13 +14,16 @@ export interface ProjectSurfaceProjectContext {
   title?: string
 }
 
-export interface ProjectSurfaceServiceEndpoints {
-  controlBaseURL?: string
-  dataServiceBaseURL?: string
-  projectServiceBaseURL?: string
-  editingServiceBaseURL?: string
-  mediaPipelineBaseURL?: string
-  mcpApiBaseURL?: string
+export interface ProjectSurfaceDiagnosticEndpoints {
+  gateway?: string
+  mcpApi?: string
+  editing?: string
+  mediaPipeline?: string
+  [key: string]: string | undefined
+}
+
+export interface ProjectSurfaceDiagnostics {
+  endpoints?: ProjectSurfaceDiagnosticEndpoints
 }
 
 export interface ProjectSurfaceCapabilities {
@@ -55,13 +60,17 @@ export interface ProjectSurfaceProjectRequest {
   projectUid?: string
 }
 
-export interface ProjectSurfaceSourceCommandInput extends Partial<ProjectSurfaceProjectRequest> {
-  command: string
+export interface ProjectSurfaceWorkspaceOperationInput extends Partial<ProjectSurfaceProjectRequest> {
   input?: unknown
 }
 
 export interface ProjectSurfaceResourceViewInput extends Partial<ProjectSurfaceProjectRequest> {
   kind: string
+  input?: unknown
+}
+
+export interface ProjectSurfaceCandidateViewInput extends Partial<ProjectSurfaceProjectRequest> {
+  contentUnitIds: string[]
   input?: unknown
 }
 
@@ -128,11 +137,14 @@ export interface ProjectServiceGateway {
   overviewSource?(input?: Partial<ProjectSurfaceProjectRequest>): Promise<unknown>
   interpretSource?(input?: Partial<ProjectSurfaceProjectRequest>): Promise<unknown>
   regenerationPlan?(input?: Partial<ProjectSurfaceProjectRequest>): Promise<unknown>
-  sourceCommand?(input: ProjectSurfaceSourceCommandInput): Promise<unknown>
+  upsertProjectStandards?(input: ProjectSurfaceWorkspaceOperationInput): Promise<unknown>
+  readScriptSource?(input: ProjectSurfaceWorkspaceOperationInput): Promise<unknown>
+  upsertScript?(input: ProjectSurfaceWorkspaceOperationInput): Promise<unknown>
+  snapshotScriptVersionFromMarkdown?(input: ProjectSurfaceWorkspaceOperationInput): Promise<unknown>
   resourceView?(input: ProjectSurfaceResourceViewInput): Promise<unknown>
+  candidateView?(input: ProjectSurfaceCandidateViewInput): Promise<unknown>
   interpret?(input?: Partial<ProjectSurfaceProjectRequest>): Promise<unknown>
   readSource?(input?: Partial<ProjectSurfaceProjectRequest>): Promise<unknown>
-  upsertSource?(input: Partial<ProjectSurfaceProjectRequest> & { source: unknown }): Promise<unknown>
   gitStatus?(input?: Omit<Partial<ProjectSurfaceProjectRequest>, 'projectId'> & { projectId?: string | number }): Promise<ProjectSurfaceGitActionResult>
   gitAction?(input: ProjectSurfaceGitActionInput): Promise<ProjectSurfaceGitActionResult>
   listDataSpaces?(input?: Partial<ProjectSurfaceProjectRequest>): Promise<ProjectSurfaceDataSpacesResult>
@@ -164,8 +176,9 @@ export interface ProjectSurfaceGateways {
 }
 
 export interface ProjectSurfaceRuntime {
+  context?: MovScriptContextEnvelope
   project: ProjectSurfaceProjectContext
-  services: ProjectSurfaceServiceEndpoints
+  diagnostics: ProjectSurfaceDiagnostics
   capabilities: ProjectSurfaceCapabilities
   navigator: ProjectSurfaceNavigator
   notifier: ProjectSurfaceNotifier
@@ -173,8 +186,9 @@ export interface ProjectSurfaceRuntime {
 }
 
 export interface ProjectSurfaceRuntimeInput {
+  context?: MovScriptContextEnvelope
   project: ProjectSurfaceProjectContext
-  services?: ProjectSurfaceServiceEndpoints
+  diagnostics?: ProjectSurfaceDiagnostics
   capabilities?: Partial<ProjectSurfaceCapabilities>
   navigator: ProjectSurfaceNavigator
   notifier?: ProjectSurfaceNotifier
@@ -200,9 +214,11 @@ export const noopProjectSurfaceNotifier: ProjectSurfaceNotifier = {
 }
 
 export function createProjectSurfaceRuntime(input: ProjectSurfaceRuntimeInput): ProjectSurfaceRuntime {
+  const project = projectSurfaceProjectFromContext(input.context, input.project)
   return {
-    project: input.project,
-    services: input.services ?? {},
+    ...(input.context ? { context: input.context } : {}),
+    project,
+    diagnostics: input.diagnostics ?? {},
     capabilities: {
       ...defaultProjectSurfaceCapabilities,
       ...input.capabilities,
@@ -210,6 +226,28 @@ export function createProjectSurfaceRuntime(input: ProjectSurfaceRuntimeInput): 
     navigator: input.navigator,
     notifier: input.notifier ?? noopProjectSurfaceNotifier,
     gateways: input.gateways,
+  }
+}
+
+export function projectSurfaceProjectFromContext(
+  context: MovScriptContextEnvelope | undefined,
+  fallback: ProjectSurfaceProjectContext,
+): ProjectSurfaceProjectContext {
+  const projectId = movScriptContextProjectId(context) ?? fallback.projectId
+  const projectDir = movScriptContextProjectCwd(context) ?? fallback.projectDir
+  const workspaceKind = context?.session?.workspace?.kind
+  const contextProject = context?.session?.project
+  return {
+    ...fallback,
+    projectId,
+    location: workspaceKind === 'local-fs'
+      ? 'local'
+      : workspaceKind === 'cloud' || workspaceKind === 'external'
+        ? 'remote'
+        : fallback.location,
+    ...(projectDir ? { projectDir } : {}),
+    ...(contextProject?.uid ? { projectUid: contextProject.uid } : {}),
+    ...(contextProject?.title ? { title: contextProject.title } : {}),
   }
 }
 

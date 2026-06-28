@@ -1,4 +1,5 @@
 import type { MovScriptWorkspaceIndexedEntity } from '@movscript/workspace'
+import { normalizeRawResourceRef } from '@movscript/resources'
 import type {
   ContentCanvasEdge,
   ContentCanvasNode,
@@ -431,7 +432,10 @@ function resourceRefsFromPrompt(text: string): string[] {
 }
 
 function normalizeResourceRef(ref: string): string {
-  return normalizePromptEntityRef(ref, 'resource')
+  const normalized = normalizeRawResourceRef(ref)
+  if (normalized) return normalized.resourceId
+  const fallback = normalizePromptEntityRef(ref, 'resource')
+  return /^(?:https?:|data:|blob:|\/)/i.test(fallback) ? '' : fallback
 }
 
 function normalizePromptEntityRef(ref: string, kind: 'asset' | 'resource'): string {

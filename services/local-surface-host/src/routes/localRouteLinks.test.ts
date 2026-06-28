@@ -10,10 +10,11 @@ import {
   projectSurfaceHrefForLocalProject,
 } from './localRouteLinks'
 
-test('local project home href opens the canonical studio overview route', () => {
+test('local project home href opens the canonical studio overview route without direct service urls', () => {
   const baseQuery = new URLSearchParams({
     projectDir: '/stale/project',
     projectServiceBaseURL: 'http://127.0.0.1:4101',
+    projectServiceURL: 'http://127.0.0.1:4102',
   })
 
   const href = projectHomeHrefForProject({
@@ -29,7 +30,8 @@ test('local project home href opens the canonical studio overview route', () => 
   assert.equal(url.searchParams.get('projectUid'), 'proj_uid_7')
   assert.equal(url.searchParams.get('projectId'), '7')
   assert.equal(url.searchParams.get('projectName'), 'Rain Night')
-  assert.equal(url.searchParams.get('projectServiceBaseURL'), 'http://127.0.0.1:4101')
+  assert.equal(url.searchParams.has('projectServiceBaseURL'), false)
+  assert.equal(url.searchParams.has('projectServiceURL'), false)
 })
 
 test('local project route href uses project uid when no numeric id is available', () => {

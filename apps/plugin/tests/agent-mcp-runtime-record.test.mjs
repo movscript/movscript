@@ -248,6 +248,21 @@ test('movscript-agent-mcp defaults to persistent full-local local-node without D
   assert.equal(localNode.canvasServiceEndpoint.serviceName, 'movscript.canvas.service')
   assert.equal(localNode.localSurfaceHostEndpoint.serviceName, 'movscript.local-surface.host')
   assert.equal(localNode.mediaPipelineEndpoint.serviceName, 'movscript.media.pipeline')
+
+  const statusBeforeConfigure = await fetch(`${localNode.gatewayEndpoint.url}/status`).then((response) => response.json())
+  const configureSameLocal = await fetch(`${localNode.gatewayEndpoint.url}/v1/runtime/configure`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ dataConnection: { kind: 'local' } }),
+  })
+  assert.equal(configureSameLocal.status, 200)
+  const configureSameLocalPayload = await configureSameLocal.json()
+  assert.equal(configureSameLocalPayload.status, 'ready')
+  assert.equal(configureSameLocalPayload.restarted, false)
+  await delay(250)
+  const statusAfterConfigure = await fetch(`${localNode.gatewayEndpoint.url}/status`).then((response) => response.json())
+  assert.equal(statusAfterConfigure.restartCount, statusBeforeConfigure.restartCount)
+
   const directAdminCredentials = await fetch(`${localNode.gatewayEndpoint.url}/api/v1/admin/credentials`)
   assert.equal(directAdminCredentials.ok, true)
   assert.match(directAdminCredentials.headers.get('content-type') ?? '', /application\/json/)
@@ -432,6 +447,10 @@ async function reservePort() {
   await new Promise((resolveClose) => server.close(resolveClose))
   if (!port) throw new Error('failed to reserve test gateway port')
   return port
+}
+
+function delay(ms) {
+  return new Promise((resolveDelay) => setTimeout(resolveDelay, ms))
 }
 
 function readPluginRecords(homeDir, pid) {

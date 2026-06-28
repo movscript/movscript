@@ -1,15 +1,25 @@
 export type AppLaunchMode = 'cloud' | 'local'
+export type AppDataConnectionKind = 'local' | 'cloud' | 'external'
 export type AppWorkMode = 'project' | 'tool' | 'agent'
 export type AppLanguage = 'zh-CN' | 'en-US'
 
+export interface AppDataConnectionSettings {
+  kind: AppDataConnectionKind
+  url?: string
+}
+
 export interface AppSettings {
+  dataConnection: AppDataConnectionSettings
+  /** @deprecated Use dataConnection and daemonGatewayBaseURL. */
   apiBaseURL: string
+  /** @deprecated Use dataConnection.kind for user intent. */
   launchMode: AppLaunchMode
   workMode: AppWorkMode
   onboardingCompleted: boolean
   language?: AppLanguage
+  /** @deprecated Use dataConnection.url for cloud/external data connections. */
   cloudAPIBaseURL?: string
-  localAPIBaseURL?: string
+  daemonGatewayBaseURL?: string
   movScriptWorkspaceDir?: string
   localDisplayName?: string
   shotLibrarySources?: ShotLibrarySourceConfig[]
@@ -27,7 +37,18 @@ export interface ShotLibrarySourceConfig {
 
 export interface NormalizeAppSettingsOptions {
   defaultSettings: AppSettings
+  daemonGatewayBaseURL?: string
+}
+
+type LegacyAppSettings = Partial<AppSettings> & {
   localAPIBaseURL?: string
+}
+
+type LegacyNormalizeAppSettingsOptions = NormalizeAppSettingsOptions & {
+  localAPIBaseURL?: string
+  defaultSettings: AppSettings & {
+    localAPIBaseURL?: string
+  }
 }
 
 export function trimTrailingSlash(value: string): string {
@@ -43,34 +64,87 @@ export function isLocalLaunchMode(settings?: { launchMode?: string | null } | nu
   return settings?.launchMode === 'local'
 }
 
+export function isLocalDataConnection(settings?: { dataConnection?: AppDataConnectionSettings | null } | null): boolean {
+  return settings?.dataConnection?.kind === 'local'
+}
+
+export function getSettingsDataConnectionBaseURL(
+  settings?: { dataConnection?: AppDataConnectionSettings | null; cloudAPIBaseURL?: string; apiBaseURL?: string } | null,
+): string {
+  return normalizeAPIBaseURL(
+    settings?.dataConnection?.url?.trim()
+      || settings?.cloudAPIBaseURL?.trim()
+      || settings?.apiBaseURL?.trim()
+      || '',
+  )
+}
+
+export function getSettingsDaemonGatewayBaseURL(
+  settings?: { daemonGatewayBaseURL?: string; dataConnection?: AppDataConnectionSettings | null; apiBaseURL?: string } | null,
+): string {
+  return normalizeAPIBaseURL(
+    settings?.daemonGatewayBaseURL?.trim()
+      || (isLocalDataConnection(settings) ? settings?.dataConnection?.url?.trim() : '')
+      || settings?.apiBaseURL?.trim()
+      || '',
+  )
+}
+
 export function normalizeAppSettings(
   settings: Partial<AppSettings> | null | undefined,
   options: NormalizeAppSettingsOptions,
 ): AppSettings {
+  const legacySettings = (settings ?? {}) as LegacyAppSettings
+  const legacyOptions = options as LegacyNormalizeAppSettingsOptions
+  const {
+    localAPIBaseURL: _legacySettingsLocalAPIBaseURL,
+    ...settingsWithoutLegacyLocalAPIBaseURL
+  } = legacySettings
+  const {
+    localAPIBaseURL: _legacyDefaultLocalAPIBaseURL,
+    ...defaultSettingsWithoutLegacyLocalAPIBaseURL
+  } = legacyOptions.defaultSettings
   const cloudAPIBaseURL = normalizeOptionalAPIBaseURL(settings?.cloudAPIBaseURL)
     ?? (settings?.launchMode === 'cloud' ? normalizeOptionalAPIBaseURL(settings?.apiBaseURL) : undefined)
     ?? options.defaultSettings.cloudAPIBaseURL
     ?? options.defaultSettings.apiBaseURL
-  const localAPIBaseURL = normalizeOptionalAPIBaseURL(settings?.localAPIBaseURL)
+  const daemonGatewayBaseURL = normalizeOptionalAPIBaseURL(settings?.daemonGatewayBaseURL)
+    ?? normalizeOptionalAPIBaseURL(legacySettings.localAPIBaseURL)
     ?? (settings?.launchMode === 'local' ? normalizeOptionalAPIBaseURL(settings?.apiBaseURL) : undefined)
-    ?? options.localAPIBaseURL
-    ?? options.defaultSettings.localAPIBaseURL
+    ?? options.daemonGatewayBaseURL
+    ?? legacyOptions.localAPIBaseURL
+    ?? options.defaultSettings.daemonGatewayBaseURL
+    ?? legacyOptions.defaultSettings.localAPIBaseURL
     ?? options.defaultSettings.apiBaseURL
-  const fallbackAPIBaseURL = settings?.launchMode === 'local'
-    ? localAPIBaseURL
-    : cloudAPIBaseURL
+  const dataConnectionKind = normalizeDataConnectionKind(
+    settings?.dataConnection?.kind,
+    settings?.launchMode,
+    options.defaultSettings.dataConnection?.kind,
+  )
+  const dataConnectionURL = normalizeOptionalAPIBaseURL(settings?.dataConnection?.url)
+    ?? (dataConnectionKind === 'local' ? daemonGatewayBaseURL : undefined)
+    ?? (settings?.launchMode === 'cloud' ? normalizeOptionalAPIBaseURL(settings?.apiBaseURL) : undefined)
+    ?? (dataConnectionKind !== 'local' ? cloudAPIBaseURL : undefined)
+  const dataConnection: AppDataConnectionSettings = {
+    kind: dataConnectionKind,
+    ...(dataConnectionURL ? { url: dataConnectionURL } : {}),
+  }
+  const fallbackAPIBaseURL = dataConnection.kind === 'local'
+    ? daemonGatewayBaseURL
+    : dataConnection.url ?? cloudAPIBaseURL
   const apiBaseURL = normalizeAPIBaseURL(settings?.apiBaseURL || fallbackAPIBaseURL)
   const shotLibrarySources = normalizeShotLibrarySources(settings?.shotLibrarySources, apiBaseURL)
   const defaultShotLibrarySourceId = normalizeDefaultShotLibrarySourceId(settings?.defaultShotLibrarySourceId, shotLibrarySources)
   return {
-    ...options.defaultSettings,
-    ...settings,
-    launchMode: settings?.launchMode === 'local' ? 'local' : 'cloud',
+    ...defaultSettingsWithoutLegacyLocalAPIBaseURL,
+    ...settingsWithoutLegacyLocalAPIBaseURL,
+    dataConnection,
+    launchMode: dataConnection.kind === 'local' ? 'local' : 'cloud',
     workMode: normalizeWorkMode(settings?.workMode, options.defaultSettings.workMode),
     onboardingCompleted: settings?.onboardingCompleted ?? options.defaultSettings.onboardingCompleted,
     language: normalizeLanguage(settings?.language, options.defaultSettings.language),
     cloudAPIBaseURL,
-    localAPIBaseURL,
+    daemonGatewayBaseURL,
     movScriptWorkspaceDir: settings?.movScriptWorkspaceDir?.trim() || undefined,
     localDisplayName: settings?.localDisplayName?.trim() || undefined,
     apiBaseURL,
@@ -81,6 +155,17 @@ export function normalizeAppSettings(
 
 function normalizeOptionalAPIBaseURL(value: string | undefined): string | undefined {
   return value?.trim() ? normalizeAPIBaseURL(value) : undefined
+}
+
+function normalizeDataConnectionKind(
+  value: unknown,
+  legacyLaunchMode: unknown,
+  fallback: unknown,
+): AppDataConnectionKind {
+  if (value === 'local' || value === 'cloud' || value === 'external') return value
+  if (legacyLaunchMode === 'local') return 'local'
+  if (fallback === 'local' || fallback === 'cloud' || fallback === 'external') return fallback
+  return 'cloud'
 }
 
 function normalizeWorkMode(value: unknown, fallback: AppWorkMode): AppWorkMode {

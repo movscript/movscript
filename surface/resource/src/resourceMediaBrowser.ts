@@ -3,9 +3,11 @@ import { surfaceDataApi } from '@movscript/shared/surface-http'
 import { createObjectUrl, revokeObjectUrl } from '@movscript/shared/browser'
 import {
   isResourceFileUrl as isCoreResourceFileUrl,
+  resourceFilePath,
   resourceFileImageUrl,
   resourceFileUrl,
   resourceMediaCacheKey as coreResourceMediaCacheKey,
+  resolveResourcePathUrl as resolveCoreResourcePathUrl,
   resolveResourceUrl as resolveCoreResourceUrl,
 } from '@movscript/core/resources'
 
@@ -61,9 +63,8 @@ export function resolveResourceUrl(resource: RawResource): string {
 }
 
 export function resolveResourceFileUrl(resourceId?: number | string | null, resourceUrl?: string | null): string | undefined {
-  if (resourceUrl?.trim()) return resolveConfiguredResourceUrl(resourceUrl.trim())
-  if (resourceId === undefined || resourceId === null || resourceId === '') return undefined
-  return resolveConfiguredResourceUrl(`/api/v1/resources/${encodeURIComponent(String(resourceId))}/file`)
+  const url = resourceFileUrl(resourceId, resourceUrl?.trim() || undefined)
+  return url ? resolveConfiguredResourceUrl(url) : undefined
 }
 
 export function resolveResourceFileImageUrl(resourceId?: number | string | null, resourceUrl?: string | null): string | undefined {
@@ -216,7 +217,7 @@ export async function loadResourceBlob(resource: RawResource, options?: Resource
 }
 
 export async function loadResourceFileBlob(resourceId: number, options?: ResourceBlobLoadOptions): Promise<Blob> {
-  const src = `/api/v1/resources/${resourceId}/file`
+  const src = resourceFilePath(resourceId) ?? ''
   return loadCachedResourceBlob(src, () => loadResourceFileBlobUncached(resourceId, options))
 }
 
@@ -226,7 +227,7 @@ export async function loadResourceDataURL(resource: RawResource, options?: Resou
 }
 
 export async function loadResourceFileDataURL(resourceId: number, options?: ResourceBlobLoadOptions): Promise<string> {
-  const src = `/api/v1/resources/${resourceId}/file`
+  const src = resourceFilePath(resourceId) ?? ''
   return loadCachedResourceDataURL(src, () => loadResourceFileBlobUncached(resourceId, options))
 }
 
@@ -329,10 +330,7 @@ export function getResourceMediaAuthHeaders(): HeadersInit | undefined {
 
 function resolveConfiguredResourceUrl(url: string): string {
   if (/^(https?:|data:|blob:)/i.test(url)) return url
-  const apiBaseURL = readConfiguredAPIBaseURL()
-  if (!apiBaseURL) return url
-  if (url.startsWith('/api/')) return `${apiBaseURL}${url}`
-  return url
+  return resolveCoreResourcePathUrl(url, readConfiguredAPIBaseURL())
 }
 
 function readConfiguredAuthCacheScope(): string | undefined {

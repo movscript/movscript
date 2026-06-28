@@ -92,7 +92,7 @@ test('project overview route consumes the project surface page entrypoint', () =
   assert.match(runtimeSource, /workspaceRoot = useProjectStore/)
   assert.match(runtimeSource, /projectDir = project\?\.workspace_path \?\? project\?\.project_path \?\? workspaceRoot \?\? undefined/)
   assert.match(runtimeSource, /readModel: async \(\) =>/)
-  assert.match(runtimeSource, /if \(!projectDir\) throw new Error/)
+  assert.match(runtimeSource, /if \(!contextProjectDir\) throw new Error/)
   assert.doesNotMatch(routeSource, /src\/pages\/project\/ProjectOverviewPage/)
 })
 

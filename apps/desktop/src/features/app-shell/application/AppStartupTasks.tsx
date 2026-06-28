@@ -14,7 +14,7 @@ import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { authRealmKey } from '@/shared/infrastructure/session/authRealm'
 import { ensureLocalWorkspaceAuthSession } from '@/shared/infrastructure/session/localWorkspaceAuth'
 import { useSystemStatusStore } from '@/shared/infrastructure/systemStatusStore'
-import { isLocalLaunchMode, refreshRuntimeConfigSnapshot } from '@/shared/infrastructure/config'
+import { isLocalDataConnection, refreshRuntimeConfigSnapshot } from '@/shared/infrastructure/config'
 import { refreshProviderSettingsRuntimeEnv } from '@/shared/infrastructure/providerConfigStore'
 
 export function AppStartupTasks({
@@ -31,7 +31,7 @@ export function AppStartupTasks({
     if (!settingsHydrated || !userHydrated) return
     const userStore = useUserStore.getState()
     userStore.setActiveRealm(authRealmKey(settings))
-    if (settings.onboardingCompleted && isLocalLaunchMode(settings)) {
+    if (settings.onboardingCompleted && isLocalDataConnection(settings)) {
       void ensureLocalWorkspaceAuthSession().catch((error) => {
         console.warn('[auth] failed to establish local workspace session', error)
       })
@@ -39,10 +39,8 @@ export function AppStartupTasks({
   }, [
     settingsHydrated,
     userHydrated,
-    settings.apiBaseURL,
-    settings.cloudAPIBaseURL,
-    settings.launchMode,
-    settings.localAPIBaseURL,
+    settings.dataConnection.kind,
+    settings.dataConnection.url,
     settings.onboardingCompleted,
   ])
 

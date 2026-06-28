@@ -46,6 +46,7 @@ export function ResourceLibraryPickerPanel({
   variant = 'default',
   className,
   listClassName,
+  layout = 'list',
   onSearch,
   onType,
   onPage,
@@ -73,6 +74,7 @@ export function ResourceLibraryPickerPanel({
   variant?: 'default' | 'prep-dialog'
   className?: string
   listClassName?: string
+  layout?: 'list' | 'grid'
   onSearch: (value: string) => void
   onType: (value: string) => void
   onPage: (value: number) => void
@@ -107,6 +109,7 @@ export function ResourceLibraryPickerPanel({
         loadingLabel={loadingLabel}
         emptyLabel={emptyLabel}
         className={cn(panelListClassName, listClassName)}
+        layout={layout}
         isLoading={isLoading}
         onSelect={onSelect}
       />
@@ -199,6 +202,7 @@ export function ResourceLibraryPickerList({
   loadingLabel,
   emptyLabel,
   className,
+  layout = 'list',
   onSelect,
   isLoading,
 }: {
@@ -207,11 +211,12 @@ export function ResourceLibraryPickerList({
   loadingLabel: ReactNode
   emptyLabel: ReactNode
   className?: string
+  layout?: 'list' | 'grid'
   onSelect: (id: string) => void
   isLoading?: boolean
 }) {
   return (
-    <div className={cn('resource-library-picker__list', className)}>
+    <div className={cn('resource-library-picker__list', className)} data-layout={layout}>
       {isLoading ? (
         <p className="resource-library-picker__state">{loadingLabel}</p>
       ) : items.length === 0 ? (
