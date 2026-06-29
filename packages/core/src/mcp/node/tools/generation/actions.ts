@@ -8,6 +8,7 @@ import {
   buildContentUnitGenerationOutputCandidate,
   buildContentUnitGenerationRequest,
   buildContentUnitGenerationPromptSnapshot,
+  compiledContentUnitGenerationPromptReferenceAssets,
   compiledContentUnitGenerationPromptResourceIds,
   compiledContentUnitGenerationPromptText,
   contentUnitGenerationCandidateId,
@@ -158,20 +159,30 @@ export async function prepareGeneration(args: Record<string, unknown>): Promise<
   const capability = requiredGenerationCapability(args)
   const scope = generationScope(args)
   const operation = generationOperationArg(args)
-  if ((isImageGenerationCapability(capability) || isVideoGenerationCapability(capability) || isAudioGenerationCapability(capability)) && !operation) {
-    throw new Error(`${capability} operation is required for generation_prepare; choose an explicit operation instead of relying on input resources`)
+  if (isAudioGenerationCapability(capability) && !operation) {
+    throw new Error('audio_generation operation is required; choose a model operation such as tts, stt, music, or sfx')
   }
-  const referenceAssets = generationReferenceAssetsForModelList(args)
+  let compiledContentUnit: CompiledContentUnitPromptResult | undefined
+  if (scope === 'content_unit' && (isImageGenerationCapability(capability) || isVideoGenerationCapability(capability))) {
+    const contentUnitId = requiredContentUnitId(args)
+    compiledContentUnit = await compiledContentUnitPrompt(args, contentUnitId)
+  }
+  const referenceAssets = compiledContentUnit
+    ? compiledContentUnitGenerationPromptReferenceAssets(compiledContentUnit.prompt)
+    : generationReferenceAssetsForModelList(args)
+  const outputKind = generationCapabilityOutputKind(capability)
   const models = await listModels({
     capability,
     operation,
+    target_output: outputKind,
+    resolve_intent: !operation && (isImageGenerationCapability(capability) || isVideoGenerationCapability(capability)),
     ...(referenceAssets.length > 0 ? { reference_assets: referenceAssets } : {}),
     provider_variants: args.provider_variants,
     include_provider_variants: args.include_provider_variants,
   })
   if (scope === 'content_unit' && (isImageGenerationCapability(capability) || isVideoGenerationCapability(capability))) {
     const contentUnitId = requiredContentUnitId(args)
-    const compiled = await compiledContentUnitPrompt(args, contentUnitId)
+    const compiled = compiledContentUnit ?? await compiledContentUnitPrompt(args, contentUnitId)
     const blockers = Array.isArray(compiled.blockers) ? compiled.blockers : compiled.prompt?.blockers ?? []
     return {
       status: compiled.ok === true ? 'ready' : 'blocked',
@@ -786,23 +797,47 @@ function generationIntentArg(
   if (isRecord(explicit)) {
     const capability = getOptionalString(explicit, 'capability') ?? (outputKind === 'image' ? 'image_generation' : 'video_generation')
     const operation = getOptionalString(explicit, 'operation') ?? topLevelOperation
-    if (capability && operation) {
+    const rawReferenceAssets = explicit.reference_assets ?? explicit.referenceAssets
+    const payload = generationReferenceAssetsPayload(rawReferenceAssets, refIds)
+    const inferredOperation = operation ?? inferredVisualGenerationOperation(outputKind, payload.reference_assets)
+    if (capability && inferredOperation) {
       return {
         capability,
-        operation,
-        ...generationReferenceAssetsPayload(explicit.reference_assets ?? explicit.referenceAssets, refIds),
+        operation: inferredOperation,
+        ...payload,
       }
     }
   }
-  const operation = topLevelOperation
-  if (!operation) {
-    throw new Error(`${outputKind}_generation operation is required; choose an explicit operation instead of relying on input resources`)
-  }
+  const payload = generationReferenceAssetsPayload(args.reference_assets ?? args.referenceAssets, refIds)
+  const operation = topLevelOperation ?? inferredVisualGenerationOperation(outputKind, payload.reference_assets)
   return {
     capability: outputKind === 'image' ? 'image_generation' : 'video_generation',
     operation,
-    ...generationReferenceAssetsPayload(args.reference_assets ?? args.referenceAssets, refIds),
+    ...payload,
   }
+}
+
+function inferredVisualGenerationOperation(
+  outputKind: 'image' | 'video',
+  referenceAssets: GenerationIntentPayload['reference_assets'] | undefined,
+): string {
+  const refs = referenceAssets ?? []
+  if (outputKind === 'image') {
+    if (refs.length === 0) return 'text_to_image'
+    if (refs.some((ref) => ref.role === 'style_reference')) return 'style_transfer'
+    return 'reference_to_image'
+  }
+  if (refs.length === 0) return 'prompt_to_video'
+  const hasFirst = refs.some((ref) => ref.media_type === 'image' && ref.role === 'first_frame')
+  const hasLast = refs.some((ref) => ref.media_type === 'image' && ref.role === 'last_frame')
+  const hasVideo = refs.some((ref) => ref.media_type === 'video')
+  const hasAudio = refs.some((ref) => ref.media_type === 'audio')
+  const hasImage = refs.some((ref) => ref.media_type === 'image')
+  if (hasFirst && hasLast) return 'first_last_frame_to_video'
+  if (hasFirst) return 'first_frame_to_video'
+  if (hasVideo && !hasImage && !hasAudio) return 'video_to_video'
+  if (hasImage && !hasVideo && !hasAudio) return 'image_to_video'
+  return 'reference_to_video'
 }
 
 function audioGenerationIntentArg(
@@ -815,20 +850,22 @@ function audioGenerationIntentArg(
   if (isRecord(explicit)) {
     const capability = getOptionalString(explicit, 'capability') ?? 'audio_generation'
     const operation = getOptionalString(explicit, 'operation') ?? topLevelOperation ?? audioOperationForJobType(jobType)
+    const rawReferenceAssets = explicit.reference_assets ?? explicit.referenceAssets
     if (capability && operation) {
       return {
         capability,
         operation,
-        ...generationReferenceAssetsPayload(explicit.reference_assets ?? explicit.referenceAssets, refIds),
+        ...generationReferenceAssetsPayload(rawReferenceAssets, rawReferenceAssets === undefined ? [] : refIds),
       }
     }
   }
   const operation = topLevelOperation ?? audioOperationForJobType(jobType)
   if (!operation) return undefined
+  const rawReferenceAssets = args.reference_assets ?? args.referenceAssets
   return {
     capability: 'audio_generation',
     operation,
-    ...generationReferenceAssetsPayload(args.reference_assets ?? args.referenceAssets, refIds),
+    ...generationReferenceAssetsPayload(rawReferenceAssets, rawReferenceAssets === undefined ? [] : refIds),
   }
 }
 

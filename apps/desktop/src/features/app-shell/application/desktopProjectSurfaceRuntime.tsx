@@ -10,7 +10,6 @@ import {
 import type { ProjectSurfaceReadModelStatus } from '@movscript/project-surface/react'
 import {
   createHostedProjectSurfaceRuntime,
-  projectSurfaceContextCommandEnvelope,
   type ProjectSurfaceGitAction,
   type ProjectSurfaceRouteKey,
   type ProjectSurfaceRouteParams,
@@ -139,7 +138,7 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
         endpoint,
         {
           projectDir: nextProjectDir,
-          ...projectSurfaceContextCommandEnvelope(contextEnvelope),
+          ...desktopContextCommandEnvelope(contextEnvelope),
           ...(recordValue(input.input) ?? {}),
           ...(decisionStore ? { decisionStore } : {}),
         },
@@ -205,7 +204,7 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
                 projectDir: contextProjectDir,
                 includeSource: false,
                 includeInspection: false,
-                ...projectSurfaceContextCommandEnvelope(contextEnvelope),
+                ...desktopContextCommandEnvelope(contextEnvelope),
                 ...(decisionStore ? { decisionStore } : {}),
               },
             )
@@ -231,7 +230,7 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
                 projectDir: nextProjectDir,
                 projectId: input.projectId ?? contextProjectId,
                 ...(nextProjectUid ? { projectUid: nextProjectUid } : {}),
-                ...projectSurfaceContextCommandEnvelope(contextEnvelope),
+                ...desktopContextCommandEnvelope(contextEnvelope),
                 ...(decisionStore ? { decisionStore } : {}),
               },
             )
@@ -257,7 +256,7 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
                 projectDir: nextProjectDir,
                 projectId: input.projectId ?? contextProjectId,
                 ...(nextProjectUid ? { projectUid: nextProjectUid } : {}),
-                ...projectSurfaceContextCommandEnvelope(contextEnvelope),
+                ...desktopContextCommandEnvelope(contextEnvelope),
                 ...(decisionStore ? { decisionStore } : {}),
               },
             )
@@ -283,7 +282,7 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
                 projectDir: nextProjectDir,
                 projectId: input.projectId ?? contextProjectId,
                 ...(nextProjectUid ? { projectUid: nextProjectUid } : {}),
-                ...projectSurfaceContextCommandEnvelope(contextEnvelope),
+                ...desktopContextCommandEnvelope(contextEnvelope),
                 ...(decisionStore ? { decisionStore } : {}),
               },
             )
@@ -300,7 +299,7 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
             {
               projectDir: nextProjectDir,
               kind: input.kind,
-              ...projectSurfaceContextCommandEnvelope(contextEnvelope),
+              ...desktopContextCommandEnvelope(contextEnvelope),
               ...(input.input !== undefined ? { input: input.input } : {}),
             },
           )
@@ -325,7 +324,7 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
               projectDir: nextProjectDir,
               contentUnitIds: input.contentUnitIds,
               ...(input.projectUid ?? contextProjectUid ? { projectUid: input.projectUid ?? contextProjectUid } : {}),
-              ...projectSurfaceContextCommandEnvelope(contextEnvelope),
+              ...desktopContextCommandEnvelope(contextEnvelope),
               ...(recordValue(input.input) ?? {}),
               ...(decisionStore ? { decisionStore } : {}),
             },
@@ -428,6 +427,17 @@ function desktopPrincipalHint(owner: ReturnType<typeof workspaceOwnerContext>): 
     return { scopeKind: 'user', scopeId: owner.userId, userId: String(owner.userId) }
   }
   return {}
+}
+
+function desktopContextCommandEnvelope(context: MovScriptContextEnvelope | undefined): Record<string, unknown> {
+  const sessionId = context?.session?.sessionId
+  if (!sessionId) return {}
+  return {
+    context: {
+      sessionId,
+      revision: context.revision,
+    },
+  }
 }
 
 function desktopDataScopeFromContext(context: MovScriptContextEnvelope | undefined): { scopeKind: 'user' | 'org'; scopeId: string | number } | undefined {

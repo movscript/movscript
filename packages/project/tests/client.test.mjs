@@ -20,6 +20,8 @@ import {
   PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT,
   PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT,
   PROJECT_SERVICE_SOURCE_INTERPRET_ENDPOINT,
+  PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT,
+  PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_WRITE_ENDPOINT,
   ProjectServiceClient,
   createProjectServiceClientFromRuntime,
   resolveProjectServiceBaseUrl,
@@ -412,6 +414,64 @@ test('project service client reads resource views through the resource view endp
     body: {
       projectDir: '/tmp/project',
       kind: 'settings',
+    },
+  }])
+})
+
+test('project service client reads and writes TimelineAssembly drafts through stable endpoints', async () => {
+  const requests = []
+  const client = new ProjectServiceClient({
+    baseUrl: 'http://127.0.0.1:9011',
+    fetch: async (url, init = {}) => {
+      requests.push({
+        url: String(url),
+        method: init.method,
+        body: init.body ? JSON.parse(String(init.body)) : undefined,
+      })
+      return new Response(JSON.stringify({
+        schema: String(url).endsWith(PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT)
+          ? 'movscript.project-timeline-assembly-draft-read.v1'
+          : 'movscript.project-timeline-assembly-draft-write.v1',
+        projectDir: '/tmp/project',
+        status: String(url).endsWith(PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT) ? 'ready' : 'written',
+        draftKind: 'timeline_assembly',
+        draft_kind: 'timeline_assembly',
+        targetRef: 'timeline_assembly:production:pilot',
+        target_ref: 'timeline_assembly:production:pilot',
+        path: 'timeline_assemblies/timeline_assembly_production_pilot/assembly.json',
+        record: { title: 'Pilot Rough Cut' },
+      }), { status: 200 })
+    },
+  })
+
+  const read = await client.readTimelineAssemblyDraft({
+    projectDir: '/tmp/project',
+    input: { targetRef: 'timeline_assembly:production:pilot' },
+  })
+  const written = await client.writeTimelineAssemblyDraft({
+    projectDir: '/tmp/project',
+    input: {
+      targetRef: 'timeline_assembly:production:pilot',
+      draft: { title: 'Pilot Rough Cut' },
+    },
+  })
+
+  assert.equal(read.status, 'ready')
+  assert.equal(written.status, 'written')
+  assert.deepEqual(requests, [{
+    url: `http://127.0.0.1:9011${PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT}`,
+    method: 'POST',
+    body: {
+      projectDir: '/tmp/project',
+      targetRef: 'timeline_assembly:production:pilot',
+    },
+  }, {
+    url: `http://127.0.0.1:9011${PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_WRITE_ENDPOINT}`,
+    method: 'POST',
+    body: {
+      projectDir: '/tmp/project',
+      targetRef: 'timeline_assembly:production:pilot',
+      draft: { title: 'Pilot Rough Cut' },
     },
   }])
 })

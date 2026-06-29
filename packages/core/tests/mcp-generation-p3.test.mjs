@@ -169,24 +169,26 @@ test('P3 music and subtitle tools submit distinct backend generation job types',
           headers: { 'content-type': 'application/json' },
         })
       }
-      if (url === 'http://movscript.test/api/v1/models?capability=audio_music') {
+      if (url === 'http://movscript.test/api/v1/models?capability=audio_music'
+        || url === 'http://movscript.test/api/v1/models?capability=audio_generation&operation=music') {
         return new Response(JSON.stringify([
           {
             id: 501,
             model_id: 'audio:music',
             display_name: 'Music Model',
-            capabilities: ['audio_music'],
+            capabilities: ['audio_generation', 'audio_music'],
             supported_params: [{ key: 'style', type: 'string' }],
           },
         ]), { status: 200, headers: { 'content-type': 'application/json' } })
       }
-      if (url === 'http://movscript.test/api/v1/models?capability=audio_transcribe') {
+      if (url === 'http://movscript.test/api/v1/models?capability=audio_transcribe'
+        || url === 'http://movscript.test/api/v1/models?capability=audio_generation&operation=stt') {
         return new Response(JSON.stringify([
           {
             id: 502,
             model_id: 'audio:subtitle',
             display_name: 'Subtitle Model',
-            capabilities: ['audio_transcribe'],
+            capabilities: ['audio_generation', 'audio_transcribe'],
             supported_params: [
               { key: 'language', type: 'string' },
               { key: 'subtitle_format', type: 'string' },
@@ -194,13 +196,14 @@ test('P3 music and subtitle tools submit distinct backend generation job types',
           },
         ]), { status: 200, headers: { 'content-type': 'application/json' } })
       }
-      if (url === 'http://movscript.test/api/v1/models?capability=audio_chat') {
+      if (url === 'http://movscript.test/api/v1/models?capability=audio_chat'
+        || url === 'http://movscript.test/api/v1/models?capability=audio_generation&operation=audio_chat') {
         return new Response(JSON.stringify([
           {
             id: 503,
             model_id: 'audio:chat',
             display_name: 'Omni Voice Model',
-            capabilities: ['audio_chat'],
+            capabilities: ['audio_generation', 'audio_chat'],
             supported_params: [
               { key: 'voice', type: 'string' },
               { key: 'language', type: 'string' },

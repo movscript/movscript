@@ -7,6 +7,7 @@ import { ResourceFileImage, ResourceFileVideo } from '@movscript/resource-surfac
 import { formatResourceMention, parseResourceMentions } from '@movscript/workspace'
 import {
   generationDefaultReferenceRoleForMediaType,
+  generationReferenceMediaTypeShortLabel,
   generationReferenceRoleLabel,
   generationReferenceRoleOptionsForMediaType,
   generationResourceReferenceLabel,
@@ -21,6 +22,7 @@ export type PromptReferenceItem = {
   raw: string
   title: string
   label: string
+  sourceLabel: string
   node?: ContentCanvasNode
   resourceId?: number
   mediaType?: 'image' | 'video' | 'audio' | 'file'
@@ -240,9 +242,18 @@ export function PromptReferenceInlineEditor({
           onSelect={(option) => {
             const editor = editorRef.current
             if (!editor || !mentionRange) return
+            const mediaType = option.previewMediaType ?? option.selectedMediaType ?? option.mediaType ?? 'image'
             insertPromptReferenceToken({
               editor,
-              token: option.raw,
+              token: option.kind === 'resource' && option.resourceId !== undefined
+                ? formatResourceMention(option.resourceId, {
+                  mediaType,
+                  role: option.role ?? defaultReferenceRoleForMediaType(mediaType),
+                })
+                : formatPromptReferenceToken(option.kind, option.token, {
+                  mediaType,
+                  role: option.role ?? defaultReferenceRoleForMediaType(mediaType),
+                }),
               prompt,
               onChange,
               setMentionRange,
@@ -332,10 +343,13 @@ export function PromptReferenceStrip({
           }}
           disabled={!reference.node}
         >
+          <span className="content-canvas-prompt-reference-strip__meta">
+            <small>{promptReferenceMediaLabel(reference.previewMediaType ?? reference.selectedMediaType ?? reference.mediaType)}</small>
+            <b>{promptReferenceInlineRoleLabel(reference)}</b>
+          </span>
           <PromptReferenceThumb reference={reference} />
-          <span>
+          <span className="content-canvas-prompt-reference-strip__body">
             <strong>{reference.title}</strong>
-            <small>{reference.label}</small>
           </span>
         </button>
       ))}
@@ -467,12 +481,17 @@ function promptReferenceEditorHtml(
       ` data-state="${escapeAttribute(part.reference.state)}"`,
       ` data-media-type="${escapeAttribute(part.reference.previewMediaType ?? part.reference.mediaType ?? 'file')}"`,
       part.reference.role ? ` data-role="${escapeAttribute(part.reference.role)}"` : '',
+      ` data-source-label="${escapeAttribute(part.reference.sourceLabel)}"`,
+      ` title="${escapeAttribute(promptReferenceInlineTitle(part.reference))}"`,
       part.reference.missing ? ' data-missing="true"' : '',
       '>',
       promptReferenceInlineThumbHtml(part.reference),
-      '<span>',
-      `<strong>${escapeHtml(part.reference.title)}</strong>`,
-      `<small>${escapeHtml(part.reference.label)}</small>`,
+      '<span class="content-canvas-prompt-inline-reference__body">',
+      '<span class="content-canvas-prompt-inline-reference__meta">',
+      `<small>${escapeHtml(promptReferenceMediaLabel(part.reference.previewMediaType ?? part.reference.selectedMediaType ?? part.reference.mediaType))}</small>`,
+      `<strong>${escapeHtml(promptReferenceInlineRoleLabel(part.reference))}</strong>`,
+      '</span>',
+      `<em>${escapeHtml(part.reference.title)}</em>`,
       '</span>',
       '</span>',
     ].join('')
@@ -481,20 +500,31 @@ function promptReferenceEditorHtml(
 
 function promptReferenceInlineThumbHtml(reference: PromptReferenceItem): string {
   return [
-    `<span class="content-canvas-prompt-reference-strip__fallback" data-media-type="${escapeAttribute(reference.previewMediaType ?? reference.mediaType ?? 'file')}">`,
-    promptReferenceInlineFallbackIcon(reference.previewMediaType ?? reference.mediaType ?? 'file'),
+    `<span class="content-canvas-prompt-reference-strip__fallback content-canvas-prompt-inline-reference__thumb" data-media-type="${escapeAttribute(reference.previewMediaType ?? reference.mediaType ?? 'file')}">`,
+    escapeHtml(generationReferenceMediaTypeShortLabel(reference.previewMediaType ?? reference.mediaType ?? 'file')),
     '</span>',
   ].join('')
 }
 
-function promptReferenceInlineFallbackIcon(mediaType: PromptReferenceItem['mediaType']): string {
-  if (mediaType === 'video') {
-    return '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 13 5.22 3.48a.5.5 0 0 0 .78-.42V7.94a.5.5 0 0 0-.78-.42L16 11"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>'
-  }
-  if (mediaType === 'image') {
-    return '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/></svg>'
-  }
-  return '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>'
+function promptReferenceInlineRoleLabel(reference: PromptReferenceItem): string {
+  if (reference.role) return promptReferenceRoleShortLabel(reference.role)
+  return generationReferenceRoleLabel(defaultReferenceRoleForReference(reference)) || '参考'
+}
+
+function promptReferenceInlineTitle(reference: PromptReferenceItem): string {
+  return [
+    promptReferenceMediaLabel(reference.previewMediaType ?? reference.selectedMediaType ?? reference.mediaType),
+    promptReferenceInlineRoleLabel(reference),
+    reference.title,
+    reference.sourceLabel,
+  ].filter(Boolean).join(' · ')
+}
+
+function promptReferenceMediaLabel(mediaType: PromptReferenceItem['mediaType'] | undefined): string {
+  if (mediaType === 'image') return '图片'
+  if (mediaType === 'video') return '视频'
+  if (mediaType === 'audio') return '音频'
+  return '文件'
 }
 
 function escapeHtml(value: string): string {
@@ -898,6 +928,7 @@ function resolvePromptReference(
       raw,
       title: resourceId !== undefined ? `Resource ${resourceId}` : token,
       label: resourceId !== undefined ? resourceReferenceLabel(role) : '资源引用缺失',
+      sourceLabel: '资源',
       resourceId,
       role,
       selectedResourceId: resourceId,
@@ -913,14 +944,17 @@ function resolvePromptReference(
   if (kind === 'candidate') {
     const candidate = candidatesForNode(ownerNode).find((item) => item.id === token || String(item.resourceId) === token || item.artifactRef === token)
     const mediaType = mediaTypeForReference(candidate?.resourceKind, candidate?.artifactRef)
+    const role = match.role ?? defaultReferenceRoleForMediaType(mediaType)
     if (candidate) {
       return {
         kind,
         token,
         raw,
         title: candidate.title,
-        label: candidate.resourceId !== undefined ? '已选择候选' : '候选引用',
+        label: candidate.resourceId !== undefined ? `已选择候选 · ${promptReferenceRoleShortLabel(role)}` : `候选引用 · ${promptReferenceRoleShortLabel(role)}`,
+        sourceLabel: '候选',
         resourceId: candidate.resourceId,
+        role,
         selectedResourceId: candidate.resourceId,
         mediaType,
         selectedMediaType: mediaType,
@@ -953,6 +987,7 @@ function resolvePromptReference(
     const previewMediaType = selectedResourceId !== undefined || selectedCandidate
       ? selectedMediaType
       : pendingMediaType
+    const role = match.role ?? defaultReferenceRoleForMediaType(previewMediaType ?? selectedMediaType ?? fallbackMediaType ?? nodeMediaType)
     const state = selectedCandidate || fallbackResourceId !== undefined
       ? 'selected'
       : candidates.length > 0
@@ -963,10 +998,11 @@ function resolvePromptReference(
       token,
       raw,
       title: node.title,
-      label: match.role ? `${promptReferenceStateLabel(kind, state)} · ${promptReferenceRoleShortLabel(match.role)}` : promptReferenceStateLabel(kind, state),
+      label: `${promptReferenceStateLabel(kind, state)} · ${promptReferenceRoleShortLabel(role)}`,
+      sourceLabel: promptReferenceSourceLabel(kind, node),
       node,
       resourceId: fallbackResourceId,
-      role: match.role,
+      role,
       selectedResourceId,
       mediaType: fallbackMediaType,
       selectedMediaType,
@@ -982,6 +1018,7 @@ function resolvePromptReference(
     raw,
     title: token,
     label: `${promptReferenceLabel(kind)}缺失`,
+    sourceLabel: promptReferenceSourceLabel(kind),
     state: 'missing',
     actionLabel: '引用缺失',
     missing: true,
@@ -997,14 +1034,46 @@ function iconForPromptReference(reference: PromptReferenceItem) {
 }
 
 function promptReferenceLabel(kind: PromptReferenceItem['kind']): string {
-  if (kind === 'asset') return 'Asset 引用'
+  if (kind === 'asset') return '资源引用'
   if (kind === 'keyframe') return '关键帧引用'
-  if (kind === 'storyboard') return '分镜图引用'
+  if (kind === 'storyboard') return '故事版引用'
   if (kind === 'scene_moment') return '情节引用'
   if (kind === 'expression_unit') return '表达单元引用'
   if (kind === 'content_unit') return '内容单元引用'
   if (kind === 'resource') return '资源引用'
   return '候选引用'
+}
+
+function promptReferenceSourceLabel(kind: PromptReferenceItem['kind'], node?: ContentCanvasNode): string {
+  if (kind === 'resource') return '资源'
+  if (kind === 'candidate') return '候选'
+  if (kind === 'keyframe') return '关键帧'
+  if (kind === 'storyboard') return '故事版'
+  if (kind === 'asset') return '资源'
+  if (kind === 'scene_moment') return '情节'
+  if (kind === 'expression_unit') return '表达'
+  if (kind === 'content_unit') {
+    return contentUnitTypeShortLabel(
+      stringValue(node?.generationTask?.contentUnitType ?? node?.record.content_unit_type ?? node?.record.contentUnitType)
+      ?? stringValue(node?.generationTask?.outputKind ?? node?.record.output_kind ?? node?.record.outputKind),
+    )
+  }
+  return promptReferenceLabel(kind).replace(/引用$/, '')
+}
+
+function contentUnitTypeShortLabel(value: string | undefined): string {
+  const normalized = normalizePromptReferenceMetadataPart(value)
+  if (!normalized) return '内容'
+  if (normalized.includes('storyboard')) return '故事版'
+  if (normalized.includes('keyframe')) return '关键帧'
+  if (normalized.includes('asset')) return '资源'
+  if (normalized.includes('scene_moment')) return '情节'
+  if (normalized.includes('expression_unit')) return '表达'
+  if (normalized.includes('timeline')) return '剪辑'
+  if (normalized.includes('audio')) return '音频'
+  if (normalized.includes('video')) return '视频'
+  if (normalized.includes('image')) return '图片'
+  return value?.replace(/[_-]+ref$/i, '').replace(/[_-]+/g, ' ').trim() || '内容'
 }
 
 function promptReferenceStateLabel(kind: PromptReferenceItem['kind'], state: PromptReferenceItem['state']): string {
@@ -1068,6 +1137,10 @@ function droppedResourceMediaType(resource: unknown): PromptReferenceItem['media
 
 function defaultReferenceRoleForMediaType(mediaType: PromptReferenceItem['mediaType'] | undefined): string {
   return generationDefaultReferenceRoleForMediaType(mediaType) ?? 'reference_image'
+}
+
+function defaultReferenceRoleForReference(reference: PromptReferenceItem): string {
+  return defaultReferenceRoleForMediaType(reference.previewMediaType ?? reference.selectedMediaType ?? reference.mediaType)
 }
 
 function promptReferenceRoleOptions(mediaType: PromptReferenceItem['mediaType'] | undefined): Array<{ value: string; label: string; hint: string }> {

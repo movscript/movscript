@@ -24,6 +24,10 @@ export function normalizeModelCapabilityAlias(value: string | undefined): string
     case 'subtitle_align':
     case 'subtitle_translate':
       return normalized
+    case 'voice_chat':
+    case 'speech_chat':
+    case 'omni':
+      return 'audio_chat'
     case 'tts':
       return 'audio_tts'
     case 'speech_translate':

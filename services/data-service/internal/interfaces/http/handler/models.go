@@ -28,6 +28,8 @@ func NewModelsHandler(modelCatalog providercontract.AIGatewayModelCatalog, cache
 func (h *ModelsHandler) ListByCapability(c *gin.Context) {
 	providerVariants := c.Query("provider_variants") == "true" || c.Query("include_provider_variants") == "true"
 	capability := c.Query("capability")
+	targetOutput := strings.TrimSpace(firstNonEmpty(c.Query("target_output"), c.Query("targetOutput")))
+	resolveIntent := c.Query("resolve_intent") == "true" || c.Query("resolveIntent") == "true"
 	operation := strings.TrimSpace(firstNonEmpty(c.Query("operation"), c.Query("model_operation")))
 	apiKinds, err := splitModelCatalogAPIKindQuery(c.Query("api_kind"), c.Query("api_kinds"), c.Query("provider_api_kind"))
 	if err != nil {
@@ -52,6 +54,8 @@ func (h *ModelsHandler) ListByCapability(c *gin.Context) {
 		ProviderVariants: providerVariants,
 		RouteGroup:       routeGroup,
 		APIKinds:         apiKinds,
+		TargetOutput:     targetOutput,
+		ResolveIntent:    resolveIntent,
 		Operation:        operation,
 		ReferenceAssets:  referenceAssets,
 	})

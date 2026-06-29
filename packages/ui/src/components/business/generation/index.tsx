@@ -24,6 +24,7 @@ export {
   GenerationMentionList,
   GenerationMentionMenu,
   GenerationParamItem,
+  GenerationParamPreview,
   GenerationParamsRow,
   GenerationPromptArea,
   GenerationPromptEditor,

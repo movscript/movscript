@@ -25,11 +25,12 @@ test('content canvas project entry session builds stable restored search', () =>
     buildContentCanvasProjectEntrySessionSearch({
       activeKind: 'character',
       activeCanvasNodeId: 'scene_moment:intro',
+      canvasId: 'canvas:pilot',
       selectedNodeId: 'setting:hero',
       selectionKind: 'setting',
       workspaceTab: 'canvas',
     }),
-    'tab=canvas&canvasNode=scene_moment%3Aintro&node=setting%3Ahero&kind=setting&settingKind=character',
+    'canvasId=canvas%3Apilot&tab=canvas&canvasNode=scene_moment%3Aintro&node=setting%3Ahero&kind=setting&settingKind=character',
   )
 })
 

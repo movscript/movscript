@@ -57,6 +57,8 @@ Use this skill when the user asks to cut, trim, compose, align, stitch, render, 
 
 The default editing path is the dedicated `editing_*` tool family. Timeline state and editing business logic run through MovScript `MediaEditingProject` and `movscript.editing.service`; media execution runs through Electron `mediaPipeline` / `movscript.media.pipeline` when available. Do not use backend composition tools as the editing path.
 
+Use the `timeline` skill first when the task is choosing a backend, compiling TimelineAssembly intent, producing a CompileManifest, or comparing MediaEditingProject/Remotion/HyperFrames/External NLE. Return to this skill once the selected path is the track-based `MediaEditingProject` backend or the user asks to render/export/edit that project.
+
 Open `references/ai-clip-editing-rhythm.md` when assembling AI-generated clips, choosing a cut rhythm, trimming unstable generated clip starts/ends, matching color/style across generated candidates, planning transitions, or building a social/ad/trailer/music-video timeline.
 
 ## Agent Surface URLs

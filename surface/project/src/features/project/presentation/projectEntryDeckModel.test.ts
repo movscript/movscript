@@ -34,6 +34,50 @@ test('project entry deck defaults to product entry order', () => {
   assert.equal(deck.orderIndex.get('orchestration_production'), 0)
 })
 
+test('project entry deck opens separate tabs for content canvas instances', () => {
+  const snapshots = {
+    [projectEntrySessionKey(7, 'content_canvas:canvas:one')]: snapshot({
+      projectId: 7,
+      projectEntryId: 'content_canvas:canvas:one',
+      route: '/project/content/canvas',
+      search: 'canvasId=canvas%3Aone',
+      filters: {
+        canvasId: 'canvas:one',
+        canvasTitle: '第一张画布',
+        workspaceTab: 'canvas',
+      },
+      updatedAt: '2026-06-20T10:00:00.000Z',
+    }),
+    [projectEntrySessionKey(7, 'content_canvas:canvas:two')]: snapshot({
+      projectId: 7,
+      projectEntryId: 'content_canvas:canvas:two',
+      route: '/project/content/canvas',
+      search: 'canvasId=canvas%3Atwo',
+      filters: {
+        canvasId: 'canvas:two',
+        canvasTitle: '第二张画布',
+        workspaceTab: 'canvas',
+      },
+      updatedAt: '2026-06-20T11:00:00.000Z',
+    }),
+  }
+
+  const deck = buildProjectEntryDeck({
+    activeEntryId: 'content_canvas:canvas:two',
+    projectId: 7,
+    snapshots,
+  })
+
+  assert.deepEqual(
+    deck.tabs.filter((tab) => tab.definition.id === 'content_canvas').map((tab) => tab.id),
+    ['content_canvas:canvas:two', 'content_canvas:canvas:one'],
+  )
+  const activeCanvasTab = deck.tabs.find((tab) => tab.id === 'content_canvas:canvas:two')
+  assert.equal(activeCanvasTab?.active, true)
+  assert.equal(activeCanvasTab?.title, '第二张画布')
+  assert.equal(activeCanvasTab?.restoredSearch, 'canvasId=canvas%3Atwo')
+})
+
 test('project entry deck uses snapshot deck order and keeps active hidden entry visible', () => {
   const snapshots = {
     [projectEntrySessionKey(7, 'orchestration_production')]: snapshot({

@@ -804,15 +804,15 @@ func TestAIServiceCatalogRouteEndpointCanBeLoadedFromRouteBindingID(t *testing.T
 	}
 }
 
-func TestAIServiceStructuredCapabilityRequiresOperation(t *testing.T) {
+func TestAIServiceStructuredCapabilityInfersOperation(t *testing.T) {
 	service := NewAIService(nil, nil)
 
 	_, err := service.ResolveModelRoute(ModelRouteRequest{
 		ModelID:    "story-video",
 		Capability: CapabilityFamilyVideoGeneration,
 	})
-	if err == nil || !strings.Contains(err.Error(), "missing_operation_intent") {
-		t.Fatalf("ResolveModelRoute() error = %v, want missing_operation_intent", err)
+	if err == nil || strings.Contains(err.Error(), "missing_operation_intent") {
+		t.Fatalf("ResolveModelRoute() error = %v, want later catalog/model error after inferred operation", err)
 	}
 }
 
@@ -923,6 +923,41 @@ func TestAIServiceStructuredCapabilityRoutesByOperationAndInputRoles(t *testing.
 		t.Fatalf("image-to-video models = %#v, want image-to-video provider route", imageToVideoModels)
 	}
 
+	inferredFirstLastModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{
+		Capability:    CapabilityFamilyVideoGeneration,
+		TargetOutput:  "video",
+		ResolveIntent: true,
+		ReferenceAssets: []providercontract.AIReferenceAssetIntent{
+			{Role: "first_frame", MediaType: "image"},
+			{Role: "last_frame", MediaType: "image"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ListModels(inferred first-last intent) error = %v", err)
+	}
+	if len(inferredFirstLastModels) != 1 ||
+		inferredFirstLastModels[0].ProviderModelID != "provider-first-last-video" ||
+		inferredFirstLastModels[0].InferredOperation != VideoOperationFirstLastFrameToVideo {
+		t.Fatalf("inferred first-last models = %#v, want first-last provider route", inferredFirstLastModels)
+	}
+
+	inferredImageModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{
+		Capability:    CapabilityFamilyVideoGeneration,
+		TargetOutput:  "video",
+		ResolveIntent: true,
+		ReferenceAssets: []providercontract.AIReferenceAssetIntent{
+			{Role: "generic", MediaType: "image"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ListModels(inferred image-to-video intent) error = %v", err)
+	}
+	if len(inferredImageModels) != 1 ||
+		inferredImageModels[0].ProviderModelID != "provider-image-video" ||
+		inferredImageModels[0].InferredOperation != VideoOperationImageToVideo {
+		t.Fatalf("inferred image models = %#v, want image-to-video provider route", inferredImageModels)
+	}
+
 	missingRoleModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{
 		Capability: CapabilityFamilyVideoGeneration,
 		Operation:  VideoOperationFirstLastFrameToVideo,
@@ -953,6 +988,22 @@ func TestAIServiceStructuredCapabilityRoutesByOperationAndInputRoles(t *testing.
 	}
 	if route.RouteBindingID != firstLastRoute.ID || route.ProviderModelID != "provider-first-last-video" {
 		t.Fatalf("route = %#v, want first-last route despite lower priority", route)
+	}
+
+	inferredRoute, err := service.ResolveModelRoute(ModelRouteRequest{
+		ModelID:    "story-video",
+		Capability: CapabilityFamilyVideoGeneration,
+		RouteGroup: "default",
+		ReferenceAssets: []RouteReferenceAssetIntent{
+			{Role: "first_frame", MediaType: "image"},
+			{Role: "last_frame", MediaType: "image"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute(inferred operation) error = %v", err)
+	}
+	if inferredRoute.RouteBindingID != firstLastRoute.ID || inferredRoute.Operation != VideoOperationFirstLastFrameToVideo {
+		t.Fatalf("inferred route = %#v, want first-last route and operation", inferredRoute)
 	}
 
 	diagnosis, err := service.DiagnoseModelRoute(context.Background(), ModelRouteRequest{

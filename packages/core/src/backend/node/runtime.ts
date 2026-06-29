@@ -3,32 +3,47 @@ import {
   normalizeBackendAPIBaseURL,
 } from './config.js'
 
-let backendAPIBaseURL = normalizeBackendAPIBaseURL(defaultMovScriptBackendBaseURL())
-let backendRuntimeAuthToken = ''
-let configuredBackendDefaultWorkspaceDir: string | undefined
+interface MovScriptBackendRuntimeState {
+  backendAPIBaseURL: string
+  backendRuntimeAuthToken: string
+  configuredBackendDefaultWorkspaceDir?: string
+}
+
+type MovScriptBackendRuntimeGlobal = typeof globalThis & {
+  __movscriptBackendRuntimeState?: MovScriptBackendRuntimeState
+}
+
+function backendRuntimeState(): MovScriptBackendRuntimeState {
+  const globalRuntime = globalThis as MovScriptBackendRuntimeGlobal
+  globalRuntime.__movscriptBackendRuntimeState ??= {
+    backendAPIBaseURL: normalizeBackendAPIBaseURL(defaultMovScriptBackendBaseURL()),
+    backendRuntimeAuthToken: '',
+  }
+  return globalRuntime.__movscriptBackendRuntimeState
+}
 
 export function setMovScriptBackendAPIBaseURL(next: string): void {
-  backendAPIBaseURL = normalizeBackendAPIBaseURL(next)
+  backendRuntimeState().backendAPIBaseURL = normalizeBackendAPIBaseURL(next)
 }
 
 export function getMovScriptBackendAPIBaseURL(): string {
-  return backendAPIBaseURL
+  return backendRuntimeState().backendAPIBaseURL
 }
 
 export function setMovScriptBackendRuntimeAuthToken(token: string | undefined): void {
-  backendRuntimeAuthToken = token?.trim() ?? ''
+  backendRuntimeState().backendRuntimeAuthToken = token?.trim() ?? ''
 }
 
 export function getMovScriptBackendRuntimeAuthToken(): string {
-  return backendRuntimeAuthToken
+  return backendRuntimeState().backendRuntimeAuthToken
 }
 
 export function setMovScriptBackendDefaultWorkspaceDir(workspaceDir: string | undefined): void {
-  configuredBackendDefaultWorkspaceDir = workspaceDir?.trim() || undefined
+  backendRuntimeState().configuredBackendDefaultWorkspaceDir = workspaceDir?.trim() || undefined
 }
 
 export function resolveMovScriptBackendDefaultWorkspaceDir(): string {
-  return configuredBackendDefaultWorkspaceDir || process.env.MOVSCRIPT_HOME || process.env.MOVSCRIPT_WORKSPACE_DIR || process.cwd()
+  return backendRuntimeState().configuredBackendDefaultWorkspaceDir || process.env.MOVSCRIPT_HOME || process.env.MOVSCRIPT_WORKSPACE_DIR || process.cwd()
 }
 
 function defaultMovScriptBackendBaseURL(): string {

@@ -5,11 +5,15 @@ export function modelTools(): MCPTool[] {
   return [
     {
       name: 'generation_model_list',
-      description: 'List enabled generation and speech models for an AI runtime capability and optional model operation intent. Use capability plus operation for family capabilities, e.g. video_generation + first_last_frame_to_video or audio_generation + music. The result exposes public model contracts only; provider routes, adapters, and endpoints are Admin/debug details.',
+      description: 'List enabled generation and speech models for an AI runtime capability. For image/video family capabilities, callers may pass target_output plus reference_assets and let the backend resolver infer usable model operations. The result exposes public model contracts only; provider routes, adapters, and endpoints are Admin/debug details.',
       inputSchema: objectSchema(
         {
-          capability: { type: 'string', description: 'Optional AI capability family such as text_generation, image_generation, video_generation, audio_generation, or an execution capability such as audio_music. Family capabilities should pair this with operation.' },
-          operation: { type: 'string', description: 'Optional model operation intent such as text_to_image, image_to_image, first_last_frame_to_video, music, sfx, tts, or stt. If capability is omitted, known operations imply image_generation, video_generation, or audio_generation.' },
+          capability: { type: 'string', description: 'Optional AI capability family such as text_generation, image_generation, video_generation, audio_generation, or an execution capability such as audio_music.' },
+          target_output: { type: 'string', enum: ['image', 'video', 'audio', 'text'], description: 'Optional resolver target output. Use this with reference_assets to ask the backend to infer usable image/video model operations.' },
+          targetOutput: { type: 'string', enum: ['image', 'video', 'audio', 'text'], description: 'Alias for target_output.' },
+          resolve_intent: { type: 'boolean', description: 'When true, backend resolves the model intent from capability, target_output, and reference_assets instead of requiring operation.' },
+          resolveIntent: { type: 'boolean', description: 'Alias for resolve_intent.' },
+          operation: { type: 'string', description: 'Optional explicit model operation intent such as text_to_image, image_to_image, first_last_frame_to_video, music, sfx, tts, or stt. If omitted for image/video requests, backend resolver can infer it from target_output and reference_assets.' },
           model_operation: { type: 'string', description: 'Alias for operation.' },
           reference_assets: {
             type: 'array',
@@ -45,6 +49,8 @@ export function modelTools(): MCPTool[] {
                 short_name: { type: 'string' },
                 logical_model_id: { type: 'string', description: 'Legacy alias for model_id.' },
                 capabilities: { type: 'array', items: { type: 'string' } },
+                inferred_operation: { type: 'string', description: 'Backend-inferred operation for the requested capability/reference combination, when resolve_intent is used.' },
+                resolver_operations: { type: 'array', items: { type: 'string' }, description: 'All backend-inferred operations supported by this public model for the requested references.' },
                 accepts_image_input: { type: 'boolean' },
                 input_requirements: {
                   type: 'object',

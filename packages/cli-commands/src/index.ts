@@ -10,6 +10,53 @@ import {
   setMovScriptBackendRuntimeAuthToken,
 } from '@movscript/core/backend/node'
 import {
+  artifactTools,
+  externalResourceTools,
+  generationTools,
+  modelTools,
+  projectTools,
+  resourceLibraryTools,
+  resourceMediaTools,
+  shotLibraryTools,
+} from '@movscript/core/mcp'
+import {
+  artifactGetStream,
+  artifactUploadExport,
+  artifactUploadHlsStream,
+  annotateResourceImage,
+  composeResourceVideosToResource,
+  addShotsToGroup,
+  analyzeVideoShotCuts,
+  createShotGroup,
+  createProject,
+  createResourceVideoContactSheetToResource,
+  extractResourceVideoAudioToResource,
+  extractResourceVideoFrameToResource,
+  extractResourceVideoFramesForVision,
+  extractResourceVideoFramesToResources,
+  fetchLocalProject,
+  getUnifiedGenerationJob,
+  getUnifiedGenerationJobs,
+  getShotGroup,
+  initLocalProject,
+  listExternalResourceSources,
+  listGenerationCapabilities,
+  listModels,
+  openResourceLibrary,
+  prepareGeneration,
+  probeResourceVideo,
+  queryResourceLibrary,
+  queryShotLibrary,
+  readResourceImageForVision,
+  registerGenerationResult,
+  searchExternalResources,
+  submitUnifiedGeneration,
+  transformResourceImageToResource,
+  trimResourceVideoToResource,
+  uploadAgentImageResource,
+  uploadAgentImageResources,
+} from '@movscript/core/mcp/node'
+import {
   findRuntimeEndpoint,
   findRuntimeService,
   readRuntimeHomeSnapshot,
@@ -28,6 +75,17 @@ export interface AdminCommandSpec {
   method: AdminCommandMethod
   inputSchema: JSONSchemaObject
   path: (args: Record<string, unknown>) => string
+  payload?: (args: Record<string, unknown>) => Record<string, unknown>
+}
+
+export interface SystemCommandSpec {
+  commandId: string
+  mcpToolName: string
+  mcpAliases?: string[]
+  cliPath: string[]
+  description: string
+  inputSchema: JSONSchemaObject
+  run: (args: Record<string, unknown>) => Promise<unknown>
 }
 
 export interface MovScriptCommandExecution {
@@ -275,6 +333,26 @@ export const adminCommandSpecs: AdminCommandSpec[] = [
     path: () => '/admin/settings/resource-access',
   },
   {
+    commandId: 'admin.resource_access.resolve_test',
+    mcpToolName: 'admin_resource_access_resolve_test',
+    cliPath: ['resource-access', 'resolve-test'],
+    description: 'Admin-only: resolve a RawResource through ResourceAccessProfile and return a sanitized external URL diagnostic.',
+    method: 'POST',
+    inputSchema: adminResourceAccessResolveSchema(),
+    path: () => '/resource-access/resolve',
+    payload: adminResourceAccessPayload,
+  },
+  {
+    commandId: 'admin.resource_access.check_test',
+    mcpToolName: 'admin_resource_access_check_test',
+    cliPath: ['resource-access', 'check-test'],
+    description: 'Admin-only: resolve and check whether a RawResource public URL is externally reachable.',
+    method: 'POST',
+    inputSchema: adminResourceAccessResolveSchema(),
+    path: () => '/resource-access/check',
+    payload: adminResourceAccessPayload,
+  },
+  {
     commandId: 'admin.model.gateway_key.list',
     mcpToolName: 'admin_model_gateway_key_list',
     cliPath: ['model', 'gateway-key', 'list'],
@@ -312,11 +390,347 @@ export const adminCommandSpecs: AdminCommandSpec[] = [
   },
 ]
 
+export const systemCommandSpecs: SystemCommandSpec[] = [
+  {
+    commandId: 'system.model.list',
+    mcpToolName: 'system_model_list',
+    mcpAliases: ['generation_model_list', 'movscript_model_list'],
+    cliPath: ['model', 'list'],
+    description: 'System: list public generation model contracts for a capability and optional operation.',
+    inputSchema: toolInputSchema(modelTools(), 'generation_model_list'),
+    run: listModels,
+  },
+  {
+    commandId: 'system.generation.capability.list',
+    mcpToolName: 'generation_capability_list',
+    cliPath: ['generation', 'capability', 'list'],
+    description: 'System: list generation capabilities accepted by generation_prepare and generation_submit.',
+    inputSchema: toolInputSchema(generationTools(), 'generation_capability_list'),
+    run: listGenerationCapabilities,
+  },
+  {
+    commandId: 'system.generation.prepare',
+    mcpToolName: 'generation_prepare',
+    cliPath: ['generation', 'prepare'],
+    description: 'System: prepare a MovScript generation request and inspect model/prompt readiness.',
+    inputSchema: toolInputSchema(generationTools(), 'generation_prepare'),
+    run: prepareGeneration,
+  },
+  {
+    commandId: 'system.generation.submit',
+    mcpToolName: 'generation_submit',
+    cliPath: ['generation', 'submit'],
+    description: 'System: submit a MovScript generation job through the unified generation contract.',
+    inputSchema: toolInputSchema(generationTools(), 'generation_submit'),
+    run: submitUnifiedGeneration,
+  },
+  {
+    commandId: 'system.generation.job.get',
+    mcpToolName: 'generation_job_get',
+    cliPath: ['generation', 'job', 'get'],
+    description: 'System: fetch one MovScript generation job and optional candidate side effects.',
+    inputSchema: toolInputSchema(generationTools(), 'generation_job_get'),
+    run: getUnifiedGenerationJob,
+  },
+  {
+    commandId: 'system.generation.job.get_batch',
+    mcpToolName: 'generation_job_get_batch',
+    cliPath: ['generation', 'job', 'get-batch'],
+    description: 'System: fetch multiple MovScript generation jobs through the unified generation contract.',
+    inputSchema: toolInputSchema(generationTools(), 'generation_job_get_batch'),
+    run: getUnifiedGenerationJobs,
+  },
+  {
+    commandId: 'system.generation.result.register',
+    mcpToolName: 'generation_result_register',
+    cliPath: ['generation', 'result', 'register'],
+    description: 'System: register an existing generation RawResource as a content-unit candidate.',
+    inputSchema: toolInputSchema(generationTools(), 'generation_result_register'),
+    run: registerGenerationResult,
+  },
+  {
+    commandId: 'system.project.create',
+    mcpToolName: 'system_project_create',
+    mcpAliases: ['movscript_project_create'],
+    cliPath: ['project', 'create'],
+    description: 'System: create a formal MovScript backend project after explicit user intent.',
+    inputSchema: toolInputSchema(projectTools(), 'movscript_project_create'),
+    run: createProject,
+  },
+  {
+    commandId: 'system.project.init',
+    mcpToolName: 'system_project_init',
+    mcpAliases: ['movscript_project_init'],
+    cliPath: ['project', 'init'],
+    description: 'System: initialize a local MovScript project and bind it to backend project data.',
+    inputSchema: toolInputSchema(projectTools(), 'movscript_project_init'),
+    run: initLocalProject,
+  },
+  {
+    commandId: 'system.project.open',
+    mcpToolName: 'system_project_open',
+    mcpAliases: ['movscript_project_open'],
+    cliPath: ['project', 'open'],
+    description: 'System: open a local MovScript project and bind it to backend project data when metadata exists.',
+    inputSchema: toolInputSchema(projectTools(), 'movscript_project_open'),
+    run: fetchLocalProject,
+  },
+  {
+    commandId: 'system.project.fetch',
+    mcpToolName: 'system_project_fetch',
+    mcpAliases: ['movscript_project_fetch'],
+    cliPath: ['project', 'fetch'],
+    description: 'System: compatibility alias for opening a local MovScript project.',
+    inputSchema: toolInputSchema(projectTools(), 'movscript_project_fetch'),
+    run: fetchLocalProject,
+  },
+  {
+    commandId: 'system.resource.library.query',
+    mcpToolName: 'system_resource_library_query',
+    mcpAliases: ['movscript_resource_library_query'],
+    cliPath: ['resource', 'library', 'query'],
+    description: 'System: query MovScript RawResources from the internal resource library.',
+    inputSchema: toolInputSchema(resourceLibraryTools(), 'movscript_resource_library_query'),
+    run: queryResourceLibrary,
+  },
+  {
+    commandId: 'system.resource.library.open',
+    mcpToolName: 'system_resource_library_open',
+    mcpAliases: ['movscript_resource_library_open'],
+    cliPath: ['resource', 'library', 'open'],
+    description: 'System: return an agent-openable surface URL for the MovScript resource library.',
+    inputSchema: toolInputSchema(resourceLibraryTools(), 'movscript_resource_library_open'),
+    run: async (args) => openResourceLibrary(args),
+  },
+  {
+    commandId: 'system.artifact.upload_export',
+    mcpToolName: 'system_artifact_upload_export',
+    cliPath: ['artifact', 'upload-export'],
+    description: 'System: upload a completed local export artifact as a neutral RawResource.',
+    inputSchema: toolInputSchema(artifactTools(), 'system_artifact_upload_export'),
+    run: artifactUploadExport,
+  },
+  {
+    commandId: 'system.artifact.upload_hls_stream',
+    mcpToolName: 'system_artifact_upload_hls_stream',
+    cliPath: ['artifact', 'upload-hls-stream'],
+    description: 'System: upload completed HLS manifest and segments as a neutral MediaStreamArtifact.',
+    inputSchema: toolInputSchema(artifactTools(), 'system_artifact_upload_hls_stream'),
+    run: artifactUploadHlsStream,
+  },
+  {
+    commandId: 'system.artifact.get_stream',
+    mcpToolName: 'system_artifact_get_stream',
+    cliPath: ['artifact', 'get-stream'],
+    description: 'System: read MediaStreamArtifact metadata and playback URLs from backend hosting.',
+    inputSchema: toolInputSchema(artifactTools(), 'system_artifact_get_stream'),
+    run: artifactGetStream,
+  },
+  {
+    commandId: 'system.resource.image.read',
+    mcpToolName: 'system_resource_image_read',
+    mcpAliases: ['movscript_resource_image_read'],
+    cliPath: ['resource', 'image', 'read'],
+    description: 'System: read a MovScript image RawResource for agent vision.',
+    inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_image_read'),
+    run: readResourceImageForVision,
+  },
+  {
+    commandId: 'system.resource.image.transform_to_resource',
+    mcpToolName: 'system_resource_image_transform_to_resource',
+    mcpAliases: ['movscript_resource_image_transform_to_resource'],
+    cliPath: ['resource', 'image', 'transform-to-resource'],
+    description: 'System: transform a MovScript image RawResource and upload the result as a RawResource.',
+    inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_image_transform_to_resource'),
+    run: transformResourceImageToResource,
+  },
+  {
+    commandId: 'system.resource.image.annotate',
+    mcpToolName: 'system_resource_image_annotate',
+    mcpAliases: ['movscript_resource_image_annotate'],
+    cliPath: ['resource', 'image', 'annotate'],
+    description: 'System: create a local annotated image artifact for agent guidance.',
+    inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_image_annotate'),
+    run: annotateResourceImage,
+  },
+  {
+    commandId: 'system.resource.video.extract_frames',
+    mcpToolName: 'system_resource_video_extract_frames',
+    mcpAliases: ['movscript_resource_video_extract_frames'],
+    cliPath: ['resource', 'video', 'extract-frames'],
+    description: 'System: extract representative video frames for agent vision.',
+    inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_video_extract_frames'),
+    run: extractResourceVideoFramesForVision,
+  },
+  {
+    commandId: 'system.resource.video.probe',
+    mcpToolName: 'system_resource_video_probe',
+    mcpAliases: ['movscript_resource_video_probe'],
+    cliPath: ['resource', 'video', 'probe'],
+    description: 'System: probe a MovScript video RawResource and return media metadata.',
+    inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_video_probe'),
+    run: probeResourceVideo,
+  },
+  {
+    commandId: 'system.resource.video.extract_frame_to_resource',
+    mcpToolName: 'system_resource_video_extract_frame_to_resource',
+    mcpAliases: ['movscript_resource_video_extract_frame_to_resource'],
+    cliPath: ['resource', 'video', 'extract-frame-to-resource'],
+    description: 'System: extract one video frame and upload it as an image RawResource.',
+    inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_video_extract_frame_to_resource'),
+    run: extractResourceVideoFrameToResource,
+  },
+  {
+    commandId: 'system.resource.video.extract_frames_to_resources',
+    mcpToolName: 'system_resource_video_extract_frames_to_resources',
+    mcpAliases: ['movscript_resource_video_extract_frames_to_resources'],
+    cliPath: ['resource', 'video', 'extract-frames-to-resources'],
+    description: 'System: extract multiple video frames and upload them as image RawResources.',
+    inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_video_extract_frames_to_resources'),
+    run: extractResourceVideoFramesToResources,
+  },
+  {
+    commandId: 'system.resource.video.trim_to_resource',
+    mcpToolName: 'system_resource_video_trim_to_resource',
+    mcpAliases: ['movscript_resource_video_trim_to_resource'],
+    cliPath: ['resource', 'video', 'trim-to-resource'],
+    description: 'System: trim a video RawResource into a new video RawResource.',
+    inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_video_trim_to_resource'),
+    run: trimResourceVideoToResource,
+  },
+  {
+    commandId: 'system.resource.video.compose_to_resource',
+    mcpToolName: 'system_resource_video_compose_to_resource',
+    mcpAliases: ['movscript_resource_video_compose_to_resource'],
+    cliPath: ['resource', 'video', 'compose-to-resource'],
+    description: 'System: compose video RawResources in sequence into a new video RawResource.',
+    inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_video_compose_to_resource'),
+    run: composeResourceVideosToResource,
+  },
+  {
+    commandId: 'system.resource.video.concat_to_resource',
+    mcpToolName: 'system_resource_video_concat_to_resource',
+    mcpAliases: ['movscript_resource_video_concat_to_resource'],
+    cliPath: ['resource', 'video', 'concat-to-resource'],
+    description: 'System: concat video RawResources into a new video RawResource.',
+    inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_video_concat_to_resource'),
+    run: composeResourceVideosToResource,
+  },
+  {
+    commandId: 'system.resource.video.contact_sheet_to_resource',
+    mcpToolName: 'system_resource_video_contact_sheet_to_resource',
+    mcpAliases: ['movscript_resource_video_contact_sheet_to_resource'],
+    cliPath: ['resource', 'video', 'contact-sheet-to-resource'],
+    description: 'System: create a contact sheet image RawResource from a video RawResource.',
+    inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_video_contact_sheet_to_resource'),
+    run: createResourceVideoContactSheetToResource,
+  },
+  {
+    commandId: 'system.resource.video.extract_audio_to_resource',
+    mcpToolName: 'system_resource_video_extract_audio_to_resource',
+    mcpAliases: ['movscript_resource_video_extract_audio_to_resource'],
+    cliPath: ['resource', 'video', 'extract-audio-to-resource'],
+    description: 'System: extract audio from a video RawResource into an audio RawResource.',
+    inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_video_extract_audio_to_resource'),
+    run: extractResourceVideoAudioToResource,
+  },
+  {
+    commandId: 'system.resource.upload',
+    mcpToolName: 'system_resource_upload',
+    mcpAliases: ['movscript_resource_upload'],
+    cliPath: ['resource', 'upload'],
+    description: 'System: upload an agent-accessible artifact to the MovScript RawResource library.',
+    inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_upload'),
+    run: uploadAgentImageResource,
+  },
+  {
+    commandId: 'system.resource.upload_batch',
+    mcpToolName: 'system_resource_upload_batch',
+    mcpAliases: ['movscript_resource_upload_batch'],
+    cliPath: ['resource', 'upload-batch'],
+    description: 'System: upload multiple agent-accessible artifacts to the MovScript RawResource library.',
+    inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_upload_batch'),
+    run: uploadAgentImageResources,
+  },
+  {
+    commandId: 'system.external_resource.source.list',
+    mcpToolName: 'system_external_resource_source_list',
+    mcpAliases: ['movscript_external_resource_source_list'],
+    cliPath: ['external-resource', 'source', 'list'],
+    description: 'System: list configured external media search sources.',
+    inputSchema: toolInputSchema(externalResourceTools(), 'movscript_external_resource_source_list'),
+    run: listExternalResourceSources,
+  },
+  {
+    commandId: 'system.external_resource.search',
+    mcpToolName: 'system_external_resource_search',
+    mcpAliases: ['movscript_external_resource_search'],
+    cliPath: ['external-resource', 'search'],
+    description: 'System: search configured external image/video providers.',
+    inputSchema: toolInputSchema(externalResourceTools(), 'movscript_external_resource_search'),
+    run: searchExternalResources,
+  },
+  {
+    commandId: 'system.shot.library.query',
+    mcpToolName: 'system_shot_library_query',
+    mcpAliases: ['movscript_shot_library_query'],
+    cliPath: ['shot', 'library', 'query'],
+    description: 'System: query the reusable MovScript shot reference library.',
+    inputSchema: toolInputSchema(shotLibraryTools(), 'movscript_shot_library_query'),
+    run: queryShotLibrary,
+  },
+  {
+    commandId: 'system.shot.group.get',
+    mcpToolName: 'system_shot_group_get',
+    mcpAliases: ['movscript_shot_group_get'],
+    cliPath: ['shot', 'group', 'get'],
+    description: 'System: read a MovScript shot reference group and its ordered shots.',
+    inputSchema: toolInputSchema(shotLibraryTools(), 'movscript_shot_group_get'),
+    run: getShotGroup,
+  },
+  {
+    commandId: 'system.shot.group.create',
+    mcpToolName: 'system_shot_group_create',
+    mcpAliases: ['movscript_shot_group_create'],
+    cliPath: ['shot', 'group', 'create'],
+    description: 'System: create a MovScript shot reference group for a video RawResource.',
+    inputSchema: toolInputSchema(shotLibraryTools(), 'movscript_shot_group_create'),
+    run: createShotGroup,
+  },
+  {
+    commandId: 'system.shot.group.add_shots',
+    mcpToolName: 'system_shot_group_add_shots',
+    mcpAliases: ['movscript_shot_group_add_shots'],
+    cliPath: ['shot', 'group', 'add-shots'],
+    description: 'System: append shot references to an existing shot reference group.',
+    inputSchema: toolInputSchema(shotLibraryTools(), 'movscript_shot_group_add_shots'),
+    run: addShotsToGroup,
+  },
+  {
+    commandId: 'system.video.shot_cuts.analyze',
+    mcpToolName: 'system_video_shot_cuts_analyze',
+    mcpAliases: ['movscript_video_shot_cuts_analyze'],
+    cliPath: ['video', 'shot-cuts', 'analyze'],
+    description: 'System: analyze a video RawResource with ffmpeg scene detection and return shot ranges.',
+    inputSchema: toolInputSchema(shotLibraryTools(), 'movscript_video_shot_cuts_analyze'),
+    run: analyzeVideoShotCuts,
+  },
+]
+
 export const adminCommandByMCPToolName = new Map(adminCommandSpecs.map((spec) => [spec.mcpToolName, spec]))
 export const adminCommandById = new Map(adminCommandSpecs.map((spec) => [spec.commandId, spec]))
+export const systemCommandByMCPToolName = new Map(systemCommandSpecs.flatMap((spec) => [
+  [spec.mcpToolName, spec],
+  ...(spec.mcpAliases ?? []).map((alias) => [alias, spec] as const),
+] as const))
+export const systemCommandById = new Map(systemCommandSpecs.map((spec) => [spec.commandId, spec]))
 
 export function isAdminMCPToolName(name: string | undefined): boolean {
   return Boolean(name && adminCommandByMCPToolName.has(name))
+}
+
+export function isSystemMCPToolName(name: string | undefined): boolean {
+  return Boolean(name && systemCommandByMCPToolName.has(name))
 }
 
 export async function runMovScriptAdminCommand(
@@ -347,6 +761,31 @@ export async function runMovScriptAdminCommand(
   }
 }
 
+export async function runMovScriptSystemCommand(
+  specOrName: SystemCommandSpec | string,
+  args: Record<string, unknown> = {},
+): Promise<MovScriptCommandExecution> {
+  const spec = typeof specOrName === 'string'
+    ? systemCommandByMCPToolName.get(specOrName) ?? systemCommandById.get(specOrName)
+    : specOrName
+  if (!spec) throw new Error(`Unknown system command: ${specOrName}`)
+
+  const binding = bindBackendRuntime(args)
+  const data = await spec.run(args)
+  return {
+    schema: 'movscript.command_result.v1',
+    status: 'ok',
+    commandId: spec.commandId,
+    mcpToolName: spec.mcpToolName,
+    data,
+    debug: {
+      cli_argv: systemDebugCliArgv(spec, args),
+      cwd: process.cwd(),
+      ...(binding.backendEndpoint ? { runtime_endpoint: binding.backendEndpoint } : {}),
+    },
+  }
+}
+
 export function unwrapCommandDataWithDebug(execution: MovScriptCommandExecution): unknown {
   if (isRecord(execution.data) && !Array.isArray(execution.data)) {
     return {
@@ -360,7 +799,7 @@ export function unwrapCommandDataWithDebug(execution: MovScriptCommandExecution)
   }
 }
 
-function bindAdminBackendRuntime(args: Record<string, unknown>): { backendEndpoint?: string } {
+function bindBackendRuntime(args: Record<string, unknown>): { backendEndpoint?: string } {
   const workspaceDir = stringValue(args.workspaceDir ?? args.workspace_dir)
     ?? stringValue(args.projectDir ?? args.project_dir)
     ?? stringValue(args.cwd)
@@ -391,16 +830,18 @@ function bindAdminBackendRuntime(args: Record<string, unknown>): { backendEndpoi
   return { backendEndpoint }
 }
 
+const bindAdminBackendRuntime = bindBackendRuntime
+
 async function callAdminBackend(spec: AdminCommandSpec, path: string, args: Record<string, unknown>): Promise<unknown> {
   switch (spec.method) {
     case 'GET':
       return await backendGet(path)
     case 'POST':
-      return await backendPost(path, adminPayload(args))
+      return await backendPost(path, adminCommandPayload(spec, args))
     case 'PUT':
-      return await backendPut(path, adminPayload(args))
+      return await backendPut(path, adminCommandPayload(spec, args))
     case 'PATCH':
-      return await backendPatch(path, adminPayload(args))
+      return await backendPatch(path, adminCommandPayload(spec, args))
     case 'DELETE': {
       const result = await backendDelete(path)
       return result === null ? { status: 'deleted' } : result
@@ -427,6 +868,23 @@ function adminPayload(args: Record<string, unknown>): Record<string, unknown> {
   return payload
 }
 
+function adminCommandPayload(spec: AdminCommandSpec, args: Record<string, unknown>): Record<string, unknown> {
+  return spec.payload ? spec.payload(args) : adminPayload(args)
+}
+
+function adminResourceAccessPayload(args: Record<string, unknown>): Record<string, unknown> {
+  const explicit = adminPayload(args)
+  if (Object.keys(explicit).length > 0) return explicit
+  return compactObject({
+    resource_id: adminRequiredNumberArg(args, ['resourceID', 'resourceId', 'resource_id']),
+    purpose: stringValue(args.purpose),
+    required_media_type: stringValue(args.requiredMediaType ?? args.required_media_type ?? args.mediaType ?? args.media_type),
+    transport: stringValue(args.transport),
+    route_id: adminNumberArg(args, ['routeID', 'routeId', 'route_id']),
+    profile_id: stringValue(args.profileID ?? args.profileId ?? args.profile_id),
+  })
+}
+
 function adminRequiredPathArg(args: Record<string, unknown>, keys: string[]): string {
   for (const key of keys) {
     const value = stringValue(args[key])
@@ -451,6 +909,12 @@ function adminDebugCliArgv(spec: AdminCommandSpec, args: Record<string, unknown>
   appendPathArg(argv, args, ['catalogEntryID', 'catalogEntryId', 'catalog_entry_id'], '--catalog-entry-id')
   appendPathArg(argv, args, ['bindingID', 'bindingId', 'binding_id'], '--binding-id')
   appendPathArg(argv, args, ['keyID', 'keyId', 'key_id'], '--key-id')
+  appendPathArg(argv, args, ['resourceID', 'resourceId', 'resource_id'], '--resource-id')
+  appendPathArg(argv, args, ['requiredMediaType', 'required_media_type', 'mediaType', 'media_type'], '--required-media-type')
+  appendPathArg(argv, args, ['profileID', 'profileId', 'profile_id'], '--profile-id')
+  appendPathArg(argv, args, ['transport'], '--transport')
+  appendPathArg(argv, args, ['purpose'], '--purpose')
+  appendPathArg(argv, args, ['routeID', 'routeId', 'route_id'], '--route-id')
   appendPathArg(argv, args, ['id'], '--id')
   if (isRecord(args.query)) {
     for (const [key, value] of Object.entries(args.query)) {
@@ -461,11 +925,188 @@ function adminDebugCliArgv(spec: AdminCommandSpec, args: Record<string, unknown>
   return argv
 }
 
+function systemDebugCliArgv(spec: SystemCommandSpec, args: Record<string, unknown>): string[] {
+  const argv = ['movscript', 'system', ...spec.cliPath, '--json']
+  appendRuntimeArgv(argv, args)
+  appendPathArg(argv, args, ['capability'], '--capability')
+  appendPathArg(argv, args, ['operation'], '--operation')
+  appendPathArg(argv, args, ['model_operation', 'modelOperation'], '--model-operation')
+  appendPathArg(argv, args, ['model_id', 'modelId'], '--model-id')
+  appendPathArg(argv, args, ['provider_id', 'providerId'], '--provider-id')
+  appendPathArg(argv, args, ['parameter_mode', 'parameterMode', 'param_mode', 'paramMode'], '--parameter-mode')
+  appendPathArg(argv, args, ['prompt'], '--prompt')
+  appendPathArg(argv, args, ['name'], '--name')
+  appendPathArg(argv, args, ['description'], '--description')
+  appendPathArg(argv, args, ['summary'], '--summary')
+  appendPathArg(argv, args, ['title'], '--title')
+  appendPathArg(argv, args, ['project_id', 'projectId'], '--project-id')
+  appendPathArg(argv, args, ['project_uid', 'projectUid'], '--project-uid')
+  appendPathArg(argv, args, ['project_title', 'projectTitle'], '--project-title')
+  appendPathArg(argv, args, ['total_episodes', 'totalEpisodes'], '--total-episodes')
+  appendPathArg(argv, args, ['language'], '--language')
+  appendPathArg(argv, args, ['source_language', 'sourceLanguage'], '--source-language')
+  appendPathArg(argv, args, ['target_language', 'targetLanguage'], '--target-language')
+  appendPathArg(argv, args, ['cut_strategy', 'cutStrategy'], '--cut-strategy')
+  appendPathArg(argv, args, ['content_unit_id', 'contentUnitId'], '--content-unit-id')
+  appendPathArg(argv, args, ['candidate_id', 'candidateId'], '--candidate-id')
+  appendPathArg(argv, args, ['candidate_policy', 'candidatePolicy'], '--candidate-policy')
+  appendPathArg(argv, args, ['output_kind', 'outputKind'], '--output-kind')
+  appendPathArg(argv, args, ['job_id', 'jobId'], '--job-id')
+  appendPathArg(argv, args, ['task_id', 'taskId'], '--task-id')
+  appendPathArg(argv, args, ['stream_id', 'streamId'], '--stream-id')
+  appendPathArg(argv, args, ['verbosity'], '--verbosity')
+  appendPathArg(argv, args, ['query', 'q'], '--query')
+  appendPathArg(argv, args, ['id'], '--id')
+  appendPathArg(argv, args, ['resource_id', 'resourceId'], '--resource-id')
+  appendPathArg(argv, args, ['source_id', 'sourceId'], '--source-id')
+  appendPathArg(argv, args, ['source_resource_id', 'sourceResourceId'], '--source-resource-id')
+  appendPathArg(argv, args, ['source_derivative_id', 'sourceDerivativeId'], '--source-derivative-id')
+  appendPathArg(argv, args, ['group_id', 'groupId'], '--group-id')
+  appendPathArg(argv, args, ['shot_reference_id', 'shotReferenceId'], '--shot-reference-id')
+  appendPathArg(argv, args, ['type'], '--type')
+  appendPathArg(argv, args, ['media_type', 'mediaType'], '--media-type')
+  appendPathArg(argv, args, ['scope'], '--scope')
+  appendPathArg(argv, args, ['folder_id', 'folderId'], '--folder-id')
+  appendPathArg(argv, args, ['orientation'], '--orientation')
+  appendPathArg(argv, args, ['page'], '--page')
+  appendPathArg(argv, args, ['page_size', 'pageSize'], '--page-size')
+  appendPathArg(argv, args, ['limit', 'topK'], '--limit')
+  appendPathArg(argv, args, ['local_path', 'localPath', 'path'], '--local-path')
+  appendPathArg(argv, args, ['artifact_path', 'artifactPath'], '--artifact-path')
+  appendPathArg(argv, args, ['workspace_path', 'workspacePath'], '--workspace-path')
+  appendRedactedArg(argv, args, ['data_url', 'dataUrl'], '--data-url')
+  appendRedactedArg(argv, args, ['base64'], '--base64')
+  appendPathArg(argv, args, ['filename'], '--filename')
+  appendPathArg(argv, args, ['mime_type', 'mimeType'], '--mime-type')
+  appendPathArg(argv, args, ['mode'], '--mode')
+  appendPathArg(argv, args, ['detail'], '--detail')
+  appendPathArg(argv, args, ['output_format', 'outputFormat'], '--output-format')
+  appendPathArg(argv, args, ['image_size', 'imageSize'], '--image-size')
+  appendPathArg(argv, args, ['negative_prompt', 'negativePrompt'], '--negative-prompt')
+  appendPathArg(argv, args, ['aspect_ratio', 'aspectRatio'], '--aspect-ratio')
+  appendPathArg(argv, args, ['quality'], '--quality')
+  appendPathArg(argv, args, ['voice'], '--voice')
+  appendPathArg(argv, args, ['model'], '--model')
+  appendPathArg(argv, args, ['audio_format', 'audioFormat'], '--audio-format')
+  appendPathArg(argv, args, ['response_format', 'responseFormat'], '--response-format')
+  appendPathArg(argv, args, ['subtitle_format', 'subtitleFormat'], '--subtitle-format')
+  appendPathArg(argv, args, ['style'], '--style')
+  appendPathArg(argv, args, ['instructions'], '--instructions')
+  appendPathArg(argv, args, ['image_format', 'imageFormat'], '--image-format')
+  appendPathArg(argv, args, ['max_bytes', 'maxBytes'], '--max-bytes')
+  appendPathArg(argv, args, ['max_source_bytes', 'maxSourceBytes'], '--max-source-bytes')
+  appendPathArg(argv, args, ['max_upload_bytes', 'maxUploadBytes'], '--max-upload-bytes')
+  appendPathArg(argv, args, ['max_video_bytes', 'maxVideoBytes'], '--max-video-bytes')
+  appendPathArg(argv, args, ['max_width', 'maxWidth'], '--max-width')
+  appendPathArg(argv, args, ['max_height', 'maxHeight'], '--max-height')
+  appendPathArg(argv, args, ['width'], '--width')
+  appendPathArg(argv, args, ['height'], '--height')
+  appendPathArg(argv, args, ['crop_x', 'cropX'], '--crop-x')
+  appendPathArg(argv, args, ['crop_y', 'cropY'], '--crop-y')
+  appendPathArg(argv, args, ['crop_width', 'cropWidth'], '--crop-width')
+  appendPathArg(argv, args, ['crop_height', 'cropHeight'], '--crop-height')
+  appendPathArg(argv, args, ['count'], '--count')
+  appendPathArg(argv, args, ['frame_count', 'frameCount'], '--frame-count')
+  appendPathArg(argv, args, ['max_frames', 'maxFrames'], '--max-frames')
+  appendPathArg(argv, args, ['timestamp_sec', 'timestampSec'], '--timestamp-sec')
+  appendPathArg(argv, args, ['start_sec', 'startSec'], '--start-sec')
+  appendPathArg(argv, args, ['end_sec', 'endSec'], '--end-sec')
+  appendPathArg(argv, args, ['duration_sec', 'durationSec'], '--duration-sec')
+  appendPathArg(argv, args, ['duration'], '--duration')
+  appendPathArg(argv, args, ['scene_threshold', 'sceneThreshold'], '--scene-threshold')
+  appendPathArg(argv, args, ['min_shot_duration_sec', 'minShotDurationSec'], '--min-shot-duration-sec')
+  appendPathArg(argv, args, ['max_shot_duration_sec', 'maxShotDurationSec'], '--max-shot-duration-sec')
+  appendPathArg(argv, args, ['center_sec', 'centerSec'], '--center-sec')
+  appendPathArg(argv, args, ['window_sec', 'windowSec'], '--window-sec')
+  appendPathArg(argv, args, ['interval_sec', 'intervalSec'], '--interval-sec')
+  appendPathArg(argv, args, ['fps'], '--fps')
+  appendPathArg(argv, args, ['steps'], '--steps')
+  appendPathArg(argv, args, ['seed'], '--seed')
+  appendPathArg(argv, args, ['speed'], '--speed')
+  appendPathArg(argv, args, ['timeout_ms', 'timeoutMs'], '--timeout-ms')
+  appendPathArg(argv, args, ['poll_interval_ms', 'pollIntervalMs'], '--poll-interval-ms')
+  appendPathArg(argv, args, ['volume'], '--volume')
+  appendPathArg(argv, args, ['columns'], '--columns')
+  appendPathArg(argv, args, ['thumb_width', 'thumbWidth'], '--thumb-width')
+  appendPathArg(argv, args, ['output_path', 'outputPath'], '--output-path')
+  appendPathArg(argv, args, ['file_path', 'filePath'], '--file-path')
+  appendPathArg(argv, args, ['manifest_path', 'manifestPath'], '--manifest-path')
+  appendPathArg(argv, args, ['duration_ms', 'durationMs'], '--duration-ms')
+  appendPathArg(argv, args, ['expires_at', 'expiresAt'], '--expires-at')
+  appendPathArg(argv, args, ['expires_in_seconds', 'expiresInSeconds'], '--expires-in-seconds')
+  appendPathArg(argv, args, ['tool'], '--tool')
+  appendJSONArg(argv, args, ['timestamps_sec', 'timestampsSec'], '--timestamps-sec')
+  appendJSONArg(argv, args, ['annotations'], '--annotations')
+  appendJSONArg(argv, args, ['shapes'], '--shapes')
+  appendJSONArg(argv, args, ['items'], '--items')
+  appendJSONArg(argv, args, ['shots'], '--shots')
+  appendJSONArg(argv, args, ['generation_intent', 'generationIntent'], '--generation-intent')
+  appendJSONArg(argv, args, ['input_resource_ids', 'inputResourceIds'], '--input-resource-ids')
+  appendJSONArg(argv, args, ['reference_resource_ids', 'referenceResourceIds'], '--reference-resource-ids')
+  appendJSONArg(argv, args, ['extra_params', 'extraParams'], '--extra-params')
+  appendJSONArg(argv, args, ['job_ids', 'jobIds'], '--job-ids')
+  appendJSONArg(argv, args, ['prompt_snapshot', 'promptSnapshot'], '--prompt-snapshot')
+  appendJSONArg(argv, args, ['metadata'], '--metadata')
+  appendJSONArg(argv, args, ['segment_paths', 'segmentPaths'], '--segment-paths')
+  appendJSONArg(argv, args, ['source_resource_ids', 'sourceResourceIds'], '--source-resource-ids')
+  appendJSONArg(argv, args, ['derivative'], '--derivative')
+  appendJSONArg(argv, args, ['params'], '--params')
+  appendPathArg(argv, args, ['frontend_origin', 'frontendOrigin'], '--frontend-origin')
+  appendPathArg(argv, args, ['mcp_base_url', 'mcpBaseURL'], '--mcp-base-url')
+  if (args.provider_variants === true || args.include_provider_variants === true) argv.push('--provider-variants')
+  if (args.include_models === true || args.includeModels === true) argv.push('--include-models')
+  if (args.include_full === true || args.includeFull === true) argv.push('--include-full')
+  if (args.include_disabled === true || args.includeDisabled === true) argv.push('--include-disabled')
+  if (args.overwrite === true) argv.push('--overwrite')
+  if (args.muted === true) argv.push('--muted')
+  if (args.continue_on_error === true || args.continueOnError === true) argv.push('--continue-on-error')
+  const referenceAssets = Array.isArray(args.reference_assets) ? args.reference_assets : Array.isArray(args.referenceAssets) ? args.referenceAssets : []
+  for (const item of referenceAssets) {
+    if (!isRecord(item)) continue
+    const role = stringValue(item.role)
+    if (!role) continue
+    const mediaType = stringValue(item.media_type ?? item.mediaType)
+    argv.push('--reference-asset', mediaType ? `${role}:${mediaType}` : role)
+  }
+  return argv
+}
+
+function appendRuntimeArgv(argv: string[], args: Record<string, unknown>): void {
+  const homeDir = stringValue(args.homeDir ?? args.home_dir ?? args.movscriptHome ?? args.movscript_home)
+  if (homeDir) argv.push('--home-dir', homeDir)
+  const workspaceDir = stringValue(args.workspaceDir ?? args.workspace_dir)
+  if (workspaceDir) argv.push('--workspace', workspaceDir)
+  const projectDir = stringValue(args.projectDir ?? args.project_dir)
+  if (projectDir) argv.push('--project-dir', projectDir)
+  const server = stringValue(args.backendBaseURL ?? args.backend_base_url ?? args.server)
+  if (server) argv.push('--server', server)
+  if (args.token !== undefined) argv.push('--token', '<redacted>')
+}
+
 function appendPathArg(argv: string[], args: Record<string, unknown>, keys: string[], flag: string): void {
   for (const key of keys) {
     const value = stringValue(args[key])
     if (value) {
       argv.push(flag, value)
+      return
+    }
+  }
+}
+
+function appendRedactedArg(argv: string[], args: Record<string, unknown>, keys: string[], flag: string): void {
+  for (const key of keys) {
+    const value = stringValue(args[key])
+    if (value) {
+      argv.push(flag, '<redacted>')
+      return
+    }
+  }
+}
+
+function appendJSONArg(argv: string[], args: Record<string, unknown>, keys: string[], flag: string): void {
+  for (const key of keys) {
+    if (args[key] !== undefined) {
+      argv.push(flag, '<json>')
       return
     }
   }
@@ -567,6 +1208,26 @@ function adminGatewayKeySchema(includePayload = false) {
   })
 }
 
+function adminResourceAccessResolveSchema() {
+  return adminWriteSchema({
+    resourceID: { type: ['string', 'number'], description: 'RawResource id to resolve.' },
+    resourceId: { type: ['string', 'number'], description: 'Alias for resourceID.' },
+    resource_id: { type: ['string', 'number'], description: 'Alias for resourceID.' },
+    profileID: { type: 'string', description: 'ResourceAccessProfile id.' },
+    profileId: { type: 'string', description: 'Alias for profileID.' },
+    profile_id: { type: 'string', description: 'Alias for profileID.' },
+    requiredMediaType: { type: 'string', description: 'Required resource media type, or any.' },
+    required_media_type: { type: 'string', description: 'Alias for requiredMediaType.' },
+    mediaType: { type: 'string', description: 'Alias for requiredMediaType.' },
+    media_type: { type: 'string', description: 'Alias for requiredMediaType.' },
+    transport: { type: 'string', description: 'Resource access transport; currently public_url.' },
+    purpose: { type: 'string', description: 'Diagnostic purpose or route requirement.' },
+    routeID: { type: ['string', 'number'], description: 'Optional route id whose transfer requirement is being tested.' },
+    routeId: { type: ['string', 'number'], description: 'Alias for routeID.' },
+    route_id: { type: ['string', 'number'], description: 'Alias for routeID.' },
+  })
+}
+
 function adminRuntimeProperties(): Record<string, unknown> {
   return {
     homeDir: { type: 'string', description: 'Optional MovScript Home directory used to discover the daemon gateway.' },
@@ -593,10 +1254,35 @@ function objectSchema(properties: Record<string, unknown>, required: string[] = 
   }
 }
 
+function toolInputSchema(tools: Array<{ name: string; inputSchema?: unknown }>, name: string): JSONSchemaObject {
+  const schema = tools.find((tool) => tool.name === name)?.inputSchema
+  if (isRecord(schema)) return schema
+  return objectSchema({})
+}
+
 function stringValue(value: unknown): string | undefined {
   if (typeof value === 'string' && value.trim()) return value.trim()
   if (typeof value === 'number' && Number.isFinite(value)) return String(value)
   return undefined
+}
+
+function adminNumberArg(args: Record<string, unknown>, keys: string[]): number | undefined {
+  for (const key of keys) {
+    const value = args[key]
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+    if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value)
+  }
+  return undefined
+}
+
+function adminRequiredNumberArg(args: Record<string, unknown>, keys: string[]): number {
+  const value = adminNumberArg(args, keys)
+  if (value !== undefined) return value
+  throw new Error(`admin command requires one of: ${keys.join(', ')}`)
+}
+
+function compactObject(input: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined))
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

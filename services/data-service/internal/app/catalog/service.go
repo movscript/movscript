@@ -16,25 +16,29 @@ type ListOptions struct {
 	ProviderVariants bool
 	RouteGroup       string
 	APIKinds         []string
+	TargetOutput     string
+	ResolveIntent    bool
 	Operation        string
 	ReferenceAssets  []providercontract.AIReferenceAssetIntent
 }
 
 type PublicModel struct {
-	ID                uint                                      `json:"id"`
-	CatalogEntryID    uint                                      `json:"catalog_entry_id,omitempty"`
-	ModelID           string                                    `json:"model_id"`
-	DisplayName       string                                    `json:"display_name"`
-	ShortName         string                                    `json:"short_name,omitempty"`
-	Capabilities      []string                                  `json:"capabilities"`
-	SupportedAPIKinds []string                                  `json:"supported_api_kinds,omitempty"`
-	AcceptsImageInput bool                                      `json:"accepts_image_input"`
-	IsDefault         bool                                      `json:"is_default,omitempty"`
-	LogicalModelID    string                                    `json:"logical_model_id,omitempty"`
-	ProviderVariants  int                                       `json:"provider_variant_count,omitempty"`
-	SupportedParams   []map[string]any                          `json:"supported_params,omitempty"`
-	InputRequirements providercontract.AIModelInputRequirements `json:"input_requirements,omitempty"`
-	ParamsSchema      map[string]any                            `json:"params_schema,omitempty"`
+	ID                 uint                                      `json:"id"`
+	CatalogEntryID     uint                                      `json:"catalog_entry_id,omitempty"`
+	ModelID            string                                    `json:"model_id"`
+	DisplayName        string                                    `json:"display_name"`
+	ShortName          string                                    `json:"short_name,omitempty"`
+	Capabilities       []string                                  `json:"capabilities"`
+	SupportedAPIKinds  []string                                  `json:"supported_api_kinds,omitempty"`
+	AcceptsImageInput  bool                                      `json:"accepts_image_input"`
+	InferredOperation  string                                    `json:"inferred_operation,omitempty"`
+	ResolverOperations []string                                  `json:"resolver_operations,omitempty"`
+	IsDefault          bool                                      `json:"is_default,omitempty"`
+	LogicalModelID     string                                    `json:"logical_model_id,omitempty"`
+	ProviderVariants   int                                       `json:"provider_variant_count,omitempty"`
+	SupportedParams    []map[string]any                          `json:"supported_params,omitempty"`
+	InputRequirements  providercontract.AIModelInputRequirements `json:"input_requirements,omitempty"`
+	ParamsSchema       map[string]any                            `json:"params_schema,omitempty"`
 }
 
 func NewService(modelCatalog providercontract.AIGatewayModelCatalog, cacheStore ...cache.Cache) *Service {
@@ -53,6 +57,8 @@ func (s *Service) ListByCapabilityWithOptions(ctx context.Context, capability st
 	filter := providercontract.AIModelListFilter{
 		Capabilities:     capabilities,
 		APIKinds:         apiKinds,
+		TargetOutput:     strings.TrimSpace(opts.TargetOutput),
+		ResolveIntent:    opts.ResolveIntent,
 		Operation:        strings.TrimSpace(opts.Operation),
 		ReferenceAssets:  opts.ReferenceAssets,
 		ProviderVariants: opts.ProviderVariants,
@@ -76,20 +82,22 @@ func (s *Service) ListByCapabilityForRoute(ctx context.Context, capability strin
 
 func publicModelFromDescriptor(descriptor providercontract.AIModelDescriptor) PublicModel {
 	return PublicModel{
-		ID:                descriptor.CatalogEntryID,
-		CatalogEntryID:    descriptor.CatalogEntryID,
-		ModelID:           descriptor.ModelID,
-		DisplayName:       descriptor.DisplayName,
-		ShortName:         descriptor.ShortName,
-		Capabilities:      append([]string(nil), descriptor.Capabilities...),
-		SupportedAPIKinds: append([]string(nil), descriptor.SupportedAPIKinds...),
-		AcceptsImageInput: descriptor.AcceptsImageInput,
-		IsDefault:         descriptor.IsDefault,
-		LogicalModelID:    descriptor.LogicalModelID,
-		ProviderVariants:  descriptor.ProviderVariants,
-		SupportedParams:   cloneParamMaps(descriptor.SupportedParams),
-		InputRequirements: descriptor.InputRequirements,
-		ParamsSchema:      cloneAnyMap(descriptor.ParamsSchema),
+		ID:                 descriptor.CatalogEntryID,
+		CatalogEntryID:     descriptor.CatalogEntryID,
+		ModelID:            descriptor.ModelID,
+		DisplayName:        descriptor.DisplayName,
+		ShortName:          descriptor.ShortName,
+		Capabilities:       append([]string(nil), descriptor.Capabilities...),
+		SupportedAPIKinds:  append([]string(nil), descriptor.SupportedAPIKinds...),
+		AcceptsImageInput:  descriptor.AcceptsImageInput,
+		InferredOperation:  descriptor.InferredOperation,
+		ResolverOperations: append([]string(nil), descriptor.ResolverOperations...),
+		IsDefault:          descriptor.IsDefault,
+		LogicalModelID:     descriptor.LogicalModelID,
+		ProviderVariants:   descriptor.ProviderVariants,
+		SupportedParams:    cloneParamMaps(descriptor.SupportedParams),
+		InputRequirements:  descriptor.InputRequirements,
+		ParamsSchema:       cloneAnyMap(descriptor.ParamsSchema),
 	}
 }
 

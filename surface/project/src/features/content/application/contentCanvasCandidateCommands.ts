@@ -9,7 +9,7 @@ export async function createCandidateFromContentUnit(
   contentUnitNode: ContentCanvasNode,
   position: { x: number; y: number } | undefined,
   gateway: ContentCanvasWorkspaceGateway,
-  options: Pick<ContentCanvasContentCandidateGenerateInput, 'modelId' | 'params' | 'supportedParams' | 'generationIntent'> = {},
+  options: Pick<ContentCanvasContentCandidateGenerateInput, 'modelId' | 'params' | 'supportedParams' | 'generationIntent' | 'generationOperationExplicit'> = {},
 ): Promise<ContentCanvasCommandResult> {
   assertContentUnitNode(contentUnitNode)
   const outputKind = contentUnitOutputKind(contentUnitNode)
@@ -33,6 +33,7 @@ export async function createCandidateFromContentUnit(
     ...(options.params ? { params: options.params } : {}),
     ...(options.supportedParams ? { supportedParams: options.supportedParams } : {}),
     ...(options.generationIntent ? { generationIntent: options.generationIntent } : {}),
+    ...(options.generationOperationExplicit !== undefined ? { generationOperationExplicit: options.generationOperationExplicit } : {}),
     promptText: editPromptTextFromNode(contentUnitNode),
   })
   console.log('[content-canvas] create content unit candidate result', {

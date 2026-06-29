@@ -26,7 +26,7 @@ test('agentTraceView translates prompt composition into readable Chinese summary
       messageCount: 6,
       systemMessageCount: 2,
       skillIds: ['skill.a', 'skill.b'],
-      availableToolNames: ['movscript_focus_get'],
+      availableToolNames: ['context_current_get'],
       blockedToolCount: 1,
       promptStats: {
         totalChars: 1024,
@@ -55,7 +55,7 @@ test('agentTraceView translates prompt composition into readable Chinese summary
     ['页面焦点', 1, '200'],
   ])
   assert.deepEqual(view.promptDetail?.skills, ['skill.a', 'skill.b'])
-  assert.deepEqual(view.promptDetail?.tools, ['movscript_focus_get'])
+  assert.deepEqual(view.promptDetail?.tools, ['context_current_get'])
 })
 
 test('agentTraceView shows refreshed manifest after active skill updates', () => {
@@ -342,8 +342,8 @@ test('agentTraceView exposes full model request tools for detail panel', () => {
           tools: [{
             type: 'function',
             function: {
-              name: 'movscript_focus_get',
-              description: 'Read current focus',
+              name: 'context_current_get',
+              description: 'Read current context',
               parameters: {
                 type: 'object',
                 properties: {
@@ -356,7 +356,7 @@ test('agentTraceView exposes full model request tools for detail panel', () => {
       },
     },
   }))
-  assert.equal(view.modelDetail?.tools[0]?.name, 'movscript_focus_get')
+  assert.equal(view.modelDetail?.tools[0]?.name, 'context_current_get')
   assert.deepEqual(view.modelDetail?.tools[0]?.parameterKeys, ['projectId'])
 })
 
@@ -432,8 +432,8 @@ test('agent permission display supports i18n labels and unknown fallback interpo
 test('agentTraceView keeps behavior and impact separated', () => {
   const view = agentTraceView(traceEvent({
     kind: 'tool_call',
-    title: 'Tool completed: movscript_focus_get',
-    toolName: 'movscript_focus_get',
+    title: 'Tool completed: context_current_get',
+    toolName: 'context_current_get',
     durationMs: 42,
     data: {
       source: 'runtime',
@@ -442,11 +442,11 @@ test('agentTraceView keeps behavior and impact separated', () => {
       sandboxed: false,
     },
   }))
-  assert.equal(view.behavior, '调用 读取当前焦点')
+  assert.equal(view.behavior, '调用 读取当前上下文')
   assert.match(view.impact ?? '', /工具结果会进入运行步骤/)
   assert.equal(view.contextGroups.some((group) => group.label === '工具执行'), true)
   assert.equal(view.toolDetail?.title, '工具调用详情')
-  assert.equal(view.toolDetail?.toolName, '读取当前焦点 (movscript_focus_get)')
+  assert.equal(view.toolDetail?.toolName, '读取当前上下文 (context_current_get)')
   assert.equal(view.toolDetail?.statusLabel, '已完成')
   assert.equal(view.toolDetail?.source, 'runtime')
   assert.equal(view.toolDetail?.duration, '42ms')
@@ -458,8 +458,8 @@ test('agentTraceView keeps behavior and impact separated', () => {
 test('agentTraceView formats trace duration without changing latency precision', () => {
   const toolView = agentTraceView(traceEvent({
     kind: 'tool_call',
-    title: 'Tool completed: movscript_focus_get',
-    toolName: 'movscript_focus_get',
+    title: 'Tool completed: context_current_get',
+    toolName: 'context_current_get',
     durationMs: 1500,
     data: {
       source: 'runtime',

@@ -24,20 +24,20 @@ test('core default agent provider decision creates backend provider config from 
   assert.deepEqual(decision.result, {
     status: 'created',
     providerKey: 'mova',
-    providerRef: 'backend:local_provider:20',
+    providerRef: 'backend:model:default-model',
     model: 'default-model',
   })
   assert.equal(decision.providerConfig?.enabled, true)
   assert.equal(decision.providerConfig?.configSource, 'backend')
   assert.equal(decision.providerConfig?.modelEndpointBaseURL, 'http://localhost:8765/api/v1')
   assert.equal(decision.providerConfig?.baseURL, undefined)
-  assert.deepEqual(decision.providerConfig?.config, { mode: 'backendKey', modelProviderRef: 'backend:local_provider:20' })
-  assert.deepEqual(decision.providerConfig?.auth, { mode: 'backendKey', modelProviderRef: 'backend:local_provider:20' })
+  assert.deepEqual(decision.providerConfig?.config, { mode: 'backendKey', modelProviderRef: 'backend:model:default-model' })
+  assert.deepEqual(decision.providerConfig?.auth, { mode: 'backendKey', modelProviderRef: 'backend:model:default-model' })
   assert.deepEqual(decision.providerConfig?.defaultAgentProvider, {
     source: 'backend-model',
-    providerRef: 'backend:local_provider:20',
+    providerRef: 'backend:model:default-model',
     model: 'default-model',
-    providerId: 'local_provider:20',
+    providerId: 'model:default-model',
   })
 })
 
@@ -67,8 +67,8 @@ test('core default agent provider model helpers prefer backend defaults and norm
   const pinned = modelFixture({ id: 2, provider_id: 'local_provider:20', model_id: 'default-model', is_default: true })
 
 	  assert.equal(selectDefaultAgentProviderModel([fallback, pinned])?.model_id, 'default-model')
-	  assert.equal(backendAgentProviderRef(pinned), 'backend:local_provider:20')
-	  assert.equal(backendAgentProviderRef(modelFixture({ id: 20, catalog_entry_id: 42, provider_id: undefined })), 'backend:catalog:42')
+	  assert.equal(backendAgentProviderRef(pinned), 'backend:model:default-model')
+	  assert.equal(backendAgentProviderRef(modelFixture({ id: 20, model_id: '', catalog_entry_id: 42, provider_id: undefined })), 'backend:catalog:42')
 	  assert.equal(normalizeAgentProviderKey(' Codex_1 '), 'codex_1')
   assert.equal(normalizeAgentProviderKey('1-invalid'), 'mova')
 })

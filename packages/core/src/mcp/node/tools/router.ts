@@ -1,4 +1,4 @@
-import { getFocus } from './focus/actions'
+import { getCurrentContext } from './context/actions.js'
 import {
   artifactGetStream,
   artifactUploadExport,
@@ -102,6 +102,16 @@ import {
   editingTimelineValidate,
   editingVideoCompose,
 } from './editing/actions.js'
+import {
+  timelineAssemblyCompile,
+  timelineAssemblyGet,
+  timelineAssemblyValidate,
+  timelineBackendCapabilityList,
+  timelineBackendConformanceReport,
+  timelineBackendProjectCreate,
+  timelineBackendSelect,
+  timelineCompileManifestCreate,
+} from './timeline/actions.js'
 import { listModels } from './model/actions'
 import {
   getUnifiedGenerationJob,
@@ -149,8 +159,8 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
   const args = getObjectParam(params, 'arguments')
 
   switch (name) {
-    case 'movscript_focus_get':
-      return toolText(getFocus())
+    case 'context_current_get':
+      return toolText(getCurrentContext())
     case 'system_model_list':
     case 'generation_model_list':
     case 'movscript_model_list':
@@ -371,6 +381,22 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return interpretToolText(await domainInterpret(args))
     case 'domain_regeneration_plan':
       return toolText(await domainRegenerationPlan(args))
+    case 'timeline_backend_capability_list':
+      return toolText(timelineBackendCapabilityList(args))
+    case 'timeline_assembly_get':
+      return toolText(timelineAssemblyGet(args))
+    case 'timeline_assembly_validate':
+      return toolText(timelineAssemblyValidate(args))
+    case 'timeline_compile_manifest_create':
+      return toolText(timelineCompileManifestCreate(args))
+    case 'timeline_backend_select':
+      return toolText(timelineBackendSelect(args))
+    case 'timeline_backend_project_create':
+      return toolText(timelineBackendProjectCreate(args))
+    case 'timeline_assembly_compile':
+      return toolText(timelineAssemblyCompile(args))
+    case 'timeline_backend_conformance_report':
+      return toolText(timelineBackendConformanceReport(args))
     case 'editing_project_create':
       return toolText(await editingProjectCreate(args))
     case 'editing_project_create_from_edit_plan':

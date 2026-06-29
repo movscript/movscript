@@ -62,6 +62,7 @@ import {
   GenerationCallField,
   GenerationCallMetaRow,
   GenerationCallPromptBlock,
+  GenerationParamPreview,
 } from '@movscript/ui/business/generation'
 import { CanvasNodeFooterText } from './CanvasNodeCardUi'
 import { CanvasWorkflowReferenceCard } from './CanvasWorkflowReferenceCardUi'
@@ -289,6 +290,29 @@ function CanvasGenerationParamControls({
   })
   const visibleParamItems = expanded ? paramItems : paramItems.slice(0, 4)
   const selectedModelId = selectedModel ? publicModelId(selectedModel) : ''
+  const parameterPreviewItems = [
+    {
+      label: t('canvas.nodePanel.operation', { defaultValue: 'Operation' }),
+      value: operation ? canvasOperationLabel(operation, t) : canvasFallbackIntentLabel(outputType, t),
+      tone: selectedModel ? 'ready' as const : 'warning' as const,
+    },
+    {
+      label: t('canvas.nodePanel.output', { defaultValue: 'Output' }),
+      value: canvasOutputTypeLabel(outputType, t),
+    },
+    ...(selectedModel ? [{
+      label: t('agents.model'),
+      value: publicModelLabel(selectedModel),
+    }] : []),
+    ...paramItems.slice(0, 6).map((param) => ({
+      label: param.label,
+      value: String(param.value === '' ? '默认' : param.value),
+    })),
+    ...(paramItems.length > 6 ? [{
+      label: t('common.more', { defaultValue: 'More' }),
+      value: `+${paramItems.length - 6}`,
+    }] : []),
+  ]
 
   return (
     <GenerationCallConfigBlock label={t('plugins.parameters')}>
@@ -356,6 +380,7 @@ function CanvasGenerationParamControls({
           {t('shared.generation.defaultParams', { defaultValue: '使用模型默认参数' })}
         </GenerationCallBadge>
       )}
+      <GenerationParamPreview items={parameterPreviewItems} />
     </GenerationCallConfigBlock>
   )
 }

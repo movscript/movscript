@@ -11,6 +11,9 @@ test('model capability normalization accepts capability names but not legacy ope
   assert.equal(normalizeModelCapabilityAlias('tts'), 'audio_tts')
   assert.equal(normalizeModelCapabilityAlias('stt'), 'audio_transcribe')
   assert.equal(normalizeModelCapabilityAlias('speech_translate'), 'audio_translate')
+  assert.equal(normalizeModelCapabilityAlias('voice_chat'), 'audio_chat')
+  assert.equal(normalizeModelCapabilityAlias('speech_chat'), 'audio_chat')
+  assert.equal(normalizeModelCapabilityAlias('omni'), 'audio_chat')
 
   assert.equal(normalizeModelCapabilityAlias('music_generation'), undefined)
   assert.equal(normalizeModelCapabilityAlias('sound_effect_generation'), undefined)

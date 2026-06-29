@@ -57,6 +57,20 @@ test('plugin-full-local startup policy attaches to daemon instead of owning busi
   }
 })
 
+test('local gateway proxies the Project Service namespace through daemon gateway', () => {
+  const source = readFileSync(resolve(import.meta.dirname, '..', 'src', 'agent-mcp.ts'), 'utf8')
+  const bundle = readFileSync(resolve(import.meta.dirname, '..', 'bin', 'movscript.mjs'), 'utf8')
+
+  assert.match(source, /const LOCAL_PROJECT_SERVICE_PROXY_PREFIX = '\/v1\/project'/)
+  assert.match(source, /const LOCAL_PROJECT_SERVICE_ALIAS_PREFIX = '\/local-api\/project'/)
+  assert.match(source, /if \(projectServiceProxyUpstreamPath\(url\.pathname\)\)/)
+  assert.match(source, /function projectServiceProxyUpstreamPath/)
+  assert.match(source, /pathname\.startsWith\(`\$\{LOCAL_PROJECT_SERVICE_PROXY_PREFIX\}\/`\)/)
+  assert.match(source, /return `\$\{LOCAL_PROJECT_SERVICE_PROXY_PREFIX\}\$\{pathname\.slice\(LOCAL_PROJECT_SERVICE_ALIAS_PREFIX\.length\)\}`/)
+  assert.match(bundle, /LOCAL_PROJECT_SERVICE_PROXY_PREFIX = "\/v1\/project"/)
+  assert.match(bundle, /function projectServiceProxyUpstreamPath/)
+})
+
 test('movscript mcp stdio canonicalizes Desktop compatibility mode without Desktop ownership wording', async () => {
   const homeDir = mkdtempSync(join(tmpdir(), 'movscript-plugin-home-'))
   mkdirSync(join(homeDir, 'runtime', 'apps'), { recursive: true })
@@ -290,6 +304,56 @@ test('movscript mcp stdio defaults to persistent full-local local-node without D
   assert.equal(gatewayHealth.ok, true)
   assert.equal(gatewayHealth.headers.get('access-control-allow-origin'), devOrigin)
   assert.equal(gatewayHealth.headers.get('access-control-allow-credentials'), 'true')
+
+  const runtimeDescriptor = await fetch(`${localNode.gatewayEndpoint.url}/v1/runtime/descriptor`, {
+    headers: { origin: devOrigin },
+  })
+  assert.equal(runtimeDescriptor.ok, true)
+  assert.equal(runtimeDescriptor.headers.get('access-control-allow-origin'), devOrigin)
+  const runtimeDescriptorPayload = await runtimeDescriptor.json()
+  assert.equal(runtimeDescriptorPayload.gateway.baseURL, localNode.gatewayEndpoint.url)
+  assert.equal(runtimeDescriptorPayload.gateway.canonicalPrefix, '/v1')
+  assert.equal(runtimeDescriptorPayload.gateway.mcpEndpoint, `${localNode.gatewayEndpoint.url}/v1/mcp`)
+  assert.equal(runtimeDescriptorPayload.gateway.mcpHealthEndpoint, `${localNode.gatewayEndpoint.url}/v1/mcp/health`)
+
+  const daemonMcpHealth = await fetch(`${localNode.gatewayEndpoint.url}/v1/mcp/health`, {
+    headers: { origin: devOrigin },
+  })
+  assert.equal(daemonMcpHealth.ok, true)
+  assert.equal(daemonMcpHealth.headers.get('access-control-allow-origin'), devOrigin)
+  const daemonMcpHealthPayload = await daemonMcpHealth.json()
+  assert.equal(daemonMcpHealthPayload.status, 'ok')
+  assert.equal(daemonMcpHealthPayload.endpoint, `${localNode.gatewayEndpoint.url}/v1/mcp`)
+  assert.equal(daemonMcpHealthPayload.toolCount > 0, true)
+
+  const daemonMcpInitialize = await fetch(`${localNode.gatewayEndpoint.url}/v1/mcp`, {
+    method: 'POST',
+    headers: { origin: devOrigin, 'content-type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 'daemon-initialize', method: 'initialize', params: {} }),
+  })
+  assert.equal(daemonMcpInitialize.ok, true)
+  assert.equal(daemonMcpInitialize.headers.get('access-control-allow-origin'), devOrigin)
+  const daemonMcpInitializePayload = await daemonMcpInitialize.json()
+  assert.equal(daemonMcpInitializePayload.result.serverInfo.name, 'movscript-mcp-host')
+
+  const legacyDaemonMcpPing = await fetch(`${localNode.gatewayEndpoint.url}/mcp`, {
+    method: 'POST',
+    headers: { origin: devOrigin, 'content-type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 'legacy-ping', method: 'ping', params: {} }),
+  })
+  assert.equal(legacyDaemonMcpPing.ok, true)
+  assert.equal(legacyDaemonMcpPing.headers.get('access-control-allow-origin'), devOrigin)
+  assert.deepEqual((await legacyDaemonMcpPing.json()).result, {})
+
+  const daemonMcpTools = await fetch(`${localNode.gatewayEndpoint.url}/v1/mcp`, {
+    method: 'POST',
+    headers: { origin: devOrigin, 'content-type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 'daemon-tools', method: 'tools/list', params: {} }),
+  })
+  assert.equal(daemonMcpTools.ok, true)
+  const daemonMcpToolsPayload = await daemonMcpTools.json()
+  assert.equal(daemonMcpToolsPayload.result.tools.some((tool) => tool.name === 'domain_inspect'), true)
+  assert.equal(daemonMcpToolsPayload.result.tools.some((tool) => tool.name === 'runtime_daemon_ensure'), true)
 
   const missingEditingMedia = await fetch(`${localNode.gatewayEndpoint.url}/local-api/editing/media-file?path=missing.mp4`, {
     headers: { origin: devOrigin },

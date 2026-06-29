@@ -5,6 +5,7 @@ import { registerAuthCommands } from './commands/auth.js'
 import { registerLangCommands } from './commands/lang.js'
 import { registerMCPCommands } from './commands/mcp.js'
 import { registerRuntimeCommands } from './commands/runtime.js'
+import { registerSystemCommands } from './commands/system.js'
 import { registerWorkspaceCommands } from './commands/workspace.js'
 
 export function createMovcliProgram(name = 'movscript'): Command {
@@ -22,6 +23,7 @@ export function createMovcliProgram(name = 'movscript'): Command {
   registerRuntimeCommands(program)
   registerMCPCommands(program)
   registerAdminCommands(program)
+  registerSystemCommands(program)
   registerLangCommands(program)
   registerWorkspaceCommands(program)
   configureCommandHelp(program)

@@ -45,7 +45,7 @@ describe('toolResourceAccessDiagnostics', () => {
   })
 
   it('wires the diagnostic into tool entry points and locales', () => {
-    const root = resolve('apps/desktop')
+    const root = resolve(import.meta.dirname, '../../../..')
     const dialogSource = readFileSync(resolve(root, 'src/features/tools/components/ToolDialog.tsx'), 'utf8')
     const canvasSource = readFileSync(resolve(root, 'src/features/tools/application/useToolCanvas.ts'), 'utf8')
     const zh = readFileSync(resolve(root, 'src/i18n/locales/zh-CN.json'), 'utf8')

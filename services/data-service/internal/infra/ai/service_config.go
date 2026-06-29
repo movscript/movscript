@@ -156,6 +156,11 @@ func (s *AIService) ResolveModelRoutePlan(req ModelRouteRequest) (ModelRoutePlan
 	if capability == "" {
 		return ModelRoutePlan{}, fmt.Errorf("model capability is required")
 	}
+	if isStructuredCapabilityFamily(capability) && strings.TrimSpace(req.Operation) == "" {
+		if operations := inferredStructuredCapabilityOperations(capability, req.ReferenceAssets); len(operations) > 0 {
+			req.Operation = operations[0]
+		}
+	}
 	if err := validateStructuredCapabilityRequest(capability, req.Operation, req.ReferenceAssets); err != nil {
 		return ModelRoutePlan{}, err
 	}

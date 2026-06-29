@@ -64,9 +64,15 @@
     ]
   },
   "pnpm": {
+    "peerDependencyRules": {
+      "ignoreMissing": [
+        "electron-builder-squirrel-windows"
+      ]
+    },
     "onlyBuiltDependencies": [
       "electron",
       "esbuild",
+      "node-pty",
       "sharp"
     ]
   }

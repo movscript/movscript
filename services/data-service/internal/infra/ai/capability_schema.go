@@ -263,6 +263,38 @@ func capabilityJSONSupportsOperation(rawJSON, capability, operation string) (boo
 	return true, ""
 }
 
+func capabilityJSONSupportsInferredIntent(rawJSON, capability string, refs []RouteReferenceAssetIntent) (bool, string) {
+	operations := inferredStructuredCapabilityOperations(capability, refs)
+	if len(operations) == 0 {
+		return false, "missing_operation_intent"
+	}
+	lastReason := ""
+	for _, operation := range operations {
+		ok, reason := capabilityJSONSupportsIntent(rawJSON, capability, operation, refs)
+		if ok {
+			return true, ""
+		}
+		if lastReason == "" {
+			lastReason = reason
+		}
+	}
+	if lastReason == "" {
+		lastReason = "unsupported_generation_intent"
+	}
+	return false, lastReason
+}
+
+func capabilityJSONSupportedInferredOperations(rawJSON, capability string, refs []RouteReferenceAssetIntent) []string {
+	operations := inferredStructuredCapabilityOperations(capability, refs)
+	out := make([]string, 0, len(operations))
+	for _, operation := range operations {
+		if ok, _ := capabilityJSONSupportsIntent(rawJSON, capability, operation, refs); ok {
+			out = appendUniqueTrimmed(out, operation)
+		}
+	}
+	return out
+}
+
 func capabilityJSONHasDomain(rawJSON, capability string) bool {
 	rawJSON = strings.TrimSpace(rawJSON)
 	capability = strings.TrimSpace(capability)
@@ -275,6 +307,68 @@ func capabilityJSONHasDomain(rawJSON, capability string) bool {
 	}
 	_, ok := domains[capability]
 	return ok
+}
+
+func inferredStructuredCapabilityOperations(capability string, refs []RouteReferenceAssetIntent) []string {
+	switch strings.TrimSpace(capability) {
+	case CapabilityFamilyImageGeneration:
+		return inferredImageGenerationOperations(refs)
+	case CapabilityFamilyVideoGeneration:
+		return inferredVideoGenerationOperations(refs)
+	case CapabilityFamilyAudioGeneration:
+		return inferredAudioGenerationOperations(refs)
+	default:
+		return nil
+	}
+}
+
+func inferredImageGenerationOperations(refs []RouteReferenceAssetIntent) []string {
+	if len(refs) == 0 {
+		return []string{ImageOperationTextToImage}
+	}
+	if hasReferenceAssetRole(refs, "style_reference") {
+		return []string{"style_transfer", ImageOperationReferenceToImage, ImageOperationImageToImage}
+	}
+	return []string{ImageOperationReferenceToImage, ImageOperationImageToImage, ImageOperationImageEdit}
+}
+
+func inferredVideoGenerationOperations(refs []RouteReferenceAssetIntent) []string {
+	if len(refs) == 0 {
+		return []string{VideoOperationPromptToVideo}
+	}
+	hasFirst := hasReferenceAsset(refs, "first_frame", "image")
+	hasLast := hasReferenceAsset(refs, "last_frame", "image")
+	hasVideo := hasReferenceAssetMediaType(refs, "video")
+	hasAudio := hasReferenceAssetMediaType(refs, "audio")
+	hasImage := hasReferenceAssetMediaType(refs, "image")
+	operations := make([]string, 0, 6)
+	if hasFirst && hasLast {
+		operations = appendUniqueTrimmed(operations, VideoOperationFirstLastFrameToVideo)
+	}
+	if hasFirst {
+		operations = appendUniqueTrimmed(operations, VideoOperationFirstFrameToVideo)
+	}
+	if hasVideo && !hasImage && !hasAudio {
+		operations = appendUniqueTrimmed(operations, VideoOperationVideoToVideo)
+	}
+	if hasImage && !hasVideo && !hasAudio {
+		operations = appendUniqueTrimmed(operations, VideoOperationImageToVideo)
+	}
+	operations = appendUniqueTrimmed(operations, VideoOperationReferenceToVideo)
+	if hasVideo {
+		operations = appendUniqueTrimmed(operations, VideoOperationVideoToVideo)
+	}
+	if hasImage {
+		operations = appendUniqueTrimmed(operations, VideoOperationImageToVideo)
+	}
+	return operations
+}
+
+func inferredAudioGenerationOperations(refs []RouteReferenceAssetIntent) []string {
+	if hasReferenceAssetMediaType(refs, "audio") {
+		return []string{AudioOperationAudioChat, AudioOperationVoiceClone, AudioOperationSTT, AudioOperationSpeechTranslate}
+	}
+	return []string{AudioOperationTTS, AudioOperationMusic, AudioOperationSFX, AudioOperationVoiceDesign}
 }
 
 func referenceAssetsMatchIntent(capability referenceAssetCapability, refs []RouteReferenceAssetIntent) string {
@@ -482,6 +576,34 @@ func hasReferenceAssetRole(refs []RouteReferenceAssetIntent, role string) bool {
 	}
 	for _, ref := range refs {
 		if strings.TrimSpace(ref.Role) == role {
+			return true
+		}
+	}
+	return false
+}
+
+func hasReferenceAsset(refs []RouteReferenceAssetIntent, role, mediaType string) bool {
+	role = strings.TrimSpace(role)
+	mediaType = strings.TrimSpace(mediaType)
+	for _, ref := range refs {
+		if role != "" && strings.TrimSpace(ref.Role) != role {
+			continue
+		}
+		if mediaType != "" && strings.TrimSpace(ref.MediaType) != mediaType {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func hasReferenceAssetMediaType(refs []RouteReferenceAssetIntent, mediaType string) bool {
+	mediaType = strings.TrimSpace(mediaType)
+	if mediaType == "" {
+		return false
+	}
+	for _, ref := range refs {
+		if strings.TrimSpace(ref.MediaType) == mediaType {
 			return true
 		}
 	}

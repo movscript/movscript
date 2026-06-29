@@ -122,6 +122,7 @@ export type ContentCanvasContentCandidateGenerateInput = {
   params?: Record<string, string | number | boolean>
   supportedParams?: ParamDef[]
   generationIntent?: GenerationIntentPayload
+  generationOperationExplicit?: boolean
   promptText?: string
 }
 

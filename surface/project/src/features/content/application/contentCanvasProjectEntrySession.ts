@@ -8,6 +8,8 @@ import type {
 export interface ContentCanvasProjectEntrySessionState {
   activeKind?: SettingKind | 'all'
   activeCanvasNodeId: string
+  canvasId?: string
+  canvasTitle?: string
   selectedNodeId: string
   selectionKind: InspectorSelectionRef['kind']
   workspaceTab: ContentWorkspaceTab
@@ -15,6 +17,7 @@ export interface ContentCanvasProjectEntrySessionState {
 
 export function buildContentCanvasProjectEntrySessionSearch(state: ContentCanvasProjectEntrySessionState): string {
   const params = new URLSearchParams()
+  if (state.canvasId) params.set('canvasId', state.canvasId)
   params.set('tab', state.workspaceTab)
   params.set('canvasNode', state.activeCanvasNodeId)
   params.set('node', state.selectedNodeId)
@@ -42,6 +45,7 @@ function contentCanvasProjectEntrySessionStateFromSearch(searchParams: URLSearch
     ?? 'preview'
   return {
     activeCanvasNodeId,
+    ...(searchParamValue(searchParams, ['canvasId', 'canvas']) ? { canvasId: searchParamValue(searchParams, ['canvasId', 'canvas']) } : {}),
     selectedNodeId,
     selectionKind: normalizeContentCanvasSelectionKind(searchParams.get('kind')) ?? derivedSelection?.selectionKind ?? 'scene_moment',
     workspaceTab,
@@ -86,6 +90,8 @@ function contentCanvasProjectEntrySessionStateFromSnapshot(snapshot: ProjectEntr
     ?? 'preview'
   return {
     activeCanvasNodeId,
+    ...(stringFilterValue(snapshot?.filters?.canvasId) ? { canvasId: stringFilterValue(snapshot?.filters?.canvasId) } : {}),
+    ...(stringFilterValue(snapshot?.filters?.canvasTitle) ? { canvasTitle: stringFilterValue(snapshot?.filters?.canvasTitle) } : {}),
     selectedNodeId,
     selectionKind: normalizeContentCanvasSelectionKind(snapshot?.filters?.selectionKind) ?? 'scene_moment',
     workspaceTab,

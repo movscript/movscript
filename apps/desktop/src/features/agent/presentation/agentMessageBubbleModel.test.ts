@@ -302,7 +302,7 @@ function toolStep(id: string): NonNullable<ChatRunActivity['steps']>[number] {
     id,
     type: 'tool_call',
     status: 'completed',
-    toolName: 'movscript_focus_get',
+    toolName: 'context_current_get',
     createdAt: '2026-05-19T00:00:00.000Z',
     completedAt: '2026-05-19T00:00:01.000Z',
   }

@@ -491,6 +491,8 @@ type DebugPromptMessage struct {
 type AIModelListFilter struct {
 	Capability       string                   `json:"capability,omitempty"`
 	Capabilities     []string                 `json:"capabilities,omitempty"`
+	TargetOutput     string                   `json:"target_output,omitempty"`
+	ResolveIntent    bool                     `json:"resolve_intent,omitempty"`
 	Operation        string                   `json:"operation,omitempty"`
 	ReferenceAssets  []AIReferenceAssetIntent `json:"reference_assets,omitempty"`
 	APIKind          string                   `json:"api_kind,omitempty"`
@@ -500,29 +502,31 @@ type AIModelListFilter struct {
 }
 
 type AIModelDescriptor struct {
-	ModelID           string                   `json:"model_id"`
-	CatalogEntryID    uint                     `json:"catalog_entry_id,omitempty"`
-	CredentialID      uint                     `json:"-"`
-	ProviderID        string                   `json:"provider_id,omitempty"`
-	ProviderModelID   string                   `json:"provider_model_id,omitempty"`
-	ModelDefID        string                   `json:"model_def_id,omitempty"`
-	ModelIDOverride   string                   `json:"model_id_override,omitempty"`
-	DisplayName       string                   `json:"display_name"`
-	ShortName         string                   `json:"short_name,omitempty"`
-	ProviderName      string                   `json:"provider_name,omitempty"`
-	AdapterType       string                   `json:"adapter_type,omitempty"`
-	Capabilities      []string                 `json:"capabilities,omitempty"`
-	SupportedAPIKinds []string                 `json:"supported_api_kinds,omitempty"`
-	AcceptsImageInput bool                     `json:"accepts_image_input,omitempty"`
-	IsDefault         bool                     `json:"is_default,omitempty"`
-	LogicalModelID    string                   `json:"logical_model_id,omitempty"`
-	ProviderVariants  int                      `json:"provider_variant_count,omitempty"`
-	Priority          int                      `json:"priority,omitempty"`
-	CapacityWeight    int                      `json:"capacity_weight,omitempty"`
-	MaxConcurrency    int                      `json:"max_concurrency,omitempty"`
-	SupportedParams   []map[string]any         `json:"supported_params,omitempty"`
-	InputRequirements AIModelInputRequirements `json:"input_requirements,omitempty"`
-	ParamsSchema      map[string]any           `json:"params_schema,omitempty"`
+	ModelID            string                   `json:"model_id"`
+	CatalogEntryID     uint                     `json:"catalog_entry_id,omitempty"`
+	CredentialID       uint                     `json:"-"`
+	ProviderID         string                   `json:"provider_id,omitempty"`
+	ProviderModelID    string                   `json:"provider_model_id,omitempty"`
+	ModelDefID         string                   `json:"model_def_id,omitempty"`
+	ModelIDOverride    string                   `json:"model_id_override,omitempty"`
+	DisplayName        string                   `json:"display_name"`
+	ShortName          string                   `json:"short_name,omitempty"`
+	ProviderName       string                   `json:"provider_name,omitempty"`
+	AdapterType        string                   `json:"adapter_type,omitempty"`
+	Capabilities       []string                 `json:"capabilities,omitempty"`
+	SupportedAPIKinds  []string                 `json:"supported_api_kinds,omitempty"`
+	AcceptsImageInput  bool                     `json:"accepts_image_input,omitempty"`
+	InferredOperation  string                   `json:"inferred_operation,omitempty"`
+	ResolverOperations []string                 `json:"resolver_operations,omitempty"`
+	IsDefault          bool                     `json:"is_default,omitempty"`
+	LogicalModelID     string                   `json:"logical_model_id,omitempty"`
+	ProviderVariants   int                      `json:"provider_variant_count,omitempty"`
+	Priority           int                      `json:"priority,omitempty"`
+	CapacityWeight     int                      `json:"capacity_weight,omitempty"`
+	MaxConcurrency     int                      `json:"max_concurrency,omitempty"`
+	SupportedParams    []map[string]any         `json:"supported_params,omitempty"`
+	InputRequirements  AIModelInputRequirements `json:"input_requirements,omitempty"`
+	ParamsSchema       map[string]any           `json:"params_schema,omitempty"`
 }
 
 type AIModelResolveRequest struct {

@@ -245,7 +245,7 @@ test('AgentChatServerRequestCard renders MCP tool permission approval context', 
           action: {
             type: 'mcpToolCall',
             server: 'movscript_workspace',
-            toolName: 'movscript_focus_get',
+            toolName: 'context_current_get',
             toolTitle: 'Get focused MovScript resource',
             connectorName: 'MovScript workspace',
             connectorId: 'movscript@movscript-bundled',
@@ -264,7 +264,7 @@ test('AgentChatServerRequestCard renders MCP tool permission approval context', 
   assert.match(html, /action: mcpToolCall/)
   assert.match(html, /approval for MCP call: call_Ys6DnWNeoWwc3bT6XWAs3eu4/)
   assert.match(html, /server: movscript_workspace/)
-  assert.match(html, /tool: movscript_focus_get/)
+  assert.match(html, /tool: context_current_get/)
   assert.match(html, /title: Get focused MovScript resource/)
   assert.match(html, /connector: MovScript workspace/)
   assert.match(html, /connector id: movscript@movscript-bundled/)
@@ -282,7 +282,7 @@ test('AgentChatServerRequestCard renders MovScript tool approval args without se
         turnId: 'run_1',
         params: {
           reason: 'Allow runtime tool execution',
-          toolName: 'movscript_focus_get',
+          toolName: 'context_current_get',
           args: {
             projectId: 7,
             includeSelection: true,
@@ -302,7 +302,7 @@ test('AgentChatServerRequestCard renders MovScript tool approval args without se
   )
 
   assert.match(html, /Permission approval required/)
-  assert.match(html, /movscript_focus_get/)
+  assert.match(html, /context_current_get/)
   assert.match(html, /reason: Allow runtime tool execution/)
   assert.match(html, /risk: read/)
   assert.match(html, /permission: workspace.read/)

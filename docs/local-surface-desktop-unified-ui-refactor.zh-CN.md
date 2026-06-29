@@ -15,12 +15,14 @@
 - Local route frame 已加入共享 `@movscript/ui/business/app` 的 `AppErrorFallback` 边界；单个 surface 渲染异常会显示可重试的 route fallback，不再把整个 root 渲染为空白。
 - Local 顶部主导航已改为由 shared primary nav items 生成，主心智固定为“项目、工作流画布、工具、剪辑”；Home 作为品牌入口保留，不再混入主导航。
 - `@movscript/ui/layout` 新增 `AppPrimaryNav`、`AppPrimaryNavItem` 和 `AppPrimaryNavItemContent`，Local 顶部主导航已使用 shared UI primitive，`services/local-surface-host/src/styles.css` 不再维护 primary tab 视觉事实源。
+- `@movscript/ui/business/app` 新增 `AppHostChrome`、`AppHostChromeTopbar`、`AppHostChromeBrand`、`AppHostChromeStatus`、`AppHostChromePreferences` 等宿主 chrome primitive；Local shell/topbar/status/preferences 已迁移到 shared app chrome，`services/local-surface-host/src/styles.css` 不再维护 `local-surface-shell`、`local-surface-topbar`、`local-surface-header-status`、`local-surface-preferences` 等 shell 级视觉事实源。
 - Local 工具首页侧栏已迁移到 `@movscript/ui/layout` 的 `AppSidebarShell`、`AppSidebarNav`、`AppSidebarSection` 和 `AppSidebarNavItemFrame`，不再自绘 `surface-host-tool-sidebar__entry-frame` active/item 样式。
 - Local header 的 Admin、theme、language actions 已迁移到 `@movscript/ui/primitives` 的 shared `Button`，`styles.css` 已删除未引用的 `local-surface-sidebar*`、`local-surface-tab*`、`local-surface-admin-button`、`local-surface-preference-button` 等旧 shell 视觉事实源。
 - Canvas editor chrome 已归一化缺失标题，`/canvases/:id` 直达 URL 在 demo/mock canvas 数据未带 `canvasName` 时不再因 `.trim()` 崩溃。
 - Local agent resource detail 已对缺失/非字符串 URL 做兜底，`/agent/resources/:id` 在资源 URL 不可用时显示明确状态，而不是在 preview 中抛出异常。
 - 新增 contract/boundary 测试，保护 Desktop/Local 都从 package 公共入口消费 route/layout/navigation contract，且 Local 不直接导入 Desktop 私有实现；Desktop route layout registry 也已增加 no-op 兼容测试，确保 shared contract 的 route identity/scroll/shell layout 不改变当前 Desktop 视觉基线。
 - `@movscript/project-surface/runtime` 新增 `createHostedProjectSurfaceRuntime`、`projectSurfaceContextCommandEnvelope` 和 `unwrapProjectSurfaceGatewayResult`，Desktop/Local 的 Project runtime adapter 已改为提供 host capabilities、href/open、notifier 和 gateways，基础 runtime 组装、context command envelope 与 result unwrap 由 project surface 共享入口负责。
+- Desktop/Local Project runtime adapter 均已移除宿主本地 `desktopContextCommandEnvelope` / `localContextCommandEnvelope` helper，context command envelope 统一回到 `projectSurfaceContextCommandEnvelope`。
 - Project Content Canvas read-model 入口已补上 workspace indexed entity 归一化，避免 Local 通过 project surface 源码消费时出现宿主间类型漂移。
 
 当前验证状态：
@@ -28,6 +30,7 @@
 - `pnpm --filter @movscript/shared test`：64 pass。
 - `pnpm --filter @movscript/project-surface test`：18 pass。
 - `pnpm --filter @movscript/project-surface typecheck`：pass。
+- `pnpm --filter @movscript/ui typecheck`：pass。
 - `pnpm --filter @movscript/local-surface-host typecheck`：pass。
 - `pnpm --filter @movscript/local-surface-host build`：此前 header action 收敛后 pass；本轮 route frame helper / override removal 后复跑进入 `vite build` 后长时间无输出，已手动 SIGINT 中断，最新 slice 不计为 build pass。
 - `pnpm --filter @movscript/desktop typecheck`：pass。
@@ -39,8 +42,10 @@
 - Browser QA：`/canvases/demo-canvas`、`/agent/resources/42`、`/editing/demo-edit` 在 1280x720 下均由 shared `shellLayout: 'flush'` 渲染为 `local-surface-route-frame--flush`，无 Vite overlay、console 无 error/warn、无横向溢出；`/canvases/demo-canvas` 已恢复非空 Canvas editor，`/agent/resources/42` 在缺失 URL 时显示 `Resource URL is unavailable.` 状态。
 - Browser QA：`/canvases/demo-canvas` 和 `/agent/resources/42` 在 390x844 下均非空、无 Vite overlay、console 无 error/warn、无横向溢出。
 - Browser QA 调试结论：此前 `/canvases/demo-canvas` 和 `/agent/resources/42` 的 blank root 分别由 Canvas title `.trim()` 空值和 resource URL `.startsWith()` 空值触发；route error boundary 让异常可见，随后已在 surface/adapter 层修复。
+- Browser QA：host chrome 抽包后，`/tools?qa=host-chrome` 在 1280x720 下非空、无真实 Vite overlay、console 无 error/warn、无横向溢出；DOM 使用 `.app-host-chrome` / `.app-host-chrome__topbar` / `.app-primary-nav`，旧 `.local-surface-shell` / `.local-surface-topbar` / `.local-surface-header-status` / `.local-surface-preferences` 计数为 0；主题按钮可从 light 切到 dark 并恢复。
+- Browser QA：host chrome 抽包后，`/tools?qa=host-chrome` 在 390x844 下非空、无真实 Vite overlay、console 无 error/warn、无横向溢出；shared CSS 负责 topbar 纵向折叠，状态 pill 和 action label 隐藏。
 
-尚未完成的部分仍按后续 Phase 推进：共享 shell/header/sidebar primitives、Project runtime gateway adapter 继续收口、Local shell CSS 收敛、视觉截图基线与 QA。
+尚未完成的部分仍按后续 Phase 推进：更完整的跨宿主 header slots、Tool/Project 二级导航继续收口、Local home/tool 内容样式继续减少宿主私有视觉事实源、视觉截图基线与 QA。
 
 ## 背景
 

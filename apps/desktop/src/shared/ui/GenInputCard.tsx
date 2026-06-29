@@ -3,9 +3,11 @@ import { useTranslation } from 'react-i18next'
 import { formatResourceMention } from '@movscript/workspace'
 import {
   generationDefaultReferenceRoleForMediaType,
+  generationParamRequiresValueSatisfied,
   generationReferenceRoleLabel,
   generationReferenceRoleOptionsForMediaType,
 } from '@movscript/core/generation'
+import { generationParamLabel } from '@movscript/shared'
 import { Upload, Wand2, Loader2, AtSign, Library } from 'lucide-react'
 import { MediaViewer } from '@movscript/resource-surface/resource-media-viewer'
 import { AgentComposerAction, AgentComposerSubmit } from '@/shared/ui/AgentComposerUi'
@@ -25,14 +27,15 @@ import {
   GenerationMentionItem,
   GenerationMentionList,
   GenerationMentionMenu,
+  GenerationParamPreview,
   GenerationPromptEditor,
   GenerationReferenceRoleMenu,
 } from '@movscript/ui/business/generation'
 import type { RawResource, ParamDef } from '@/types'
-import { applyResourceChipMediaUrl, buildResourceChipElement, loadResourceChipMediaUrl } from '@/shared/ui/ResourceChipDom'
-import { revokeObjectUrls } from '@/shared/ui/objectUrl'
+import { buildResourceChipElement, resourceChipDisplayLabel } from '@/shared/ui/ResourceChipDom'
 import { IMAGE_UPLOAD_ACCEPT, MEDIA_UPLOAD_ACCEPT, RESOURCE_UPLOAD_ACCEPT } from '@/shared/domain/mediaTypes'
 import { AttachmentTag, GenerationInputSlots } from '@/shared/ui/GenInputAttachments'
+import { genInputResourceRoleMenuPositionFromElements } from '@/shared/ui/genInputAttachmentPreviewPlacement'
 import { GenerationParamControls } from './GenerationParamControls'
 
 export type ToolInputResourceType = 'image' | 'video' | 'audio' | 'text'
@@ -100,7 +103,7 @@ export function GenInputCard({
   onUpload,
   isRunning,
   canGenerate,
-  selectedModelId: _selectedModelId,
+  selectedModelId,
   inputType,
   promptPlaceholder,
   uploading,
@@ -117,7 +120,6 @@ export function GenInputCard({
   const promptShellRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<HTMLDivElement>(null)
   const roleMenuChipRef = useRef<HTMLElement | null>(null)
-  const chipObjectUrlsRef = useRef<Set<string>>(new Set())
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const [roleMenu, setRoleMenu] = useState<ResourceRoleMenuState | null>(null)
 
@@ -143,6 +145,33 @@ export function GenInputCard({
       .filter((asset) => asset.resource_id)
       .map((asset) => [asset.resource_id as number, asset]),
   )
+  const visibleParamPreviewItems = params
+    .filter((param) => generationParamRequiresValueSatisfied(param, paramValues))
+    .slice(0, 6)
+    .map((param) => ({
+      label: generationParamLabel(param, t),
+      value: String(paramValues[param.key] ?? param.default ?? '默认'),
+    }))
+  const paramPreviewItems = [
+    {
+      label: t('shared.generation.intentLabel', { defaultValue: '品类' }),
+      value: intentLabel ?? t('shared.generation.intentUnknown', { defaultValue: '待推导' }),
+      tone: canGenerate ? 'ready' as const : 'warning' as const,
+    },
+    {
+      label: t('shared.generation.outputLabel', { defaultValue: '输出' }),
+      value: outputLabel ?? t(`shared.genInput.promptPlaceholder.${inputType}`, { defaultValue: inputType }),
+    },
+    ...(selectedModelId ? [{
+      label: modelLabel ?? t('shared.modelSelector.label', { defaultValue: '模型' }),
+      value: selectedModelId,
+    }] : []),
+    ...visibleParamPreviewItems,
+    ...(params.filter((param) => generationParamRequiresValueSatisfied(param, paramValues)).length > 6 ? [{
+      label: t('common.more', { defaultValue: '更多' }),
+      value: `+${params.filter((param) => generationParamRequiresValueSatisfied(param, paramValues)).length - 6}`,
+    }] : []),
+  ]
 
   // Serialize contenteditable DOM → plain text (chip spans → @[resource:ID])
   function serialize(node: Node): string {
@@ -195,10 +224,11 @@ export function GenInputCard({
     }
 
     const metadata = referenceMetadataForResource(resource)
-    const { chip, media } = buildResourceChipElement(resource, {
+    const { chip } = buildResourceChipElement(resource, {
       mediaType: metadata.mediaType,
       role: metadata.role,
       roleLabel: generationReferenceRoleLabel(metadata.role),
+      sourceLabel: t('shared.generation.referenceSource.resource', { defaultValue: '资源' }),
     })
 
     const space = document.createTextNode('​')
@@ -214,19 +244,6 @@ export function GenInputCard({
 
     setMentionQuery(null)
     onPromptChange(serialize(editorRef.current))
-
-    // Errors are suppressed (no toast) because responseType=blob is excluded in the interceptor.
-    loadResourceChipMediaUrl(resource)
-      .then((mediaUrl) => {
-        applyResourceChipMediaUrl({
-          root: editorRef.current,
-          resource,
-          media,
-          mediaUrl,
-          objectUrls: chipObjectUrlsRef.current,
-        })
-      })
-      .catch((e) => { console.error('[chip thumb] fetch failed', resource.url, e?.response?.status, e?.message) })
   }
 
   function referenceMetadataForResource(resource: RawResource) {
@@ -247,8 +264,7 @@ export function GenInputCard({
     event.preventDefault()
     const resourceId = Number(chip.dataset.resourceId)
     if (!Number.isInteger(resourceId)) return
-    const shellRect = promptShellRef.current?.getBoundingClientRect()
-    const chipRect = chip.getBoundingClientRect()
+    const menuPosition = genInputResourceRoleMenuPositionFromElements(chip, promptShellRef.current)
     roleMenuChipRef.current = chip
     const mediaType = chip.dataset.mediaType ?? referenceAssetById.get(resourceId)?.media_type
     const role = chip.dataset.role ?? referenceAssetById.get(resourceId)?.role
@@ -257,8 +273,7 @@ export function GenInputCard({
       resourceId,
       mediaType,
       role,
-      left: shellRect ? Math.max(4, Math.min(chipRect.left - shellRect.left, shellRect.width - 184)) : 0,
-      top: shellRect ? chipRect.bottom - shellRect.top + 6 : 0,
+      ...menuPosition,
     })
   }
 
@@ -272,7 +287,13 @@ export function GenInputCard({
     chip.dataset.role = role
     if (mediaType) chip.dataset.mediaType = mediaType
     const label = chip.querySelector<HTMLElement>('.generation-input-chip__label')
-    if (label) label.textContent = `${chip.dataset.resourceName ?? ''} · ${generationReferenceRoleLabel(role)}`
+    if (label) {
+      label.textContent = resourceChipDisplayLabel({
+        role,
+        mediaType,
+        sourceLabel: chip.dataset.sourceLabel,
+      })
+    }
     onPromptChange(serialize(editorRef.current))
     setRoleMenu(null)
     roleMenuChipRef.current = null
@@ -282,19 +303,10 @@ export function GenInputCard({
   const prevPromptRef = useRef(prompt)
   useEffect(() => {
     if (prompt === '' && prevPromptRef.current !== '' && editorRef.current) {
-      revokeObjectUrls(chipObjectUrlsRef.current)
-      chipObjectUrlsRef.current.clear()
       editorRef.current.innerHTML = ''
     }
     prevPromptRef.current = prompt
   }, [prompt])
-
-  useEffect(() => {
-    return () => {
-      revokeObjectUrls(chipObjectUrlsRef.current)
-      chipObjectUrlsRef.current.clear()
-    }
-  }, [])
 
   return (
     <GenerationCallComposerForm
@@ -395,6 +407,8 @@ export function GenInputCard({
           onChange={onParamChange}
           className="ms-agent-composer__workspace-row"
         />
+
+        <GenerationParamPreview items={paramPreviewItems} />
 
         <GenerationCallMessages messages={messages} />
 

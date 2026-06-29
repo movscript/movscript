@@ -26,7 +26,9 @@ import {
 import {
   adminCommandSpecs,
   isAdminMCPToolName,
+  isSystemMCPToolName,
   runMovScriptAdminCommand,
+  runMovScriptSystemCommand,
   unwrapCommandDataWithDebug,
 } from '@movscript/cli-commands'
 import {
@@ -54,6 +56,7 @@ import {
 
 const DEFAULT_LOCAL_BACKEND = 'http://localhost:8766'
 const MCP_HOST_DEBUG = process.env.MOVSCRIPT_MCP_HOST_DEBUG === '1'
+const MCP_PROXY_TIMEOUT_MS = 3000
 const LOCAL_NODE_CONTROL_SERVICE = LOCAL_RUNTIME_DAEMON_CONTROL_SERVICE
 const LOCAL_NODE_GATEWAY_SERVICE = LOCAL_RUNTIME_DAEMON_GATEWAY_SERVICE
 const DATA_SERVICE = 'movscript.data.service'
@@ -61,6 +64,12 @@ const PROJECT_SERVICE = 'movscript.project.service'
 const EDITING_SERVICE = 'movscript.editing.service'
 const LOCAL_SURFACE_HOST_SERVICE = 'movscript.local-surface.host'
 const MEDIA_PIPELINE_SERVICE = 'movscript.media.pipeline'
+
+export type MCPHostJSONRPCOptions = {
+  proxyToDaemon?: boolean
+  daemonEndpoint?: string
+  proxyTimeoutMs?: number
+}
 
 const adminTools: MCPTool[] = adminCommandSpecs.map((tool) => ({
   name: tool.mcpToolName,
@@ -243,6 +252,30 @@ export const hostTools: MCPTool[] = [
   },
 ]
 
+const runtimeBootstrapToolNames = new Set([
+  'movscript_runtime_status',
+  'movscript_runtime_configure',
+  'runtime_daemon_configure',
+  'runtime_daemon_discover',
+  'runtime_daemon_ensure',
+  'runtime_daemon_start',
+  'runtime_daemon_status',
+  'runtime_daemon_stop',
+  'runtime_daemon_restart',
+  'runtime_descriptor_get',
+  'runtime_preflight_check',
+  'runtime_local_daemon_ensure',
+  'runtime_local_daemon_start',
+  'runtime_local_daemon_status',
+  'runtime_local_daemon_stop',
+  'runtime_local_daemon_restart',
+  'runtime_local_node_status',
+  'runtime_local_node_stop',
+  'runtime_local_node_restart',
+])
+
+const runtimeBootstrapTools = hostTools.filter((tool) => runtimeBootstrapToolNames.has(tool.name))
+
 export async function startMCPStdioHost(): Promise<void> {
   const rl = readline.createInterface({
     input: process.stdin,
@@ -257,8 +290,8 @@ export async function startMCPStdioHost(): Promise<void> {
       try {
         const payload = JSON.parse(trimmed) as JSONRPCRequest | JSONRPCRequest[]
         const response = Array.isArray(payload)
-          ? (await Promise.all(payload.map((item) => handleMCPHostJSONRPC(item)))).filter((item): item is JSONRPCResponse => item !== undefined)
-          : await handleMCPHostJSONRPC(payload)
+          ? (await Promise.all(payload.map((item) => handleMCPHostJSONRPC(item, { proxyToDaemon: true })))).filter((item): item is JSONRPCResponse => item !== undefined)
+          : await handleMCPHostJSONRPC(payload, { proxyToDaemon: true })
         if (Array.isArray(response)) {
           if (response.length > 0) writeMessage(response)
         } else if (response !== undefined) {
@@ -280,7 +313,7 @@ export async function startMCPStdioHost(): Promise<void> {
   })
 }
 
-export async function handleMCPHostJSONRPC(req: JSONRPCRequest): Promise<JSONRPCResponse | undefined> {
+export async function handleMCPHostJSONRPC(req: JSONRPCRequest, options: MCPHostJSONRPCOptions = {}): Promise<JSONRPCResponse | undefined> {
   const isNotification = !Object.prototype.hasOwnProperty.call(req, 'id')
   const id = isNotification ? null : req.id ?? null
   if (MCP_HOST_DEBUG) {
@@ -292,6 +325,17 @@ export async function handleMCPHostJSONRPC(req: JSONRPCRequest): Promise<JSONRPC
   }
 
   try {
+    if (shouldProxyToDaemon(req, options)) {
+      const endpoint = resolveDaemonMCPEndpoint(req, options)
+      if (endpoint) {
+        return await proxyMCPHostJSONRPCToDaemon(req, endpoint, options)
+      }
+      if (req.method === 'tools/list') {
+        return makeResult(id, { tools: runtimeBootstrapTools })
+      }
+      throw new Error('MovScript daemon MCP endpoint is not available. Call runtime_daemon_ensure first, then retry this MCP request.')
+    }
+
     switch (req.method) {
       case 'initialize':
         return makeResult(id, {
@@ -307,7 +351,7 @@ export async function handleMCPHostJSONRPC(req: JSONRPCRequest): Promise<JSONRPC
       case 'ping':
         return makeResult(id, {})
       case 'tools/list':
-        return makeResult(id, { tools: mergeTools(hostTools, listTools()) })
+        return makeResult(id, { tools: localMCPHostTools() })
       case 'tools/call':
         await touchLocalNode().catch(() => undefined)
         return makeResult(id, await callMCPHostTool(req.params))
@@ -325,7 +369,7 @@ export async function handleMCPHostJSONRPC(req: JSONRPCRequest): Promise<JSONRPC
 }
 
 export function listMCPHostTools(): MCPTool[] {
-  return mergeTools(hostTools, listTools())
+  return localMCPHostTools()
 }
 
 export async function callMCPHostTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue> {
@@ -353,12 +397,66 @@ export async function callMCPHostTool(params: MCPJSONValue | undefined): Promise
   if (isAdminMCPToolName(name)) {
     return unwrapCommandDataWithDebug(await runMovScriptAdminCommand(name!, args)) as MCPJSONValue
   }
+  if (isSystemMCPToolName(name)) {
+    return unwrapCommandDataWithDebug(await runMovScriptSystemCommand(name!, args)) as MCPJSONValue
+  }
   bindBackendRuntimeForCoreTools(args)
   return callTool(params)
 }
 
 export async function readMCPHostResource(uri: string): Promise<MCPJSONValue> {
   return readResource(uri)
+}
+
+function localMCPHostTools(): MCPTool[] {
+  return mergeTools(hostTools, listTools())
+}
+
+function shouldProxyToDaemon(req: JSONRPCRequest, options: MCPHostJSONRPCOptions): boolean {
+  if (options.proxyToDaemon === false) return false
+  if (process.env.MOVSCRIPT_MCP_STDIO_PROXY === '0') return false
+  if (process.env.MOVSCRIPT_MCP_HOST_PROXY_TO_DAEMON === '0') return false
+  if (req.method === 'tools/list' || req.method === 'resources/list' || req.method === 'resources/read') return true
+  if (req.method !== 'tools/call') return false
+  const name = stringParam(req.params, 'name')
+  return Boolean(name && !runtimeBootstrapToolNames.has(name))
+}
+
+function resolveDaemonMCPEndpoint(req: JSONRPCRequest, options: MCPHostJSONRPCOptions): string | undefined {
+  const explicit = stringValue(options.daemonEndpoint ?? process.env.MOVSCRIPT_DAEMON_MCP_ENDPOINT)
+  if (explicit) return normalizeMcpEndpoint(explicit)
+  const args = objectParam(req.params, 'arguments')
+  const homeDir = resolveRuntimeHomeArg(args)
+  const endpoints = runtimeDiscoveredEndpoints(readRuntimeHomeSnapshot(homeDir))
+  return endpoints.mcp
+}
+
+function normalizeMcpEndpoint(value: string): string {
+  const trimmed = value.trim()
+  if (trimmed.endsWith('/v1/mcp')) return trimmed
+  if (trimmed.endsWith('/mcp')) return trimmed
+  return `${trimmed.replace(/\/+$/, '')}/v1/mcp`
+}
+
+async function proxyMCPHostJSONRPCToDaemon(
+  req: JSONRPCRequest,
+  endpoint: string,
+  options: MCPHostJSONRPCOptions,
+): Promise<JSONRPCResponse | undefined> {
+  const timeoutMs = options.proxyTimeoutMs ?? positiveNumberValue(Number(process.env.MOVSCRIPT_MCP_PROXY_TIMEOUT_MS)) ?? MCP_PROXY_TIMEOUT_MS
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(req),
+    signal: AbortSignal.timeout(timeoutMs),
+  })
+  if (response.status === 202 || response.status === 204) return undefined
+  const text = await response.text()
+  if (!response.ok) {
+    throw new Error(`MovScript daemon MCP endpoint ${endpoint} returned HTTP ${response.status}${text ? `: ${text}` : ''}`)
+  }
+  if (!text.trim()) return undefined
+  return JSON.parse(text) as JSONRPCResponse
 }
 
 async function localDaemonEnsure(args: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -1513,6 +1611,10 @@ function stringValue(value: unknown): string | undefined {
 
 function numberValue(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function positiveNumberValue(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
 }
 
 function recordValue(value: unknown): Record<string, unknown> {

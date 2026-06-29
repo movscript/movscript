@@ -7,6 +7,7 @@ import {
   PROJECT_ENTRY_SESSION_SCHEMA_VERSION,
   hasExplicitProjectEntrySearchParam,
   normalizeProjectEntrySessionSnapshots,
+  projectEntrySessionIdForRouteSearch,
   useProjectEntrySessionStore,
   projectEntrySessionKey,
 } from './projectEntrySessionStore'
@@ -28,6 +29,13 @@ test('project entry session explicit search detection ignores empty params', () 
   assert.equal(hasExplicitProjectEntrySearchParam(new URLSearchParams('scene_moment_id=7'), ['scene_moment_id']), true)
   assert.equal(hasExplicitProjectEntrySearchParam(new URLSearchParams('scene_moment_id='), ['scene_moment_id']), false)
   assert.equal(hasExplicitProjectEntrySearchParam(new URLSearchParams('foo=1'), ['scene_moment_id']), false)
+})
+
+test('project entry session route search scopes content canvas instances by canvas id', () => {
+  assert.equal(projectEntrySessionIdForRouteSearch('content_canvas', '?canvasId=canvas%3Aone'), 'content_canvas:canvas:one')
+  assert.equal(projectEntrySessionIdForRouteSearch('content_canvas', new URLSearchParams('canvas=canvas%3Atwo')), 'content_canvas:canvas:two')
+  assert.equal(projectEntrySessionIdForRouteSearch('content_canvas', ''), 'content_canvas')
+  assert.equal(projectEntrySessionIdForRouteSearch('content_preview', '?canvasId=canvas%3Aone'), 'content_preview')
 })
 
 test('project entry session snapshot normalization drops invalid entries and preserves scalar state', () => {

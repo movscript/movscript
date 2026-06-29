@@ -20,6 +20,12 @@ interface AdminCliOptions {
   catalogEntryId?: string
   bindingId?: string
   keyId?: string
+  resourceId?: string
+  requiredMediaType?: string
+  profileId?: string
+  transport?: string
+  purpose?: string
+  routeId?: string
   id?: string
   yes?: boolean
   json?: boolean
@@ -65,6 +71,12 @@ function addAdminOptions(command: Command): void {
     .option('--catalog-entry-id <id>', 'Model catalog entry id')
     .option('--binding-id <id>', 'Route binding id')
     .option('--key-id <id>', 'Model gateway API key id')
+    .option('--resource-id <id>', 'RawResource id for resource-access diagnostics')
+    .option('--required-media-type <type>', 'Required resource media type for resource-access diagnostics')
+    .option('--profile-id <id>', 'ResourceAccessProfile id for resource-access diagnostics')
+    .option('--transport <transport>', 'Resource access transport, currently public_url')
+    .option('--purpose <purpose>', 'Diagnostic purpose for resource-access resolution')
+    .option('--route-id <id>', 'Route id whose resource transport requirement is being tested')
     .option('--id <id>', 'Generic id alias for delete/update commands')
     .option('--yes', 'Confirm delete or no-payload admin mutation')
     .option('--json', 'Print JSON output')
@@ -104,6 +116,12 @@ function adminArgs(options: AdminCliOptions, command: Command): Record<string, u
     catalogEntryId: options.catalogEntryId,
     bindingId: options.bindingId,
     keyId: options.keyId,
+    resourceId: options.resourceId,
+    requiredMediaType: options.requiredMediaType,
+    profileId: options.profileId,
+    transport: options.transport,
+    purpose: options.purpose,
+    routeId: options.routeId,
     id: options.id,
   })
 }

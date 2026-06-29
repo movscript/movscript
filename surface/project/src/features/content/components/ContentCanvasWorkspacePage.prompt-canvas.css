@@ -62,19 +62,6 @@
   color: var(--cc-accent);
 }
 
-.content-prompt-canvas-panel__canvas-select {
-  max-width: 180px;
-  min-width: 118px;
-  height: 28px;
-  min-height: 28px;
-  border: 1px solid var(--cc-border);
-  border-radius: 7px;
-  background: var(--cc-panel);
-  color: var(--cc-text);
-  font-size: 11px;
-  font-weight: 760;
-}
-
 .content-prompt-canvas-panel__layout-button span,
 .content-prompt-canvas-panel__save-button span {
   font-size: 11px;
@@ -1032,6 +1019,74 @@
   grid-template-columns: minmax(92px, 0.75fr) minmax(82px, 0.55fr) minmax(132px, 1.15fr);
   gap: 8px;
   min-width: 0;
+}
+
+.content-prompt-flow-node__generation-references {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.content-prompt-flow-node__generation-reference {
+  display: inline-grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 150px;
+  min-height: 36px;
+  border: 1px solid color-mix(in srgb, var(--cc-success) 38%, var(--cc-border));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--cc-success) 8%, transparent);
+  padding: 3px 6px 3px 3px;
+}
+
+.content-prompt-flow-node__generation-reference img,
+.content-prompt-flow-node__generation-reference video,
+.content-prompt-flow-node__generation-reference-fallback {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--cc-accent) 10%, transparent);
+  object-fit: cover;
+  overflow: hidden;
+}
+
+.content-prompt-flow-node__generation-reference-fallback {
+  display: grid;
+  place-items: center;
+  color: var(--cc-accent);
+}
+
+.content-prompt-flow-node__generation-reference-fallback small {
+  display: none;
+}
+
+.content-prompt-flow-node__generation-reference > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.content-prompt-flow-node__generation-reference b,
+.content-prompt-flow-node__generation-reference small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content-prompt-flow-node__generation-reference b {
+  color: var(--cc-text);
+  font-size: 10px;
+  font-weight: 820;
+}
+
+.content-prompt-flow-node__generation-reference small {
+  color: var(--cc-muted);
+  font-size: 10px;
+  font-weight: 720;
 }
 
 .content-prompt-flow-node__generation label {

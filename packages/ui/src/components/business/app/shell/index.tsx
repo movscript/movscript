@@ -1,5 +1,6 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import * as React from "react";
 
+import { AsChildSlot } from "../../../../lib/asChild";
 import { cn } from "../../../../lib/cn";
 import { Button, type ButtonProps } from "../../../primitives";
 import { AppIconFrame, AppInlineMeta } from "../display";
@@ -13,10 +14,10 @@ export function AppErrorFallback({
   onRetry,
   className,
 }: {
-  icon: ReactNode;
-  title: ReactNode;
-  message: ReactNode;
-  retryLabel: ReactNode;
+  icon: React.ReactNode;
+  title: React.ReactNode;
+  message: React.ReactNode;
+  retryLabel: React.ReactNode;
   onRetry: () => void;
   className?: string;
 }) {
@@ -36,6 +37,105 @@ export function AppErrorFallback({
   );
 }
 
+export function AppHostChrome({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("app-host-chrome", className)} {...props} />;
+}
+
+export function AppHostChromeTopbar({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLElement>) {
+  return <header className={cn("app-host-chrome__topbar", className)} {...props} />;
+}
+
+export const AppHostChromeBrand = React.forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement> & {
+  asChild?: boolean;
+}>(({
+  asChild = false,
+  className,
+  ...props
+}, ref) => {
+  if (asChild) {
+    return (
+      <AsChildSlot
+        ref={ref}
+        fallback="a"
+        className={cn("app-host-chrome__brand", className)}
+        {...props}
+      />
+    );
+  }
+
+  return (
+    <a
+      ref={ref as React.Ref<HTMLAnchorElement>}
+      className={cn("app-host-chrome__brand", className)}
+      {...props as React.AnchorHTMLAttributes<HTMLAnchorElement>}
+    />
+  );
+});
+
+AppHostChromeBrand.displayName = "AppHostChromeBrand";
+
+export function AppHostChromeBrandMark({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("app-host-chrome__brand-mark", className)} {...props} />;
+}
+
+export function AppHostChromeBrandCopy({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("app-host-chrome__brand-copy", className)} {...props} />;
+}
+
+export function AppHostChromeActions({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("app-host-chrome__actions", className)} {...props} />;
+}
+
+export function AppHostChromeWorkspace({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLElement>) {
+  return <section className={cn("app-host-chrome__workspace", className)} {...props} />;
+}
+
+export function AppHostChromeMain({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLElement>) {
+  return <main className={cn("app-host-chrome__main", className)} {...props} />;
+}
+
+export function AppHostChromeStatus({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("app-host-chrome-status", className)} {...props} />;
+}
+
+export function AppHostChromePreferences({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("app-host-chrome-preferences", className)} {...props} />;
+}
+
+export function AppHostChromeActionLabel({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("app-host-chrome-action-label", className)} {...props} />;
+}
+
 export function AppBackendBootOverlay({
   icon,
   tone,
@@ -46,15 +146,15 @@ export function AppBackendBootOverlay({
   details,
   actions,
   className,
-}: HTMLAttributes<HTMLDivElement> & {
-  icon: ReactNode;
+}: React.HTMLAttributes<HTMLDivElement> & {
+  icon: React.ReactNode;
   tone: "danger" | "info";
-  title: ReactNode;
-  description: ReactNode;
-  baseURL: ReactNode;
-  progress?: ReactNode;
-  details?: ReactNode;
-  actions?: ReactNode;
+  title: React.ReactNode;
+  description: React.ReactNode;
+  baseURL: React.ReactNode;
+  progress?: React.ReactNode;
+  details?: React.ReactNode;
+  actions?: React.ReactNode;
 }) {
   return (
     <div className={cn("ms-center app-backend-boot-overlay", className)}>

@@ -1,41 +1,61 @@
 .canvas-mention-chip {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
+  max-width: min(100%, 138px);
+  min-height: 22px;
   margin: 0 2px;
-  padding: 1px 5px;
-  vertical-align: middle;
-  border: 1px solid var(--ms-color-border);
-  border-radius: var(--ms-radius-sm);
-  background: var(--ms-color-muted);
+  padding: 0 7px 0 4px;
+  vertical-align: -0.18em;
+  border: 1px solid color-mix(in srgb, var(--ms-color-border) 82%, transparent);
+  border-radius: var(--ms-radius-full);
+  background: color-mix(in srgb, var(--ms-color-muted) 28%, transparent);
   color: var(--ms-color-foreground);
   cursor: default;
   font-size: var(--ms-text-caption);
-  line-height: 1.4;
+  line-height: 1;
   white-space: nowrap;
 }
 
 .canvas-mention-chip__media {
-  display: inline-flex;
-  width: 18px;
-  height: 18px;
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--ms-radius-sm);
-  background: var(--ms-color-muted);
+  place-items: center;
+  border-radius: var(--ms-radius-full);
+  background: color-mix(in srgb, var(--ms-color-foreground) 9%, transparent);
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 760;
   line-height: 1;
-  object-fit: cover;
 }
 
 .canvas-mention-chip__label {
-  max-width: 72px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.canvas-mention-chip[data-role="first_frame"] {
+  border-color: color-mix(in srgb, var(--ms-color-accent, #0f766e) 42%, var(--ms-color-border));
+  background: color-mix(in srgb, var(--ms-color-accent, #0f766e) 12%, transparent);
+  color: color-mix(in srgb, var(--ms-color-accent, #0f766e) 82%, var(--ms-color-foreground));
+}
+
+.canvas-mention-chip[data-role="last_frame"] {
+  border-color: color-mix(in srgb, var(--ms-color-warning, #d97706) 44%, var(--ms-color-border));
+  background: color-mix(in srgb, var(--ms-color-warning, #d97706) 13%, transparent);
+  color: color-mix(in srgb, var(--ms-color-warning, #d97706) 82%, var(--ms-color-foreground));
+}
+
+.canvas-mention-chip[data-role="reference_video"],
+.canvas-mention-chip[data-role="motion_reference"],
+.canvas-mention-chip[data-role="source_video"] {
+  border-color: color-mix(in srgb, #2563eb 36%, var(--ms-color-border));
+  background: color-mix(in srgb, #2563eb 10%, transparent);
+  color: color-mix(in srgb, #2563eb 78%, var(--ms-color-foreground));
 }
 
 .canvas-mention-menu-thumb {

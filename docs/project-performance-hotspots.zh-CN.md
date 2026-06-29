@@ -36,8 +36,9 @@ flowchart LR
 - Project Service 当前工作区已引入 `createProjectWorkspaceEngine` 和 engine registry，避免同一个项目上下文重复创建 engine。
 - `packages/workspace` 当前工作区已给 `loadIndex` 增加短 TTL、in-flight 去重和写后失效。
 - Editing Service 的 production/timeline assembly bundle 已改为一次 `loadIndex()` 后用纯函数派生 production context 和 preview timeline，不再在 bundle 内让各子方法隐式取 index。
+- `resourceView` 已标记为 `debug_compat`，响应会返回 `preferredEndpoint`，调试 Surface 也明确显示它不是复杂产品页面首屏接口。
 
-这些改动已经把 Home、Standards、Scripts、Agent content units、Content Canvas 推向页面级 read-model，并把 prompt 编译链、阶段化观测和 benchmark fixture 纳入 Project Service；Editing Service 的 timeline bundle 也完成了显式共享 index。后续重点是：继续裁剪大字段，并推进 resourceView 降级与剩余 content workspace 场景的按需读取。
+这些改动已经把 Home、Standards、Scripts、Agent content units、Content Canvas 推向页面级 read-model，并把 prompt 编译链、阶段化观测和 benchmark fixture 纳入 Project Service；Editing Service 的 timeline bundle 也完成了显式共享 index；resourceView 则降级成有迁移提示的 debug/compat 接口。后续重点是：继续裁剪大字段，并推进剩余 content workspace 场景的按需读取。
 
 ## 主要性能模式
 
@@ -60,7 +61,7 @@ flowchart LR
 | P1 | Content workspace 全量读取 | `loadContentSourceWorkspaceSnapshotFromEngine` 会 `loadIndex()`、`engine.review()`、查询 settings/assets/context、派生 preview timelines，并逐个 scene moment 尝试读 edit plan。Agent 输出面板已改为按 `projection.contentUnitIds` 读取 `/v1/project/content-units/read-model`。 | 继续拆成通用 `content-summary/read-model`、`timeline-status/read-model`、`editing-detail/read`；保留 full content workspace 作为兼容/重详情路径。 |
 | P1 | Scripts 页面 | 已落地 `/v1/project/scripts/read-model`；`ProjectScriptsSurface` 首屏改为 scripts read-model，script row 不带 `source/content/raw_source`，选中后再用 `scripts/source/read` 读正文；benchmark 已覆盖。 | 后续可继续把版本正文也拆成按展开懒加载，并给列表补 limit/cursor。 |
 | P1 | Editing Service timeline bundle | 已落地：production/timeline assembly bundle 先 `loadIndex()`，再通过 `queryMovScriptWorkspaceProductionContext(index)`、`deriveMovScriptWorkspacePreviewTimelines(index)`、`deriveMovScriptWorkspaceTimelineAssemblyPreviewTimeline(index)` 派生数据；新增架构测试防止回退。 | 后续补 Editing Service endpoint metrics 和 fixture benchmark，把 bundle 耗时纳入 release gate。 |
-| P1 | resourceView 泛接口 | `readProjectResourceView` 每个 kind 独立处理，设定页和脚本页都依赖它拼页面模型。 | 增加 multi-kind read 或页面 read-model registry；resourceView 标注为 debug/compat，不作为复杂页面首屏依赖。 |
+| P1 | resourceView 泛接口 | 已落地：`resourceView` 保留旧 endpoint/capability，但响应标记 `debug_compat`，并返回 `preferredEndpoint` 指向 Standards/Scripts/Content Units/Content Canvas 等页面 read-model；调试 Surface 同步展示该边界。 | 后续只作为调试/兼容接口维护；新复杂页面必须走页面 read-model 或专用 read endpoint。 |
 | P2 | 前端 query 策略 | Content Canvas 主 query 有 12s staleTime；model selector `staleTime: 0`，部分 standards query 没有 staleTime，workspaceArtifacts 1.5s polling。 | 对稳定目录/模型/资源列表设置合理 staleTime；轮询只用于运行中 workspace，并在页面隐藏时停用。 |
 | P2 | 大列表渲染 | assets/content units/candidates/scripts 增长后，列表和 inspector 可能全量渲染。 | 分页、虚拟列表、按 selection 展开详情，read-model 只返回 summary rows。 |
 
@@ -143,8 +144,10 @@ flowchart TD
    - 验证：`node --check services/editing-service/src/server.mjs`、`pnpm --filter @movscript/editing-service test`。
 
 4. resourceView 降级为调试/兼容接口
-   - 新页面不再用多个 `resourceView` 拼首屏。
-   - 如需保留通用列表，支持 multi-kind batch，并带 limit/cursor。
+   - 已保留旧 endpoint/capability，避免破坏已有工具。
+   - 已在 Project Service 响应中加入 `usage/viewMode: debug_compat` 和 `preferredEndpoint/preferred_endpoint`。
+   - 已在 typed client 响应类型和 Project Resource View debug surface 中显示该兼容边界。
+   - 验证：`pnpm --filter @movscript/project test`、`pnpm --filter @movscript/project-service test`、`pnpm --filter @movscript/project-surface typecheck`。
 
 ### P2：缓存策略和大项目 UI
 
@@ -202,6 +205,7 @@ flowchart TD
 5. P1-1：`scripts/read-model` 和 source 懒加载已落地。验证：`pnpm --filter @movscript/project test`、`pnpm --filter @movscript/project-service test`、`pnpm --filter @movscript/project-surface typecheck`、`MOVSCRIPT_PROJECT_BENCHMARK_FIXTURE=1 MOVSCRIPT_PROJECT_BENCHMARK_RUNS=1 node scripts/benchmark-project-service-performance.mjs`。
 6. P1-2：Agent 输出按 contentUnitIds 读取已落地。验证：`pnpm --filter @movscript/desktop typecheck`、`pnpm --filter @movscript/desktop exec node ../../scripts/run-node-tests.mjs src/features/agent/components/AgentSessionOutputModel.test.ts src/shared/application/appEventQueryInvalidation.test.ts src/shared/application/appMutationEventPublishing.test.ts`、`MOVSCRIPT_PROJECT_BENCHMARK_FIXTURE=1 MOVSCRIPT_PROJECT_BENCHMARK_RUNS=1 node scripts/benchmark-project-service-performance.mjs`。
 7. P1-3：Editing Service 共享 index 已落地。验证：`node --check services/editing-service/src/server.mjs`、`pnpm --filter @movscript/editing-service test`。
-8. P1-4：继续处理 resourceView debug/compat 降级，以及更通用的 `content-summary/timeline-status/editing-detail` 拆分。
+8. P1-4：resourceView debug/compat 降级已落地。验证：`pnpm --filter @movscript/project test`、`pnpm --filter @movscript/project-service test`、`pnpm --filter @movscript/project-surface typecheck`。
+9. P1-5：继续处理更通用的 `content-summary/timeline-status/editing-detail` 拆分。
 
-完成 P0、P1-1、P1-2 和 P1-3 后，用户感知会从“打开项目多个入口都像在重新读整个项目”变成“每个入口拿自己的页面模型，手记正文和会话相关创作片段等细节按需展开；进入剪辑装配时也不会在同一个 bundle 内重复派生基础项目索引”。
+完成 P0、P1-1、P1-2、P1-3 和 P1-4 后，用户感知会从“打开项目多个入口都像在重新读整个项目”变成“每个入口拿自己的页面模型，手记正文和会话相关创作片段等细节按需展开；进入剪辑装配时也不会在同一个 bundle 内重复派生基础项目索引；通用 resourceView 不再被误用为复杂页面首屏接口”。

@@ -1298,7 +1298,7 @@ export function stageDesktopPackageProject(root = repoRoot, options = {}) {
   rmSync(releaseDir, { recursive: true, force: true })
   prepareProviderPluginResources(root, { log: (message) => log(`[package-desktop] ${message}`) })
   log(`[package-desktop] Stage desktop package project: ${stageDir}`)
-  const deployResult = spawn(pnpm, ['--filter', '@movscript/desktop', 'deploy', '--legacy', '--prod', stageDir], releaseSpawnOptions(env))
+  const deployResult = spawn(pnpm, ['--config.inject-workspace-packages=true', '--filter', '@movscript/desktop', 'deploy', '--prod', stageDir], releaseSpawnOptions(env))
   if (deployResult.error) throw deployResult.error
   if (deployResult.status !== 0 || deployResult.signal) {
     throw new Error(`Desktop package staging failed with status ${deployResult.status ?? 'none'} signal=${deployResult.signal ?? 'none'}`)

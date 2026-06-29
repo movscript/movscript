@@ -11,7 +11,12 @@ export async function listModels(args: Record<string, unknown>): Promise<unknown
   const operation = getOptionalString(args, 'operation') ?? getOptionalString(args, 'model_operation')
   const normalizedCapability = normalizeModelCapabilityAlias(rawCapability)
   const capability = normalizedCapability ?? (rawCapability ? undefined : capabilityForModelOperation(operation))
+  const targetOutput = modelTargetOutputArg(args, capability, operation)
   const referenceAssets = modelReferenceAssetsArg(args.reference_assets ?? args.referenceAssets)
+  const resolveIntent = args.resolve_intent === true
+    || args.resolveIntent === true
+    || Boolean(targetOutput)
+    || (operation === undefined && Boolean(referenceAssets?.length))
   const providerVariants = args.provider_variants === true || args.include_provider_variants === true
 
   const defaultCapabilities = ['text_generation', 'image_generation', 'video_generation', 'audio_generation', 'text', 'image', 'image_edit', 'video', 'video_i2v', 'video_v2v', 'audio_tts', 'audio_transcribe', 'audio_translate', 'audio_music', 'audio_sfx', 'audio_chat', 'voice_clone', 'voice_design', 'subtitle_align', 'subtitle_translate']
@@ -32,7 +37,7 @@ export async function listModels(args: Record<string, unknown>): Promise<unknown
     }
   }
   const queries = capability
-    ? [modelListQuery(capability, { operation, providerVariants, referenceAssets })]
+    ? [modelListQuery(capability, { operation, targetOutput, resolveIntent, providerVariants, referenceAssets })]
     : defaultCapabilities.map((item) => ({
         label: `capability:${item}`,
         path: modelListPath(item, { providerVariants }),
@@ -64,10 +69,12 @@ export async function listModels(args: Record<string, unknown>): Promise<unknown
 
 function modelListQuery(
   capability: string,
-  options: { operation?: string; providerVariants?: boolean; referenceAssets?: ModelReferenceAsset[] },
+  options: { operation?: string; targetOutput?: string; resolveIntent?: boolean; providerVariants?: boolean; referenceAssets?: ModelReferenceAsset[] },
 ): { label: string; path: string } {
   const parts = [`capability:${capability}`]
   if (options.operation) parts.push(`operation:${options.operation}`)
+  if (options.targetOutput) parts.push(`target_output:${options.targetOutput}`)
+  if (options.resolveIntent) parts.push('resolve_intent')
   if (options.referenceAssets && options.referenceAssets.length > 0) {
     parts.push(`reference_assets:${options.referenceAssets.length}`)
   }
@@ -79,16 +86,58 @@ function modelListQuery(
 
 function modelListPath(
   capability: string,
-  options: { operation?: string; providerVariants?: boolean; referenceAssets?: ModelReferenceAsset[] } = {},
+  options: { operation?: string; targetOutput?: string; resolveIntent?: boolean; providerVariants?: boolean; referenceAssets?: ModelReferenceAsset[] } = {},
 ): string {
   const params = new URLSearchParams()
   params.set('capability', capability)
   if (options.operation) params.set('operation', options.operation)
+  if (options.targetOutput) params.set('target_output', options.targetOutput)
+  if (options.resolveIntent) params.set('resolve_intent', 'true')
   if (options.providerVariants) params.set('provider_variants', 'true')
   if (options.referenceAssets && options.referenceAssets.length > 0) {
     params.set('reference_assets', JSON.stringify(options.referenceAssets))
   }
   return `/models?${params.toString()}`
+}
+
+function modelTargetOutputArg(args: Record<string, unknown>, capability: string | undefined, operation: string | undefined): string | undefined {
+  const explicit = getOptionalString(args, 'target_output')
+    ?? getOptionalString(args, 'targetOutput')
+    ?? getOptionalString(args, 'output_kind')
+    ?? getOptionalString(args, 'outputKind')
+  if (explicit) return explicit
+  return outputKindForCapabilityOrOperation(capability, operation)
+}
+
+function outputKindForCapabilityOrOperation(capability: string | undefined, operation: string | undefined): string | undefined {
+  const normalized = capability?.trim().toLowerCase().replace(/-/g, '_')
+  switch (normalized) {
+    case 'image':
+    case 'image_generation':
+    case 'image_edit':
+      return 'image'
+    case 'video':
+    case 'video_generation':
+    case 'video_i2v':
+    case 'video_v2v':
+      return 'video'
+    case 'audio':
+    case 'audio_generation':
+    case 'audio_tts':
+    case 'audio_transcribe':
+    case 'audio_translate':
+    case 'audio_music':
+    case 'audio_sfx':
+    case 'audio_chat':
+    case 'voice_clone':
+    case 'voice_design':
+      return 'audio'
+    case 'text':
+    case 'text_generation':
+      return 'text'
+    default:
+      return capabilityForModelOperation(operation) ? outputKindForCapabilityOrOperation(capabilityForModelOperation(operation), undefined) : undefined
+  }
 }
 
 function capabilityForModelOperation(operation: string | undefined): string | undefined {

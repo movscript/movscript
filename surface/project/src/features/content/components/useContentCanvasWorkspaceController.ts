@@ -25,7 +25,6 @@ import {
   removeContentCanvasDocumentNodesEverywhere,
   removeContentCanvasDocumentNodes,
   saveContentCanvasDocumentsToProject,
-  selectContentCanvasDocument,
   subscribeContentCanvasDocumentsState,
   updateContentCanvasDocumentNodePositions,
 } from '../application/contentCanvasDocuments'
@@ -95,7 +94,10 @@ import {
   contentCanvasNextTimelineNamespaceKind,
 } from './contentCanvasNamespaceVocabularyModel'
 import { useSurfaceHostState } from '../../project/application/surfaceHostStateHooks'
-import type { ProjectEntrySessionId } from '../../project/application/projectEntrySessionStore'
+import {
+  contentCanvasProjectEntrySessionId,
+  type ProjectEntrySessionId,
+} from '../../project/application/projectEntrySessionStore'
 
 const CONTENT_CANVAS_PROJECT_QUERY_STALE_MS = 12_000
 const CONTENT_CANVAS_ACTIVE_CANDIDATE_REFRESH_MS = 10_000
@@ -122,11 +124,11 @@ export function useContentCanvasWorkspaceController({
     [project?.project_path, project?.workspace_path, workspaceRoot],
   )
   const [searchParams] = useSearchParams()
-  const projectEntryId = useMemo(
-    () => contentCanvasProjectEntryIdForRoute(location.pathname, workspaceMode),
-    [location.pathname, workspaceMode],
-  )
   const requestedCanvasId = (searchParams.get('canvasId') ?? searchParams.get('canvas'))?.trim() || undefined
+  const projectEntryId = useMemo(
+    () => contentCanvasProjectEntryIdForRoute(location.pathname, workspaceMode, requestedCanvasId),
+    [location.pathname, requestedCanvasId, workspaceMode],
+  )
   const [settingQuery, setSettingQuery] = useState('')
   const [activeKind, setActiveKind] = useState<SettingKind | 'all'>('all')
   const [workspaceTab, setWorkspaceTab] = useState<ContentWorkspaceTab>(() => workspaceMode ?? 'preview')
@@ -198,12 +200,6 @@ export function useContentCanvasWorkspaceController({
     () => requestedCreativeCanvasDocument ?? activeContentCanvasDocument(canvasDocumentsState),
     [canvasDocumentsState, requestedCreativeCanvasDocument],
   )
-  useEffect(() => {
-    if (!projectId || !requestedCanvasId) return
-    if (!canvasDocumentsState?.documents[requestedCanvasId] || canvasDocumentsState.activeCanvasId === requestedCanvasId) return
-    selectContentCanvasDocument(projectId, requestedCanvasId)
-    setCanvasDocumentsVersion((version) => version + 1)
-  }, [canvasDocumentsState?.activeCanvasId, canvasDocumentsState?.documents, projectId, requestedCanvasId])
   const creativeCanvasDocumentId = creativeCanvasDocument?.id
   const creativeCanvasViewStateScope = useMemo(
     () => contentCanvasDocumentViewStateScope(creativeCanvasDocumentId),
@@ -497,11 +493,20 @@ export function useContentCanvasWorkspaceController({
 
   const createFreeCreativeCanvasDocument = useCallback((title?: string) => {
     try {
-      createContentCanvasDocument(projectId, title !== undefined ? { title } : {})
+      const next = createContentCanvasDocument(projectId, title !== undefined ? { title } : {})
+      const nextCanvasId = next?.activeCanvasId
+      if (!nextCanvasId || projectEntryId === 'content_preview' || projectEntryId === 'setting_preview') return
+      const nextSearchParams = new URLSearchParams(searchParams)
+      nextSearchParams.set('canvasId', nextCanvasId)
+      nextSearchParams.delete('canvas')
+      navigate({
+        pathname: location.pathname,
+        search: `?${nextSearchParams.toString()}`,
+      })
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '内容画布创建失败')
     }
-  }, [projectId])
+  }, [location.pathname, navigate, projectEntryId, projectId, searchParams])
 
   const renameFreeCreativeCanvasDocument = useCallback((canvasId: string, title: string) => {
     try {
@@ -510,20 +515,6 @@ export function useContentCanvasWorkspaceController({
       toast.error(error instanceof Error ? error.message : '内容画布重命名失败')
     }
   }, [projectId])
-
-  const selectFreeCreativeCanvasDocument = useCallback((canvasId: string) => {
-    const nextCanvasId = canvasId.trim()
-    if (!nextCanvasId) return
-    selectContentCanvasDocument(projectId, nextCanvasId)
-    if (projectEntryId !== 'content_canvas' || requestedCanvasId === nextCanvasId) return
-    const nextSearchParams = new URLSearchParams(searchParams)
-    nextSearchParams.set('canvasId', nextCanvasId)
-    nextSearchParams.delete('canvas')
-    navigate({
-      pathname: location.pathname,
-      search: `?${nextSearchParams.toString()}`,
-    }, { replace: true })
-  }, [location.pathname, navigate, projectEntryId, projectId, requestedCanvasId, searchParams])
 
   const saveCreativeCanvasDocuments = useCallback(() => {
     if (!projectId || creativeCanvasSavePending) return
@@ -777,6 +768,7 @@ export function useContentCanvasWorkspaceController({
         ...(options.params ? { params: options.params } : {}),
         ...(options.supportedParams ? { supportedParams: options.supportedParams } : {}),
         ...(options.generationIntent ? { generationIntent: options.generationIntent } : {}),
+        ...(options.generationOperationExplicit !== undefined ? { generationOperationExplicit: options.generationOperationExplicit } : {}),
       })
     } catch (error) {
       return blockedGenerationPreflight(
@@ -869,6 +861,8 @@ export function useContentCanvasWorkspaceController({
     projectId,
     searchParams,
     selection,
+    canvasId: creativeCanvasDocumentId,
+    canvasTitle: creativeCanvasDocument?.title,
     setActiveKind,
     setActiveCanvasNodeId,
     setActiveProductionId,
@@ -943,7 +937,6 @@ export function useContentCanvasWorkspaceController({
     saveCreativeCanvasDocuments,
     selectCandidate,
     selectCandidateNode,
-    selectFreeCreativeCanvasDocument,
     selectNode,
     selectScene,
     selectStructureNode,
@@ -1202,9 +1195,10 @@ function blockedGenerationPreflight(code: string, message: string): GenerationBa
 function contentCanvasProjectEntryIdForRoute(
   pathname: string,
   workspaceMode: ContentWorkspaceTab | undefined,
+  canvasId: string | undefined,
 ): ProjectEntrySessionId {
   if (pathname.endsWith('/settings/preview')) return 'setting_preview'
-  if (workspaceMode === 'canvas' || pathname.endsWith('/content/canvas')) return 'content_canvas'
+  if (workspaceMode === 'canvas' || pathname.endsWith('/content/canvas')) return contentCanvasProjectEntrySessionId(canvasId)
   return 'content_preview'
 }
 

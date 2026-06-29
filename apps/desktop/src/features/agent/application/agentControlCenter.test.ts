@@ -144,7 +144,7 @@ test('agent control capability health counts Mova SDK capability surfaces and re
         list: async () => ({
           skills: [{ id: 'skill.generation' }, { id: 'skill.project' }],
           resolvedTools: {
-            available: [{ name: 'movscript_focus_get' }, { name: 'workspace_fetch' }],
+            available: [{ name: 'context_current_get' }, { name: 'workspace_fetch' }],
             blocked: [{ name: 'workspace_apply' }],
           },
         }),

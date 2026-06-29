@@ -9,6 +9,8 @@ test('agent model contract summary strips route provider and adapter details', (
     model_id: 'grok-video-public',
     display_name: 'Grok Video',
     capabilities: ['video_generation'],
+    inferred_operation: 'first_last_frame_to_video',
+    resolver_operations: ['first_last_frame_to_video', 'reference_to_video'],
     accepts_image_input: true,
     route_binding_id: 34,
     provider_id: 'yunwu-main',
@@ -28,6 +30,8 @@ test('agent model contract summary strips route provider and adapter details', (
   })
 
   assert.equal(summary.model_id, 'grok-video-public')
+  assert.equal(summary.inferred_operation, 'first_last_frame_to_video')
+  assert.deepEqual(summary.resolver_operations, ['first_last_frame_to_video', 'reference_to_video'])
   const serialized = JSON.stringify(summary)
   for (const forbidden of [
     'route_binding_id',

@@ -23,12 +23,20 @@ export interface GenInputAttachmentPreviewStyle {
   top: number
 }
 
+export interface GenInputResourceRoleMenuPosition {
+  left: number
+  top: number
+}
+
 const GEN_INPUT_ATTACHMENT_PREVIEW_PADDING = 8
 const GEN_INPUT_ATTACHMENT_PREVIEW_GAP = 8
 const GEN_INPUT_ATTACHMENT_PREVIEW_SIZE: GenInputAttachmentPreviewSize = {
   width: 216,
   height: 224,
 }
+const GEN_INPUT_ROLE_MENU_PADDING = 4
+const GEN_INPUT_ROLE_MENU_WIDTH = 184
+const GEN_INPUT_ROLE_MENU_GAP = 6
 
 function finiteNumber(value: unknown) {
   const number = typeof value === 'number' ? value : Number(value)
@@ -81,5 +89,22 @@ export function genInputAttachmentPreviewStyleFromPosition(
   return {
     left: finiteNumber(position.left),
     top: finiteNumber(position.top),
+  }
+}
+
+export function genInputResourceRoleMenuPositionFromElements(
+  chip: Pick<HTMLElement, 'getBoundingClientRect'>,
+  shell?: Pick<HTMLElement, 'getBoundingClientRect'> | null,
+): GenInputResourceRoleMenuPosition {
+  const shellRect = shell?.getBoundingClientRect()
+  if (!shellRect) return { left: 0, top: 0 }
+  const chipRect = chip.getBoundingClientRect()
+  return {
+    left: clampNumber(
+      finiteNumber(chipRect.left) - finiteNumber(shellRect.left),
+      GEN_INPUT_ROLE_MENU_PADDING,
+      Math.max(GEN_INPUT_ROLE_MENU_PADDING, finiteNumber(shellRect.width) - GEN_INPUT_ROLE_MENU_WIDTH),
+    ),
+    top: finiteNumber(chipRect.bottom) - finiteNumber(shellRect.top) + GEN_INPUT_ROLE_MENU_GAP,
   }
 }

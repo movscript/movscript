@@ -11,7 +11,7 @@ test('buildAgentActivityFeed renders read tools as plain lines', () => {
         id: 'step_focus',
         type: 'tool_call',
         status: 'completed',
-        toolName: 'movscript_focus_get',
+        toolName: 'context_current_get',
         durationMs: 420,
         createdAt: '2026-05-22T01:00:00.000Z',
         completedAt: '2026-05-22T01:00:00.100Z',
@@ -362,7 +362,7 @@ test('buildAgentActivityFeed groups tool calls by model http round', () => {
           status: 'completed',
           roundIndex: 1,
           roundLabel: 'Model turn 1',
-          toolName: 'movscript_focus_get',
+          toolName: 'context_current_get',
           createdAt: '2026-05-22T01:00:01.500Z',
         },
         {
@@ -400,7 +400,7 @@ test('buildAgentActivityFeed renders model tool-call decisions before execution'
           data: {
             eventType: 'model.tool_calls.requested',
             tool_calls: [
-              { id: 'call_1', name: 'movscript_focus_get', args: {} },
+              { id: 'call_1', name: 'context_current_get', args: {} },
               { id: 'call_2', name: 'workspace_fetch', args: { projectId: 2 } },
               { id: 'call_3', name: 'movscript_resource_library_query', args: { projectId: 2, query: '舅爷' } },
             ],
@@ -416,7 +416,7 @@ test('buildAgentActivityFeed renders model tool-call decisions before execution'
   assert.equal(item?.type, 'decision')
   assert.equal(item?.type === 'decision' ? item.title : '', '模型决定调用 3 个工具')
   assert.deepEqual(item?.type === 'decision' ? item.lines : [], [
-    '读取当前焦点',
+    '读取当前上下文',
     '拉取工作区：项目：#2',
     'Movscript Resource Library Query：查询：舅爷，项目：#2',
   ])
@@ -712,7 +712,7 @@ test('buildAgentActivityFeed shows resumed recovery without duplicating the same
         ...modelEvent('model_decision_1', 'Model tool calls requested', 1, 'completed', '2026-05-22T01:00:01.000Z'),
         data: {
           tool_calls: [
-            { id: 'call_1', name: 'movscript_focus_get', args: {} },
+            { id: 'call_1', name: 'context_current_get', args: {} },
           ],
         },
       }],
@@ -721,7 +721,7 @@ test('buildAgentActivityFeed shows resumed recovery without duplicating the same
         type: 'tool_call',
         status: 'completed',
         roundIndex: 1,
-        toolName: 'movscript_focus_get',
+        toolName: 'context_current_get',
         createdAt: '2026-05-22T01:00:02.000Z',
       }],
     }),
@@ -735,7 +735,7 @@ test('buildAgentActivityFeed shows resumed recovery without duplicating the same
   }), [
     '恢复继续：沿用同一个 run 重新调度，之前已完成的步骤保留为历史。',
     '模型决定调用 1 个工具',
-    '已读取数据：读取当前焦点',
+    '已读取数据：读取当前上下文',
   ])
 })
 
@@ -915,7 +915,7 @@ test('buildAgentActivityFeed keeps model tool-call order with approval rows', ()
         createdAt: '2026-05-22T01:00:00.000Z',
         data: {
           tool_calls: [
-            { id: 'call_focus', name: 'movscript_focus_get', args: {} },
+            { id: 'call_focus', name: 'context_current_get', args: {} },
             { id: 'call_write', name: 'asset_candidate_write', args: { asset_slot_id: 9, resource_id: 88 } },
           ],
         },
@@ -925,7 +925,7 @@ test('buildAgentActivityFeed keeps model tool-call order with approval rows', ()
         type: 'tool_call',
         status: 'completed',
         roundIndex: 1,
-        toolName: 'movscript_focus_get',
+        toolName: 'context_current_get',
         createdAt: '2026-05-22T01:00:01.000Z',
       }, {
         id: 'step_candidate',

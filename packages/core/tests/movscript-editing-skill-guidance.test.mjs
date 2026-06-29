@@ -8,15 +8,16 @@ const repoRoot = resolve(import.meta.dirname, '../../..')
 const toolDefinitionPaths = [
   'packages/core/src/mcp/node/server/toolRegistry.ts',
   'packages/core/src/mcp/tools/artifact/definitions.ts',
+  'packages/core/src/mcp/tools/context/definitions.ts',
   'packages/core/src/mcp/tools/domain/definitions.ts',
   'packages/core/src/mcp/tools/editing/definitions.ts',
   'packages/core/src/mcp/tools/external-resources/definitions.ts',
-  'packages/core/src/mcp/tools/focus/definitions.ts',
   'packages/core/src/mcp/tools/generation/definitions.ts',
   'packages/core/src/mcp/tools/model/definitions.ts',
   'packages/core/src/mcp/tools/resource-library/definitions.ts',
   'packages/core/src/mcp/tools/resource-media/definitions.ts',
   'packages/core/src/mcp/tools/shot-library/definitions.ts',
+  'packages/core/src/mcp/tools/timeline/definitions.ts',
 ]
 
 function readRepoFile(path) {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, type Dispatch, type SetStateAction } from 'react'
 
 import {
+  isContentCanvasProjectEntrySessionId,
   hasExplicitProjectEntrySearchParam,
   useProjectEntrySessionStore,
   type ProjectEntrySessionId,
@@ -21,6 +22,8 @@ type ContentCanvasCreateSelection = Extract<InspectorSelection, {
 interface UseContentCanvasWorkspaceSessionInput {
   activeKind: SettingKind | 'all'
   activeCanvasNodeId: string | null
+  canvasId?: string
+  canvasTitle?: string
   graphIndex: {
     nodeById: Map<string, ContentCanvasNode>
   }
@@ -43,6 +46,8 @@ interface UseContentCanvasWorkspaceSessionInput {
 export function useContentCanvasWorkspaceSession({
   activeKind,
   activeCanvasNodeId,
+  canvasId,
+  canvasTitle,
   graphIndex,
   projectEntryId,
   projectId,
@@ -163,6 +168,8 @@ export function useContentCanvasWorkspaceSession({
     upsertProjectEntrySessionSnapshot(contentCanvasProjectEntrySessionSnapshot({
       activeKind,
       activeCanvasNodeId: activeCanvasNodeId ?? selection.nodeId,
+      canvasId,
+      canvasTitle,
       projectId,
       projectEntryId: resolvedProjectEntryId,
       selectedNodeId: selection.nodeId,
@@ -172,6 +179,8 @@ export function useContentCanvasWorkspaceSession({
   }, [
     activeKind,
     activeCanvasNodeId,
+    canvasId,
+    canvasTitle,
     hasExplicitSessionSearch,
     projectId,
     resolvedProjectEntryId,
@@ -187,6 +196,8 @@ export function useContentCanvasWorkspaceSession({
 function contentCanvasProjectEntrySessionSnapshot(input: {
   activeKind: SettingKind | 'all'
   activeCanvasNodeId: string
+  canvasId?: string
+  canvasTitle?: string
   projectEntryId: ProjectEntrySessionId
   projectId: number
   selectedNodeId: string
@@ -196,6 +207,8 @@ function contentCanvasProjectEntrySessionSnapshot(input: {
   const search = buildContentCanvasProjectEntrySessionSearch({
     activeKind: input.activeKind,
     activeCanvasNodeId: input.activeCanvasNodeId,
+    canvasId: input.canvasId,
+    canvasTitle: input.canvasTitle,
     selectedNodeId: input.selectedNodeId,
     selectionKind: input.selectionKind,
     workspaceTab: input.workspaceTab,
@@ -208,6 +221,8 @@ function contentCanvasProjectEntrySessionSnapshot(input: {
     filters: {
       activeKind: input.activeKind,
       activeCanvasNodeId: input.activeCanvasNodeId,
+      ...(input.canvasId ? { canvasId: input.canvasId } : {}),
+      ...(input.canvasTitle ? { canvasTitle: input.canvasTitle } : {}),
       selectedNodeId: input.selectedNodeId,
       selectionKind: input.selectionKind,
       workspaceTab: input.workspaceTab,
@@ -225,5 +240,5 @@ function contentCanvasProjectEntryRouteKey(
   workspaceTab: ContentWorkspaceTab,
 ): 'project.contentCanvas' | 'project.contentPreview' | 'project.settingPreview' {
   if (projectEntryId === 'setting_preview') return 'project.settingPreview'
-  return workspaceTab === 'canvas' ? 'project.contentCanvas' : 'project.contentPreview'
+  return workspaceTab === 'canvas' || isContentCanvasProjectEntrySessionId(projectEntryId) ? 'project.contentCanvas' : 'project.contentPreview'
 }

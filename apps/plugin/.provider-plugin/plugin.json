@@ -1,7 +1,7 @@
 {
   "name": "movscript",
   "version": "0.1.2",
-  "description": "MovScript runtime detection, project/domain source editing, planning, review, media query, AI generation, and optional Desktop-enhanced Electron media editing tools backed by a headless MCP host.",
+  "description": "MovScript daemon runtime, admin/system management, project/domain planning, review, media query, AI generation, timeline compile, and Electron media editing tools backed by a headless MCP host.",
   "keywords": [
     "workspace",
     "project",
@@ -29,15 +29,21 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "MovScript",
-    "shortDescription": "Use MovScript projects, runtime detection, domain source, planning, review, media queries, generation, and optional Desktop-enhanced media editing.",
-    "longDescription": "Installs MovScript project/domain/planning/review/generation/editing guidance and starts a bundled headless MCP host. The host detects local/cloud backend availability, project source state, and optional Desktop enhancement capabilities. It exposes system tools for focus, project creation, resources, external media, model discovery, image/video/audio/subtitle generation, and job polling, plus domain tools for object query/read/upsert/update, candidate management, inspect/review, interpret, and regeneration planning. Product video editing uses the dedicated editing_* tool family: MediaEditingProject creation and timeline operations can run headlessly, while Electron mediaPipeline render/HLS/transcode/reframe tasks require MovScript Desktop or a future configured render runtime.",
+    "shortDescription": "Use MovScript daemon runtime, admin config, projects, domain planning, timeline compile, generation, review, media queries, and media editing.",
+    "longDescription": "Installs MovScript runtime/admin/project/domain/planning/timeline/review/generation/editing guidance and starts a bundled headless MCP host. The host detects cloud/external, daemon full-local, Desktop enhancement, and diagnostic startup modes, plus project source state and runtime capabilities. It proxies business MCP calls to the daemon endpoint when available and keeps only runtime bootstrap fallback in stdio. It exposes context tools for read-only UI/session hints; admin tools for provider, credential, model catalog, route binding, gateway key, generation tool settings, and ResourceAccessProfile/public tunnel diagnostics; system tools for project creation, resources, external media, model discovery, unified generation, and job polling; timeline tools for TimelineAssembly -> CompileManifest -> backend selection/conformance; domain tools for object query/read/upsert/update, candidate management, inspect/review, interpret, and regeneration planning; and the dedicated editing_* tool family for MediaEditingProject creation, timeline operations, Electron mediaPipeline render/HLS/transcode/reframe, export, and explicit candidate handoff.",
     "developerName": "MovScript",
     "category": "Productivity",
     "capabilities": [
-      "current focus",
       "runtime detection",
+      "startup ownership",
       "local backend detection",
       "cloud backend detection",
+      "session context hints",
+      "admin system management",
+      "provider configuration",
+      "model catalog configuration",
+      "route binding diagnostics",
+      "resource access configuration",
       "project creation",
       "project domain context",
       "script source read and write",
@@ -46,6 +52,9 @@
       "domain object API",
       "domain source file editing",
       "production planning",
+      "timeline compile",
+      "backend selection",
+      "CompileManifest conformance",
       "domain review",
       "domain interpret",
       "regeneration review",
@@ -67,7 +76,7 @@
       "domain candidate management",
       "review handoff"
     ],
-    "defaultPrompt": "Review the current MovScript project state. Plan the next MovScript production step. Generate or edit media with MovScript tools. For product video editing, use editing_* tools; check editing_runtime_capabilities_get before local render. Resource-level media utilities are only for neutral material preparation, not the main editing path.",
+    "defaultPrompt": "Review the current MovScript project state. First check runtime ownership when service availability is unclear. Use admin tools only for explicit system configuration or diagnostics. Plan content, compile timeline intent, generate candidates, or export/edit media with MovScript tools. For timeline assembly, use timeline_* before choosing a backend. For product video editing, use editing_* tools and check editing_runtime_capabilities_get before local render. Resource-level media utilities are only for neutral material preparation, not the main editing path.",
     "websiteURL": "https://movscript.github.io/movscript/",
     "composerIcon": "./assets/logo.png",
     "logo": "./assets/logo.png"

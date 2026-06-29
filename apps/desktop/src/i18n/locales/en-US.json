@@ -1329,7 +1329,7 @@
         "core_memory_create": "Create memory",
         "movscript_project_create": "Create project",
         "core_memory_delete": "Delete memory",
-        "movscript_focus_get": "Read current focus",
+        "context_current_get": "Read current context",
         "reference_get": "Read reference",
         "core_memory_get": "Read memory",
         "movscript_project_standards_get": "Read project standards",

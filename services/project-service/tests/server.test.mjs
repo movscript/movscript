@@ -42,6 +42,8 @@ import {
   PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT,
   PROJECT_SERVICE_SETTING_CREATE_ENDPOINT,
   PROJECT_SERVICE_STANDARDS_UPSERT_ENDPOINT,
+  PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT,
+  PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_WRITE_ENDPOINT,
   PROJECT_SERVICE_WORKSPACE_CANDIDATE_APPEND_ENDPOINT,
   PROJECT_SERVICE_WORKSPACE_CANDIDATE_SELECT_ENDPOINT,
   startProjectService,
@@ -193,6 +195,8 @@ test('project-service exposes a stable project read-model endpoint', async () =>
   assert.equal(readModel.projectReadModel.source.mode, 'source')
   assert.equal(readModel.projectReadModel.inspection.schema, 'movscript.workspace-inspection.v1')
   assert.equal(readModel.projectReadModel.sourceSummary.documentCount >= 2, true)
+  assert.equal(readModel.projectReadModel.contentUnits.length >= 1, true)
+  assert.equal(readModel.projectReadModel.contentUnits.find(item => item.record.id === 'cu_opening_assembly')?.record.target_ref, 'timeline_assembly:segment:a19d')
   assert.equal(readModel.projectReadModel.projectTimelineStatus.schema, 'movscript.project_timeline_status.v1')
   assert.deepEqual(readModel.projectReadModel.projectTimelineStatus.namespace_vocabulary.timeline_namespaces, ['act', 'sequence', 'beat', 'episode'])
   assert.equal(readModel.projectReadModel.projectTimelineStatus.timeline_namespaces.find(item => item.id === 'p8f3')?.kind, 'episode')
@@ -1069,6 +1073,95 @@ test('project-service executes whitelisted source commands through the shared en
   })
   assert.equal(unsupported.status, 400)
   assert.equal((await unsupported.json()).error, 'project_source_command_unsupported')
+})
+
+test('project-service persists TimelineAssembly drafts as project-owned artifacts', async () => {
+  const projectDir = await createProjectSource()
+  const runtime = await startProjectService()
+  tAfterClose(runtime)
+  test.after(async () => {
+    await rm(projectDir, { recursive: true, force: true })
+  })
+
+  const missing = await postJSON(`${runtime.url}${PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT}`, {
+    projectDir,
+    targetRef: 'timeline_assembly:production:pilot',
+  })
+  assert.equal(missing.schema, 'movscript.project-timeline-assembly-draft-read.v1')
+  assert.equal(missing.status, 'missing')
+  assert.equal(missing.path, 'timeline_assemblies/timeline_assembly_production_pilot/assembly.json')
+
+  const write = await postJSON(`${runtime.url}${PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_WRITE_ENDPOINT}`, {
+    projectDir,
+    targetRef: 'timeline_assembly:production:pilot',
+    draft: {
+      title: 'Pilot Rough Cut',
+      assembly: {
+        schema: 'movscript.timeline_assembly.intent_workbench.v1',
+        id: 'timeline-assembly-pilot',
+        targetRef: 'timeline_assembly:production:pilot',
+        clips: [{ id: 'clip-opening', trackId: 'video_main', kind: 'visual', durationMs: 4000 }],
+      },
+      handoff: {
+        schema: 'movscript.edit_desk.handoff.v1',
+        timeline_assembly_id: 'timeline-assembly-pilot',
+        target_ref: 'timeline_assembly:production:pilot',
+        compile_manifest: { schema: 'movscript.timeline_assembly.compile_manifest.v1', id: 'compile_1' },
+        openmontage: {
+          asset_manifest: { version: '1.0', assets: [] },
+          edit_decisions: { schema: 'openmontage/artifacts/edit_decisions', cuts: [] },
+        },
+      },
+    },
+  })
+  assert.equal(write.schema, 'movscript.project-timeline-assembly-draft-write.v1')
+  assert.equal(write.status, 'written')
+  assert.equal(write.record.schema, 'movscript.timeline_assembly.draft.v1')
+  assert.equal(write.record.kind, 'timeline_assembly_draft')
+  assert.equal(write.record.target_ref, 'timeline_assembly:production:pilot')
+  assert.equal(write.record.assembly.id, 'timeline-assembly-pilot')
+  assert.equal(write.record.compile_manifest.id, 'compile_1')
+
+  const draftFile = JSON.parse(await readFile(join(projectDir, 'timeline_assemblies', 'timeline_assembly_production_pilot', 'assembly.json'), 'utf8'))
+  assert.equal(draftFile.schema, 'movscript.timeline_assembly.draft.v1')
+  assert.equal(draftFile.title, 'Pilot Rough Cut')
+  assert.equal(draftFile.handoff.compile_manifest.id, 'compile_1')
+
+  const read = await postJSON(`${runtime.url}${PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT}`, {
+    projectDir,
+    targetRef: 'timeline_assembly:production:pilot',
+  })
+  assert.equal(read.status, 'ready')
+  assert.equal(read.record.title, 'Pilot Rough Cut')
+  assert.equal(read.record.assembly.clips[0].id, 'clip-opening')
+  assert.equal(typeof read.version, 'string')
+
+  const commandRead = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
+    projectDir,
+    command: 'readTimelineAssemblyDraft',
+    input: {
+      targetRef: 'timeline_assembly:production:pilot',
+    },
+  })
+  assert.equal(commandRead.command, 'readTimelineAssemblyDraft')
+  assert.equal(commandRead.result.status, 'ready')
+  assert.equal(commandRead.result.record.target_ref, 'timeline_assembly:production:pilot')
+
+  const commandWrite = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
+    projectDir,
+    command: 'writeTimelineAssemblyDraft',
+    input: {
+      targetRef: 'timeline_assembly:production:pilot',
+      expectedVersion: read.version,
+      draft: {
+        ...read.record,
+        title: 'Pilot Rough Cut v2',
+      },
+    },
+  })
+  assert.equal(commandWrite.command, 'writeTimelineAssemblyDraft')
+  assert.equal(commandWrite.result.status, 'written')
+  assert.equal(commandWrite.result.record.title, 'Pilot Rough Cut v2')
 })
 
 test('project-service executes typed source operation endpoints through the shared engine/workspace service', async () => {

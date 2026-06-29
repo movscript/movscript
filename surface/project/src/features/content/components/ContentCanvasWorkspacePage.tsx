@@ -124,7 +124,6 @@ export default function ContentCanvasWorkspacePage({
           onResourceOpen={controller.openResourceNode}
           onRenameCanvas={controller.renameFreeCreativeCanvasDocument}
           onSaveCanvas={controller.saveCreativeCanvasDocuments}
-          onSelectCanvas={controller.selectFreeCreativeCanvasDocument}
           onSelectNode={controller.selectNode}
         />
       )}

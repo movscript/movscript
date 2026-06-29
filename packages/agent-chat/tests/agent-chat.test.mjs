@@ -1909,7 +1909,7 @@ test('core agent chat MCP pending summary only appears for unresolved in-progres
     type: 'mcpToolCall',
     id: 'call_1',
     server: 'movscript_workspace',
-    tool: 'movscript_focus_get',
+    tool: 'context_current_get',
     status: 'inProgress',
     result: null,
     error: null,
@@ -1919,7 +1919,7 @@ test('core agent chat MCP pending summary only appears for unresolved in-progres
     type: 'mcpToolCall',
     id: 'call_1',
     server: 'movscript_workspace',
-    tool: 'movscript_focus_get',
+    tool: 'context_current_get',
     status: 'inProgress',
     progressMessages: ['running'],
     result: null,
@@ -1967,9 +1967,9 @@ test('core agent chat tool call view builds provider-neutral metadata pending an
     type: 'mcpToolCall',
     id: 'call_1',
     server: 'movscript_workspace',
-    tool: 'movscript_focus_get',
+    tool: 'context_current_get',
     status: 'inProgress',
-    arguments: { resource: 'focus' },
+    arguments: { resource: 'context' },
     pluginId: 'movscript@movscript-bundled',
     roundLabel: 'Tool round',
     roundIndex: 3,
@@ -1980,10 +1980,10 @@ test('core agent chat tool call view builds provider-neutral metadata pending an
     raw: { provider: 'provider-session' },
   })
 
-  assert.equal(mcpView.title, 'movscript_workspace/movscript_focus_get')
+  assert.equal(mcpView.title, 'movscript_workspace/context_current_get')
   assert.deepEqual(mcpView.meta, ['inProgress', 'movscript@movscript-bundled', 'Tool round', 'round 3', 'round id round_3', undefined, undefined, 'mcp://resource/1'])
   assert.equal(mcpView.tone, 'process')
-  assert.deepEqual(mcpView.argumentsDetails, { resource: 'focus' })
+  assert.deepEqual(mcpView.argumentsDetails, { resource: 'context' })
   assert.deepEqual(mcpView.mcpPending, ['waiting for MCP approval request or tool result'])
   assert.deepEqual(mcpView.rawDetails, { provider: 'provider-session' })
   assert.equal(mcpView.dynamicOutput, null)
@@ -2016,7 +2016,7 @@ test('core agent chat tool call view builds provider-neutral metadata pending an
     type: 'mcpToolCall',
     id: 'call_2',
     server: 'movscript_workspace',
-    tool: 'movscript_focus_get',
+    tool: 'context_current_get',
     status: 'inProgress',
     progressMessages: ['approval requested'],
     result: { content: [{ type: 'text', text: 'approved' }] },
@@ -2040,7 +2040,7 @@ test('core agent chat tool call view builds provider-neutral metadata pending an
     type: 'mcpToolCall',
     id: 'call_3',
     server: 'movscript_workspace',
-    tool: 'movscript_focus_get',
+    tool: 'context_current_get',
     status: 'failed',
     result: null,
     error: { message: 'denied' },

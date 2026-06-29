@@ -24,6 +24,8 @@ export function summarizeModelContractForAgent(model: unknown): Record<string, u
     ...(typeof source.short_name === 'string' && source.short_name.trim() ? { short_name: source.short_name.trim() } : {}),
     ...(typeof source.logical_model_id === 'string' && source.logical_model_id.trim() ? { logical_model_id: source.logical_model_id.trim() } : {}),
     capabilities: stringArrayModelField(source.capabilities),
+    ...(typeof source.inferred_operation === 'string' && source.inferred_operation.trim() ? { inferred_operation: source.inferred_operation.trim() } : {}),
+    resolver_operations: stringArrayModelField(source.resolver_operations),
     accepts_image_input: source.accepts_image_input === true,
     input_requirements: summarizeInputRequirementsForAgent(source.input_requirements),
     supported_params: summarizeSupportedParamsForAgent(supportedParams, schema),

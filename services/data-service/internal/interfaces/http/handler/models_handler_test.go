@@ -38,7 +38,8 @@ func TestModelsHandlerListByCapabilityHidesRouteDetails(t *testing.T) {
 
 	query := url.Values{}
 	query.Set("capability", "video_generation")
-	query.Set("operation", "first_last_frame_to_video")
+	query.Set("target_output", "video")
+	query.Set("resolve_intent", "true")
 	query.Set("reference_assets", `[{"role":"first_frame","media_type":"image"},{"role":"last_frame","media_type":"image"}]`)
 	req := httptest.NewRequest(http.MethodGet, "/models?"+query.Encode(), nil)
 	res := httptest.NewRecorder()
@@ -52,8 +53,8 @@ func TestModelsHandlerListByCapabilityHidesRouteDetails(t *testing.T) {
 		t.Fatalf("filters = %d, want 1", len(catalog.filters))
 	}
 	filter := catalog.filters[0]
-	if filter.Operation != "first_last_frame_to_video" || len(filter.ReferenceAssets) != 2 || filter.ReferenceAssets[1].Role != "last_frame" {
-		t.Fatalf("filter = %#v, want operation and reference asset roles", filter)
+	if filter.Operation != "" || filter.TargetOutput != "video" || !filter.ResolveIntent || len(filter.ReferenceAssets) != 2 || filter.ReferenceAssets[1].Role != "last_frame" {
+		t.Fatalf("filter = %#v, want backend resolver target output and reference asset roles", filter)
 	}
 	payload := res.Body.String()
 	if !strings.Contains(payload, `"model_id":"grok-video-public"`) {

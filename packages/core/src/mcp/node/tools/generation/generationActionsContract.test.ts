@@ -3,22 +3,25 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
-test('visual generation tools require explicit operation intent', () => {
+test('visual generation tools route through backend resolver intent', () => {
   const actions = readFileSync(resolve(process.cwd(), 'packages/core/src/mcp/node/tools/generation/actions.ts'), 'utf8')
   const definitions = readFileSync(resolve(process.cwd(), 'packages/core/src/mcp/tools/generation/definitions.ts'), 'utf8')
 
-  assert.match(actions, /operation is required; choose an explicit operation instead of relying on input resources/)
-  assert.match(actions, /operation is required for generation_prepare; choose an explicit operation instead of relying on input resources/)
-  assert.match(actions, /isAudioGenerationCapability\(capability\)\) && !operation/)
-  assert.match(actions, /const operation = topLevelOperation/)
+  assert.doesNotMatch(actions, /operation is required; choose an explicit operation instead of relying on input resources/)
+  assert.doesNotMatch(actions, /operation is required for generation_prepare; choose an explicit operation instead of relying on input resources/)
+  assert.match(actions, /isAudioGenerationCapability\(capability\) && !operation/)
+  assert.match(actions, /compiledContentUnitGenerationPromptReferenceAssets\(compiledContentUnit\.prompt\)/)
+  assert.match(actions, /target_output: outputKind/)
+  assert.match(actions, /resolve_intent: !operation && \(isImageGenerationCapability\(capability\) \|\| isVideoGenerationCapability\(capability\)\)/)
+  assert.match(actions, /inferredVisualGenerationOperation\(outputKind, payload\.reference_assets\)/)
   assert.match(actions, /resolveModelSelection\(args, built\.generationIntent\?\.capability \?\? built\.jobType, 'video', built\.generationIntent\?\.operation\)/)
-  assert.match(actions, /listModels\(\{\s*capability,\s*operation,/)
+  assert.match(actions, /listModels\(\{\s*capability,\s*operation,\s*target_output: outputKind,/)
   assert.match(actions, /reference_assets media_type is required for every input resource/)
   assert.doesNotMatch(actions, /function defaultGenerationOperation/)
   assert.doesNotMatch(actions, /defaultGenerationOperation\(outputKind, refIds\.length\)/)
 
-  assert.match(definitions, /the tool never infers the operation from resource count/)
-  assert.match(definitions, /Required for image_generation, video_generation, and audio_generation/)
+  assert.match(definitions, /backend resolver infers usable model operations/)
+  assert.match(definitions, /Optional for image_generation\/video_generation/)
 })
 
 test('audio generation tools use canonical operation intent for model routing', () => {

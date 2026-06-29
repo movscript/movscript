@@ -47,7 +47,6 @@ export function ProjectResourceViewSurface({ kind }: ProjectResourceViewSurfaceP
         `project: ${runtime.project.projectId}`,
         `view: ${resourceViewKind}`,
         `mode: ${usage}`,
-        ...(preferredEndpoint ? [`prefer: ${preferredEndpoint}`] : []),
         `items: ${items.length}`,
       ]}
     >
@@ -57,6 +56,7 @@ export function ProjectResourceViewSurface({ kind }: ProjectResourceViewSurfaceP
             ['Project', runtime.project.projectId],
             ['Project Dir', runtime.project.projectDir ?? 'not configured'],
             ['Project Gateway', runtime.gateways.project.resourceView ? 'available' : 'missing'],
+            ['Preferred Endpoint', preferredEndpoint ?? 'not reported'],
           ]} />
         </AgentSurfacePanel>
 

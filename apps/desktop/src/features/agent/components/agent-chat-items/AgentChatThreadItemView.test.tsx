@@ -457,7 +457,7 @@ test('AgentChatThreadItemView renders pending MCP tool calls without result or p
         type: 'mcpToolCall',
         id: 'call_Ys6DnWNeoWwc3bT6XWAs3eu4',
         server: 'movscript_workspace',
-        tool: 'movscript_focus_get',
+        tool: 'context_current_get',
         status: 'inProgress',
         arguments: {},
         pluginId: 'movscript@movscript-bundled',
@@ -468,7 +468,7 @@ test('AgentChatThreadItemView renders pending MCP tool calls without result or p
     />,
   )
 
-  assert.match(html, /movscript_workspace\/movscript_focus_get/)
+  assert.match(html, /movscript_workspace\/context_current_get/)
   assert.match(html, /inProgress/)
   assert.match(html, /movscript@movscript-bundled/)
   assert.match(html, /Arguments/)
@@ -566,7 +566,7 @@ test('AgentChatThreadItemView renders cancelled and rejected tool calls diagnost
         type: 'mcpToolCall',
         id: 'mcp_cancelled',
         server: 'movscript_workspace',
-        tool: 'movscript_focus_get',
+        tool: 'context_current_get',
         status: 'cancelled',
         result: null,
         error: null,
@@ -586,7 +586,7 @@ test('AgentChatThreadItemView renders cancelled and rejected tool calls diagnost
     />,
   )
 
-  assert.match(cancelledHtml, /movscript_workspace\/movscript_focus_get/)
+  assert.match(cancelledHtml, /movscript_workspace\/context_current_get/)
   assert.match(cancelledHtml, /cancelled/)
   assert.match(cancelledHtml, /ms-agent-message-section--diagnostic/)
   assert.match(rejectedHtml, /writeFile/)

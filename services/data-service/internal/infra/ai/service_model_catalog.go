@@ -48,8 +48,12 @@ func (s *AIService) listModelsFromCatalogEntries(ctx context.Context, filter pro
 		return nil, true, err
 	}
 	capabilities := compactModelCatalogCapabilities(filter)
+	if targetCapability := capabilityFamilyForTargetOutput(filter.TargetOutput); targetCapability != "" {
+		capabilities = appendUniqueTrimmed(capabilities, targetCapability)
+	}
 	operation := strings.TrimSpace(filter.Operation)
 	referenceAssets := routeReferenceAssetsFromContract(filter.ReferenceAssets)
+	resolveIntent := filter.ResolveIntent || strings.TrimSpace(filter.TargetOutput) != "" || (operation == "" && len(referenceAssets) > 0)
 	apiKinds := compactModelCatalogAPIKinds(filter)
 	routeGroup := strings.TrimSpace(filter.RouteGroup)
 	if routeGroup == "" {
@@ -59,11 +63,11 @@ func (s *AIService) listModelsFromCatalogEntries(ctx context.Context, filter pro
 	groupIndex := map[string]int{}
 	for _, entry := range entries {
 		def := catalogEntryDef(entry)
-		if !catalogEntryMatchesAnyListCapability(entry, def, capabilities, operation, referenceAssets) {
+		if !catalogEntryMatchesAnyListCapability(entry, def, capabilities, operation, referenceAssets, resolveIntent) {
 			continue
 		}
 		bindings := catalogEntryBindingsForFilter(entry.RouteBindings, routeGroup, apiKinds, credentials)
-		bindings = catalogRouteBindingsForListIntent(bindings, capabilities, operation, referenceAssets)
+		bindings = catalogRouteBindingsForListIntent(bindings, capabilities, operation, referenceAssets, resolveIntent)
 		if len(bindings) == 0 && len(apiKinds) > 0 {
 			if len(entry.RouteBindings) > 0 || !modelAPIKindsIntersect(catalogRouteBindingSupportedAPIKinds(nil, credentials), apiKinds) {
 				continue
@@ -74,7 +78,9 @@ func (s *AIService) listModelsFromCatalogEntries(ctx context.Context, filter pro
 		}
 		if filter.ProviderVariants && len(bindings) > 0 {
 			for _, binding := range bindings {
-				out = append(out, catalogEntryDescriptor(entry, def, &binding, credentials, true))
+				descriptor := catalogEntryDescriptor(entry, def, &binding, credentials, true)
+				applyListIntentDescriptorMetadata(&descriptor, binding.RouteCapabilitiesJSON, capabilities, operation, referenceAssets, resolveIntent)
+				out = append(out, descriptor)
 			}
 			continue
 		}
@@ -83,6 +89,11 @@ func (s *AIService) listModelsFromCatalogEntries(ctx context.Context, filter pro
 			binding = catalogEntryBestBinding(bindings)
 		}
 		descriptor := catalogEntryDescriptor(entry, def, binding, credentials, false)
+		if binding != nil {
+			applyListIntentDescriptorMetadata(&descriptor, binding.RouteCapabilitiesJSON, capabilities, operation, referenceAssets, resolveIntent)
+		} else {
+			applyListIntentDescriptorMetadata(&descriptor, entry.ModelCapabilitiesJSON, capabilities, operation, referenceAssets, resolveIntent)
+		}
 		descriptor.SupportedAPIKinds = catalogRouteBindingsSupportedAPIKinds(bindings, credentials)
 		descriptor.ProviderVariants = len(bindings)
 		if descriptor.ProviderVariants == 0 {
@@ -171,6 +182,10 @@ func mergeCatalogDescriptor(left, right providercontract.AIModelDescriptor) prov
 		right.CapacityWeight += left.CapacityWeight
 		right.Capabilities = mergeCapabilities(left.Capabilities, right.Capabilities)
 		right.SupportedAPIKinds = mergeModelAPIKinds(left.SupportedAPIKinds, right.SupportedAPIKinds)
+		right.ResolverOperations = mergeCapabilities(left.ResolverOperations, right.ResolverOperations)
+		if right.InferredOperation == "" {
+			right.InferredOperation = left.InferredOperation
+		}
 		if left.MaxConcurrency == 0 || right.MaxConcurrency == 0 {
 			right.MaxConcurrency = 0
 		} else {
@@ -182,6 +197,10 @@ func mergeCatalogDescriptor(left, right providercontract.AIModelDescriptor) prov
 	left.CapacityWeight += right.CapacityWeight
 	left.Capabilities = mergeCapabilities(left.Capabilities, right.Capabilities)
 	left.SupportedAPIKinds = mergeModelAPIKinds(left.SupportedAPIKinds, right.SupportedAPIKinds)
+	left.ResolverOperations = mergeCapabilities(left.ResolverOperations, right.ResolverOperations)
+	if left.InferredOperation == "" {
+		left.InferredOperation = right.InferredOperation
+	}
 	if left.MaxConcurrency == 0 || right.MaxConcurrency == 0 {
 		left.MaxConcurrency = 0
 	} else {
@@ -217,7 +236,7 @@ func modelDefMatchesAnyCapability(def *ModelDef, capabilities []string) bool {
 	return false
 }
 
-func catalogEntryMatchesAnyListCapability(entry persistencemodel.AIModelCatalogEntry, def *ModelDef, capabilities []string, operation string, refs []RouteReferenceAssetIntent) bool {
+func catalogEntryMatchesAnyListCapability(entry persistencemodel.AIModelCatalogEntry, def *ModelDef, capabilities []string, operation string, refs []RouteReferenceAssetIntent, resolveIntent bool) bool {
 	if len(capabilities) == 0 {
 		return true
 	}
@@ -235,6 +254,13 @@ func catalogEntryMatchesAnyListCapability(entry persistencemodel.AIModelCatalogE
 				}
 				continue
 			}
+			if resolveIntent {
+				ok, _ := capabilityJSONSupportsInferredIntent(entry.ModelCapabilitiesJSON, capability, refs)
+				if ok {
+					return true
+				}
+				continue
+			}
 			if capabilityJSONHasDomain(entry.ModelCapabilitiesJSON, capability) {
 				return true
 			}
@@ -247,24 +273,34 @@ func catalogEntryMatchesAnyListCapability(entry persistencemodel.AIModelCatalogE
 	return false
 }
 
-func catalogRouteBindingsForListIntent(bindings []persistencemodel.AIModelRouteBinding, capabilities []string, operation string, refs []RouteReferenceAssetIntent) []persistencemodel.AIModelRouteBinding {
+func catalogRouteBindingsForListIntent(bindings []persistencemodel.AIModelRouteBinding, capabilities []string, operation string, refs []RouteReferenceAssetIntent, resolveIntent bool) []persistencemodel.AIModelRouteBinding {
 	operation = strings.TrimSpace(operation)
-	if operation == "" {
+	if operation == "" && !resolveIntent {
 		return bindings
 	}
 	out := make([]persistencemodel.AIModelRouteBinding, 0, len(bindings))
 	for _, binding := range bindings {
-		if catalogRouteBindingSupportsAnyListIntent(binding, capabilities, operation, refs) {
+		if catalogRouteBindingSupportsAnyListIntent(binding, capabilities, operation, refs, resolveIntent) {
 			out = append(out, binding)
 		}
 	}
 	return out
 }
 
-func catalogRouteBindingSupportsAnyListIntent(binding persistencemodel.AIModelRouteBinding, capabilities []string, operation string, refs []RouteReferenceAssetIntent) bool {
+func catalogRouteBindingSupportsAnyListIntent(binding persistencemodel.AIModelRouteBinding, capabilities []string, operation string, refs []RouteReferenceAssetIntent, resolveIntent bool) bool {
 	for _, capability := range capabilities {
 		capability = strings.TrimSpace(capability)
 		if !isStructuredCapabilityFamily(capability) {
+			continue
+		}
+		if strings.TrimSpace(operation) == "" {
+			if !resolveIntent {
+				continue
+			}
+			ok, _ := capabilityJSONSupportsInferredIntent(binding.RouteCapabilitiesJSON, capability, refs)
+			if ok {
+				return true
+			}
 			continue
 		}
 		if len(refs) > 0 {
@@ -1056,6 +1092,35 @@ func modelInputsToContract(input ModelInputs) providercontract.AIModelInputRequi
 	}
 }
 
+func applyListIntentDescriptorMetadata(descriptor *providercontract.AIModelDescriptor, rawCapabilityJSON string, capabilities []string, operation string, refs []RouteReferenceAssetIntent, resolveIntent bool) {
+	if descriptor == nil {
+		return
+	}
+	operation = strings.TrimSpace(operation)
+	if operation != "" {
+		descriptor.InferredOperation = operation
+		descriptor.ResolverOperations = []string{operation}
+		return
+	}
+	if !resolveIntent {
+		return
+	}
+	for _, capability := range capabilities {
+		capability = strings.TrimSpace(capability)
+		if !isStructuredCapabilityFamily(capability) {
+			continue
+		}
+		operations := capabilityJSONSupportedInferredOperations(rawCapabilityJSON, capability, refs)
+		if len(operations) == 0 {
+			continue
+		}
+		descriptor.ResolverOperations = mergeCapabilities(descriptor.ResolverOperations, operations)
+		if descriptor.InferredOperation == "" {
+			descriptor.InferredOperation = operations[0]
+		}
+	}
+}
+
 func paramDefsToContractMaps(params []ParamDef) []map[string]any {
 	if len(params) == 0 {
 		return nil
@@ -1102,6 +1167,21 @@ func compactModelCatalogCapabilities(filter providercontract.AIModelListFilter) 
 		out = append(out, item)
 	}
 	return out
+}
+
+func capabilityFamilyForTargetOutput(value string) string {
+	switch strings.TrimSpace(value) {
+	case "image":
+		return CapabilityFamilyImageGeneration
+	case "video":
+		return CapabilityFamilyVideoGeneration
+	case "audio":
+		return CapabilityFamilyAudioGeneration
+	case "text":
+		return CapabilityFamilyTextGeneration
+	default:
+		return ""
+	}
 }
 
 func compactModelCatalogAPIKinds(filter providercontract.AIModelListFilter) []string {

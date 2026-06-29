@@ -29,6 +29,7 @@ import {
   generationReferenceRoleOptionsForMediaType,
   generationReferenceAssetsFromPromptText,
   normalizeGenerationToolsSettings,
+  resolveGenerationModels,
   resolveGenerationCapabilityForResourceCount,
   resolveGenerationJobType,
   resolveGenerationJobTypeFromResourceCount,
@@ -271,6 +272,38 @@ test('prompt composer exposes shared reference role labels and options', () => {
   ])
   assert.equal(generationReferenceRoleLabel('first_frame'), '首帧')
   assert.equal(generationReferenceRoleLabel('reference_audio'), '音频参考')
+})
+
+test('generation resolver derives available models from references instead of a user-selected operation', () => {
+  const result = resolveGenerationModels({
+    targetOutput: 'video',
+    references: [{ media_type: 'image', role: 'first_frame', resource_id: 101 }],
+    models: [
+      {
+        model_id: 'prompt-video',
+        display_name: 'Prompt Video',
+        capabilities: ['video_generation'],
+      },
+      {
+        model_id: 'cross-over-video',
+        display_name: 'Cross-over Video',
+        resolver_profile: {
+          output: 'video',
+          input_slots: [{
+            media_type: 'image',
+            roles: ['reference_image', 'first_frame'],
+            max: 1,
+          }],
+          operations: ['image_to_video', 'first_frame_to_video'],
+        },
+      },
+    ],
+  })
+
+  assert.deepEqual(result.profile.labels, ['首帧生视频'])
+  assert.equal(result.matches[0].model_id, 'cross-over-video')
+  assert.equal(result.matches[0].legacy_operation, 'first_frame_to_video')
+  assert.equal(result.blocked[0].model_id, 'prompt-video')
 })
 
 test('core generation job payload omits params whose requires_value is not satisfied', () => {

@@ -44,6 +44,8 @@ export const PROJECT_SERVICE_CONTENT_UNIT_UPSERT_ENDPOINT = '/v1/project/content
 export const PROJECT_SERVICE_CONTENT_UNIT_CREATE_ENDPOINT = '/v1/project/content-units/create'
 export const PROJECT_SERVICE_CONTENT_UNIT_ENSURE_ENDPOINT = '/v1/project/content-units/ensure'
 export const PROJECT_SERVICE_TIMELINE_ASSEMBLY_CONTENT_UNIT_ENSURE_ENDPOINT = '/v1/project/timeline-assemblies/content-unit/ensure'
+export const PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT = '/v1/project/timeline-assemblies/drafts/read'
+export const PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_WRITE_ENDPOINT = '/v1/project/timeline-assemblies/drafts/write'
 export const PROJECT_SERVICE_CONTENT_UNIT_EDIT_PROMPT_UPDATE_ENDPOINT = '/v1/project/content-units/edit-prompt/update'
 export const PROJECT_SERVICE_PRODUCTION_CREATE_ENDPOINT = '/v1/project/productions/create'
 export const PROJECT_SERVICE_SEGMENT_CREATE_ENDPOINT = '/v1/project/segments/create'
@@ -90,6 +92,8 @@ export type ProjectSourceCommandName =
   | 'renameContentCanvas'
   | 'runContentCanvas'
   | 'deleteContentCanvas'
+  | 'readTimelineAssemblyDraft'
+  | 'writeTimelineAssemblyDraft'
   | 'upsertProjectStandards'
   | 'createSetting'
   | 'createSettingState'
@@ -304,6 +308,18 @@ export type ProjectSourceOperationResponse = ProjectServiceEnvelope<unknown> & {
   result: unknown
 }
 
+export type ProjectTimelineAssemblyDraftResponse = ProjectServiceEnvelope<unknown> & {
+  status: 'ready' | 'missing' | 'written'
+  draftKind: 'timeline_assembly'
+  draft_kind: 'timeline_assembly'
+  targetRef?: string
+  target_ref?: string
+  path: string
+  version?: string
+  updatedAt?: string
+  record?: Record<string, unknown>
+}
+
 export type ProjectLifecycleCommandResponse = ProjectServiceEnvelope<unknown> & {
   command: ProjectLifecycleCommandName
   result: unknown
@@ -461,6 +477,14 @@ export class ProjectServiceClient {
 
   async sourceOperation(endpoint: string, request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectSourceOperationResponse> {
     return this.request('POST', endpoint, projectSourceOperationPayload(request), signal)
+  }
+
+  async readTimelineAssemblyDraft(request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectTimelineAssemblyDraftResponse> {
+    return this.request('POST', PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT, projectSourceOperationPayload(request), signal)
+  }
+
+  async writeTimelineAssemblyDraft(request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectTimelineAssemblyDraftResponse> {
+    return this.request('POST', PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_WRITE_ENDPOINT, projectSourceOperationPayload(request), signal)
   }
 
   async selectWorkspaceCandidate(request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectSourceOperationResponse> {

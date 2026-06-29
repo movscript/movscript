@@ -12,7 +12,6 @@ import {
 } from '@movscript/project-surface/data'
 import {
   createHostedProjectSurfaceRuntime,
-  projectSurfaceContextCommandEnvelope,
   type ProjectSurfaceRouteKey,
   type ProjectSurfaceRouteParams,
   type ProjectSurfaceRuntime,
@@ -36,6 +35,8 @@ export const LOCAL_PROJECT_SCRIPT_SOURCE_READ_ENDPOINT = '/v1/project/scripts/so
 export const LOCAL_PROJECT_SCRIPT_UPSERT_ENDPOINT = '/v1/project/scripts/upsert'
 export const LOCAL_PROJECT_SCRIPT_VERSION_SNAPSHOT_ENDPOINT = '/v1/project/scripts/versions/snapshot'
 export const LOCAL_PROJECT_RESOURCE_VIEW_ENDPOINT = '/v1/project/resources/view'
+export const LOCAL_PROJECT_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT = '/v1/project/timeline-assemblies/drafts/read'
+export const LOCAL_PROJECT_TIMELINE_ASSEMBLY_DRAFT_WRITE_ENDPOINT = '/v1/project/timeline-assemblies/drafts/write'
 
 export interface LocalHostProjectSurfaceRuntimeInput {
   projectId: string
@@ -56,7 +57,8 @@ export interface ProjectReadModelResponse {
 
 export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurfaceRuntimeInput): ProjectSurfaceRuntime {
   const projectId = (movScriptContextProjectId(input.context) ?? input.projectId) || 'sample-project'
-  const projectDir = movScriptContextProjectCwd(input.context) ?? input.projectDir
+  const contextProjectDir = movScriptContextProjectCwd(input.context)
+  const projectDir = contextProjectDir ?? (input.context ? undefined : input.projectDir)
   const editingService = typeof window === 'undefined'
     ? undefined
     : new EditingServiceClient({ baseUrl: window.location.origin })
@@ -68,11 +70,11 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
     request: { projectDir?: string; projectUid?: string; input?: unknown } = {},
   ): Promise<unknown> => {
     const payload = await fetchProjectServiceEndpoint({
-      endpoint,
-      body: {
-        projectDir: request.projectDir ?? projectDir ?? '',
-        ...projectSurfaceContextCommandEnvelope(input.context),
-        ...(recordValue(request.input) ?? {}),
+          endpoint,
+          body: {
+            projectDir: projectDir ?? '',
+            ...localProjectContextCommandEnvelope(input.context),
+            ...(recordValue(request.input) ?? {}),
         ...localProjectDecisionConfig(input, request),
       },
     })
@@ -128,62 +130,64 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
           context: input.context,
         }),
         standardsReadModel: (request = {}) => fetchProjectServiceEndpoint({
-          endpoint: LOCAL_PROJECT_STANDARDS_READ_MODEL_ENDPOINT,
-          body: {
-            projectDir: request.projectDir ?? projectDir ?? '',
-            projectId: request.projectId ?? projectId,
+              endpoint: LOCAL_PROJECT_STANDARDS_READ_MODEL_ENDPOINT,
+              body: {
+                projectDir: projectDir ?? '',
+                projectId: request.projectId ?? projectId,
             projectUid: request.projectUid ?? input.context?.session?.project?.uid ?? input.projectUid,
-            ...projectSurfaceContextCommandEnvelope(input.context),
+            ...localProjectContextCommandEnvelope(input.context),
           },
         }),
         scriptsReadModel: (request = {}) => fetchProjectServiceEndpoint({
-          endpoint: LOCAL_PROJECT_SCRIPTS_READ_MODEL_ENDPOINT,
-          body: {
-            projectDir: request.projectDir ?? projectDir ?? '',
-            projectId: request.projectId ?? projectId,
+              endpoint: LOCAL_PROJECT_SCRIPTS_READ_MODEL_ENDPOINT,
+              body: {
+                projectDir: projectDir ?? '',
+                projectId: request.projectId ?? projectId,
             projectUid: request.projectUid ?? input.context?.session?.project?.uid ?? input.projectUid,
-            ...projectSurfaceContextCommandEnvelope(input.context),
+            ...localProjectContextCommandEnvelope(input.context),
           },
         }),
         sourceSnapshot: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_SNAPSHOT_ENDPOINT,
-          body: { projectDir: projectDir ?? '', ...projectSurfaceContextCommandEnvelope(input.context) },
+          body: { projectDir: projectDir ?? '', ...localProjectContextCommandEnvelope(input.context) },
         }),
         readSource: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_SNAPSHOT_ENDPOINT,
-          body: { projectDir: projectDir ?? '', ...projectSurfaceContextCommandEnvelope(input.context) },
+          body: { projectDir: projectDir ?? '', ...localProjectContextCommandEnvelope(input.context) },
         }),
         inspectSource: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_INSPECT_ENDPOINT,
-          body: { projectDir: projectDir ?? '', ...projectSurfaceContextCommandEnvelope(input.context) },
+          body: { projectDir: projectDir ?? '', ...localProjectContextCommandEnvelope(input.context) },
         }),
         overviewSource: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_OVERVIEW_ENDPOINT,
-          body: { projectDir: projectDir ?? '', ...projectSurfaceContextCommandEnvelope(input.context) },
+          body: { projectDir: projectDir ?? '', ...localProjectContextCommandEnvelope(input.context) },
         }),
         interpretSource: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_INTERPRET_ENDPOINT,
-          body: { projectDir: projectDir ?? '', ...projectSurfaceContextCommandEnvelope(input.context) },
+          body: { projectDir: projectDir ?? '', ...localProjectContextCommandEnvelope(input.context) },
         }),
         interpret: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_INTERPRET_ENDPOINT,
-          body: { projectDir: projectDir ?? '', ...projectSurfaceContextCommandEnvelope(input.context) },
+          body: { projectDir: projectDir ?? '', ...localProjectContextCommandEnvelope(input.context) },
         }),
         regenerationPlan: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_REGENERATION_PLAN_ENDPOINT,
-          body: { projectDir: projectDir ?? '', ...projectSurfaceContextCommandEnvelope(input.context) },
+          body: { projectDir: projectDir ?? '', ...localProjectContextCommandEnvelope(input.context) },
         }),
         upsertProjectStandards: (request) => postProjectWorkspaceOperation(LOCAL_PROJECT_STANDARDS_UPSERT_ENDPOINT, request),
         readScriptSource: (request) => postProjectWorkspaceOperation(LOCAL_PROJECT_SCRIPT_SOURCE_READ_ENDPOINT, request),
         upsertScript: (request) => postProjectWorkspaceOperation(LOCAL_PROJECT_SCRIPT_UPSERT_ENDPOINT, request),
         snapshotScriptVersionFromMarkdown: (request) => postProjectWorkspaceOperation(LOCAL_PROJECT_SCRIPT_VERSION_SNAPSHOT_ENDPOINT, request),
+        readTimelineAssemblyDraft: (request) => postProjectWorkspaceOperation(LOCAL_PROJECT_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT, request),
+        writeTimelineAssemblyDraft: (request) => postProjectWorkspaceOperation(LOCAL_PROJECT_TIMELINE_ASSEMBLY_DRAFT_WRITE_ENDPOINT, request),
         resourceView: (request) => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_RESOURCE_VIEW_ENDPOINT,
           body: {
             projectDir: projectDir ?? '',
             kind: request.kind,
             input: request.input,
-            ...projectSurfaceContextCommandEnvelope(input.context),
+            ...localProjectContextCommandEnvelope(input.context),
           },
         }),
       },
@@ -404,6 +408,17 @@ function localMediaPipelineResourceDownload(payload: Record<string, unknown>): R
   }
 }
 
+function localProjectContextCommandEnvelope(context: MovScriptContextEnvelope | undefined): Record<string, unknown> {
+  const sessionId = context?.session?.sessionId
+  if (!sessionId) return {}
+  return {
+    context: {
+      sessionId,
+      revision: context.revision,
+    },
+  }
+}
+
 export async function fetchProjectReadModel({
   projectDir,
   projectUid,
@@ -419,7 +434,7 @@ export async function fetchProjectReadModel({
       projectDir,
       includeSource: false,
       includeInspection: false,
-      ...projectSurfaceContextCommandEnvelope(context),
+      ...localProjectContextCommandEnvelope(context),
       ...localProjectDecisionConfig({ projectId: '', projectDir, projectUid, context }),
     },
   }) as Promise<ProjectReadModelResponse>

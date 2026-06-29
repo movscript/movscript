@@ -289,6 +289,23 @@ export function generationReferenceRoleLabel(role: string | null | undefined): s
   }
 }
 
+export function generationReferenceMediaTypeShortLabel(mediaType: string | null | undefined): string {
+  switch (normalizedReferenceMediaType(mediaType)) {
+    case 'image':
+      return '图'
+    case 'video':
+      return '视'
+    case 'audio':
+      return '音'
+    case 'text':
+      return '文'
+    case 'file':
+      return '档'
+    default:
+      return '资'
+  }
+}
+
 export function generationResourceReferenceLabel(role: string | null | undefined): string {
   const label = generationReferenceRoleLabel(role)
   return `资源引用 · ${label || '参考'}`

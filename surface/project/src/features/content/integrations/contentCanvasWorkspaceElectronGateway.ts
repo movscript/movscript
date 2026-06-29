@@ -13,6 +13,8 @@ import {
   compiledContentUnitGenerationPromptText,
   compiledContentUnitGenerationPromptResourceIds,
   completeGenerationReferenceAssets,
+  buildGenerationIntentForOutputKind,
+  generationCapabilityForOutputKind,
   generationExecutionJobTypeForIntent,
   type ContentUnitGenerationOutputKind,
   type GenerationBackendPreflightResult,
@@ -363,11 +365,12 @@ async function buildContentUnitCandidateGenerationForCanvas(
   const inputResourceIds = compiledContentUnitGenerationPromptResourceIds(compiledPrompt)
   const promptReferenceAssets = compiledContentUnitGenerationPromptReferenceAssets(compiledPrompt)
   const generationIntent = completeCanvasContentUnitGenerationIntent(input.generationIntent, outputKind, inputResourceIds, promptReferenceAssets)
+  const modelOperation = input.generationOperationExplicit ? input.generationIntent?.operation?.trim() : undefined
   const jobType = generationExecutionJobTypeForIntent(generationIntent, outputKind)
   const modelCapability = generationIntent.capability
   const resolvedModel = input.modelId
     ? undefined
-    : await resolveContentUnitGenerationModel(modelCapability, outputKind, generationIntent.operation, generationIntent.reference_assets)
+    : await resolveContentUnitGenerationModel(modelCapability, outputKind, modelOperation, generationIntent.reference_assets)
   const modelId = input.modelId ?? (resolvedModel ? publicModelId(resolvedModel) : '')
   if (!modelId) throw new Error(`没有可用于 ${jobType} 的生成模型`)
   const supportedParams = input.supportedParams ?? resolvedModel?.supported_params
@@ -418,18 +421,25 @@ function completeCanvasContentUnitGenerationIntent(
   inputResourceIds: readonly number[],
   promptReferenceAssets: GenerationIntentPayload['reference_assets'] = [],
 ): GenerationIntentPayload {
-  if (!intent?.capability?.trim() || !intent.operation?.trim()) {
-    throw new Error('生成候选需要显式选择模型能力和 operation')
-  }
+  const capability = intent?.capability?.trim() || generationCapabilityForOutputKind(outputKind)
+  if (!capability) throw new Error('生成候选需要可推导的模型能力')
+  const operation = intent?.operation?.trim()
+  const intentReferenceAssets = intent?.reference_assets
   const referenceAssets = completeGenerationReferenceAssets({
-    operation: intent.operation,
-    existing: intent.reference_assets && intent.reference_assets.length > 0 ? intent.reference_assets : promptReferenceAssets,
+    operation,
+    existing: intentReferenceAssets && intentReferenceAssets.length > 0 ? intentReferenceAssets : promptReferenceAssets,
     inputResourceIds,
   })
+  const completedIntent = buildGenerationIntentForOutputKind({
+    outputKind,
+    operation,
+    referenceAssets,
+  })
+  if (!completedIntent?.operation?.trim()) throw new Error('生成候选需要可推导的调用类型')
   return {
-    capability: intent.capability.trim(),
-    operation: intent.operation.trim(),
-    ...(referenceAssets.length > 0 ? { reference_assets: referenceAssets } : {}),
+    capability,
+    operation: completedIntent.operation.trim(),
+    ...(completedIntent.reference_assets?.length ? { reference_assets: completedIntent.reference_assets } : {}),
   }
 }
 
@@ -631,10 +641,11 @@ async function resolveContentUnitGenerationModel(
   operation?: string,
   referenceAssets?: GenerationIntentPayload['reference_assets'],
 ): Promise<PublicModel> {
-  const models = await listGenerationModels(capability, operation, referenceAssets)
-  const fallbackModels = models.length > 0 || capability === fallbackCapability
+  const targetOutput = fallbackCapability
+  const models = await listGenerationModels(capability, operation, referenceAssets, targetOutput)
+  const fallbackModels = models.length > 0 || capability === generationCapabilityForOutputKind(fallbackCapability)
     ? models
-    : await listGenerationModels(fallbackCapability, operation, referenceAssets)
+    : await listGenerationModels(fallbackCapability, operation, referenceAssets, targetOutput)
   const model = fallbackModels.find((item) => item.is_default) ?? fallbackModels[0]
   if (!model) throw new Error(`没有可用于 ${capability} 的生成模型`)
   return model
@@ -644,11 +655,14 @@ async function listGenerationModels(
   capability: string,
   operation?: string,
   referenceAssets?: GenerationIntentPayload['reference_assets'],
+  targetOutput?: ContentUnitGenerationOutputKind,
 ): Promise<PublicModel[]> {
   return api.get('/models', {
     params: {
       capability,
       ...(operation ? { operation } : {}),
+      ...(targetOutput ? { target_output: targetOutput } : {}),
+      ...(!operation ? { resolve_intent: true } : {}),
       ...(referenceAssets && referenceAssets.length > 0 ? { reference_assets: JSON.stringify(referenceAssets.map((asset) => ({
         role: asset.role,
         ...(asset.media_type ? { media_type: asset.media_type } : {}),

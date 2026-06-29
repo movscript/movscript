@@ -9,7 +9,8 @@ export const PROJECT_ENTRY_SESSION_STORAGE_KEY = 'movscript-workbench-session-v1
 export const PROJECT_ENTRY_SESSION_SCHEMA_VERSION = 1
 
 export type ProjectEntrySessionScalar = string | number | boolean | null
-export type ProjectEntrySessionId = ProjectEntryId | 'scripts'
+export type ContentCanvasProjectEntrySessionId = `content_canvas:${string}`
+export type ProjectEntrySessionId = ProjectEntryId | 'scripts' | ContentCanvasProjectEntrySessionId
 
 export interface ProjectEntrySessionEntityRef {
   entityType: string
@@ -62,6 +63,34 @@ interface ProjectEntrySessionStore {
 
 export function projectEntrySessionKey(projectId: number | null | undefined, projectEntryId: ProjectEntrySessionId): string {
   return `${Number(projectId) || 0}:${projectEntryId}`
+}
+
+export function contentCanvasProjectEntrySessionId(canvasId: string | null | undefined): ContentCanvasProjectEntrySessionId | 'content_canvas' {
+  const normalizedCanvasId = canvasId?.trim()
+  return normalizedCanvasId ? `content_canvas:${normalizedCanvasId}` : 'content_canvas'
+}
+
+export function isContentCanvasProjectEntrySessionId(value: string | undefined): value is ContentCanvasProjectEntrySessionId {
+  return Boolean(value?.startsWith('content_canvas:') && value.length > 'content_canvas:'.length)
+}
+
+export function contentCanvasIdFromProjectEntrySessionId(value: string | undefined): string | undefined {
+  return isContentCanvasProjectEntrySessionId(value) ? value.slice('content_canvas:'.length) : undefined
+}
+
+export function projectEntrySessionBaseId(value: ProjectEntrySessionId): ProjectEntryId | 'scripts' {
+  return isContentCanvasProjectEntrySessionId(value) ? 'content_canvas' : value
+}
+
+export function projectEntrySessionIdForRouteSearch(
+  projectEntryId: ProjectEntrySessionId | undefined,
+  search: string | URLSearchParams | undefined,
+): ProjectEntrySessionId | undefined {
+  if (projectEntryId !== 'content_canvas') return projectEntryId
+  const searchParams = typeof search === 'string'
+    ? new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
+    : search
+  return contentCanvasProjectEntrySessionId(searchParams?.get('canvasId') ?? searchParams?.get('canvas'))
 }
 
 export function hasExplicitProjectEntrySearchParam(searchParams: URLSearchParams, keys: string[]): boolean {

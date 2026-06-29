@@ -73,6 +73,8 @@ import {
   PROJECT_SERVICE_STORYBOARD_CREATE_ENDPOINT,
   PROJECT_SERVICE_STORYBOARD_TIMELINE_UPDATE_ENDPOINT,
   PROJECT_SERVICE_KEYFRAME_CREATE_ENDPOINT,
+  PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT,
+  PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_WRITE_ENDPOINT,
   PROJECT_SERVICE_TIMELINE_ASSEMBLY_CONTENT_UNIT_ENSURE_ENDPOINT,
   PROJECT_SERVICE_WORKSPACE_ASSET_SLOT_CANDIDATE_CREATE_ENDPOINT,
   PROJECT_SERVICE_WORKSPACE_CANDIDATE_APPEND_ENDPOINT,
@@ -118,6 +120,9 @@ const CONTENT_CANVAS_SCHEMA = 'movscript.content_canvas.v1'
 const CONTENT_CANVASES_SCHEMA = 'movscript.content_canvases.v1'
 const CONTENT_CANVAS_TITLE_MAX_LENGTH = 80
 const CONTENT_CANVAS_TITLE_INVALID_PATTERN = /[<>:"/\\|?*\u0000-\u001F]/
+const TIMELINE_ASSEMBLY_DRAFT_DIRECTORY = 'timeline_assemblies'
+const TIMELINE_ASSEMBLY_DRAFT_FILE_NAME = 'assembly.json'
+const TIMELINE_ASSEMBLY_DRAFT_SCHEMA = 'movscript.timeline_assembly.draft.v1'
 const PROJECT_SERVICE_ENGINE_CACHE_LIMIT = 32
 const PROJECT_SERVICE_ENGINE_CACHE_SEPARATOR = '\u001f'
 const projectServiceEngineRegistry = new NodeMovScriptEngineRegistry()
@@ -187,6 +192,8 @@ export {
   PROJECT_SERVICE_STORYBOARD_CREATE_ENDPOINT,
   PROJECT_SERVICE_STORYBOARD_TIMELINE_UPDATE_ENDPOINT,
   PROJECT_SERVICE_KEYFRAME_CREATE_ENDPOINT,
+  PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT,
+  PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_WRITE_ENDPOINT,
   PROJECT_SERVICE_TIMELINE_ASSEMBLY_CONTENT_UNIT_ENSURE_ENDPOINT,
   PROJECT_SERVICE_WORKSPACE_ASSET_SLOT_CANDIDATE_CREATE_ENDPOINT,
   PROJECT_SERVICE_WORKSPACE_CANDIDATE_APPEND_ENDPOINT,
@@ -210,6 +217,7 @@ export const PROJECT_SERVICE_CAPABILITIES = Object.freeze([
   'prompt-context',
   'interpret',
   'content-canvas-run',
+  'timeline-assembly-drafts',
   'project-standards',
   'project-scripts',
   'workspace-candidate-actions',
@@ -636,6 +644,24 @@ export function createProjectServiceHandler(options = {}) {
         ))
         return
       }
+      if (request.method === 'POST' && url.pathname === PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT) {
+        const context = await readProjectSourceContext(request)
+        writeJSON(response, 200, projectTimelineAssemblyDraftEnvelope(
+          context.projectDir,
+          await readProjectTimelineAssemblyDraft(context.fileRepository, context.body),
+          'movscript.project-timeline-assembly-draft-read.v1',
+        ))
+        return
+      }
+      if (request.method === 'POST' && url.pathname === PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_WRITE_ENDPOINT) {
+        const context = await readProjectSourceContext(request)
+        writeJSON(response, 200, projectTimelineAssemblyDraftEnvelope(
+          context.projectDir,
+          await writeProjectTimelineAssemblyDraft(context.fileRepository, context.body),
+          'movscript.project-timeline-assembly-draft-write.v1',
+        ))
+        return
+      }
       if (request.method === 'POST' && url.pathname === PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT) {
         const body = await readJSONBody(request)
         const projectDir = projectDirFromBody(body)
@@ -1028,6 +1054,15 @@ function projectContentCanvasEnvelope(projectDir, result, fallbackSchema) {
   }
 }
 
+function projectTimelineAssemblyDraftEnvelope(projectDir, result, fallbackSchema) {
+  const record = recordValue(result) ?? {}
+  return {
+    ...record,
+    schema: stringValue(record.schema) ?? fallbackSchema,
+    projectDir,
+  }
+}
+
 function projectSourceOperationEnvelope(projectDir, result, fallbackSchema) {
   return {
     schema: fallbackSchema,
@@ -1166,6 +1201,10 @@ async function executeProjectSourceCommand({ projectDir, command, input, decisio
       return runProjectContentCanvas({ projectDir, fileRepository, engine, input, now })
     case 'deleteContentCanvas':
       return deleteProjectContentCanvas(fileRepository, input)
+    case 'readTimelineAssemblyDraft':
+      return readProjectTimelineAssemblyDraft(fileRepository, input)
+    case 'writeTimelineAssemblyDraft':
+      return writeProjectTimelineAssemblyDraft(fileRepository, input)
     case 'upsertProjectStandards':
       return engine.workspaceService.upsertProjectStandards(input)
     case 'upsertSetting':
@@ -1433,6 +1472,75 @@ async function readProjectContentCanvas(fileRepository, id) {
   }
 }
 
+async function readProjectTimelineAssemblyDraft(fileRepository, input) {
+  const targetRef = timelineAssemblyDraftTargetRefFromInput(input)
+  const draftId = timelineAssemblyDraftIdFromInput(input) ?? targetRef
+  if (!draftId) {
+    throw httpError(400, 'project_timeline_assembly_draft_target_ref_required', 'targetRef or timelineAssembly.id is required')
+  }
+  const path = timelineAssemblyDraftProjectFilePath(draftId)
+  const file = await fileRepository.read({ path }).catch((error) => {
+    if (isNotFoundError(error)) return undefined
+    throw error
+  })
+  if (!file) {
+    return {
+      status: 'missing',
+      draftKind: 'timeline_assembly',
+      draft_kind: 'timeline_assembly',
+      exists: false,
+      targetRef,
+      target_ref: targetRef,
+      path,
+    }
+  }
+  const record = parseProjectTimelineAssemblyDraftFile(file.content, path)
+  return {
+    status: 'ready',
+    draftKind: 'timeline_assembly',
+    draft_kind: 'timeline_assembly',
+    exists: true,
+    targetRef: stringValue(record.target_ref ?? record.targetRef) ?? targetRef,
+    target_ref: stringValue(record.target_ref ?? record.targetRef) ?? targetRef,
+    path: file.path,
+    version: file.version,
+    updatedAt: file.updatedAt,
+    record,
+  }
+}
+
+async function writeProjectTimelineAssemblyDraft(fileRepository, input) {
+  const record = projectTimelineAssemblyDraftRecordFromInput(input)
+  const path = timelineAssemblyDraftProjectFilePath(record.target_ref ?? record.id)
+  const source = recordValue(input) ?? {}
+  const expectedVersion = stringValue(source.expectedVersion ?? source.expected_version)
+  const written = await fileRepository.write({
+    path,
+    content: `${JSON.stringify(record, null, 2)}\n`,
+    ...(expectedVersion !== undefined ? { expectedVersion } : {}),
+  })
+  return {
+    status: 'written',
+    draftKind: 'timeline_assembly',
+    draft_kind: 'timeline_assembly',
+    targetRef: record.target_ref,
+    target_ref: record.target_ref,
+    path: written.path,
+    version: written.version,
+    updatedAt: written.updatedAt,
+    record,
+  }
+}
+
+function parseProjectTimelineAssemblyDraftFile(content, path) {
+  try {
+    return projectTimelineAssemblyDraftRecordFromInput(JSON.parse(content), { path })
+  } catch (error) {
+    if (error?.statusCode) throw error
+    throw httpError(400, 'project_timeline_assembly_draft_invalid', `timeline assembly draft file is invalid: ${path}`)
+  }
+}
+
 function parseProjectContentCanvasFile(content, path) {
   try {
     return projectContentCanvasRecordFromInput(JSON.parse(content), { path })
@@ -1440,6 +1548,128 @@ function parseProjectContentCanvasFile(content, path) {
     if (error?.statusCode) throw error
     throw httpError(400, 'project_content_canvas_invalid', `content canvas file is invalid: ${path}`)
   }
+}
+
+function projectTimelineAssemblyDraftRecordFromInput(input, options = {}) {
+  const source = recordValue(input)
+  const record = source ? recordValue(source.draft ?? source.record) ?? source : undefined
+  if (!record) throw httpError(400, 'project_timeline_assembly_draft_required', 'timeline assembly draft record is required')
+  const handoff = recordValue(record.handoff)
+  const assembly = recordValue(record.assembly ?? record.timelineAssembly ?? record.timeline_assembly)
+  const sourceNamespace = recordValue(assembly?.sourceNamespace ?? assembly?.source_namespace ?? record.source_namespace ?? record.sourceNamespace)
+  const targetRef = timelineAssemblyDraftTargetRefFromInput(record)
+    ?? timelineAssemblyDraftTargetRefFromInput(handoff)
+    ?? stringValue(assembly?.targetRef ?? assembly?.target_ref)
+    ?? timelineAssemblyDraftTargetRefFromPath(options.path)
+  if (!targetRef) {
+    throw httpError(400, 'project_timeline_assembly_draft_target_ref_required', 'targetRef is required for timeline assembly draft')
+  }
+  const id = timelineAssemblyDraftIdFromInput(record)
+    ?? stringValue(handoff?.timeline_assembly_id ?? handoff?.timelineAssemblyId)
+    ?? stringValue(assembly?.id)
+    ?? `timeline-assembly-${timelineAssemblyDraftProjectPathSegment(targetRef)}`
+  const now = new Date().toISOString()
+  const updatedAt = stringValue(record.updated_at ?? record.updatedAt) ?? now
+  const title = stringValue(record.title ?? record.name)
+    ?? stringValue(handoff?.title)
+    ?? stringValue(assembly?.title)
+    ?? timelineAssemblyDraftTitleFromTargetRef(targetRef)
+  const compileManifest = recordValue(record.compile_manifest ?? record.compileManifest ?? handoff?.compile_manifest ?? handoff?.compileManifest)
+  const compileResult = recordValue(record.compile_result ?? record.compileResult ?? handoff?.compile_result ?? handoff?.compileResult)
+  const openMontage = recordValue(record.openmontage ?? record.openMontage ?? handoff?.openmontage ?? handoff?.openMontage)
+  return pruneUndefinedRecord({
+    ...record,
+    schema: TIMELINE_ASSEMBLY_DRAFT_SCHEMA,
+    kind: 'timeline_assembly_draft',
+    draftKind: 'timeline_assembly',
+    draft_kind: 'timeline_assembly',
+    id,
+    title,
+    name: title,
+    target_kind: 'timeline_assembly',
+    target_ref: targetRef,
+    scope_kind: stringValue(record.scope_kind ?? record.scopeKind ?? sourceNamespace?.scopeKind ?? sourceNamespace?.scope_kind ?? compileManifest?.scope_kind),
+    scope_ref: stringValue(record.scope_ref ?? record.scopeRef ?? sourceNamespace?.scopeRef ?? sourceNamespace?.scope_ref ?? compileManifest?.scope_ref),
+    assembly,
+    handoff,
+    source_namespace: sourceNamespace,
+    coverage_map: recordValue(record.coverage_map ?? record.coverageMap ?? handoff?.coverage_map ?? handoff?.coverageMap),
+    decision_log: Array.isArray(record.decision_log)
+      ? record.decision_log
+      : Array.isArray(record.decisionLog)
+        ? record.decisionLog
+        : Array.isArray(handoff?.decision_log)
+          ? handoff.decision_log
+          : undefined,
+    edit_action_plan: recordValue(record.edit_action_plan ?? record.editActionPlan ?? handoff?.edit_action_plan ?? handoff?.editActionPlan),
+    openmontage: openMontage,
+    compile_manifest: compileManifest,
+    compile_result: compileResult,
+    backend_options: Array.isArray(record.backend_options)
+      ? record.backend_options
+      : Array.isArray(record.backendOptions)
+        ? record.backendOptions
+        : Array.isArray(handoff?.backend_options)
+          ? handoff.backend_options
+          : undefined,
+    finishing_projects: recordValue(record.finishing_projects ?? record.finishingProjects ?? handoff?.finishing_projects ?? handoff?.finishingProjects),
+    validation: recordValue(record.validation ?? handoff?.validation),
+    created_at: stringValue(record.created_at ?? record.createdAt) ?? updatedAt,
+    updated_at: updatedAt,
+  })
+}
+
+function timelineAssemblyDraftTargetRefFromInput(input) {
+  const record = recordValue(input)
+  if (!record) return undefined
+  return stringValue(
+    record.targetRef
+    ?? record.target_ref
+    ?? record.timelineAssemblyRef
+    ?? record.timeline_assembly_ref,
+  )
+}
+
+function timelineAssemblyDraftIdFromInput(input) {
+  const record = recordValue(input)
+  if (!record) return undefined
+  return stringValue(
+    record.id
+    ?? record.timelineAssemblyId
+    ?? record.timeline_assembly_id,
+  )
+}
+
+function timelineAssemblyDraftProjectFilePath(value) {
+  return `${TIMELINE_ASSEMBLY_DRAFT_DIRECTORY}/${timelineAssemblyDraftProjectPathSegment(value)}/${TIMELINE_ASSEMBLY_DRAFT_FILE_NAME}`
+}
+
+function timelineAssemblyDraftProjectPathSegment(value) {
+  const safe = String(value ?? '').trim().replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '')
+  return safe || 'timeline_assembly'
+}
+
+function timelineAssemblyDraftTargetRefFromPath(path) {
+  const segment = timelineAssemblyDraftProjectPathSegmentFromPath(path)
+  if (!segment) return undefined
+  return segment.startsWith('timeline_assembly_')
+    ? segment.replace(/^timeline_assembly_/, 'timeline_assembly:')
+    : segment
+}
+
+function timelineAssemblyDraftProjectPathSegmentFromPath(path) {
+  const parts = String(path ?? '').split(/[\\/]+/).filter(Boolean)
+  const candidate = parts.at(-1) === TIMELINE_ASSEMBLY_DRAFT_FILE_NAME ? parts.at(-2) : parts.at(-1)
+  return stringValue(candidate)
+}
+
+function timelineAssemblyDraftTitleFromTargetRef(targetRef) {
+  const parts = String(targetRef ?? '').split(':').filter(Boolean)
+  const raw = parts[parts.length - 1] ?? targetRef ?? 'Timeline Assembly'
+  return String(raw)
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    || 'Timeline Assembly'
 }
 
 function contentCanvasRunAffectedContentUnitIds(canvasRecord, snapshot) {
@@ -1803,6 +2033,7 @@ async function readProjectReadModel(context, now) {
     sourceSummary: overview.source,
     productionSummary: overview.production,
     contentSummary: overview.content,
+    contentUnits: sortProjectCanvasEntities(contentSnapshot.contentUnits),
     readiness: overview.readiness,
     projectTimelineStatus,
     project_timeline_status: projectTimelineStatus,

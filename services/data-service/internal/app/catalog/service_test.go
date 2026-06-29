@@ -13,22 +13,24 @@ import (
 func TestServiceListByCapabilityUsesGatewayModelCatalogContract(t *testing.T) {
 	fake := &fakeModelCatalog{
 		models: []providercontract.AIModelDescriptor{{
-			ModelID:           "gpt-5.2",
-			CatalogEntryID:    42,
-			ProviderID:        "local_provider:7",
-			ModelDefID:        "gpt-5.2",
-			ModelIDOverride:   "provider-gpt-5.2",
-			DisplayName:       "GPT 5.2",
-			ProviderName:      "Primary provider",
-			AdapterType:       "openai_compat",
-			Capabilities:      []string{"text", "reasoning"},
-			SupportedAPIKinds: []string{"openai_responses", "openai_chat_completions"},
-			AcceptsImageInput: true,
-			ProviderVariants:  2,
-			Priority:          10,
-			CapacityWeight:    3,
-			MaxConcurrency:    4,
-			SupportedParams:   []map[string]any{{"key": "temperature", "type": "number"}},
+			ModelID:            "gpt-5.2",
+			CatalogEntryID:     42,
+			ProviderID:         "local_provider:7",
+			ModelDefID:         "gpt-5.2",
+			ModelIDOverride:    "provider-gpt-5.2",
+			DisplayName:        "GPT 5.2",
+			ProviderName:       "Primary provider",
+			AdapterType:        "openai_compat",
+			Capabilities:       []string{"text", "reasoning"},
+			SupportedAPIKinds:  []string{"openai_responses", "openai_chat_completions"},
+			AcceptsImageInput:  true,
+			InferredOperation:  "prompt_to_video",
+			ResolverOperations: []string{"prompt_to_video"},
+			ProviderVariants:   2,
+			Priority:           10,
+			CapacityWeight:     3,
+			MaxConcurrency:     4,
+			SupportedParams:    []map[string]any{{"key": "temperature", "type": "number"}},
 			InputRequirements: providercontract.AIModelInputRequirements{
 				Image: providercontract.AIModelInputRequirement{Min: 0, Max: 1},
 			},
@@ -40,6 +42,8 @@ func TestServiceListByCapabilityUsesGatewayModelCatalogContract(t *testing.T) {
 	models, err := service.ListByCapabilityWithOptions(context.Background(), "text,reasoning", ListOptions{
 		ProviderVariants: true,
 		APIKinds:         []string{"openai_responses"},
+		TargetOutput:     "video",
+		ResolveIntent:    true,
 	})
 	if err != nil {
 		t.Fatalf("ListByCapability() error = %v", err)
@@ -51,7 +55,7 @@ func TestServiceListByCapabilityUsesGatewayModelCatalogContract(t *testing.T) {
 		t.Fatalf("contract calls = %d, want 1", len(fake.filters))
 	}
 	filter := fake.filters[0]
-	if !filter.ProviderVariants || len(filter.Capabilities) != 2 || filter.Capabilities[0] != "text" || filter.Capabilities[1] != "reasoning" || len(filter.APIKinds) != 1 || filter.APIKinds[0] != "openai_responses" {
+	if !filter.ProviderVariants || !filter.ResolveIntent || filter.TargetOutput != "video" || len(filter.Capabilities) != 2 || filter.Capabilities[0] != "text" || filter.Capabilities[1] != "reasoning" || len(filter.APIKinds) != 1 || filter.APIKinds[0] != "openai_responses" {
 		t.Fatalf("filter = %#v, want provider variants text+reasoning", filter)
 	}
 	model := models[0]
@@ -60,6 +64,9 @@ func TestServiceListByCapabilityUsesGatewayModelCatalogContract(t *testing.T) {
 	}
 	if len(model.SupportedParams) != 1 || model.InputRequirements.Image.Max != 1 || model.ParamsSchema["type"] != "object" {
 		t.Fatalf("model contract fields = %#v, want params/input/schema preserved", model)
+	}
+	if model.InferredOperation != "prompt_to_video" || len(model.ResolverOperations) != 1 || model.ResolverOperations[0] != "prompt_to_video" {
+		t.Fatalf("resolver fields = %#v/%#v, want inferred operation preserved", model.InferredOperation, model.ResolverOperations)
 	}
 	if len(model.SupportedAPIKinds) != 2 || model.SupportedAPIKinds[0] != "openai_responses" || model.SupportedAPIKinds[1] != "openai_chat_completions" {
 		t.Fatalf("model supported api kinds = %#v, want descriptor values preserved", model.SupportedAPIKinds)

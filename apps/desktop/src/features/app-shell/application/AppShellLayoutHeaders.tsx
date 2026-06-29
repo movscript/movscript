@@ -22,6 +22,7 @@ import type { Project } from '@/types'
 
 interface AppShellLayoutHeadersInput {
   pathname: string
+  search: string
   routeLayout: Pick<RouteLayoutSpec, 'projectEntryId'>
   currentProject: Project | null
   accountSettingsActiveTab: AccountSettingsPageTab | undefined
@@ -62,6 +63,7 @@ interface AppShellLayoutHeaders {
 
 export function createAppShellLayoutHeaders({
   pathname,
+  search,
   routeLayout,
   currentProject,
   accountSettingsActiveTab,
@@ -138,6 +140,7 @@ export function createAppShellLayoutHeaders({
   const projectCenterContent = currentProject?.name ? (
     <ProjectEntryDeckHeader
       activeEntryId={routeLayout.projectEntryId}
+      activeSearch={search}
       projectId={currentProject.ID}
       projectName={currentProject.name}
     />

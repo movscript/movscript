@@ -107,14 +107,26 @@ movscript runtime status --json
 movscript runtime configure --backend-base-url http://127.0.0.1:8766 --json
 
 movscript system model list --capability image_generation --operation text_to_image --json
+movscript system generation prepare --capability audio_music --json
+movscript system generation submit --capability audio_music --prompt "quiet tension bed" --json
+movscript system generation job get --job-id 701 --verbosity summary --json
+movscript system generation job get-batch --job-ids '[701,702]' --json
+movscript system generation result register --content-unit-id scene_01 --resource-id 880 --output-kind image --json
 movscript system project create/init/open/fetch --json
+movscript system artifact get-stream --stream-id 41 --json
+movscript system artifact upload-export --output-path ./final.mp4 --json
+movscript system artifact upload-hls-stream --manifest-path ./index.m3u8 --segment-paths '["./seg0.ts"]' --json
 movscript system resource library query --json
-movscript system resource upload --file ./a.png --json
+movscript system resource library open --json
+movscript system resource upload --local-path ./a.png --json
 movscript system resource image read --resource-id 1 --json
+movscript system resource image annotate --local-path ./a.png --annotations '[{"type":"rect","x":10,"y":10,"width":100,"height":80}]' --json
 movscript system resource video probe --resource-id 2 --json
 movscript system external-resource source list --json
 movscript system external-resource search --query "city street" --json
+movscript system shot library query --query "slow push in" --json
 movscript system shot group create/get/add-shots --json
+movscript system video shot-cuts analyze --resource-id 2 --json
 ```
 
 Admin 能力第二批迁移，但仍遵守同一原则：
@@ -127,6 +139,8 @@ movscript admin model route binding create/update/delete --json
 movscript admin model gateway key list/create/update/delete --json
 movscript admin resource-access settings get/update --json
 movscript admin public-tunnel config get/update --json
+movscript admin resource-access resolve-test --resource-id 880 --profile-id public-tunnel --json
+movscript admin resource-access check-test --resource-id 880 --profile-id public-tunnel --json
 ```
 
 暂不把 `admin_cloud_file_config_*` 和 `admin_usage_policy_*` 迁入 CLI/MCP 第一批；它们仍等待明确产品流程。
@@ -166,8 +180,8 @@ Runtime bootstrap 是唯一允许短期例外的层：daemon 未启动时还没�
 | 3 | 系统资源管理 | RawResource、上传、读取、媒体探测、外部资源、shot library | Data Service + Media Pipeline | `movscript system resource/external-resource/shot ...` + `system_resource_*`, `system_external_resource_*`, `system_shot_*` |
 | 4 | 后端执行能力 | Agent 可选择哪些 timeline/render backend？ | Editing/Composition backends + Media Pipeline | `editing_*`, future `remotion_*`, `hyperframes_*`, `external_nle_*` |
 | 5 | 项目层 | 项目初始化、项目 source/read-model、候选、选择、影响复查 | Project Service + Data Service | `system_project_*`, `domain_*` |
-| 6 | Timeline 编译层 | 从影视意图到 TimelineAssembly / CompileManifest / backend project | Project Service + future Timeline Service | future `timeline_*`, `compile_*` |
-| 7 | Skill 工作流层 | Agent 在何时用哪些工具、如何保护用户确认边界 | Skill package | `runtime`, `project`, `planning`, `domain`, `generation`, `review`, `editing`, future `timeline`, future `admin` |
+| 6 | Timeline 编译层 | 从影视意图到 TimelineAssembly / CompileManifest / backend project | Project Service + future Timeline Service | `timeline_*`, future `compile_*` |
+| 7 | Skill 工作流层 | Agent 在何时用哪些工具、如何保护用户确认边界 | Skill package | `runtime`, `admin`, `project`, `planning`, `domain`, `generation`, `review`, `timeline`, `editing` |
 
 这里的关键区分是：第 6 层的 Timeline 编译层才是剪辑/合成的上层合同；第 4 层只是可选执行后端能力。`MediaEditingProject`、Remotion、HyperFrames、External NLE 都是 CompileManifest 之后的后端选择，不应把 `MediaEditingProject` 当成唯一系统模型。
 
@@ -224,12 +238,13 @@ Runtime 类目的最小能力：
 
 ### 当前形态
 
-当前实现中，`movscript.mcp.host` 是 stdio MCP endpoint，并直接加载 `@movscript/core/mcp/node` 的 tool registry。Agent Plugin 在需要 full-local 时会先确保 `movscript.local-node` daemon，然后再启动 stdio MCP host。daemon 本身启动业务服务和 gateway，但 local-node 启动路径里没有把 MCP host 作为 daemon-owned 服务。
+当前实现中，`movscript.local-node.gateway` 已经暴露 canonical HTTP MCP endpoint：`POST /v1/mcp`、`GET /v1/mcp/health`，并保留迁移期兼容 `POST /mcp`。`movscript.mcp.host` / `movscript mcp stdio` 是 provider-facing stdio 入口：当 MovScript Home 或 `MOVSCRIPT_DAEMON_MCP_ENDPOINT` 能发现 daemon MCP endpoint 时，stdio host 优先把业务 `tools/list`、`tools/call`、`resources/list`、`resources/read` 转发给 daemon；daemon 不可用时只暴露 runtime bootstrap/control fallback。
 
 这意味着：
 
-- MCP 工具定义和执行仍在 session stdio host 进程里。
-- daemon 已经拥有业务服务生命周期，但没有完全拥有 MCP 工具生命周期。
+- daemon 已经拥有业务服务生命周期，并已在本机 gateway 暴露 canonical `/v1/mcp` 和 `/v1/mcp/health`。
+- stdio/http MCP host 在 daemon ready 后已经降级为 bridge/proxy；daemon 未 ready 时只保留 runtime bootstrap fallback，不再把稳定业务工具作为 fallback 执行面。
+- MCP tool registry/executor 仍复用 `packages/mcp-host` 与 `@movscript/core/mcp/node` 的实现，下一步需要继续上移到 daemon/runtime service plane。
 - `runtime_local_daemon_*` 已经表达了正确方向，`runtime_local_node_*` 是兼容别名。
 
 ### 目标形态
@@ -339,27 +354,27 @@ Runtime 工具边界：
 
 ### Context / Focus
 
-`system_focus_get` 应删除，不再作为兼容 alias 保留。
+`system_focus_get` 已删除，不再作为兼容 alias 保留。
 
-当前实现里，`toolRegistry` 把 `movscript_focus_get` rename 成 `system_focus_get`，并且多个 Skill grants 依赖它。这让 UI 当前路由、选中项目、选中实体看起来像一个系统基础事实源，容易和 daemon/project locator 边界混在一起。
+当前实现里，`tools/list` 不再包含 `system_focus_get` 或 `movscript_focus_get`，旧调用返回 unknown tool / tool not found。UI/session hint 的稳定入口是 `context_current_get`。
 
 目标规则：
 
 1. 新 Skill grants 不再授予 `system_focus_get`。
 2. `system_focus_get` 从 `tools/list`、router dispatch、Skill grants、README 和测试预期中直接删除；旧调用应返回 unknown tool / tool not found。
-3. 如果 Agent 需要 UI 当前上下文，应通过 daemon context/session 能力读取，例如 future `context_current_get` 或 `runtime_context_get`，而不是 `system_*`。
+3. 如果 Agent 需要 UI 当前上下文，应通过 daemon context/session 能力读取，例如 `context_current_get`，而不是 `system_*`。
 4. Project/domain/generation/editing 工具不从 focus 隐式推断项目；必须显式传 `projectId`、`project_id`、project locator 或由 Project Service 明确解析。
 5. Desktop 可以写入 context/session，但 Desktop 写入的 focus 只是 UI hint，不是业务 source of truth。
 
-实际迁移清单：
+迁移状态：
 
-- `packages/core/src/mcp/node/server/toolRegistry.ts`: 删除 `renameTools(input.focus, { movscript_focus_get: 'system_focus_get' })`，`system_focus_get` 不再出现在 `tools/list`。
-- `packages/core/src/mcp/node/tools/router.ts`: 删除 `system_focus_get` case；只保留新的 context/session 工具 dispatch。
-- `packages/core/src/mcp/tools/focus/definitions.ts` 和 `packages/core/src/mcp/node/tools/focus/*`: 语义从 focus tool 迁到 context/session tool，schema 明确这是 UI hint。
-- `packages/mcp-host/src/http.ts`、`packages/mcp-host/src/index.ts`、`apps/desktop/electron/ipc/mcpIpc.ts`: context snapshot 写入迁到 daemon context/session API，避免 stdio/http host 进程内存成为事实源。
-- `apps/plugin/skills/{project,planning,domain,generation,review,editing}/SKILL.md` 和 `plugins/movscript/skills/{project,planning,domain,generation,review,editing}/SKILL.md`: 移除 `mcp__movscript__system_focus_get` grant，把“先读 focus”改成“显式解析 project locator，必要时读取 context/session UI hint”。
-- `apps/plugin/README.md` 和 `plugins/movscript/README.md`: 从 System tools 说明中移除 `system_focus_get`。
-- `packages/core/tests/mcp.test.mjs`、`packages/core/tests/agent-chat.test.mjs`、`packages/agent-chat/tests/agent-chat.test.mjs` 以及 Desktop agent 展示相关测试：断言 `system_focus_get` 不在 tool list，旧调用返回 unknown tool / tool not found，并更新显示名称预期。
+- 已落地：`packages/core/src/mcp/node/server/toolRegistry.ts` 不再生成 `system_focus_get` alias，`system_focus_get` 不再出现在 `tools/list`。
+- 已落地：`packages/core/tests/mcp.test.mjs` 断言 `system_focus_get` 和 `movscript_focus_get` 不在 tool list，旧调用返回 unknown tool。
+- 已落地：创作 Skill 已改成显式解析 project locator，不从 UI focus 推断项目。
+- 已落地：新增 `context_current_get` 作为新的 read-only UI/session hint 工具，返回 route、selected project、production、user 和 selection；写操作仍必须显式传 project locator。
+- 已落地：删除 `packages/core/src/mcp/tools/focus/definitions.ts` 和 `packages/core/src/mcp/node/tools/focus/actions.ts` 的 `movscript_focus_get` 工具本体，不再保留迁移期 alias。
+- 已落地：agent chat / Desktop 展示测试中的 context fixture 已迁到 `context_current_get`。
+- 待落地：`packages/mcp-host/src/http.ts`、`packages/mcp-host/src/index.ts`、`apps/desktop/electron/ipc/mcpIpc.ts` 的 context snapshot 写入迁到 daemon context/session API，避免 stdio/http host 进程内存成为事实源。
 - `apps/plugin/bin/*`、`plugins/movscript/bin/*`、`apps/desktop/out/*`: 由构建流程重新生成，不手改 bundle。
 
 ### Generation
@@ -399,7 +414,7 @@ Runtime 工具边界：
 
 Timeline 编译层应成为下一阶段新增的高级能力层。它带来的核心能力是：把 MovScript 的影视语义和已选择素材先编译为统一的 timeline intent，再让 Agent 选择合适后端执行，而不是提前把全系统绑定到 track-based editing。
 
-建议引入独立工具族：
+第一批已引入独立 no-persist 工具族：
 
 - `timeline_assembly_get`
 - `timeline_assembly_validate`
@@ -479,6 +494,8 @@ Production / SceneMoment / ExpressionUnit
   - `admin_resource_access_settings_update`
   - `admin_public_tunnel_config_get`
   - `admin_public_tunnel_config_update`
+  - `admin_resource_access_resolve_test`
+  - `admin_resource_access_check_test`
 
 第一批工具是 daemon/MCP-host 上的 fixed endpoint wrapper，不是任意 admin HTTP proxy。写操作透传现有 backend payload，让后端继续负责权限、审计、secret masking 和校验。
 
@@ -491,7 +508,6 @@ Production / SceneMoment / ExpressionUnit
 - `admin_resource_access_profile_upsert`
 - `admin_resource_access_profile_delete`
 - `admin_resource_access_profile_test`
-- `admin_resource_access_resolve_test`
 - `admin_resource_access_route_diagnose`
 
 暂不纳入当前 admin MCP 目标：
@@ -557,7 +573,7 @@ Runtime readiness 是这四步之前的前置条件，不算创作步骤本身�
 | --- | --- | --- | --- | --- |
 | 0. Runtime ready | daemon 已启动，Data/Project/Editing/Media 能力可诊断 | Runtime bootstrap + daemon | runtime descriptor、service readiness、MCP endpoint | `runtime`, `runtime_daemon_ensure/status` |
 | 1. 规划内容 | 把用户意图变成 project source、production、scene moment、expression unit、content unit、必要的 asset/storyboard/keyframe | Project Service + Data Service | source edits、content units、dependency graph、inspect/interpret artifacts | `planning`, `domain_*` |
-| 2. 规划 timeline | 把已选择的内容单元和素材组织成剪辑/合成意图、顺序、节奏、层级、后端能力需求 | Project Service + future Timeline Service | TimelineAssembly、CompileManifest、backend selection、preview timeline | future `timeline_*`, `compile_*`, `domain_read_*_timeline` |
+| 2. 规划 timeline | 把已选择的内容单元和素材组织成剪辑/合成意图、顺序、节奏、层级、后端能力需求 | Project Service + future Timeline Service | TimelineAssembly、CompileManifest、backend selection、preview timeline | `timeline_*`, future `compile_*`, future `domain_read_*_timeline` |
 | 3. 生成 | 调用模型生成图片、视频、音频、字幕等 RawResource，并写入候选 | Data Service + model gateway + Resource Access + Project Service | generation jobs、RawResources、content-unit candidates | `generation_*`, `system_resource_*`, `domain_*candidate*` |
 | 4. 导出 | 由已选择 backend 执行 render/export，生成 MP4/HLS/local file/RawResource，可选写回候选 | selected backend + Media Pipeline + Artifact/Resource Service | render result、HLS stream、export artifact、optional content candidate | `editing_*`, future `remotion_*`, future `hyperframes_*`, future `external_nle_*`, `system_artifact_*`, `domain_*candidate*` |
 
@@ -582,7 +598,7 @@ Skill 必须能向 Agent 解释当前调用背后的系统分工，而不是把�
 | Generation / Model Gateway | 模型发现、prompt 编译、任务提交、任务查询、provider adapter | provider credential、model catalog、route binding、gateway key | 生成失败要区分模型、route、credential、resource access、prompt blocker |
 | Resource Management | RawResource 上传、读取、变换、外部资源导入、shot library | resource storage、ResourceAccessProfile | RawResource 是资源体，不是候选选择 |
 | Resource Access | public tunnel/public backend/object relay/provider file/provider asset URI 解析 | `admin_resource_access_*`、`/resource-access/check` | 公网隧道属于资源访问，不属于 Provider |
-| Timeline / Compile | 把 production/content-unit/selection 编译为 TimelineAssembly、CompileManifest 和 backend selection | future timeline config、backend capability matrix | 需要输出 conformance report，不能静默降级 |
+| Timeline / Compile | 把 production/content-unit/selection 编译为 TimelineAssembly、CompileManifest 和 backend selection | timeline config、backend capability matrix | 需要输出 conformance report，不能静默降级 |
 | Editing Backend | MediaEditingProject、轨道、clip、timeline mutation、编辑项目保存 | editing project settings、runtime capabilities | 只是 track-based backend，不是全系统 timeline canonical model |
 | Remotion Backend | React/frame-based composition project、frame render、程序化合成 | Remotion runtime、Node/browser/render config | 适合 frame 精确控制和 React 组件化画面 |
 | HyperFrames Backend | HTML/GSAP/timed composition project、网页动画式合成 | HyperFrames runtime、browser/render config | 适合 timed HTML/GSAP 动画、字幕高亮和动态图形 |
@@ -653,9 +669,9 @@ Skill 应把“卡住”分成三类，而不是笼统地说失败：
 | `generation` | 1 + 3 + 5 | 生成 output task 的候选结果，并保护 adoption gate |
 | `review` | 5 | 解释 pending changes、stale、selection validity、regeneration plan |
 | `editing` | 4 | track-based `MediaEditingProject` backend、FFmpeg/local NLE-lite render/export 工作流 |
+| `timeline` | 6 | TimelineAssembly / CompileManifest / backend selection / conformance |
 | `workspace` | compatibility | 老 workspace 提示的兼容层，应逐步弱化 |
-| future `timeline` | 6 | TimelineAssembly / CompileManifest / backend selection / conformance |
-| future `admin` | 2 | provider、模型、route、gateway key、生成工具和资源公网访问配置 |
+| `admin` | 2 | provider、模型、route、gateway key、生成工具和资源公网访问配置 |
 
 Skill grants 应遵守：
 
@@ -709,27 +725,51 @@ Skill grants 应遵守：
 
 - 在 stdio MCP host 保留最小 runtime bootstrap fallback：`runtime_daemon_ensure/start/status/stop/restart/configure`。
 - 在 `movscript.local-node.gateway` 下暴露 canonical `/v1/mcp`。
+  - 已落地：local daemon gateway 处理 `POST /v1/mcp` JSON-RPC、兼容 `POST /mcp`，并暴露 `GET /v1/mcp/health`。
+  - 已落地：`/v1/runtime/descriptor` 显式返回 `gateway.mcpEndpoint` 和 `gateway.mcpHealthEndpoint`。
 - daemon 启动时注册 MCP tool registry。
+  - 部分落地：daemon gateway 复用 `packages/mcp-host` 的 tool registry/executor，业务工具可经 `/v1/mcp` 调用；registry 仍需要从 `packages/mcp-host` 继续上移到 daemon/runtime service plane。
 - daemon 执行 project/domain/generation/resource/timeline/backend 工具。
+  - 部分落地：system/admin/generation/resource/artifact/shot 已通过 CLI-first command runner；domain/editing/timeline/backend 仍需继续服务化。
 - stdio MCP host 改为 bridge/proxy：`tools/list`、`tools/call` 转发 daemon。
+  - 已落地：stdio/http host 在 daemon ready 后优先 proxy 到 `gateway.mcpEndpoint`；daemon 未 ready 时 `tools/list` 只暴露 runtime bootstrap/control fallback，业务工具调用返回 daemon unavailable 诊断。
 - stdio host 只保留 daemon bootstrap/control 的最小 fallback。
 
 ### Phase 3: CLI-first System MCP
 
 - 新建 command manifest，定义 `command_id`、CLI argv、MCP tool name、输入/输出 schema、owner service、权限、exit code 和示例。
+  - 已落地：`packages/cli-commands` 作为 admin/system shared command runner，CLI 和 MCP host in-process 复用同一套 spec。
+  - 已落地：core backend runtime endpoint/auth/workspace state 使用进程级 singleton，避免 CLI bundle 中 `backend/node` 与 `mcp/node` 两个入口读到不同 runtime endpoint。
 - 为 runtime/system 第一批能力补 `movscript ... --json`：
-  - `movscript runtime daemon *`
-  - `movscript runtime descriptor get`
-  - `movscript runtime preflight check`
-  - `movscript system model list`
-  - `movscript system project create/init/open/fetch`
-  - `movscript system resource library/query/upload/read/probe/transform`
-  - `movscript system external-resource source/search`
-  - `movscript system shot group/analyze`
-- MCP `system_*` 工具改为调用 command runner，不再直接调用 core MCP action。
+  - 已落地：`movscript runtime daemon *`
+  - 已落地：`movscript runtime descriptor get`
+  - 已落地：`movscript runtime preflight check`
+  - 已落地：`movscript system model list`
+  - 已落地：`movscript system generation capability list`
+  - 已落地：`movscript system generation prepare/submit/job get/job get-batch/result register`
+  - 已落地：`movscript system project create/init/open/fetch`
+  - 已落地：`movscript system artifact get-stream/upload-export/upload-hls-stream`
+  - 已落地：`movscript system resource library query/open`
+  - 已落地：`movscript system resource upload/upload-batch`
+  - 已落地：`movscript system resource image read/annotate/transform-to-resource`
+  - 已落地：`movscript system resource video extract-frames/probe/extract-frame-to-resource/extract-frames-to-resources/trim-to-resource/compose-to-resource/concat-to-resource/contact-sheet-to-resource/extract-audio-to-resource`
+  - 已落地：`movscript system external-resource source list/search`
+  - 已落地：`movscript system shot library query`
+  - 已落地：`movscript system shot group create/get/add-shots`
+  - 已落地：`movscript system video shot-cuts analyze`
+- 已迁移 MCP adapter：
+  - model/capability：`system_model_list`、`generation_model_list`、`movscript_model_list`、`generation_capability_list`
+  - generation：`generation_prepare`、`generation_submit`、`generation_job_get`、`generation_job_get_batch`、`generation_result_register`
+  - project bootstrap：`system_project_create/init/open/fetch`、`movscript_project_create/init/open/fetch`
+  - artifact：`system_artifact_get_stream`、`system_artifact_upload_export`、`system_artifact_upload_hls_stream`
+  - resource library：`system_resource_library_query/open`、`movscript_resource_library_query/open`
+  - resource media/upload：`system_resource_image_read/annotate/transform_to_resource`、`system_resource_video_extract_frames/probe/extract_frame_to_resource/extract_frames_to_resources/trim_to_resource/compose_to_resource/concat_to_resource/contact_sheet_to_resource/extract_audio_to_resource`、`system_resource_upload/upload_batch` 及对应 `movscript_resource_*` 兼容名
+  - external resource：`system_external_resource_source_list/search`、`movscript_external_resource_source_list/search`
+  - shot reference：`system_shot_library_query`、`movscript_shot_library_query`、`system_shot_group_create/get/add_shots`、`movscript_shot_group_create/get/add_shots`、`system_video_shot_cuts_analyze`、`movscript_video_shot_cuts_analyze`
+- 稳定 system/admin/generation 工具不再保留 direct-core fallback；后续新增稳定工具必须先补 CLI/shared runner。
 - 每个迁移工具必须提供 CLI 单测、MCP adapter 单测和 CLI/MCP parity test。
 - MCP response 返回可脱敏的 `debug.cli_argv`，让用户能复制到终端复现。
-- 保留临时 direct-core fallback 只用于未迁移工具；fallback 必须在文档和测试里标记，不能成为新工具默认路径。
+- 仍存在的 legacy/direct-core fallback 只允许用于尚未纳入稳定 command manifest 的非 system/admin/generation 工具；fallback 必须在文档和测试里标记，不能成为新工具默认路径。
 
 ### Phase 4: 服务化所有工具执行
 
@@ -741,9 +781,10 @@ Skill grants 应遵守：
 
 ### Phase 5: Admin 能力隔离
 
-- 新增 admin Skill 和 admin MCP 工具族。
+- 已落地：新增 admin Skill 和第一批 admin MCP 工具族，并明确 admin 只处理系统配置/诊断，不进入普通创作流程。
 - 将 provider、credential、模型 catalog、route binding、model gateway key 配置从普通 generation surface 中隔离。
 - 将 ResourceAccessProfile、public tunnel、public backend、object relay 配置纳入 admin MCP，但不纳入 Provider 配置。
+- 已落地：provider/credential、model catalog/import、route diagnose/binding、model gateway key、generation tools settings、resource-access settings/public tunnel config、resource-access resolve/check diagnostics 均有 `movscript admin ... --json` 和 MCP adapter。
 - 普通用户生成只读取能力和 sanitized 诊断，不修改 admin config。
 - Admin MCP 写操作复用后端权限、审计和 secret masking，不绕过 Data Service/Admin Service。
 - 第一批 admin MCP 同步补 `movscript admin ... --json`，并让 MCP 调 command runner；暂不迁移 cloud file config 和 usage policy。
@@ -751,10 +792,19 @@ Skill grants 应遵守：
 ### Phase 6: Timeline 编译层和可选 backend
 
 - 把 `TimelineAssembly + CompileManifest` 明确为 canonical edit intent IR。
-- 新增 `timeline_*` 或 `compile_*` 工具族。
-- 新增 backend capability/selection contract，让 Agent 可以在 `MediaEditingProject`、Remotion、HyperFrames、External NLE 之间选择。
-- `MediaEditingProject`、`RemotionCompositionProject`、`HyperFramesCompositionProject`、`ExternalNleProject` 成为同级 backend execution project。
-- 每次 compile 输出 conformance report，不能静默降级。
+- 已落地：新增第一批 no-persist `timeline_*` MCP 工具族：
+  - `timeline_backend_capability_list`
+  - `timeline_assembly_get`
+  - `timeline_assembly_validate`
+  - `timeline_compile_manifest_create`
+  - `timeline_backend_select`
+  - `timeline_backend_project_create`
+  - `timeline_assembly_compile`
+  - `timeline_backend_conformance_report`
+- 已落地：backend capability/selection contract 让 Agent 可以在 `MediaEditingProject`、Remotion、HyperFrames、External NLE 之间选择。
+- 已落地：`MediaEditingProject`、`RemotionCompositionProject`、`HyperFramesCompositionProject`、`ExternalNleProject` 成为同级 backend execution project；External NLE 当前返回未实现 conformance blocker，不静默 fallback。
+- 已落地：每次 compile 输出 conformance report；unsupported backend 或 runtime lock mismatch 返回 blocker/degradation。
+- 待落地：Project-backed `timeline_assembly_get`、Timeline Service、External NLE 真实 XML/EDL/OTIO/FCPXML adapter、timeline CLI command runner、backend project 持久化/导出 API。
 
 ### Phase 7: 兼容清理
 

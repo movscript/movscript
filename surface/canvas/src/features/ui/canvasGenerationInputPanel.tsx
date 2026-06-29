@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { formatResourceMention, parseResourceMentions } from '@movscript/workspace'
 import {
   generationDefaultReferenceRoleForMediaType,
+  generationReferenceMediaTypeShortLabel,
   generationReferenceRoleLabel,
   generationReferenceRoleOptionsForMediaType,
 } from '@movscript/core/generation'
@@ -30,6 +31,12 @@ function canvasResourceIcon(resource: Pick<RawResource, 'type'>, size = 12) {
 type CanvasPromptReferenceMetadata = {
   role?: string
   mediaType?: string
+  sourceLabel?: string
+}
+
+function canvasPromptReferenceChipLabel(metadata: CanvasPromptReferenceMetadata = {}): string {
+  const roleLabel = generationReferenceRoleLabel(metadata.role)
+  return `${roleLabel || '参考'} · ${metadata.sourceLabel ?? '资源'}`
 }
 
 function buildCanvasChipElement(resource: RawResource, metadata: CanvasPromptReferenceMetadata = {}): HTMLElement {
@@ -37,18 +44,24 @@ function buildCanvasChipElement(resource: RawResource, metadata: CanvasPromptRef
   chip.contentEditable = 'false'
   chip.dataset.resourceName = resource.name
   chip.dataset.resourceId = String(resource.ID)
+  chip.dataset.sourceLabel = metadata.sourceLabel ?? '资源'
   if (metadata.role) chip.dataset.role = metadata.role
   if (metadata.mediaType) chip.dataset.mediaType = metadata.mediaType
+  chip.title = [
+    resource.name,
+    generationReferenceRoleLabel(metadata.role),
+    metadata.sourceLabel ?? '资源',
+  ].filter(Boolean).join(' · ')
   chip.className = canvasMentionChipClassNames.chip
 
   const media = document.createElement('span')
   media.className = canvasMentionChipClassNames.media
   media.dataset.type = metadata.mediaType ?? resource.type
-  media.textContent = resource.type === 'video' ? 'V' : resource.type === 'image' ? 'I' : 'T'
+  media.textContent = generationReferenceMediaTypeShortLabel(metadata.mediaType ?? resource.type)
   chip.appendChild(media)
 
   const label = document.createElement('span')
-  label.textContent = metadata.role ? `${resource.name} · ${generationReferenceRoleLabel(metadata.role)}` : resource.name
+  label.textContent = canvasPromptReferenceChipLabel(metadata)
   label.className = canvasMentionChipClassNames.label
   chip.appendChild(label)
 
@@ -284,7 +297,13 @@ export function CanvasGenerationInputPanel({
     chip.dataset.role = role
     if (mediaType) chip.dataset.mediaType = mediaType
     const label = chip.querySelector<HTMLElement>(`.${canvasMentionChipClassNames.label}`)
-    if (label) label.textContent = `${chip.dataset.resourceName ?? ''} · ${generationReferenceRoleLabel(role)}`
+    if (label) {
+      label.textContent = canvasPromptReferenceChipLabel({
+        role,
+        mediaType,
+        sourceLabel: chip.dataset.sourceLabel,
+      })
+    }
     const nextText = editorText()
     syncedPromptRef.current = nextText
     data.onUpdatePrompt?.(nextText)

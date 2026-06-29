@@ -5,35 +5,45 @@ import {
   WorkbenchAppTabButton,
 } from '@movscript/ui/business/workbench'
 
-import { useProjectEntrySessionStore } from '../application/projectEntrySessionStore'
+import {
+  projectEntrySessionIdForRouteSearch,
+  useProjectEntrySessionStore,
+  type ProjectEntrySessionId,
+} from '../application/projectEntrySessionStore'
 import {
   buildProjectEntryDeck,
   buildProjectEntryDeckOrderUpdates,
   type ProjectEntryDeckTab,
 } from '../presentation/projectEntryDeckModel'
-import { projectEntryRoutePath, type ProjectEntryId } from '../domain/projectEntryRegistry'
+import { projectEntryRoutePath } from '../domain/projectEntryRegistry'
 import './ProjectEntryDeckHeader.css'
 
 const PROJECT_ENTRY_DECK_DRAG_TYPE = 'application/x-movscript-project-entry'
 
 export function ProjectEntryDeckHeader({
   activeEntryId,
+  activeSearch,
   projectId,
   projectName,
 }: {
-  activeEntryId?: ProjectEntryId
+  activeEntryId?: ProjectEntrySessionId
+  activeSearch?: string
   projectId: number
   projectName: string
 }) {
   const navigate = useNavigate()
   const snapshots = useProjectEntrySessionStore((state) => state.snapshots)
   const setEntryDeckOrders = useProjectEntrySessionStore((state) => state.setEntryDeckOrders)
+  const resolvedActiveEntryId = useMemo(
+    () => projectEntrySessionIdForRouteSearch(activeEntryId, activeSearch),
+    [activeEntryId, activeSearch],
+  )
   const deck = useMemo(() => buildProjectEntryDeck({
-    activeEntryId,
+    activeEntryId: resolvedActiveEntryId,
     projectId,
     snapshots,
-  }), [activeEntryId, projectId, snapshots])
-  const reorderProjectEntryTab = useCallback((draggedEntryId: ProjectEntryId, targetEntryId: ProjectEntryId, position: 'before' | 'after') => {
+  }), [projectId, resolvedActiveEntryId, snapshots])
+  const reorderProjectEntryTab = useCallback((draggedEntryId: ProjectEntrySessionId, targetEntryId: ProjectEntrySessionId, position: 'before' | 'after') => {
     const updates = buildProjectEntryDeckOrderUpdates({
       draggedEntryId,
       targetEntryId,
@@ -56,7 +66,7 @@ export function ProjectEntryDeckHeader({
 
   function handleTabDrop(event: DragEvent<HTMLButtonElement>, tab: ProjectEntryDeckTab) {
     event.preventDefault()
-    const draggedEntryId = event.dataTransfer.getData(PROJECT_ENTRY_DECK_DRAG_TYPE) as ProjectEntryId
+    const draggedEntryId = event.dataTransfer.getData(PROJECT_ENTRY_DECK_DRAG_TYPE) as ProjectEntrySessionId
     if (!draggedEntryId || draggedEntryId === tab.id) return
     const rect = event.currentTarget.getBoundingClientRect()
     const position = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after'

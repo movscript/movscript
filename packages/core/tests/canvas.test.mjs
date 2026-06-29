@@ -180,7 +180,7 @@ test('core canvas runtime encodes typed port values and defaults', () => {
   assert.deepEqual(encodeRuntimePortValue({ id: 'payload', type: 'json' }, '{"a":1}'), { type: 'json', json: { a: 1 } })
   assert.equal(encodeRuntimePortValue({ id: 'payload', type: 'json' }, '{'), null)
   assert.deepEqual(encodeRuntimePortValue({ id: 'asset', type: 'resource' }, '7'), { type: 'resource', resource_id: 7 })
-  assert.deepEqual(encodeRuntimePortValue({ id: 'voice', type: 'audio' }, '8'), { type: 'audio', resource_id: 8 })
+  assert.deepEqual(encodeRuntimePortValue({ id: 'voice', type: 'audio' }, '8'), { type: 'audio', resource_id: 8, media_type: 'audio' })
   assert.equal(defaultRuntimeValueForPort({ id: 'payload', type: 'json' }), '{}')
   assert.equal(defaultRuntimeValueForPort({ id: 'enabled', type: 'boolean' }), 'false')
   assert.equal(defaultRuntimeValueForPort({ id: 'prompt', type: 'text' }), '')

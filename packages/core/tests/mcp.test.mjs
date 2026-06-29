@@ -225,7 +225,8 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   const tools = toolList.map((tool) => tool.name)
   const toolsByName = new Map(toolList.map((tool) => [tool.name, tool]))
   assert.equal(tools.includes('system_focus_get'), false)
-  assert.ok(tools.includes('movscript_focus_get'))
+  assert.ok(tools.includes('context_current_get'))
+  assert.equal(tools.includes('movscript_focus_get'), false)
   assert.ok(tools.includes('system_project_create'))
   assert.ok(tools.includes('system_project_init'))
   assert.ok(tools.includes('system_project_open'))
@@ -250,6 +251,34 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
     },
   })
   assert.match(removedFocusResponse?.error?.message ?? '', /Unknown tool: system_focus_get/)
+
+  const removedLegacyFocusResponse = await handleJSONRPC({
+    jsonrpc: '2.0',
+    id: 'removed-legacy-focus',
+    method: 'tools/call',
+    params: {
+      name: 'movscript_focus_get',
+      arguments: {},
+    },
+  })
+  assert.match(removedLegacyFocusResponse?.error?.message ?? '', /Unknown tool: movscript_focus_get/)
+
+  updateMCPContextSnapshot({
+    ...emptyMCPContextSnapshot(),
+    route: { pathname: '/projects/42', search: '?workspaceId=secret&tab=timeline', hash: '#edit' },
+    project: { id: 42, name: 'Demo Project' },
+    productionId: 'prod-1',
+    selection: { entityKind: 'timeline_assembly', label: 'Cut v1' },
+    updatedAt: '2026-06-29T00:00:00.000Z',
+  })
+  const currentContext = await callTool('context_current_get', {})
+  assert.equal(currentContext.schema, 'movscript.mcp.context-current.v1')
+  assert.equal(currentContext.context.route.pathname, '/projects/42')
+  assert.equal(currentContext.context.route.search, '?tab=timeline')
+  assert.equal(currentContext.context.project.name, 'Demo Project')
+  assert.equal(currentContext.source.routeSearchSanitized, true)
+  updateMCPContextSnapshot(emptyMCPContextSnapshot())
+
   assert.ok(tools.includes('system_resource_library_query'))
   assert.ok(tools.includes('system_resource_library_open'))
   assert.ok(tools.includes('system_resource_image_transform_to_resource'))

@@ -83,7 +83,7 @@ const TOOL_NAME_LABELS_ZH: Record<string, string> = {
   core_file_search: '搜索文件',
   core_file_edit: '编辑文件',
   core_update_plan: '更新执行计划',
-  movscript_focus_get: '读取当前焦点',
+  context_current_get: '读取当前上下文',
   reference_get: '读取参考',
   core_memory_get: '读取记忆',
   movscript_project_standards_get: '读取项目标准',

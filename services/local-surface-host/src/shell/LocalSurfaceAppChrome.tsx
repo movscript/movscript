@@ -1,5 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import {
+  AppHostChrome,
+  AppHostChromeActionLabel,
+  AppHostChromeActions,
+  AppHostChromeBrand,
+  AppHostChromeBrandCopy,
+  AppHostChromeBrandMark,
+  AppHostChromeMain,
+  AppHostChromePreferences,
+  AppHostChromeStatus,
+  AppHostChromeTopbar,
+  AppHostChromeWorkspace,
+} from '@movscript/ui/business/app'
+import {
   AppPrimaryNav,
   AppPrimaryNavItem,
   AppPrimaryNavItemContent,
@@ -52,17 +65,19 @@ export function LocalSurfaceAppChrome({
   const tabs = localSurfacePrimaryTabs(query, t, location.pathname)
   const headerDescription = description || (mcpApiBaseURL ? t('localSurfaceHost.home.mcpReady') : '')
   return (
-    <div className="local-surface-shell">
-      <header className="local-surface-topbar">
-        <NavLink className="local-surface-topbar__brand" to={hrefWithSearch(ROUTES.root, query)} end>
-          <span className="local-surface-topbar__mark">
-            <Clapperboard size={16} />
-          </span>
-          <span className="local-surface-topbar__copy">
-            <strong>MovScript</strong>
-            <small>{title}</small>
-          </span>
-        </NavLink>
+    <AppHostChrome>
+      <AppHostChromeTopbar>
+        <AppHostChromeBrand asChild>
+          <NavLink to={hrefWithSearch(ROUTES.root, query)} end>
+            <AppHostChromeBrandMark>
+              <Clapperboard size={16} />
+            </AppHostChromeBrandMark>
+            <AppHostChromeBrandCopy>
+              <strong>MovScript</strong>
+              <small>{title}</small>
+            </AppHostChromeBrandCopy>
+          </NavLink>
+        </AppHostChromeBrand>
         <AppPrimaryNav aria-label={t('localSurfaceHost.tabs.primary')}>
           {tabs.map((tab) => (
             <LocalSurfacePrimaryTab
@@ -75,30 +90,30 @@ export function LocalSurfaceAppChrome({
             />
           ))}
         </AppPrimaryNav>
-        <div className="local-surface-topbar__actions">
+        <AppHostChromeActions>
           {headerDescription ? (
-            <div className="local-surface-header-status">
+            <AppHostChromeStatus>
               <StatusDot tone={mcpApiBaseURL ? 'success' : 'neutral'} />
               <span>{headerDescription}</span>
-            </div>
+            </AppHostChromeStatus>
           ) : null}
           <Button asChild variant="outline" tone="neutral" size="sm" title={t('localSurfaceHost.sidebar.admin')}>
             <a href={adminSurfacePath('overview')}>
               <MonitorCog size={14} />
-              <span className="local-surface-action-label">{t('localSurfaceHost.sidebar.admin')}</span>
+              <AppHostChromeActionLabel>{t('localSurfaceHost.sidebar.admin')}</AppHostChromeActionLabel>
             </a>
           </Button>
           <LocalSurfacePreferenceControls />
-        </div>
-      </header>
-      <section className="local-surface-workspace">
-        <main className="local-surface-shell__main">
+        </AppHostChromeActions>
+      </AppHostChromeTopbar>
+      <AppHostChromeWorkspace>
+        <AppHostChromeMain>
           <AppRouteViewport scroll="auto">
             {children}
           </AppRouteViewport>
-        </main>
-      </section>
-    </div>
+        </AppHostChromeMain>
+      </AppHostChromeWorkspace>
+    </AppHostChrome>
   )
 }
 
@@ -191,7 +206,7 @@ function LocalSurfacePreferenceControls() {
   const languageLabel = (i18n.resolvedLanguage || i18n.language)?.startsWith('zh') ? '中文' : 'EN'
 
   return (
-    <div className="local-surface-preferences" aria-label="Local Surface preferences">
+    <AppHostChromePreferences aria-label="Local Surface preferences">
       <Button
         type="button"
         variant="outline"
@@ -201,7 +216,7 @@ function LocalSurfacePreferenceControls() {
         title={nextTheme === 'dark' ? t('localSurfaceHost.preferences.switchToDark') : t('localSurfaceHost.preferences.switchToLight')}
       >
         {theme === 'dark' ? <Moon size={13} /> : <Sun size={13} />}
-        <span className="local-surface-action-label">{t('localSurfaceHost.preferences.theme')}</span>
+        <AppHostChromeActionLabel>{t('localSurfaceHost.preferences.theme')}</AppHostChromeActionLabel>
         <strong>{t(`localSurfaceHost.preferences.${themeMeta.name}`)}</strong>
       </Button>
       <Button
@@ -213,9 +228,9 @@ function LocalSurfacePreferenceControls() {
         title={t('localSurfaceHost.preferences.switchLanguage')}
       >
         <Languages size={13} />
-        <span className="local-surface-action-label">{t('localSurfaceHost.preferences.language')}</span>
+        <AppHostChromeActionLabel>{t('localSurfaceHost.preferences.language')}</AppHostChromeActionLabel>
         <strong>{languageLabel}</strong>
       </Button>
-    </div>
+    </AppHostChromePreferences>
   )
 }

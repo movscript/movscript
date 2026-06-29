@@ -21,6 +21,8 @@ import {
 } from '../dist/data.js'
 import {
   agentImpactPreviewTimelineHref,
+  buildTimelineAssemblyState,
+  buildWorkflowArtifactDebugView,
 } from '../dist/react.js'
 import {
   createHostedProjectSurfaceRuntime,
@@ -139,7 +141,13 @@ test('project edit desk exposes a draggable timeline assembly workbench', () => 
   assert.match(source, /DEFAULT_EDIT_PROFILE/)
   assert.match(source, /buildTimelineAssemblyState/)
   assert.match(source, /buildTimelineAssemblySourceNamespace/)
-  assert.match(source, /NamespaceSpinePanel/)
+  assert.match(source, /ContentUnitIntentPanel/)
+  assert.match(source, /ContentUnitIntentCard/)
+  assert.match(source, /contentUnitIntentSummary/)
+  assert.match(source, /assetStatusOrder/)
+  assert.match(source, /FinishingBackendPicker/)
+  assert.match(source, /selectedBackends/)
+  assert.match(source, /onToggleBackend/)
   assert.match(source, /buildEditDecisionHandoff/)
   assert.match(source, /buildTimelineAssemblyEditActionPlan/)
   assert.match(source, /buildOpenMontageEditDecisions/)
@@ -154,19 +162,19 @@ test('project edit desk exposes a draggable timeline assembly workbench', () => 
   assert.match(source, /compile_diagnostics/)
   assert.match(source, /backend_options/)
   assert.match(source, /finishing_projects/)
-  assert.match(source, /Finishing backend projects/)
   assert.match(source, /video_compose_request/)
   assert.match(source, /editing_video_compose/)
-  assert.match(source, /EditingServiceGateway/)
-  assert.match(source, /editingGateway\.render/)
-  assert.match(source, /editingGateway\.taskGet/)
-  assert.match(source, /ComposeResultCard/)
-  assert.match(source, /edit-desk-compose-progress/)
+  assert.match(source, /ProjectServiceGateway/)
+  assert.match(source, /readTimelineAssemblyDraft/)
+  assert.match(source, /writeTimelineAssemblyDraft/)
+  assert.match(source, /timelineAssemblyDraftPayload/)
+  assert.match(source, /timelineAssemblyStateFromDraftRecord/)
+  assert.match(source, /edit-desk-editor-picker/)
+  assert.match(source, /type="checkbox"/)
+  assert.match(source, /FINISHING_BACKEND_LABELS/)
+  assert.match(source, /selected_output/)
   assert.match(source, /mediaLocalPathFromRecord/)
   assert.match(source, /local_path/)
-  assert.match(source, /创建成片任务/)
-  assert.match(source, /composeResultMessage/)
-  assert.match(source, /composeResultSummary/)
   assert.match(source, /CompileManifest/)
   assert.match(source, /source_namespace/)
   assert.match(source, /coverage_map/)
@@ -174,7 +182,6 @@ test('project edit desk exposes a draggable timeline assembly workbench', () => 
   assert.match(source, /edit_action_plan/)
   assert.match(source, /intent_ref/)
   assert.match(source, /OpenMontage 动作/)
-  assert.match(source, /成片请求/)
   assert.match(source, /transition_in/)
   assert.match(source, /ducking/)
   assert.match(source, /subtitle_style/)
@@ -184,17 +191,105 @@ test('project edit desk exposes a draggable timeline assembly workbench', () => 
   assert.match(source, /draggable/)
   assert.match(source, /onDropPayload/)
   assert.match(source, /edit_decisions/)
+  assert.doesNotMatch(source, /NamespaceSpinePanel/)
+  assert.doesNotMatch(source, /HandoffPanel/)
+  assert.doesNotMatch(source, /ComposeResultCard/)
+  assert.doesNotMatch(source, /edit-desk-toolbar/)
+  assert.doesNotMatch(source, /edit-desk-backend-selector/)
+  assert.doesNotMatch(source, /复制项目草案/)
   assert.match(css, /\.edit-desk-main/)
   assert.match(css, /\.edit-desk-left-rail/)
-  assert.match(css, /\.edit-desk-namespace-spine/)
-  assert.match(css, /\.edit-desk-coverage-strip/)
+  assert.match(css, /\.edit-desk-content-unit-list/)
+  assert.match(css, /\.edit-desk-content-unit-list__items/)
+  assert.match(css, /\.edit-desk-editor-picker/)
+  assert.match(css, /\.edit-desk-editor-checkbox/)
   assert.match(css, /\.edit-desk-inspector-section/)
   assert.match(css, /\.edit-desk-timeline/)
   assert.match(css, /\.edit-desk-clip/)
-  assert.match(css, /\.edit-desk-compose-card/)
-  assert.match(css, /\.edit-desk-compose-progress/)
-  assert.match(css, /\.edit-desk-issues/)
+  assert.doesNotMatch(css, /\.edit-desk-toolbar/)
+  assert.doesNotMatch(css, /\.edit-desk-backend-selector/)
+  assert.doesNotMatch(css, /\.edit-desk-namespace-spine/)
   assert.match(css, /max-height: 310px/)
+})
+
+test('project edit desk reads timeline namespace and ContentUnit output refs from read models', () => {
+  const debugView = buildWorkflowArtifactDebugView({
+    readModel: {
+      projectReadModel: {
+        schema: 'movscript.project-read-model.v1',
+        productions: [{
+          id: 'ep01_rebirth_refusal',
+          title: 'Rebirth Refusal',
+        }],
+        domainGraph: {
+          nodes: [{
+            category: 'timeline_namespace',
+            kind: 'production',
+            id: 'ep01_rebirth_refusal',
+            title: 'Rebirth Refusal',
+            path: 'productions/ep01_rebirth_refusal/production.json',
+            metadata: { entityKind: 'production' },
+          }],
+        },
+        contentUnits: [{
+          id: 'cu_refusal_opening_shot',
+          title: 'Opening shot',
+          content_unit_type: 'expression_unit_ref',
+          output_kind: 'video',
+          content_unit_ref: 'content_units/cu_refusal_opening_shot',
+          expression_unit_ref: 'productions/ep01_rebirth_refusal/segments/opening/scene_moments/refusal/expression_units/opening_shot',
+          candidate_count: 1,
+          selected_output: {
+            candidate_id: 'cand_opening_shot',
+            resource_id: 812,
+          },
+        }],
+      },
+    },
+  })
+  const assembly = buildTimelineAssemblyState({
+    debugView,
+    productionId: 'ep01_rebirth_refusal',
+    targetRef: 'timeline_assembly:production:ep01_rebirth_refusal',
+    focusLabel: 'production: ep01_rebirth_refusal',
+  })
+
+  assert.equal(debugView.timelineNamespaces.length, 1)
+  assert.equal(assembly.sourceNamespace.root.title, 'Rebirth Refusal')
+  assert.equal(debugView.assetManifest[0].semanticRef, '{{content_unit::cu_refusal_opening_shot}}')
+  assert.equal(debugView.assetManifest[0].targetEntityRef, 'productions/ep01_rebirth_refusal/segments/opening/scene_moments/refusal/expression_units/opening_shot')
+  assert.equal(debugView.assetManifest[0].resourceId, '812')
+  assert.equal(assembly.clips[0].intentRef.contentUnitId, 'cu_refusal_opening_shot')
+})
+
+test('project edit desk keeps ContentUnits visible before candidate output exists', () => {
+  const debugView = buildWorkflowArtifactDebugView({
+    readModel: {
+      projectReadModel: {
+        schema: 'movscript.project-read-model.v1',
+        overview: {
+          contentUnits: [{
+            id: 'content_unit:cu_nested_opening_shot',
+            path: 'content_units/cu_nested_opening_shot/content_unit.json',
+            record: {
+              id: 'cu_nested_opening_shot',
+              title: 'Nested opening shot',
+              content_unit_type: 'expression_unit_ref',
+              output_kind: 'video',
+              expression_unit_ref: 'productions/ep01/segments/opening/scene_moments/wakeup/expression_units/opening_shot',
+            },
+          }],
+        },
+      },
+    },
+  })
+
+  assert.equal(debugView.requiredAssets.length, 1)
+  assert.equal(debugView.requiredAssets[0].contentUnitId, 'cu_nested_opening_shot')
+  assert.equal(debugView.requiredAssets[0].targetEntityRef, 'productions/ep01/segments/opening/scene_moments/wakeup/expression_units/opening_shot')
+  assert.equal(debugView.assetManifest.length, 1)
+  assert.equal(debugView.assetManifest[0].semanticRef, '{{content_unit::cu_nested_opening_shot}}')
+  assert.equal(debugView.assetManifest[0].status, 'missing_candidate')
 })
 
 test('project surface descriptor carries host-neutral project intent', () => {

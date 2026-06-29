@@ -60,3 +60,13 @@ test('GitHub Pages install surface keeps plugin-only and Desktop paths separate'
   assert.match(page, /Desktop 与 Agent 插件和 CLI 复用同一个本机 runtime daemon/)
   assert.doesNotMatch(page, /Desktop[^<。]*owner/)
 })
+
+test('Desktop package staging uses pnpm 10 injected deploy without legacy mode', () => {
+  const releaseWorkflow = read('scripts/release/release-workflow.mjs')
+
+  assert.match(
+    releaseWorkflow,
+    /spawn\(pnpm, \[\s*'--config\.inject-workspace-packages=true',\s*'--filter',\s*'@movscript\/desktop',\s*'deploy',\s*'--prod',\s*stageDir\s*\]/,
+  )
+  assert.doesNotMatch(releaseWorkflow, /'deploy',\s*'--legacy'/)
+})

@@ -32,6 +32,8 @@ export type SurfaceModelReferenceAssetIntent = {
 
 export type SurfaceModelListOptions = {
   operation?: string
+  targetOutput?: 'image' | 'video' | 'audio' | 'text' | string
+  resolveIntent?: boolean
   referenceAssets?: SurfaceModelReferenceAssetIntent[]
 }
 
@@ -48,6 +50,8 @@ export async function listSurfaceModelsByCapability(capability: SurfaceModelCapa
   const params = new URLSearchParams()
   params.set('capability', queryCapability)
   if (options.operation?.trim()) params.set('operation', options.operation.trim())
+  if (options.targetOutput?.trim()) params.set('target_output', options.targetOutput.trim())
+  if (options.resolveIntent) params.set('resolve_intent', 'true')
   if (options.referenceAssets && options.referenceAssets.length > 0) {
     params.set('reference_assets', surfaceModelReferenceAssetsKey(options.referenceAssets))
   }

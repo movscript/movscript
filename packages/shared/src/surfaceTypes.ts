@@ -295,6 +295,8 @@ export interface PublicModel {
   capabilities: string[]
   supported_api_kinds?: ProviderModelAPIKind[]
   accepts_image_input: boolean
+  inferred_operation?: string
+  resolver_operations?: string[]
   is_default?: boolean
   supported_params?: ParamDef[]
   input_requirements?: ModelInputRequirements

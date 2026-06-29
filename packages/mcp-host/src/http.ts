@@ -79,8 +79,8 @@ export async function handleMCPHostHTTP(req: IncomingMessage, res: ServerRespons
     const body = await readBody(req)
     const payload = JSON.parse(body) as JSONRPCRequest | JSONRPCRequest[]
     const response = Array.isArray(payload)
-      ? (await Promise.all(payload.map((item) => handleMCPHostJSONRPC(item)))).filter((item): item is JSONRPCResponse => item !== undefined)
-      : await handleMCPHostJSONRPC(payload)
+      ? (await Promise.all(payload.map((item) => handleMCPHostJSONRPC(item, { proxyToDaemon: true })))).filter((item): item is JSONRPCResponse => item !== undefined)
+      : await handleMCPHostJSONRPC(payload, { proxyToDaemon: true })
     if (Array.isArray(response)) {
       if (response.length > 0) writeJSON(res, 200, response)
       else writeAccepted(res)

@@ -22,7 +22,7 @@ import {
   stopLocalRuntimeDaemon,
 } from '@movscript/local-runtime'
 import { mcpHostProgramManifest } from '@movscript/mcp-host/program-manifest'
-import { startMCPStdioHost } from '@movscript/mcp-host/stdio'
+import { handleMCPHostJSONRPC, listMCPHostTools, startMCPStdioHost } from '@movscript/mcp-host/stdio'
 import {
   MOVSCRIPT_PROGRAM_MANIFEST_SCHEMA,
   MOVSCRIPT_APPLICATION_MANIFEST_SCHEMA,
@@ -66,8 +66,13 @@ const DAEMON_RUNTIME_DESCRIPTOR_ENDPOINT = '/v1/runtime/descriptor'
 const DAEMON_RUNTIME_STATUS_ENDPOINT = '/v1/runtime/status'
 const DAEMON_RUNTIME_DIAGNOSTICS_ENDPOINT = '/v1/runtime/diagnostics'
 const DAEMON_RUNTIME_CONFIGURE_ENDPOINT = '/v1/runtime/configure'
+const DAEMON_MCP_ENDPOINT = '/v1/mcp'
+const DAEMON_MCP_HEALTH_ENDPOINT = '/v1/mcp/health'
+const LEGACY_MCP_ENDPOINT = '/mcp'
 const DAEMON_CONTEXT_ENDPOINT = '/v1/context'
 const DAEMON_CONTEXT_SESSIONS_ENDPOINT = '/v1/context/sessions'
+const LOCAL_PROJECT_SERVICE_PROXY_PREFIX = '/v1/project'
+const LOCAL_PROJECT_SERVICE_ALIAS_PREFIX = '/local-api/project'
 const LOCAL_PROJECT_SERVICE_PROXY_ROUTES = new Map<string, string>([
   ['/v1/project/read-model', '/v1/project/read-model'],
   ['/v1/project/lifecycle/command', '/v1/project/lifecycle/command'],
@@ -401,6 +406,8 @@ interface DaemonRuntimeDescriptor {
   gateway: {
     baseURL: string
     canonicalPrefix: '/v1'
+    mcpEndpoint: string
+    mcpHealthEndpoint: string
   }
   dataConnection: DaemonContextEnvelope['dataConnection']
   capabilities: {
@@ -1335,7 +1342,15 @@ async function handleLocalSurfaceGatewayRequest(
     await handleDaemonRuntimeRequest(homeDir, request, response, url, localNodeState)
     return true
   }
-  if (LOCAL_PROJECT_SERVICE_PROXY_ROUTES.has(url.pathname)) {
+  if (
+    url.pathname === DAEMON_MCP_ENDPOINT
+    || url.pathname === DAEMON_MCP_HEALTH_ENDPOINT
+    || url.pathname === LEGACY_MCP_ENDPOINT
+  ) {
+    await handleDaemonMCPRequest(homeDir, request, response, url)
+    return true
+  }
+  if (projectServiceProxyUpstreamPath(url.pathname)) {
     await proxyProjectServiceRequest(homeDir, request, response, url)
     return true
   }
@@ -1414,7 +1429,11 @@ function isGatewayAPIPath(pathname: string): boolean {
     || pathname === DAEMON_RUNTIME_STATUS_ENDPOINT
     || pathname === DAEMON_RUNTIME_DIAGNOSTICS_ENDPOINT
     || pathname === DAEMON_RUNTIME_CONFIGURE_ENDPOINT
-    || pathname.startsWith('/v1/project/')
+    || pathname === DAEMON_MCP_ENDPOINT
+    || pathname === DAEMON_MCP_HEALTH_ENDPOINT
+    || pathname === LEGACY_MCP_ENDPOINT
+    || pathname === LOCAL_PROJECT_SERVICE_PROXY_PREFIX
+    || pathname.startsWith(`${LOCAL_PROJECT_SERVICE_PROXY_PREFIX}/`)
     || pathname === '/v1/editing'
     || pathname.startsWith('/v1/editing/')
     || pathname === '/v1/media-pipeline'
@@ -1423,7 +1442,8 @@ function isGatewayAPIPath(pathname: string): boolean {
     || pathname.startsWith('/v1/host/editing/')
     || pathname === '/local-api/editing'
     || pathname.startsWith('/local-api/editing/')
-    || pathname.startsWith('/local-api/project/')
+    || pathname === LOCAL_PROJECT_SERVICE_ALIAS_PREFIX
+    || pathname.startsWith(`${LOCAL_PROJECT_SERVICE_ALIAS_PREFIX}/`)
 }
 
 async function serveLocalSurfaceStaticFile(
@@ -1659,6 +1679,8 @@ function issueDaemonRuntimeDescriptor(homeDir: string, request?: IncomingMessage
     gateway: {
       baseURL: daemonGatewayBaseURL(homeDir, request),
       canonicalPrefix: '/v1',
+      mcpEndpoint: `${daemonGatewayBaseURL(homeDir, request)}${DAEMON_MCP_ENDPOINT}`,
+      mcpHealthEndpoint: `${daemonGatewayBaseURL(homeDir, request)}${DAEMON_MCP_HEALTH_ENDPOINT}`,
     },
     dataConnection: daemonDataConnectionContext(homeDir),
     capabilities: {
@@ -1763,6 +1785,84 @@ async function handleDaemonContextRequest(
     writeLocalSurfaceJSON(response, 500, {
       error: 'context_request_failed',
       message: errorMessage(error),
+    })
+  }
+}
+
+async function handleDaemonMCPRequest(
+  homeDir: string,
+  request: IncomingMessage,
+  response: ServerResponse,
+  url: URL,
+): Promise<void> {
+  if (url.pathname === DAEMON_MCP_HEALTH_ENDPOINT) {
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      writeLocalSurfaceJSON(response, 405, {
+        error: 'method_not_allowed',
+        message: 'Daemon MCP health only supports GET.',
+      })
+      return
+    }
+    const descriptor = issueDaemonRuntimeDescriptor(homeDir, request)
+    const payload = {
+      schema: 'movscript.daemon-mcp-health.v1',
+      status: 'ok',
+      serviceName: 'movscript.daemon.mcp',
+      endpoint: descriptor.gateway.mcpEndpoint,
+      toolCount: listMCPHostTools().length,
+      runtime: descriptor.runtime,
+      dataConnection: descriptor.dataConnection,
+    }
+    if (request.method === 'HEAD') {
+      response.writeHead(200, { 'content-type': 'application/json; charset=utf-8' })
+      response.end()
+      return
+    }
+    writeLocalSurfaceJSON(response, 200, payload)
+    return
+  }
+
+  if (request.method !== 'POST') {
+    writeLocalSurfaceJSON(response, 405, {
+      error: 'method_not_allowed',
+      message: 'Daemon MCP endpoint only supports POST JSON-RPC requests.',
+    })
+    return
+  }
+
+  try {
+    const body = await readRequestText(request)
+    const payload = JSON.parse(body) as unknown
+    const localHandlerOptions = { proxyToDaemon: false }
+    const result = Array.isArray(payload)
+      ? (await Promise.all(payload.map((item) => handleMCPHostJSONRPC(item as Parameters<typeof handleMCPHostJSONRPC>[0], localHandlerOptions))))
+          .filter((item): item is NonNullable<typeof item> => item !== undefined)
+      : await handleMCPHostJSONRPC(payload as Parameters<typeof handleMCPHostJSONRPC>[0], localHandlerOptions)
+
+    if (Array.isArray(result)) {
+      if (result.length > 0) {
+        writeLocalSurfaceJSON(response, 200, result)
+      } else {
+        response.writeHead(202, { 'content-type': 'application/json; charset=utf-8' })
+        response.end()
+      }
+      return
+    }
+    if (result !== undefined) {
+      writeLocalSurfaceJSON(response, 200, result)
+      return
+    }
+    response.writeHead(202, { 'content-type': 'application/json; charset=utf-8' })
+    response.end()
+  } catch (error) {
+    writeLocalSurfaceJSON(response, 200, {
+      jsonrpc: '2.0',
+      id: null,
+      error: {
+        code: -32700,
+        message: 'Parse error',
+        data: errorMessage(error),
+      },
     })
   }
 }
@@ -2174,7 +2274,7 @@ async function proxyDataServiceRequest(
 }
 
 async function proxyProjectServiceRequest(homeDir: string, request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
-  const upstreamPath = LOCAL_PROJECT_SERVICE_PROXY_ROUTES.get(url.pathname)
+  const upstreamPath = projectServiceProxyUpstreamPath(url.pathname)
   if (!upstreamPath) {
     writeLocalSurfaceJSON(response, 404, {
       error: 'project_service_route_not_found',
@@ -2207,6 +2307,18 @@ async function proxyProjectServiceRequest(homeDir: string, request: IncomingMess
       message: errorMessage(error),
     })
   }
+}
+
+function projectServiceProxyUpstreamPath(pathname: string): string | undefined {
+  const registeredRoute = LOCAL_PROJECT_SERVICE_PROXY_ROUTES.get(pathname)
+  if (registeredRoute) return registeredRoute
+  if (pathname === LOCAL_PROJECT_SERVICE_PROXY_PREFIX || pathname.startsWith(`${LOCAL_PROJECT_SERVICE_PROXY_PREFIX}/`)) {
+    return pathname
+  }
+  if (pathname === LOCAL_PROJECT_SERVICE_ALIAS_PREFIX || pathname.startsWith(`${LOCAL_PROJECT_SERVICE_ALIAS_PREFIX}/`)) {
+    return `${LOCAL_PROJECT_SERVICE_PROXY_PREFIX}${pathname.slice(LOCAL_PROJECT_SERVICE_ALIAS_PREFIX.length)}`
+  }
+  return undefined
 }
 
 async function writeProxyUpstreamResponse(response: ServerResponse, upstream: Response, request: IncomingMessage): Promise<void> {

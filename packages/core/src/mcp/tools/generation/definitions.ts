@@ -56,7 +56,7 @@ function generationCapabilityListTool(): MCPTool {
 function generationPrepareTool(): MCPTool {
   return {
     name: 'generation_prepare',
-    description: 'Prepare a MovScript generation request: validate capability/scope, list usable models, and compile content-unit prompts when scope is content_unit. Capability-family requests must include an explicit operation or generation_intent.operation.',
+    description: 'Prepare a MovScript generation request: validate capability/scope, list usable models, and compile content-unit prompts when scope is content_unit. Image/video family requests can omit operation; the backend resolver infers usable model operations from target output and typed reference_assets. Audio family requests still require operation because tts/music/stt are semantically distinct.',
     inputSchema: generationRequestSchema(['capability']),
     outputSchema: objectSchema(
       {
@@ -77,7 +77,7 @@ function generationPrepareTool(): MCPTool {
 function generationSubmitTool(): MCPTool {
   return {
     name: 'generation_submit',
-    description: 'Submit any MovScript generation job through one unified capability contract. Capability-family submissions must include an explicit operation or generation_intent.operation; the tool never infers the operation from resource count. Use scope=content_unit for candidate-producing image/video generation, otherwise outputs are RawResources until explicitly registered.',
+    description: 'Submit any MovScript generation job through one unified capability contract. Image/video family submissions may omit operation when typed reference_assets are present; backend routing infers the compatible operation and validates it again. Use scope=content_unit for candidate-producing image/video generation, otherwise outputs are RawResources until explicitly registered.',
     inputSchema: generationRequestSchema(['capability']),
     outputSchema: objectSchema(
       {
@@ -218,7 +218,7 @@ function generationResultRegisterTool(): MCPTool {
 function generationRequestSchema(required: string[] = []): MCPTool['inputSchema'] {
   return objectSchema(
     {
-      capability: { type: 'string', enum: [...GENERATION_CAPABILITIES], description: 'MovScript generation capability. Prefer generation families such as image_generation, video_generation, or audio_generation plus an explicit operation.' },
+      capability: { type: 'string', enum: [...GENERATION_CAPABILITIES], description: 'MovScript generation capability. Prefer generation families such as image_generation, video_generation, or audio_generation; image/video operations may be backend-inferred from typed references.' },
       scope: { type: 'string', enum: ['free', 'content_unit', 'asset', 'storyboard', 'keyframe'], description: 'Generation target scope. content_unit image/video jobs create candidates on successful terminal polling.' },
       prompt: { type: 'string', minLength: 1 },
       title: { type: 'string' },
@@ -255,7 +255,7 @@ function generationRequestSchema(required: string[] = []): MCPTool['inputSchema'
           'sfx',
           'speech_enhancement',
         ],
-        description: 'Explicit model operation intent. Required for image_generation, video_generation, and audio_generation; agents must choose this instead of relying on resource count, route, provider, or adapter details.',
+        description: 'Explicit model operation intent. Optional for image_generation/video_generation when typed reference_assets are provided; required for audio_generation because tts, stt, music, and sfx are different user intents.',
       },
       model_operation: { type: 'string', description: 'Alias for operation.' },
       generation_intent: {

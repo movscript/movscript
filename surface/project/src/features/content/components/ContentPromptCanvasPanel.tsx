@@ -27,12 +27,17 @@ import {
   generationBackendPreflightBlockerMessages,
   generationBackendPreflightIsReady,
   generationParamDefaults,
+  generationParamRequiresValueSatisfied,
+  generationReferenceMediaTypeShortLabel,
   generationReferenceAssetsFromPromptText,
+  generationReferenceRoleLabel,
   generationReferenceRoleOptionsForMediaType,
   generationReadinessBlockerMessages,
   generationReadinessIsReady,
   type GenerationBackendPreflightResult,
+  type GenerationIntentPayload,
 } from '@movscript/core/generation'
+import { publicAgentBackendModelLabel as publicModelLabel } from '@movscript/core/agent'
 import { allocateMovScriptEntityId } from '@movscript/domain'
 import { readResourceDragPayload, resourceDropAcceptsPayload } from '@movscript/resource-surface/resource-interaction'
 import { ResourceFileImage, ResourceFileVideo } from '@movscript/resource-surface/resource-media-components'
@@ -60,6 +65,7 @@ import {
   GenerationCallMessages,
   GenerationCallMetaRow,
   GenerationCallPromptBlock,
+  GenerationParamPreview,
   GenerationReferenceRoleMenu,
 } from '@movscript/ui/business/generation'
 
@@ -132,11 +138,15 @@ import {
 
 type CreativeFlowNodeData = {
   item: CreativeCanvasNode
+  itemKey: string
   focused: boolean
   candidateSelections: CandidateSelections
+  candidateSelectionsKey: string
   candidateBadge: string
   candidatePreviews: CreativeFlowNodeCandidatePreview[]
+  candidatePreviewsKey: string
   nodes: ContentCanvasNode[]
+  nodesKey: string
   prompt: string
   referenceTargetNodeId?: string | null
   onContextMenu: (event: ReactMouseEvent, node: ContentCanvasNode) => void
@@ -330,7 +340,6 @@ export function ContentPromptCanvasPanel({
   onSaveCanvas,
   onStructuredPromptCommit,
   onResourceOpen,
-  onSelectCanvas,
   onSelectNode,
 }: {
   activeCanvasDocument?: ContentCanvasDocument
@@ -375,7 +384,6 @@ export function ContentPromptCanvasPanel({
   onSaveCanvas: () => void
   onStructuredPromptCommit: (node: ContentCanvasNode | undefined, structured: Record<string, unknown>) => void
   onResourceOpen: (node: ContentCanvasNode) => void
-  onSelectCanvas: (canvasId: string) => void
   onSelectNode: (kind: InspectorSelection['kind'], nodeId: string) => void
 }) {
   void onCandidateUpload
@@ -437,6 +445,14 @@ export function ContentPromptCanvasPanel({
     for (const node of nodes) output[node.id] = promptDraftForNode(node, draftAssetPrompts, draftExpressionPrompts)
     return output
   }, [draftAssetPrompts, draftExpressionPrompts, nodes])
+  const contentNodesKey = useMemo(
+    () => contentPromptNodeListKey(nodes),
+    [nodes],
+  )
+  const candidateSelectionsKey = useMemo(
+    () => stableContentPromptJSONString(candidateSelections),
+    [candidateSelections],
+  )
   const openNodeContextMenu = useCallback((event: ReactMouseEvent, node: ContentCanvasNode) => {
     event.preventDefault()
     const actions = creativeCanvasActionsForNode(node)
@@ -520,39 +536,46 @@ export function ContentPromptCanvasPanel({
     }
     appendReferenceToPromptTargetWithRole(targetNode, sourceNode)
   }, [appendReferenceToPromptTargetWithRole, candidateSelections, nodeById])
-  const initialFlowNodes = useMemo<Node<CreativeFlowNodeData>[]>(() => creativeGraph.nodes.map((item) => ({
-    id: item.id,
-    type: 'contentPrompt',
-    position: persistedManualPositions?.[item.id] ?? item.position,
-    selected: item.id === focusedNodeId,
-    data: {
-      item,
-      focused: item.id === focusedNodeId,
-      candidateSelections,
-      candidateBadge: nodeCandidateBadge(item.source, candidateSelections) || '可生成',
-      candidatePreviews: candidatePreviewsForNode(item.source, candidateSelections),
-      nodes,
-      prompt: promptByNodeId[item.id] ?? '',
-      referenceTargetNodeId: activePromptReferenceTargetId,
-      onContextMenu: openNodeContextMenu,
-      onCandidatePreviewOpen: (preview) => setCandidatePreviewDialog({ preview, sourceNode: item.source }),
-      onCandidateRemove: (node, candidate) => onCandidateRemove(node, candidate),
-      onCandidateSelect: (node, candidate) => onCandidateSelect(node, candidate),
-      onCandidatePromptPreview,
-      onGenerateWithOptions: (node, options) => onCandidateCreate(node, options),
-      onGeneratePreflight: (node, options) => onCandidatePreflight
-        ? onCandidatePreflight(node, options)
-        : Promise.resolve({ status: 'ready', ready: true, blockers: [] }),
-      onReferenceToActivePrompt: appendReferenceToActivePrompt,
-      onReferenceDrop: appendReferenceToPromptTarget,
-      onResourceDrop: createResourceCandidateFromDrop,
-      onCanvasDeselect,
-      onPromptCommit: commitPromptFromNode,
-      onPromptDraftChange: updatePromptDraft,
-      onStructuredPromptCommit,
-      onSelectNode,
-    },
-  })), [activePromptReferenceTargetId, appendReferenceToActivePrompt, appendReferenceToPromptTarget, candidateSelections, commitPromptFromNode, createResourceCandidateFromDrop, creativeGraph.nodes, focusedNodeId, nodes, onCanvasDeselect, onCandidateCreate, onCandidatePreflight, onCandidatePromptPreview, onCandidateRemove, onCandidateSelect, onSelectNode, onStructuredPromptCommit, openNodeContextMenu, persistedManualPositions, promptByNodeId, updatePromptDraft])
+  const initialFlowNodes = useMemo<Node<CreativeFlowNodeData>[]>(() => creativeGraph.nodes.map((item) => {
+    const candidatePreviews = candidatePreviewsForNode(item.source, candidateSelections)
+    return {
+      id: item.id,
+      type: 'contentPrompt',
+      position: persistedManualPositions?.[item.id] ?? item.position,
+      selected: item.id === focusedNodeId,
+      data: {
+        item,
+        itemKey: creativeCanvasNodeSemanticKey(item),
+        focused: item.id === focusedNodeId,
+        candidateSelections,
+        candidateSelectionsKey,
+        candidateBadge: nodeCandidateBadge(item.source, candidateSelections) || '可生成',
+        candidatePreviews,
+        candidatePreviewsKey: creativeFlowNodeCandidatePreviewsKey(candidatePreviews),
+        nodes,
+        nodesKey: contentNodesKey,
+        prompt: promptByNodeId[item.id] ?? '',
+        referenceTargetNodeId: activePromptReferenceTargetId,
+        onContextMenu: openNodeContextMenu,
+        onCandidatePreviewOpen: (preview) => setCandidatePreviewDialog({ preview, sourceNode: item.source }),
+        onCandidateRemove: (node, candidate) => onCandidateRemove(node, candidate),
+        onCandidateSelect: (node, candidate) => onCandidateSelect(node, candidate),
+        onCandidatePromptPreview,
+        onGenerateWithOptions: (node, options) => onCandidateCreate(node, options),
+        onGeneratePreflight: (node, options) => onCandidatePreflight
+          ? onCandidatePreflight(node, options)
+          : Promise.resolve({ status: 'ready', ready: true, blockers: [] }),
+        onReferenceToActivePrompt: appendReferenceToActivePrompt,
+        onReferenceDrop: appendReferenceToPromptTarget,
+        onResourceDrop: createResourceCandidateFromDrop,
+        onCanvasDeselect,
+        onPromptCommit: commitPromptFromNode,
+        onPromptDraftChange: updatePromptDraft,
+        onStructuredPromptCommit,
+        onSelectNode,
+      },
+    }
+  }), [activePromptReferenceTargetId, appendReferenceToActivePrompt, appendReferenceToPromptTarget, candidateSelections, candidateSelectionsKey, commitPromptFromNode, contentNodesKey, createResourceCandidateFromDrop, creativeGraph.nodes, focusedNodeId, nodes, onCanvasDeselect, onCandidateCreate, onCandidatePreflight, onCandidatePromptPreview, onCandidateRemove, onCandidateSelect, onSelectNode, onStructuredPromptCommit, openNodeContextMenu, persistedManualPositions, promptByNodeId, updatePromptDraft])
   const initialFlowEdges = useMemo<Edge[]>(() => creativeGraph.edges.map((edge) => ({
     id: edge.id,
     source: edge.source,
@@ -894,18 +917,6 @@ export function ContentPromptCanvasPanel({
           {activeCanvasDocument?.title ?? '自由内容画布'}
         </span>
         <em>{contentCanvasScopeLabel(activeCanvasScope)}</em>
-        <select
-          className="content-prompt-canvas-panel__canvas-select"
-          value={activeCanvasDocument?.id ?? ''}
-          onChange={(event) => onSelectCanvas(event.target.value)}
-          aria-label="选择画布"
-        >
-          {canvasDocuments.map((document) => (
-            <option key={document.id} value={document.id}>
-              {document.title} · {contentCanvasScopeLabel(contentCanvasDocumentScope(document))}
-            </option>
-          ))}
-        </select>
         <em>{creativeGraph.nodes.length} 个创作节点，{generatableCount} 个可生成节点</em>
         <button
           type="button"
@@ -2501,15 +2512,17 @@ function ContentPromptFlowNodeGenerationPanel({
     [mediaKind, promptReferenceAssets],
   )
   const [operation, setOperation] = useState(() => operationOptions[0]?.value ?? '')
+  const [operationExplicit, setOperationExplicit] = useState(false)
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
   const [selectedModel, setSelectedModel] = useState<PublicModel | null>(null)
   const [params, setParams] = useState<Record<string, string | number | boolean>>({})
   const [backendPreflight, setBackendPreflight] = useState<GenerationBackendPreflightResult | null>(null)
   const [backendPreflightPending, setBackendPreflightPending] = useState(false)
   const supportedParams = useMemo(() => selectedModel?.supported_params ?? [], [selectedModel?.supported_params])
-  const generationIntent = useMemo(() => (
-    operation ? contentCanvasGenerationIntent(mediaKind, operation, promptReferenceResourceIds, promptReferenceAssets) : null
-  ), [mediaKind, operation, promptReferenceAssets, promptReferenceResourceIds])
+  const generationIntent = useMemo(
+    () => contentCanvasGenerationIntent(mediaKind, operation, promptReferenceResourceIds, promptReferenceAssets),
+    [mediaKind, operation, promptReferenceAssets, promptReferenceResourceIds],
+  )
   const generationReadiness = evaluateGenerationReadiness({
     prompt: generationPrompt,
     promptRequired: true,
@@ -2531,8 +2544,9 @@ function ContentPromptFlowNodeGenerationPanel({
       params,
       supportedParams,
       generationIntent,
+      generationOperationExplicit: operationExplicit,
     }
-  }, [generationIntent, params, selectedModelId, supportedParams])
+  }, [generationIntent, operationExplicit, params, selectedModelId, supportedParams])
   const readinessMessages = generationReadinessBlockerMessages(generationReadiness)
   const backendPreflightMessages = localCanSubmit
     ? generationBackendPreflightBlockerMessages(backendPreflight)
@@ -2542,6 +2556,37 @@ function ContentPromptFlowNodeGenerationPanel({
     : backendPreflightMessages
   const generationMessages = [...readinessMessages, ...preflightMessages]
   const canSubmit = localCanSubmit && Boolean(backendPreflight) && generationBackendPreflightIsReady(backendPreflight)
+  const visibleParamPreviewItems = supportedParams
+    .filter((param) => generationParamRequiresValueSatisfied(param, params))
+    .slice(0, 6)
+    .map((param) => ({
+      label: param.label || param.key,
+      value: String(params[param.key] ?? param.default ?? '默认'),
+    }))
+  const visibleParamPreviewCount = supportedParams.filter((param) => generationParamRequiresValueSatisfied(param, params)).length
+  const parameterPreviewItems = [
+    {
+      label: '品类',
+      value: operationOptions.find((option) => option.value === operation)?.label ?? operation,
+      tone: localCanSubmit ? 'ready' as const : 'warning' as const,
+    },
+    {
+      label: '输出',
+      value: mediaKindLabel(mediaKind),
+    },
+    ...(selectedModel ? [{
+      label: '模型',
+      value: publicModelLabel(selectedModel),
+    }] : selectedModelId ? [{
+      label: '模型',
+      value: selectedModelId,
+    }] : []),
+    ...visibleParamPreviewItems,
+    ...(visibleParamPreviewCount > 6 ? [{
+      label: '更多',
+      value: `+${visibleParamPreviewCount - 6}`,
+    }] : []),
+  ]
 
   useEffect(() => {
     if (!selectedModel) {
@@ -2555,6 +2600,7 @@ function ContentPromptFlowNodeGenerationPanel({
     const nextOperation = operationOptions[0]?.value ?? ''
     if (!operationOptions.some((option) => option.value === operation)) {
       setOperation(nextOperation)
+      setOperationExplicit(false)
       setSelectedModelId(null)
       setSelectedModel(null)
     }
@@ -2621,6 +2667,7 @@ function ContentPromptFlowNodeGenerationPanel({
       params,
       supportedParams,
       generationIntent,
+      generationOperationExplicit: operationExplicit,
     })
   }
 
@@ -2635,12 +2682,14 @@ function ContentPromptFlowNodeGenerationPanel({
         </span>
       )}
     >
+      <ContentPromptGenerationReferenceSummary references={promptReferenceAssets} />
       <GenerationCallMetaRow className="content-prompt-flow-node__generation-grid">
         <GenerationCallField label="品类">
           <Select
             value={operation}
             onValueChange={(nextOperation) => {
               setOperation(nextOperation)
+              setOperationExplicit(true)
               setSelectedModelId(null)
               setSelectedModel(null)
             }}
@@ -2665,8 +2714,10 @@ function ContentPromptFlowNodeGenerationPanel({
         <GenerationCallField label="模型">
           <ContentCanvasModelSelector
             capability={capability}
-            operation={operation}
-            referenceAssets={generationIntent?.reference_assets}
+            operation={operationExplicit ? operation : ''}
+            targetOutput={mediaKind}
+            resolveIntent={!operationExplicit}
+            referenceAssets={generationIntent?.reference_assets ?? promptReferenceAssets}
             className="content-prompt-flow-node__generation-model"
             value={selectedModelId}
             onChange={setSelectedModelId}
@@ -2682,8 +2733,11 @@ function ContentPromptFlowNodeGenerationPanel({
           className="content-prompt-flow-node__generation-params"
         />
       ) : (
-        <small className="content-prompt-flow-node__generation-defaults">使用模型默认参数</small>
+        <small className="content-prompt-flow-node__generation-defaults">
+          {selectedModel ? '当前模型没有可配置参数' : '选择模型后显示参数'}
+        </small>
       )}
+      <GenerationParamPreview items={parameterPreviewItems} />
       <GenerationCallFooter className="content-prompt-flow-node__generation-footer">
         <GenerationCallMessages
           className="content-prompt-flow-node__generation-messages"
@@ -2696,6 +2750,59 @@ function ContentPromptFlowNodeGenerationPanel({
       </GenerationCallFooter>
     </GenerationCallConfigBlock>
   )
+}
+
+function ContentPromptGenerationReferenceSummary({
+  references,
+}: {
+  references: NonNullable<GenerationIntentPayload['reference_assets']>
+}) {
+  if (!references.length) return null
+  return (
+    <div className="content-prompt-flow-node__generation-references" aria-label="提示词引用">
+      {references.map((reference, index) => (
+        <span
+          key={`${reference.resource_id}:${reference.role}:${index}`}
+          className="content-prompt-flow-node__generation-reference"
+          data-role={reference.role}
+          data-media-type={reference.media_type}
+        >
+          <span>
+            <b>{generationReferenceRoleLabel(reference.role) || '参考'}</b>
+            <small>{contentPromptGenerationReferenceMediaLabel(reference.media_type)}</small>
+          </span>
+          <ContentPromptGenerationReferenceThumb reference={reference} />
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function ContentPromptGenerationReferenceThumb({
+  reference,
+}: {
+  reference: NonNullable<GenerationIntentPayload['reference_assets']>[number]
+}) {
+  if (reference.media_type === 'image') {
+    return <ResourceFileImage resourceId={reference.resource_id} alt={`Resource ${String(reference.resource_id)}`} loading="lazy" thumbnailMaxSize={72} />
+  }
+  if (reference.media_type === 'video') {
+    return <ResourceFileVideo resourceId={reference.resource_id} muted playsInline preload="metadata" />
+  }
+  const Icon = reference.media_type === 'audio' ? Music : FileText
+  return (
+    <span className="content-prompt-flow-node__generation-reference-fallback">
+      <Icon size={13} aria-hidden="true" />
+      <small>{generationReferenceMediaTypeShortLabel(reference.media_type ?? 'file')}</small>
+    </span>
+  )
+}
+
+function contentPromptGenerationReferenceMediaLabel(mediaType: string | undefined): string {
+  if (mediaType === 'image') return '图片'
+  if (mediaType === 'video') return '视频'
+  if (mediaType === 'audio') return '音频'
+  return '文件'
 }
 
 function contentPromptGenerationNodeKey(node: ContentCanvasNode): string {
@@ -3601,9 +3708,74 @@ function creativeFlowNodeShallowEqual(
   return left.id === right.id
     && left.type === right.type
     && left.selected === right.selected
-    && left.data === right.data
+    && creativeFlowNodeDataShallowEqual(left.data, right.data)
     && left.position.x === right.position.x
     && left.position.y === right.position.y
+}
+
+function creativeFlowNodeDataShallowEqual(
+  left: CreativeFlowNodeData,
+  right: CreativeFlowNodeData,
+): boolean {
+  return left.itemKey === right.itemKey
+    && left.focused === right.focused
+    && left.candidateSelectionsKey === right.candidateSelectionsKey
+    && left.candidateBadge === right.candidateBadge
+    && left.candidatePreviewsKey === right.candidatePreviewsKey
+    && left.nodesKey === right.nodesKey
+    && left.prompt === right.prompt
+    && left.referenceTargetNodeId === right.referenceTargetNodeId
+}
+
+function creativeCanvasNodeSemanticKey(node: CreativeCanvasNode): string {
+  return stableContentPromptJSONString({
+    id: node.id,
+    kind: node.kind,
+    role: node.role,
+    weight: node.weight,
+    canGenerate: node.canGenerate,
+    canExpand: node.canExpand,
+    selected: node.selected,
+    position: node.position,
+    source: contentPromptNodeSemanticRecord(node.source),
+  })
+}
+
+function contentPromptNodeListKey(nodes: ContentCanvasNode[]): string {
+  return nodes.map((node) => stableContentPromptJSONString(contentPromptNodeSemanticRecord(node))).join('\n')
+}
+
+function contentPromptNodeSemanticRecord(node: ContentCanvasNode): Record<string, unknown> {
+  return {
+    id: node.id,
+    entityKey: node.entityKey,
+    kind: node.kind,
+    title: node.title,
+    subtitle: node.subtitle,
+    summary: node.summary,
+    status: node.status,
+    metrics: node.metrics,
+    sourcePath: node.sourcePath,
+    record: node.record,
+    domainCategory: node.domainCategory,
+    domainKind: node.domainKind,
+    domainParentNodeId: node.domainParentNodeId,
+    domainAncestorNodeIds: node.domainAncestorNodeIds,
+    candidates: node.candidates,
+    generationTask: node.generationTask,
+    position: node.position,
+  }
+}
+
+function stableContentPromptJSONString(value: unknown): string {
+  if (value === undefined) return 'undefined'
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(stableContentPromptJSONString).join(',')}]`
+  const record = value as Record<string, unknown>
+  return `{${Object.keys(record)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableContentPromptJSONString(record[key])}`)
+    .join(',')}}`
 }
 
 function flowPositionsByNodeId(nodes: Node<CreativeFlowNodeData>[]): Record<string, { x: number; y: number }> {
