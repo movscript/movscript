@@ -3,12 +3,19 @@ import { mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import {
+  deriveMovScriptWorkspacePreviewTimelines,
+  deriveMovScriptWorkspaceTimelineAssemblyPreviewTimeline,
+  queryMovScriptWorkspaceProductionContext,
+} from '@movscript/workspace'
+import {
   EDITING_SERVICE_CAPABILITIES_ENDPOINT,
   EDITING_SERVICE_NAME,
   EDITING_SERVICE_PROJECT_COMMAND_ENDPOINT,
   EDITING_SERVICE_TIMELINE_VIEW_ENDPOINT,
   EDITING_SERVICE_TASK_REQUEST_ENDPOINT,
   EDITING_SERVICE_TASK_ACTION_ENDPOINT,
+  compileTimelineAssemblyToMediaEditingProject,
+  createMediaEditingProjectFromEditDecisions,
   createMediaEditingProjectFromMovScriptEditPlan,
   createMediaEditingProjectFromProductionTimelineClips,
   createMediaEditingProjectFromTimelineAssemblyClips,
@@ -30,6 +37,7 @@ export {
 export const EDITING_SERVICE_CAPABILITIES = Object.freeze([
   'timeline',
   'edit-plan',
+  'edit-decisions',
   'editing-project-command',
   'editing-timeline-view',
   'production-timeline-bundle',
@@ -37,6 +45,7 @@ export const EDITING_SERVICE_CAPABILITIES = Object.freeze([
   'preview-timeline',
   'render-request',
   'media-task-action',
+  'video-compose-project',
 ])
 
 export function createEditingServiceHandler(options = {}) {
@@ -225,14 +234,12 @@ async function readSceneMomentTimelineBundle(workspaceService, sceneMomentId, in
 
 async function readProductionTimelineBundle(workspaceService, productionId, input, options = {}) {
   const target = productionTimelineTargetFromInput(productionId, input)
-  const [index, context, previewTimeline] = await Promise.all([
-    workspaceService.loadIndex(),
-    workspaceService.queryProductionContext({
-      include: ['productions', 'content_units'],
-      limit: 1000,
-    }),
-    workspaceService.readPreviewTimeline(productionId),
-  ])
+  const index = await workspaceService.loadIndex()
+  const context = queryMovScriptWorkspaceProductionContext(index, {
+    include: ['productions', 'content_units'],
+    limit: 1000,
+  })
+  const previewTimeline = readProductionPreviewTimelineFromIndex(index, productionId)
   const blockers = []
   if (!previewTimeline) {
     blockers.push({
@@ -315,18 +322,16 @@ async function readProductionTimelineBundle(workspaceService, productionId, inpu
 }
 
 async function readTimelineAssemblyBundle(workspaceService, target, input) {
-  const [index, context, previewTimeline] = await Promise.all([
-    workspaceService.loadIndex(),
-    workspaceService.queryProductionContext({
-      include: ['content_units'],
-      limit: 1000,
-    }),
-    workspaceService.readTimelineAssemblyPreviewTimeline({
-      scopeKind: target.scopeKind,
-      scopeRef: target.scopeRef,
-      targetRef: target.targetRef,
-    }),
-  ])
+  const index = await workspaceService.loadIndex()
+  const context = queryMovScriptWorkspaceProductionContext(index, {
+    include: ['content_units'],
+    limit: 1000,
+  })
+  const previewTimeline = deriveMovScriptWorkspaceTimelineAssemblyPreviewTimeline(index, {
+    scopeKind: target.scopeKind,
+    scopeRef: target.scopeRef,
+    targetRef: target.targetRef,
+  })
   const blockers = []
   if (!previewTimeline) {
     blockers.push({
@@ -399,6 +404,15 @@ async function readTimelineAssemblyBundle(workspaceService, target, input) {
     clips,
     blockers,
   }
+}
+
+function readProductionPreviewTimelineFromIndex(index, productionId) {
+  return deriveMovScriptWorkspacePreviewTimelines(index)
+    .find((timeline) => sameTimelineProductionId(timeline.productionId, productionId))
+}
+
+function sameTimelineProductionId(left, right) {
+  return sameId(left, right) || safeId(String(left)) === safeId(String(right))
 }
 
 function productionTimelineClips(input) {
@@ -971,6 +985,8 @@ async function executeEditingProjectCommand(command, input, context = {}) {
       return createProject(input)
     case 'createProjectFromEditPlan':
       return createProjectFromEditPlan(input)
+    case 'createProjectFromEditDecisions':
+      return createProjectFromEditDecisions(input)
     case 'createProjectFromPreviewTimeline':
       return createProjectFromPreviewTimeline(input)
     case 'saveProject':
@@ -1273,6 +1289,78 @@ function createProjectFromEditPlan(input) {
     fps: optionalNumber(input.fps),
     background: stringValue(input.background),
     defaultDurationMs: optionalNumber(input.defaultDurationMs ?? input.default_duration_ms),
+  })
+  return {
+    status: 'ok',
+    editing_project: editingProject,
+  }
+}
+
+function createProjectFromEditDecisions(input) {
+  const editDecisions = recordValue(input.editDecisions) ?? recordValue(input.edit_decisions)
+  if (!editDecisions) throw new Error('editDecisions is required')
+  const assetManifest = recordValue(input.assetManifest) ?? recordValue(input.asset_manifest)
+  const timelineAssembly = recordValue(input.timelineAssembly) ?? recordValue(input.timeline_assembly)
+  const suppliedCompileManifest = recordValue(input.compileManifest) ?? recordValue(input.compile_manifest)
+  const projectOptions = {
+    id: stringValue(input.id ?? input.editingProjectId ?? input.editing_project_id),
+    projectId: projectIdValue(input) ?? 'standalone',
+    title: stringValue(input.title),
+    now: stringValue(input.now),
+    width: optionalNumber(input.width),
+    height: optionalNumber(input.height),
+    fps: optionalNumber(input.fps),
+    background: stringValue(input.background),
+    defaultDurationMs: optionalNumber(input.defaultDurationMs ?? input.default_duration_ms),
+    productionId: stringOrNumberValue(input.productionId ?? input.production_id),
+    productionPath: stringValue(input.productionPath ?? input.production_path),
+    targetKind: stringValue(input.targetKind ?? input.target_kind),
+    targetRef: stringValue(input.targetRef ?? input.target_ref),
+    scopeKind: stringValue(input.scopeKind ?? input.scope_kind),
+    scopeRef: stringOrNumberValue(input.scopeRef ?? input.scope_ref),
+    sourceHash: stringValue(input.sourceHash ?? input.source_hash),
+  }
+  if (timelineAssembly || suppliedCompileManifest) {
+    const compileResult = compileTimelineAssemblyToMediaEditingProject({
+      timelineAssembly,
+      assetManifest,
+      editDecisions,
+      renderRuntime: stringValue(input.renderRuntime ?? input.render_runtime ?? editDecisions.render_runtime ?? editDecisions.renderRuntime),
+      runtimeLocked: booleanValue(input.runtimeLocked ?? input.runtime_locked) ?? true,
+      now: stringValue(input.now),
+      renderSettings: {
+        width: optionalNumber(input.width),
+        height: optionalNumber(input.height),
+        fps: optionalNumber(input.fps),
+        background: stringValue(input.background),
+        default_duration_ms: optionalNumber(input.defaultDurationMs ?? input.default_duration_ms),
+      },
+      projectOptions,
+    })
+    if (compileResult.status === 'blocked' || !compileResult.media_editing_project) {
+      return {
+        status: 'blocked',
+        code: 'TIMELINE_ASSEMBLY_COMPILE_BLOCKED',
+        message: 'TimelineAssembly compile did not create a MediaEditingProject because the compile manifest has blockers.',
+        compile_manifest: compileResult.compile_manifest,
+        compileManifest: compileResult.compile_manifest,
+        compile_result: compileResult,
+        compileResult,
+        diagnostics: compileResult.diagnostics,
+      }
+    }
+    return {
+      status: 'ok',
+      editing_project: compileResult.media_editing_project,
+      compile_manifest: compileResult.compile_manifest,
+      compileManifest: compileResult.compile_manifest,
+      compile_result: compileResult,
+      compileResult,
+    }
+  }
+  const editingProject = createMediaEditingProjectFromEditDecisions(editDecisions, {
+    ...projectOptions,
+    assetManifest,
   })
   return {
     status: 'ok',

@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import {
+  AppPrimaryNav,
+  AppPrimaryNavItem,
+  AppPrimaryNavItemContent,
   AppRouteViewport,
 } from '@movscript/ui/layout'
-import { StatusDot } from '@movscript/ui/primitives'
+import { Button, StatusDot } from '@movscript/ui/primitives'
 import {
   getMovScriptThemeMeta,
   nextMovScriptThemeName,
@@ -12,7 +15,6 @@ import {
 } from '@movscript/theme'
 import {
   Clapperboard,
-  Home,
   Images,
   Languages,
   LayoutDashboard,
@@ -24,6 +26,11 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { NavLink, useLocation } from 'react-router-dom'
+import {
+  sharedSurfacePrimaryNavItems,
+  sharedSurfacePrimaryNavKeyForPathname,
+  type SharedSurfacePrimaryNavKey,
+} from '@movscript/shared'
 import { adminSurfacePath } from '@movscript/admin-surface'
 import { ROUTES } from '../routes/projectRoutes.js'
 import { hrefWithSearch } from '../routes/localRouteLinks.js'
@@ -42,12 +49,12 @@ export function LocalSurfaceAppChrome({
   const { t } = useTranslation()
   const location = useLocation()
   const mcpApiBaseURL = query.get('mcpApiBaseURL') ?? ''
-  const tabs = localSurfacePrimaryTabs(query, t)
+  const tabs = localSurfacePrimaryTabs(query, t, location.pathname)
   const headerDescription = description || (mcpApiBaseURL ? t('localSurfaceHost.home.mcpReady') : '')
   return (
     <div className="local-surface-shell">
       <header className="local-surface-topbar">
-        <div className="local-surface-topbar__brand">
+        <NavLink className="local-surface-topbar__brand" to={hrefWithSearch(ROUTES.root, query)} end>
           <span className="local-surface-topbar__mark">
             <Clapperboard size={16} />
           </span>
@@ -55,19 +62,19 @@ export function LocalSurfaceAppChrome({
             <strong>MovScript</strong>
             <small>{title}</small>
           </span>
-        </div>
-        <nav className="local-surface-primary-tabs" aria-label={t('localSurfaceHost.tabs.primary')}>
+        </NavLink>
+        <AppPrimaryNav aria-label={t('localSurfaceHost.tabs.primary')}>
           {tabs.map((tab) => (
             <LocalSurfacePrimaryTab
               key={tab.to}
               to={tab.to}
               icon={tab.icon}
               label={tab.label}
-              active={tab.isActive(location.pathname)}
+              active={tab.active}
               end={tab.end}
             />
           ))}
-        </nav>
+        </AppPrimaryNav>
         <div className="local-surface-topbar__actions">
           {headerDescription ? (
             <div className="local-surface-header-status">
@@ -75,10 +82,12 @@ export function LocalSurfaceAppChrome({
               <span>{headerDescription}</span>
             </div>
           ) : null}
-          <a className="local-surface-admin-button" href={adminSurfacePath('overview')} title={t('localSurfaceHost.sidebar.admin')}>
-            <MonitorCog size={14} />
-            <span>{t('localSurfaceHost.sidebar.admin')}</span>
-          </a>
+          <Button asChild variant="outline" tone="neutral" size="sm" title={t('localSurfaceHost.sidebar.admin')}>
+            <a href={adminSurfacePath('overview')}>
+              <MonitorCog size={14} />
+              <span className="local-surface-action-label">{t('localSurfaceHost.sidebar.admin')}</span>
+            </a>
+          </Button>
           <LocalSurfacePreferenceControls />
         </div>
       </header>
@@ -96,57 +105,22 @@ export function LocalSurfaceAppChrome({
 function localSurfacePrimaryTabs(
   query: URLSearchParams,
   t: ReturnType<typeof useTranslation>['t'],
+  pathname: string,
 ): Array<{
   to: string
   icon: LucideIcon
   label: string
   end?: boolean
-  isActive: (pathname: string) => boolean
+  active: boolean
 }> {
-  return [
-    {
-      to: hrefWithSearch(ROUTES.root, query),
-      icon: Home,
-      label: t('localSurfaceHost.tabs.app'),
-      end: true,
-      isActive: (pathname) => pathname === ROUTES.root,
-    },
-    {
-      to: hrefWithSearch(ROUTES.toolHome, query),
-      icon: Images,
-      label: t('localSurfaceHost.tabs.tool'),
-      isActive: isToolPath,
-    },
-    {
-      to: hrefWithSearch(ROUTES.projects, query),
-      icon: LayoutDashboard,
-      label: t('localSurfaceHost.tabs.project'),
-      isActive: (pathname) => pathname === ROUTES.projects || pathname === '/studio' || pathname.startsWith('/studio/'),
-    },
-    {
-      to: hrefWithSearch(ROUTES.editing, query),
-      icon: Scissors,
-      label: t('localSurfaceHost.tabs.edit'),
-      isActive: (pathname) => pathname === ROUTES.editing || pathname.startsWith('/editing/'),
-    },
-    {
-      to: hrefWithSearch(ROUTES.canvases, query),
-      icon: Clapperboard,
-      label: t('localSurfaceHost.tabs.canvas'),
-      isActive: (pathname) => pathname === ROUTES.canvases || pathname.startsWith('/canvases/'),
-    },
-  ]
-}
-
-function isToolPath(pathname: string): boolean {
-  return pathname === ROUTES.toolHome
-    || pathname.startsWith('/tools/')
-    || pathname === ROUTES.shotLibrary
-    || pathname === ROUTES.jobs
-    || pathname === ROUTES.resources
-    || pathname === ROUTES.externalResources
-    || pathname === ROUTES.agentResources
-    || pathname.startsWith(`${ROUTES.agentResources}/`)
+  const activePrimaryNavKey = sharedSurfacePrimaryNavKeyForPathname(pathname, { host: 'local-web' })
+  return sharedSurfacePrimaryNavItems.map((item) => ({
+    to: hrefWithSearch(localSurfacePrimaryNavHref[item.key], query),
+    icon: localSurfacePrimaryNavIcons[item.key],
+    label: t(item.labelKey, { defaultValue: localSurfacePrimaryNavFallbackLabel(item.key, t) }),
+    end: item.key === 'project' || item.key === 'workflow' || item.key === 'editing',
+    active: activePrimaryNavKey === item.key,
+  }))
 }
 
 function LocalSurfacePrimaryTab({
@@ -163,15 +137,36 @@ function LocalSurfacePrimaryTab({
   end?: boolean
 }) {
   return (
-    <NavLink
-      className={active ? 'local-surface-primary-tab local-surface-primary-tab--active' : 'local-surface-primary-tab'}
-      to={to}
-      end={end}
-    >
-      <Icon size={15} />
-      <span>{label}</span>
-    </NavLink>
+    <AppPrimaryNavItem asChild active={active} title={label}>
+      <NavLink to={to} end={end}>
+        <AppPrimaryNavItemContent icon={Icon} label={label} />
+      </NavLink>
+    </AppPrimaryNavItem>
   )
+}
+
+const localSurfacePrimaryNavHref: Record<SharedSurfacePrimaryNavKey, string> = {
+  project: ROUTES.projects,
+  workflow: ROUTES.canvases,
+  tool: ROUTES.toolHome,
+  editing: ROUTES.editing,
+}
+
+const localSurfacePrimaryNavIcons: Record<SharedSurfacePrimaryNavKey, LucideIcon> = {
+  project: LayoutDashboard,
+  workflow: Clapperboard,
+  tool: Images,
+  editing: Scissors,
+}
+
+function localSurfacePrimaryNavFallbackLabel(
+  key: SharedSurfacePrimaryNavKey,
+  t: ReturnType<typeof useTranslation>['t'],
+): string {
+  if (key === 'project') return t('localSurfaceHost.tabs.project')
+  if (key === 'workflow') return t('localSurfaceHost.tabs.canvas')
+  if (key === 'tool') return t('localSurfaceHost.tabs.tool')
+  return t('localSurfaceHost.tabs.edit')
 }
 
 function LocalSurfacePreferenceControls() {
@@ -197,26 +192,30 @@ function LocalSurfacePreferenceControls() {
 
   return (
     <div className="local-surface-preferences" aria-label="Local Surface preferences">
-      <button
+      <Button
         type="button"
-        className="local-surface-preference-button"
+        variant="outline"
+        tone="neutral"
+        size="sm"
         onClick={toggleTheme}
         title={nextTheme === 'dark' ? t('localSurfaceHost.preferences.switchToDark') : t('localSurfaceHost.preferences.switchToLight')}
       >
         {theme === 'dark' ? <Moon size={13} /> : <Sun size={13} />}
-        <span>{t('localSurfaceHost.preferences.theme')}</span>
+        <span className="local-surface-action-label">{t('localSurfaceHost.preferences.theme')}</span>
         <strong>{t(`localSurfaceHost.preferences.${themeMeta.name}`)}</strong>
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
-        className="local-surface-preference-button"
+        variant="outline"
+        tone="neutral"
+        size="sm"
         onClick={toggleLanguage}
         title={t('localSurfaceHost.preferences.switchLanguage')}
       >
         <Languages size={13} />
-        <span>{t('localSurfaceHost.preferences.language')}</span>
+        <span className="local-surface-action-label">{t('localSurfaceHost.preferences.language')}</span>
         <strong>{languageLabel}</strong>
-      </button>
+      </Button>
     </div>
   )
 }

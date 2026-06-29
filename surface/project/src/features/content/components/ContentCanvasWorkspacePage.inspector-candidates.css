@@ -442,7 +442,10 @@
 .content-canvas-generation-candidate-dialog__body {
   display: grid;
   gap: 12px;
+  border: 0;
+  border-radius: 0;
   background: var(--ms-color-background, #fff);
+  box-shadow: none;
 }
 
 .content-canvas-generation-candidate-field {
@@ -458,6 +461,19 @@
   color: var(--cc-muted);
   font-size: 10px;
   font-weight: 820;
+}
+
+.content-canvas-generation-candidate-select {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  border: 1px solid var(--ms-color-border);
+  border-radius: 7px;
+  background: var(--ms-color-background, #fff);
+  color: var(--cc-text);
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 760;
 }
 
 .content-canvas-generation-candidate-prompt {
@@ -598,12 +614,20 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  border-top: 1px solid var(--ms-color-border);
-  background: var(--ms-color-background, #fff);
-  padding: 12px 14px;
+  border-top: 0;
+  background: transparent;
+  padding: 0;
 }
 
-.content-canvas-generation-candidate-dialog__footer button {
+.content-canvas-generation-candidate-dialog__actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.content-canvas-generation-candidate-dialog__footer button,
+.content-canvas-generation-candidate-dialog__actions button {
   display: inline-flex;
   align-items: center;
   justify-content: center;

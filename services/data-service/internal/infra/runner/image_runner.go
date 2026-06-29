@@ -12,7 +12,7 @@ type providerResult struct {
 	MimeType string
 }
 
-func (w *Worker) runImageJob(ctx context.Context, job *persistencemodel.Job, params generationParams, imageData []ai.MediaData, sm *jobStateMachine) (providerResult, error) {
+func (w *Worker) runImageJob(ctx context.Context, job *persistencemodel.Job, params generationParams, imageData []ai.MediaData, sm *jobStateMachine, debugResult *ai.DebugCallResult) (providerResult, error) {
 	cloudFileID := w.prepareImageInputReferences(job, imageData)
 	req := w.buildImageRequest(job, params, imageData, cloudFileID)
 	if len(imageData) > 0 {
@@ -28,6 +28,7 @@ func (w *Worker) runImageJob(ctx context.Context, job *persistencemodel.Job, par
 	if err != nil {
 		return providerResult{}, err
 	}
+	annotateDebugRouteContext(debugResult, route, ai.CapabilityImage)
 	resp, err := callProviderWithTimeout(ctx, providerCallTimeout, func(ctx context.Context) (ai.ImageResponse, error) {
 		return w.aiService.CallImageWithRouteUsage(ctx, job.UserID, route, req, w.usageContext(job))
 	})
@@ -41,7 +42,7 @@ func (w *Worker) runImageJob(ctx context.Context, job *persistencemodel.Job, par
 	return providerResult{URL: resp.URLs[0], MimeType: "image/png"}, nil
 }
 
-func (w *Worker) runImageEditJob(ctx context.Context, job *persistencemodel.Job, params generationParams, imageData []ai.MediaData, sm *jobStateMachine) (providerResult, error) {
+func (w *Worker) runImageEditJob(ctx context.Context, job *persistencemodel.Job, params generationParams, imageData []ai.MediaData, sm *jobStateMachine, debugResult *ai.DebugCallResult) (providerResult, error) {
 	if len(imageData) == 0 {
 		return providerResult{}, fmt.Errorf("image_edit job requires an image input but none was found (job #%d)", job.ID)
 	}
@@ -61,6 +62,7 @@ func (w *Worker) runImageEditJob(ctx context.Context, job *persistencemodel.Job,
 	if err != nil {
 		return providerResult{}, err
 	}
+	annotateDebugRouteContext(debugResult, route, ai.CapabilityImageEdit)
 	resp, err := callProviderWithTimeout(ctx, providerCallTimeout, func(ctx context.Context) (ai.ImageResponse, error) {
 		return w.aiService.CallImageWithRouteUsage(ctx, job.UserID, route, req, w.usageContext(job))
 	})
@@ -77,6 +79,7 @@ func (w *Worker) runImageEditJob(ctx context.Context, job *persistencemodel.Job,
 func (w *Worker) buildImageRequest(job *persistencemodel.Job, params generationParams, imageData []ai.MediaData, cloudFileID string) ai.ImageRequest {
 	return ai.ImageRequest{
 		Prompt:              job.Prompt,
+		Operation:           runnerGenerationOperationFromJob(job),
 		N:                   1,
 		Size:                params.String("size"),
 		Quality:             params.String("quality"),
@@ -92,5 +95,6 @@ func (w *Worker) buildImageRequest(job *persistencemodel.Job, params generationP
 		OptimizePromptMode:  params.String("optimize_prompt_mode"),
 		InputImageDataList:  imageData,
 		CloudFileID:         cloudFileID,
+		ReferenceAssets:     runnerReferenceAssetsFromJob(job),
 	}
 }

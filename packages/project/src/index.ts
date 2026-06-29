@@ -14,6 +14,11 @@ export const PROJECT_SERVICE_SOURCE_SNAPSHOT_ENDPOINT = '/v1/project/source/snap
 export const PROJECT_SERVICE_SOURCE_INSPECT_ENDPOINT = '/v1/project/source/inspect'
 export const PROJECT_SERVICE_SOURCE_OVERVIEW_ENDPOINT = '/v1/project/source/overview'
 export const PROJECT_SERVICE_READ_MODEL_ENDPOINT = '/v1/project/read-model'
+export const PROJECT_SERVICE_HOME_READ_MODEL_ENDPOINT = '/v1/project/home/read-model'
+export const PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT = '/v1/project/standards/read-model'
+export const PROJECT_SERVICE_CONTENT_CANVAS_READ_MODEL_ENDPOINT = '/v1/project/content-canvas/read-model'
+export const PROJECT_SERVICE_SCRIPTS_READ_MODEL_ENDPOINT = '/v1/project/scripts/read-model'
+export const PROJECT_SERVICE_CONTENT_UNITS_READ_MODEL_ENDPOINT = '/v1/project/content-units/read-model'
 export const PROJECT_SERVICE_LOCATOR_RESOLVE_ENDPOINT = '/v1/project/locator/resolve'
 export const PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT = '/v1/project/resources/view'
 export const PROJECT_SERVICE_LIFECYCLE_COMMAND_ENDPOINT = '/v1/project/lifecycle/command'
@@ -115,6 +120,8 @@ export type ProjectSourceCommandName =
 
 export interface ProjectSourceRequest {
   projectDir: string
+  projectId?: string | number
+  projectUid?: string
   includeContentUnitDecisionDocuments?: boolean
   debugArtifacts?: boolean
   commit?: string
@@ -214,9 +221,24 @@ export interface ProjectCandidateViewRequest {
 
 export interface ProjectPromptContextRequest {
   projectDir: string
-  contentUnitId: string | number
+  contentUnitId?: string | number
+  contentUnitIds?: Array<string | number>
+  include?: ProjectPromptContextInclude[]
+  promptText?: string
   decisionStore?: ProjectDecisionStoreConfig
 }
+
+export interface ProjectContentUnitsReadModelRequest extends ProjectSourceRequest {
+  contentUnitIds: Array<string | number>
+  decisionStore?: ProjectDecisionStoreConfig
+}
+
+export type ProjectPromptContextInclude =
+  | 'runtimePanel'
+  | 'generationPrompt'
+  | 'dependencyReport'
+  | 'selectionValidity'
+  | 'backendPrompt'
 
 export interface ProjectServiceEnvelope<T> {
   schema: string
@@ -243,6 +265,26 @@ export interface ProjectReadModelRequest extends ProjectSourceRequest {
 
 export type ProjectReadModelResponse = ProjectServiceEnvelope<unknown> & {
   projectReadModel: unknown
+}
+
+export type ProjectHomeReadModelResponse = ProjectServiceEnvelope<unknown> & {
+  projectHomeReadModel: unknown
+}
+
+export type ProjectStandardsReadModelResponse = ProjectServiceEnvelope<unknown> & {
+  projectStandardsReadModel: unknown
+}
+
+export type ProjectContentCanvasReadModelResponse = ProjectServiceEnvelope<unknown> & {
+  projectContentCanvasReadModel: unknown
+}
+
+export type ProjectScriptsReadModelResponse = ProjectServiceEnvelope<unknown> & {
+  projectScriptsReadModel: unknown
+}
+
+export type ProjectContentUnitsReadModelResponse = ProjectServiceEnvelope<unknown> & {
+  projectContentUnitsReadModel: unknown
 }
 
 export type ProjectSourceInterpretationResponse = ProjectServiceEnvelope<unknown> & {
@@ -282,6 +324,11 @@ export type ProjectLocatorResolveResponse = ProjectServiceEnvelope<unknown> & {
 
 export type ProjectResourceViewResponse = ProjectServiceEnvelope<unknown> & {
   kind: ProjectResourceViewKind
+  usage?: 'debug_compat'
+  viewMode?: 'debug_compat'
+  view_mode?: 'debug_compat'
+  preferredEndpoint?: string
+  preferred_endpoint?: string
   items: unknown[]
 }
 
@@ -301,12 +348,17 @@ export type ProjectCandidateViewResponse = ProjectServiceEnvelope<unknown> & {
 }
 
 export type ProjectPromptContextResponse = ProjectServiceEnvelope<unknown> & {
-  contentUnitId: string | number
+  contentUnitId?: string | number
+  contentUnitIds?: Array<string | number>
+  contexts?: Array<{
+    contentUnitId: string | number
+    context: Record<string, unknown>
+  }>
   runtimePanel?: unknown
   generationPrompt?: unknown
   dependencyReport?: unknown
   selectionValidity?: unknown
-  backendPrompt: unknown
+  backendPrompt?: unknown
 }
 
 export interface ProjectServiceClientOptions {
@@ -349,6 +401,30 @@ export class ProjectServiceClient {
 
   async readModel(request: ProjectReadModelRequest, signal?: AbortSignal): Promise<ProjectReadModelResponse> {
     return this.request('POST', PROJECT_SERVICE_READ_MODEL_ENDPOINT, projectReadModelPayload(request), signal)
+  }
+
+  async homeReadModel(request: ProjectSourceRequest, signal?: AbortSignal): Promise<ProjectHomeReadModelResponse> {
+    return this.request('POST', PROJECT_SERVICE_HOME_READ_MODEL_ENDPOINT, projectSourcePayload(request), signal)
+  }
+
+  async standardsReadModel(request: ProjectSourceRequest, signal?: AbortSignal): Promise<ProjectStandardsReadModelResponse> {
+    return this.request('POST', PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT, projectSourcePayload(request), signal)
+  }
+
+  async contentCanvasReadModel(request: ProjectSourceRequest, signal?: AbortSignal): Promise<ProjectContentCanvasReadModelResponse> {
+    return this.request('POST', PROJECT_SERVICE_CONTENT_CANVAS_READ_MODEL_ENDPOINT, projectSourcePayload(request), signal)
+  }
+
+  async scriptsReadModel(request: ProjectSourceRequest, signal?: AbortSignal): Promise<ProjectScriptsReadModelResponse> {
+    return this.request('POST', PROJECT_SERVICE_SCRIPTS_READ_MODEL_ENDPOINT, projectSourcePayload(request), signal)
+  }
+
+  async contentUnitsReadModel(request: ProjectContentUnitsReadModelRequest, signal?: AbortSignal): Promise<ProjectContentUnitsReadModelResponse> {
+    return this.request('POST', PROJECT_SERVICE_CONTENT_UNITS_READ_MODEL_ENDPOINT, {
+      ...projectSourcePayload(request),
+      contentUnitIds: request.contentUnitIds,
+      ...(request.decisionStore ? { decisionStore: request.decisionStore } : {}),
+    }, signal)
   }
 
   async interpretSource(request: ProjectSourceRequest, signal?: AbortSignal): Promise<ProjectSourceInterpretationResponse> {
@@ -467,7 +543,10 @@ export class ProjectServiceClient {
   async promptContext(request: ProjectPromptContextRequest, signal?: AbortSignal): Promise<ProjectPromptContextResponse> {
     return this.request('POST', PROJECT_SERVICE_PROMPT_CONTEXT_ENDPOINT, {
       projectDir: request.projectDir,
-      contentUnitId: request.contentUnitId,
+      ...(request.contentUnitId !== undefined ? { contentUnitId: request.contentUnitId } : {}),
+      ...(request.contentUnitIds !== undefined ? { contentUnitIds: request.contentUnitIds } : {}),
+      ...(request.include !== undefined ? { include: request.include } : {}),
+      ...(request.promptText !== undefined ? { promptText: request.promptText } : {}),
       ...(request.decisionStore ? { decisionStore: request.decisionStore } : {}),
     }, signal)
   }
@@ -545,6 +624,8 @@ function endpointURL(endpoint: RuntimeEndpointRecord | undefined): string | unde
 function projectSourcePayload(request: ProjectSourceRequest): Record<string, unknown> {
   return {
     projectDir: request.projectDir,
+    ...(request.projectId !== undefined ? { projectId: request.projectId } : {}),
+    ...(request.projectUid ? { projectUid: request.projectUid } : {}),
     ...(request.includeContentUnitDecisionDocuments !== undefined ? {
       includeContentUnitDecisionDocuments: request.includeContentUnitDecisionDocuments,
     } : {}),

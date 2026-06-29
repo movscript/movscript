@@ -459,12 +459,88 @@ export interface AIModelRouteBinding {
   provider_id?: string
   adapter_type?: string
   provider_model_id: string
+  api_kinds?: string
+  endpoint_base_url?: string
+  endpoint_path_prefix?: string
+  endpoint_mode?: 'inherit' | 'replace_path' | 'absolute' | string
+  operation_profile?: string
+  route_capabilities_json?: string
   is_enabled: boolean
   priority: number
   capacity_weight: number
   max_concurrency: number
   CreatedAt: string
   UpdatedAt: string
+}
+
+export interface AIModelRouteDiagnoseReferenceAsset {
+  role?: string
+  media_type?: string
+}
+
+export interface AIModelRouteDiagnoseIntent {
+  capability?: string
+  operation?: string
+  reference_assets?: AIModelRouteDiagnoseReferenceAsset[]
+}
+
+export interface AIModelRouteDiagnoseRequest {
+  public_model_id?: string
+  model_id?: string
+  catalog_entry_id?: number
+  route_binding_id?: number
+  route_group?: string
+  capability: string
+  operation?: string
+  intent?: AIModelRouteDiagnoseIntent
+  reference_assets?: AIModelRouteDiagnoseReferenceAsset[]
+  api_kind?: string
+  api_kinds?: string[]
+}
+
+export interface AIModelRouteDiagnosticEndpoint {
+  base_url?: string
+  path_prefix?: string
+  mode?: string
+  operation_profile?: string
+  effective_base_url?: string
+}
+
+export interface AIModelRouteResourceAccess {
+  required: boolean
+  transport?: string
+  input_media?: string[]
+  depends_on?: string
+}
+
+export interface AIModelRouteDiagnosticCandidate {
+  catalog_entry_id: number
+  public_model_id: string
+  route_binding_id?: number
+  status: 'selected' | 'accepted' | 'rejected' | string
+  reasons?: string[]
+  source_type?: string
+  route_group?: string
+  provider_id?: string
+  adapter_type?: string
+  provider_model_id?: string
+  api_kinds?: string[]
+  priority: number
+  capacity_weight: number
+  max_concurrency?: number
+  effective_endpoint?: AIModelRouteDiagnosticEndpoint
+  resource_access?: AIModelRouteResourceAccess
+}
+
+export interface AIModelRouteDiagnosis {
+  model_id?: string
+  catalog_entry_id?: number
+  capability: string
+  operation?: string
+  route_group?: string
+  selected_route_id?: number
+  selected_route?: AIModelRouteDiagnosticCandidate
+  candidates: AIModelRouteDiagnosticCandidate[]
 }
 
 export interface AIModelCatalogEntry {
@@ -482,6 +558,7 @@ export interface AIModelCatalogEntry {
   image_edit_field: string
   supported_params: string
   param_limits_json?: string
+  model_capabilities_json?: string
   route_bindings?: AIModelRouteBinding[]
   CreatedAt: string
   UpdatedAt: string
@@ -494,7 +571,6 @@ export interface AIModelCatalogTemplate {
   model_id: string
   display_name: string
   capabilities: string[]
-  adapter_type: string
   source_status?: string
   accepts_image_input: boolean
   max_input_images: number
@@ -671,6 +747,8 @@ export interface DebugHTTPExchange {
   model_id: string
   endpoint: string
   method: string
+  request_shape?: string
+  content_type?: string
   request_headers?: Record<string, string>
   request_body: string
   prompt_name?: string
@@ -684,12 +762,34 @@ export interface DebugHTTPExchange {
   error?: string
 }
 
+export interface DebugRouteTrace {
+  public_model_id?: string
+  catalog_entry_id?: number
+  route_binding_id?: number
+  source_type?: string
+  route_group?: string
+  provider_id?: string
+  provider_kind?: string
+  adapter_key?: string
+  adapter_type?: string
+  provider_model_id?: string
+  capability?: string
+  operation?: string
+  api_kind?: string
+  endpoint_base_url?: string
+  endpoint_path_prefix?: string
+  endpoint_mode?: string
+  operation_profile?: string
+  selection_reason?: string
+}
+
 export interface DebugCallResult extends DebugHTTPExchange {
   // Job context (filled by worker before adapter call)
   job_type?: string
   job_model_def_id?: string
   job_resolved_prompt?: string
   job_input_resource_ids?: number[]
+  route_trace?: DebugRouteTrace
   // Every provider HTTP exchange for multi-step jobs. The inherited flat fields
   // mirror the latest call for compatibility.
   calls?: DebugHTTPExchange[]
@@ -1058,10 +1158,12 @@ export type CanvasExecutableCapability = 'text' | 'image' | 'image_edit' | 'vide
 export interface CanvasExecutableSpec {
   executor: 'ai_model' | 'plugin_http'
   capability: CanvasExecutableCapability
+  operation?: string
   modelDbId?: number // legacy route record id kept for older canvases
   pluginToolKey?: string
   prompt?: string
   inputResourceIds?: number[]
+  referenceAssets?: Array<{ resource_id?: number; media_type?: string; role: string }>
   aspectRatio?: string
   duration?: number
   params?: Record<string, unknown>

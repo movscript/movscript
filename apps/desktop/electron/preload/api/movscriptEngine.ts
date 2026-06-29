@@ -6,6 +6,7 @@ const PROJECT_PROMPT_CONTEXT_ENDPOINT = '/v1/project/prompt/context'
 const PROJECT_ENTITIES_QUERY_ENDPOINT = '/v1/project/entities/query'
 const PROJECT_SETTINGS_QUERY_ENDPOINT = '/v1/project/settings/query'
 const PROJECT_ASSETS_QUERY_ENDPOINT = '/v1/project/assets/query'
+const PROJECT_CONTENT_CANVAS_READ_MODEL_ENDPOINT = '/v1/project/content-canvas/read-model'
 const PROJECT_CONTENT_WORKSPACE_SNAPSHOT_ENDPOINT = '/v1/project/content-workspace/snapshot'
 const PROJECT_CONTENT_WORKSPACE_READ_ENDPOINT = '/v1/project/content-workspace/read'
 const PROJECT_STANDARDS_UPSERT_ENDPOINT = '/v1/project/standards/upsert'
@@ -49,6 +50,7 @@ const PROJECT_WORKSPACE_ASSET_SLOT_CANDIDATE_CREATE_ENDPOINT = '/v1/project/work
 const PROJECT_WORKSPACE_KEYFRAME_CANDIDATE_CREATE_ENDPOINT = '/v1/project/workspace-candidates/keyframes/create'
 const PROJECT_CONTENT_CANDIDATE_CREATE_ENDPOINT = '/v1/project/content-candidates/create'
 const PROJECT_CONTENT_UNIT_CANDIDATE_SELECT_ENDPOINT = '/v1/project/content-unit-candidates/select'
+const PROJECT_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT = '/v1/project/content-unit-candidates/decide'
 
 export function createMovScriptEngineAPI(ipcRenderer: IpcRenderer): Pick<
   ElectronAPI,
@@ -63,6 +65,7 @@ export function createMovScriptEngineAPI(ipcRenderer: IpcRenderer): Pick<
   | 'readMovScriptEngineWorkspaceScriptSource'
   | 'readMovScriptEngineContentUnitGenerationPrompt'
   | 'buildMovScriptEngineContentUnitBackendPrompt'
+  | 'readMovScriptEngineContentCanvasReadModel'
   | 'deleteMovScriptEngineWorkspaceEntity'
   | 'saveMovScriptEngineWorkspaceProductionSnapshot'
   | 'upsertMovScriptEngineWorkspaceProjectStandards'
@@ -92,6 +95,7 @@ export function createMovScriptEngineAPI(ipcRenderer: IpcRenderer): Pick<
   | 'createMovScriptEngineWorkspaceKeyframeCandidate'
   | 'createMovScriptEngineContentCandidate'
   | 'selectMovScriptEngineContentUnitCandidate'
+  | 'decideMovScriptEngineContentUnitCandidate'
   | 'updateMovScriptEngineContentUnitEditPrompt'
   | 'updateMovScriptEngineExpressionUnit'
   | 'updateMovScriptEngineAudioCue'
@@ -119,6 +123,10 @@ export function createMovScriptEngineAPI(ipcRenderer: IpcRenderer): Pick<
         ? result
         : { ok: true as const, prompt: record }
       return output as Awaited<ReturnType<NonNullable<ElectronAPI['buildMovScriptEngineContentUnitBackendPrompt']>>>
+    },
+    readMovScriptEngineContentCanvasReadModel: async (input) => {
+      const payload = await daemonProjectContentCanvasRequest(ipcRenderer, PROJECT_CONTENT_CANVAS_READ_MODEL_ENDPOINT, input)
+      return recordValue(payload).projectContentCanvasReadModel ?? payload
     },
     deleteMovScriptEngineWorkspaceEntity: (input) => daemonProjectSourceOperation(ipcRenderer, PROJECT_ENTITY_DELETE_ENDPOINT, payloadInput(input), input),
     saveMovScriptEngineWorkspaceProductionSnapshot: (input) => daemonProjectSourceOperation(ipcRenderer, PROJECT_PRODUCTION_SNAPSHOT_SAVE_ENDPOINT, payloadInput(input), input),
@@ -157,6 +165,7 @@ export function createMovScriptEngineAPI(ipcRenderer: IpcRenderer): Pick<
     createMovScriptEngineWorkspaceKeyframeCandidate: (input) => daemonProjectSourceOperation(ipcRenderer, PROJECT_WORKSPACE_KEYFRAME_CANDIDATE_CREATE_ENDPOINT, payloadInput(input), input),
     createMovScriptEngineContentCandidate: (input) => daemonProjectCandidateAction(ipcRenderer, PROJECT_CONTENT_CANDIDATE_CREATE_ENDPOINT, stripProjectEnvelope(input), input),
     selectMovScriptEngineContentUnitCandidate: (input) => daemonProjectCandidateAction(ipcRenderer, PROJECT_CONTENT_UNIT_CANDIDATE_SELECT_ENDPOINT, stripProjectEnvelope(input), input),
+    decideMovScriptEngineContentUnitCandidate: (input) => daemonProjectCandidateAction(ipcRenderer, PROJECT_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT, stripProjectEnvelope(input), input),
     updateMovScriptEngineContentUnitEditPrompt: (input) => daemonProjectSourceOperation(ipcRenderer, PROJECT_CONTENT_UNIT_EDIT_PROMPT_UPDATE_ENDPOINT, stripProjectEnvelope(input), input),
     updateMovScriptEngineExpressionUnit: (input) => daemonProjectSourceOperation(ipcRenderer, PROJECT_EXPRESSION_UNIT_UPDATE_ENDPOINT, stripProjectEnvelope(input), input),
     updateMovScriptEngineAudioCue: (input) => daemonProjectSourceOperation(ipcRenderer, PROJECT_AUDIO_CUE_UPDATE_ENDPOINT, stripProjectEnvelope(input), input),
@@ -209,9 +218,13 @@ async function daemonProjectPromptContext(
   field: 'generationPrompt' | 'backendPrompt',
 ): Promise<any> {
   const runtimeConfig = await ipcRenderer.invoke('app:get-runtime-config')
+  const record = recordValue(input)
   const payload = await postDaemonProjectGateway(runtimeConfig, PROJECT_PROMPT_CONTEXT_ENDPOINT, {
     ...projectCommandEnvelope(input, runtimeConfig),
-    contentUnitId: recordValue(input).contentUnitId ?? recordValue(input).content_unit_id,
+    contentUnitId: record.contentUnitId ?? record.content_unit_id,
+    include: [field],
+    ...(record.promptText !== undefined ? { promptText: record.promptText } : {}),
+    ...(record.prompt_text !== undefined ? { prompt_text: record.prompt_text } : {}),
   })
   return recordValue(payload)[field] ?? payload
 }

@@ -128,6 +128,7 @@ type EnqueueInput struct {
 	RuntimeModelID        uint
 	AIModelCatalogEntryID *uint
 	JobType               string
+	GenerationIntent      *GenerationIntentInput
 	FeatureKey            string
 	Title                 string
 	Prompt                string
@@ -142,6 +143,37 @@ type EnqueueInput struct {
 	ProjectDir            string
 	CreatedAt             time.Time
 	ContentUnitCandidate  *domainjob.ContentUnitCandidateBinding
+}
+
+type GenerationPreflightResult struct {
+	Ready            bool
+	JobType          string
+	OutputType       string
+	ModelID          string
+	RuntimeModelID   uint
+	CatalogEntryID   uint
+	RouteBindingID   uint
+	RouteGroup       string
+	ProviderID       string
+	ProviderKind     string
+	ProviderModelID  string
+	CredentialID     uint
+	InputResourceIDs []uint
+	ImageCount       int
+	VideoCount       int
+	Estimate         ai.UsageEstimate
+}
+
+type GenerationIntentInput struct {
+	Capability      string                          `json:"capability"`
+	Operation       string                          `json:"operation"`
+	ReferenceAssets []GenerationReferenceAssetInput `json:"reference_assets,omitempty"`
+}
+
+type GenerationReferenceAssetInput struct {
+	Role       string `json:"role"`
+	MediaType  string `json:"media_type,omitempty"`
+	ResourceID uint   `json:"resource_id,omitempty"`
 }
 
 func (s *Service) List(ctx context.Context, filter ListFilter) (ListResult, error) {
@@ -190,58 +222,17 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (domainjob.Job,
 }
 
 func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (domainjob.Job, error) {
-	if s.ai == nil {
-		return domainjob.Job{}, errors.New("ai service is required")
-	}
-	if input.JobType == "" {
-		return domainjob.Job{}, ErrJobTypeRequired
-	}
-	switch input.JobType {
-	case ai.CapabilityImage, ai.CapabilityImageEdit,
-		ai.CapabilityVideo, ai.CapabilityVideoI2V, ai.CapabilityVideoV2V,
-		ai.CapabilityAudioTTS, ai.CapabilityAudioSTT, ai.CapabilityAudioTranslate, ai.CapabilityAudioChat,
-		ai.CapabilityAudioMusic, ai.CapabilityAudioSFX,
-		ai.CapabilityVoiceClone, ai.CapabilityVoiceDesign,
-		ai.CapabilitySubAlign, ai.CapabilitySubTranslate:
-	default:
-		return domainjob.Job{}, InvalidJobTypeError{JobType: input.JobType}
-	}
-	if err := s.repo.EnsureProjectInOrg(ctx, input.ProjectID, input.OrgID); err != nil {
-		return domainjob.Job{}, err
-	}
-
-	allIDs := MergeIDs(input.InputResourceIDs, input.InputResourceID)
-	inputResources, err := s.LoadInputResources(ctx, allIDs, input.UserID, input.OrgID)
-	if err != nil {
-		return domainjob.Job{}, wrapErr(ErrLoadInputResources, err)
-	}
-	input.JobType = resolveInputAwareGenerationJobType(input.JobType, inputResources)
-
-	route, err := s.resolveGenerationModelRoute(ctx, input)
+	state, err := s.prepareGenerationPreflight(ctx, input)
 	if err != nil {
 		return domainjob.Job{}, err
 	}
-	aiRoute := aiRouteFromGateway(route)
-	preflight, err := s.ai.PreflightGenerationRoute(ctx, input.UserID, ai.GenerationRoutePreflightRequest{
-		Route:       aiRoute,
-		OutputType:  input.JobType,
-		ExtraParams: input.ExtraParams,
-		AspectRatio: input.AspectRatio,
-		Duration:    input.Duration,
-		ImageCount:  inputResources.ImageCount,
-		VideoCount:  inputResources.VideoCount,
-	})
-	if err != nil {
-		return domainjob.Job{}, err
-	}
-	if err := s.requireImageVerification(preflight.Def, inputResources.Resources); err != nil {
-		return domainjob.Job{}, err
-	}
-
-	cred, err := s.credentialForRouteSnapshot(ctx, route, preflight.CredentialID)
-	if err != nil {
-		return domainjob.Job{}, err
-	}
+	input = state.input
+	allIDs := state.inputResourceIDs
+	inputResources := state.inputResources
+	route := state.route
+	aiRoute := state.aiRoute
+	preflight := state.preflight
+	cred := state.credential
 
 	inputResourceIDsJSON := ""
 	if len(allIDs) > 0 {
@@ -261,6 +252,7 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 		Model:                preflightModelSnapshot(preflight),
 		Route:                routeSnapshotFromGateway(route),
 		Credential:           cred,
+		Intent:               generationIntentSnapshot(input.GenerationIntent),
 		JobType:              input.JobType,
 		FeatureKey:           input.FeatureKey,
 		Prompt:               input.Prompt,
@@ -273,10 +265,6 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 		ContentUnitCandidate: input.ContentUnitCandidate,
 	})
 
-	estimate, err := s.estimateJobRouteCost(ctx, input.UserID, aiRoute, input.JobType, input.Duration, input.ExtraParams, input.AspectRatio)
-	if err != nil {
-		return domainjob.Job{}, err
-	}
 	usage := ai.UsageContext{OrgID: input.OrgID, ProjectID: input.ProjectID}
 	if route.CatalogEntryID != 0 {
 		usage.AIModelCatalogEntryID = &route.CatalogEntryID
@@ -285,7 +273,7 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 		usage.RouteBindingID = &route.RouteBindingID
 	}
 	runtimeModelID := aiRoute.RuntimeModelID
-	reservation, err := s.ai.ReserveUsage(ctx, input.UserID, runtimeModelID, estimate, usage)
+	reservation, err := s.ai.ReserveUsage(ctx, input.UserID, runtimeModelID, state.estimate, usage)
 	if err != nil {
 		if errors.Is(err, ai.ErrUsageLimitExceeded) {
 			return domainjob.Job{}, err
@@ -321,17 +309,301 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 	return job, nil
 }
 
-func resolveInputAwareGenerationJobType(jobType string, inputResources InputResourcesResult) string {
-	if jobType != ai.CapabilityVideo {
-		return jobType
+type generationPreflightState struct {
+	input            EnqueueInput
+	inputResourceIDs []uint
+	inputResources   InputResourcesResult
+	route            providercontract.AIGatewayModelRoute
+	aiRoute          ai.ModelRoute
+	preflight        ai.GenerationPreflightResult
+	credential       domainjob.AICredential
+	estimate         ai.UsageEstimate
+}
+
+func (s *Service) PreflightGeneration(ctx context.Context, input EnqueueInput) (GenerationPreflightResult, error) {
+	state, err := s.prepareGenerationPreflight(ctx, input)
+	if err != nil {
+		return GenerationPreflightResult{}, err
 	}
-	if inputResources.VideoCount > 0 {
-		return ai.CapabilityVideoV2V
+	return GenerationPreflightResult{
+		Ready:            true,
+		JobType:          state.input.JobType,
+		OutputType:       executionJobTypeForIntent(state.input.JobType),
+		ModelID:          state.route.ModelID,
+		RuntimeModelID:   state.aiRoute.RuntimeModelID,
+		CatalogEntryID:   state.route.CatalogEntryID,
+		RouteBindingID:   state.route.RouteBindingID,
+		RouteGroup:       state.route.RouteGroup,
+		ProviderID:       state.route.ProviderID,
+		ProviderKind:     state.route.ProviderKind,
+		ProviderModelID:  state.route.ProviderModelID,
+		CredentialID:     state.credential.ID,
+		InputResourceIDs: state.inputResourceIDs,
+		ImageCount:       state.inputResources.ImageCount,
+		VideoCount:       state.inputResources.VideoCount,
+		Estimate:         state.estimate,
+	}, nil
+}
+
+func (s *Service) prepareGenerationPreflight(ctx context.Context, input EnqueueInput) (generationPreflightState, error) {
+	if s.ai == nil {
+		return generationPreflightState{}, errors.New("ai service is required")
 	}
-	if inputResources.ImageCount > 0 {
-		return ai.CapabilityVideoI2V
+	if input.GenerationIntent != nil && strings.TrimSpace(input.GenerationIntent.Capability) != "" {
+		input.JobType = executionJobTypeForGenerationIntent(input.GenerationIntent)
 	}
-	return jobType
+	if input.JobType == "" {
+		return generationPreflightState{}, ErrJobTypeRequired
+	}
+	switch input.JobType {
+	case ai.CapabilityImage, ai.CapabilityImageEdit,
+		ai.CapabilityVideo, ai.CapabilityVideoI2V, ai.CapabilityVideoV2V,
+		ai.CapabilityAudioTTS, ai.CapabilityAudioSTT, ai.CapabilityAudioTranslate, ai.CapabilityAudioChat,
+		ai.CapabilityAudioMusic, ai.CapabilityAudioSFX,
+		ai.CapabilityVoiceClone, ai.CapabilityVoiceDesign,
+		ai.CapabilitySubAlign, ai.CapabilitySubTranslate:
+	default:
+		if input.GenerationIntent == nil {
+			return generationPreflightState{}, InvalidJobTypeError{JobType: input.JobType}
+		}
+	}
+	if err := s.repo.EnsureProjectInOrg(ctx, input.ProjectID, input.OrgID); err != nil {
+		return generationPreflightState{}, err
+	}
+
+	allIDs := MergeIDs(input.InputResourceIDs, input.InputResourceID)
+	inputResources, err := s.LoadInputResources(ctx, allIDs, input.UserID, input.OrgID)
+	if err != nil {
+		return generationPreflightState{}, wrapErr(ErrLoadInputResources, err)
+	}
+	if err := validateGenerationIntentContract(input, allIDs, inputResources.Resources); err != nil {
+		return generationPreflightState{}, err
+	}
+
+	route, err := s.resolveGenerationModelRoute(ctx, input)
+	if err != nil {
+		return generationPreflightState{}, err
+	}
+	aiRoute := aiRouteFromGateway(route)
+	preflight, err := s.ai.PreflightGenerationRoute(ctx, input.UserID, ai.GenerationRoutePreflightRequest{
+		Route:       aiRoute,
+		OutputType:  executionJobTypeForIntent(input.JobType),
+		ExtraParams: input.ExtraParams,
+		AspectRatio: input.AspectRatio,
+		Duration:    input.Duration,
+		ImageCount:  inputResources.ImageCount,
+		VideoCount:  inputResources.VideoCount,
+	})
+	if err != nil {
+		return generationPreflightState{}, err
+	}
+	if err := s.requireImageVerification(preflight.Def, inputResources.Resources); err != nil {
+		return generationPreflightState{}, err
+	}
+	cred, err := s.credentialForRouteSnapshot(ctx, route, preflight.CredentialID)
+	if err != nil {
+		return generationPreflightState{}, err
+	}
+	estimate, err := s.estimateJobRouteCost(ctx, input.UserID, aiRoute, executionJobTypeForIntent(input.JobType), input.Duration, input.ExtraParams, input.AspectRatio)
+	if err != nil {
+		return generationPreflightState{}, err
+	}
+	return generationPreflightState{
+		input:            input,
+		inputResourceIDs: allIDs,
+		inputResources:   inputResources,
+		route:            route,
+		aiRoute:          aiRoute,
+		preflight:        preflight,
+		credential:       cred,
+		estimate:         estimate,
+	}, nil
+}
+
+func executionJobTypeForIntent(capability string) string {
+	switch strings.TrimSpace(capability) {
+	case ai.CapabilityFamilyVideoGeneration:
+		return ai.CapabilityVideo
+	case ai.CapabilityFamilyImageGeneration:
+		return ai.CapabilityImage
+	case ai.CapabilityFamilyAudioGeneration:
+		return ai.CapabilityAudioTTS
+	default:
+		return strings.TrimSpace(capability)
+	}
+}
+
+func executionJobTypeForGenerationIntent(intent *GenerationIntentInput) string {
+	if intent == nil {
+		return ""
+	}
+	switch strings.TrimSpace(intent.Capability) {
+	case ai.CapabilityFamilyImageGeneration:
+		if strings.TrimSpace(intent.Operation) == ai.ImageOperationImageToImage {
+			return ai.CapabilityImageEdit
+		}
+		return ai.CapabilityImage
+	case ai.CapabilityFamilyAudioGeneration:
+		switch strings.TrimSpace(intent.Operation) {
+		case ai.AudioOperationMusic:
+			return ai.CapabilityAudioMusic
+		case ai.AudioOperationSFX:
+			return ai.CapabilityAudioSFX
+		case ai.AudioOperationSTT:
+			return ai.CapabilityAudioSTT
+		case ai.AudioOperationSpeechTranslate:
+			return ai.CapabilityAudioTranslate
+		case ai.AudioOperationAudioChat:
+			return ai.CapabilityAudioChat
+		case ai.AudioOperationVoiceClone:
+			return ai.CapabilityVoiceClone
+		case ai.AudioOperationVoiceDesign:
+			return ai.CapabilityVoiceDesign
+		default:
+			return ai.CapabilityAudioTTS
+		}
+	}
+	return executionJobTypeForIntent(intent.Capability)
+}
+
+func validateGenerationIntentContract(input EnqueueInput, inputResourceIDs []uint, inputResources []domainjob.InputResource) error {
+	if input.GenerationIntent == nil && !requiresGenerationIntent(input.JobType) {
+		return nil
+	}
+	if input.GenerationIntent == nil {
+		return generationIntentError("missing_operation_intent", "generation_intent with capability and operation is required", "generation_intent.operation")
+	}
+	if strings.TrimSpace(input.GenerationIntent.Capability) == "" {
+		return generationIntentError("missing_capability_intent", "generation_intent.capability is required", "generation_intent.capability")
+	}
+	if strings.TrimSpace(input.GenerationIntent.Operation) == "" {
+		return generationIntentError("missing_operation_intent", "generation_intent.operation is required", "generation_intent.operation")
+	}
+	if len(inputResourceIDs) == 0 {
+		return nil
+	}
+	if len(input.GenerationIntent.ReferenceAssets) < len(inputResourceIDs) {
+		return generationIntentError("missing_input_role", "every input resource must declare a reference asset role", "generation_intent.reference_assets")
+	}
+	inputIDSet := make(map[uint]struct{}, len(inputResourceIDs))
+	for _, id := range inputResourceIDs {
+		inputIDSet[id] = struct{}{}
+	}
+	resourceByID := make(map[uint]domainjob.InputResource, len(inputResources))
+	for _, resource := range inputResources {
+		resourceByID[resource.ID] = resource
+	}
+	seenRefIDs := make(map[uint]struct{}, len(input.GenerationIntent.ReferenceAssets))
+	for _, ref := range input.GenerationIntent.ReferenceAssets {
+		if ref.ResourceID == 0 {
+			return generationIntentError("missing_input_resource_id", "every reference asset for an input resource must declare resource_id", "generation_intent.reference_assets.resource_id")
+		}
+		mediaType := strings.TrimSpace(ref.MediaType)
+		if mediaType == "" {
+			return generationIntentError("missing_input_media_type", "every reference asset for an input resource must declare media_type", "generation_intent.reference_assets.media_type")
+		}
+		if strings.TrimSpace(ref.Role) == "" {
+			return generationIntentError("missing_input_role", "every reference asset must declare role", "generation_intent.reference_assets.role")
+		}
+		if _, ok := inputIDSet[ref.ResourceID]; !ok {
+			return generationIntentError("unknown_input_resource_id", "reference asset resource_id must match an input resource", "generation_intent.reference_assets.resource_id")
+		}
+		if _, ok := seenRefIDs[ref.ResourceID]; ok {
+			return generationIntentError("duplicate_input_resource_id", "each input resource can only appear once in generation_intent.reference_assets", "generation_intent.reference_assets.resource_id")
+		}
+		seenRefIDs[ref.ResourceID] = struct{}{}
+		if resource, ok := resourceByID[ref.ResourceID]; ok {
+			actualMediaType := normalizedInputResourceMediaType(resource)
+			if actualMediaType != "" && !strings.EqualFold(mediaType, actualMediaType) {
+				return generationIntentError("input_media_type_mismatch", "reference asset media_type must match the input resource type", "generation_intent.reference_assets.media_type")
+			}
+		}
+	}
+	for _, id := range inputResourceIDs {
+		if _, ok := seenRefIDs[id]; !ok {
+			return generationIntentError("missing_input_role", "every input resource must declare a reference asset role", "generation_intent.reference_assets")
+		}
+	}
+	return nil
+}
+
+func normalizedInputResourceMediaType(resource domainjob.InputResource) string {
+	switch strings.TrimSpace(strings.ToLower(resource.Type)) {
+	case "image", "video", "audio":
+		return strings.TrimSpace(strings.ToLower(resource.Type))
+	default:
+		return ""
+	}
+}
+
+func requiresGenerationIntent(jobType string) bool {
+	switch strings.TrimSpace(jobType) {
+	case ai.CapabilityImage, ai.CapabilityImageEdit, ai.CapabilityVideo, ai.CapabilityVideoI2V, ai.CapabilityVideoV2V:
+		return true
+	case ai.CapabilityAudioTTS, ai.CapabilityAudioSTT, ai.CapabilityAudioTranslate, ai.CapabilityAudioChat,
+		ai.CapabilityAudioMusic, ai.CapabilityAudioSFX,
+		ai.CapabilityVoiceClone, ai.CapabilityVoiceDesign,
+		ai.CapabilitySubAlign, ai.CapabilitySubTranslate:
+		return true
+	default:
+		return false
+	}
+}
+
+func generationIntentError(code, message, field string) error {
+	return ai.NewGenerationIntentValidationError(code, message, field)
+}
+
+func routeRequestForGenerationInput(input EnqueueInput) providercontract.AIGatewayRouteRequest {
+	request := providercontract.AIGatewayRouteRequest{
+		Capability: input.JobType,
+	}
+	if input.GenerationIntent != nil {
+		request.Capability = strings.TrimSpace(input.GenerationIntent.Capability)
+		request.Operation = strings.TrimSpace(input.GenerationIntent.Operation)
+		request.ReferenceAssets = referenceAssetsToContract(input.GenerationIntent.ReferenceAssets)
+	}
+	return request
+}
+
+func referenceAssetsToContract(values []GenerationReferenceAssetInput) []providercontract.AIReferenceAssetIntent {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]providercontract.AIReferenceAssetIntent, 0, len(values))
+	for _, value := range values {
+		out = append(out, providercontract.AIReferenceAssetIntent{
+			Role:      value.Role,
+			MediaType: value.MediaType,
+		})
+	}
+	return out
+}
+
+func generationIntentSnapshot(intent *GenerationIntentInput) *domainjob.GenerationIntentSnapshot {
+	if intent == nil || strings.TrimSpace(intent.Capability) == "" {
+		return nil
+	}
+	return &domainjob.GenerationIntentSnapshot{
+		Capability:      strings.TrimSpace(intent.Capability),
+		Operation:       strings.TrimSpace(intent.Operation),
+		ReferenceAssets: generationIntentReferenceSnapshots(intent.ReferenceAssets),
+	}
+}
+
+func generationIntentReferenceSnapshots(values []GenerationReferenceAssetInput) []domainjob.GenerationReferenceAssetRole {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]domainjob.GenerationReferenceAssetRole, 0, len(values))
+	for _, value := range values {
+		out = append(out, domainjob.GenerationReferenceAssetRole{
+			Role:       strings.TrimSpace(value.Role),
+			MediaType:  strings.TrimSpace(value.MediaType),
+			ResourceID: value.ResourceID,
+		})
+	}
+	return out
 }
 
 func projectScopeBinding(input EnqueueInput) *domainjob.ProjectScopeBinding {
@@ -353,13 +625,17 @@ func (s *Service) resolveGenerationModelRoute(ctx context.Context, input Enqueue
 		return providercontract.AIGatewayModelRoute{}, errors.New("ai routing policy is required")
 	}
 	if input.AIModelCatalogEntryID != nil && *input.AIModelCatalogEntryID != 0 {
-		return s.routing.ResolveGatewayModelRoute(ctx, providercontract.AIGatewayRouteRequest{
-			CatalogEntryID: *input.AIModelCatalogEntryID,
-			Capability:     input.JobType,
-		})
+		request := routeRequestForGenerationInput(input)
+		request.CatalogEntryID = *input.AIModelCatalogEntryID
+		return s.routing.ResolveGatewayModelRoute(ctx, request)
 	}
 	modelID := strings.TrimSpace(input.ModelID)
 	if modelID != "" {
+		if input.GenerationIntent != nil {
+			request := routeRequestForGenerationInput(input)
+			request.ModelID = modelID
+			return s.routing.ResolveGatewayModelRoute(ctx, request)
+		}
 		return s.routing.ResolveGatewayGenerationModelRoute(ctx, modelID, input.JobType)
 	}
 	return providercontract.AIGatewayModelRoute{}, errors.New("model_id is required")
@@ -392,6 +668,9 @@ func aiRouteFromGateway(route providercontract.AIGatewayModelRoute) ai.ModelRout
 		ProviderKind:    route.ProviderKind,
 		AdapterKey:      route.AdapterKey,
 		ProviderModelID: route.ProviderModelID,
+		Capability:      route.Capability,
+		APIKind:         route.APIKind,
+		Operation:       route.Operation,
 		SelectionReason: route.SelectionReason,
 	}
 }
@@ -626,12 +905,55 @@ func (s *Service) resolveJobModelRoute(ctx context.Context, job domainjob.Job, c
 	if catalogEntryID == 0 && routeBindingID == 0 {
 		return ai.ModelRoute{}, errors.New("job route binding or catalog entry is required")
 	}
-	return s.ai.ResolveModelRoute(ai.ModelRouteRequest{
+	request := ai.ModelRouteRequest{
 		CatalogEntryID: catalogEntryID,
 		RouteBindingID: routeBindingID,
 		Capability:     capability,
 		RouteGroup:     strings.TrimSpace(job.RouteGroup),
-	})
+	}
+	if intent := generationIntentFromRequestContext(job.RequestContext); intent != nil {
+		request.Capability = intent.Capability
+		request.Operation = intent.Operation
+		request.ReferenceAssets = intent.ReferenceAssets
+	}
+	return s.ai.ResolveModelRoute(request)
+}
+
+type resolvedGenerationIntent struct {
+	Capability      string
+	Operation       string
+	ReferenceAssets []ai.RouteReferenceAssetIntent
+}
+
+func generationIntentFromRequestContext(requestContext string) *resolvedGenerationIntent {
+	var body struct {
+		Intent struct {
+			Capability      string `json:"capability"`
+			Operation       string `json:"operation"`
+			ReferenceAssets []struct {
+				Role      string `json:"role"`
+				MediaType string `json:"media_type"`
+			} `json:"reference_assets"`
+		} `json:"intent"`
+	}
+	if err := json.Unmarshal([]byte(requestContext), &body); err != nil {
+		return nil
+	}
+	capability := strings.TrimSpace(body.Intent.Capability)
+	if capability == "" {
+		return nil
+	}
+	out := &resolvedGenerationIntent{
+		Capability: capability,
+		Operation:  strings.TrimSpace(body.Intent.Operation),
+	}
+	for _, ref := range body.Intent.ReferenceAssets {
+		out.ReferenceAssets = append(out.ReferenceAssets, ai.RouteReferenceAssetIntent{
+			Role:      strings.TrimSpace(ref.Role),
+			MediaType: strings.TrimSpace(ref.MediaType),
+		})
+	}
+	return out
 }
 
 func (s *Service) MarkCancelled(ctx context.Context, id uint, userID uint, orgID *uint, providerStatus string, message string) (domainjob.Job, error) {

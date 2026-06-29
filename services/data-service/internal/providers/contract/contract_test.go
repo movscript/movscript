@@ -188,6 +188,7 @@ func TestAIGatewayModelRouteJSONIsProviderFirst(t *testing.T) {
 		AdapterKey:      "volcengine_ark",
 		ProviderModelID: "doubao-seedance-2-0-pro-250528",
 		Capability:      "video",
+		Operation:       "first_last_frame_to_video",
 		APIKind:         "video_i2v",
 	})
 	if err != nil {
@@ -197,7 +198,7 @@ func TestAIGatewayModelRouteJSONIsProviderFirst(t *testing.T) {
 	if strings.Contains(payload, "credential_id") {
 		t.Fatalf("route json = %s, want no credential_id exposure", payload)
 	}
-	for _, want := range []string{`"provider_id":"volc-ark-main"`, `"provider_kind":"volcengine_ark_official"`, `"provider_model_id":"doubao-seedance-2-0-pro-250528"`} {
+	for _, want := range []string{`"provider_id":"volc-ark-main"`, `"provider_kind":"volcengine_ark_official"`, `"provider_model_id":"doubao-seedance-2-0-pro-250528"`, `"operation":"first_last_frame_to_video"`} {
 		if !strings.Contains(payload, want) {
 			t.Fatalf("route json = %s, want %s", payload, want)
 		}

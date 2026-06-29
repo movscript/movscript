@@ -1,6 +1,7 @@
 export * from './types.js'
 export * from './categories.js'
 export * from './contentUnits.js'
+export * from './expressionUnits.js'
 export * from './pathEdges.js'
 export * from './pathSemantics.js'
 export * from './vocabulary.js'

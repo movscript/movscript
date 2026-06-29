@@ -1442,6 +1442,9 @@ func buildVolcenVideoTaskRequest(req VideoRequest) (arkmodel.CreateContentGenera
 		"model":   req.Model,
 		"content": volcenVideoDebugContent(req.Prompt, imageURLs, videoURL, audioURL),
 	}
+	if bindings := volcenReferenceAssetBindings(req.ReferenceAssets); len(bindings) > 0 {
+		debugBody["reference_asset_bindings"] = bindings
+	}
 	if req.Frames > 0 {
 		debugBody["frames"] = req.Frames
 	} else if req.Duration != 0 {
@@ -1481,6 +1484,40 @@ func buildVolcenVideoTaskRequest(req VideoRequest) (arkmodel.CreateContentGenera
 		debugBody["tools"] = []map[string]any{{"type": "web_search"}}
 	}
 	return createReq, debugBody, nil
+}
+
+func volcenReferenceAssetBindings(assets []ReferenceAsset) []map[string]any {
+	out := make([]map[string]any, 0, len(assets))
+	for _, asset := range assets {
+		role := strings.TrimSpace(asset.Role)
+		mediaType := strings.TrimSpace(asset.MediaType)
+		if role == "" && mediaType == "" && asset.ResourceID == 0 {
+			continue
+		}
+		providerField, providerRole := volcenProviderFieldForReferenceAsset(mediaType)
+		item := map[string]any{
+			"role":           role,
+			"media_type":     mediaType,
+			"provider_field": providerField,
+			"provider_role":  providerRole,
+		}
+		if asset.ResourceID != 0 {
+			item["resource_id"] = asset.ResourceID
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func volcenProviderFieldForReferenceAsset(mediaType string) (string, string) {
+	switch strings.TrimSpace(strings.ToLower(mediaType)) {
+	case "video":
+		return "content[].video_url", volcenRoleReferenceVideo
+	case "audio":
+		return "content[].audio_url", volcenRoleReferenceAudio
+	default:
+		return "content[].image_url", volcenRoleReferenceImage
+	}
 }
 
 func buildVolcenAudioTaskRequest(req media.AudioGenerationRequest, prompt string) arkmodel.CreateContentGenerationTaskRequest {

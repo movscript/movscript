@@ -16,6 +16,7 @@ const localSurfaceHostI18nResources = {
     translation: {
       common: {
         loadingShort: '加载中',
+        retry: '重试',
       },
       localSurfaceHost: {
         chrome: {
@@ -27,6 +28,7 @@ const localSurfaceHostI18nResources = {
           loadingSurface: '正在加载 surface...',
           loadingAdmin: '正在加载 admin...',
           localWorkspace: '本地工作区',
+          routeErrorTitle: 'Surface 渲染失败',
         },
         home: {
           title: 'App Home',
@@ -55,9 +57,9 @@ const localSurfaceHostI18nResources = {
         tabs: {
           primary: '一级工作模式',
           app: 'App',
-          tool: 'Tool',
-          project: 'Project',
-          edit: 'Edit',
+          tool: '工具',
+          project: '项目',
+          edit: '剪辑',
           canvas: '工作流画布',
         },
         recent: {
@@ -333,6 +335,7 @@ const localSurfaceHostI18nResources = {
     translation: {
       common: {
         loadingShort: 'Loading',
+        retry: 'Retry',
       },
       localSurfaceHost: {
         chrome: {
@@ -344,6 +347,7 @@ const localSurfaceHostI18nResources = {
           loadingSurface: 'Loading surface...',
           loadingAdmin: 'Loading admin...',
           localWorkspace: 'Local Workspace',
+          routeErrorTitle: 'Surface failed to render',
         },
         home: {
           title: 'App Home',
@@ -372,9 +376,9 @@ const localSurfaceHostI18nResources = {
         tabs: {
           primary: 'Primary work modes',
           app: 'App',
-          tool: 'Tool',
-          project: 'Project',
-          edit: 'Edit',
+          tool: 'Tools',
+          project: 'Projects',
+          edit: 'Editing',
           canvas: 'Workflow Canvas',
         },
         recent: {

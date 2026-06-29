@@ -16,6 +16,7 @@ type handlers struct {
 	userAdmin         *handler.UserAdminHandler
 	ai                *handler.AIHandler
 	resources         *handler.ResourceHandler
+	resourceAccess    *handler.ResourceAccessHandler
 	providerAssets    *handler.ProviderAssetHandler
 	mediaStreams      *handler.MediaStreamHandler
 	externalResources *handler.ExternalResourceHandler
@@ -64,6 +65,7 @@ func newHandlers(deps Dependencies) handlers {
 		userAdmin:         handler.NewUserAdminHandler(db, deps.AuthIdentity),
 		ai:                handler.NewAIHandlerWithConfig(db, cfg, cfg.EncryptionKey, registry),
 		resources:         handler.NewResourceHandlerWithIdentity(db, store, imageVerifier, cfg.MaxUploadBytes, deps.AuthIdentity, cacheStore),
+		resourceAccess:    handler.NewResourceAccessHandler(db, store, cfg.EncryptionKey, imageVerifier, cacheStore),
 		providerAssets:    handler.NewProviderAssetHandler(db, cfg, store, imageVerifier, cfg.EncryptionKey, cacheStore),
 		mediaStreams:      handler.NewMediaStreamHandler(db, store, cfg.MaxUploadBytes),
 		externalResources: handler.NewExternalResourceHandler(db, cfg.EncryptionKey),

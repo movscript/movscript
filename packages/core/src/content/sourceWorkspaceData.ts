@@ -6,6 +6,7 @@ import {
   classifyMovScriptEntityKind,
   nearestParentPath,
   normalizeContentUnitTargetEdges,
+  expressionUnitSlotKindFromRecord,
   normalizeNamespaceVocabulary,
   normalizePathParentEdge,
   isContentUnitPromptRefKind,
@@ -135,6 +136,8 @@ export interface ContentCandidateRecord {
   content_unit_ref?: string
   source?: string
   status?: string
+  decision_status?: string
+  decision_reason?: string
   producer?: Record<string, unknown>
   outputs?: unknown[]
   prompt_snapshot?: Record<string, unknown>
@@ -210,6 +213,7 @@ export interface ContentSourceWorkspaceExpressionUnitPatch {
   targetPath: string
   patch: {
     title: string
+    slotKind?: string
     expressionKind: string
     text: string
     intent: string
@@ -788,6 +792,7 @@ export function buildContentSourceWorkspaceExpressionUnitPatch(input: {
   targetPath: string
   title: string
   kind: string
+  slotKind?: string
   text: string
   summary: string
   speaker?: string
@@ -797,6 +802,7 @@ export function buildContentSourceWorkspaceExpressionUnitPatch(input: {
     targetPath: input.targetPath,
     patch: {
       title: input.title,
+      slotKind: input.slotKind,
       expressionKind: input.kind,
       text: input.text,
       intent: input.summary,
@@ -1438,7 +1444,8 @@ function buildExpressionUnitsByMoment(
       id: idText(expression),
       title: titleOf(expression, stringField(expression.record.text) ?? idText(expression)),
       path: expression.path,
-      kind: stringField(expression.record.expression_kind ?? expression.record.kind) ?? 'expression',
+      kind: stringField(expression.record.slot_kind ?? expression.record.expression_kind ?? expression.record.kind) ?? 'visual',
+      slotKind: expressionUnitSlotKindFromRecord(expression.record),
       text: stringField(expression.record.text) ?? '',
       summary: stringField(expression.record.intent ?? expression.record.note ?? expression.record.text) ?? '',
       speaker: stringField(expression.record.speaker),
@@ -1889,6 +1896,8 @@ function previewCandidatesForContentUnit(
       resourceKind: stringField(output?.kind),
       artifactRef: stringField(output?.artifact_ref),
       status: stringField(candidate.status),
+      decisionStatus: candidateDecisionStatus(candidate),
+      decisionReason: candidateDecisionReason(candidate),
       source: stringField(candidate.source),
       producer: candidate.producer,
       outputs: candidate.outputs,
@@ -1917,6 +1926,8 @@ function previewAssetCandidatesForContentUnit(
       resourceKind: stringField(output?.kind),
       artifactRef: stringField(output?.artifact_ref),
       status: stringField(candidate.status),
+      decisionStatus: candidateDecisionStatus(candidate),
+      decisionReason: candidateDecisionReason(candidate),
       source: stringField(candidate.source),
       producer: candidate.producer,
       outputs: candidate.outputs,
@@ -2172,7 +2183,7 @@ function contentUnitType(contentUnit: MovScriptWorkspaceIndexedEntity | undefine
 
 function outputKindForContentUnit(contentUnit: MovScriptWorkspaceIndexedEntity | undefined): PreviewContentUnit['outputKind'] {
   const outputKind = stringField(contentUnit?.record.output_kind)
-  if (outputKind === 'image' || outputKind === 'video' || outputKind === 'audio' || outputKind === 'storyboard') return outputKind
+  if (outputKind === 'image' || outputKind === 'video' || outputKind === 'audio' || outputKind === 'text' || outputKind === 'metadata' || outputKind === 'storyboard') return outputKind
   const type = contentUnitType(contentUnit)
   if (type === 'keyframe_ref' || type === 'storyboard_ref') return 'image'
   if (type === 'audio_cue_ref') return 'audio'
@@ -2268,16 +2279,21 @@ function candidateInputHash(candidate: ContentCandidateRecord, contentUnitId: st
 
 function candidateNote(candidate: ContentCandidateRecord): string {
   const output = firstCandidateOutput(candidate)
-  const candidateRecord = candidate as Record<string, unknown>
-  const decisionStatus = stringField(candidateRecord.decision_status)
-  const decisionReason = stringField(candidateRecord.decision_reason)
-  if (decisionStatus && decisionReason) return `${decisionStatus}: ${decisionReason}`
-  if (decisionStatus) return decisionStatus
   return stringField(candidate.prompt_snapshot?.note)
     ?? stringField(candidate.prompt_snapshot?.summary)
     ?? stringField(output?.mime_type)
     ?? stringField(candidate.status)
     ?? 'Workspace runtime candidate.'
+}
+
+function candidateDecisionStatus(candidate: ContentCandidateRecord): string | undefined {
+  const record = candidate as Record<string, unknown>
+  return stringField(record.decision_status) ?? stringField(record.decisionStatus)
+}
+
+function candidateDecisionReason(candidate: ContentCandidateRecord): string | undefined {
+  const record = candidate as Record<string, unknown>
+  return stringField(record.decision_reason) ?? stringField(record.decisionReason)
 }
 
 function firstCandidateOutput(candidate: ContentCandidateRecord): Record<string, unknown> | undefined {
@@ -2386,6 +2402,7 @@ function hierarchyNodeSourceRecord(input: {
     case 'expression_unit':
       return {
         ...base,
+        slot_kind: 'visual',
         expression_kind: 'action',
         text: '',
         intent: '',

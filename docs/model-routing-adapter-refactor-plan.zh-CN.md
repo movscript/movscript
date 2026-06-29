@@ -1,6 +1,6 @@
 # 模型路由与 Adapter 改造计划
 
-状态：改造计划草案。
+状态：实施中。本文档既是架构约束，也是后续验收清单；代码可以分阶段落地，但不能再引入新的 provider kind、模型名或 catalog template adapter 推断。
 
 ## 背景
 
@@ -45,6 +45,14 @@ request intent
 adapter 不选模型，provider 不选协议，router 根据能力和 endpoint 选 route。
 ```
 
+再补一条模板边界：
+
+```text
+model template 不拥有 adapter；route template / route binding 才拥有 adapter。
+```
+
+Catalog / model template 只描述 MovScript public model identity、canonical capability、canonical params 和输入约束。它不能声明“这个模型应该用哪个 adapter”，否则会和 route binding 形成两个事实源。如果 registry 为了批量生成 route 仍需要一个建议值，只能使用 `route_adapter_hint` 这种明确的 bootstrap hint 名称；导入后必须物化成 route template 或 route binding，随后立即失去运行时语义。导入、启用和运行时路由都不能把 model template 的 route adapter hint 当作 adapter 决策来源，也不能作为模型能力校验依据。`route_adapter_hint` 不进入 Admin model template 响应和 Agent-facing API；Admin UI 中可见的 adapter 只能来自 Provider 默认值、route template 或 route binding。
+
 ## 非目标
 
 - 不把中转站模型列表当作 MovScript 的 canonical model catalog。
@@ -68,17 +76,19 @@ adapter 不选模型，provider 不选协议，router 根据能力和 endpoint �
 
 ## 技术架构总览
 
-改造后的技术主线是“先声明意图，再选择路由，最后序列化协议”。调用方不再把图片数量、provider kind 或模型名当作隐含能力信号，而是显式给出本次要调用的能力域、operation 和输入资源 role。
+改造后的技术主线是“Agent 只看模型和能力，后端隐藏 route 细节”。调用方不再把图片数量、provider kind、route id 或模型名当作隐含能力信号，而是显式给出 MovScript public model、本次要调用的能力域、operation 和输入资源 role。
 
 ```mermaid
 flowchart LR
-  Client["Client / Agent / Admin Test"] --> Intent["GenerationIntent<br/>capability + operation + input roles"]
+  Client["Client / Agent"] --> PublicContract["Public Generation API<br/>model + capability + operation"]
+  PublicContract --> Intent["GenerationIntent<br/>public_model_id + capability + operation + input roles"]
   Intent --> Matcher["Capability Matcher<br/>model capability ∩ route capability"]
   Matcher --> Router["Route Router<br/>priority + health + capacity"]
   Router --> Endpoint["Endpoint Resolver<br/>base URL + path prefix + operation path"]
   Endpoint --> Adapter["Adapter<br/>serialize request + parse response"]
   Adapter --> Upstream["Upstream API Endpoint"]
-  Router --> Trace["RouteResolutionTrace"]
+  Admin["Admin / Debug"] --> Trace["RouteResolutionTrace"]
+  Router --> Trace
   Endpoint --> Trace
   Adapter --> Trace
 ```
@@ -87,7 +97,8 @@ flowchart LR
 
 | 组件 | 职责 | 不负责 |
 | --- | --- | --- |
-| Client / Agent / Admin Test | 声明 `capability`、`operation`、输入资源 role 和 canonical params | 猜测 provider 原生字段、拼上游 URL |
+| Client / Agent | 声明 `public_model_id`、`capability`、`operation`、输入资源 role 和 canonical params | 选择 route、provider、adapter、endpoint、path prefix |
+| Public Generation API | 把 Agent 的模型 + 能力请求归一化为 `GenerationIntent` | 暴露 route id、credential、adapter 或上游 URL |
 | Capability Schema | 表达模型和路由支持的能力、输入、参数、媒体传输、任务生命周期 | 保存账号密钥或路由优先级 |
 | Catalog Entry | 表达 MovScript public model identity 和 canonical model capability | 绑定具体账号 URL |
 | Route Binding | 表达某个 provider endpoint 的 adapter、provider model id、endpoint profile 和 route capability | 定义模型对外身份 |
@@ -96,11 +107,12 @@ flowchart LR
 | Endpoint Resolver | 统一处理 base URL、path prefix、operation path、`/v1` 去重和替换 | 根据模型名猜 endpoint |
 | Adapter | 只做协议序列化、content type、响应解析、任务状态映射 | 决定该用哪条 route 或哪个账号 |
 | Runner / Media Prep | 根据 route / adapter contract 准备 public URL、provider file id、inline data 等媒体输入 | 解释首帧/尾帧语义 |
-| Admin / Debug | 展示可编辑配置、effective endpoint、route trace、request shape summary | 把 provider 默认值伪装成 route 事实 |
+| Admin / Debug | 展示可编辑配置、effective endpoint、route trace、request shape summary | 改写 Agent 的 public contract |
 
 关键边界：
 
 - `GenerationIntent` 是运行时入口的唯一合同；没有显式 `capability`、`operation` 和输入 role 的请求不进入 router。
+- Agent-facing API 只暴露 MovScript public model 和 capability / operation；route binding、provider credential、adapter type、endpoint profile 都是 Admin / Debug 层的运行时细节。
 - route 的 endpoint profile 是最终 URL 的权威来源；provider 只提供默认 host、默认 prefix 和 credential。
 - route capability 默认用于收窄 catalog capability；如果未来要允许 route 补充 provider-specific 能力，必须有显式策略和审计。
 - adapter registry 只回答“这个协议怎么发”，不能回答“这个模型该走哪条路由”。
@@ -126,6 +138,28 @@ ModelCapabilitiesJSON string `gorm:"type:text;default:'{}'" json:"model_capabili
 ```
 
 历史字段可以作为一次性数据迁移来源，但运行时不应依赖旧字段投影能力。迁移完成后，router 只读取结构化能力。
+
+模型模板不应包含 `adapter_type`。如果 registry 仍需要批量生成默认 route，应新增 route template / combo template；模型模板源文件最多只能保留 `route_adapter_hint` 作为生成器 hint，且不能进入 Admin model template 响应或普通 Agent-facing API：
+
+```yaml
+model_templates:
+  - id: xai:grok-imagine-video
+    lab: xai
+    model_id: grok-imagine-video
+    capabilities:
+      video_generation:
+        operations: [prompt_to_video]
+
+route_templates:
+  - model_template_key: xai:grok-imagine-video
+    provider_kind: xai_official
+    adapter_type: official_video_generations
+    endpoint:
+      path_prefix: /v1
+      operation_profile: generation
+```
+
+这样模型事实源和 route 事实源分开：同一个模型可以被 OpenAI-compatible 中转、官方 JSON 视频接口、Yunwu unified 接口或阿里百炼接口分别接入，但 public model capability 不会因为接入入口变化而漂移。
 
 ### Route Binding
 
@@ -547,6 +581,26 @@ schema 需要覆盖上面的完整能力基线；实现可以分层推进。第�
 
 其余能力可以先只在 catalog / route schema 和 Admin 预览中可表达，等对应 adapter 接入时再启用测试表单和 runner 支持。
 
+## Agent 调用模型
+
+Agent 和普通客户端面对的是 MovScript 的模型能力层，不是 route 层。它们只需要回答：
+
+```text
+我要用哪个 MovScript 模型 -> 我要调用哪种能力/operation -> 这次输入分别是什么角色
+```
+
+因此 Agent-facing contract 必须隐藏这些字段：
+
+- `route_binding_id`
+- `provider_id` / `credential_id`
+- `adapter_type`
+- `endpoint_base_url`
+- `endpoint_path_prefix`
+- `operation_profile`
+- 上游 provider-native request body
+
+这些字段只允许出现在 Admin、Debug、route diagnose 和后端日志中。Agent 可以收到抽象诊断，例如“当前模型没有可用通道支持首尾帧生视频”或“当前账号缺少公网媒体传输能力”，但不应该被要求理解 `/v1/video/create`、`/alibailian/api/v1` 或 multipart / JSON 协议差异。
+
 ## 按能力调用模型
 
 调用模型时也应按能力调用。客户端必须显式声明本次要使用的能力域和 operation mode，不能只传 `model_id`、prompt 和资源列表，让后端根据输入数量或顺序猜测。
@@ -600,16 +654,18 @@ schema 需要覆盖上面的完整能力基线；实现可以分层推进。第�
 - 如果客户端没有声明输入 role，直接返回 `missing_input_role`。
 - 如果资源 role 和 operation 不匹配，例如 `operation=first_last_frame_to_video` 但没有 `last_frame`，应返回 `invalid_operation_inputs`。
 
-这样客户端、Admin、Agent 和 runner 的心智是一致的：
+这样 Agent / 客户端和后端 runner 的心智是一致的，但分层不同：
 
 ```text
-我要调用什么能力 -> 这次输入分别是什么角色 -> router 找到能完成该能力的 route -> adapter 序列化成上游协议
+Agent: 我要调用哪个模型的什么能力 -> 这次输入分别是什么角色
+Backend: router 找到能完成该能力的 route -> adapter 序列化成上游协议
 ```
 
 ### GenerationIntent 合同
 
 ```go
 type GenerationIntent struct {
+	PublicModelID string
 	Capability string
 	Operation  string
 	Inputs     GenerationInputs
@@ -617,7 +673,7 @@ type GenerationIntent struct {
 }
 ```
 
-`GenerationIntent` 是运行时唯一入口。旧接口、旧 UI 或旧 Agent tool 如果还只能传 `model_id`、prompt 和资源数组，必须先升级调用方；后端不再做兼容推断。
+`GenerationIntent` 是运行时唯一入口，但它仍然是 public model + capability 层的合同，不包含 route / provider / adapter / endpoint 字段。旧接口、旧 UI 或旧 Agent tool 如果还只能传 `model_id`、prompt 和资源数组，必须先升级调用方；后端不再做兼容推断。
 
 明确禁止：
 
@@ -758,6 +814,7 @@ adapter_not_supported
 ```
 
 这些错误要给 Admin、Desktop 工具面板和 Agent diagnostics 共用。
+其中 Agent diagnostics 只能暴露 public model / capability 层的错误和行动建议；route id、adapter、endpoint URL、credential 只进入 Admin / Debug 诊断。
 
 ## Admin 改造
 
@@ -897,15 +954,17 @@ https://yunwu.ai + /alibailian/api/v1 + /services/aigc/video-generation/video-sy
 
 职责：
 
-- 给使用工具的用户看简化诊断，不暴露复杂 Admin 细节。
+- 给使用工具的用户和 Agent 看简化诊断，不暴露复杂 Admin 细节。
 
 需要新增：
 
 - 工具入口显式选择或固定 capability / operation，例如 `video_generation:first_last_frame_to_video`。
-- 显示选中的 route provider、adapter、能力模式，例如 `first_last_frame_to_video`。
+- 默认只显示 public model、capability / operation 和能力模式，例如 `first_last_frame_to_video`。
+- route provider、adapter、effective URL 只在 Admin Debug 链接或高级诊断中展示，不作为 Agent 可见合同。
 - 如果失败是能力路由问题，给出可行动提示：
-  - “当前路由不支持尾帧，请在 Admin 路由管理中启用支持首尾帧的 route。”
-  - “当前 route 需要公网图片 URL，请配置 storage public base URL 或 files API。”
+  - Agent / 普通用户：“当前模型没有可用通道支持首尾帧生视频，请在模型设置中启用对应能力。”
+  - Agent / 普通用户：“当前模型需要公网媒体传输能力，请先配置媒体访问方式。”
+  - Admin 详情：“被拒绝 route 15 缺少 `first_last_frame_to_video`，route 18 缺少 public URL transport。”
 - 保持 debug curl 保护逻辑：只有真实可复现请求才允许复制。
 
 ### Admin 类型和 API 合同
@@ -983,6 +1042,7 @@ Registry YAML 要继续按 lab 组织模型模板，provider-only 中转站仍�
 模型模板可以增加：
 
 ```yaml
+route_adapter_hint: openai_compat # 仅用于 registry/bootstrap；route 生成后不再具备运行时语义
 capabilities_json:
   video_generation:
     operations:
@@ -1014,7 +1074,7 @@ providers:
   - provider_kind: yunwu_gateway
     provider_category: aggregator_gateway
     default_adapter_type: openai_compat
-    default_base_url_prefix: /v1
+    default_base_url_prefix: https://yunwu.ai/v1
 
 routes:
   - provider_kind: yunwu_gateway
@@ -1041,7 +1101,7 @@ routes:
           - "720P"
 
   - provider_kind: yunwu_gateway
-    adapter_type: alibailian_video
+    adapter_type: dashscope
     provider_model_id: ali-video-model
     endpoint:
       mode: inherit
@@ -1140,7 +1200,9 @@ OpenMontage 的 contract tests 会检查工具 identity、capability、provider�
 | 范围 | 必须证明 | 必须挡住的问题 |
 | --- | --- | --- |
 | 调用合同 | 所有调用都带 `capability`、`operation` 和输入资源 role；缺字段直接返回合同错误 | 多张图片被自动推断成首尾帧；provider kind 自动决定 operation |
+| Agent 抽象 | Agent-facing API 只暴露 public model + capability / operation；route、provider、adapter、endpoint 只出现在 Admin / Debug | Agent 需要理解中转站 URL、route id、adapter 或 provider-native 请求体 |
 | 能力模型 | catalog capability 表达模型语义能力，route capability 表达 endpoint 实际能力，最终按交集匹配 | route 声称支持 catalog 中不存在的能力却无审计；`images` 数组被当成首尾帧语义 |
+| 模板边界 | model template 不声明 runtime adapter；源文件最多出现内部 `route_adapter_hint`，且不进入 Admin template 响应；route template / route binding 是 adapter 和 endpoint 的唯一事实源 | catalog template 和 route binding 同时声明 `adapter_type`，导入后不知道该信谁 |
 | 路由选择 | router 能解释每条候选 route 选中或拒绝的原因，并保留 priority / capacity / health 行为 | 首尾帧请求落到普通图生视频入口；能力不匹配时只返回 upstream 503 |
 | Endpoint 解析 | base URL、path prefix、operation path 可组合、可替换、可去重，特别是 `/v1` 不重复 | adapter 内部拼 URL；中转站 path prefix 变化必须改代码 |
 | Adapter 边界 | adapter 只负责 content type、请求体、响应解析、任务状态映射 | adapter 根据模型名或 provider kind 自己切协议 |
@@ -1178,16 +1240,19 @@ OpenMontage 的 contract tests 会检查工具 identity、capability、provider�
 
 - 给 `AIModelRouteBinding` 增加 endpoint 和 route capability 字段。
 - 给 catalog entry/template 增加结构化能力字段。
+- 拆分 registry：model template 只保留模型身份和模型能力；route template / combo template 才声明 adapter、endpoint 和 route capability。
 - Admin 类型同步新增字段。
 - 编写一次性迁移：
   - 无 endpoint 字段时按 provider 默认值生成显式 endpoint profile。
   - 无 route capability 时从 registry / catalog 模板生成显式 route capability。
+  - 历史 catalog template / generated catalog 中的 `adapter_type` 迁移到对应 route template；若仍需保留生成器默认值，字段名必须改为 `route_adapter_hint`，迁移后 catalog template 不再作为 adapter 来源。
   - 历史 `adapter_type=yunwu` 迁移为 `yunwu_unified_video`。
 - 无法可靠迁移的 route 置为 disabled，并写入 Admin diagnostic。
 
 验收：
 
 - 启动后没有启用中的 route 依赖旧字段 fallback。
+- catalog template 不再被运行时读取为 adapter 来源；普通模板响应不再暴露 `adapter_type` 或 `route_adapter_hint`，所有 adapter 决策都来自 route binding 或 route template。
 - 新字段能被 API 读写。
 - 无法迁移的旧 route 不会参与 router selection，并能在 Admin 看到原因。
 - Go migration 和 Admin typecheck 通过。
@@ -1284,6 +1349,7 @@ Admin：
 - Yunwu provider onboarding / sync 测试：只输入 API key 后生成或更新所有 Yunwu 模型 route，并标记缺能力映射的 route。
 - effective URL preview 测试。
 - route diagnostic UI 测试。
+- Agent-facing response snapshot 测试：普通工具/Agent 返回中不包含 route id、adapter、endpoint URL、credential id。
 - Debug copy curl 保护测试。
 
 端到端：
@@ -1320,8 +1386,9 @@ Admin：
 1. 新增 route endpoint / route capability 字段和一次性迁移。
 2. 新增 `EffectiveRouteEndpoint` 和 URL 拼接测试。
 3. 把 `yunwu` 常量迁移为 `yunwu_unified_video`，运行时只接受新 adapter 类型。
-4. 把 Admin route 类型和表单加上 endpoint preview。
-5. 增加 route diagnostic API 的最小版本，只返回候选和 rejected reasons。
-6. 再拆 official video / multipart video adapter。
+4. 将 registry 拆成 model template 和 route template，移除 catalog/model template 的 runtime adapter 语义。
+5. 把 Admin route 类型和表单加上 endpoint preview。
+6. 增加 route diagnostic API 的最小版本，只返回候选和 rejected reasons。
+7. 再拆 official video / multipart video adapter。
 
 这样可以先解决“同一中转站不同 URL 入口”的建模问题，再逐步把首尾帧、公开 URL、查询任务这些能力纳入 router。

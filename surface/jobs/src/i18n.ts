@@ -37,6 +37,16 @@ export const jobsSurfaceI18nResources = {
             videoI2V: 'Reference Video',
             videoV2V: 'Video Transfer',
           },
+          operations: {
+            text_to_image: 'Text to Image',
+            image_to_image: 'Image to Image',
+            image_edit: 'Image Edit',
+            prompt_to_video: 'Prompt to Video',
+            image_to_video: 'Image to Video',
+            first_frame_to_video: 'First Frame to Video',
+            first_last_frame_to_video: 'First/Last Frame to Video',
+            reference_to_video: 'Reference to Video',
+          },
           status: {
             pending: 'Queued',
             running: 'Generating',
@@ -122,6 +132,16 @@ export const jobsSurfaceI18nResources = {
             video: '文生视频',
             videoI2V: '参考生视频',
             videoV2V: '视频迁移',
+          },
+          operations: {
+            text_to_image: '文生图',
+            image_to_image: '图生图',
+            image_edit: '图像编辑',
+            prompt_to_video: '文生视频',
+            image_to_video: '图生视频',
+            first_frame_to_video: '首帧生视频',
+            first_last_frame_to_video: '首尾帧生视频',
+            reference_to_video: '全能参考生视频',
           },
           status: {
             pending: '排队中',

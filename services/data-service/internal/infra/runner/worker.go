@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/movscript/movscript/internal/app/systemstream"
@@ -15,6 +16,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -86,16 +88,112 @@ func (w *Worker) resolveJobModelRoute(ctx context.Context, job *persistencemodel
 	if catalogEntryID == 0 && routeBindingID == 0 {
 		return ai.ModelRoute{}, fmt.Errorf("job route binding or catalog entry is required")
 	}
-	route, err := w.aiService.ResolveModelRoute(ai.ModelRouteRequest{
+	request := ai.ModelRouteRequest{
 		CatalogEntryID: catalogEntryID,
 		RouteBindingID: routeBindingID,
 		Capability:     capability,
 		RouteGroup:     job.RouteGroup,
-	})
+	}
+	if intent := runnerGenerationIntentFromRequestContext(job.RequestContext); intent != nil {
+		request.Capability = intent.Capability
+		request.Operation = intent.Operation
+		request.ReferenceAssets = intent.ReferenceAssets
+	}
+	route, err := w.aiService.ResolveModelRoute(request)
 	if err != nil {
 		return ai.ModelRoute{}, err
 	}
 	return route, nil
+}
+
+func annotateDebugRouteContext(debugResult *ai.DebugCallResult, route ai.ModelRoute, fallbackCapability string) {
+	if debugResult == nil {
+		return
+	}
+	capability := strings.TrimSpace(route.Capability)
+	if capability == "" {
+		capability = strings.TrimSpace(fallbackCapability)
+	}
+	debugResult.RouteTrace = &ai.DebugRouteTrace{
+		PublicModelID:      strings.TrimSpace(route.ModelID),
+		CatalogEntryID:     route.CatalogEntryID,
+		RouteBindingID:     route.RouteBindingID,
+		SourceType:         strings.TrimSpace(route.SourceType),
+		RouteGroup:         strings.TrimSpace(route.RouteGroup),
+		ProviderID:         strings.TrimSpace(route.ProviderID),
+		ProviderKind:       strings.TrimSpace(route.ProviderKind),
+		AdapterKey:         strings.TrimSpace(route.AdapterKey),
+		AdapterType:        strings.TrimSpace(route.AdapterType),
+		ProviderModelID:    strings.TrimSpace(route.ProviderModelID),
+		Capability:         capability,
+		Operation:          strings.TrimSpace(route.Operation),
+		APIKind:            strings.TrimSpace(route.APIKind),
+		EndpointBaseURL:    strings.TrimSpace(route.EndpointBaseURL),
+		EndpointPathPrefix: strings.TrimSpace(route.EndpointPathPrefix),
+		EndpointMode:       strings.TrimSpace(route.EndpointMode),
+		OperationProfile:   strings.TrimSpace(route.OperationProfile),
+		SelectionReason:    strings.TrimSpace(route.SelectionReason),
+	}
+}
+
+type runnerResolvedGenerationIntent struct {
+	Capability      string
+	Operation       string
+	ReferenceAssets []ai.RouteReferenceAssetIntent
+	RequestAssets   []ai.ReferenceAsset
+}
+
+func runnerGenerationIntentFromRequestContext(requestContext string) *runnerResolvedGenerationIntent {
+	var body struct {
+		Intent struct {
+			Capability      string `json:"capability"`
+			Operation       string `json:"operation"`
+			ReferenceAssets []struct {
+				Role       string `json:"role"`
+				MediaType  string `json:"media_type"`
+				ResourceID uint   `json:"resource_id"`
+			} `json:"reference_assets"`
+		} `json:"intent"`
+	}
+	if err := json.Unmarshal([]byte(requestContext), &body); err != nil {
+		return nil
+	}
+	capability := strings.TrimSpace(body.Intent.Capability)
+	if capability == "" {
+		return nil
+	}
+	out := &runnerResolvedGenerationIntent{
+		Capability: capability,
+		Operation:  strings.TrimSpace(body.Intent.Operation),
+	}
+	for _, ref := range body.Intent.ReferenceAssets {
+		role := strings.TrimSpace(ref.Role)
+		mediaType := strings.TrimSpace(ref.MediaType)
+		out.ReferenceAssets = append(out.ReferenceAssets, ai.RouteReferenceAssetIntent{
+			Role:      role,
+			MediaType: mediaType,
+		})
+		out.RequestAssets = append(out.RequestAssets, ai.ReferenceAsset{
+			Role:       role,
+			MediaType:  mediaType,
+			ResourceID: ref.ResourceID,
+		})
+	}
+	return out
+}
+
+func runnerGenerationOperationFromJob(job *persistencemodel.Job) string {
+	if intent := runnerGenerationIntentFromRequestContext(job.RequestContext); intent != nil {
+		return intent.Operation
+	}
+	return ""
+}
+
+func runnerReferenceAssetsFromJob(job *persistencemodel.Job) []ai.ReferenceAsset {
+	if intent := runnerGenerationIntentFromRequestContext(job.RequestContext); intent != nil {
+		return intent.RequestAssets
+	}
+	return nil
 }
 
 // cloudupService loads enabled cloud file configs from DB and builds a upload.Service.
@@ -194,7 +292,7 @@ func (w *Worker) execute(ctx context.Context, job *persistencemodel.Job) (err er
 		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
 			return err
 		}
-		result, err := w.runImageJob(debugCtx, job, params, imageData, sm)
+		result, err := w.runImageJob(debugCtx, job, params, imageData, sm, debugResult)
 		if err != nil {
 			w.saveDebugInfo(job, debugResult)
 			return err
@@ -205,7 +303,7 @@ func (w *Worker) execute(ctx context.Context, job *persistencemodel.Job) (err er
 		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
 			return err
 		}
-		result, err := w.runImageEditJob(debugCtx, job, params, imageData, sm)
+		result, err := w.runImageEditJob(debugCtx, job, params, imageData, sm, debugResult)
 		if err != nil {
 			w.saveDebugInfo(job, debugResult)
 			return err

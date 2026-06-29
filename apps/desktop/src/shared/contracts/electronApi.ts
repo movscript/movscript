@@ -46,6 +46,7 @@ import type {
   ElectronMovScriptEngineAudioCueInput,
   ElectronMovScriptEngineAssetCreateInput,
   ElectronMovScriptEngineContentCandidateCreateInput,
+  ElectronMovScriptEngineContentCandidateDecideInput,
   ElectronMovScriptEngineContentCandidateSelectInput,
   ElectronMovScriptEngineContentCanvasDeleteResult,
   ElectronMovScriptEngineContentCanvasInput,
@@ -265,6 +266,7 @@ export type ElectronAPI = {
   readMovScriptEngineWorkspaceScriptSource?: (input: ElectronMovScriptEngineWorkspaceReadScriptSourceInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['readScriptSource']>>>
   readMovScriptEngineContentUnitGenerationPrompt?: (input: ElectronMovScriptEngineContentUnitGenerationPromptReadInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['readContentUnitGenerationPrompt']>>>
   buildMovScriptEngineContentUnitBackendPrompt?: (input: ElectronMovScriptEngineContentUnitBackendPromptBuildInput) => Promise<ElectronMovScriptEngineContentUnitBackendPromptBuildResult>
+  readMovScriptEngineContentCanvasReadModel?: (input: ElectronMovScriptEngineProjectInput) => Promise<unknown>
   deleteMovScriptEngineWorkspaceEntity?: (input: ElectronMovScriptEngineWorkspaceDeleteEntityInput) => Promise<void>
   saveMovScriptEngineWorkspaceProductionSnapshot?: (input: ElectronMovScriptEngineWorkspaceSaveProductionSnapshotInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['saveProductionSnapshot']>>>
   upsertMovScriptEngineWorkspaceProjectStandards?: (input: ElectronMovScriptEngineWorkspaceUpsertProjectStandardsInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['upsertProjectStandards']>>>
@@ -282,6 +284,7 @@ export type ElectronAPI = {
   deleteMovScriptEngineContentCanvas?: (input: ElectronMovScriptEngineContentCanvasInput) => Promise<ElectronMovScriptEngineContentCanvasDeleteResult>
   createMovScriptEngineContentCandidate?: (input: ElectronMovScriptEngineContentCandidateCreateInput) => Promise<ContentCandidateRecord>
   selectMovScriptEngineContentUnitCandidate?: (input: ElectronMovScriptEngineContentCandidateSelectInput) => Promise<void>
+  decideMovScriptEngineContentUnitCandidate?: (input: ElectronMovScriptEngineContentCandidateDecideInput) => Promise<void>
   createMovScriptEngineContentUnit?: (input: ElectronMovScriptEngineContentUnitCreateInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['createContentUnit']>>>
   ensureMovScriptEngineContentUnitForEntity?: (input: ElectronMovScriptEngineContentUnitEnsureInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['ensureContentUnitForEntity']>>>
   ensureMovScriptEngineTimelineAssemblyContentUnit?: (input: ElectronMovScriptEngineTimelineAssemblyContentUnitEnsureInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['ensureContentUnitForEntity']>>>

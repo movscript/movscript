@@ -22,12 +22,28 @@ import {
 
 export type MovScriptPromptOutputKind = MovScriptContentUnitOutputKind
 export type MovScriptPromptRefKind = MovScriptContentUnitPromptRefKind | 'candidate' | 'resource'
-export type MovScriptPromptRefRole = 'input'
+export type MovScriptPromptRefRole =
+  | 'input'
+  | 'generic'
+  | 'reference_image'
+  | 'reference_video'
+  | 'reference_audio'
+  | 'first_frame'
+  | 'last_frame'
+  | 'style_reference'
+  | 'motion_reference'
+  | 'source_video'
+  | 'source_audio'
+  | string
+
+export type MovScriptPromptRefMediaType = 'image' | 'video' | 'audio' | 'text' | 'file' | string
 
 export interface MovScriptPromptRef {
   kind: MovScriptPromptRefKind
   id: string
   raw: string
+  role?: MovScriptPromptRefRole
+  media_type?: MovScriptPromptRefMediaType
   source: {
     field: 'edit_prompt.text' | 'edit_prompt.negative_text' | 'edit_prompt.notes' | 'edit_prompt.structured'
     start?: number
@@ -102,6 +118,13 @@ export interface MovScriptPromptReplacement {
   token: string
 }
 
+export interface MovScriptCompiledPromptReferenceAsset {
+  resource_id: number
+  role: MovScriptPromptRefRole
+  media_type: MovScriptPromptRefMediaType
+  source_ref: string
+}
+
 export interface MovScriptShotPlanItem {
   order?: number
   title?: string
@@ -133,6 +156,7 @@ export interface MovScriptCompiledContentUnitPrompt {
   structured_text?: string
   style_reference_resource_ids?: number[]
   resource_ids: number[]
+  reference_assets?: MovScriptCompiledPromptReferenceAsset[]
   replacements: MovScriptPromptReplacement[]
   refs: MovScriptResolvedPromptRef[]
   blockers?: MovScriptPromptBuildBlocker[]
@@ -153,12 +177,14 @@ export interface BuildContentUnitBackendPromptInput {
   index: MovScriptWorkspaceDomainIndex
   contentUnit: MovScriptWorkspaceIndexedEntity
   decisionProvider: MovScriptContentUnitDecisionProvider
+  promptText?: string
 }
 
 export interface BuildContentUnitBackendPromptByIdInput {
   index: MovScriptWorkspaceDomainIndex
   contentUnitId: string | number
   decisionProvider: MovScriptContentUnitDecisionProvider
+  promptText?: string
 }
 
 const PROMPT_REF_PATTERN = /\{\{([a-z_]+)::?([^{}:\s][^{}]*)\}\}/g
@@ -185,6 +211,7 @@ export async function buildContentUnitBackendPromptById(
     index: input.index,
     contentUnit,
     decisionProvider: input.decisionProvider,
+    ...(input.promptText !== undefined ? { promptText: input.promptText } : {}),
   })
 }
 
@@ -194,7 +221,7 @@ export async function buildContentUnitBackendPrompt(
   const contentUnitRef = entityDir(input.contentUnit.path)
   const contentUnitType = stringField(input.contentUnit.record.content_unit_type) ?? ''
   const outputKind = contentUnitOutputKind(input.contentUnit.record.output_kind)
-  const editPrompt = recordField(input.contentUnit.record.edit_prompt)
+  const editPrompt = contentUnitEditPrompt(input.contentUnit.record.edit_prompt, input.promptText)
   const refs = parseContentUnitEditPromptRefs(editPrompt)
   const unsupportedRefs = parseUnsupportedContentUnitEditPromptRefs(editPrompt)
   const primaryKind = primaryRefKindForContentUnitType(contentUnitType)
@@ -236,7 +263,7 @@ export async function buildContentUnitBackendPrompt(
 
   const resolvedRefs: MovScriptResolvedPromptRef[] = []
   for (const ref of refs) {
-    const role: MovScriptPromptRefRole = 'input'
+    const role: MovScriptPromptRefRole = ref.role ?? 'input'
     const directRef = await resolveDirectPromptResourceRef({
       ref,
       role,
@@ -340,7 +367,7 @@ export async function buildContentUnitBackendPrompt(
       upstream_content_unit_ref: upstreamRef,
       upstream_content_unit_id: upstream.id,
       resource_id: resourceId,
-      replacement: resourceToken(resourceId),
+      replacement: resourceToken(resourceId, ref),
     })
   }
 
@@ -355,6 +382,7 @@ export async function buildContentUnitBackendPrompt(
   })
   const structured = normalizedPromptStructured(editPrompt?.structured, contentUnitType, outputKind)
   const structuredText = structuredPromptText(structured, contentUnitType, outputKind)
+  const referenceAssets = referenceAssetsForResolvedRefs(resolvedRefs)
   const compiledText = compiledPromptTextWithStructured({
     text: compilePromptText(stringField(editPrompt?.text), resolvedRefs, 'edit_prompt.text'),
     structuredText: compilePromptText(structuredText, resolvedRefs, 'edit_prompt.structured'),
@@ -375,6 +403,7 @@ export async function buildContentUnitBackendPrompt(
       ...replacements.map((replacement) => replacement.resource_id),
       ...styleReferenceResourceIds,
     ]),
+    reference_assets: referenceAssets.length > 0 ? referenceAssets : undefined,
     replacements,
     refs: resolvedRefs,
     blockers: blockers.length > 0 ? dedupeBlockers(blockers) : undefined,
@@ -384,6 +413,15 @@ export async function buildContentUnitBackendPrompt(
     return { ok: false, prompt, blockers: dedupeBlockers(blockers) }
   }
   return { ok: true, prompt }
+}
+
+function contentUnitEditPrompt(value: unknown, promptText: string | undefined): Record<string, unknown> | undefined {
+  const base = recordField(value)
+  if (promptText === undefined) return base
+  return {
+    ...(base ?? {}),
+    text: promptText,
+  }
 }
 
 export function parseContentUnitEditPromptRefs(editPrompt: unknown): MovScriptPromptRef[] {
@@ -416,12 +454,14 @@ export function parsePromptRefsFromText(
   const refs: MovScriptPromptRef[] = []
   for (const match of text.matchAll(PROMPT_REF_PATTERN)) {
     const kind = promptRefKind(match[1])
-    const id = match[2]?.trim()
-    if (!kind || !id) continue
+    const payload = parsePromptRefPayload(match[2])
+    if (!kind || !payload.id) continue
     refs.push({
       kind,
-      id,
+      id: payload.id,
       raw: match[0],
+      ...(payload.role ? { role: payload.role } : {}),
+      ...(payload.mediaType ? { media_type: payload.mediaType } : {}),
       source: {
         field,
         start: match.index,
@@ -440,7 +480,7 @@ export function parseUnsupportedPromptRefsFromText(
   const refs: MovScriptUnsupportedPromptRef[] = []
   for (const match of text.matchAll(PROMPT_REF_PATTERN)) {
     const kindValue = match[1]?.trim()
-    const id = match[2]?.trim()
+    const id = parsePromptRefPayload(match[2]).id
     if (!kindValue || !id || promptRefKind(kindValue)) continue
     refs.push({
       kind: kindValue,
@@ -454,6 +494,31 @@ export function parseUnsupportedPromptRefsFromText(
     })
   }
   return refs
+}
+
+function parsePromptRefPayload(value: string | undefined): { id: string; role?: MovScriptPromptRefRole; mediaType?: MovScriptPromptRefMediaType } {
+  const parts = String(value ?? '').trim().split(/\s+/).filter(Boolean)
+  const id = parts.shift() ?? ''
+  let role = ''
+  let mediaType = ''
+  for (const part of parts) {
+    const match = part.match(/^([a-zA-Z_][a-zA-Z0-9_-]*)=(.+)$/)
+    if (!match) continue
+    const key = normalizePromptRefMetadataPart(match[1])
+    const metadataValue = normalizePromptRefMetadataPart(match[2])
+    if (!metadataValue) continue
+    if (key === 'role') role = metadataValue
+    if (key === 'media' || key === 'media_type' || key === 'mediatype') mediaType = metadataValue
+  }
+  return {
+    id,
+    ...(role ? { role } : {}),
+    ...(mediaType ? { mediaType } : {}),
+  }
+}
+
+function normalizePromptRefMetadataPart(value: string | undefined): string {
+  return String(value ?? '').trim().toLowerCase().replace(/^['"]|['"]$/g, '').replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')
 }
 
 function normalizedPromptStructured(
@@ -719,7 +784,7 @@ async function resolveDirectPromptResourceRef(input: {
         id: resourceId,
       },
       resource_id: resourceId,
-      replacement: resourceToken(resourceId),
+      replacement: resourceToken(resourceId, ref),
     }
   }
   if (ref.kind !== 'candidate') return undefined
@@ -782,7 +847,7 @@ async function resolveDirectPromptResourceRef(input: {
     upstream_content_unit_ref: input.contentUnitRef,
     upstream_content_unit_id: input.contentUnit.id,
     resource_id: resourceId,
-    replacement: resourceToken(resourceId),
+    replacement: resourceToken(resourceId, ref),
   }
 }
 
@@ -1001,8 +1066,47 @@ function resourceIdsFromValue(value: unknown): number[] {
   return []
 }
 
-function resourceToken(resourceId: number): string {
-  return formatResourceMention(resourceId)
+function referenceAssetsForResolvedRefs(refs: MovScriptResolvedPromptRef[]): MovScriptCompiledPromptReferenceAsset[] {
+  const seen = new Set<string>()
+  const output: MovScriptCompiledPromptReferenceAsset[] = []
+  for (const ref of refs) {
+    if (ref.resource_id === undefined) continue
+    const mediaType = promptRefMediaTypeForReference(ref)
+    const role = promptRefRoleForReference(ref, mediaType)
+    const key = `${String(ref.resource_id)}:${mediaType}:${role}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    output.push({
+      resource_id: ref.resource_id,
+      media_type: mediaType,
+      role,
+      source_ref: ref.raw,
+    })
+  }
+  return output
+}
+
+function resourceToken(resourceId: number, ref?: Pick<MovScriptPromptRef, 'role' | 'media_type'>): string {
+  const mediaType = ref?.media_type
+  const role = ref?.role && ref.role !== 'input' ? ref.role : undefined
+  return formatResourceMention(resourceId, {
+    ...(mediaType ? { mediaType } : {}),
+    ...(role ? { role } : {}),
+  })
+}
+
+function promptRefRoleForReference(ref: Pick<MovScriptPromptRef, 'role' | 'media_type'>, mediaType: string): MovScriptPromptRefRole {
+  if (ref.role && ref.role !== 'input') return ref.role
+  if (mediaType === 'video') return 'reference_video'
+  if (mediaType === 'audio') return 'reference_audio'
+  return 'reference_image'
+}
+
+function promptRefMediaTypeForReference(ref: Pick<MovScriptPromptRef, 'role' | 'media_type'>): MovScriptPromptRefMediaType {
+  if (ref.media_type) return ref.media_type
+  if (ref.role === 'reference_video' || ref.role === 'motion_reference' || ref.role === 'source_video') return 'video'
+  if (ref.role === 'reference_audio' || ref.role === 'source_audio') return 'audio'
+  return 'image'
 }
 
 function entityDir(path: string): string {

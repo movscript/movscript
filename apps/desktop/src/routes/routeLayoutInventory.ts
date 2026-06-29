@@ -63,6 +63,8 @@ const dragSurfacesByRouteId: Record<string, LayoutInventoryDragSurface[]> = {
       coordinateAdapter: 'none',
     },
   ],
+  'tools.image': [toolResourceDragSurface],
+  'tools.video': [toolResourceDragSurface],
   'tools.refImageGen': [toolResourceDragSurface],
   'tools.refVideoGen': [toolResourceDragSurface],
   'tools.motionImitation': [toolResourceDragSurface],

@@ -16,7 +16,7 @@ export function useAppShortcutOpenCommands() {
     },
     openToolHome: () => {
       setWorkMode('tool')
-      void openToolWindow({ route: ROUTES.tools.refImageGen })
+      void openToolWindow({ route: ROUTES.tools.image })
     },
     openEditHome: () => {
       setWorkMode('tool')

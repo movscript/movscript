@@ -16,6 +16,7 @@ import type {
   MovScriptEditPlanTrack,
   MovScriptEditPlanTrackItem,
 } from './derivedArtifactTypes.js'
+import { expressionUnitSlotKindFromRecord } from '@movscript/domain'
 
 type EditPlanBlocker = NonNullable<MovScriptEditPlanArtifact['blockers']>[number]
 
@@ -139,6 +140,7 @@ function trackItemFor(
     target_kind: targetKind,
     target_ref: targetRef,
     ...(expressionUnit ? { expression_unit_ref: entityDir(expressionUnit.path) } : {}),
+    ...(expressionUnit ? { expression_slot_kind: expressionUnitSlotKindFromRecord(expressionUnit.record) } : {}),
     ...(expressionUnit ? { expression_modality: stringField(expressionUnit.record.modality) ?? legacyExpressionModality(expressionUnit) } : {}),
     ...(expressionUnit ? { expression_role: stringField(expressionUnit.record.role) ?? stringField(expressionUnit.record.expression_kind) } : {}),
     ...(artifact.selectionValidity.candidate_id !== undefined ? { candidate_id: artifact.selectionValidity.candidate_id } : {}),
@@ -160,11 +162,12 @@ function groupTrackItems(items: readonly MovScriptEditPlanTrackItem[]): MovScrip
   return [...byType.entries()].map(([type, trackItems]) => ({ type, items: trackItems }))
 }
 
-function trackTypeFor(item: Pick<MovScriptEditPlanTrackItem, 'output_kind' | 'expression_modality' | 'expression_role'>): MovScriptEditPlanTrack['type'] {
+function trackTypeFor(item: Pick<MovScriptEditPlanTrackItem, 'output_kind' | 'expression_modality' | 'expression_role' | 'expression_slot_kind'>): MovScriptEditPlanTrack['type'] {
   if (item.output_kind === 'video') return 'video'
-  if (item.output_kind === 'audio') return item.expression_role === 'dialogue' || item.expression_role === 'narration' ? 'voice' : 'audio'
+  if (item.output_kind === 'audio') return item.expression_slot_kind === 'voice' || item.expression_role === 'dialogue' || item.expression_role === 'narration' ? 'voice' : 'audio'
   if (item.output_kind === 'text') return 'subtitle'
   if (item.output_kind === 'image') return 'image'
+  if (item.expression_slot_kind === 'subtitle') return 'subtitle'
   return 'metadata'
 }
 

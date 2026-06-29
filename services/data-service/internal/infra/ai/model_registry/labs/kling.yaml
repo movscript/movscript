@@ -1,6 +1,6 @@
 lab: kling
 templates:
-    - adapter_type: kling
+    - route_adapter_hint: kling
       capabilities:
         - video
       display_name: 可灵 v1 标准 (文生视频)
@@ -31,7 +31,7 @@ templates:
       video:
         default_duration_sec: 5
         max_duration_sec: 10
-    - adapter_type: kling
+    - route_adapter_hint: kling
       capabilities:
         - video
       display_name: 可灵 v1.6 标准 (文生视频)
@@ -62,7 +62,7 @@ templates:
       video:
         default_duration_sec: 5
         max_duration_sec: 10
-    - adapter_type: kling
+    - route_adapter_hint: kling
       capabilities:
         - video
       display_name: 可灵 v2 Master (文生视频)
@@ -93,7 +93,7 @@ templates:
       video:
         default_duration_sec: 5
         max_duration_sec: 10
-    - adapter_type: kling
+    - route_adapter_hint: kling
       capabilities:
         - video_i2v
       display_name: 可灵 v1.5 (图生视频)

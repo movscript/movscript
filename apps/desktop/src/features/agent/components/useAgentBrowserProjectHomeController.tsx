@@ -15,7 +15,12 @@ import {
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { workspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
-import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
+import type { SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
+import {
+  loadProjectHomeReadModel,
+  projectHomeScriptsFromReadModel,
+  type ProjectHomeReadModelRecord,
+} from '@/shared/infrastructure/api/projectHomeReadModel'
 import { agentBrowserKeys } from '@/features/agent/application/agentQueryKeys'
 import {
   agentBrowserProjectFirstText,
@@ -33,8 +38,8 @@ import type {
   AgentBrowserProjectHomeViewModel,
   ProjectNavigationGroup,
 } from '@/features/agent/components/AgentBrowserProjectHomePageParts'
-import { createWorkspaceScript, listWorkspaceScripts, scriptKeys } from '@movscript/project-surface/data'
-import type { Project, Script } from '@/types'
+import { createWorkspaceScript, scriptKeys } from '@movscript/project-surface/data'
+import type { Project } from '@/types'
 import { toast } from '@movscript/ui/toast'
 
 interface UseAgentBrowserProjectHomeControllerInput {
@@ -57,18 +62,25 @@ export function useAgentBrowserProjectHomeController({
   const currentOrgID = useUserStore((state) => state.currentOrgID)
   const orgMemberships = useUserStore((state) => state.orgMemberships)
   const workspaceContext = useMemo(
-    () => workspaceOwnerContext({ currentUser, currentOrgID, orgMemberships }),
-    [currentOrgID, currentUser?.ID, orgMemberships],
+    () => {
+      const ownerContext = workspaceOwnerContext({ currentUser, currentOrgID, orgMemberships })
+      return {
+        ...ownerContext,
+        ...(project.workspace_path ? { projectDir: project.workspace_path } : project.project_path ? { projectDir: project.project_path } : {}),
+        ...(project.project_uid ? { projectUid: project.project_uid } : {}),
+      }
+    },
+    [currentOrgID, currentUser?.ID, orgMemberships, project.project_path, project.project_uid, project.workspace_path],
   )
-  const scriptsQuery = useQuery<Script[]>({ queryKey: agentBrowserKeys.navigationScripts(projectId, workspaceContext.userId, workspaceContext.orgId), queryFn: () => listWorkspaceScripts(projectId, workspaceContext) })
-  const referencesQuery = useQuery<SemanticEntityRecord[]>({ queryKey: agentBrowserKeys.navigationEntity(projectId, 'settings'), queryFn: () => listSemanticEntities(projectId, semanticEntityConfig('settings')) })
-  const assetSlotsQuery = useQuery<SemanticEntityRecord[]>({ queryKey: agentBrowserKeys.navigationEntity(projectId, 'assetSlots'), queryFn: () => listSemanticEntities(projectId, semanticEntityConfig('assetSlots')) })
-  const productionsQuery = useQuery<SemanticEntityRecord[]>({ queryKey: agentBrowserKeys.navigationEntity(projectId, 'productions'), queryFn: () => listSemanticEntities(projectId, semanticEntityConfig('productions')) })
-  const sceneMomentsQuery = useQuery<SemanticEntityRecord[]>({ queryKey: agentBrowserKeys.navigationEntity(projectId, 'sceneMoments'), queryFn: () => listSemanticEntities(projectId, semanticEntityConfig('sceneMoments')) })
-  const contentUnitsQuery = useQuery<SemanticEntityRecord[]>({ queryKey: agentBrowserKeys.navigationEntity(projectId, 'contentUnits'), queryFn: () => listSemanticEntities(projectId, semanticEntityConfig('contentUnits')) })
+  const projectHomeQuery = useQuery({
+    queryKey: agentBrowserKeys.navigationProject(projectId),
+    queryFn: () => loadProjectHomeReadModel(project, workspaceContext),
+    staleTime: 2_000,
+    placeholderData: (previousData) => previousData,
+  })
   const createScript = useMutation({
     mutationFn: () => {
-      const scriptNumber = (scriptsQuery.data?.length ?? 0) + 1
+      const scriptNumber = (projectHomeQuery.data?.scripts.length ?? 0) + 1
       return createWorkspaceScript(projectId, {
         title: `新手记 ${scriptNumber}`,
         script_type: 'uncategorized',
@@ -78,6 +90,7 @@ export function useAgentBrowserProjectHomeController({
       }, workspaceContext)
     },
     onSuccess: (created) => {
+      void queryClient.invalidateQueries({ queryKey: agentBrowserKeys.navigationProject(projectId) })
       void queryClient.invalidateQueries({
         queryKey: agentBrowserKeys.navigationScripts(projectId, workspaceContext.userId, workspaceContext.orgId),
       })
@@ -88,14 +101,14 @@ export function useAgentBrowserProjectHomeController({
     onError: () => toast.error('创建手记失败，请重试'),
   })
 
-  const scripts = (scriptsQuery.data ?? [])
+  const scripts = projectHomeScriptsFromReadModel(projectHomeQuery.data, projectId)
     .slice()
     .sort((a, b) => (a.order || 0) - (b.order || 0) || a.ID - b.ID)
-  const references = visibleAgentBrowserProjectRecords(referencesQuery.data)
-  const assetSlots = visibleAgentBrowserProjectRecords(assetSlotsQuery.data)
-  const productions = visibleAgentBrowserProjectRecords(productionsQuery.data)
-  const sceneMoments = visibleAgentBrowserProjectRecords(sceneMomentsQuery.data)
-  const contentUnits = visibleAgentBrowserProjectRecords(contentUnitsQuery.data)
+  const references = visibleAgentBrowserProjectRecords(projectHomeRecords(projectHomeQuery.data?.settings))
+  const assetSlots = visibleAgentBrowserProjectRecords(projectHomeRecords(projectHomeQuery.data?.assets))
+  const productions = visibleAgentBrowserProjectRecords(projectHomeRecords(projectHomeQuery.data?.productions))
+  const sceneMoments = visibleAgentBrowserProjectRecords(projectHomeRecords(projectHomeQuery.data?.sceneMoments))
+  const contentUnits = visibleAgentBrowserProjectRecords(projectHomeRecords(projectHomeQuery.data?.contentUnits))
 
   const projectAspectRatio = agentBrowserProjectFirstText(
     agentBrowserProjectRecordField(project, 'aspect_ratio'),
@@ -148,7 +161,7 @@ export function useAgentBrowserProjectHomeController({
       variant: 'library',
       tone: 'script',
       roleLabel: '文本',
-      loading: scriptsQuery.isLoading,
+      loading: projectHomeQuery.isLoading,
       countLabel: `${scripts.length} 篇`,
       emptyState: '还没有手记。先记录一段文本，后续才能拆分和编排。',
       action: (
@@ -177,7 +190,7 @@ export function useAgentBrowserProjectHomeController({
       variant: 'library',
       tone: 'plan',
       roleLabel: '设定',
-      loading: referencesQuery.isLoading,
+      loading: projectHomeQuery.isLoading,
       countLabel: `${references.length} 条`,
       emptyState: '还没有设定条目。角色、世界观和风格约束会出现在这里。',
       items: references.map((record, recordIndex) => ({
@@ -197,7 +210,7 @@ export function useAgentBrowserProjectHomeController({
       variant: 'library',
       tone: 'asset',
       roleLabel: '素材',
-      loading: assetSlotsQuery.isLoading,
+      loading: projectHomeQuery.isLoading,
       countLabel: `${assetSlots.length} 项`,
       emptyState: '还没有素材槽位。资源需求建立后会在这里汇总。',
       items: assetSlots.map((record, recordIndex) => ({
@@ -217,7 +230,7 @@ export function useAgentBrowserProjectHomeController({
       variant: 'pipeline',
       tone: 'production',
       roleLabel: '制作',
-      loading: productionsQuery.isLoading,
+      loading: projectHomeQuery.isLoading,
       countLabel: `${productions.length} 个`,
       emptyState: '尚未建立制作方案。制作计划会成为情节和内容单元的上游。',
       items: productions.map((record, recordIndex) => ({
@@ -237,7 +250,7 @@ export function useAgentBrowserProjectHomeController({
       variant: 'pipeline',
       tone: 'production',
       roleLabel: '情节',
-      loading: sceneMomentsQuery.isLoading,
+      loading: projectHomeQuery.isLoading,
       countLabel: `${sceneMoments.length} 段`,
       emptyState: '还没有情节点。镜头段落和上下游引用建立后会出现在这里。',
       items: sceneMoments.map((record, recordIndex) => ({
@@ -257,7 +270,7 @@ export function useAgentBrowserProjectHomeController({
       variant: 'pipeline',
       tone: 'content',
       roleLabel: '内容',
-      loading: contentUnitsQuery.isLoading,
+      loading: projectHomeQuery.isLoading,
       countLabel: `${contentUnits.length} 个`,
       emptyState: '还没有内容单元。生成上下文、关键帧和预览挂载会在这里聚合。',
       items: contentUnits.map((record, recordIndex) => ({
@@ -276,10 +289,10 @@ export function useAgentBrowserProjectHomeController({
   const libraryCount = scripts.length + references.length + assetSlots.length
   const pipelineCount = productions.length + sceneMoments.length + contentUnits.length
   const rows: Array<[string, string | number]> = [
-    ['资料库', projectHomeCountValue(scriptsQuery.isLoading || referencesQuery.isLoading || assetSlotsQuery.isLoading, libraryCount)],
-    ['生产链路', projectHomeCountValue(productionsQuery.isLoading || sceneMomentsQuery.isLoading || contentUnitsQuery.isLoading, pipelineCount)],
-    ['手记', projectHomeCountValue(scriptsQuery.isLoading, scripts.length)],
-    ['素材', projectHomeCountValue(assetSlotsQuery.isLoading, assetSlots.length)],
+    ['资料库', projectHomeCountValue(projectHomeQuery.isLoading, libraryCount)],
+    ['生产链路', projectHomeCountValue(projectHomeQuery.isLoading, pipelineCount)],
+    ['手记', projectHomeCountValue(projectHomeQuery.isLoading, scripts.length)],
+    ['素材', projectHomeCountValue(projectHomeQuery.isLoading, assetSlots.length)],
   ]
   const summaryHint = loadingGroups > 0
     ? `正在同步 ${loadingGroups} 类数据`
@@ -301,4 +314,11 @@ export function useAgentBrowserProjectHomeController({
 
 function projectHomeCountValue(loading: boolean, count: number): string | number {
   return loading ? '...' : count
+}
+
+function projectHomeRecords(records: ProjectHomeReadModelRecord[] | undefined): SemanticEntityRecord[] {
+  return (records ?? []).map((record, index) => ({
+    ID: typeof record.ID === 'number' ? record.ID : index + 1,
+    ...record,
+  })) as SemanticEntityRecord[]
 }

@@ -11,6 +11,22 @@ export type NodeSource = 'upload' | 'ai' | 'manual'
 export type CanvasTaskStatus = 'idle' | 'pending' | 'running' | 'done' | 'failed'
 export type CanvasType = 'inspiration' | 'workflow'
 export type CanvasParamType = 'text' | 'image' | 'video' | 'audio' | 'json' | 'number' | 'boolean' | 'resource'
+export type CanvasResourceMediaType = 'image' | 'video' | 'audio' | 'text' | 'any'
+export type CanvasResourceRole =
+  | 'generic'
+  | 'first_frame'
+  | 'last_frame'
+  | 'reference_image'
+  | 'reference_video'
+  | 'reference_audio'
+  | 'motion_reference'
+  | 'style_reference'
+  | 'source_image'
+  | 'source_video'
+  | 'source_audio'
+  | 'mask'
+  | 'character'
+  | 'product'
 export type CanvasRunStatus = 'pending' | 'running' | 'done' | 'failed'
 export type CanvasPortType = CanvasParamType
 
@@ -47,6 +63,9 @@ export interface CanvasPortDef {
   label?: string
   labelKey?: string
   type: CanvasPortType
+  mediaType?: CanvasResourceMediaType
+  acceptedMediaTypes?: CanvasResourceMediaType[]
+  role?: CanvasResourceRole
   order?: number
   required?: boolean
   maxCount?: number
@@ -220,6 +239,8 @@ export interface EntityWorkflowSchema {
 export interface CanvasPortValue {
   type: CanvasPortType
   resource_id?: number
+  media_type?: CanvasResourceMediaType
+  role?: CanvasResourceRole
   resource?: RawResource
   text?: string
   json?: unknown
@@ -231,12 +252,20 @@ export type CanvasStage = 'script_analysis' | 'asset_prep' | 'storyboard' | 'gen
 
 export type CanvasExecutableCapability = 'text' | 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v' | 'audio' | 'audio_tts' | 'audio_transcribe' | 'audio_translate' | 'audio_music' | 'audio_sfx' | 'audio_chat' | 'voice_clone' | 'voice_design' | 'subtitle_align' | 'subtitle_translate'
 
+export interface CanvasExecutableReferenceAsset {
+  resource_id?: number
+  media_type?: CanvasResourceMediaType
+  role: CanvasResourceRole
+}
+
 export interface CanvasExecutableSpec {
   executor: 'ai_model' | 'plugin_http'
   capability: CanvasExecutableCapability
+  operation?: string
   modelId?: string
   prompt?: string
   inputResourceIds?: number[]
+  referenceAssets?: CanvasExecutableReferenceAsset[]
   aspectRatio?: string
   duration?: number
   params?: Record<string, unknown>
@@ -248,6 +277,7 @@ export interface CanvasNodeData {
   resource?: RawResource
   prompt?: string
   modelId?: string      // public logical model ID preferred for routing
+  modelOperation?: string                               // canonical generation operation, e.g. text_to_image or first_last_frame_to_video
   referencedCanvasId?: number                            // workflow canvas used by a canvas reference node
   referencedCanvasName?: string                          // denormalized workflow name for reference card display
   inputResourceIds?: number[]                             // selected resource inputs for full tool cards

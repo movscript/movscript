@@ -1084,6 +1084,16 @@
         "videoI2V": "Reference Video",
         "videoV2V": "Video Transfer"
       },
+      "operations": {
+        "text_to_image": "Text to Image",
+        "image_to_image": "Image to Image",
+        "image_edit": "Image Edit",
+        "prompt_to_video": "Prompt to Video",
+        "image_to_video": "Image to Video",
+        "first_frame_to_video": "First Frame to Video",
+        "first_last_frame_to_video": "First/Last Frame to Video",
+        "reference_to_video": "Reference to Video"
+      },
       "status": {
         "pending": "Queued",
         "running": "Generating",
@@ -2662,6 +2672,7 @@
         "modelId": "Model ID",
         "capabilities": "Capabilities",
         "provider": "Provider",
+        "routeAvailability": "Route availability",
         "configId": "Config ID"
       }
     },
@@ -3395,6 +3406,19 @@
       "video": "Video",
       "text": "Text"
     },
+    "generationOperations": {
+      "text_to_image": "Text to Image",
+      "image_to_image": "Image to Image",
+      "reference_to_image": "Reference to Image",
+      "image_edit": "Image Edit",
+      "style_transfer": "Style Transfer",
+      "prompt_to_video": "Prompt to Video",
+      "image_to_video": "Image to Video",
+      "first_frame_to_video": "First Frame to Video",
+      "first_last_frame_to_video": "First/Last Frame to Video",
+      "reference_to_video": "Reference to Video",
+      "video_to_video": "Video to Video"
+    },
     "nodeLabels": {
       "text": "Text",
       "image": "Image",
@@ -3644,6 +3668,7 @@
       "resetWaiting": "Reset to waiting"
     },
     "nodePanel": {
+      "operation": "Operation",
       "promptPlaceholder": "Describe what you want to generate... Type @ to reference upstream nodes",
       "noUpstreamNodes": "No upstream connected nodes",
       "inputContent": "Input Content",
@@ -3781,7 +3806,12 @@
     "canvasName": "Tool: {{type}}",
     "errors": {
       "pollFailed": "Polling failed",
-      "runFailed": "Run failed"
+      "runFailed": "Run failed",
+      "resourceAccess": {
+        "missingProfile": "Local resources need a Resource Access public profile before they can be sent to this model.",
+        "missingSigningSecret": "Resource Access signing is enabled, but no signing secret is configured.",
+        "publicUrlUnavailable": "This model needs publicly reachable media URLs. Configure a public tunnel or object relay in Admin resource management, then retry."
+      }
     },
     "page": {
       "selectFromLeft": "Or select from the resource or asset library on the left",
@@ -3963,7 +3993,7 @@
       "debug": "Debug",
       "uiPreview": "UI Preview",
       "storage": "Resource Storage",
-      "cloudFiles": "Input Relay"
+      "cloudFiles": "Resource Access"
     },
     "adapters": {
       "openai_compat": {
@@ -4212,13 +4242,13 @@
     "cloudFiles": {
       "confirmDelete": "Delete this cloud storage configuration?",
       "publicObjectRelay": "Public Object Relay",
-      "publicObjectRelayDescription": "S3, OSS, and TOS buckets must be publicly reachable by providers for image-to-video and video reference inputs that only accept URLs.",
+      "publicObjectRelayDescription": "S3, OSS, and TOS buckets are one Resource Access mode for routes that require public media URLs.",
       "providerFilesAPI": "Provider Files API",
       "providerFilesAPIDescription": "Provider-owned file spaces such as OpenAI and Volcen are enabled under credentials in Model Management. Models receive file_id values.",
       "internalMinio": "Internal MinIO",
       "internalMinioDescription": "Only persists MovScript resources. Workers no longer send MinIO private presigned URLs to external providers.",
-      "title": "Public Object Relay Configuration",
-      "description": "After configuring S3, OSS, or TOS, workers upload input assets by priority and pass public URLs to provider APIs that only accept URLs.",
+      "title": "Object Relay Configuration",
+      "description": "Object relay remains available as a Resource Access mode. Public tunnels and backend URLs are configured in Resource Access.",
       "addConfig": "Add Config",
       "empty": "No public object relay configuration",
       "enabledMark": "● Enabled",

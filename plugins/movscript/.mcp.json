@@ -3,7 +3,9 @@
     "movscript": {
       "command": "/bin/sh",
       "args": [
-        "./bin/movscript-agent-mcp"
+        "./bin/movscript",
+        "mcp",
+        "stdio"
       ],
       "cwd": ".",
       "startup_timeout_sec": 5,

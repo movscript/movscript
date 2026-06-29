@@ -5,7 +5,7 @@ templates:
       lab: mureka
       model_id: song_generation
       display_name: Mureka Song Generation
-      adapter_type: mureka
+      route_adapter_hint: mureka
       capabilities:
         - audio_music
       params:
@@ -34,7 +34,7 @@ templates:
       lab: mureka
       model_id: instrumental_generation
       display_name: Mureka Instrumental Generation
-      adapter_type: mureka
+      route_adapter_hint: mureka
       capabilities:
         - audio_music
       params:
@@ -63,7 +63,7 @@ templates:
       lab: mureka
       model_id: lyrics_generation
       display_name: Mureka Lyrics Generation
-      adapter_type: mureka
+      route_adapter_hint: mureka
       capabilities:
         - text
       api_kinds:
@@ -77,7 +77,7 @@ templates:
       lab: mureka
       model_id: song_extension
       display_name: Mureka Song Extension
-      adapter_type: mureka
+      route_adapter_hint: mureka
       capabilities:
         - audio_music
       input:

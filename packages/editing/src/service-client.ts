@@ -22,6 +22,7 @@ export const MEDIA_PIPELINE_TASK_ACTION_ENDPOINT = '/v1/media-pipeline/task/acti
 export type EditingServiceProjectCommandName =
   | 'createProject'
   | 'createProjectFromEditPlan'
+  | 'createProjectFromEditDecisions'
   | 'createProjectFromPreviewTimeline'
   | 'saveProject'
   | 'getProject'

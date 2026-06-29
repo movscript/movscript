@@ -36,6 +36,8 @@ import { JobsActionButton } from './JobsPageUi'
 import {
   formatJobTime,
   getJobTitle,
+  jobGenerationDisplay,
+  jobIsVideoGeneration,
   JobStatusPill,
 } from './JobsPageCardModel'
 
@@ -62,7 +64,7 @@ export function JobListCard({
   const isActive = job.status === 'pending' || job.status === 'running'
   const canRetry = job.status === 'failed' || job.status === 'cancelled'
   const out = job.output_resource as RawResource | undefined
-  const canCancel = isActive && job.job_type.startsWith('video')
+  const canCancel = isActive && jobIsVideoGeneration(job)
 
   return (
     <JobCardShell
@@ -79,11 +81,11 @@ export function JobListCard({
     >
       <JobListHeader>
         <JobTypeIcon>
-          {job.job_type.startsWith('video') ? <Video size={14} /> : <ImageIcon size={14} />}
+          {jobIsVideoGeneration(job) ? <Video size={14} /> : <ImageIcon size={14} />}
         </JobTypeIcon>
         <JobTitleBlock
           title={getJobTitle(job)}
-          description={job.prompt ? <PromptText text={job.prompt} /> : undefined}
+          description={<>{jobGenerationDisplay(job, t)}{job.prompt ? ' · ' : ''}{job.prompt ? <PromptText text={job.prompt} /> : null}</>}
         />
         <JobActionRow>
           <JobStatusPill status={job.status} t={t} />
@@ -173,7 +175,7 @@ export function JobGridThumb({
   const isActive = job.status === 'pending' || job.status === 'running'
   const canRetry = job.status === 'failed' || job.status === 'cancelled'
   const out = job.output_resource as RawResource | undefined
-  const canCancel = isActive && job.job_type.startsWith('video')
+  const canCancel = isActive && jobIsVideoGeneration(job)
 
   return (
     <JobCardShell
@@ -260,6 +262,7 @@ export function JobGridThumb({
 
       <JobGridCaption>
         <JobGridTitle>{getJobTitle(job)}</JobGridTitle>
+        <JobGridDescription>{jobGenerationDisplay(job, t)}</JobGridDescription>
         {job.prompt ? (
           <JobGridDescription>
             <PromptText text={job.prompt} />

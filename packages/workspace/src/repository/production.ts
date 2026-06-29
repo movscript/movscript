@@ -3,6 +3,7 @@ import {
   entityPathSlug,
   semanticEntityId,
 } from '../layout/index.js'
+import { normalizeExpressionUnitSlotKind } from '@movscript/domain'
 import type { MovScriptWorkspaceFileRepository } from './types.js'
 
 export interface MovScriptProductionWorkspaceSnapshot {
@@ -125,6 +126,8 @@ export interface MovScriptProductionWorkspaceExpressionUnitNode {
   id?: string | number
   client_id?: string
   title?: string
+  slot_kind?: string
+  slotKind?: string
   modality?: string
   role?: string
   kind?: string
@@ -279,6 +282,7 @@ export async function saveMovScriptProductionWorkspaceSnapshot(
           kind: 'expression_unit',
           id: expressionId,
           title: stringValue(expression.title ?? existingExpression.title) ?? stringValue(expression.text) ?? `Expression Unit ${displayId(expressionId, 'expression_unit')}`,
+          slot_kind: normalizeExpressionUnitSlotKind(expression.slot_kind ?? expression.slotKind ?? existingExpression.slot_kind ?? existingExpression.slotKind ?? expression.kind ?? existingExpression.expression_kind),
           modality: stringValue(expression.modality ?? existingExpression.modality),
           role: stringValue(expression.role ?? existingExpression.role),
           expression_kind: normalizeExpressionKind(expression.kind ?? existingExpression.expression_kind),
@@ -439,7 +443,9 @@ function normalizeExpressionKind(value: unknown): string {
   if (kind === 'shot') return 'shot'
   if (kind === 'dialogue' || kind === 'narration' || kind === 'subtitle' || kind === 'caption' || kind === 'action' || kind === 'shot') return kind
   if (kind === 'visual' || kind === 'visual_note') return 'visual_note'
-  return 'dialogue'
+  if (kind === 'voice' || kind === 'verbal' || kind === 'voiceover') return 'dialogue'
+  if (kind === 'audio' || kind === 'sound' || kind === 'sound_effect' || kind === 'sfx' || kind === 'music' || kind === 'ambience') return 'action'
+  return 'visual_note'
 }
 
 function normalizeTransition(value: unknown): Record<string, unknown> | undefined {

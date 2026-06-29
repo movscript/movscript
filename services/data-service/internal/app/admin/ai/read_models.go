@@ -53,38 +53,44 @@ type ProviderCredential struct {
 
 type ModelCatalogEntry struct {
 	gorm.Model
-	ModelTemplateKey string              `json:"model_template_key,omitempty"`
-	TemplateVersion  string              `json:"template_version,omitempty"`
-	PublicModelID    string              `json:"public_model_id"`
-	DisplayName      string              `json:"display_name"`
-	ShortName        string              `json:"short_name"`
-	IsEnabled        bool                `json:"is_enabled"`
-	Capabilities     string              `json:"capabilities"`
-	AcceptsImage     bool                `json:"accepts_image"`
-	MaxInputImages   int                 `json:"max_input_images"`
-	MaxInputVideos   int                 `json:"max_input_videos"`
-	ImageEditField   string              `json:"image_edit_field"`
-	SupportedParams  string              `json:"supported_params"`
-	ParamLimitsJSON  string              `json:"param_limits_json,omitempty"`
-	RouteBindings    []ModelRouteBinding `json:"route_bindings,omitempty"`
+	ModelTemplateKey      string              `json:"model_template_key,omitempty"`
+	TemplateVersion       string              `json:"template_version,omitempty"`
+	PublicModelID         string              `json:"public_model_id"`
+	DisplayName           string              `json:"display_name"`
+	ShortName             string              `json:"short_name"`
+	IsEnabled             bool                `json:"is_enabled"`
+	Capabilities          string              `json:"capabilities"`
+	AcceptsImage          bool                `json:"accepts_image"`
+	MaxInputImages        int                 `json:"max_input_images"`
+	MaxInputVideos        int                 `json:"max_input_videos"`
+	ImageEditField        string              `json:"image_edit_field"`
+	SupportedParams       string              `json:"supported_params"`
+	ParamLimitsJSON       string              `json:"param_limits_json,omitempty"`
+	ModelCapabilitiesJSON string              `json:"model_capabilities_json,omitempty"`
+	RouteBindings         []ModelRouteBinding `json:"route_bindings,omitempty"`
 }
 
 type ModelRouteBinding struct {
 	gorm.Model
-	CatalogEntryID   uint   `json:"catalog_entry_id"`
-	ComboTemplateKey string `json:"combo_template_key,omitempty"`
-	TemplateVersion  string `json:"template_version,omitempty"`
-	SourceType       string `json:"source_type"`
-	RouteGroup       string `json:"route_group"`
-	ProviderID       string `json:"provider_id,omitempty"`
-	AdapterType      string `json:"adapter_type,omitempty"`
-	ProviderModelID  string `json:"provider_model_id"`
-	APIKinds         string `json:"api_kinds,omitempty"`
-	CredentialID     *uint  `json:"-"`
-	IsEnabled        bool   `json:"is_enabled"`
-	Priority         int    `json:"priority"`
-	CapacityWeight   int    `json:"capacity_weight"`
-	MaxConcurrency   int    `json:"max_concurrency"`
+	CatalogEntryID        uint   `json:"catalog_entry_id"`
+	ComboTemplateKey      string `json:"combo_template_key,omitempty"`
+	TemplateVersion       string `json:"template_version,omitempty"`
+	SourceType            string `json:"source_type"`
+	RouteGroup            string `json:"route_group"`
+	ProviderID            string `json:"provider_id,omitempty"`
+	AdapterType           string `json:"adapter_type,omitempty"`
+	ProviderModelID       string `json:"provider_model_id"`
+	APIKinds              string `json:"api_kinds,omitempty"`
+	EndpointBaseURL       string `json:"endpoint_base_url,omitempty"`
+	EndpointPathPrefix    string `json:"endpoint_path_prefix,omitempty"`
+	EndpointMode          string `json:"endpoint_mode,omitempty"`
+	OperationProfile      string `json:"operation_profile,omitempty"`
+	RouteCapabilitiesJSON string `json:"route_capabilities_json,omitempty"`
+	CredentialID          *uint  `json:"-"`
+	IsEnabled             bool   `json:"is_enabled"`
+	Priority              int    `json:"priority"`
+	CapacityWeight        int    `json:"capacity_weight"`
+	MaxConcurrency        int    `json:"max_concurrency"`
 }
 
 func providerFromModel(provider persistencemodel.AIProvider) Provider {
@@ -147,21 +153,22 @@ func providerCredentialsFromModels(credentials []persistencemodel.AIProviderCred
 
 func modelCatalogEntryFromModel(entry persistencemodel.AIModelCatalogEntry) ModelCatalogEntry {
 	return ModelCatalogEntry{
-		Model:            entry.Model,
-		ModelTemplateKey: entry.ModelTemplateKey,
-		TemplateVersion:  entry.TemplateVersion,
-		PublicModelID:    entry.PublicModelID,
-		DisplayName:      entry.DisplayName,
-		ShortName:        entry.ShortName,
-		IsEnabled:        entry.IsEnabled,
-		Capabilities:     entry.Capabilities,
-		AcceptsImage:     entry.AcceptsImage,
-		MaxInputImages:   entry.MaxInputImages,
-		MaxInputVideos:   entry.MaxInputVideos,
-		ImageEditField:   entry.ImageEditField,
-		SupportedParams:  entry.SupportedParams,
-		ParamLimitsJSON:  entry.ParamLimitsJSON,
-		RouteBindings:    modelRouteBindingsFromModels(entry.RouteBindings),
+		Model:                 entry.Model,
+		ModelTemplateKey:      entry.ModelTemplateKey,
+		TemplateVersion:       entry.TemplateVersion,
+		PublicModelID:         entry.PublicModelID,
+		DisplayName:           entry.DisplayName,
+		ShortName:             entry.ShortName,
+		IsEnabled:             entry.IsEnabled,
+		Capabilities:          entry.Capabilities,
+		AcceptsImage:          entry.AcceptsImage,
+		MaxInputImages:        entry.MaxInputImages,
+		MaxInputVideos:        entry.MaxInputVideos,
+		ImageEditField:        entry.ImageEditField,
+		SupportedParams:       entry.SupportedParams,
+		ParamLimitsJSON:       entry.ParamLimitsJSON,
+		ModelCapabilitiesJSON: entry.ModelCapabilitiesJSON,
+		RouteBindings:         modelRouteBindingsFromModels(entry.RouteBindings),
 	}
 }
 
@@ -175,21 +182,26 @@ func modelCatalogEntriesFromModels(entries []persistencemodel.AIModelCatalogEntr
 
 func modelRouteBindingFromModel(binding persistencemodel.AIModelRouteBinding) ModelRouteBinding {
 	return ModelRouteBinding{
-		Model:            binding.Model,
-		CatalogEntryID:   binding.CatalogEntryID,
-		ComboTemplateKey: binding.ComboTemplateKey,
-		TemplateVersion:  binding.TemplateVersion,
-		SourceType:       binding.SourceType,
-		RouteGroup:       binding.RouteGroup,
-		ProviderID:       binding.ProviderID,
-		AdapterType:      binding.AdapterType,
-		ProviderModelID:  binding.ProviderModelID,
-		APIKinds:         binding.APIKinds,
-		CredentialID:     binding.CredentialID,
-		IsEnabled:        binding.IsEnabled,
-		Priority:         binding.Priority,
-		CapacityWeight:   binding.CapacityWeight,
-		MaxConcurrency:   binding.MaxConcurrency,
+		Model:                 binding.Model,
+		CatalogEntryID:        binding.CatalogEntryID,
+		ComboTemplateKey:      binding.ComboTemplateKey,
+		TemplateVersion:       binding.TemplateVersion,
+		SourceType:            binding.SourceType,
+		RouteGroup:            binding.RouteGroup,
+		ProviderID:            binding.ProviderID,
+		AdapterType:           binding.AdapterType,
+		ProviderModelID:       binding.ProviderModelID,
+		APIKinds:              binding.APIKinds,
+		EndpointBaseURL:       binding.EndpointBaseURL,
+		EndpointPathPrefix:    binding.EndpointPathPrefix,
+		EndpointMode:          binding.EndpointMode,
+		OperationProfile:      binding.OperationProfile,
+		RouteCapabilitiesJSON: binding.RouteCapabilitiesJSON,
+		CredentialID:          binding.CredentialID,
+		IsEnabled:             binding.IsEnabled,
+		Priority:              binding.Priority,
+		CapacityWeight:        binding.CapacityWeight,
+		MaxConcurrency:        binding.MaxConcurrency,
 	}
 }
 

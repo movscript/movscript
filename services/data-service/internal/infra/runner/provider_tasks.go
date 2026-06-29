@@ -143,6 +143,8 @@ func (w *Worker) markProviderTaskFailed(job *persistencemodel.Job, resp ai.Video
 	if job.UsageReservationID != nil {
 		_ = w.aiService.ReleaseReservation(context.Background(), *job.UsageReservationID, msg)
 	}
+	job.Status = StatusFailed
+	job.ErrorMsg = msg
 	if err := appcontentcandidate.SyncJobFailed(context.Background(), w.db, job, StatusFailed); err != nil {
 		log.Printf("[job] job #%d failed but content candidate sync failed: %v", job.ID, err)
 	}
@@ -166,6 +168,8 @@ func (w *Worker) markProviderTaskCancelled(job *persistencemodel.Job, resp ai.Vi
 	if job.UsageReservationID != nil {
 		_ = w.aiService.ReleaseReservation(context.Background(), *job.UsageReservationID, msg)
 	}
+	job.Status = StatusCancelled
+	job.ErrorMsg = msg
 	if err := appcontentcandidate.SyncJobFailed(context.Background(), w.db, job, StatusCancelled); err != nil {
 		log.Printf("[job] job #%d cancelled but content candidate sync failed: %v", job.ID, err)
 	}

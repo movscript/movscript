@@ -38,15 +38,20 @@ func TestDashScopeVideoStartSendsHappyHorseMediaPayload(t *testing.T) {
 		}), nil
 	})}
 
-	resp, err := adapter.VideoStart(context.Background(), VideoRequest{
+	ctx, _ := WithDebugRecorder(context.Background())
+	resp, err := adapter.VideoStart(ctx, VideoRequest{
 		Model:          "happyhorse-1.0-r2v",
 		Prompt:         "make a video",
 		Duration:       5,
 		ResolutionName: "720P",
 		Ratio:          "16:9",
 		InputImageDataList: []MediaData{
-			{PresignedURL: "https://cdn.test/one.png"},
-			{PresignedURL: "https://cdn.test/two.png"},
+			{PresignedURL: "https://cdn.test/one.png", ResourceID: 11},
+			{PresignedURL: "https://cdn.test/two.png", ResourceID: 12},
+		},
+		ReferenceAssets: []ReferenceAsset{
+			{Role: "first_frame", MediaType: "image", ResourceID: 11},
+			{Role: "last_frame", MediaType: "image", ResourceID: 12},
 		},
 	})
 	if err != nil {
@@ -72,6 +77,14 @@ func TestDashScopeVideoStartSendsHappyHorseMediaPayload(t *testing.T) {
 	}
 	if resp.TaskID != "dash_task_1" {
 		t.Fatalf("TaskID = %q", resp.TaskID)
+	}
+	if _, ok := gotBody["reference_asset_bindings"]; ok {
+		t.Fatalf("request body sent debug-only bindings: %#v", gotBody["reference_asset_bindings"])
+	}
+	debugBody := debugRequestBodyMap(t, resp.Debug)
+	bindings := debugBody["reference_asset_bindings"].([]any)
+	if len(bindings) != 2 || bindings[0].(map[string]any)["provider_field"] != "input.media[]" {
+		t.Fatalf("debug reference_asset_bindings = %#v", bindings)
 	}
 }
 

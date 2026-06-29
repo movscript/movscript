@@ -27,7 +27,7 @@ test('desktop runtime preparation defaults to daemon CLI without materializing m
     mkdirSync(cliBinDir, { recursive: true })
     writeFileSync(join(cliBinDir, 'movscript'), '#!/bin/sh\nexec node "$0.mjs" "$@"\n')
     writeFileSync(join(cliBinDir, 'movcli'), '#!/bin/sh\nexec node "$0.mjs" "$@"\n')
-    writeFileSync(join(cliBinDir, 'movscript-agent-mcp.mjs'), 'export {}\n')
+    writeFileSync(join(cliBinDir, 'movscript.mjs'), 'export {}\n')
     if (process.platform !== 'win32') {
       chmodSync(join(cliBinDir, 'movscript'), 0o755)
       chmodSync(join(cliBinDir, 'movcli'), 0o755)
@@ -79,7 +79,7 @@ test('desktop runtime preparation materializes movscript-server and movcli into 
     const sourceServer = join(serverSourceDir, serverBinary)
     writeFileSync(sourceServer, 'fake movscript server')
     writeFileSync(join(cliBinDir, 'movcli'), '#!/bin/sh\nexec node "$0.mjs" "$@"\n')
-    writeFileSync(join(cliBinDir, 'movscript-agent-mcp.mjs'), 'export {}\n')
+    writeFileSync(join(cliBinDir, 'movscript.mjs'), 'export {}\n')
     if (process.platform !== 'win32') {
       chmodSync(sourceServer, 0o755)
       chmodSync(join(cliBinDir, 'movcli'), 0o755)

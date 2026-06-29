@@ -6,6 +6,18 @@ import "encoding/json"
 
 var catalogTemplateSources = []ModelDef{
 	{
+		ID:                "83zi:vyro-seedance-2-fast",
+		Lab:               "83zi",
+		ModelID:           "vyro-seedance-2-fast",
+		DisplayName:       "83zi Seedance 2.0 Fast",
+		Capabilities:      []string{"video", "video_i2v"},
+		AdapterType:       "vyro_seedance",
+		SourceStatus:      "unofficial",
+		AcceptsImageInput: true,
+		MaxInputImages:    -1,
+		SupportedParams:   mustGeneratedCatalogParamDefs("[{\"key\":\"duration\",\"label\":\"时长(秒)\",\"type\":\"select\",\"options\":[\"5\",\"10\"],\"default\":\"5\"},{\"key\":\"aspect_ratio\",\"label\":\"画面比例\",\"type\":\"select\",\"options\":[\"16:9\",\"9:16\",\"1:1\"],\"default\":\"16:9\"},{\"key\":\"resolution\",\"label\":\"清晰度\",\"type\":\"select\",\"options\":[\"720P\",\"1080P\"],\"default\":\"720P\"}]"),
+	},
+	{
 		ID:              "elevenlabs:eleven-v3-tts",
 		Lab:             "elevenlabs",
 		ModelID:         "eleven_v3",
@@ -1263,7 +1275,7 @@ var catalogTemplateSources = []ModelDef{
 		ModelID:        "grok-4.3",
 		DisplayName:    "Grok 4.3",
 		Capabilities:   []string{"text", "reasoning"},
-		AdapterType:    "openai_compat",
+		AdapterType:    "official_video_generations",
 		SourceStatus:   "verified",
 		MaxInputImages: -1,
 	},
@@ -1285,7 +1297,7 @@ var catalogTemplateSources = []ModelDef{
 		ModelID:         "grok-imagine-image-quality",
 		DisplayName:     "Grok Imagine Image Quality",
 		Capabilities:    []string{"image"},
-		AdapterType:     "openai_compat",
+		AdapterType:     "openai_video_multipart",
 		SourceStatus:    "verified",
 		SupportedParams: mustGeneratedCatalogParamDefs("[{\"key\":\"aspect_ratio\",\"label\":\"画面比例\",\"type\":\"select\",\"options\":[\"auto\",\"1:1\",\"16:9\",\"9:16\",\"4:3\",\"3:4\",\"3:2\",\"2:3\",\"2:1\",\"1:2\",\"19.5:9\",\"9:19.5\",\"20:9\",\"9:20\"],\"default\":\"auto\"},{\"key\":\"resolution\",\"label\":\"分辨率\",\"type\":\"select\",\"options\":[\"1k\",\"2k\"],\"default\":\"1k\"},{\"key\":\"image_count\",\"label\":\"生成张数\",\"type\":\"number\",\"default\":1,\"min\":1,\"max\":10,\"step\":1}]"),
 	},

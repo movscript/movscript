@@ -15,8 +15,14 @@ export type AgentModelRouteBinding = {
   source_type: AgentModelRouteSourceType
   route_group?: string
   provider_id?: string
+  adapter_type?: string
   provider_model_id?: string
   api_kinds?: string
+  endpoint_base_url?: string
+  endpoint_path_prefix?: string
+  endpoint_mode?: string
+  operation_profile?: string
+  route_capabilities_json?: string
   is_enabled: boolean
   priority?: number
   capacity_weight?: number
@@ -35,7 +41,71 @@ export type AgentModelCatalogEntry = {
   max_input_videos?: number
   image_edit_field?: string
   supported_params?: string
+  param_limits_json?: string
+  model_capabilities_json?: string
   route_bindings?: AgentModelRouteBinding[]
+}
+
+export type AgentModelRouteDiagnoseReferenceAsset = {
+  role?: string
+  media_type?: string
+}
+
+export type AgentModelRouteDiagnoseIntent = {
+  capability?: string
+  operation?: string
+  reference_assets?: AgentModelRouteDiagnoseReferenceAsset[]
+}
+
+export type AgentModelRouteDiagnoseRequest = {
+  public_model_id?: string
+  model_id?: string
+  catalog_entry_id?: number
+  route_binding_id?: number
+  route_group?: string
+  capability: string
+  operation?: string
+  intent?: AgentModelRouteDiagnoseIntent
+  reference_assets?: AgentModelRouteDiagnoseReferenceAsset[]
+  api_kind?: string
+  api_kinds?: string[]
+}
+
+export type AgentModelRouteDiagnosticEndpoint = {
+  base_url?: string
+  path_prefix?: string
+  mode?: string
+  operation_profile?: string
+  effective_base_url?: string
+}
+
+export type AgentModelRouteDiagnosticCandidate = {
+  catalog_entry_id: number
+  public_model_id: string
+  route_binding_id?: number
+  status: 'selected' | 'accepted' | 'rejected' | string
+  reasons?: string[]
+  source_type?: AgentModelRouteSourceType
+  route_group?: string
+  provider_id?: string
+  adapter_type?: string
+  provider_model_id?: string
+  api_kinds?: string[]
+  priority: number
+  capacity_weight: number
+  max_concurrency?: number
+  effective_endpoint?: AgentModelRouteDiagnosticEndpoint
+}
+
+export type AgentModelRouteDiagnosis = {
+  model_id?: string
+  catalog_entry_id?: number
+  capability: string
+  operation?: string
+  route_group?: string
+  selected_route_id?: number
+  selected_route?: AgentModelRouteDiagnosticCandidate
+  candidates: AgentModelRouteDiagnosticCandidate[]
 }
 
 type AgentModelRouteBindingResponse = Omit<AgentModelRouteBinding, 'id'> & {
@@ -65,6 +135,11 @@ export function fetchAgentBackendModels(
 export async function fetchAgentModelCatalogEntries(): Promise<AgentModelCatalogEntry[]> {
   const response = await api.get<AgentModelCatalogEntryResponse[]>('/admin/model-catalog')
   return normalizeAgentModelCatalogEntries(response.data)
+}
+
+export async function diagnoseAgentModelRoute(request: AgentModelRouteDiagnoseRequest): Promise<AgentModelRouteDiagnosis> {
+  const response = await api.post<AgentModelRouteDiagnosis>('/admin/model-routes/diagnose', request)
+  return response.data
 }
 
 export function normalizeAgentModelCatalogEntries(entries: AgentModelCatalogEntryResponse[]): AgentModelCatalogEntry[] {

@@ -8,6 +8,7 @@ import {
   buildContentUnitGenerationPromptSnapshot,
   buildContentUnitGenerationRequest,
   buildGenerationJobPayload,
+  compiledContentUnitGenerationPromptReferenceAssets,
   compiledContentUnitGenerationPromptResourceIds,
   compiledContentUnitGenerationPromptText,
   canvasDefaultParamValues,
@@ -19,6 +20,14 @@ import {
   generationModelAcceptsImageInput,
   generationModelAcceptsVideoInput,
   generationParamDefaults,
+  evaluateGenerationReadiness,
+  buildGenerationIntentForOutputKind,
+  completeGenerationReferenceAssets,
+  generationOperationAcceptsReferences,
+  generationOperationOptionsForOutputKind,
+  generationReferenceRoleLabel,
+  generationReferenceRoleOptionsForMediaType,
+  generationReferenceAssetsFromPromptText,
   normalizeGenerationToolsSettings,
   resolveGenerationCapabilityForResourceCount,
   resolveGenerationJobType,
@@ -68,6 +77,200 @@ test('core generation job payload keeps non numeric duration in extra params', (
     input_resource_ids: [],
     feature_key: 'tool.video',
   })
+})
+
+test('core generation job payload requires structured reference assets', () => {
+  assert.throws(() => buildGenerationJobPayload({
+    modelId: 'video.workspace',
+    jobType: 'video',
+    title: 'Video job',
+    prompt: 'make a shot',
+    params: {},
+    inputResourceIds: [7],
+    sourceKey: 'tool.video',
+    generationIntent: {
+      capability: 'video_generation',
+      operation: 'image_to_video',
+      reference_assets: [{ role: 'reference_image', resource_id: 7 }],
+    },
+  }), /role, media_type, and resource_id/)
+
+  assert.deepEqual(buildGenerationJobPayload({
+    modelId: 'video.workspace',
+    jobType: 'video',
+    title: 'Video job',
+    prompt: 'make a shot',
+    params: {},
+    inputResourceIds: [7],
+    sourceKey: 'tool.video',
+    generationIntent: {
+      capability: 'video_generation',
+      operation: 'image_to_video',
+      reference_assets: [{ role: 'reference_image', media_type: 'image', resource_id: 7 }],
+    },
+  }).generation_intent, {
+    capability: 'video_generation',
+    operation: 'image_to_video',
+    reference_assets: [{ role: 'reference_image', media_type: 'image', resource_id: 7 }],
+  })
+})
+
+test('compiled content-unit prompt exposes typed reference assets', () => {
+  assert.deepEqual(compiledContentUnitGenerationPromptReferenceAssets({
+    text: 'animate @[resource:image:first_frame:101] to @[resource:image:last_frame:102]',
+  }), [
+    { role: 'first_frame', media_type: 'image', resource_id: 101 },
+    { role: 'last_frame', media_type: 'image', resource_id: 102 },
+  ])
+
+  assert.deepEqual(generationReferenceAssetsFromPromptText('use @[resource:201]'), [
+    { role: 'reference_image', media_type: 'image', resource_id: 201 },
+  ])
+  assert.deepEqual(generationReferenceAssetsFromPromptText('use {{resource::202}}'), [
+    { role: 'reference_image', media_type: 'image', resource_id: 202 },
+  ])
+  assert.deepEqual(generationReferenceAssetsFromPromptText('use {{resource::203 role=first_frame media=image}}'), [
+    { role: 'first_frame', media_type: 'image', resource_id: 203 },
+  ])
+})
+
+test('generation readiness blocks missing first and last frame references before submit', () => {
+  const readiness = evaluateGenerationReadiness({
+    prompt: 'make the character walk',
+    modelId: 'video-model',
+    outputKind: 'video',
+    requireGenerationIntent: true,
+    inputResourceIds: [101],
+    generationIntent: {
+      capability: 'video_generation',
+      operation: 'first_last_frame_to_video',
+      reference_assets: [{ role: 'first_frame', media_type: 'image', resource_id: 101 }],
+    },
+  })
+
+  assert.equal(readiness.status, 'blocked')
+  assert(readiness.blockers.some((blocker) => blocker.message.includes('尾帧图')))
+})
+
+test('generation readiness blocks operations that do not accept current references', () => {
+  const readiness = evaluateGenerationReadiness({
+    prompt: 'use this image',
+    modelId: 'image-model',
+    outputKind: 'image',
+    requireGenerationIntent: true,
+    inputResourceIds: [301],
+    generationIntent: {
+      capability: 'image_generation',
+      operation: 'text_to_image',
+      reference_assets: [{ role: 'reference_image', media_type: 'image', resource_id: 301 }],
+    },
+  })
+
+  assert.equal(readiness.status, 'blocked')
+  assert(readiness.blockers.some((blocker) => blocker.code === 'operation_reference_assets_mismatch'))
+})
+
+test('generation readiness blocks unresolved content-unit prompt refs', () => {
+  const readiness = evaluateGenerationReadiness({
+    prompt: 'use {{asset::hero}}',
+    modelId: 'image-model',
+    outputKind: 'image',
+    generationIntent: {
+      capability: 'image_generation',
+      operation: 'text_to_image',
+    },
+    promptBlockers: [{ code: 'missing_selection', ref: 'asset::hero' }],
+  })
+
+  assert.equal(readiness.status, 'blocked')
+  assert.deepEqual(readiness.blockers.map((blocker) => blocker.code), ['prompt_blocker'])
+})
+
+test('generation readiness accepts prompt-only image generation with explicit intent', () => {
+  const readiness = evaluateGenerationReadiness({
+    prompt: 'a clean product photo',
+    modelId: 'image-model',
+    outputKind: 'image',
+    generationIntent: {
+      capability: 'image_generation',
+      operation: 'text_to_image',
+    },
+  })
+
+  assert.equal(readiness.status, 'ready')
+  assert.equal(readiness.blockers.length, 0)
+})
+
+test('prompt composer operation options exclude prompt-only generation when references exist', () => {
+  const imageRefs = [{ role: 'reference_image', media_type: 'image', resource_id: 101 }]
+  const operations = generationOperationOptionsForOutputKind('image', imageRefs).map((item) => item.value)
+
+  assert(!operations.includes('text_to_image'))
+  assert(operations.includes('image_to_image'))
+  assert(operations.includes('reference_to_image'))
+
+  assert.equal(generationOperationAcceptsReferences('text_to_image', imageRefs), false)
+  assert.equal(generationOperationAcceptsReferences('image_to_image', imageRefs), true)
+})
+
+test('prompt composer requires explicit first and last frame roles', () => {
+  const ordinaryImageRefs = [
+    { role: 'reference_image', media_type: 'image', resource_id: 101 },
+    { role: 'generic', media_type: 'image', resource_id: 102 },
+  ]
+  assert.equal(generationOperationAcceptsReferences('first_frame_to_video', ordinaryImageRefs), false)
+  assert.equal(generationOperationAcceptsReferences('first_last_frame_to_video', ordinaryImageRefs), false)
+
+  const firstFrameRefs = [{ role: 'first_frame', media_type: 'image', resource_id: 101 }]
+  assert.equal(generationOperationAcceptsReferences('first_frame_to_video', firstFrameRefs), true)
+  assert.equal(generationOperationAcceptsReferences('first_last_frame_to_video', firstFrameRefs), false)
+
+  const firstLastFrameRefs = [
+    { role: 'first_frame', media_type: 'image', resource_id: 101 },
+    { role: 'last_frame', media_type: 'image', resource_id: 102 },
+  ]
+  assert.equal(generationOperationAcceptsReferences('first_last_frame_to_video', firstLastFrameRefs), true)
+})
+
+test('prompt composer completes loose resources as ordinary references, not frame roles', () => {
+  const refs = completeGenerationReferenceAssets({
+    operation: 'first_last_frame_to_video',
+    inputResourceIds: [101, 102],
+  })
+
+  assert.deepEqual(refs, [
+    { role: 'reference_image', media_type: 'image', resource_id: 101 },
+    { role: 'reference_image', media_type: 'image', resource_id: 102 },
+  ])
+  assert.equal(generationOperationAcceptsReferences('first_last_frame_to_video', refs), false)
+
+  assert.deepEqual(buildGenerationIntentForOutputKind({
+    outputKind: 'video',
+    operation: 'image_to_video',
+    referenceAssets: refs.slice(0, 1),
+  }), {
+    capability: 'video_generation',
+    operation: 'image_to_video',
+    reference_assets: [
+      { role: 'reference_image', media_type: 'image', resource_id: 101 },
+    ],
+  })
+})
+
+test('prompt composer exposes shared reference role labels and options', () => {
+  assert.deepEqual(generationReferenceRoleOptionsForMediaType('image').map((option) => option.value), [
+    'reference_image',
+    'first_frame',
+    'last_frame',
+    'style_reference',
+  ])
+  assert.deepEqual(generationReferenceRoleOptionsForMediaType('video').map((option) => option.value), [
+    'reference_video',
+    'motion_reference',
+    'source_video',
+  ])
+  assert.equal(generationReferenceRoleLabel('first_frame'), '首帧')
+  assert.equal(generationReferenceRoleLabel('reference_audio'), '音频参考')
 })
 
 test('core generation job payload omits params whose requires_value is not satisfied', () => {
@@ -129,6 +332,10 @@ test('core content-unit generation payload filters model-unsupported default par
       { key: 'image_size' },
       { key: 'watermark' },
     ],
+    generationIntent: {
+      capability: 'image_generation',
+      operation: 'text_to_image',
+    },
     params: {
       image_size: '2048x2048',
       watermark: true,
@@ -177,24 +384,35 @@ test('core content-unit generation candidates preserve submitted model parameter
 
 test('core content-unit generation normalizes resource mentions into structured inputs', () => {
   const compiledPrompt = {
-    text: 'Use @[resource:7] and [[resource::8]] as references.',
+    text: 'Use @[resource:7] and [[resource::8]] and {{resource::11}} as references.',
     negative_text: 'Do not drift from [[resource::9]].',
     resource_ids: [7, 10],
   }
 
-  assert.equal(compiledContentUnitGenerationPromptText(compiledPrompt), 'Use and as references.')
-  assert.deepEqual(compiledContentUnitGenerationPromptResourceIds(compiledPrompt), [7, 8, 9, 10])
+  assert.equal(compiledContentUnitGenerationPromptText(compiledPrompt), 'Use and and as references.')
+  assert.deepEqual(compiledContentUnitGenerationPromptResourceIds(compiledPrompt), [7, 8, 11, 9, 10])
 
   const request = buildContentUnitGenerationRequest({
     contentUnitId: 'cu_ref',
     outputKind: 'video',
     compiledPrompt,
     modelId: 'video.model',
+    generationIntent: {
+      capability: 'video_generation',
+      operation: 'reference_to_video',
+      reference_assets: [
+        { role: 'reference_image', media_type: 'image', resource_id: 7 },
+        { role: 'reference_image', media_type: 'image', resource_id: 8 },
+        { role: 'reference_image', media_type: 'image', resource_id: 11 },
+        { role: 'reference_image', media_type: 'image', resource_id: 9 },
+        { role: 'reference_image', media_type: 'image', resource_id: 10 },
+      ],
+    },
   })
 
-  assert.equal(request.promptText, 'Use and as references.')
-  assert.deepEqual(request.inputResourceIds, [7, 8, 9, 10])
-  assert.equal(request.jobType, 'video_i2v')
+  assert.equal(request.promptText, 'Use and and as references.')
+  assert.deepEqual(request.inputResourceIds, [7, 8, 11, 9, 10])
+  assert.equal(request.jobType, 'video')
 })
 
 test('core generation job decisions derive effective job type from model capabilities and inputs', () => {

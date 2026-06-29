@@ -196,6 +196,7 @@ export interface SurfaceHostApi {
   buildMovScriptEngineContentUnitBackendPrompt?: (
     input: SurfaceHostMovScriptProjectInput,
   ) => Promise<{ ok?: boolean; prompt?: Record<string, unknown>; blockers?: unknown[] }>
+  readMovScriptEngineContentCanvasReadModel?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   loadMovScriptEngineContentWorkspaceSnapshot?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   loadMovScriptEngineContentWorkspace?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   listMovScriptEngineContentCanvases?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
@@ -220,6 +221,7 @@ export interface SurfaceHostApi {
   ensureMovScriptEngineTimelineAssemblyContentUnit?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   createMovScriptEngineContentCandidate?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   selectMovScriptEngineContentUnitCandidate?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
+  decideMovScriptEngineContentUnitCandidate?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   updateMovScriptEngineContentUnitEditPrompt?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   updateMovScriptEngineExpressionUnit?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   updateMovScriptEngineAudioCue?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>

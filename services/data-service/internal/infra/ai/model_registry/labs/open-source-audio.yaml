@@ -5,7 +5,7 @@ templates:
       lab: open-source-audio
       model_id: musicgen
       display_name: MusicGen / AudioCraft
-      adapter_type: local
+      route_adapter_hint: local
       capabilities:
         - audio_music
       params:
@@ -38,7 +38,7 @@ templates:
       lab: open-source-audio
       model_id: ace-step
       display_name: ACE-Step
-      adapter_type: local
+      route_adapter_hint: local
       capabilities:
         - audio_music
       params:
@@ -71,7 +71,7 @@ templates:
       lab: open-source-audio
       model_id: ace-step-1.5
       display_name: ACE-Step 1.5
-      adapter_type: local
+      route_adapter_hint: local
       capabilities:
         - audio_music
       params:

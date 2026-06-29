@@ -16,6 +16,7 @@ import {
   type ContentCanvasCreateNodeOptions,
 } from './contentCanvasCreateNodeCommandHelpers'
 import {
+  contentCanvasExpressionUnitKindForOutputKind,
   contentCanvasExpressionUnitOutputKind,
   normalizeContentCanvasExpressionUnitKind,
 } from './contentCanvasExpressionUnitKinds'
@@ -450,7 +451,8 @@ export async function createExpressionUnitFromSceneMoment(
   const refs = requiredSceneMomentRefs(sceneMomentNode)
   if (!gateway) throw new Error('Content canvas workspace gateway is required')
   const input = createInputOrDefault(options?.input, 'canvas_expression', '新表达单元')
-  const kind = normalizeContentCanvasExpressionUnitKind(input.status)
+  const outputKind = input.outputKind ?? contentCanvasExpressionUnitOutputKind(input.status)
+  const kind = normalizeContentCanvasExpressionUnitKind(input.slotKind ?? input.status ?? contentCanvasExpressionUnitKindForOutputKind(outputKind))
   await gateway.createExpressionUnit({
     projectId,
     productionId: refs.productionId,
@@ -458,7 +460,9 @@ export async function createExpressionUnitFromSceneMoment(
     sceneMomentId: sceneMomentNode.entityKey,
     id: input.id,
     title: input.title,
+    slotKind: kind,
     kind,
+    outputKind,
     text: input.title,
     sceneMomentTitle: sceneMomentNode.title,
   })
@@ -467,12 +471,14 @@ export async function createExpressionUnitFromSceneMoment(
     refKind: 'expression_unit',
     ref: input.id,
     contentUnitType: 'expression_unit_ref',
-    outputKind: contentCanvasExpressionUnitOutputKind(kind),
+    outputKind,
     title: `${input.title} 创作片段`,
     description: `从编排画布基于表达单元「${input.title}」创建。`,
     prompt: `将情节「${sceneMomentNode.title}」中的表达单元「${input.title}」转化为可制作候选。`,
     modelIntent: {
       expression_unit_id: input.id,
+      expression_slot_kind: kind,
+      output_kind: outputKind,
       scene_moment_id: sceneMomentNode.entityKey,
       scene_moment_node_id: sceneMomentNode.id,
     },

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
+import { sharedSurfaceRouteForPathname } from '@movscript/shared'
 import { APP_SIDEBAR_WIDTH_STORAGE_KEY } from '@movscript/ui/layout'
 import {
   AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH,
@@ -124,6 +125,8 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
   assert.equal(routeLayoutSpecForPathname('/project/content/canvas').routeId, 'project.content.canvas')
   assert.equal(routeLayoutSpecForPathname('/project/content/preview').routeId, 'project.content.preview')
   assert.equal(routeLayoutSpecForPathname('/project/settings/preview').routeId, 'project.setting.preview')
+  assert.equal(routeLayoutSpecForPathname('/studio/proj_uid_7/edit-desk').routeId, 'studio.editDesk')
+  assert.equal(routeLayoutSpecForPathname('/studio/proj_uid_7/edit-desk').scrollMode, 'workspace')
 
   assert.equal(routeLayoutSpecForPathname('/project/agent').surface, 'agent')
   assert.equal(routeLayoutSpecForPathname('/project/agent').scrollMode, 'workspace')
@@ -190,6 +193,40 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
   }
 })
 
+test('desktop route layout registry stays compatible with shared surface route contracts', () => {
+  for (const pathname of [
+    '/project/home',
+    '/project/standards',
+    '/project/scripts/workbench',
+    '/project/content',
+    '/project/content/canvas',
+    '/project/content/preview',
+    '/project/settings/preview',
+    '/studio/proj_uid_7/edit-desk',
+    '/tools/ref-image-gen',
+    '/tools/audio-transcribe',
+    '/tools/private-assets',
+    '/canvases',
+    '/canvases/42',
+    '/editing',
+    '/editing/editing_project_123',
+    '/resources',
+    '/resources/external',
+    '/shot-library',
+    '/jobs',
+  ]) {
+    const route = routeLayoutSpecForPathname(pathname)
+    const sharedRoute = sharedSurfaceRouteForPathname(pathname, { host: 'desktop' })
+    assert.ok(sharedRoute, `${pathname} should have a shared surface route contract`)
+    assert.ok(
+      sharedRoute.routeId === route.routeId || sharedRoute.routeAliases?.includes(route.routeId),
+      `${pathname} should preserve route identity or alias from desktop route layout`,
+    )
+    assert.equal(sharedRoute.scrollMode, route.scrollMode, `${pathname} should keep desktop scroll behavior`)
+    assert.equal(sharedRoute.shellLayout, route.shellLayout, `${pathname} should keep desktop shell layout`)
+  }
+})
+
 test('registered route layout specs expose pane ownership for app shell surfaces', () => {
   const projectRoute = routeLayoutSpecForPathname('/project/scripts/workbench')
   assert.equal(projectRoute.surface, 'project')
@@ -225,6 +262,8 @@ test('registered route layout specs expose pane ownership for app shell surfaces
 
 test('route layout registry declares shared tool workbench resource panes', () => {
   for (const pathname of [
+    '/tools/image',
+    '/tools/video',
     '/tools/ref-image-gen',
     '/tools/ref-video-gen',
     '/tools/motion-imitation',
@@ -249,7 +288,7 @@ test('route layout registry declares shared tool workbench resource panes', () =
     assert.equal(resourcePane?.overlapMode, 'pane-surface')
   }
 
-  for (const pathname of ['/tools/audio-gen', '/tools/audio-transcribe', '/tools/audio-translate', '/tools/music-gen', '/tools/audio-sfx', '/tools/voice-clone', '/tools/voice-design']) {
+  for (const pathname of ['/tools/audio', '/tools/text', '/tools/audio-gen', '/tools/audio-transcribe', '/tools/audio-translate', '/tools/music-gen', '/tools/audio-sfx', '/tools/voice-clone', '/tools/voice-design']) {
     const audioRoute = routeLayoutSpecForPathname(pathname)
     assert.equal(audioRoute.surface, 'tool')
     assert.equal(audioRoute.scrollMode, 'workspace')

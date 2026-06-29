@@ -73,7 +73,6 @@ test('normalizeAgentModelCatalogEntries maps backend gorm IDs to frontend IDs', 
 function modelFixture(patch: Partial<PublicModel>): PublicModel {
   return {
     id: 1,
-    provider_id: 'local_provider:1',
     model_id: 'model',
     display_name: 'Model',
     capabilities: ['text'],

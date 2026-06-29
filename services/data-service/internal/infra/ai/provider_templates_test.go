@@ -164,6 +164,33 @@ func TestComboTemplatesIncludeGeminiTextToSpeech(t *testing.T) {
 	}
 }
 
+func TestComboTemplatesOwnXAIOfficialVideoAdapters(t *testing.T) {
+	var video ComboTemplate
+	var imageToVideo ComboTemplate
+	counts := map[string]int{}
+	for _, template := range ComboTemplates() {
+		if template.ProviderKind != "xai_official" {
+			continue
+		}
+		counts[template.ModelTemplateKey]++
+		switch template.ModelTemplateKey {
+		case "xai:grok-imagine-video":
+			video = template
+		case "xai:grok-imagine-video-1.5":
+			imageToVideo = template
+		}
+	}
+	if video.AdapterType != AdapterOfficialVideoGenerations {
+		t.Fatalf("xAI official t2v combo adapter_type = %q, want %q", video.AdapterType, AdapterOfficialVideoGenerations)
+	}
+	if imageToVideo.AdapterType != AdapterOpenAIVideoMultipart {
+		t.Fatalf("xAI official i2v combo adapter_type = %q, want %q", imageToVideo.AdapterType, AdapterOpenAIVideoMultipart)
+	}
+	if counts["xai:grok-imagine-video"] != 1 || counts["xai:grok-imagine-video-1.5"] != 1 {
+		t.Fatalf("xAI official video combo counts = %#v, want exactly one per video template", counts)
+	}
+}
+
 func TestAWSBedrockStaysProviderOnly(t *testing.T) {
 	var provider ProviderTemplate
 	for _, template := range ProviderTemplates() {

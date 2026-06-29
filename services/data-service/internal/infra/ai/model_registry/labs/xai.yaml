@@ -5,7 +5,7 @@ templates:
       lab: xai
       model_id: grok-4.3
       display_name: Grok 4.3
-      adapter_type: openai_compat
+      route_adapter_hint: official_video_generations
       capabilities:
         - text
         - reasoning
@@ -20,7 +20,7 @@ templates:
       lab: xai
       model_id: grok-imagine-image-quality
       display_name: Grok Imagine Image Quality
-      adapter_type: openai_compat
+      route_adapter_hint: openai_video_multipart
       capabilities:
         - image
       params:
@@ -66,7 +66,7 @@ templates:
       lab: xai
       model_id: grok-imagine-image-quality
       display_name: Grok Imagine Image Quality Edit
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - image_edit
       input:
@@ -108,7 +108,7 @@ templates:
       lab: xai
       model_id: grok-imagine-video
       display_name: Grok Imagine Video
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - video
       params:
@@ -152,7 +152,7 @@ templates:
       lab: xai
       model_id: grok-imagine-video-1.5
       display_name: Grok Imagine Video 1.5
-      adapter_type: openai_compat
+      route_adapter_hint: openai_compat
       capabilities:
         - video_i2v
       input:
@@ -195,7 +195,7 @@ templates:
       video:
         default_duration_sec: 5
         max_duration_sec: 15
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -208,7 +208,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -221,7 +221,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -237,7 +237,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -250,7 +250,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -264,7 +264,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -277,7 +277,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -291,7 +291,7 @@ templates:
         status: observed
         url: https://yunwu.ai/v1/models
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - image
@@ -338,7 +338,7 @@ templates:
         status: verified
         url: https://docs.x.ai/developers/model-capabilities/images/generation
         verified_at: "2026-06-26"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - image

@@ -7,6 +7,7 @@ import {
   fromUiHandleId,
   portForHandle,
 } from '../domain/ports'
+import { collectCanvasNodeInputs } from '../runtime/canvasRuntimeGraph'
 import type { CanvasNodeData, CanvasParamType, RawResource } from '@movscript/shared'
 
 export interface CanvasEditorRenderModel {
@@ -58,6 +59,12 @@ export function useCanvasEditorRenderModel({
         seenReferenceResourceIds.add(resource.ID)
         referenceResources.push(resource)
       }
+      const runtimeInputValues = collectCanvasNodeInputs({
+        nodeId: node.id,
+        nodes,
+        edges,
+        resourceById: canvasNodeResourceById,
+      }).values
       return {
         ...node,
         data: {
@@ -66,6 +73,7 @@ export function useCanvasEditorRenderModel({
           rfNodeId: node.id,
           availableResources: canvasNodeResources,
           referenceResources,
+          runtimeInputValues,
           canvasDebug,
           canvasOverviewMode,
           canvasMediaLightweightMode,
@@ -87,6 +95,7 @@ export function useCanvasEditorRenderModel({
           onUpdatePrompt: (prompt: string) => updateNodeData(node.id, { prompt }),
           onUpdateOutputType: (outputType: string) => updateNodeData(node.id, { outputType } as Partial<CanvasNodeData>),
           onUpdateModelId: (modelId: string) => updateNodeData(node.id, { modelId }),
+          onUpdateModelOperation: (modelOperation: string) => updateNodeData(node.id, { modelOperation, modelId: undefined }),
           onUpdateAttachments: (ids: number[]) => updateNodeData(node.id, { inputResourceIds: ids }),
           onUpdateParams: (params: Record<string, unknown>) => updateNodeData(node.id, { params }),
           onUpdateParamName: (paramName: string) => updateNodeData(node.id, { paramName }),

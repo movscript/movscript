@@ -1,5 +1,7 @@
 import {
+  compileTimelineAssemblyToMediaEditingProject,
   type MediaEditingProject,
+  type TimelineAssemblyMediaEditingCompileResult,
   createEditingServiceClientFromRuntime,
   createMediaPipelineServiceClientFromRuntime,
   type EditingServiceProjectCommandName,
@@ -84,6 +86,104 @@ async function persistCreatedEditingProject(editingProject: MediaEditingProject,
 export async function editingProjectCreateFromEditPlan(args: Record<string, unknown>) {
   const result = await editingServiceProjectCommand('createProjectFromEditPlan', args)
   return persistCreatedEditingProject(editingProjectFromServiceResult(result), result)
+}
+
+export async function editingProjectCreateFromEditDecisions(args: Record<string, unknown>) {
+  const result = await editingServiceProjectCommand('createProjectFromEditDecisions', args)
+  return persistCreatedEditingProject(editingProjectFromServiceResult(result), result)
+}
+
+export async function editingVideoCompose(args: Record<string, unknown>) {
+  const inputEditDecisions = objectArg(args, 'editDecisions') ?? objectArg(args, 'edit_decisions')
+  const renderRuntime = normalizeRenderRuntime(args.renderRuntime ?? args.render_runtime ?? inputEditDecisions?.render_runtime ?? inputEditDecisions?.renderRuntime)
+  if (!renderRuntime.supported) {
+    return {
+      status: 'unsupported_runtime',
+      code: 'VIDEO_COMPOSE_RENDER_RUNTIME_UNSUPPORTED',
+      message: `MovScript video compose currently supports movscript_media_pipeline/ffmpeg only. Requested runtime ${renderRuntime.value} must be handled by an explicit future adapter; no silent fallback was performed.`,
+      render_runtime: renderRuntime.value,
+      supported_render_runtimes: ['movscript_media_pipeline', 'ffmpeg'],
+    }
+  }
+
+  const composed = await composeEditingProjectWithCompile(args, renderRuntime.value)
+  const editingProject = composed.editingProject
+  const compileResult = composed.compileResult
+  if (!editingProject) {
+    return {
+      status: 'blocked',
+      code: 'VIDEO_COMPOSE_COMPILE_BLOCKED',
+      message: 'Video compose did not start render because TimelineAssembly compile has blockers.',
+      render_runtime: renderRuntime.value,
+      ...(compileResult ? {
+        compile_manifest: compileResult.compile_manifest,
+        compile_result: compileResult,
+        diagnostics: compileResult.diagnostics,
+      } : {}),
+    }
+  }
+  const validation = await editingServiceProjectCommand('validateTimeline', {
+    editingProject: editingProject as unknown as Record<string, unknown>,
+  })
+  if (timelineValidationHasErrors(validation)) {
+    return {
+      status: 'blocked',
+      code: 'VIDEO_COMPOSE_TIMELINE_INVALID',
+      message: 'Video compose did not start render because the MediaEditingProject timeline has validation errors.',
+      render_runtime: renderRuntime.value,
+      editing_project: editingProject,
+      ...(compileResult ? { compile_manifest: compileResult.compile_manifest, compile_result: compileResult } : {}),
+      validation,
+    }
+  }
+
+  const output = isRecord(args.output) ? args.output : {}
+  const format = stringValue(output.format ?? args.format) === 'hls' ? 'hls' : 'mp4'
+  const task = await mediaPipelineTaskCreate(format === 'hls' ? 'timeline_hls' : 'timeline_render', {
+    ...args,
+    editingProject: editingProject as unknown as Record<string, unknown>,
+    projectId: projectIdValue(args) ?? editingProject.projectId,
+    output: {
+      ...output,
+      format,
+      ...(output.importToResource !== undefined || output.import_to_resource !== undefined
+        ? {}
+        : booleanValue(args.importToResource ?? args.import_to_resource) === undefined
+          ? {}
+      : { importToResource: booleanValue(args.importToResource ?? args.import_to_resource) }),
+    },
+  })
+  const taskRecord = isRecord(task) ? task as Record<string, unknown> : {}
+  const mediaTask = isRecord(taskRecord.task) ? taskRecord.task : undefined
+  return {
+    ...task,
+    render_runtime: renderRuntime.value,
+    render_runtime_used: renderRuntime.value === 'ffmpeg' ? 'movscript_media_pipeline_ffmpeg' : renderRuntime.value,
+    format,
+    editing_project: editingProject,
+    ...(compileResult ? { compile_manifest: compileResult.compile_manifest, compile_result: compileResult } : {}),
+    validation,
+    render_report: {
+      schema: 'movscript.render_report.v1',
+      status: stringValue(task.status) ?? 'unknown',
+      render_runtime: renderRuntime.value,
+      render_runtime_used: renderRuntime.value === 'ffmpeg' ? 'movscript_media_pipeline_ffmpeg' : renderRuntime.value,
+      format,
+      project_id: editingProject.projectId,
+      editing_project_id: editingProject.id,
+      compile_manifest_id: compileResult?.compile_manifest.id,
+      compile_input_hash: compileResult?.compile_manifest.input_hash,
+      task_id: stringValue(mediaTask?.taskId ?? mediaTask?.task_id),
+      output_path: stringValue(mediaTask?.outputPath ?? mediaTask?.output_path),
+      output_resource_id: optionalNumber(mediaTask?.outputResourceId ?? mediaTask?.output_resource_id),
+      candidate_created: false,
+      adopted: false,
+      selected: false,
+    },
+    candidate_created: false,
+    adopted: false,
+    selected: false,
+  }
 }
 
 export async function editingProjectAddAsset(args: Record<string, unknown>) {
@@ -420,6 +520,100 @@ async function editingRuntimeTaskSnapshot(args: Record<string, unknown>, runtime
   return runtime.getTask(action.taskId, action.options)
 }
 
+async function composeEditingProject(args: Record<string, unknown>): Promise<MediaEditingProject> {
+  const result = await composeEditingProjectWithCompile(args, normalizeRenderRuntime(args.renderRuntime ?? args.render_runtime).value)
+  if (!result.editingProject) throw new Error('TimelineAssembly compile did not produce a MediaEditingProject')
+  return result.editingProject
+}
+
+async function composeEditingProjectWithCompile(args: Record<string, unknown>, renderRuntime: string): Promise<{
+  editingProject?: MediaEditingProject
+  compileResult?: TimelineAssemblyMediaEditingCompileResult
+}> {
+  const explicitProject = objectArg(args, 'editingProject') ?? objectArg(args, 'editing_project') ?? objectArg(args, 'project')
+  if (explicitProject) return { editingProject: editingProjectArg(args) }
+
+  const editingProjectId = stringValue(args.editingProjectId ?? args.editing_project_id)
+  if (editingProjectId && !objectArg(args, 'editDecisions') && !objectArg(args, 'edit_decisions')) {
+    const result = await editingProjectGet({
+      projectId: projectIdValue(args) ?? STANDALONE_EDITING_PROJECT_ID,
+      editingProjectId,
+    })
+    return { editingProject: editingProjectFromServiceResult(result) }
+  }
+
+  const editDecisions = objectArg(args, 'editDecisions') ?? objectArg(args, 'edit_decisions')
+  if (editDecisions) {
+    const assetManifest = objectArg(args, 'assetManifest') ?? objectArg(args, 'asset_manifest')
+    const timelineAssembly = objectArg(args, 'timelineAssembly') ?? objectArg(args, 'timeline_assembly')
+    const compileResult = compileTimelineAssemblyToMediaEditingProject({
+      timelineAssembly,
+      assetManifest,
+      editDecisions,
+      renderRuntime,
+      runtimeLocked: true,
+      renderSettings: {
+        width: optionalNumber(args.width),
+        height: optionalNumber(args.height),
+        fps: optionalNumber(args.fps),
+        background: stringValue(args.background),
+        default_duration_ms: optionalNumber(args.defaultDurationMs ?? args.default_duration_ms),
+      },
+      projectOptions: {
+        id: stringValue(args.id ?? args.editingProjectId ?? args.editing_project_id),
+        projectId: projectIdValue(args) ?? STANDALONE_EDITING_PROJECT_ID,
+        title: stringValue(args.title),
+        width: optionalNumber(args.width),
+        height: optionalNumber(args.height),
+        fps: optionalNumber(args.fps),
+        background: stringValue(args.background),
+        defaultDurationMs: optionalNumber(args.defaultDurationMs ?? args.default_duration_ms),
+        productionId: stringOrNumberValue(args.productionId ?? args.production_id),
+        productionPath: stringValue(args.productionPath ?? args.production_path),
+        targetKind: stringValue(args.targetKind ?? args.target_kind),
+        targetRef: stringValue(args.targetRef ?? args.target_ref),
+        scopeKind: stringValue(args.scopeKind ?? args.scope_kind),
+        scopeRef: stringOrNumberValue(args.scopeRef ?? args.scope_ref),
+      },
+    })
+    if (compileResult.status === 'blocked' || !compileResult.media_editing_project) {
+      return { compileResult }
+    }
+    const saved = await persistCreatedEditingProject(compileResult.media_editing_project, {
+      status: 'ok',
+      editing_project: compileResult.media_editing_project,
+    })
+    const editingProject = editingProjectFromServiceResult(saved)
+    return {
+      editingProject,
+      compileResult: {
+        ...compileResult,
+        media_editing_project: editingProject,
+      },
+    }
+  }
+
+  throw new Error('editingProject, editingProjectId, or editDecisions is required')
+}
+
+function normalizeRenderRuntime(value: unknown): {
+  value: string
+  supported: boolean
+} {
+  const runtime = stringValue(value) ?? 'movscript_media_pipeline'
+  return {
+    value: runtime,
+    supported: runtime === 'movscript_media_pipeline' || runtime === 'ffmpeg',
+  }
+}
+
+function timelineValidationHasErrors(validation: unknown): boolean {
+  if (!isRecord(validation)) return true
+  if (validation.valid === false) return true
+  const diagnostics = Array.isArray(validation.diagnostics) ? validation.diagnostics : []
+  return diagnostics.some((diagnostic) => isRecord(diagnostic) && diagnostic.severity === 'error')
+}
+
 function editingProjectArg(args: Record<string, unknown>): MediaEditingProject {
   const project = objectArg(args, 'editingProject') ?? objectArg(args, 'editing_project') ?? objectArg(args, 'project')
   if (!project) throw new Error('editingProject is required')
@@ -493,6 +687,15 @@ function objectArg(args: Record<string, unknown>, key: string): Record<string, u
 function optionalNumber(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value)
+  return undefined
+}
+
+function booleanValue(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    if (value === 'true') return true
+    if (value === 'false') return false
+  }
   return undefined
 }
 

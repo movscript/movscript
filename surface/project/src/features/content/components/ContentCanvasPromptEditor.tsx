@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Plus, TextCursorInput, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { RotateCcw, Save, Plus, TextCursorInput, Trash2 } from 'lucide-react'
 
 import type { ContentCanvasNode } from '../domain/contentCanvasTypes'
 import { PromptReferenceInlineEditor, PromptReferenceStrip } from './ContentCanvasPromptReferences'
@@ -31,10 +31,23 @@ export function ContentCanvasPromptEditor({
   value: string
 }) {
   const canEditShotPlan = isSceneMomentVideoContentUnit(ownerNode) && onStructuredCommit
+  const [promptDraft, setPromptDraft] = useState(value)
   const [shotPlanDraft, setShotPlanDraft] = useState<ShotPlanItem[]>(() => shotPlanFromStructured(structured))
+  const promptDirty = promptDraft !== value
+  useEffect(() => {
+    setPromptDraft(value)
+  }, [value])
   useEffect(() => {
     setShotPlanDraft(shotPlanFromStructured(structured))
   }, [structured])
+  const commitPromptDraft = useCallback(() => {
+    if (!promptDirty) return
+    onChange(promptDraft)
+    onBlur(promptDraft)
+  }, [onBlur, onChange, promptDirty, promptDraft])
+  const resetPromptDraft = useCallback(() => {
+    setPromptDraft(value)
+  }, [value])
   const commitShotPlan = (nextPlan: ShotPlanItem[]) => {
     if (!onStructuredCommit) return
     onStructuredCommit({
@@ -76,19 +89,35 @@ export function ContentCanvasPromptEditor({
   return (
     <div className="content-canvas-prompt-editor">
       <span className="content-canvas-prompt-editor__label">
-        <TextCursorInput size={13} aria-hidden="true" />
-        Prompt
+        <span className="content-canvas-prompt-editor__label-main">
+          <TextCursorInput size={13} aria-hidden="true" />
+          Prompt
+        </span>
+        {promptDirty ? (
+          <span
+            className="content-canvas-prompt-editor__actions nodrag"
+            onMouseDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button type="button" onClick={resetPromptDraft} aria-label="重置提示词" title="重置提示词">
+              <RotateCcw size={12} aria-hidden="true" />
+            </button>
+            <button type="button" onClick={commitPromptDraft} aria-label="保存提示词" title="保存提示词">
+              <Save size={12} aria-hidden="true" />
+            </button>
+          </span>
+        ) : null}
       </span>
       <PromptReferenceInlineEditor
         className="nodrag"
-        prompt={value}
+        prompt={promptDraft}
         nodes={nodes}
         mentionNodes={mentionNodes}
         ownerNode={ownerNode}
         candidateSelections={candidateSelections}
         ariaLabel={ariaLabel}
-        onChange={onChange}
-        onBlur={onBlur}
+        onChange={setPromptDraft}
+        onBlur={setPromptDraft}
         onSelectNode={onSelectNode}
       />
       {canEditShotPlan ? (
@@ -149,7 +178,7 @@ export function ContentCanvasPromptEditor({
         </div>
       ) : null}
       <PromptReferenceStrip
-        prompt={value}
+        prompt={promptDraft}
         nodes={nodes}
         ownerNode={ownerNode}
         candidateSelections={candidateSelections}

@@ -19,7 +19,13 @@ test('runtime port values encode typed dialog input', () => {
   assert.deepEqual(encodeRuntimePortValue({ id: 'payload', type: 'json' }, '{"a":1}'), { type: 'json', json: { a: 1 } })
   assert.equal(encodeRuntimePortValue({ id: 'payload', type: 'json' }, '{'), null)
   assert.deepEqual(encodeRuntimePortValue({ id: 'asset', type: 'resource' }, '7'), { type: 'resource', resource_id: 7 })
-  assert.deepEqual(encodeRuntimePortValue({ id: 'voice', type: 'audio' }, '8'), { type: 'audio', resource_id: 8 })
+  assert.deepEqual(encodeRuntimePortValue({ id: 'voice', type: 'audio' }, '8'), { type: 'audio', resource_id: 8, media_type: 'audio' })
+  assert.deepEqual(encodeRuntimePortValue({ id: 'first_frame', type: 'image', mediaType: 'image', role: 'first_frame' }, '9'), {
+    type: 'image',
+    resource_id: 9,
+    media_type: 'image',
+    role: 'first_frame',
+  })
   assert.equal(defaultRuntimeValueForPort({ id: 'payload', type: 'json' }), '{}')
 })
 

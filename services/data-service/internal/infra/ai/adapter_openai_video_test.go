@@ -66,10 +66,38 @@ func TestOpenAIVideoStartSendsInputReferenceArray(t *testing.T) {
 	}
 }
 
-func TestOpenAIXAIVideoStartUsesGenerationsEndpoint(t *testing.T) {
-	var gotBody map[string]any
+func TestOpenAIVideoStartDoesNotSwitchEndpointByModelName(t *testing.T) {
 	adapter := NewOpenAIAdapter("https://example.test/v1", "test-key")
 	adapter.rawHTTP = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/v1/videos" {
+			t.Fatalf("path = %s, want /v1/videos", r.URL.Path)
+		}
+		var body bytes.Buffer
+		_ = json.NewEncoder(&body).Encode(map[string]any{"id": "task_1"})
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(&body),
+			Request:    r,
+		}, nil
+	})}
+
+	resp, err := adapter.VideoStart(context.Background(), VideoRequest{
+		Model:  "grok-imagine-video",
+		Prompt: "make a video",
+	})
+	if err != nil {
+		t.Fatalf("VideoStart() error = %v", err)
+	}
+	if resp.TaskID != "task_1" {
+		t.Fatalf("TaskID = %q, want task_1", resp.TaskID)
+	}
+}
+
+func TestOfficialVideoGenerationsStartUsesGenerationsEndpoint(t *testing.T) {
+	var gotBody map[string]any
+	adapter := NewOfficialVideoGenerationsAdapter("test-key", "https://example.test/v1")
+	adapter.openai.rawHTTP = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		if r.URL.Path != "/v1/videos/generations" {
 			t.Fatalf("path = %s, want /v1/videos/generations", r.URL.Path)
 		}

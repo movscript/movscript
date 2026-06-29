@@ -1,4 +1,5 @@
 import {
+  ProjectEditDeskSurface,
   ProjectScriptsSurface,
   ProjectSettingsSurface,
   ProjectStandardsSurface,
@@ -8,6 +9,7 @@ import { useSearchParams } from 'react-router-dom'
 
 import {
   DesktopProjectSurfaceProvider,
+  useDesktopProjectReadModel,
 } from './desktopProjectSurfaceRuntime'
 
 export function ProjectOverviewPage() {
@@ -31,6 +33,30 @@ export function ProjectStandardsPage() {
     <DesktopProjectSurfaceProvider>
       <ProjectStandardsSurface />
     </DesktopProjectSurfaceProvider>
+  )
+}
+
+export function ProjectEditDeskPage() {
+  return (
+    <DesktopProjectSurfaceProvider>
+      <ProjectEditDeskPageContent />
+    </DesktopProjectSurfaceProvider>
+  )
+}
+
+function ProjectEditDeskPageContent() {
+  const [searchParams] = useSearchParams()
+  const readModel = useDesktopProjectReadModel()
+  const productionId = searchParams.get('productionId') ?? undefined
+
+  return (
+    <ProjectEditDeskSurface
+      params={searchParams}
+      productionId={productionId}
+      readModelStatus={readModel.readModelStatus}
+      readModel={readModel.data}
+      error={readModel.error}
+    />
   )
 }
 

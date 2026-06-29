@@ -2,7 +2,7 @@ import { defineConfig } from 'tsup'
 
 export default defineConfig({
   entry: {
-    'movscript-agent-mcp': 'src/agent-mcp.ts',
+    movscript: 'src/agent-mcp.ts',
   },
   outDir: 'bin',
   format: ['esm'],

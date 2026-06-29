@@ -18,11 +18,13 @@ import (
 const SystemHealthThresholdsKey = "system_health_thresholds"
 const GenerationToolsSettingsKey = "generation_tools_settings"
 const ProviderAssetSettingsKey = "provider_asset_settings"
+const ResourceAccessSettingsKey = "resource_access_settings"
 const OrgGenerationToolsSettingsKeyPrefix = "generation_tools_settings:org:"
 
 var ErrInvalidSystemHealthThresholds = errors.New("invalid system health thresholds")
 var ErrInvalidGenerationToolsSettings = errors.New("invalid generation tools settings")
 var ErrInvalidProviderAssetSettings = errors.New("invalid provider asset settings")
+var ErrInvalidResourceAccessSettings = errors.New("invalid resource access settings")
 
 type Service struct {
 	repo          repository
@@ -79,9 +81,6 @@ type generationToolsSettingsStored struct {
 }
 
 type ProviderAssetSettings struct {
-	PublicBaseURL      string                             `json:"public_base_url,omitempty"`
-	SigningSecret      string                             `json:"signing_secret,omitempty"`
-	SigningSecretSet   bool                               `json:"signing_secret_set"`
 	ArkOpenAPIBaseURL  string                             `json:"ark_openapi_base_url,omitempty"`
 	ArkRegion          string                             `json:"ark_region,omitempty"`
 	ArkAccessKeyID     string                             `json:"ark_access_key_id,omitempty"`
@@ -91,6 +90,8 @@ type ProviderAssetSettings struct {
 }
 
 type providerAssetSettingsStored struct {
+	// Legacy resource-public-access fields. New writes use ResourceAccessSettings;
+	// these remain only so old admin setting JSON can be decoded safely.
 	PublicBaseURL      string                             `json:"public_base_url,omitempty"`
 	SigningSecret      string                             `json:"signing_secret,omitempty"`
 	ArkOpenAPIBaseURL  string                             `json:"ark_openapi_base_url,omitempty"`
@@ -99,6 +100,30 @@ type providerAssetSettingsStored struct {
 	ArkSecretAccessKey string                             `json:"ark_secret_access_key,omitempty"`
 	ArkAssetGroupID    string                             `json:"ark_asset_group_id,omitempty"`
 	ArkAssetGroups     map[string]ProviderAssetGroupState `json:"ark_asset_groups,omitempty"`
+}
+
+type ResourceAccessSettings struct {
+	Profiles         []ResourceAccessProfile `json:"profiles"`
+	DefaultProfileID string                  `json:"default_profile_id,omitempty"`
+}
+
+type ResourceAccessProfile struct {
+	ID               string `json:"id"`
+	Name             string `json:"name,omitempty"`
+	Enabled          bool   `json:"enabled"`
+	Mode             string `json:"mode"`
+	PublicBaseURL    string `json:"public_base_url,omitempty"`
+	InternalBaseURL  string `json:"internal_base_url,omitempty"`
+	SigningEnabled   bool   `json:"signing_enabled"`
+	SigningSecret    string `json:"signing_secret,omitempty"`
+	SigningSecretSet bool   `json:"signing_secret_set"`
+	ExpiresSeconds   int    `json:"expires_seconds,omitempty"`
+	HealthCheckPath  string `json:"health_check_path,omitempty"`
+}
+
+type resourceAccessSettingsStored struct {
+	Profiles         []ResourceAccessProfile `json:"profiles"`
+	DefaultProfileID string                  `json:"default_profile_id,omitempty"`
 }
 
 type ProviderAssetGroupState struct {
@@ -133,6 +158,12 @@ func DefaultProviderAssetSettings() ProviderAssetSettings {
 	return ProviderAssetSettings{
 		ArkOpenAPIBaseURL: "https://ark.cn-beijing.volcengineapi.com",
 		ArkRegion:         "cn-beijing",
+	}
+}
+
+func DefaultResourceAccessSettings() ResourceAccessSettings {
+	return ResourceAccessSettings{
+		Profiles: []ResourceAccessProfile{},
 	}
 }
 
@@ -219,8 +250,6 @@ func (s *Service) ProviderAssetSettings(ctx context.Context) (ProviderAssetSetti
 	if err := json.Unmarshal([]byte(record.ValueJSON), &stored); err != nil {
 		return settings, nil
 	}
-	settings.PublicBaseURL = strings.TrimRight(strings.TrimSpace(stored.PublicBaseURL), "/")
-	settings.SigningSecret = strings.TrimSpace(stored.SigningSecret)
 	settings.ArkOpenAPIBaseURL = normalizeProviderAssetOpenAPIBaseURL(stored.ArkOpenAPIBaseURL)
 	settings.ArkRegion = normalizeProviderAssetArkRegion(stored.ArkRegion)
 	settings.ArkAccessKeyID = strings.TrimSpace(stored.ArkAccessKeyID)
@@ -238,17 +267,11 @@ func (s *Service) ProviderAssetSettings(ctx context.Context) (ProviderAssetSetti
 			}
 		}
 	}
-	if settings.SigningSecret != "" && len(s.encryptionKey) > 0 {
-		if plain, err := crypto.Decrypt(settings.SigningSecret, s.encryptionKey); err == nil {
-			settings.SigningSecret = plain
-		}
-	}
 	if settings.ArkSecretAccessKey != "" && len(s.encryptionKey) > 0 {
 		if plain, err := crypto.Decrypt(settings.ArkSecretAccessKey, s.encryptionKey); err == nil {
 			settings.ArkSecretAccessKey = plain
 		}
 	}
-	settings.SigningSecretSet = settings.SigningSecret != ""
 	settings.ArkSecretKeySet = settings.ArkSecretAccessKey != ""
 	return settings, nil
 }
@@ -258,8 +281,81 @@ func (s *Service) PublicProviderAssetSettings(ctx context.Context) (ProviderAsse
 	if err != nil {
 		return settings, err
 	}
-	settings.SigningSecret = ""
 	settings.ArkSecretAccessKey = ""
+	return settings, nil
+}
+
+func (s *Service) ResourceAccessSettings(ctx context.Context) (ResourceAccessSettings, error) {
+	settings := DefaultResourceAccessSettings()
+	record, err := s.repo.Get(ctx, ResourceAccessSettingsKey)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return settings, nil
+		}
+		return settings, err
+	}
+	var stored resourceAccessSettingsStored
+	if err := json.Unmarshal([]byte(record.ValueJSON), &stored); err != nil {
+		return settings, nil
+	}
+	settings.Profiles = normalizeResourceAccessProfiles(stored.Profiles)
+	settings.DefaultProfileID = normalizeResourceAccessDefaultProfileID(stored.DefaultProfileID, settings.Profiles)
+	for i := range settings.Profiles {
+		if settings.Profiles[i].SigningSecret != "" && len(s.encryptionKey) > 0 {
+			if plain, err := crypto.Decrypt(settings.Profiles[i].SigningSecret, s.encryptionKey); err == nil {
+				settings.Profiles[i].SigningSecret = plain
+			}
+		}
+		settings.Profiles[i].SigningSecretSet = settings.Profiles[i].SigningSecret != ""
+	}
+	return settings, nil
+}
+
+func (s *Service) PublicResourceAccessSettings(ctx context.Context) (ResourceAccessSettings, error) {
+	settings, err := s.ResourceAccessSettings(ctx)
+	if err != nil {
+		return settings, err
+	}
+	for i := range settings.Profiles {
+		settings.Profiles[i].SigningSecret = ""
+	}
+	return settings, nil
+}
+
+func (s *Service) UpdateResourceAccessSettings(ctx context.Context, settings ResourceAccessSettings) (ResourceAccessSettings, error) {
+	current, err := s.ResourceAccessSettings(ctx)
+	if err != nil {
+		return settings, err
+	}
+	settings.Profiles = preserveResourceAccessSecrets(normalizeResourceAccessProfiles(settings.Profiles), current.Profiles)
+	settings.DefaultProfileID = normalizeResourceAccessDefaultProfileID(settings.DefaultProfileID, settings.Profiles)
+	if err := validateResourceAccessSettings(settings); err != nil {
+		return settings, err
+	}
+	stored := resourceAccessSettingsStored{
+		Profiles:         append([]ResourceAccessProfile(nil), settings.Profiles...),
+		DefaultProfileID: settings.DefaultProfileID,
+	}
+	for i := range stored.Profiles {
+		if stored.Profiles[i].SigningSecret != "" && len(s.encryptionKey) > 0 {
+			encrypted, err := crypto.Encrypt(stored.Profiles[i].SigningSecret, s.encryptionKey)
+			if err != nil {
+				return settings, err
+			}
+			stored.Profiles[i].SigningSecret = encrypted
+		}
+	}
+	raw, err := json.Marshal(stored)
+	if err != nil {
+		return settings, err
+	}
+	if err := s.repo.Save(ctx, settingRecord{Key: ResourceAccessSettingsKey, ValueJSON: string(raw)}); err != nil {
+		return settings, err
+	}
+	for i := range settings.Profiles {
+		settings.Profiles[i].SigningSecretSet = settings.Profiles[i].SigningSecret != ""
+		settings.Profiles[i].SigningSecret = ""
+	}
 	return settings, nil
 }
 
@@ -267,11 +363,6 @@ func (s *Service) UpdateProviderAssetSettings(ctx context.Context, settings Prov
 	current, err := s.ProviderAssetSettings(ctx)
 	if err != nil {
 		return settings, err
-	}
-	settings.PublicBaseURL = strings.TrimRight(strings.TrimSpace(settings.PublicBaseURL), "/")
-	settings.SigningSecret = strings.TrimSpace(settings.SigningSecret)
-	if settings.SigningSecret == "" && current.SigningSecret != "" {
-		settings.SigningSecret = current.SigningSecret
 	}
 	settings.ArkOpenAPIBaseURL = normalizeProviderAssetOpenAPIBaseURL(settings.ArkOpenAPIBaseURL)
 	settings.ArkRegion = normalizeProviderAssetArkRegion(settings.ArkRegion)
@@ -285,20 +376,11 @@ func (s *Service) UpdateProviderAssetSettings(ctx context.Context, settings Prov
 		return settings, err
 	}
 	stored := providerAssetSettingsStored{
-		PublicBaseURL:      settings.PublicBaseURL,
-		SigningSecret:      settings.SigningSecret,
 		ArkOpenAPIBaseURL:  settings.ArkOpenAPIBaseURL,
 		ArkRegion:          settings.ArkRegion,
 		ArkAccessKeyID:     settings.ArkAccessKeyID,
 		ArkSecretAccessKey: settings.ArkSecretAccessKey,
 		ArkAssetGroups:     settings.ArkAssetGroups,
-	}
-	if stored.SigningSecret != "" && len(s.encryptionKey) > 0 {
-		encrypted, err := crypto.Encrypt(stored.SigningSecret, s.encryptionKey)
-		if err != nil {
-			return settings, err
-		}
-		stored.SigningSecret = encrypted
 	}
 	if stored.ArkSecretAccessKey != "" && len(s.encryptionKey) > 0 {
 		encrypted, err := crypto.Encrypt(stored.ArkSecretAccessKey, s.encryptionKey)
@@ -314,8 +396,6 @@ func (s *Service) UpdateProviderAssetSettings(ctx context.Context, settings Prov
 	if err := s.repo.Save(ctx, settingRecord{Key: ProviderAssetSettingsKey, ValueJSON: string(raw)}); err != nil {
 		return settings, err
 	}
-	settings.SigningSecretSet = settings.SigningSecret != ""
-	settings.SigningSecret = ""
 	settings.ArkSecretKeySet = settings.ArkSecretAccessKey != ""
 	settings.ArkSecretAccessKey = ""
 	return settings, nil
@@ -354,20 +434,11 @@ func (s *Service) UpsertProviderAssetGroup(ctx context.Context, scope string, gr
 
 func (s *Service) saveProviderAssetSettings(ctx context.Context, settings ProviderAssetSettings) (ProviderAssetSettings, error) {
 	stored := providerAssetSettingsStored{
-		PublicBaseURL:      settings.PublicBaseURL,
-		SigningSecret:      settings.SigningSecret,
 		ArkOpenAPIBaseURL:  settings.ArkOpenAPIBaseURL,
 		ArkRegion:          settings.ArkRegion,
 		ArkAccessKeyID:     settings.ArkAccessKeyID,
 		ArkSecretAccessKey: settings.ArkSecretAccessKey,
 		ArkAssetGroups:     settings.ArkAssetGroups,
-	}
-	if stored.SigningSecret != "" && len(s.encryptionKey) > 0 {
-		encrypted, err := crypto.Encrypt(stored.SigningSecret, s.encryptionKey)
-		if err != nil {
-			return settings, err
-		}
-		stored.SigningSecret = encrypted
 	}
 	if stored.ArkSecretAccessKey != "" && len(s.encryptionKey) > 0 {
 		encrypted, err := crypto.Encrypt(stored.ArkSecretAccessKey, s.encryptionKey)
@@ -383,8 +454,6 @@ func (s *Service) saveProviderAssetSettings(ctx context.Context, settings Provid
 	if err := s.repo.Save(ctx, settingRecord{Key: ProviderAssetSettingsKey, ValueJSON: string(raw)}); err != nil {
 		return settings, err
 	}
-	settings.SigningSecretSet = settings.SigningSecret != ""
-	settings.SigningSecret = ""
 	settings.ArkSecretKeySet = settings.ArkSecretAccessKey != ""
 	settings.ArkSecretAccessKey = ""
 	return settings, nil
@@ -733,6 +802,103 @@ func normalizeProviderAssetGroupScope(scope string) string {
 	return scope
 }
 
+func normalizeResourceAccessProfiles(values []ResourceAccessProfile) []ResourceAccessProfile {
+	out := make([]ResourceAccessProfile, 0, len(values))
+	seen := map[string]struct{}{}
+	for _, profile := range values {
+		profile.ID = normalizeResourceAccessProfileID(profile.ID)
+		if profile.ID == "" {
+			continue
+		}
+		if _, exists := seen[profile.ID]; exists {
+			continue
+		}
+		seen[profile.ID] = struct{}{}
+		profile.Name = strings.TrimSpace(profile.Name)
+		profile.Mode = normalizeResourceAccessMode(profile.Mode)
+		profile.PublicBaseURL = strings.TrimRight(strings.TrimSpace(profile.PublicBaseURL), "/")
+		profile.InternalBaseURL = strings.TrimRight(strings.TrimSpace(profile.InternalBaseURL), "/")
+		profile.SigningSecret = strings.TrimSpace(profile.SigningSecret)
+		profile.SigningSecretSet = profile.SigningSecret != ""
+		if profile.ExpiresSeconds <= 0 {
+			profile.ExpiresSeconds = 3600
+		}
+		if profile.ExpiresSeconds < 60 {
+			profile.ExpiresSeconds = 60
+		}
+		profile.HealthCheckPath = normalizeResourceAccessHealthPath(profile.HealthCheckPath)
+		out = append(out, profile)
+	}
+	return out
+}
+
+func normalizeResourceAccessProfileID(value string) string {
+	value = strings.TrimSpace(value)
+	value = strings.ReplaceAll(value, " ", "-")
+	value = strings.ToLower(value)
+	var b strings.Builder
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			b.WriteRune(r)
+		}
+	}
+	return strings.Trim(b.String(), "-_")
+}
+
+func normalizeResourceAccessMode(value string) string {
+	switch strings.TrimSpace(value) {
+	case "public_tunnel", "public_backend", "object_relay", "provider_files", "provider_asset_uri":
+		return strings.TrimSpace(value)
+	default:
+		return "public_tunnel"
+	}
+}
+
+func normalizeResourceAccessHealthPath(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "/api/v1/resource-access/health"
+	}
+	if !strings.HasPrefix(value, "/") {
+		value = "/" + value
+	}
+	return value
+}
+
+func normalizeResourceAccessDefaultProfileID(value string, profiles []ResourceAccessProfile) string {
+	value = normalizeResourceAccessProfileID(value)
+	for _, profile := range profiles {
+		if profile.ID == value {
+			return value
+		}
+	}
+	for _, profile := range profiles {
+		if profile.Enabled {
+			return profile.ID
+		}
+	}
+	if len(profiles) > 0 {
+		return profiles[0].ID
+	}
+	return ""
+}
+
+func preserveResourceAccessSecrets(next []ResourceAccessProfile, current []ResourceAccessProfile) []ResourceAccessProfile {
+	secrets := map[string]string{}
+	for _, profile := range current {
+		if profile.SigningSecret != "" {
+			secrets[profile.ID] = profile.SigningSecret
+		}
+	}
+	for i := range next {
+		if next[i].SigningSecret == "" && secrets[next[i].ID] != "" {
+			next[i].SigningSecret = secrets[next[i].ID]
+			next[i].SigningSecretSet = true
+		}
+	}
+	return next
+}
+
 func isValidHTTPBaseURL(raw string) bool {
 	parsed, err := url.Parse(raw)
 	if err != nil {
@@ -742,11 +908,29 @@ func isValidHTTPBaseURL(raw string) bool {
 }
 
 func validateProviderAssetSettings(settings ProviderAssetSettings) error {
-	if settings.PublicBaseURL != "" && !isValidHTTPBaseURL(settings.PublicBaseURL) {
-		return ErrInvalidProviderAssetSettings
-	}
 	if !isValidHTTPBaseURL(settings.ArkOpenAPIBaseURL) {
 		return ErrInvalidProviderAssetSettings
+	}
+	return nil
+}
+
+func validateResourceAccessSettings(settings ResourceAccessSettings) error {
+	for _, profile := range settings.Profiles {
+		switch profile.Mode {
+		case "public_tunnel", "public_backend", "object_relay":
+			if profile.PublicBaseURL == "" || !isValidHTTPBaseURL(profile.PublicBaseURL) {
+				return ErrInvalidResourceAccessSettings
+			}
+		case "provider_files", "provider_asset_uri":
+		default:
+			return ErrInvalidResourceAccessSettings
+		}
+		if profile.InternalBaseURL != "" && !isValidHTTPBaseURL(profile.InternalBaseURL) {
+			return ErrInvalidResourceAccessSettings
+		}
+		if profile.SigningEnabled && strings.TrimSpace(profile.SigningSecret) == "" {
+			return ErrInvalidResourceAccessSettings
+		}
 	}
 	return nil
 }

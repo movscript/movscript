@@ -153,6 +153,7 @@ func (s *Service) ListProviderAssetProviders(ctx context.Context) ([]Provider, e
 
 func (s *Service) enrichProviderRuntimeStates(ctx context.Context, providers []persistencemodel.AIProvider) {
 	deploymentSettings, deploymentSettingsErr := s.providerAssetSettingsForDiagnostics(ctx)
+	resourceAccessSettings, resourceAccessSettingsErr := s.resourceAccessSettingsForDiagnostics(ctx)
 	for i := range providers {
 		template, ok := providerTemplateByKind(providers[i].ProviderKind)
 		assetSettings, assetSettingsErr := s.providerAssetLibrarySettingsFromProvider(ctx, providers[i], false)
@@ -169,7 +170,7 @@ func (s *Service) enrichProviderRuntimeStates(ctx context.Context, providers []p
 		if assetSettingsErr == nil && deploymentSettingsErr != nil {
 			assetSettingsErr = deploymentSettingsErr
 		}
-		providers[i].AssetLibraryStateJSON = marshalProviderStateJSON(providerAssetLibraryState(providers[i], template, ok, assetSettings, assetSettingsSource, deploymentSettings, firstErr(assetSettingsErr, deploymentSettingsErr)))
+		providers[i].AssetLibraryStateJSON = marshalProviderStateJSON(providerAssetLibraryState(providers[i], template, ok, assetSettings, assetSettingsSource, deploymentSettings, resourceAccessSettings, firstErr(assetSettingsErr, deploymentSettingsErr, resourceAccessSettingsErr)))
 		providers[i].TrustedResourceStateJSON = marshalProviderStateJSON(providerTrustedResourceState(providers[i], template, ok))
 	}
 }
@@ -183,6 +184,17 @@ func (s *Service) providerAssetSettingsForDiagnostics(ctx context.Context) (admi
 		encryptionKeyHex = hex.EncodeToString(s.encryptionKey)
 	}
 	return adminsettings.NewService(s.db, encryptionKeyHex).PublicProviderAssetSettings(ctx)
+}
+
+func (s *Service) resourceAccessSettingsForDiagnostics(ctx context.Context) (adminsettings.ResourceAccessSettings, error) {
+	if !s.db.Migrator().HasTable(&persistencemodel.AdminSetting{}) {
+		return adminsettings.DefaultResourceAccessSettings(), fmt.Errorf("admin settings table is not migrated")
+	}
+	encryptionKeyHex := ""
+	if len(s.encryptionKey) > 0 {
+		encryptionKeyHex = hex.EncodeToString(s.encryptionKey)
+	}
+	return adminsettings.NewService(s.db, encryptionKeyHex).PublicResourceAccessSettings(ctx)
 }
 
 func firstErr(values ...error) error {
@@ -228,6 +240,21 @@ func providerHasActiveModelCredential(provider persistencemodel.AIProvider) bool
 
 func deploymentProviderAssetCredentialsConfigured(settings adminsettings.ProviderAssetSettings) bool {
 	return strings.TrimSpace(settings.ArkAccessKeyID) != "" && settings.ArkSecretKeySet
+}
+
+func resourceAccessConfigured(settings adminsettings.ResourceAccessSettings) (bool, bool) {
+	for _, profile := range settings.Profiles {
+		if !profile.Enabled {
+			continue
+		}
+		switch profile.Mode {
+		case "public_tunnel", "public_backend", "object_relay":
+			if strings.TrimSpace(profile.PublicBaseURL) != "" {
+				return true, profile.SigningSecretSet
+			}
+		}
+	}
+	return false, false
 }
 
 func (s *Service) providerAssetLibrarySettingsFromProvider(ctx context.Context, provider persistencemodel.AIProvider, includeSecret bool) (ProviderAssetLibrarySettings, error) {
@@ -1360,11 +1387,12 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func providerAssetLibraryState(provider persistencemodel.AIProvider, template infraai.ProviderTemplate, templateFound bool, settings ProviderAssetLibrarySettings, settingsSource string, deploymentSettings adminsettings.ProviderAssetSettings, settingsErr error) map[string]any {
+func providerAssetLibraryState(provider persistencemodel.AIProvider, template infraai.ProviderTemplate, templateFound bool, settings ProviderAssetLibrarySettings, settingsSource string, deploymentSettings adminsettings.ProviderAssetSettings, resourceAccessSettings adminsettings.ResourceAccessSettings, settingsErr error) map[string]any {
 	supported := templateFound && boolProviderTemplateValue(template.Capabilities, "asset_library")
 	assetTypes := stringSliceProviderTemplateValue(template.AssetLibraryCapabilities, "asset_types")
 	groupScopes := stringSliceProviderTemplateValue(template.AssetLibraryCapabilities, "group_scopes")
 	autoCreateGroups := supported && boolProviderTemplateValue(template.AssetLibraryCapabilities, "auto_create_groups")
+	resourceAccessReady, resourceAccessSigningConfigured := resourceAccessConfigured(resourceAccessSettings)
 	diagnostics := []map[string]any{}
 	if !templateFound {
 		diagnostics = append(diagnostics, providerStateDiagnostic("provider_template_missing", "error", "Provider kind is not declared by the backend template registry."))
@@ -1374,8 +1402,9 @@ func providerAssetLibraryState(provider persistencemodel.AIProvider, template in
 	settingsSummary := map[string]any{
 		"ark_openapi_base_url":       strings.TrimSpace(settings.ArkOpenAPIBaseURL),
 		"ark_region":                 strings.TrimSpace(settings.ArkRegion),
-		"public_base_url_set":        strings.TrimSpace(deploymentSettings.PublicBaseURL) != "",
-		"signing_secret_set":         deploymentSettings.SigningSecretSet,
+		"public_base_url_set":        resourceAccessReady,
+		"resource_access_set":        resourceAccessReady,
+		"signing_secret_set":         resourceAccessSigningConfigured,
 		"ark_access_key_id":          strings.TrimSpace(settings.ArkAccessKeyID),
 		"ark_access_key_id_set":      strings.TrimSpace(settings.ArkAccessKeyID) != "",
 		"ark_secret_key_set":         settings.ArkSecretKeySet,
@@ -1396,11 +1425,11 @@ func providerAssetLibraryState(provider persistencemodel.AIProvider, template in
 		} else if provider.ProviderKind == persistencemodel.AIProviderKindVolcengineArk && settingsSource == "admin_settings" {
 			diagnostics = append(diagnostics, providerStateDiagnostic("provider_asset_credentials_using_global_fallback", "warning", "Ark OpenAPI credentials are still loaded from deployment settings; move them into this Provider's asset library credential."))
 		}
-		if strings.TrimSpace(deploymentSettings.PublicBaseURL) == "" {
-			diagnostics = append(diagnostics, providerStateDiagnostic("missing_public_base_url", "warning", "Local RawResource files need a public backend URL before they can be uploaded to the provider asset library."))
+		if !resourceAccessReady {
+			diagnostics = append(diagnostics, providerStateDiagnostic("missing_resource_access_profile", "warning", "Local RawResource files need a public Resource Access profile before they can be uploaded to the provider asset library."))
 		}
-		if !deploymentSettings.SigningSecretSet {
-			diagnostics = append(diagnostics, providerStateDiagnostic("missing_signing_secret", "warning", "Temporary RawResource URLs cannot be signed until a signing secret is configured."))
+		if !resourceAccessSigningConfigured {
+			diagnostics = append(diagnostics, providerStateDiagnostic("missing_resource_access_signing_secret", "warning", "Temporary RawResource URLs cannot be signed until a Resource Access signing secret is configured."))
 		}
 		switch provider.ProviderKind {
 		case persistencemodel.AIProviderKindYunwuGateway:

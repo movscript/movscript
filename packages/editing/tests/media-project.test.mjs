@@ -3,8 +3,12 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 import {
+  compileTimelineAssemblyToFinishingProject,
+  compileTimelineAssemblyToMediaEditingProject,
+  createMediaEditingProjectFromEditDecisions,
   createMediaEditingProjectFromMovScriptEditPlan,
   createMediaEditingProjectFromProductionTimelineClips,
+  createTimelineAssemblyCompileManifest,
   createMediaEditingProjectService,
   normalizeMediaClipVolumePercent,
   validateMediaEditingProjectTimeline,
@@ -140,6 +144,289 @@ test('creates a production MediaEditingProject from preview timeline clips', () 
   assert.equal(project.provenance.legacyTargetKind, 'production')
   assert.equal(project.provenance.legacyTargetRef, 'pilot')
   assert.deepEqual(project.provenance.selectedCandidateIds, ['cand_rain'])
+})
+
+test('creates a MediaEditingProject from edit decisions and asset manifest', () => {
+  const project = createMediaEditingProjectFromEditDecisions(sampleEditDecisions(), {
+    assetManifest: sampleAssetManifest(),
+    id: 'edit_decisions_cut',
+    projectId: 'project-video-compose',
+    title: 'Video compose cut',
+    now: '2026-06-25T00:00:00.000Z',
+    productionId: 'pilot',
+    targetKind: 'timeline_assembly',
+    targetRef: 'timeline_assembly:production:pilot',
+    scopeKind: 'production',
+    scopeRef: 'pilot',
+  })
+
+  assert.equal(project.id, 'edit_decisions_cut')
+  assert.equal(project.projectId, 'project-video-compose')
+  assert.equal(project.source.kind, 'edit_decisions')
+  assert.equal(project.source.productionId, 'pilot')
+  assert.equal(project.timeline.width, 1920)
+  assert.equal(project.timeline.height, 1080)
+  assert.equal(project.timeline.metadata.renderRuntime, 'ffmpeg')
+  assert.deepEqual(project.provenance.inputResourceIds, [101, 202, 303, 404, 505])
+
+  const primary = project.timeline.tracks.find((track) => track.id === 'track_primary_video')
+  assert.equal(primary.type, 'video')
+  assert.equal(primary.clips.length, 2)
+  assert.equal(primary.clips[0].timelineStartMs, 0)
+  assert.equal(primary.clips[0].sourceStartMs, 1000)
+  assert.equal(primary.clips[0].sourceEndMs, 5000)
+  assert.equal(primary.clips[1].timelineStartMs, 4000)
+  assert.equal(primary.clips[1].durationMs, 3000)
+  assert.equal(primary.clips[1].transition.type, 'fade')
+  assert.equal(primary.clips[1].fadeInMs, 500)
+
+  const overlay = project.timeline.tracks.find((track) => track.id === 'track_overlay_visual')
+  assert.equal(overlay.clips[0].asset.assetType, 'image')
+  assert.equal(overlay.clips[0].timelineStartMs, 500)
+  assert.equal(overlay.clips[0].durationMs, 2000)
+  assert.equal(overlay.clips[0].opacity, 0.8)
+
+  const narration = project.timeline.tracks.find((track) => track.id === 'track_audio_narration')
+  assert.equal(narration.clips[0].asset.resourceId, 303)
+  assert.equal(narration.clips[0].volume, 90)
+
+  const music = project.timeline.tracks.find((track) => track.id === 'track_audio_music')
+  assert.equal(music.clips[0].asset.resourceId, 404)
+  assert.equal(music.clips[0].durationMs, project.timeline.durationMs)
+  assert.equal(music.clips[0].volume, 25)
+
+  const subtitles = project.timeline.tracks.find((track) => track.id === 'track_subtitles')
+  assert.equal(subtitles.clips[0].assetType, 'text')
+  assert.equal(subtitles.clips[0].text.content, 'Hello')
+  assert.equal(validateMediaEditingProjectTimeline(project).every((diagnostic) => diagnostic.severity !== 'error'), true)
+})
+
+test('compiles a TimelineAssembly handoff into a repeatable MediaEditingProject result', () => {
+  const result = compileTimelineAssemblyToMediaEditingProject({
+    timelineAssembly: {
+      id: 'assembly_pilot',
+      target_ref: 'timeline_assembly:production:pilot',
+      scope_kind: 'production',
+      scope_ref: 'pilot',
+    },
+    assetManifest: sampleAssetManifest(),
+    editDecisions: sampleEditDecisions(),
+    renderRuntime: 'ffmpeg',
+    runtimeLocked: true,
+    now: '2026-06-29T00:00:00.000Z',
+    renderSettings: {
+      width: 1920,
+      height: 1080,
+      fps: 30,
+      background: '#000000',
+      default_duration_ms: 4000,
+    },
+    projectOptions: {
+      id: 'compiled_assembly_pilot',
+      projectId: 'project-video-compose',
+      title: 'Compiled assembly cut',
+      targetKind: 'timeline_assembly',
+      targetRef: 'timeline_assembly:production:pilot',
+      scopeKind: 'production',
+      scopeRef: 'pilot',
+    },
+  })
+
+  assert.equal(result.schema, 'movscript.timeline_assembly.media_editing_compile_result.v1')
+  assert.equal(result.status, 'ready')
+  assert.equal(result.compile_manifest.schema, 'movscript.timeline_assembly.compile_manifest.v1')
+  assert.equal(result.compile_manifest.status, 'ready')
+  assert.equal(result.compile_manifest.backend.target, 'media_editing_project')
+  assert.equal(result.compile_manifest.backend.render_runtime, 'ffmpeg')
+  assert.equal(result.compile_manifest.backend.runtime_locked, true)
+  assert.deepEqual(result.compile_manifest.inputs.selected_resource_ids, [101, 202, 303, 404, 505])
+  assert.deepEqual(result.compile_manifest.inputs.unresolved_asset_refs, [])
+  assert.equal(result.compile_manifest.capabilities.action_counts.cut, 2)
+  assert.equal(result.media_editing_project.id, 'compiled_assembly_pilot')
+  assert.equal(result.media_editing_project.provenance.sourceHash, result.compile_manifest.input_hash)
+  assert.equal(result.media_editing_project.timeline.metadata.compileManifestId, result.compile_manifest.id)
+  assert.equal(result.editing_timeline_diagnostics.every((diagnostic) => diagnostic.severity !== 'error'), true)
+
+  const repeat = compileTimelineAssemblyToMediaEditingProject({
+    timelineAssembly: {
+      id: 'assembly_pilot',
+      target_ref: 'timeline_assembly:production:pilot',
+      scope_kind: 'production',
+      scope_ref: 'pilot',
+    },
+    assetManifest: sampleAssetManifest(),
+    editDecisions: sampleEditDecisions(),
+    renderRuntime: 'ffmpeg',
+    runtimeLocked: true,
+    now: '2026-06-29T00:00:01.000Z',
+    renderSettings: {
+      width: 1920,
+      height: 1080,
+      fps: 30,
+      background: '#000000',
+      default_duration_ms: 4000,
+    },
+    projectOptions: {
+      id: 'compiled_assembly_pilot',
+      projectId: 'project-video-compose',
+      title: 'Compiled assembly cut',
+      targetKind: 'timeline_assembly',
+      targetRef: 'timeline_assembly:production:pilot',
+      scopeKind: 'production',
+      scopeRef: 'pilot',
+    },
+  })
+  assert.equal(repeat.compile_manifest.input_hash, result.compile_manifest.input_hash)
+})
+
+test('compile manifest blocks runtime lock fallback across editing backends', () => {
+  const manifest = createTimelineAssemblyCompileManifest({
+    timelineAssembly: {
+      id: 'assembly_pilot',
+      target_ref: 'timeline_assembly:production:pilot',
+    },
+    assetManifest: sampleAssetManifest(),
+    editDecisions: {
+      ...sampleEditDecisions(),
+      render_runtime: 'hyperframes',
+    },
+    backend: 'media_editing_project',
+    runtimeLocked: true,
+    now: '2026-06-29T00:00:00.000Z',
+  })
+
+  assert.equal(manifest.status, 'blocked')
+  assert.equal(manifest.backend.fallback_policy, 'no_implicit_fallback')
+  assert.equal(manifest.diagnostics.some((diagnostic) => diagnostic.code === 'runtime_lock_backend_mismatch'), true)
+  assert.equal(manifest.capabilities.unsupported_actions.includes('render_runtime:hyperframes'), true)
+})
+
+test('compiles TimelineAssembly rough cuts into selectable finishing project backends', () => {
+  const baseInput = {
+    timelineAssembly: {
+      id: 'assembly_pilot',
+      target_ref: 'timeline_assembly:production:pilot',
+      scope_kind: 'production',
+      scope_ref: 'pilot',
+    },
+    assetManifest: sampleAssetManifest(),
+    editDecisions: sampleEditDecisions(),
+    runtimeLocked: true,
+    now: '2026-06-29T00:00:00.000Z',
+    renderSettings: {
+      width: 1920,
+      height: 1080,
+      fps: 30,
+      background: '#000000',
+      default_duration_ms: 4000,
+    },
+    projectOptions: {
+      id: 'compiled_assembly_pilot',
+      projectId: 'project-video-compose',
+      title: 'Compiled assembly cut',
+      targetKind: 'timeline_assembly',
+      targetRef: 'timeline_assembly:production:pilot',
+      scopeKind: 'production',
+      scopeRef: 'pilot',
+    },
+  }
+
+  const media = compileTimelineAssemblyToFinishingProject({
+    ...baseInput,
+    backend: 'media_editing_project',
+    renderRuntime: 'ffmpeg',
+  })
+  assert.equal(media.status, 'ready')
+  assert.equal(media.backend, 'media_editing_project')
+  assert.equal(media.finishing_project.backend, 'media_editing_project')
+  assert.equal(media.finishing_project.media_editing_project.id, 'compiled_assembly_pilot')
+  assert.equal(media.media_editing_project.id, 'compiled_assembly_pilot')
+  assert.equal(media.compile_manifest.backend.fallback_policy, 'no_implicit_fallback')
+
+  const hyperframes = compileTimelineAssemblyToFinishingProject({
+    ...baseInput,
+    backend: 'hyperframes',
+  })
+  assert.equal(hyperframes.status, 'ready')
+  assert.equal(hyperframes.compile_manifest.backend.target, 'hyperframes')
+  assert.equal(hyperframes.compile_manifest.backend.render_runtime, 'hyperframes')
+  assert.equal(hyperframes.finishing_project.entrypoint, 'index.html')
+  const hyperframesFiles = Object.fromEntries(hyperframes.finishing_project.files.map((file) => [file.path, file.content]))
+  assert.match(hyperframesFiles['DESIGN.md'], /Style Prompt/)
+  assert.match(hyperframesFiles['index.html'], /data-composition-id="movscript-rough-cut"/)
+  assert.match(hyperframesFiles['index.html'], /data-track-index="0"/)
+  assert.match(hyperframesFiles['index.html'], /window\.__timelines\["movscript-rough-cut"\]/)
+  assert.match(hyperframesFiles['index.html'], /muted playsinline/)
+
+  const remotion = compileTimelineAssemblyToFinishingProject({
+    ...baseInput,
+    backend: 'remotion',
+  })
+  assert.equal(remotion.status, 'ready')
+  assert.equal(remotion.compile_manifest.backend.target, 'remotion')
+  assert.equal(remotion.compile_manifest.backend.render_runtime, 'remotion')
+  assert.equal(remotion.finishing_project.entrypoint, 'src/Root.tsx')
+  const remotionFiles = Object.fromEntries(remotion.finishing_project.files.map((file) => [file.path, file.content]))
+  assert.match(remotionFiles['package.json'], /remotion studio/)
+  assert.match(remotionFiles['src/Root.tsx'], /<Composition/)
+  assert.match(remotionFiles['src/MovScriptRoughCut.tsx'], /<Sequence/)
+  assert.match(remotionFiles['src/MovScriptRoughCut.tsx'], /<Video/)
+  const remotionProps = JSON.parse(remotionFiles['src/rough-cut-props.json'])
+  assert.equal(remotionProps.durationInFrames, 210)
+  assert.equal(remotionProps.clips.some((clip) => clip.type === 'audio'), true)
+})
+
+test('finishing compile refuses explicit runtime locks that target another backend', () => {
+  const result = compileTimelineAssemblyToFinishingProject({
+    timelineAssembly: {
+      id: 'assembly_pilot',
+      target_ref: 'timeline_assembly:production:pilot',
+    },
+    assetManifest: sampleAssetManifest(),
+    editDecisions: sampleEditDecisions(),
+    backend: 'remotion',
+    renderRuntime: 'hyperframes',
+    runtimeLocked: true,
+    now: '2026-06-29T00:00:00.000Z',
+  })
+
+  assert.equal(result.status, 'blocked')
+  assert.equal(result.compile_manifest.backend.fallback_policy, 'no_implicit_fallback')
+  assert.equal(result.diagnostics.some((diagnostic) => diagnostic.code === 'runtime_lock_backend_mismatch'), true)
+  assert.equal(result.finishing_project, undefined)
+})
+
+test('compile manifest treats content-unit placeholder assets as unresolved', () => {
+  const manifest = createTimelineAssemblyCompileManifest({
+    timelineAssembly: {
+      id: 'assembly_placeholder',
+      target_ref: 'timeline_assembly:production:placeholder',
+    },
+    assetManifest: {
+      version: '1.0',
+      assets: [{
+        id: 'cu_placeholder',
+        type: 'video',
+        path: 'content-unit:cu_placeholder',
+      }],
+    },
+    editDecisions: {
+      version: '1.0',
+      cuts: [{
+        id: 'cut_placeholder',
+        source: 'cu_placeholder',
+        duration_seconds: 1,
+      }],
+    },
+    backend: 'media_editing_project',
+    renderRuntime: 'movscript_media_pipeline',
+    runtimeLocked: true,
+    now: '2026-06-29T00:00:00.000Z',
+  })
+
+  assert.equal(manifest.status, 'blocked')
+  assert.deepEqual(manifest.inputs.unresolved_asset_refs, ['cu_placeholder'])
+  assert.equal(manifest.diagnostics.some((diagnostic) => diagnostic.code === 'asset_ref_unresolved'), true)
 })
 
 test('normalizes legacy ratio volume and validates media editing timelines', () => {
@@ -307,5 +594,78 @@ function sampleEditPlan() {
       output_kind: 'video',
       track_type: 'video',
     }],
+  }
+}
+
+function sampleEditDecisions() {
+  return {
+    version: 1,
+    render_runtime: 'ffmpeg',
+    composition_mode: 'templated',
+    cuts: [
+      {
+        id: 'cut_intro',
+        source: 'clip_intro',
+        in_seconds: 1,
+        out_seconds: 5,
+        layer: 'primary',
+        reason: 'opening hook',
+      },
+      {
+        id: 'cut_detail',
+        source: 'clip_detail',
+        in_seconds: 0,
+        out_seconds: 3,
+        transition_in: 'fade',
+        transition_duration: 0.5,
+      },
+    ],
+    overlays: [{
+      id: 'logo_overlay',
+      asset_id: 'logo',
+      start_seconds: 0.5,
+      end_seconds: 2.5,
+      opacity: 0.8,
+    }],
+    audio: {
+      narration: {
+        segments: [{
+          id: 'narration_intro',
+          asset_id: 'voice_intro',
+          start_seconds: 0,
+          end_seconds: 4,
+          volume: 0.9,
+        }],
+      },
+      music: {
+        asset_id: 'music_bed',
+        volume: 0.25,
+      },
+    },
+    subtitles: {
+      enabled: true,
+      segments: [{
+        id: 'subtitle_intro',
+        text: 'Hello',
+        start_seconds: 0,
+        end_seconds: 2,
+      }],
+      style: {
+        font_size: 44,
+        color: '#ffffff',
+      },
+    },
+  }
+}
+
+function sampleAssetManifest() {
+  return {
+    assets: [
+      { id: 'clip_intro', type: 'video', resource_id: 101, label: 'Intro clip' },
+      { id: 'clip_detail', type: 'video', resource_id: 202, label: 'Detail clip' },
+      { id: 'voice_intro', type: 'audio', resource_id: 303, label: 'Voice intro' },
+      { id: 'music_bed', type: 'audio', resource_id: 404, label: 'Music bed' },
+      { id: 'logo', type: 'image', resource_id: 505, label: 'Logo' },
+    ],
   }
 }

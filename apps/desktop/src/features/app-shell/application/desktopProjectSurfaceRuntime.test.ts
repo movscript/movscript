@@ -18,7 +18,12 @@ test('desktop project surface adapter keeps the Desktop project home UI route', 
 })
 
 test('desktop project surface adapter uses canonical studio routes for newer surfaces', () => {
+  assert.equal(desktopProjectSurfacePath('editDesk', 'proj_uid_7'), '/studio/proj_uid_7/edit-desk')
   assert.equal(desktopProjectSurfacePath('impact', 'proj_uid_7'), '/studio/proj_uid_7/impact')
+  assert.equal(
+    desktopProjectSurfaceHref('editDesk', 'proj_uid_7', { productionId: 'production 1' }),
+    '/studio/proj_uid_7/edit-desk?productionId=production+1',
+  )
   assert.equal(
     desktopProjectSurfaceHref('dailies', 'rain/night', { contentUnitId: 'scene 1' }),
     '/studio/rain%2Fnight/dailies?contentUnitId=scene+1',

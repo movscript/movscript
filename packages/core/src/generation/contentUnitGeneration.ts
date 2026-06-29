@@ -1,16 +1,17 @@
 import {
+  parseResourceMentions,
   resourceIdsFromMentions,
   stripResourceMentions,
 } from '@movscript/workspace'
-import {
-  resolveGenerationJobTypeFromResourceCount,
-  type GenerationResolvedJobType,
-} from './jobDecision.js'
+import { type GenerationResolvedJobType } from './jobDecision.js'
 import {
   buildGenerationJobPayload,
+  type GenerationIntentPayload,
   type GenerationJobPayloadParamDef,
   type GenerationParamValue,
+  type GenerationReferenceAssetPayload,
 } from './jobPayload.js'
+import { completeGenerationReferenceAssets } from './promptComposer.js'
 
 export type ContentUnitGenerationOutputKind = 'image' | 'video'
 export type ContentUnitGenerationCandidateStatus =
@@ -33,6 +34,7 @@ export interface ContentUnitGenerationRequestInput {
   modelParams?: Record<string, unknown>
   additionalInputResourceIds?: number[]
   preferredVideoJobType?: unknown
+  generationIntent?: GenerationIntentPayload | null
   paramAudit?: unknown[]
 }
 
@@ -42,6 +44,7 @@ export interface ContentUnitGenerationRequest {
   promptText: string
   inputResourceIds: number[]
   jobType: GenerationResolvedJobType
+  generationIntent: GenerationIntentPayload
   featureKey: string
   params: Record<string, GenerationParamValue>
   promptSnapshot: Record<string, unknown>
@@ -82,6 +85,12 @@ export interface ContentUnitGenerationCandidateCreatePlan {
   createdAt: string
 }
 
+type PromptReferenceAssetIntent = {
+  role?: string
+  media_type?: string
+  resource_id: number
+}
+
 export function buildContentUnitGenerationRequest(
   input: ContentUnitGenerationRequestInput,
 ): ContentUnitGenerationRequest {
@@ -90,11 +99,8 @@ export function buildContentUnitGenerationRequest(
     ...compiledContentUnitGenerationPromptResourceIds(input.compiledPrompt),
     ...(input.additionalInputResourceIds ?? []),
   ])
-  const jobType = resolveGenerationJobTypeFromResourceCount({
-    outputType: input.outputKind,
-    inputResourceCount: inputResourceIds.length,
-    preferredVideoJobType: input.preferredVideoJobType,
-  })
+  const generationIntent = requiredContentUnitGenerationIntent(input.generationIntent)
+  const jobType = generationExecutionJobTypeForIntent(generationIntent, input.outputKind)
   const params = contentUnitGenerationParams(input.outputKind, input.compiledPrompt, input.params)
   const promptSnapshot = buildContentUnitGenerationPromptSnapshot({
     contentUnitId: input.contentUnitId,
@@ -112,9 +118,43 @@ export function buildContentUnitGenerationRequest(
     promptText,
     inputResourceIds,
     jobType,
+    generationIntent,
     featureKey: contentUnitGenerationFeatureKey(input.outputKind),
     params,
     promptSnapshot,
+  }
+}
+
+export function generationExecutionJobTypeForIntent(
+  intent: Pick<GenerationIntentPayload, 'capability' | 'operation'> | undefined,
+  fallbackOutputKind: ContentUnitGenerationOutputKind | 'audio' | 'text',
+): GenerationResolvedJobType {
+  switch (intent?.capability?.trim()) {
+    case 'video_generation':
+      return 'video'
+    case 'image_generation':
+      return intent.operation === 'image_to_image' || intent.operation === 'image_edit' ? 'image_edit' : 'image'
+    case 'audio_generation':
+      switch (intent.operation?.trim()) {
+        case 'music':
+          return 'audio_music'
+        case 'sfx':
+          return 'audio_sfx'
+        case 'stt':
+          return 'audio_transcribe'
+        case 'speech_translate':
+          return 'audio_translate'
+        case 'audio_chat':
+          return 'audio_chat'
+        case 'voice_clone':
+          return 'voice_clone'
+        case 'voice_design':
+          return 'voice_design'
+        default:
+          return 'audio_tts'
+      }
+    default:
+      return fallbackOutputKind
   }
 }
 
@@ -128,6 +168,7 @@ export function buildContentUnitGenerationJobPayload(
       ...buildGenerationJobPayload({
         modelId: input.modelId,
         jobType: request.jobType,
+        generationIntent: request.generationIntent,
         title: contentUnitGenerationJobTitle(input.outputKind),
         prompt: request.promptText,
         params: request.params,
@@ -138,6 +179,13 @@ export function buildContentUnitGenerationJobPayload(
       ...(input.projectId !== undefined ? { project_id: input.projectId } : {}),
     },
   }
+}
+
+function requiredContentUnitGenerationIntent(intent: GenerationIntentPayload | null | undefined): GenerationIntentPayload {
+  if (!intent?.capability?.trim() || !intent.operation?.trim()) {
+    throw new Error('generationIntent with capability and operation is required for content-unit generation')
+  }
+  return intent
 }
 
 export function buildContentUnitGenerationPendingCandidate(
@@ -247,6 +295,26 @@ export function compiledContentUnitGenerationPromptResourceIds(prompt: Record<st
   ])
 }
 
+export function compiledContentUnitGenerationPromptReferenceAssets(prompt: Record<string, unknown>): GenerationReferenceAssetPayload[] {
+  const declared = referenceAssetsFromValue(prompt.reference_assets ?? prompt.referenceAssets)
+  const mentioned = [
+    ...referenceAssetsFromMentions(stringField(prompt.text)),
+    ...referenceAssetsFromMentions(stringField(prompt.negative_text)),
+    ...referenceAssetsFromMentions(stringField(prompt.notes)),
+  ]
+  const all = [...declared, ...mentioned]
+  const seen = new Set<number>()
+  const deduped = all.filter((asset) => {
+    if (seen.has(asset.resource_id)) return false
+    seen.add(asset.resource_id)
+    return true
+  })
+  return completeGenerationReferenceAssets({
+    existing: deduped,
+    inputResourceIds: compiledContentUnitGenerationPromptResourceIds(prompt),
+  })
+}
+
 export function buildContentUnitGenerationPromptSnapshot(input: {
   contentUnitId: string | number
   outputKind: ContentUnitGenerationOutputKind
@@ -258,6 +326,7 @@ export function buildContentUnitGenerationPromptSnapshot(input: {
 }): Record<string, unknown> {
   const resourceIds = input.resourceIds ?? compiledContentUnitGenerationPromptResourceIds(input.compiledPrompt)
   const modelParams = nonEmptyRecord(input.modelParams)
+  const referenceAssets = compiledContentUnitGenerationPromptReferenceAssets(input.compiledPrompt)
   return {
     schema: 'movscript.content_unit_generation_prompt_snapshot.v1',
     content_unit_id: input.contentUnitId,
@@ -265,6 +334,7 @@ export function buildContentUnitGenerationPromptSnapshot(input: {
     model_id: input.modelId,
     compiled_prompt: input.compiledPrompt,
     resource_ids: resourceIds,
+    ...(referenceAssets.length > 0 ? { reference_assets: referenceAssets } : {}),
     ...(modelParams ? { model_params: modelParams } : {}),
     ...(Array.isArray(input.paramAudit) && input.paramAudit.length > 0 ? { param_audit: input.paramAudit } : {}),
   }
@@ -320,6 +390,31 @@ function contentUnitGenerationCandidateStatus(value: unknown): ContentUnitGenera
   if (value === 'canceled') return 'canceled'
   if (value === 'queued' || value === 'imported') return value
   return 'running'
+}
+
+function referenceAssetsFromValue(value: unknown): PromptReferenceAssetIntent[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item): PromptReferenceAssetIntent[] => {
+    const record = recordField(item)
+    if (!record) return []
+    const resourceId = numericId(record.resource_id ?? record.resourceId ?? record.id)
+    if (resourceId === undefined) return []
+    const role = stringField(record.role)
+    const mediaType = stringField(record.media_type ?? record.mediaType)
+    return [{
+      resource_id: resourceId,
+      ...(role ? { role } : {}),
+      ...(mediaType ? { media_type: mediaType } : {}),
+    }]
+  })
+}
+
+function referenceAssetsFromMentions(text: string | undefined): PromptReferenceAssetIntent[] {
+  return parseResourceMentions(text).map((mention) => ({
+    resource_id: mention.id,
+    ...(mention.role ? { role: mention.role } : {}),
+    ...(mention.mediaType ? { media_type: mention.mediaType } : {}),
+  }))
 }
 
 function positiveIntegerIds(values: unknown[]): number[] {

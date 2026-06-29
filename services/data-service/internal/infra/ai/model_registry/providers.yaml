@@ -178,8 +178,8 @@ providers:
     provider_category: aggregator_gateway
     display_name: 云雾中转站
     description: Yunwu relay gateway account boundary. It can aggregate multiple model labs and additionally exposes a private portrait asset library for Seedance workflows.
-    default_adapter_type: yunwu
-    default_base_url_prefix: ""
+    default_adapter_type: openai_compat
+    default_base_url_prefix: https://yunwu.ai/v1
     capabilities:
       aggregates_upstream_models: true
       asset_library: true
@@ -269,6 +269,23 @@ providers:
       aggregates_upstream_models: false
       asset_library: false
       generated_artifact_trust: false
+      task_polling: true
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
+  - provider_type: 83zi
+    profile: sd2
+    provider_kind: 83zi_sd2_gateway
+    provider_category: aggregator_gateway
+    display_name: 83zi Seedance 2.0 中转
+    description: 83zi Seedance 2.0 Fast relay gateway using Vyro-style multipart video task endpoints.
+    default_adapter_type: vyro_seedance
+    default_base_url_prefix: http://115.190.186.95:3002/v1
+    capabilities:
+      aggregates_upstream_models: true
+      asset_library: false
+      generated_artifact_trust: false
+      file_upload: false
       task_polling: true
     is_builtin: true
     is_enabled: true

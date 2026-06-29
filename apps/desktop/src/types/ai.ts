@@ -95,22 +95,15 @@ export interface ModelInputRequirements {
 export interface PublicModel {
   id: number
   catalog_entry_id?: number
-  provider_id?: string         // provider target selected by Route/Provider
   model_id: string             // public logical model ID used by callers
   display_name: string
   short_name?: string
-  provider_name?: string       // admin/debug only; product UI should not expose providers
   logical_model_id?: string
   provider_variant_count?: number
   capabilities: string[]       // e.g. ["text"], ["image"], ["video"], ["image_edit"]
   supported_api_kinds?: ProviderModelAPIKind[]
   accepts_image_input: boolean // true for image_edit and i2v models
   is_default?: boolean         // true when admin-pinned as the default for this capability
-  model_def_id?: string
-  model_id_override?: string   // actual model ID sent to API if overridden
-  priority?: number
-  capacity_weight?: number
-  max_concurrency?: number
   supported_params?: ParamDef[]
   input_requirements?: ModelInputRequirements
   params_schema?: Record<string, unknown>

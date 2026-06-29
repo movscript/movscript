@@ -143,7 +143,9 @@ function useProjectStandardsSurfaceController() {
   const projectQuery = useQuery({
     queryKey: projectQueryKey,
     queryFn: () => readProjectStandardsWorkspaceData(runtime),
-    enabled: Boolean(runtime.gateways.project.resourceView && runtime.project.projectDir),
+    enabled: Boolean(runtime.gateways.project.standardsReadModel && runtime.project.projectDir),
+    staleTime: 12_000,
+    refetchOnWindowFocus: false,
   })
   const data = projectQuery.data ?? emptyData
   const projectId = numericProjectId(data.project) ?? numericProjectId(runtime.project.projectId) ?? 1
@@ -415,46 +417,37 @@ function useProjectStandardsSurfaceController() {
 }
 
 async function readProjectStandardsWorkspaceData(runtime: ReturnType<typeof useProjectSurfaceRuntime>): Promise<WorkspaceData> {
-  const resourceView = runtime.gateways.project.resourceView
-  if (!resourceView) throw new Error('Project runtime resource gateway is not available.')
-  const base = {
+  const standardsReadModel = runtime.gateways.project.standardsReadModel
+  if (!standardsReadModel) throw new Error('Project runtime standards read-model gateway is not available.')
+  const response = await standardsReadModel({
     projectId: runtime.project.projectId,
     projectDir: runtime.project.projectDir,
     projectUid: runtime.project.projectUid,
-  }
-  const [
-    summary,
-    settings,
-    assets,
-    productions,
-    segments,
-    contentUnits,
-  ] = await Promise.all([
-    resourceView({ ...base, kind: 'summary' }).catch(() => undefined),
-    resourceView({ ...base, kind: 'settings' }).catch(() => undefined),
-    resourceView({ ...base, kind: 'assets' }).catch(() => undefined),
-    resourceView({ ...base, kind: 'productions' }).catch(() => undefined),
-    resourceView({ ...base, kind: 'segments' }).catch(() => undefined),
-    resourceView({ ...base, kind: 'content-units' }).catch(() => undefined),
-  ])
+  })
+  const model = readModelPayload(response)
   return projectStandardsWorkspaceDataFromRecords({
-    project: firstRecord(summary),
-    settings: recordsFromView(settings),
-    assetSlots: recordsFromView(assets),
-    productions: recordsFromView(productions),
-    segments: recordsFromView(segments),
-    contentUnits: recordsFromView(contentUnits),
+    project: recordValue(model.project) as WorkspaceRecord | null ?? null,
+    settings: recordsFromReadModel(model.settings),
+    assetSlots: recordsFromReadModel(model.assetSlots),
+    productions: recordsFromReadModel(model.productions),
+    segments: recordsFromReadModel(model.segments),
+    sceneMoments: recordsFromReadModel(model.sceneMoments),
+    contentUnits: recordsFromReadModel(model.contentUnits),
+    creativeRelationships: recordsFromReadModel(model.creativeRelationships),
+    settingUsages: recordsFromReadModel(model.settingUsages),
+    assetSlotCandidates: recordsFromReadModel(model.assetSlotCandidates),
   })
 }
 
-function recordsFromView(value: unknown): WorkspaceRecord[] {
-  return arrayValue(recordValue(value)?.items)
-    .map((item) => recordValue(item))
-    .filter((item): item is WorkspaceRecord => Boolean(item))
+function readModelPayload(value: unknown): Record<string, unknown> {
+  const record = recordValue(value) ?? {}
+  return recordValue(record.projectStandardsReadModel) ?? record
 }
 
-function firstRecord(value: unknown): WorkspaceRecord | null {
-  return recordsFromView(value)[0] ?? null
+function recordsFromReadModel(value: unknown): WorkspaceRecord[] {
+  return arrayValue(value)
+    .map((item) => recordValue(item))
+    .filter((item): item is WorkspaceRecord => Boolean(item))
 }
 
 function projectStandardsPayload(input: {

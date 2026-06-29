@@ -8,6 +8,15 @@ export type GenerationResolvedJobType =
   | 'video_i2v'
   | 'video_v2v'
   | 'audio_tts'
+  | 'audio_music'
+  | 'audio_sfx'
+  | 'audio_transcribe'
+  | 'audio_translate'
+  | 'audio_chat'
+  | 'voice_clone'
+  | 'voice_design'
+  | 'subtitle_align'
+  | 'subtitle_translate'
   | 'text'
   | (string & {})
 

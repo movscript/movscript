@@ -52,6 +52,43 @@ export {
   type TransitionSpec,
 } from './media-project.js'
 
+export {
+  compileTimelineAssemblyToFinishingProject,
+  compileTimelineAssemblyToMediaEditingProject,
+  createTimelineAssemblyCompileManifest,
+  type TimelineAssemblyCompileBackend,
+  type TimelineAssemblyCompileDiagnostic,
+  type TimelineAssemblyCompileManifest,
+  type TimelineAssemblyCompileManifestInput,
+  type TimelineAssemblyCompileRenderSettings,
+  type TimelineAssemblyCompileSeverity,
+  type TimelineAssemblyCompileStatus,
+  type TimelineAssemblyFinishingBackend,
+  type TimelineAssemblyFinishingCompileInput,
+  type TimelineAssemblyFinishingCompileResult,
+  type TimelineAssemblyFinishingProject,
+  type TimelineAssemblyFinishingProjectAdapter,
+  type TimelineAssemblyFinishingProjectFile,
+  type TimelineAssemblyMediaEditingCompileInput,
+  type TimelineAssemblyMediaEditingCompileResult,
+} from './compile-manifest.js'
+
+export {
+  createMediaEditingProjectFromEditDecisions,
+  type MediaEditDecisionsProjectOptions,
+  type MovScriptAssetManifest,
+  type MovScriptEditDecisionAudio,
+  type MovScriptEditDecisionAudioLayer,
+  type MovScriptEditDecisionAudioSegment,
+  type MovScriptEditDecisionCut,
+  type MovScriptEditDecisionNarration,
+  type MovScriptEditDecisionOverlay,
+  type MovScriptEditDecisionSubtitleSegment,
+  type MovScriptEditDecisionSubtitles,
+  type MovScriptEditDecisionsArtifact,
+  type MovScriptVideoComposeRenderRuntime,
+} from './video-compose.js'
+
 export type {
   EditingMediaPipelineAssetDescriptor,
   EditingMediaPipelineHlsVariantSpec,
@@ -100,6 +137,7 @@ export const MEDIA_PIPELINE_TASK_ACTION_ENDPOINT = '/v1/media-pipeline/task/acti
 export type EditingServiceProjectCommandName =
   | 'createProject'
   | 'createProjectFromEditPlan'
+  | 'createProjectFromEditDecisions'
   | 'createProjectFromPreviewTimeline'
   | 'saveProject'
   | 'getProject'

@@ -3,17 +3,24 @@ import { loadResourceBlob } from '@movscript/resource-surface/resource-media'
 import type { RawResource } from '@/types'
 
 export type ResourceChipMediaElement = HTMLImageElement | HTMLVideoElement
+export type ResourceChipReferenceMetadata = {
+  role?: string
+  mediaType?: string
+  roleLabel?: string
+}
 
 export async function loadResourceChipMediaUrl(resource: RawResource): Promise<string> {
   if (resource.direct_url) return resource.direct_url
   return createObjectUrl(await loadResourceBlob(resource))
 }
 
-export function buildResourceChipElement(resource: RawResource): { chip: HTMLElement; media: ResourceChipMediaElement } {
+export function buildResourceChipElement(resource: RawResource, metadata: ResourceChipReferenceMetadata = {}): { chip: HTMLElement; media: ResourceChipMediaElement } {
   const chip = document.createElement('span')
   chip.contentEditable = 'false'
   chip.dataset.resourceName = resource.name
   chip.dataset.resourceId = String(resource.ID)
+  if (metadata.role) chip.dataset.role = metadata.role
+  if (metadata.mediaType) chip.dataset.mediaType = metadata.mediaType
   chip.className = 'generation-input-chip'
 
   const media = resource.type === 'video'
@@ -22,7 +29,7 @@ export function buildResourceChipElement(resource: RawResource): { chip: HTMLEle
   chip.appendChild(media)
 
   const label = document.createElement('span')
-  label.textContent = resource.name
+  label.textContent = metadata.roleLabel ? `${resource.name} · ${metadata.roleLabel}` : resource.name
   label.className = 'generation-input-chip__label'
   chip.appendChild(label)
 

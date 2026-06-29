@@ -88,6 +88,7 @@
     "@movscript/editing": "workspace:*",
     "@movscript/language": "workspace:*",
     "@movscript/resource-surface": "workspace:*",
+    "@movscript/resources": "workspace:*",
     "@movscript/shared": "workspace:*",
     "@movscript/theme": "workspace:*",
     "@movscript/ui": "workspace:*",

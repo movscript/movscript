@@ -7,6 +7,7 @@ import (
 	"time"
 
 	appdecision "github.com/movscript/movscript/internal/app/decision"
+	jobapp "github.com/movscript/movscript/internal/app/job"
 	domainjob "github.com/movscript/movscript/internal/domain/job"
 	"github.com/movscript/movscript/internal/infra/ai"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
@@ -32,38 +33,44 @@ func TestGenerateCreatesScopedProjectDataCandidate(t *testing.T) {
 		t.Fatalf("create project: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "canvas-test-image",
-		DisplayName:   "Canvas Test Image",
-		Capabilities:  ai.CapabilityImage,
-		IsEnabled:     true,
+		PublicModelID:         "canvas-test-image",
+		DisplayName:           "Canvas Test Image",
+		Capabilities:          ai.CapabilityImage,
+		ModelCapabilitiesJSON: `{"image_generation":{"operations":["text_to_image"]}}`,
+		IsEnabled:             true,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
-		CatalogEntryID:  entry.ID,
-		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
-		RouteGroup:      "default",
-		ProviderModelID: "canvas-test-image",
-		IsEnabled:       true,
-		CapacityWeight:  1,
+		CatalogEntryID:        entry.ID,
+		SourceType:            persistencemodel.ModelRouteSourceRelayGateway,
+		RouteGroup:            "default",
+		ProviderModelID:       "canvas-test-image",
+		IsEnabled:             true,
+		CapacityWeight:        1,
+		RouteCapabilitiesJSON: `{"image_generation":{"operations":["text_to_image"]}}`,
 	}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
 
 	service := NewService(db, ai.NewAIService(db, ai.NewRegistry(db, nil)))
 	result, err := service.Generate(ctx, GenerateInput{
-		ProjectID:      project.ID,
-		UserID:         5,
-		ContentUnitID:  "cu_asset_1",
-		CandidateID:    "candidate_pending",
-		ProjectUID:     "prj_canvas_generate",
-		ProjectTitle:   "Canvas Generate",
-		ScopeKind:      appdecision.ProjectDataScopeUser,
-		ScopeID:        "5",
-		OutputKind:     "image",
-		ModelID:        "canvas-test-image",
-		JobType:        ai.CapabilityImage,
+		ProjectID:     project.ID,
+		UserID:        5,
+		ContentUnitID: "cu_asset_1",
+		CandidateID:   "candidate_pending",
+		ProjectUID:    "prj_canvas_generate",
+		ProjectTitle:  "Canvas Generate",
+		ScopeKind:     appdecision.ProjectDataScopeUser,
+		ScopeID:       "5",
+		OutputKind:    "image",
+		ModelID:       "canvas-test-image",
+		JobType:       ai.CapabilityImage,
+		GenerationIntent: &jobapp.GenerationIntentInput{
+			Capability: ai.CapabilityFamilyImageGeneration,
+			Operation:  ai.ImageOperationTextToImage,
+		},
 		Prompt:         "draw a clean reference frame",
 		PromptSnapshot: json.RawMessage(`{"prompt":"draw a clean reference frame"}`),
 	})

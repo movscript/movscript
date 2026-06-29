@@ -75,8 +75,15 @@ func (a *ViduAdapter) VideoStart(ctx context.Context, req VideoRequest) (VideoRe
 	if err != nil {
 		return VideoResponse{}, err
 	}
+	debugBody := cloneDebugMap(body)
+	switch path {
+	case "/img2video":
+		attachReferenceAssetDebugBindings(debugBody, req.ReferenceAssets, staticReferenceAssetProviderField("images[]"))
+	case "/reference2video":
+		attachReferenceAssetDebugBindings(debugBody, req.ReferenceAssets, indexedReferenceAssetProviderField("subjects[%d].images[]"))
+	}
 	var result map[string]any
-	if err := a.postJSON(ctx, path, body, &result); err != nil {
+	if err := a.postJSONWithDebugBody(ctx, path, body, debugBody, &result); err != nil {
 		return VideoResponse{}, err
 	}
 	taskID := stringField(result, "task_id", "id")
@@ -251,14 +258,18 @@ func viduCreationURL(raw map[string]any) string {
 }
 
 func (a *ViduAdapter) postJSON(ctx context.Context, path string, body any, out any) error {
-	return a.doJSON(ctx, http.MethodPost, path, "", body, out)
+	return a.doJSON(ctx, http.MethodPost, path, "", body, nil, out)
+}
+
+func (a *ViduAdapter) postJSONWithDebugBody(ctx context.Context, path string, body any, debugBody any, out any) error {
+	return a.doJSON(ctx, http.MethodPost, path, "", body, debugBody, out)
 }
 
 func (a *ViduAdapter) getJSON(ctx context.Context, path, modelID string, out any) error {
-	return a.doJSON(ctx, http.MethodGet, path, modelID, nil, out)
+	return a.doJSON(ctx, http.MethodGet, path, modelID, nil, nil, out)
 }
 
-func (a *ViduAdapter) doJSON(ctx context.Context, method, path, modelID string, body any, out any) error {
+func (a *ViduAdapter) doJSON(ctx context.Context, method, path, modelID string, body any, debugBody any, out any) error {
 	var reqBody []byte
 	if body != nil {
 		var err error
@@ -285,17 +296,21 @@ func (a *ViduAdapter) doJSON(ctx context.Context, method, path, modelID string, 
 			modelID, _ = m["model"].(string)
 		}
 	}
+	debugRequestBody := string(reqBody)
+	if debugBody != nil {
+		debugRequestBody = mustJSON(debugBody)
+	}
 
 	start := time.Now()
 	resp, err := a.client.Do(httpReq)
 	latency := time.Since(start).Milliseconds()
 	if err != nil {
-		recordDebug(ctx, DebugCallResult{Success: false, ModelID: modelID, Endpoint: endpoint, Method: method, RequestHeaders: headers, RequestBody: string(reqBody), LatencyMs: latency, Error: err.Error()})
+		recordDebug(ctx, DebugCallResult{Success: false, ModelID: modelID, Endpoint: endpoint, Method: method, RequestHeaders: headers, RequestBody: debugRequestBody, LatencyMs: latency, Error: err.Error()})
 		return err
 	}
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(resp.Body)
-	recordDebug(ctx, DebugCallResult{Success: resp.StatusCode < 400, ModelID: modelID, Endpoint: endpoint, Method: method, RequestHeaders: headers, RequestBody: string(reqBody), ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: latency})
+	recordDebug(ctx, DebugCallResult{Success: resp.StatusCode < 400, ModelID: modelID, Endpoint: endpoint, Method: method, RequestHeaders: headers, RequestBody: debugRequestBody, ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: latency})
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("vidu API error %d: %s", resp.StatusCode, string(respBody))
 	}

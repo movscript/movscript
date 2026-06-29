@@ -5,6 +5,9 @@
     "moduleResolution": "bundler",
     "strict": true,
     "paths": {
+      "@movscript/cli-commands": [
+        "../../packages/cli-commands/src/index.ts"
+      ],
       "@movscript/core/backend/node": [
         "../../packages/core/src/backend/node/index.ts"
       ],
@@ -38,8 +41,14 @@
       "@movscript/language/domain": [
         "../../packages/language/src/domain/index.ts"
       ],
+      "@movscript/mcp-host": [
+        "../../packages/mcp-host/src/index.ts"
+      ],
       "@movscript/prompt": [
         "../../packages/prompt/src/index.ts"
+      ],
+      "@movscript/runtime-contracts": [
+        "../../packages/runtime-contracts/src/index.ts"
       ],
       "@movscript/workspace": [
         "../../packages/workspace/src/index.ts"

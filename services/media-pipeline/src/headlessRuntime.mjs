@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { mkdir, readdir, stat, writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { basename, dirname, extname, join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 
 const HEADLESS_SUPPORTED_TASK_TYPES = Object.freeze(['timeline_render', 'timeline_hls', 'media_transcode', 'media_reframe'])
@@ -100,11 +100,18 @@ async function runHeadlessTask({ request, entry, env }) {
     return
   }
 
-  const sourcePath = taskType === 'timeline_render' || taskType === 'timeline_hls'
-    ? timelineSourceLocalPath(request?.timeline ?? request?.editingProject?.timeline)
-    : sourceLocalPath(request?.source)
+  const source = taskType === 'timeline_render' || taskType === 'timeline_hls'
+    ? timelineSource(request?.timeline ?? request?.editingProject?.timeline)
+    : request?.source
+  const resolvedSource = await resolveSourceLocalPath({
+    source,
+    request,
+    entry,
+    env,
+  })
+  const sourcePath = resolvedSource.localPath
   if (!sourcePath) {
-    failTask(entry, 'SOURCE_REQUIRED', `${taskType} requires a local file source`)
+    failTask(entry, 'SOURCE_REQUIRED', `${taskType} requires a local file source or a resolvable resource_id source`)
     return
   }
   try {
@@ -131,6 +138,8 @@ async function runHeadlessTask({ request, entry, env }) {
     currentStep: 'ffmpeg',
     outputPath,
     outputName: outputPath.split('/').at(-1),
+    ...(resolvedSource.resourceId !== undefined ? { sourceResourceId: resolvedSource.resourceId, source_resource_id: resolvedSource.resourceId } : {}),
+    ...(resolvedSource.downloaded ? { sourceDownloaded: true, source_downloaded: true } : {}),
   })
   entry.logs.push(`${new Date().toISOString()} ffmpeg ${args.join(' ')}`)
   const result = await runProcess(capabilities.path, args, entry)
@@ -398,7 +407,7 @@ function sourceLocalPath(source) {
   return stringValue(source.localPath ?? source.local_path ?? source.path)
 }
 
-function timelineSourceLocalPath(timeline) {
+function timelineSource(timeline) {
   if (!timeline || typeof timeline !== 'object' || Array.isArray(timeline)) return undefined
   const tracks = Array.isArray(timeline.tracks) ? timeline.tracks : []
   const sortedClips = tracks
@@ -406,10 +415,143 @@ function timelineSourceLocalPath(timeline) {
     .filter((clip) => clip && typeof clip === 'object')
     .sort((left, right) => Number(left.timelineStartMs ?? left.timeline_start_ms ?? 0) - Number(right.timelineStartMs ?? right.timeline_start_ms ?? 0))
   for (const clip of sortedClips) {
-    const path = sourceLocalPath(clip.asset)
-    if (path) return path
+    if (clip.asset && typeof clip.asset === 'object' && !Array.isArray(clip.asset)) return clip.asset
   }
   return undefined
+}
+
+async function resolveSourceLocalPath({ source, request, entry, env }) {
+  const localPath = sourceLocalPath(source)
+  if (localPath) return { localPath }
+
+  const resourceId = sourceResourceId(source)
+  if (resourceId === undefined) return {}
+
+  const configuredPath = sourceResourceLocalPath(resourceId, request)
+  if (configuredPath) return { localPath: configuredPath, resourceId }
+
+  const resourceDownload = recordValue(request?.resourceDownload)
+    ?? recordValue(request?.resource_download)
+    ?? recordValue(request?.output?.resourceDownload)
+    ?? recordValue(request?.output?.resource_download)
+  const url = resourceDownloadURL(resourceId, resourceDownload)
+  if (!url) return { resourceId }
+
+  const cachePath = await resourceDownloadCachePath({
+    resourceId,
+    responseURL: url,
+    resourceDownload,
+    request,
+    env,
+  })
+  try {
+    const cached = await stat(cachePath)
+    if (cached.isFile() && cached.size > 0) {
+      entry.logs.push(`${new Date().toISOString()} resource ${resourceId} cache hit ${cachePath}`)
+      return { localPath: cachePath, resourceId, downloaded: true }
+    }
+  } catch {
+    // Cache miss: download below.
+  }
+
+  entry.logs.push(`${new Date().toISOString()} downloading resource ${resourceId} ${url}`)
+  const response = await fetch(url, { headers: resourceDownloadHeaders(resourceDownload) })
+  if (!response.ok) {
+    throw new Error(`resource ${resourceId} download failed with HTTP ${response.status}`)
+  }
+  const bytes = Buffer.from(await response.arrayBuffer())
+  if (bytes.byteLength === 0) throw new Error(`resource ${resourceId} download returned an empty body`)
+  await mkdir(dirname(cachePath), { recursive: true })
+  await writeFile(cachePath, bytes)
+  entry.logs.push(`${new Date().toISOString()} downloaded resource ${resourceId} ${bytes.byteLength} bytes to ${cachePath}`)
+  return { localPath: cachePath, resourceId, downloaded: true }
+}
+
+function sourceResourceId(source) {
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return undefined
+  return positiveInteger(source.resourceId ?? source.resource_id ?? source.backendResourceId ?? source.backend_resource_id)
+}
+
+function sourceResourceLocalPath(resourceId, request) {
+  const resourceCache = recordValue(request?.resourceCache)
+    ?? recordValue(request?.resource_cache)
+    ?? recordValue(request?.output?.resourceCache)
+    ?? recordValue(request?.output?.resource_cache)
+  const localFiles = recordValue(resourceCache?.localFiles)
+    ?? recordValue(resourceCache?.local_files)
+    ?? recordValue(resourceCache?.files)
+  const value = localFiles?.[String(resourceId)] ?? localFiles?.[resourceId]
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function resourceDownloadURL(resourceId, resourceDownload) {
+  if (!resourceDownload) return undefined
+  const urlTemplate = stringValue(resourceDownload.urlTemplate ?? resourceDownload.url_template)
+  if (urlTemplate) {
+    return urlTemplate
+      .replaceAll('{resourceId}', encodeURIComponent(String(resourceId)))
+      .replaceAll('{resource_id}', encodeURIComponent(String(resourceId)))
+      .replaceAll(':id', encodeURIComponent(String(resourceId)))
+  }
+  const baseURL = stringValue(resourceDownload.baseUrl ?? resourceDownload.base_url ?? resourceDownload.apiBaseUrl ?? resourceDownload.api_base_url)
+  if (!baseURL) return undefined
+  const base = baseURL.replace(/\/+$/, '')
+  return `${base}/api/v1/resources/${encodeURIComponent(String(resourceId))}/file`
+}
+
+function resourceDownloadHeaders(resourceDownload) {
+  const headers = {}
+  const configured = recordValue(resourceDownload?.headers)
+  if (configured) {
+    for (const [key, value] of Object.entries(configured)) {
+      const string = stringValue(value)
+      if (string) headers[key] = string
+    }
+  }
+  const authorization = stringValue(resourceDownload?.authorization)
+  const bearerToken = stringValue(resourceDownload?.bearerToken ?? resourceDownload?.bearer_token)
+  if (authorization) headers.Authorization = authorization
+  if (bearerToken) headers.Authorization = `Bearer ${bearerToken}`
+  return headers
+}
+
+async function resourceDownloadCachePath({ resourceId, responseURL, resourceDownload, request, env }) {
+  const cacheDir = stringValue(resourceDownload?.cacheDir ?? resourceDownload?.cache_dir)
+    ?? stringValue(request?.resourceCache?.cacheDir ?? request?.resourceCache?.cache_dir)
+    ?? stringValue(request?.resource_cache?.cacheDir ?? request?.resource_cache?.cache_dir)
+    ?? stringValue(env.MOVSCRIPT_MEDIA_PIPELINE_RESOURCE_CACHE_DIR)
+    ?? defaultResourceCacheDir(env)
+  await mkdir(cacheDir, { recursive: true })
+  const extension = resourceExtension(resourceId, responseURL, resourceDownload)
+  return join(cacheDir, `resource-${resourceId}${extension}`)
+}
+
+function defaultResourceCacheDir(env) {
+  const homeDir = stringValue(env.MOVSCRIPT_HOME)
+  return homeDir
+    ? join(homeDir, 'runtime', 'media-pipeline', 'resource-cache')
+    : join(tmpdir(), 'movscript-media-pipeline', 'resource-cache')
+}
+
+function resourceExtension(resourceId, responseURL, resourceDownload) {
+  const explicit = stringValue(resourceDownload?.extension)
+  if (explicit) return explicit.startsWith('.') ? explicit : `.${explicit}`
+  const filename = stringValue(resourceDownload?.filename)
+  const filenameExtension = filename ? extname(filename) : ''
+  if (filenameExtension) return filenameExtension
+  try {
+    const parsed = new URL(responseURL)
+    const pathExtension = extname(basename(parsed.pathname))
+    if (pathExtension) return pathExtension
+  } catch {
+    const pathExtension = extname(basename(responseURL))
+    if (pathExtension) return pathExtension
+  }
+  return `.resource-${resourceId}`
+}
+
+function recordValue(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : undefined
 }
 
 function stringValue(value) {

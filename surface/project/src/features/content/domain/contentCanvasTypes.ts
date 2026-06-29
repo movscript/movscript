@@ -72,6 +72,8 @@ export interface ContentCanvasCandidate {
   inputHash?: string
   source: string
   status?: string
+  decisionStatus?: string
+  decisionReason?: string
   producer?: Record<string, unknown>
   outputs?: unknown[]
   promptSnapshot?: Record<string, unknown>

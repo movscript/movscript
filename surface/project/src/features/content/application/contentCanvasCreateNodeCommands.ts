@@ -45,6 +45,7 @@ export type ContentCanvasCreateNodeInput = {
   id: string
   title: string
   status?: string
+  slotKind?: string
   outputKind?: ContentCanvasGenerationOutputKind
   settingKind?: ContentCanvasSettingKind
   settingNamespaceKind?: string

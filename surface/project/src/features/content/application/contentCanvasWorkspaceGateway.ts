@@ -1,4 +1,5 @@
 import type { ContentCandidateRecord, ContentSourceWorkspaceCandidateCreatePlan, ContentSourceWorkspaceData } from '@movscript/core/content'
+import type { GenerationBackendPreflightResult, GenerationIntentPayload } from '@movscript/core/generation'
 import type { ParamDef } from '@movscript/shared'
 import type { MovScriptWorkspaceService } from '@movscript/workspace'
 import type {
@@ -25,6 +26,7 @@ export type ContentCanvasWorkspaceService = Pick<
 
 export interface ContentCanvasWorkspaceGateway {
   service: ContentCanvasWorkspaceService
+  readContentCanvasReadModel?(projectId: number): Promise<unknown>
   loadContentSourceWorkspaceData(projectId: number): Promise<ContentSourceWorkspaceData>
   createSetting(input: MovScriptEngineSettingInput): Promise<{ path: string; record: Record<string, unknown> }>
   createSettingState(input: MovScriptEngineSettingStateInput): Promise<{ path: string; record: Record<string, unknown> }>
@@ -45,8 +47,10 @@ export interface ContentCanvasWorkspaceGateway {
   uploadResource(input: ContentCanvasResourceUploadInput): Promise<ContentCanvasUploadedResource>
   createContentUnitCandidate(input: ContentCanvasContentCandidateCreateInput): Promise<ContentCandidateRecord>
   previewContentUnitGenerationPrompt(input: ContentCanvasContentCandidateGenerateInput): Promise<ContentCanvasGenerationPromptPreview>
+  preflightContentUnitCandidate(input: ContentCanvasContentCandidateGenerateInput): Promise<GenerationBackendPreflightResult>
   generateContentUnitCandidate(input: ContentCanvasContentCandidateGenerateInput): Promise<ContentCandidateRecord>
   selectContentUnitCandidate(input: ContentCanvasContentCandidateSelectInput): Promise<void>
+  decideContentUnitCandidate(input: ContentCanvasContentCandidateDecideInput): Promise<void>
 }
 
 export type ContentCanvasProductionCreateInput = {
@@ -86,7 +90,9 @@ export type ContentCanvasExpressionUnitCreateInput = {
   sceneMomentId: string
   id: string
   title: string
+  slotKind: string
   kind: string
+  outputKind?: string
   text: string
   sceneMomentTitle: string
 }
@@ -95,6 +101,7 @@ export type ContentCanvasExpressionUnitUpdateInput = {
   projectId: number
   targetPath: string
   title: string
+  slotKind?: string
   kind: string
   text: string
   summary: string
@@ -110,10 +117,11 @@ export type ContentCanvasContentCandidateGenerateInput = {
   projectId: number
   contentUnitId: string
   candidateId: string
-  outputKind: 'image' | 'video'
+  outputKind: 'image' | 'video' | 'audio'
   modelId?: string
   params?: Record<string, string | number | boolean>
   supportedParams?: ParamDef[]
+  generationIntent?: GenerationIntentPayload
   promptText?: string
 }
 
@@ -121,6 +129,7 @@ export type ContentCanvasGenerationPromptPreview = {
   text: string
   compiledText?: string
   resourceIds: number[]
+  referenceAssets?: NonNullable<GenerationIntentPayload['reference_assets']>
   replacements: Array<Record<string, unknown>>
   blockers: Array<Record<string, unknown>>
 }
@@ -143,4 +152,14 @@ export type ContentCanvasContentCandidateSelectInput = {
   candidateId: string
   resourceId?: number
   reason: 'content_source_workspace_selection'
+}
+
+export type ContentCanvasContentCandidateDecideInput = {
+  projectId: number
+  contentUnitId: string
+  candidateId: string
+  resourceId?: number
+  decision: 'adopt' | 'reject' | 'defer'
+  reason?: string
+  metadata?: Record<string, unknown>
 }

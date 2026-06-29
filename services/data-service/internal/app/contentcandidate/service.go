@@ -60,6 +60,7 @@ type GenerateInput struct {
 	AspectRatio      string
 	Duration         int
 	InputResourceIDs []uint
+	GenerationIntent *jobapp.GenerationIntentInput
 	PromptSnapshot   json.RawMessage
 	CreatedAt        time.Time
 }
@@ -102,6 +103,7 @@ func (s *Service) Generate(ctx context.Context, input GenerateInput) (GenerateRe
 		AspectRatio:          normalized.AspectRatio,
 		Duration:             normalized.Duration,
 		InputResourceIDs:     normalized.InputResourceIDs,
+		GenerationIntent:     normalized.GenerationIntent,
 		ProjectID:            &projectID,
 		CreatedAt:            normalized.CreatedAt,
 		ContentUnitCandidate: &binding,
@@ -144,11 +146,50 @@ func (s *Service) Generate(ctx context.Context, input GenerateInput) (GenerateRe
 	}, nil
 }
 
+func (s *Service) Preflight(ctx context.Context, input GenerateInput) (jobapp.GenerationPreflightResult, error) {
+	normalized, err := normalizeGenerateInput(input)
+	if err != nil {
+		return jobapp.GenerationPreflightResult{}, err
+	}
+	projectID := normalized.ProjectID
+	binding := domainjob.ContentUnitCandidateBinding{
+		ProjectID:      projectID,
+		ProjectUID:     normalized.ProjectUID,
+		ProjectTitle:   normalized.ProjectTitle,
+		ScopeKind:      normalized.ScopeKind,
+		ScopeID:        normalized.ScopeID,
+		ContentUnitID:  normalized.ContentUnitID,
+		TargetKind:     TargetKindContentUnit,
+		TargetRef:      contentUnitTargetRef(normalized.ContentUnitID),
+		CandidateID:    normalized.CandidateID,
+		OutputKind:     normalized.OutputKind,
+		PromptSnapshot: normalized.PromptSnapshot,
+	}
+	return s.jobs.PreflightGeneration(ctx, jobapp.EnqueueInput{
+		UserID:               normalized.UserID,
+		OrgID:                normalized.OrgID,
+		ModelID:              normalized.ModelID,
+		JobType:              normalized.JobType,
+		FeatureKey:           contentUnitGenerationFeatureKey(normalized.OutputKind),
+		Title:                normalized.Title,
+		Prompt:               normalized.Prompt,
+		ExtraParams:          normalized.ExtraParams,
+		AspectRatio:          normalized.AspectRatio,
+		Duration:             normalized.Duration,
+		InputResourceIDs:     normalized.InputResourceIDs,
+		GenerationIntent:     normalized.GenerationIntent,
+		ProjectID:            &projectID,
+		CreatedAt:            normalized.CreatedAt,
+		ContentUnitCandidate: &binding,
+	})
+}
+
 type CandidateBuildInput struct {
 	ContentUnitID  string
 	CandidateID    string
 	OutputKind     string
 	Status         string
+	StatusMessage  string
 	JobID          uint
 	ModelID        string
 	JobType        string
@@ -159,12 +200,14 @@ type CandidateBuildInput struct {
 
 func BuildCandidate(input CandidateBuildInput) json.RawMessage {
 	promptSnapshot := promptSnapshotObject(input.PromptSnapshot)
+	status := statusOr(input.Status, "pending")
 	if _, ok := promptSnapshot["schema"]; !ok {
 		promptSnapshot["schema"] = "movscript.content_unit_generation_prompt_snapshot.v1"
 	}
 	promptSnapshot["content_unit_id"] = input.ContentUnitID
 	promptSnapshot["content_unit_ref"] = contentUnitTargetRef(input.ContentUnitID)
 	promptSnapshot["output_kind"] = input.OutputKind
+	promptSnapshot["status"] = status
 	if input.ModelID != "" {
 		promptSnapshot["model_id"] = input.ModelID
 	}
@@ -177,6 +220,7 @@ func BuildCandidate(input CandidateBuildInput) json.RawMessage {
 		"kind":   "generation",
 		"tool":   contentUnitGenerationToolName(input.OutputKind),
 		"job_id": input.JobID,
+		"status": status,
 	}
 	if input.ModelID != "" {
 		producer["model_id"] = input.ModelID
@@ -186,6 +230,14 @@ func BuildCandidate(input CandidateBuildInput) json.RawMessage {
 	}
 	if modelParams, ok := promptSnapshot["model_params"].(map[string]any); ok && len(modelParams) > 0 {
 		producer["model_params"] = modelParams
+	}
+	if message := strings.TrimSpace(input.StatusMessage); message != "" {
+		producer["status_message"] = message
+		promptSnapshot["status_message"] = message
+		if status == "failed" {
+			producer["error_message"] = message
+			promptSnapshot["error_message"] = message
+		}
 	}
 
 	outputs := []map[string]any{}
@@ -208,7 +260,7 @@ func BuildCandidate(input CandidateBuildInput) json.RawMessage {
 		"id":               input.CandidateID,
 		"content_unit_ref": contentUnitTargetRef(input.ContentUnitID),
 		"source":           "ai_generate",
-		"status":           statusOr(input.Status, "pending"),
+		"status":           status,
 		"producer":         producer,
 		"outputs":          outputs,
 		"prompt_snapshot":  promptSnapshot,
@@ -234,6 +286,10 @@ func syncJobCandidate(ctx context.Context, db *gorm.DB, job *persistencemodel.Jo
 	if !ok {
 		return nil
 	}
+	statusMessage := ""
+	if status == "failed" || status == "cancelled" || status == "canceled" {
+		statusMessage = firstNonEmpty(job.ErrorMsg, job.ProviderTaskStatus)
+	}
 	candidate := BuildCandidate(CandidateBuildInput{
 		ContentUnitID:  binding.ContentUnitID,
 		CandidateID:    binding.CandidateID,
@@ -243,6 +299,7 @@ func syncJobCandidate(ctx context.Context, db *gorm.DB, job *persistencemodel.Jo
 		ModelID:        modelIDFromRequestContext(job.RequestContext),
 		JobType:        job.JobType,
 		ResourceID:     resourceID,
+		StatusMessage:  statusMessage,
 		PromptSnapshot: binding.PromptSnapshot,
 		CreatedAt:      job.CreatedAt,
 	})

@@ -1,22 +1,11 @@
-import { ToolDialog } from './ToolDialog'
-import { useTranslation } from 'react-i18next'
 import { ResourceLibraryView } from '@movscript/resource-surface/pages'
+import UnifiedToolPage from './UnifiedToolPage'
 
 export default function MotionImitationPage() {
-  const { t } = useTranslation()
-
   return (
-    <ToolDialog
-      nodeType="motion_imitation"
-      capability="video"
-      modelQueryCapabilities={['video_v2v', 'video_i2v', 'video']}
-      toolName={t('tools.defs.motionImitation.name')}
-      toolDescription={t('tools.defs.motionImitation.description')}
-      inputType="image+video"
-      outputType="video"
-      promptPlaceholder={t('tools.defs.motionImitation.promptPlaceholder')}
-      layout="reference-workbench"
-      showHistory={false}
+    <UnifiedToolPage
+      initialOutputKind="video"
+      initialOperation="video_to_video"
       resourcePane={<ResourceLibraryView variant="pane" />}
     />
   )

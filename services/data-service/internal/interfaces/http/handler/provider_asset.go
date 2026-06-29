@@ -304,34 +304,6 @@ func (h *ProviderAssetHandler) writeResourceError(c *gin.Context, err error) {
 	}
 }
 
-func (h *ProviderAssetHandler) ServeSignedResourceFile(c *gin.Context) {
-	id64, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil || id64 == 0 {
-		c.JSON(http.StatusBadRequest, api.InvalidInput("invalid resource id"))
-		return
-	}
-	expires, err := strconv.ParseInt(c.Query("expires"), 10, 64)
-	if err != nil || expires <= time.Now().Unix() {
-		c.JSON(http.StatusForbidden, api.Forbidden("resource URL expired"))
-		return
-	}
-	signature := strings.TrimSpace(c.Query("signature"))
-	if !h.verifySignedResourceURL(uint(id64), expires, signature) {
-		c.JSON(http.StatusForbidden, api.Forbidden("invalid resource URL signature"))
-		return
-	}
-	resource, err := h.resource.GetSignedResource(c.Request.Context(), uint(id64))
-	if err != nil {
-		if errors.Is(err, appresource.ErrNotFound) {
-			c.JSON(http.StatusNotFound, api.NotFound("resource not found"))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, api.Internal("failed to load resource"))
-		return
-	}
-	serveResourceFile(c, h.store, resource)
-}
-
 func (h *ProviderAssetHandler) populateCertifiedResourceURL(c *gin.Context, resource *domainresource.RawResource) {
 	resource.URL = resourceURL(c, resource.ID)
 }
@@ -953,66 +925,33 @@ func (h *ProviderAssetHandler) getYunwuGatewayImageAsset(ctx context.Context, cl
 }
 
 func (h *ProviderAssetHandler) signedPublicResourceURL(ctx context.Context, resourceID uint) (string, error) {
-	publicBaseURL := ""
-	if h.cfg != nil {
-		publicBaseURL = strings.TrimSpace(h.cfg.ProviderAssetPublicBaseURL)
+	if h.settings == nil {
+		return "", fmt.Errorf("resource access profile is required when source_url is omitted; configure it in Admin > Resource Management > Resource Public Access")
 	}
-	if h.settings != nil {
-		if settings, err := h.settings.ProviderAssetSettings(ctx); err == nil && strings.TrimSpace(settings.PublicBaseURL) != "" {
-			publicBaseURL = strings.TrimSpace(settings.PublicBaseURL)
-		}
+	settings, err := h.settings.ResourceAccessSettings(ctx)
+	if err != nil {
+		return "", err
 	}
-	if publicBaseURL == "" {
-		return "", fmt.Errorf("public provider asset base URL is required when source_url is omitted; configure it in Admin > System Settings > Provider Asset Library")
+	profile, ok := selectResourceAccessProfile(settings, "")
+	if !ok {
+		return "", fmt.Errorf("resource access profile is required when source_url is omitted; configure it in Admin > Resource Management > Resource Public Access")
 	}
-	expires := time.Now().Add(30 * time.Minute).Unix()
-	signature := h.signResourceURL(ctx, resourceID, expires)
+	expiresSeconds := profile.ExpiresSeconds
+	if expiresSeconds <= 0 {
+		expiresSeconds = 3600
+	}
+	expires := time.Now().Add(time.Duration(expiresSeconds) * time.Second).Unix()
+	signature := signResourceAccessURL(profile, resourceID, expires)
 	if signature == "" {
-		return "", fmt.Errorf("provider asset signing secret is required")
+		return "", fmt.Errorf("resource access signing secret is required")
 	}
-	return fmt.Sprintf("%s/api/v1/provider-assets/resources/%d/file?expires=%d&signature=%s",
-		strings.TrimRight(publicBaseURL, "/"),
+	return fmt.Sprintf("%s/api/v1/resource-access/resources/%d/file?expires=%d&profile=%s&signature=%s",
+		strings.TrimRight(profile.PublicBaseURL, "/"),
 		resourceID,
 		expires,
+		url.QueryEscape(profile.ID),
 		url.QueryEscape(signature),
 	), nil
-}
-
-func (h *ProviderAssetHandler) signResourceURL(ctx context.Context, resourceID uint, expires int64) string {
-	secret := providerAssetSigningSecret(h.cfg)
-	if h.settings != nil {
-		if settings, err := h.settings.ProviderAssetSettings(ctx); err == nil && strings.TrimSpace(settings.SigningSecret) != "" {
-			secret = strings.TrimSpace(settings.SigningSecret)
-		}
-	}
-	if secret == "" {
-		return ""
-	}
-	mac := hmac.New(sha256.New, []byte(secret))
-	_, _ = mac.Write([]byte(providerAssetSignaturePayload(resourceID, expires)))
-	return hex.EncodeToString(mac.Sum(nil))
-}
-
-func (h *ProviderAssetHandler) verifySignedResourceURL(resourceID uint, expires int64, signature string) bool {
-	expected := h.signResourceURL(context.Background(), resourceID, expires)
-	if expected == "" || signature == "" {
-		return false
-	}
-	return hmac.Equal([]byte(expected), []byte(signature))
-}
-
-func providerAssetSignaturePayload(resourceID uint, expires int64) string {
-	return fmt.Sprintf("provider_asset_resource:%d:%d", resourceID, expires)
-}
-
-func providerAssetSigningSecret(cfg *config.Config) string {
-	if cfg == nil {
-		return ""
-	}
-	if strings.TrimSpace(cfg.ProviderAssetSigningSecret) != "" {
-		return strings.TrimSpace(cfg.ProviderAssetSigningSecret)
-	}
-	return strings.TrimSpace(cfg.GitProxyTokenSecret)
 }
 
 func signVolcArkOpenAPIRequest(req *http.Request, payload []byte, client volcArkAssetClient, now time.Time) {

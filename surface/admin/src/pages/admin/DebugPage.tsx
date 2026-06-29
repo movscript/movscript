@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '@admin/lib/api'
 import { translateAPIRequestError, translateApiError } from '@admin/lib/apiError'
-import type { AICredential, DebugCallResult, DebugHTTPExchange, JobDetail, JobStateTraceEntry, RawCallResult, AdapterDef, ParamDef, LLMCallLog, PaginatedResponse } from '@admin/types'
+import type { AICredential, DebugCallResult, DebugHTTPExchange, DebugRouteTrace, JobDetail, JobStateTraceEntry, RawCallResult, AdapterDef, ParamDef, LLMCallLog, PaginatedResponse } from '@admin/types'
 import { Bug, RefreshCw, ChevronDown, ChevronRight, Send, Copy, Check, Zap, CheckCircle2, XCircle, PlayCircle, Trash2, Activity, AlertTriangle, Clock3, Server, type LucideIcon } from 'lucide-react'
 import { cn } from '@admin/lib/utils'
 import { Button } from '@movscript/ui/primitives'
@@ -1144,11 +1144,41 @@ function PromptDebugBlock({ debug }: { debug: Pick<DebugHTTPExchange, 'prompt_na
   )
 }
 
-function HttpExchange({ method, url, headers, body, promptName, systemPrompt, userPrompt, compiledPrompt, promptMessages, responseStatus, responseBody, latencyMs, error }: {
+function RouteTraceBlock({ trace }: { trace?: DebugRouteTrace }) {
+  const { t } = useTranslation()
+  if (!trace) return null
+  const rows = [
+    [t('admin.debug.jobs.fields.publicModel', { defaultValue: 'Public model' }), trace.public_model_id || '—'],
+    [t('admin.debug.jobs.fields.capability', { defaultValue: 'Capability' }), trace.capability || '—'],
+    [t('admin.debug.jobs.fields.operation', { defaultValue: 'Operation' }), trace.operation || '—'],
+    [t('admin.debug.jobs.fields.routeBinding', { defaultValue: 'Route binding' }), trace.route_binding_id ? `#${trace.route_binding_id}` : '—'],
+    [t('admin.debug.jobs.fields.providerModel', { defaultValue: 'Provider model' }), trace.provider_model_id || '—'],
+    [t('admin.debug.jobs.fields.adapter', { defaultValue: 'Adapter' }), trace.adapter_type || trace.adapter_key || '—'],
+    [t('admin.debug.jobs.fields.endpointProfile', { defaultValue: 'Endpoint profile' }), [trace.endpoint_mode, trace.endpoint_path_prefix, trace.operation_profile].filter(Boolean).join(' · ') || '—'],
+    [t('admin.debug.jobs.fields.selectionReason', { defaultValue: 'Selection' }), trace.selection_reason || '—'],
+  ]
+  return (
+    <div className="bg-background border border-border rounded-md p-2 mb-3">
+      <p className="text-xs font-medium text-foreground mb-1.5">{t('admin.debug.jobs.routeTrace', { defaultValue: 'Route trace' })}</p>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+        {rows.map(([k, v]) => (
+          <div key={k} className="flex gap-2">
+            <span className="text-muted-foreground w-28 shrink-0">{k}</span>
+            <span className="font-mono break-all">{v}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function HttpExchange({ method, url, headers, body, requestShape, contentType, promptName, systemPrompt, userPrompt, compiledPrompt, promptMessages, responseStatus, responseBody, latencyMs, error }: {
   method?: string
   url?: string
   headers?: Record<string, string>
   body?: string
+  requestShape?: string
+  contentType?: string
   promptName?: string
   systemPrompt?: string
   userPrompt?: string
@@ -1163,6 +1193,7 @@ function HttpExchange({ method, url, headers, body, promptName, systemPrompt, us
   const curlCmd = (method && url && headers)
     ? buildCurlCommand(method, url, headers, body)
     : null
+  const multipartSummary = isMultipartDebugSummary(body)
 
   const b64Images = responseBody ? extractBase64Images(responseBody) : []
 
@@ -1181,6 +1212,18 @@ function HttpExchange({ method, url, headers, body, promptName, systemPrompt, us
       )}
 
       <PromptDebugBlock debug={{ prompt_name: promptName, system_prompt: systemPrompt, user_prompt: userPrompt, compiled_prompt: compiledPrompt, prompt_messages: promptMessages }} />
+
+      {(requestShape || contentType || multipartSummary) && (
+        <div className="flex flex-wrap items-center gap-2 font-sans">
+          {requestShape && <StatusBadge intent="neutral">{requestShape}</StatusBadge>}
+          {contentType && <span className="rounded border border-border px-1.5 py-0.5 font-mono text-muted-foreground">{contentType}</span>}
+          {multipartSummary && (
+            <AppFeedbackText as="span" tone="warning">
+              {t('admin.debug.multipartSummaryNotice', { defaultValue: 'Multipart summary only; curl copy is disabled.' })}
+            </AppFeedbackText>
+          )}
+        </div>
+      )}
 
       {headers && Object.keys(headers).length > 0 && (
         <div>
@@ -1734,6 +1777,8 @@ function JobMonitorSection() {
                         ))}
                       </div>
 
+                      <RouteTraceBlock trace={job.debug_detail.route_trace} />
+
                       <p className="text-xs font-medium text-foreground mb-1.5">{t('admin.debug.jobs.httpExchanges', { count: getDebugCalls(job.debug_detail).length })}</p>
                       <div className="space-y-3">
                         {getDebugCalls(job.debug_detail).map((call, index) => (
@@ -1746,6 +1791,8 @@ function JobMonitorSection() {
                               url={call.endpoint}
                               headers={call.request_headers}
                               body={call.request_body}
+                              requestShape={call.request_shape}
+                              contentType={call.content_type}
                               promptName={call.prompt_name}
                               systemPrompt={call.system_prompt}
                               userPrompt={call.user_prompt}
@@ -2191,6 +2238,8 @@ function ProviderSandboxSection() {
                   <HttpExchange
                     method={result.method} url={result.endpoint}
                     headers={result.request_headers} body={result.request_body}
+                    requestShape={result.request_shape}
+                    contentType={result.content_type}
                     promptName={result.prompt_name}
                     systemPrompt={result.system_prompt}
                     userPrompt={result.user_prompt}

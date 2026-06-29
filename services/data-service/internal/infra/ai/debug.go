@@ -16,6 +16,8 @@ func WithDebugRecorder(ctx context.Context) (context.Context, *DebugCallResult) 
 
 func recordDebug(ctx context.Context, r DebugCallResult) {
 	if ptr, ok := ctx.Value(debugContextKey{}).(*DebugCallResult); ok {
+		contentType := firstDebugString(r.ContentType, r.RequestHeaders["Content-Type"], r.RequestHeaders["content-type"])
+		requestShape := firstDebugString(r.RequestShape, debugRequestShape(contentType, r.RequestBody))
 		promptName := firstDebugString(r.PromptName, ptr.PromptName)
 		systemPrompt := firstDebugString(r.SystemPrompt, ptr.SystemPrompt)
 		userPrompt := firstDebugString(r.UserPrompt, ptr.UserPrompt)
@@ -29,6 +31,8 @@ func recordDebug(ctx context.Context, r DebugCallResult) {
 			ModelID:        r.ModelID,
 			Endpoint:       r.Endpoint,
 			Method:         r.Method,
+			RequestShape:   requestShape,
+			ContentType:    contentType,
 			RequestHeaders: r.RequestHeaders,
 			RequestBody:    sanitizeDebugBody(r.RequestBody),
 			PromptName:     promptName,
@@ -46,6 +50,8 @@ func recordDebug(ctx context.Context, r DebugCallResult) {
 		ptr.ModelID = exchange.ModelID
 		ptr.Endpoint = exchange.Endpoint
 		ptr.Method = exchange.Method
+		ptr.RequestShape = exchange.RequestShape
+		ptr.ContentType = exchange.ContentType
 		ptr.RequestHeaders = exchange.RequestHeaders
 		ptr.RequestBody = exchange.RequestBody
 		ptr.PromptName = exchange.PromptName
@@ -70,6 +76,31 @@ func recordDebug(ctx context.Context, r DebugCallResult) {
 		if len(r.JobInputResourceIDs) > 0 {
 			ptr.JobInputResourceIDs = r.JobInputResourceIDs
 		}
+		if r.RouteTrace != nil {
+			ptr.RouteTrace = r.RouteTrace
+		}
+		if len(r.ResourceAccessTrace) > 0 {
+			ptr.ResourceAccessTrace = r.ResourceAccessTrace
+		}
+	}
+}
+
+func debugRequestShape(contentType, body string) string {
+	body = strings.TrimSpace(body)
+	lowerContentType := strings.ToLower(strings.TrimSpace(contentType))
+	switch {
+	case body == "":
+		return "empty"
+	case strings.HasPrefix(body, "(multipart:"):
+		return "multipart_form_data_summary"
+	case strings.Contains(lowerContentType, "multipart/form-data"):
+		return "multipart_form_data"
+	case strings.Contains(lowerContentType, "application/json"):
+		return "json_object"
+	case strings.HasPrefix(body, "{") || strings.HasPrefix(body, "["):
+		return "json_like"
+	default:
+		return "raw_text"
 	}
 }
 

@@ -99,14 +99,20 @@ export type {
   ResourceViewportBoundary,
 } from '@movscript/resource-surface/resource-interaction'
 export {
+  createHostedProjectSurfaceRuntime,
   createProjectSurfaceRuntime,
   defaultProjectSurfaceCapabilities,
   noopProjectSurfaceNotifier,
+  projectSurfaceContextCommandEnvelope,
+  unwrapProjectSurfaceGatewayResult,
   withProjectSurfaceProjectRequest,
 } from './runtime/index.js'
 export type {
   EditingServiceGateway,
   GenerationServiceGateway,
+  HostedProjectSurfaceHrefOpener,
+  HostedProjectSurfaceHrefResolver,
+  HostedProjectSurfaceRuntimeInput,
   ProjectServiceGateway,
   ProjectSurfaceCapabilities,
   ProjectSurfaceDiagnosticEndpoints,

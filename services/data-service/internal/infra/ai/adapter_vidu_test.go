@@ -27,7 +27,8 @@ func TestViduVideoStartRoutesSingleImageToImg2Video(t *testing.T) {
 		}), nil
 	})}
 
-	resp, err := adapter.VideoStart(context.Background(), VideoRequest{
+	ctx, _ := WithDebugRecorder(context.Background())
+	resp, err := adapter.VideoStart(ctx, VideoRequest{
 		Model:          "viduq1",
 		Prompt:         "make a video",
 		Duration:       5,
@@ -35,7 +36,11 @@ func TestViduVideoStartRoutesSingleImageToImg2Video(t *testing.T) {
 		ResolutionName: "720p",
 		InputImageDataList: []MediaData{{
 			PresignedURL: "https://cdn.test/ref.png",
+			ResourceID:   7,
 		}},
+		ReferenceAssets: []ReferenceAsset{
+			{Role: "first_frame", MediaType: "image", ResourceID: 7},
+		},
 	})
 	if err != nil {
 		t.Fatalf("VideoStart() error = %v", err)
@@ -52,6 +57,14 @@ func TestViduVideoStartRoutesSingleImageToImg2Video(t *testing.T) {
 	}
 	if gotBody["duration"] != float64(5) || gotBody["resolution"] != "720p" {
 		t.Fatalf("body = %#v", gotBody)
+	}
+	if _, ok := gotBody["reference_asset_bindings"]; ok {
+		t.Fatalf("request body sent debug-only bindings: %#v", gotBody["reference_asset_bindings"])
+	}
+	debugBody := debugRequestBodyMap(t, resp.Debug)
+	bindings := debugBody["reference_asset_bindings"].([]any)
+	if len(bindings) != 1 || bindings[0].(map[string]any)["provider_field"] != "images[]" {
+		t.Fatalf("debug reference_asset_bindings = %#v", bindings)
 	}
 	if resp.TaskID != "vidu_task_1" {
 		t.Fatalf("TaskID = %q", resp.TaskID)

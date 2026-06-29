@@ -7,7 +7,11 @@ import { resourceKeys } from '@movscript/resource-surface/data'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 import type { Job, NodeType, PublicModel, RawResource } from '@/types'
 import { useTranslation } from 'react-i18next'
-import { resolveGenerationJobTypeFromResourceCount } from '@movscript/core/generation'
+import {
+  generationExecutionJobTypeForIntent,
+  type GenerationIntentPayload,
+} from '@movscript/core/generation'
+import { toolResourceAccessDiagnosticMessage } from './toolResourceAccessDiagnostics'
 
 export type ToolStatus = 'idle' | 'pending' | 'running' | 'done' | 'failed'
 
@@ -20,7 +24,7 @@ export interface ToolCanvasState {
   error: string | undefined
 }
 
-export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video', options?: { promptRequired?: boolean }) {
+export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video', options?: { promptRequired?: boolean; modelOperation?: string }) {
   const { t } = useTranslation()
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -34,8 +38,11 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
   })
 
   const { data: modelsData } = useQuery<PublicModel[]>({
-    queryKey: modelKeys.capability(capability),
-    queryFn: () => api.get(`/models?capability=${capability}`).then((r) => r.data),
+    queryKey: modelKeys.intent(capability, options?.modelOperation),
+    queryFn: () => api.get('/models', { params: {
+      capability: capability === 'image' ? 'image_generation' : 'video_generation',
+      ...(options?.modelOperation ? { operation: options.modelOperation } : {}),
+    } }).then((r) => r.data),
   })
   const models = modelsData ?? []
 
@@ -67,10 +74,8 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
       const fallbackModel = models[0]
       const selectedModel = models.find((model) => publicModelId(model) === state.modelId) ?? fallbackModel
       const modelId = state.modelId || (selectedModel ? publicModelId(selectedModel) : '')
-      const jobType = resolveGenerationJobTypeFromResourceCount({
-        outputType: capability,
-        inputResourceCount: state.inputResources.length,
-      })
+      const generationIntent = generationIntentForTool(capability, options?.modelOperation, state.inputResources)
+      const jobType = generationExecutionJobTypeForIntent(generationIntent, capability)
 
       const job = await api.post('/jobs', buildGenerationJobPayload({
         modelId,
@@ -78,6 +83,7 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
         title: t('tools.canvasName', { type: nodeType }),
         prompt: state.prompt,
         params: {},
+        generationIntent,
         inputResourceIds: state.inputResources.map((resource) => resource.ID),
         sourceKey: nodeType,
       })).then((r) => r.data as Job)
@@ -92,7 +98,7 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
               ...s,
               status: latest.status === 'succeeded' ? 'done' : 'failed',
               outputResource: latest.output_resource,
-              error: latest.error_msg,
+              error: toolResourceAccessDiagnosticMessage(latest.error_msg, t) ?? latest.error_msg,
             }))
           }
         } catch {
@@ -101,7 +107,7 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
         }
       }, 2000)
     } catch (err: any) {
-      setState((s) => ({ ...s, status: 'failed', error: err?.message ?? t('tools.errors.runFailed') }))
+      setState((s) => ({ ...s, status: 'failed', error: toolResourceAccessDiagnosticMessage(err, t) ?? err?.message ?? t('tools.errors.runFailed') }))
     }
   }
 
@@ -115,5 +121,57 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
     run,
     models,
     resources,
+  }
+}
+
+function generationIntentForTool(
+  outputKind: 'image' | 'video',
+  operation: string | undefined,
+  resources: readonly RawResource[],
+): GenerationIntentPayload {
+  const refs = resources.flatMap((resource) => {
+    const mediaType = referenceAssetMediaTypeForToolResource(resource)
+    if (!mediaType) return []
+    return [{
+      role: referenceAssetRoleForToolResource(resource),
+      media_type: mediaType,
+      resource_id: resource.ID,
+    }]
+  })
+  if (outputKind === 'image') {
+    return {
+      capability: 'image_generation',
+      operation: operation ?? 'text_to_image',
+      ...(refs.length > 0 ? { reference_assets: refs } : {}),
+    }
+  }
+  return {
+    capability: 'video_generation',
+    operation: operation ?? 'prompt_to_video',
+    ...(refs.length > 0 ? { reference_assets: refs } : {}),
+  }
+}
+
+function referenceAssetRoleForToolResource(resource: RawResource): string {
+  switch (resource.type) {
+    case 'video':
+      return 'reference_video'
+    case 'audio':
+      return 'reference_audio'
+    case 'image':
+      return 'reference_image'
+    default:
+      return 'generic'
+  }
+}
+
+function referenceAssetMediaTypeForToolResource(resource: RawResource): 'image' | 'video' | 'audio' | undefined {
+  switch (resource.type) {
+    case 'image':
+    case 'video':
+    case 'audio':
+      return resource.type
+    default:
+      return undefined
   }
 }

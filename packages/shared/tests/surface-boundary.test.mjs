@@ -87,6 +87,64 @@ test('host route layouts consume surface layout contracts from public entrypoint
   assert.equal(existsSync(resolve(repoRoot, 'services/local-surface-host/src/routes/routeLayoutPanes.ts')), false)
 })
 
+test('desktop and local hosts consume shared surface route layout contracts from packages', () => {
+  const desktopAppRouteModel = readFileSync(resolve(repoRoot, 'apps/desktop/src/routes/appRouteModel.ts'), 'utf8')
+  const localRouteSource = readFileSync(resolve(repoRoot, 'services/local-surface-host/src/routes/LocalSurfaceHostRoutes.tsx'), 'utf8')
+  const localRouteFrameSource = readFileSync(resolve(repoRoot, 'services/local-surface-host/src/routes/localSurfaceRouteFrame.ts'), 'utf8')
+  const localChromeSource = readFileSync(resolve(repoRoot, 'services/local-surface-host/src/shell/LocalSurfaceAppChrome.tsx'), 'utf8')
+  const localHomeSource = readFileSync(resolve(repoRoot, 'services/local-surface-host/src/home/LocalSurfaceHostHome.tsx'), 'utf8')
+  const localStylesSource = readFileSync(resolve(repoRoot, 'services/local-surface-host/src/styles.css'), 'utf8')
+  const uiAppShellIndexSource = readFileSync(resolve(repoRoot, 'packages/ui/src/components/layout/app-shell/index.tsx'), 'utf8')
+  const uiAppShellStylesSource = readFileSync(resolve(repoRoot, 'packages/ui/src/components/layout/app-shell/styles.css'), 'utf8')
+
+  assert.match(desktopAppRouteModel, /from '@movscript\/shared'/)
+  assert.match(desktopAppRouteModel, /sharedSurfaceRouteForPathname\(pathname, \{ host: 'desktop' \}\)/)
+  assert.doesNotMatch(desktopAppRouteModel, /services\/local-surface-host/)
+
+  assert.match(localRouteSource, /from '@movscript\/shared'/)
+  assert.match(localRouteSource, /from '@movscript\/ui\/business\/app'/)
+  assert.match(localRouteSource, /sharedSurfaceRouteForPathname\(location\.pathname, \{ host: 'local-web' \}\)/)
+  assert.match(localRouteSource, /from '\.\/localSurfaceRouteFrame\.js'/)
+  assert.match(localRouteSource, /path=\{ROUTES\.canvasEditor\}[\s\S]*<LocalSurfaceRouteFrame>[\s\S]*<CanvasEditorPage \/>[\s\S]*<\/LocalSurfaceRouteFrame>/)
+  assert.match(localRouteSource, /localSurfaceRouteFrameOptions\(sharedRoute\)/)
+  assert.match(localRouteSource, /LocalSurfaceRouteErrorBoundary/)
+  assert.match(localRouteSource, /AppErrorFallback/)
+  assert.doesNotMatch(localRouteSource, /element=\{<CanvasEditorPage \/>\}/)
+  assert.doesNotMatch(localRouteSource, /\sframe(?:=|\?:)/)
+  assert.doesNotMatch(localRouteSource, /localSurfaceRouteFrameContentOptions\(/)
+  assert.doesNotMatch(localRouteSource, /type LocalSurfaceRouteFrameVariant =/)
+  assert.doesNotMatch(localRouteSource, /AppContentLayoutWidth/)
+  assert.doesNotMatch(localRouteSource, /from ['"]@\/features\/app-shell/)
+  assert.doesNotMatch(localRouteSource, /apps\/desktop/)
+  assert.match(localRouteFrameSource, /SharedSurfaceRouteDefinition/)
+  assert.match(localRouteFrameSource, /SharedSurfaceContentWidth/)
+  assert.match(localRouteFrameSource, /localSurfaceRouteFrameOptions/)
+  assert.match(localRouteFrameSource, /localSurfaceRouteFrameVariant/)
+  assert.match(localRouteFrameSource, /localSurfaceRouteFrameContentOptions/)
+  assert.match(localRouteFrameSource, /sharedRoute\.shellLayout === 'flush'/)
+  assert.match(localRouteFrameSource, /sharedRoute\.contentWidth === 'narrow'/)
+  assert.match(localRouteFrameSource, /sharedRoute\.area === 'tool' \|\| sharedRoute\.area === 'agent'/)
+  assert.match(localRouteFrameSource, /localSurfaceRouteContentWidth\(sharedRoute\?\.contentWidth, variant\)/)
+
+  assert.match(localChromeSource, /sharedSurfacePrimaryNavItems/)
+  assert.match(localChromeSource, /sharedSurfacePrimaryNavKeyForPathname\(pathname, \{ host: 'local-web' \}\)/)
+  assert.match(localChromeSource, /Record<SharedSurfacePrimaryNavKey, string>/)
+  assert.match(localChromeSource, /AppPrimaryNav/)
+  assert.match(localChromeSource, /AppPrimaryNavItem/)
+  assert.match(localChromeSource, /Button, StatusDot/)
+  assert.match(localHomeSource, /AppSidebarShell/)
+  assert.match(localHomeSource, /AppSidebarNavItemFrame/)
+  assert.match(uiAppShellIndexSource, /export \* from "\.\/primary-nav"/)
+  assert.match(uiAppShellStylesSource, /@import "\.\/primary-nav\/styles\.css"/)
+  assert.doesNotMatch(localChromeSource, /localSurfaceHost\.tabs\.app/)
+  assert.doesNotMatch(localChromeSource, /local-surface-primary-tab/)
+  assert.doesNotMatch(localChromeSource, /local-surface-(?:admin-button|preference-button)/)
+  assert.doesNotMatch(localHomeSource, /surface-host-tool-sidebar__entry-frame/)
+  assert.doesNotMatch(localStylesSource, /local-surface-primary-tab/)
+  assert.doesNotMatch(localStylesSource, /local-surface-(?:sidebar|tabs|tab|admin-button|preference-button|header-label|topbar__title)/)
+  assert.doesNotMatch(localStylesSource, /surface-host-tool-sidebar__entry-frame/)
+})
+
 test('host route tables consume surface route contracts from public route entrypoints', () => {
   const projectPackageJson = JSON.parse(readFileSync(resolve(repoRoot, 'surface/project/package.json'), 'utf8'))
   const resourcePackageJson = JSON.parse(readFileSync(resolve(repoRoot, 'surface/resource/package.json'), 'utf8'))
@@ -434,6 +492,29 @@ test('local surface host keeps project surface route adapter outside the app ent
   assert.match(projectRouteSource, /createLocalHostProjectSurfaceRuntime/)
   assert.match(projectRouteSource, /ProjectSurfaceProvider/)
   assert.match(projectRouteSource, /ensureLocalProjectContentAPI/)
+})
+
+test('desktop and local project surface runtimes use the shared hosted runtime factory', () => {
+  const hostedRuntimeSource = readFileSync(resolve(repoRoot, 'surface/project/src/runtime/HostedProjectSurfaceRuntime.ts'), 'utf8')
+  const runtimeEntrypointSource = readFileSync(resolve(repoRoot, 'surface/project/src/runtime/index.ts'), 'utf8')
+  const desktopRuntimeSource = readFileSync(resolve(repoRoot, 'apps/desktop/src/features/app-shell/application/desktopProjectSurfaceRuntime.tsx'), 'utf8')
+  const localRuntimeSource = readFileSync(resolve(repoRoot, 'services/local-surface-host/src/project/localProjectSurfaceRuntime.ts'), 'utf8')
+
+  assert.match(hostedRuntimeSource, /createHostedProjectSurfaceRuntime/)
+  assert.match(hostedRuntimeSource, /projectSurfaceContextCommandEnvelope/)
+  assert.match(hostedRuntimeSource, /unwrapProjectSurfaceGatewayResult/)
+  assert.match(runtimeEntrypointSource, /from '\.\/HostedProjectSurfaceRuntime\.js'/)
+
+  for (const [file, source] of [
+    ['desktopProjectSurfaceRuntime.tsx', desktopRuntimeSource],
+    ['localProjectSurfaceRuntime.ts', localRuntimeSource],
+  ]) {
+    assert.match(source, /createHostedProjectSurfaceRuntime/, `${file} should use the shared hosted runtime factory`)
+    assert.match(source, /projectSurfaceContextCommandEnvelope/, `${file} should use the shared context command envelope`)
+    assert.match(source, /unwrapProjectSurfaceGatewayResult/, `${file} should unwrap gateway results through the shared helper`)
+    assert.doesNotMatch(source, /createProjectSurfaceRuntime/, `${file} should not assemble the base runtime directly`)
+    assert.doesNotMatch(source, /(?:desktop|local)ContextCommandEnvelope/, `${file} should not keep a host-local context envelope helper`)
+  }
 })
 
 test('local surface host keeps home page UI outside the app entrypoint', () => {

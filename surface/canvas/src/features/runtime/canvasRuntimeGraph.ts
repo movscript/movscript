@@ -1,5 +1,5 @@
 import type { Edge, Node } from '@xyflow/react'
-import type { CanvasNodeData, CanvasPortType, CanvasPortValue, RawResource } from '@movscript/shared'
+import type { CanvasNodeData, CanvasPortDef, CanvasPortType, CanvasPortValue, RawResource } from '@movscript/shared'
 import { defaultHandleForNode, normalizeCanvasHandle, portsForNode } from '../domain/ports'
 import {
   firstRuntimeValue,
@@ -57,7 +57,7 @@ export function collectCanvasNodeInputs(input: CanvasRuntimeGraphInput & { nodeI
     const sourceHandle = normalizeCanvasHandle(edge.sourceHandle) || defaultHandleForNode(source, 'source') || 'result'
     const value = canvasNodeOutputValue(source, sourceHandle, input)
     if (!value) continue
-    appendValues(values, targetHandle, [value])
+    appendValues(values, targetHandle, [applyTargetPortResourceMetadata(value, target, targetHandle)])
     upstreamNodeIds.push(source.id)
   }
 
@@ -96,7 +96,13 @@ export function canvasNodeOutputValue(
   if (resourceId && Number.isInteger(resourceId) && resourceId > 0) {
     const resource = data.resource ?? input.resourceById?.get(resourceId)
     const type = canvasOutputValueType(node, port, resource)
-    return { type, resource_id: resourceId, resource }
+    return {
+      type,
+      resource_id: resourceId,
+      media_type: canvasResourceValueMediaType(type, data.outputPorts?.find((item) => item.id === port), resource),
+      ...(data.outputPorts?.find((item) => item.id === port)?.role ? { role: data.outputPorts.find((item) => item.id === port)?.role } : {}),
+      resource,
+    }
   }
 
   const text = data.textContent ?? data.inputValue
@@ -133,6 +139,25 @@ function normalizePortValueList(value: CanvasPortValue | CanvasPortValue[]) {
 function appendValues(target: Record<string, CanvasPortValue[]>, handle: string, values: CanvasPortValue[]) {
   if (values.length === 0) return
   target[handle] = [...(target[handle] ?? []), ...values]
+}
+
+function applyTargetPortResourceMetadata(value: CanvasPortValue, target: Node | undefined, targetHandle: string): CanvasPortValue {
+  if (!value.resource_id) return value
+  const data = target?.data as Partial<CanvasNodeData> | undefined
+  const port = data?.inputPorts?.find((item) => item.id === targetHandle || item.aliases?.includes(targetHandle))
+  if (!port) return value
+  return {
+    ...value,
+    media_type: canvasResourceValueMediaType(value.type, port, value.resource),
+    ...(port.role ? { role: port.role } : {}),
+  }
+}
+
+function canvasResourceValueMediaType(type: CanvasPortType, port: Partial<CanvasPortDef> | undefined, resource: RawResource | undefined) {
+  if (port?.mediaType && port.mediaType !== 'any') return port.mediaType
+  if (resource?.type === 'image' || resource?.type === 'video' || resource?.type === 'audio' || resource?.type === 'text') return resource.type
+  if (type === 'image' || type === 'video' || type === 'audio' || type === 'text') return type
+  return undefined
 }
 
 function mediaTypeForNode(type: string | undefined): CanvasPortType {

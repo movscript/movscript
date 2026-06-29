@@ -1,6 +1,6 @@
 lab: seed
 templates:
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -13,7 +13,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/82379
         verified_at: "2026-06-25"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -26,7 +26,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/82379
         verified_at: "2026-06-25"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -39,7 +39,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/82379
         verified_at: "2026-06-25"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -52,7 +52,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/82379
         verified_at: "2026-06-25"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -65,7 +65,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/82379
         verified_at: "2026-06-25"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -78,7 +78,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/82379
         verified_at: "2026-06-25"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -91,7 +91,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/82379
         verified_at: "2026-06-25"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -104,7 +104,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/82379
         verified_at: "2026-06-25"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - text
@@ -117,7 +117,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/82379
         verified_at: "2026-06-25"
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - text
@@ -130,7 +130,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/82379
         verified_at: "2026-06-25"
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - text
@@ -143,7 +143,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/82379
         verified_at: "2026-06-25"
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - text
@@ -156,7 +156,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/82379
         verified_at: "2026-06-25"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - image
@@ -198,7 +198,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/82379/1366799?lang=zh
         verified_at: "2026-06-25"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - image
@@ -259,7 +259,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/82379/1366799?lang=zh
         verified_at: "2026-06-25"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - image
@@ -319,7 +319,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/82379/1366799?lang=zh
         verified_at: "2026-06-25"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - image
@@ -391,7 +391,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/82379/1366799?lang=zh
         verified_at: "2026-06-25"
-    - adapter_type: openai_compat
+    - route_adapter_hint: openai_compat
       allow_model_id_override: true
       capabilities:
         - image
@@ -463,7 +463,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/82379/1366799?lang=zh
         verified_at: "2026-06-25"
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - image
@@ -505,7 +505,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/82379/1366799?lang=zh
         verified_at: "2026-06-25"
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - image
@@ -577,7 +577,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/82379/1366799?lang=zh
         verified_at: "2026-06-25"
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - image
@@ -649,7 +649,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/82379/1366799?lang=zh
         verified_at: "2026-06-25"
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - video
@@ -720,7 +720,7 @@ templates:
       video:
         default_duration_sec: 5
         max_duration_sec: 12
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - video_i2v
@@ -789,7 +789,7 @@ templates:
       video:
         default_duration_sec: 5
         max_duration_sec: 12
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - video
@@ -860,7 +860,7 @@ templates:
       video:
         default_duration_sec: 5
         max_duration_sec: 12
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - video
@@ -959,7 +959,7 @@ templates:
       video:
         default_duration_sec: 5
         max_duration_sec: 12
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - video
@@ -1036,7 +1036,7 @@ templates:
       video:
         default_duration_sec: 5
         max_duration_sec: 15
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - audio_tts
@@ -1095,7 +1095,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/6561/2528925?lang=zh
         verified_at: "2026-06-26"
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - audio_tts
@@ -1154,7 +1154,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/6561/2528925?lang=zh
         verified_at: "2026-06-26"
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - audio_tts
@@ -1167,7 +1167,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/6561/1257584?lang=zh
         verified_at: "2026-06-25"
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - audio_tts
@@ -1180,7 +1180,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/6561/1257584?lang=zh
         verified_at: "2026-06-25"
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - audio_tts
@@ -1193,7 +1193,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/6561/1257584?lang=zh
         verified_at: "2026-06-25"
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - audio_music
@@ -1253,7 +1253,7 @@ templates:
         status: observed
         url: https://ark.volcengine.com/region:cn-beijing/experience/voice?model=doubao-seed-audio-1-0
         verified_at: "2026-06-26"
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - audio_transcribe
@@ -1310,7 +1310,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/6561/1354868
         verified_at: "2026-06-25"
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - audio_chat
@@ -1419,7 +1419,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/6561/1594356
         verified_at: "2026-06-26"
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - voice_clone
@@ -1484,7 +1484,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/6561/2534906
         verified_at: "2026-06-26"
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - voice_design
@@ -1534,7 +1534,7 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/6561/2277844
         verified_at: "2026-06-26"
-    - adapter_type: volcen
+    - route_adapter_hint: volcen
       allow_model_id_override: true
       capabilities:
         - video

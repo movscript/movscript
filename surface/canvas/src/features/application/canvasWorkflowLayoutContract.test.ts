@@ -145,6 +145,14 @@ test('canvas render diagnostics reuse layout helpers for rect formatting', () =>
   assert.doesNotMatch(canvasEditorSource, /movscript\.canvasDebug/)
 })
 
+test('canvas editor chrome normalizes missing titles before rendering', () => {
+  const chromeBarSource = readFileSync(resolve('src/features/canvas/components/CanvasEditorChromeBar.tsx'), 'utf8')
+
+  assert.match(chromeBarSource, /const canvasTitle = typeof canvasName === 'string' \? canvasName : ''/)
+  assert.match(chromeBarSource, /canvasTitle\.trim\(\) \|\| t\('canvas\.editor\.untitled'\)/)
+  assert.doesNotMatch(chromeBarSource, /canvasName\.trim\(\)/)
+})
+
 test('canvas text node card layout is keyed by explicit content mode', () => {
   const nodeCardSource = readFileSync(resolve('src/features/canvas/ui/CanvasNodeCardPrimitives.tsx'), 'utf8')
   const nodeCardViewSource = readFileSync(resolve('src/features/canvas/ui/CanvasNodeCardViews.tsx'), 'utf8')

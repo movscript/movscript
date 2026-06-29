@@ -5,8 +5,10 @@ import { GenerationModelSelector } from '@movscript/ui/business/generation'
 import {
   listSurfaceModelsByCapability,
   modelKeys,
+  surfaceModelReferenceAssetsKey,
   surfaceModelQueryCapability,
   type PublicModel,
+  type SurfaceModelReferenceAssetIntent,
   type SurfaceModelCapability,
 } from '@movscript/shared'
 import {
@@ -17,6 +19,8 @@ import {
 interface ModelSelectorProps {
   capability: SurfaceModelCapability
   queryCapabilities?: SurfaceModelCapability[]
+  operation?: string
+  referenceAssets?: SurfaceModelReferenceAssetIntent[]
   value: string | null
   onChange: (id: string) => void
   onModelChange?: (model: PublicModel | null) => void
@@ -24,15 +28,16 @@ interface ModelSelectorProps {
   className?: string
 }
 
-export function ModelSelector({ capability, queryCapabilities, value, onChange, onModelChange, disabled, className }: ModelSelectorProps) {
+export function ModelSelector({ capability, queryCapabilities, operation, referenceAssets, value, onChange, onModelChange, disabled, className }: ModelSelectorProps) {
   const { t } = useTranslation()
   const queryCapability = surfaceModelQueryCapability(capability)
   const queryCapabilityList = normalizeModelQueryCapabilities(queryCapabilities ?? [capability])
+  const referenceAssetsKey = surfaceModelReferenceAssetsKey(referenceAssets)
 
   const { data: modelsData, isFetching, refetch } = useQuery<PublicModel[]>({
-    queryKey: modelKeys.capability(queryCapabilityList.join(',')),
+    queryKey: modelKeys.intent(queryCapabilityList.join(','), operation, referenceAssetsKey),
     queryFn: async () => {
-      const groups = await Promise.all(queryCapabilityList.map((item) => listSurfaceModelsByCapability(item)))
+      const groups = await Promise.all(queryCapabilityList.map((item) => listSurfaceModelsByCapability(item, { operation, referenceAssets })))
       return dedupeModels(groups.flat())
     },
     staleTime: 0,

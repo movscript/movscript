@@ -19,6 +19,7 @@ func (w *Worker) runVideoJob(ctx context.Context, debugCtx context.Context, job 
 	if err != nil {
 		return err
 	}
+	annotateDebugRouteContext(debugResult, route, job.JobType)
 	supportsProviderAssetURI := w.routeSupportsProviderAssetURI(ctx, route)
 	if debugResult != nil {
 		debugResult.ResourceDiagnostics = w.providerAssetDiagnosticsForJob(ctx, job, route, supportsProviderAssetURI)
@@ -28,9 +29,15 @@ func (w *Worker) runVideoJob(ctx context.Context, debugCtx context.Context, job 
 		certifiedAssets = w.certifiedProviderAssetsForJob(job, route.ProviderID, route.ProviderModelID, route.ModelID)
 		imageData, videoData, audioData = filterCertifiedProviderAssetMediaInputs(certifiedAssets, imageData, videoData, audioData)
 	}
-	// Volcen's Seedance video API rejects base64 for video_url; for reference
-	// images and videos alike we need a provider-reachable public URL.
-	w.prepareVideoInputReferences(job, imageData, videoData, audioData)
+	// Some video routes require provider-reachable media URLs. Fail before the
+	// adapter call when the route contract cannot be satisfied locally.
+	resourceAccessTrace, err := w.prepareVideoInputReferencesForRouteWithTrace(job, route, imageData, videoData, audioData)
+	if debugResult != nil && len(resourceAccessTrace) > 0 {
+		debugResult.ResourceAccessTrace = resourceAccessTrace
+	}
+	if err != nil {
+		return err
+	}
 	req := w.buildVideoRequest(job, params, dur, imageData, videoData, audioData, certifiedAssets)
 	if job.ProviderTaskID != "" {
 		return w.pollVideoProviderTask(ctx, debugCtx, job, dur, sm, debugResult)
@@ -42,8 +49,11 @@ func (w *Worker) runVideoJob(ctx context.Context, debugCtx context.Context, job 
 }
 
 func (w *Worker) buildVideoRequest(job *persistencemodel.Job, params generationParams, dur int, imageData []ai.MediaData, videoData []ai.MediaData, audioData []ai.MediaData, certifiedAssets []certifiedProviderAsset) ai.VideoRequest {
+	referenceAssets := runnerReferenceAssetsFromJob(job)
+	imageData = orderVideoImageDataByReferenceAssets(imageData, referenceAssets)
 	req := ai.VideoRequest{
 		Prompt:                job.Prompt,
+		Operation:             runnerGenerationOperationFromJob(job),
 		Duration:              dur,
 		Frames:                params.Int("frames"),
 		Seed:                  params.Int64Ptr("seed"),
@@ -66,6 +76,7 @@ func (w *Worker) buildVideoRequest(job *persistencemodel.Job, params generationP
 		OffPeak:               params.BoolPtr("off_peak"),
 		Payload:               params.String("payload"),
 		InputImageDataList:    imageData,
+		ReferenceAssets:       referenceAssets,
 	}
 	if len(videoData) > 0 {
 		req.InputVideoData = &videoData[0]
@@ -77,6 +88,62 @@ func (w *Worker) buildVideoRequest(job *persistencemodel.Job, params generationP
 		applyCertifiedProviderAssetsToVideoRequest(certifiedAssets, &req, imageData, videoData, audioData)
 	}
 	return req
+}
+
+func orderVideoImageDataByReferenceAssets(imageData []ai.MediaData, referenceAssets []ai.ReferenceAsset) []ai.MediaData {
+	if len(imageData) <= 1 || len(referenceAssets) == 0 {
+		return imageData
+	}
+	byID := make(map[uint]ai.MediaData, len(imageData))
+	for _, data := range imageData {
+		if data.ResourceID != 0 {
+			byID[data.ResourceID] = data
+		}
+	}
+	used := make(map[uint]struct{}, len(imageData))
+	ordered := make([]ai.MediaData, 0, len(imageData))
+	appendRole := func(role string) {
+		for _, asset := range referenceAssets {
+			if asset.ResourceID == 0 || !strings.EqualFold(strings.TrimSpace(asset.Role), role) {
+				continue
+			}
+			data, ok := byID[asset.ResourceID]
+			if !ok {
+				continue
+			}
+			if _, exists := used[asset.ResourceID]; exists {
+				continue
+			}
+			ordered = append(ordered, data)
+			used[asset.ResourceID] = struct{}{}
+		}
+	}
+	appendRole("first_frame")
+	appendRole("last_frame")
+	for _, asset := range referenceAssets {
+		if asset.ResourceID == 0 || !strings.EqualFold(strings.TrimSpace(asset.MediaType), "image") {
+			continue
+		}
+		data, ok := byID[asset.ResourceID]
+		if !ok {
+			continue
+		}
+		if _, exists := used[asset.ResourceID]; exists {
+			continue
+		}
+		ordered = append(ordered, data)
+		used[asset.ResourceID] = struct{}{}
+	}
+	for _, data := range imageData {
+		if data.ResourceID != 0 {
+			if _, exists := used[data.ResourceID]; exists {
+				continue
+			}
+			used[data.ResourceID] = struct{}{}
+		}
+		ordered = append(ordered, data)
+	}
+	return ordered
 }
 
 func (w *Worker) routeSupportsProviderAssetURI(ctx context.Context, route ai.ModelRoute) bool {
@@ -767,6 +834,7 @@ func (w *Worker) callVideoProvider(ctx context.Context, debugCtx context.Context
 	if err != nil {
 		return err
 	}
+	annotateDebugRouteContext(debugResult, route, job.JobType)
 	resp, err := callProviderWithTimeout(debugCtx, providerCallTimeout, func(ctx context.Context) (ai.VideoResponse, error) {
 		return w.aiService.CallVideoWithRouteUsage(ctx, job.UserID, route, req, w.usageContext(job))
 	})

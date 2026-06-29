@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Blocks, Clapperboard, FilePlus2, FileText, FolderKanban, GitBranch, ImageOff, MonitorPlay, Plus, Settings } from 'lucide-react'
+import { Blocks, Clapperboard, FilePlus2, FileText, FolderKanban, GitBranch, ImageOff, MonitorPlay, Plus, Scissors, Settings } from 'lucide-react'
 import { AppContentLayout } from '@movscript/ui/layout'
 import { AppPager } from '@movscript/ui/business/app'
 import {
@@ -24,6 +24,7 @@ import { toast } from '@movscript/ui/toast'
 import { resolveResourceFileUrl } from '@movscript/resource-surface/resource-media'
 import {
   readSurfaceHostApi,
+  routePathWithParams,
   surfaceRoutePath,
   surfaceWorkspaceOwnerContext,
   type Script,
@@ -51,10 +52,9 @@ import {
   ProjectPageActionButton,
   ProjectPageEmptyState,
 } from './ProjectPageUi'
-import { scriptKeys } from '../../scripts/application/scriptQueryKeys'
+import { projectSurfacePath } from '../../../domain'
 import {
   createWorkspaceScript,
-  listWorkspaceScripts,
 } from '../../scripts/application/scriptWorkspaceRepository'
 import {
   invalidateScriptMutationResult,
@@ -197,19 +197,14 @@ export default function ProjectOverviewPage() {
     queryFn: () => loadProjectOverviewData(projectId as number, overviewLoadContext),
     enabled,
   })
-  const scriptsQuery = useQuery<Script[]>({
-    queryKey: scriptKeys.projectScripts(projectId, workspaceContext),
-    queryFn: () => listWorkspaceScripts(projectId as number, workspaceContext),
-    enabled,
-  })
   const productions = useMemo(() => projectHomeProductionSummaries(data), [data])
   const settings = useMemo(() => projectHomeSettingSummaries(data), [data])
   const [productionDialogOpen, setProductionDialogOpen] = useState(false)
   const scripts = useMemo(() => (
-    (scriptsQuery.data ?? []).slice().sort((left, right) => (
+    projectHomeScripts(data.scripts, projectId).slice().sort((left, right) => (
       (left.order || 0) - (right.order || 0) || left.ID - right.ID
     ))
-  ), [scriptsQuery.data])
+  ), [data.scripts, projectId])
   const [canvasDocumentsVersion, setCanvasDocumentsVersion] = useState(0)
   useEffect(() => {
     if (!projectId) return undefined
@@ -237,6 +232,11 @@ export default function ProjectOverviewPage() {
   const productionPreviewRoute = useCallback((production: ProjectHomeProductionSummary) => (
     projectId ? projectHomeProductionPreviewPath(projectId, production) : '#'
   ), [projectId])
+  const productionEditDeskRoute = useCallback((production: ProjectHomeProductionSummary) => {
+    const params = projectHomeProductionEditDeskParams(production)
+    if (projectSurfaceRuntime) return projectSurfaceRuntime.navigator.href('editDesk', params)
+    return projectId ? projectHomeProductionEditDeskPath(projectId, production) : '#'
+  }, [projectId, projectSurfaceRuntime])
   const settingPreviewRoute = useCallback((setting: ProjectHomeSettingSummary) => (
     projectId ? projectHomeSettingPreviewPath(projectId, setting) : '#'
   ), [projectId])
@@ -363,6 +363,7 @@ export default function ProjectOverviewPage() {
             <ProjectOverviewProductionList
               productions={productions}
               productionPreviewRoute={productionPreviewRoute}
+              productionEditDeskRoute={productionEditDeskRoute}
               isCreating={createProduction.isPending}
               onCreateCanvas={createCanvasForProduction}
               onCreateClick={() => setProductionDialogOpen(true)}
@@ -385,7 +386,7 @@ export default function ProjectOverviewPage() {
 
             <ProjectOverviewScriptList
               scripts={scripts}
-              loading={scriptsQuery.isLoading || isFetching}
+              loading={isFetching}
               isCreating={createScript.isPending}
               canCreate={Boolean(projectId)}
               onCreateScript={() => createScript.mutate()}
@@ -753,12 +754,14 @@ function ProjectOverviewScriptList({
 function ProjectOverviewProductionList({
   productions,
   productionPreviewRoute,
+  productionEditDeskRoute,
   isCreating,
   onCreateCanvas,
   onCreateClick,
 }: {
   productions: ProjectHomeProductionSummary[]
   productionPreviewRoute: (production: ProjectHomeProductionSummary) => string
+  productionEditDeskRoute: (production: ProjectHomeProductionSummary) => string
   isCreating: boolean
   onCreateCanvas: (production: ProjectHomeProductionSummary) => void
   onCreateClick: () => void
@@ -825,6 +828,12 @@ function ProjectOverviewProductionList({
             <Link to={productionPreviewRoute(production)}>
               <MonitorPlay size={14} />
               预览
+            </Link>
+          </Button>
+          <Button asChild type="button" size="sm" variant="outline" className="gap-2">
+            <Link to={productionEditDeskRoute(production)}>
+              <Scissors size={14} />
+              剪辑台
             </Link>
           </Button>
           <Button type="button" size="sm" variant="outline" className="gap-2" onClick={() => onCreateCanvas(production)}>
@@ -1225,6 +1234,53 @@ function projectHomeCanvasBreadcrumb(projectName: string, canvas: ContentCanvasD
     return `${projectName} / 制作 / ${scope.productionTitle || scope.productionId || canvas.title}`
   }
   return `${projectName} / 全局内容`
+}
+
+function projectHomeScripts(records: ProjectOverviewRecord[], projectId: number | undefined): Script[] {
+  return projectHomeRecordArray(records).map((record, index) => {
+    const id = numberValue(record.ID ?? record.id) ?? index + 1
+    return {
+      ID: id,
+      project_id: numberValue(record.project_id) ?? projectId ?? 0,
+      title: stringValue(record.title ?? record.name) ?? `手记 #${id}`,
+      description: stringValue(record.description) ?? '',
+      content: '',
+      raw_source: '',
+      script_type: stringValue(record.script_type ?? record.script_kind ?? record.kind) ?? 'uncategorized',
+      source_type: scriptSourceType(record.source_type),
+      version: numberValue(record.version),
+      parent_script_id: numberValue(record.parent_script_id),
+      assignee_id: numberValue(record.assignee_id),
+      author_id: numberValue(record.author_id) ?? 0,
+      order: numberValue(record.order) ?? 0,
+      summary: stringValue(record.summary) ?? '',
+      characters: stringValue(record.characters) ?? '',
+      character_profiles: stringValue(record.character_profiles),
+      character_relationships: stringValue(record.character_relationships),
+      core_settings: stringValue(record.core_settings) ?? '',
+      background: stringValue(record.background) ?? '',
+      scenes_desc: stringValue(record.scenes_desc) ?? '',
+      hook: stringValue(record.hook) ?? '',
+      plot_summary: stringValue(record.plot_summary) ?? '',
+      script_points: stringValue(record.script_points),
+      planned_scene_count: numberValue(record.planned_scene_count),
+      planned_character_count: numberValue(record.planned_character_count),
+      time_text: stringValue(record.time_text),
+      location_text: stringValue(record.location_text),
+      structured_characters: stringValue(record.structured_characters),
+      plot_beats: stringValue(record.plot_beats),
+      atmosphere: stringValue(record.atmosphere),
+      structure_json: stringValue(record.structure_json),
+      entity_candidates: stringValue(record.entity_candidates),
+      relationship_candidates: stringValue(record.relationship_candidates),
+      CreatedAt: stringValue(record.CreatedAt ?? record.created_at) ?? '',
+      UpdatedAt: stringValue(record.UpdatedAt ?? record.updated_at) ?? '',
+    }
+  })
+}
+
+function scriptSourceType(value: unknown): Script['source_type'] {
+  return value === 'raw' || value === 'adapted' || value === 'revised' ? value : 'raw'
 }
 
 function projectHomeProductionSummaries(data: ProjectOverviewData): ProjectHomeProductionSummary[] {
@@ -1697,6 +1753,26 @@ function projectHomeProductionPreviewPath(projectId: number, production: Project
     targetRef,
     timeline_assembly_ref: targetRef,
   })
+}
+
+function projectHomeProductionEditDeskParams(production: ProjectHomeProductionSummary) {
+  const targetRef = `timeline_assembly:production:${production.id}`
+  return {
+    productionId: production.id,
+    scopeKind: 'production',
+    scopeRef: production.id,
+    targetCategory: 'timeline_assembly',
+    targetKind: 'timeline_assembly',
+    targetRef,
+    timeline_assembly_ref: targetRef,
+  }
+}
+
+function projectHomeProductionEditDeskPath(projectId: number, production: ProjectHomeProductionSummary): string {
+  return routePathWithParams(
+    projectSurfacePath('editDesk', projectId),
+    projectHomeProductionEditDeskParams(production),
+  )
 }
 
 function projectHomeSettingPreviewPath(projectId: number, setting: ProjectHomeSettingSummary): string {

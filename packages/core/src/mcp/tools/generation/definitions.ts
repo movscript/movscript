@@ -13,6 +13,9 @@ export function generationTools(): MCPTool[] {
 }
 
 const GENERATION_CAPABILITIES = [
+  'image_generation',
+  'video_generation',
+  'audio_generation',
   'image',
   'image_edit',
   'video',
@@ -53,7 +56,7 @@ function generationCapabilityListTool(): MCPTool {
 function generationPrepareTool(): MCPTool {
   return {
     name: 'generation_prepare',
-    description: 'Prepare a MovScript generation request: validate capability/scope, list usable models, and compile content-unit prompts when scope is content_unit.',
+    description: 'Prepare a MovScript generation request: validate capability/scope, list usable models, and compile content-unit prompts when scope is content_unit. Capability-family requests must include an explicit operation or generation_intent.operation.',
     inputSchema: generationRequestSchema(['capability']),
     outputSchema: objectSchema(
       {
@@ -74,7 +77,7 @@ function generationPrepareTool(): MCPTool {
 function generationSubmitTool(): MCPTool {
   return {
     name: 'generation_submit',
-    description: 'Submit any MovScript generation job through one unified capability contract. Use scope=content_unit for candidate-producing image/video generation, otherwise outputs are RawResources until explicitly registered.',
+    description: 'Submit any MovScript generation job through one unified capability contract. Capability-family submissions must include an explicit operation or generation_intent.operation; the tool never infers the operation from resource count. Use scope=content_unit for candidate-producing image/video generation, otherwise outputs are RawResources until explicitly registered.',
     inputSchema: generationRequestSchema(['capability']),
     outputSchema: objectSchema(
       {
@@ -215,12 +218,65 @@ function generationResultRegisterTool(): MCPTool {
 function generationRequestSchema(required: string[] = []): MCPTool['inputSchema'] {
   return objectSchema(
     {
-      capability: { type: 'string', enum: [...GENERATION_CAPABILITIES], description: 'MovScript generation capability.' },
+      capability: { type: 'string', enum: [...GENERATION_CAPABILITIES], description: 'MovScript generation capability. Prefer generation families such as image_generation, video_generation, or audio_generation plus an explicit operation.' },
       scope: { type: 'string', enum: ['free', 'content_unit', 'asset', 'storyboard', 'keyframe'], description: 'Generation target scope. content_unit image/video jobs create candidates on successful terminal polling.' },
       prompt: { type: 'string', minLength: 1 },
       title: { type: 'string' },
       model_id: { type: 'string' },
       provider_id: { type: 'string' },
+      operation: {
+        type: 'string',
+        enum: [
+          'text_to_image',
+          'reference_to_image',
+          'image_to_image',
+          'prompt_to_video',
+          'reference_to_video',
+          'image_to_video',
+          'first_frame_to_video',
+          'first_last_frame_to_video',
+          'video_to_video',
+          'video_edit',
+          'video_extend',
+          'video_inpaint',
+          'object_insert',
+          'object_remove',
+          'motion_control',
+          'lip_sync',
+          'video_upscale',
+          'tts',
+          'stt',
+          'speech_translate',
+          'audio_chat',
+          'voice_clone',
+          'voice_design',
+          'dubbing',
+          'music',
+          'sfx',
+          'speech_enhancement',
+        ],
+        description: 'Explicit model operation intent. Required for image_generation, video_generation, and audio_generation; agents must choose this instead of relying on resource count, route, provider, or adapter details.',
+      },
+      model_operation: { type: 'string', description: 'Alias for operation.' },
+      generation_intent: {
+        type: 'object',
+        additionalProperties: true,
+        description: 'Explicit capability intent, e.g. {capability:"video_generation",operation:"first_last_frame_to_video",reference_assets:[...]}',
+      },
+      reference_assets: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: true,
+          properties: {
+            role: { type: 'string', enum: ['generic', 'first_frame', 'last_frame', 'reference_image', 'reference_video', 'reference_audio'] },
+            media_type: { type: 'string', enum: ['image', 'video', 'audio'] },
+            resource_id: { type: 'number', minimum: 1 },
+          },
+          required: ['role'],
+        },
+        description: 'Semantic roles for input/reference resources. Use reference_image/reference_video/reference_audio for omni reference video, and first_frame/last_frame for first-last video generation.',
+      },
       parameter_mode: { type: 'string', enum: ['compatible', 'strict'] },
       param_mode: { type: 'string', enum: ['compatible', 'strict'] },
       projectDir: { type: 'string', description: 'MovScript project source directory.' },

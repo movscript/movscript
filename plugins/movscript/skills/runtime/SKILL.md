@@ -20,7 +20,7 @@ Explicit user or environment policy wins:
 - `MOVSCRIPT_PLUGIN_MODE=desktop` or `plugin-desktop-compatible`: compatibility mode; prefer existing local daemon/desktop records but do not treat Desktop as business sidecar owner. `plugin-desktop-owned` is accepted only as a legacy alias.
 - `MOVSCRIPT_PLUGIN_MODE=cloud`: connect to cloud or external runtime endpoints when configured.
 - `MOVSCRIPT_LOCAL_DAEMON_DATA_PLANE=local|cloud|external`: controls whether the local daemon starts local Data Service or uses cloud/external Data Service while still starting local Project/Editing/Canvas/Surface/Media services.
-- The plugin bundle exposes the command-line daemon entrypoint: `bin/movscript daemon start|status|stop|restart`. `bin/movcli` is a compatibility command name backed by the same plugin bundle. The older `bin/movscript-agent-mcp local-node ...` form is a compatibility alias.
+- The plugin bundle exposes one product CLI: `bin/movscript`. Use `bin/movscript mcp stdio` for MCP, `bin/movscript daemon start|status|stop|restart` for daemon control, and `bin/movscript admin ...` for system admin. `bin/movcli` is a compatibility command name backed by the same bundle. `bin/movscript-agent-mcp` is only a compatibility shim for `bin/movscript mcp stdio`, and the older `local-node` / `__movscript_local_node` forms are compatibility aliases for `daemon`.
 
 Without an explicit mode, decide in this order:
 

@@ -268,6 +268,7 @@ type TokenUsage struct {
 
 type ImageRequest struct {
 	Model               string
+	Operation           string
 	Prompt              string
 	Size                string
 	N                   int
@@ -288,6 +289,7 @@ type ImageRequest struct {
 	InputImageDataList  []MediaData
 	ImageFieldName      string
 	CloudFileID         string
+	ReferenceAssets     []ReferenceAsset
 	EditOnly            bool
 }
 
@@ -298,6 +300,7 @@ type ImageResponse struct {
 
 type VideoRequest struct {
 	Model                 string
+	Operation             string
 	Prompt                string
 	Image                 string
 	InputImages           []string
@@ -329,6 +332,13 @@ type VideoRequest struct {
 	MovementAmplitude     string
 	OffPeak               *bool
 	Payload               string
+	ReferenceAssets       []ReferenceAsset
+}
+
+type ReferenceAsset struct {
+	Role       string `json:"role"`
+	MediaType  string `json:"media_type,omitempty"`
+	ResourceID uint   `json:"resource_id,omitempty"`
 }
 
 type MediaData struct {
@@ -376,6 +386,8 @@ type DebugHTTPExchange struct {
 	ModelID        string               `json:"model_id"`
 	Endpoint       string               `json:"endpoint"`
 	Method         string               `json:"method"`
+	RequestShape   string               `json:"request_shape,omitempty"`
+	ContentType    string               `json:"content_type,omitempty"`
 	RequestHeaders map[string]string    `json:"request_headers,omitempty"`
 	RequestBody    string               `json:"request_body"`
 	PromptName     string               `json:"prompt_name,omitempty"`
@@ -390,27 +402,67 @@ type DebugHTTPExchange struct {
 }
 
 type DebugCallResult struct {
-	JobType             string               `json:"job_type,omitempty"`
-	JobModelDefID       string               `json:"job_model_def_id,omitempty"`
-	JobResolvedPrompt   string               `json:"job_resolved_prompt,omitempty"`
-	JobInputResourceIDs []uint               `json:"job_input_resource_ids,omitempty"`
-	ResourceDiagnostics []ResourceDiagnostic `json:"resource_diagnostics,omitempty"`
-	Calls               []DebugHTTPExchange  `json:"calls,omitempty"`
-	Success             bool                 `json:"success"`
-	ModelID             string               `json:"model_id"`
-	Endpoint            string               `json:"endpoint"`
-	Method              string               `json:"method"`
-	RequestHeaders      map[string]string    `json:"request_headers,omitempty"`
-	RequestBody         string               `json:"request_body"`
-	PromptName          string               `json:"prompt_name,omitempty"`
-	SystemPrompt        string               `json:"system_prompt,omitempty"`
-	UserPrompt          string               `json:"user_prompt,omitempty"`
-	CompiledPrompt      string               `json:"compiled_prompt,omitempty"`
-	PromptMessages      []DebugPromptMessage `json:"prompt_messages,omitempty"`
-	ResponseStatus      int                  `json:"response_status"`
-	ResponseBody        string               `json:"response_body"`
-	LatencyMs           int64                `json:"latency_ms"`
-	Error               string               `json:"error,omitempty"`
+	JobType             string                `json:"job_type,omitempty"`
+	JobModelDefID       string                `json:"job_model_def_id,omitempty"`
+	JobResolvedPrompt   string                `json:"job_resolved_prompt,omitempty"`
+	JobInputResourceIDs []uint                `json:"job_input_resource_ids,omitempty"`
+	RouteTrace          *DebugRouteTrace      `json:"route_trace,omitempty"`
+	ResourceDiagnostics []ResourceDiagnostic  `json:"resource_diagnostics,omitempty"`
+	ResourceAccessTrace []ResourceAccessTrace `json:"resource_access_trace,omitempty"`
+	Calls               []DebugHTTPExchange   `json:"calls,omitempty"`
+	Success             bool                  `json:"success"`
+	ModelID             string                `json:"model_id"`
+	Endpoint            string                `json:"endpoint"`
+	Method              string                `json:"method"`
+	RequestShape        string                `json:"request_shape,omitempty"`
+	ContentType         string                `json:"content_type,omitempty"`
+	RequestHeaders      map[string]string     `json:"request_headers,omitempty"`
+	RequestBody         string                `json:"request_body"`
+	PromptName          string                `json:"prompt_name,omitempty"`
+	SystemPrompt        string                `json:"system_prompt,omitempty"`
+	UserPrompt          string                `json:"user_prompt,omitempty"`
+	CompiledPrompt      string                `json:"compiled_prompt,omitempty"`
+	PromptMessages      []DebugPromptMessage  `json:"prompt_messages,omitempty"`
+	ResponseStatus      int                   `json:"response_status"`
+	ResponseBody        string                `json:"response_body"`
+	LatencyMs           int64                 `json:"latency_ms"`
+	Error               string                `json:"error,omitempty"`
+}
+
+type DebugRouteTrace struct {
+	PublicModelID      string `json:"public_model_id,omitempty"`
+	CatalogEntryID     uint   `json:"catalog_entry_id,omitempty"`
+	RouteBindingID     uint   `json:"route_binding_id,omitempty"`
+	SourceType         string `json:"source_type,omitempty"`
+	RouteGroup         string `json:"route_group,omitempty"`
+	ProviderID         string `json:"provider_id,omitempty"`
+	ProviderKind       string `json:"provider_kind,omitempty"`
+	AdapterKey         string `json:"adapter_key,omitempty"`
+	AdapterType        string `json:"adapter_type,omitempty"`
+	ProviderModelID    string `json:"provider_model_id,omitempty"`
+	Capability         string `json:"capability,omitempty"`
+	Operation          string `json:"operation,omitempty"`
+	APIKind            string `json:"api_kind,omitempty"`
+	EndpointBaseURL    string `json:"endpoint_base_url,omitempty"`
+	EndpointPathPrefix string `json:"endpoint_path_prefix,omitempty"`
+	EndpointMode       string `json:"endpoint_mode,omitempty"`
+	OperationProfile   string `json:"operation_profile,omitempty"`
+	SelectionReason    string `json:"selection_reason,omitempty"`
+}
+
+type ResourceAccessTrace struct {
+	ResourceID   uint   `json:"resource_id,omitempty"`
+	ResourceType string `json:"resource_type,omitempty"`
+	MediaType    string `json:"media_type,omitempty"`
+	Transport    string `json:"transport,omitempty"`
+	Source       string `json:"source,omitempty"`
+	Status       string `json:"status,omitempty"`
+	ProfileID    string `json:"profile_id,omitempty"`
+	ProfileMode  string `json:"profile_mode,omitempty"`
+	URLHost      string `json:"url_host,omitempty"`
+	URLPath      string `json:"url_path,omitempty"`
+	ExpiresAt    int64  `json:"expires_at,omitempty"`
+	Error        string `json:"error,omitempty"`
 }
 
 type ResourceDiagnostic struct {
@@ -437,12 +489,14 @@ type DebugPromptMessage struct {
 }
 
 type AIModelListFilter struct {
-	Capability       string   `json:"capability,omitempty"`
-	Capabilities     []string `json:"capabilities,omitempty"`
-	APIKind          string   `json:"api_kind,omitempty"`
-	APIKinds         []string `json:"api_kinds,omitempty"`
-	ProviderVariants bool     `json:"provider_variants,omitempty"`
-	RouteGroup       string   `json:"route_group,omitempty"`
+	Capability       string                   `json:"capability,omitempty"`
+	Capabilities     []string                 `json:"capabilities,omitempty"`
+	Operation        string                   `json:"operation,omitempty"`
+	ReferenceAssets  []AIReferenceAssetIntent `json:"reference_assets,omitempty"`
+	APIKind          string                   `json:"api_kind,omitempty"`
+	APIKinds         []string                 `json:"api_kinds,omitempty"`
+	ProviderVariants bool                     `json:"provider_variants,omitempty"`
+	RouteGroup       string                   `json:"route_group,omitempty"`
 }
 
 type AIModelDescriptor struct {
@@ -475,6 +529,7 @@ type AIModelResolveRequest struct {
 	ModelID        string `json:"model_id,omitempty"`
 	CatalogEntryID uint   `json:"catalog_entry_id,omitempty"`
 	Capability     string `json:"capability"`
+	Operation      string `json:"operation,omitempty"`
 }
 
 type AIModelBinding struct {
@@ -483,6 +538,7 @@ type AIModelBinding struct {
 	ProviderID      string `json:"provider_id,omitempty"`
 	ProviderModelID string `json:"provider_model_id"`
 	Capability      string `json:"capability"`
+	Operation       string `json:"operation,omitempty"`
 	AdapterType     string `json:"adapter_type,omitempty"`
 	ProviderName    string `json:"provider_name,omitempty"`
 	SelectionReason string `json:"selection_reason,omitempty"`
@@ -494,14 +550,21 @@ type AIGatewayModelCatalog interface {
 }
 
 type AIGatewayRouteRequest struct {
-	ModelID               string          `json:"model_id,omitempty"`
-	CatalogEntryID        uint            `json:"catalog_entry_id,omitempty"`
-	RouteBindingID        uint            `json:"route_binding_id,omitempty"`
-	Capability            string          `json:"capability"`
-	APIKind               string          `json:"api_kind,omitempty"`
-	APIKinds              []string        `json:"api_kinds,omitempty"`
-	PreferredAdapterTypes []string        `json:"preferred_adapter_types,omitempty"`
-	EstimatedUsage        AIUsageEstimate `json:"estimated_usage,omitempty"`
+	ModelID               string                   `json:"model_id,omitempty"`
+	CatalogEntryID        uint                     `json:"catalog_entry_id,omitempty"`
+	RouteBindingID        uint                     `json:"route_binding_id,omitempty"`
+	Capability            string                   `json:"capability"`
+	Operation             string                   `json:"operation,omitempty"`
+	ReferenceAssets       []AIReferenceAssetIntent `json:"reference_assets,omitempty"`
+	APIKind               string                   `json:"api_kind,omitempty"`
+	APIKinds              []string                 `json:"api_kinds,omitempty"`
+	PreferredAdapterTypes []string                 `json:"preferred_adapter_types,omitempty"`
+	EstimatedUsage        AIUsageEstimate          `json:"estimated_usage,omitempty"`
+}
+
+type AIReferenceAssetIntent struct {
+	Role      string `json:"role"`
+	MediaType string `json:"media_type,omitempty"`
 }
 
 type AIGatewayModelRoute struct {
@@ -516,6 +579,7 @@ type AIGatewayModelRoute struct {
 	AdapterKey      string `json:"adapter_key,omitempty"`
 	ProviderModelID string `json:"provider_model_id"`
 	Capability      string `json:"capability,omitempty"`
+	Operation       string `json:"operation,omitempty"`
 	APIKind         string `json:"api_kind,omitempty"`
 	SelectionReason string `json:"selection_reason,omitempty"`
 }

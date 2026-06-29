@@ -12,6 +12,14 @@ import {
   JobStatusBadge,
   JobSpinIcon,
 } from '../../../shared/ui/JobDisplayUi'
+export {
+  jobGenerationCategory,
+  jobGenerationDisplay,
+  jobGenerationIntent,
+  jobIsVideoGeneration,
+  legacyJobCategory,
+  type JobGenerationIntentSummary,
+} from './jobGenerationIntentModel'
 
 export type JobStateTraceEntry = {
   state: string

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { File, FileAudio, FileImage, FileText, TextCursorInput, type LucideIcon } from 'lucide-react'
 import { surfaceDataApi as api } from '@movscript/shared/surface-http'
 import { ResourceFileImage, ResourceFileVideo } from '@movscript/resource-surface/resource-media-components'
+import type { GenerationBackendPreflightResult } from '@movscript/core/generation'
 import type { RawResource } from '@movscript/shared'
 import {
   CONTENT_CANVAS_EXPRESSION_UNIT_KIND_OPTIONS,
@@ -53,6 +54,7 @@ export function NodeInspector({
   onExpressionPromptChange,
   onExpressionUnitSave,
   onCandidateCreate,
+  onCandidatePreflight,
   onCandidatePromptPreview,
   onCandidateResourceSelect,
   onCandidateSelect,
@@ -78,6 +80,7 @@ export function NodeInspector({
   onExpressionPromptChange: (nodeId: string, prompt: string) => void
   onExpressionUnitSave: (node: ContentCanvasNode, input: ContentCanvasExpressionUnitEditorInput) => void
   onCandidateCreate: (node: ContentCanvasNode | undefined, options?: ContentCanvasCandidateGenerationOptions) => void
+  onCandidatePreflight: (node: ContentCanvasNode | undefined, options?: Partial<ContentCanvasCandidateGenerationOptions>) => Promise<GenerationBackendPreflightResult>
   onCandidatePromptPreview: (node: ContentCanvasNode | undefined) => Promise<ContentCanvasCandidatePromptPreview>
   onCandidateResourceSelect: (node: ContentCanvasNode | undefined, resource: ContentCanvasUploadedResource, position?: ContentCanvasNodePosition) => void
   onCandidateSelect: (node: ContentCanvasNode | undefined, candidate: ContentCanvasCandidate) => void
@@ -218,6 +221,7 @@ export function NodeInspector({
         }}
         onSelectNode={onSelectNode}
         onCandidateCreate={onCandidateCreate}
+        onCandidatePreflight={onCandidatePreflight}
         onCandidatePromptPreview={onCandidatePromptPreview}
         onCandidateResourceSelect={onCandidateResourceSelect}
         onCandidateSelect={onCandidateSelect}
@@ -510,6 +514,7 @@ function ContentUnitInspector({
   onReferenceAppend,
   onSelectNode,
   onCandidateCreate,
+  onCandidatePreflight,
   onCandidatePromptPreview,
   onCandidateResourceSelect,
   onCandidateSelect,
@@ -528,6 +533,7 @@ function ContentUnitInspector({
   onReferenceAppend: (node: ContentCanvasNode) => void
   onSelectNode: (kind: InspectorSelection['kind'], nodeId: string) => void
   onCandidateCreate: (node: ContentCanvasNode | undefined, options?: ContentCanvasCandidateGenerationOptions) => void
+  onCandidatePreflight: (node: ContentCanvasNode | undefined, options?: Partial<ContentCanvasCandidateGenerationOptions>) => Promise<GenerationBackendPreflightResult>
   onCandidatePromptPreview: (node: ContentCanvasNode | undefined) => Promise<ContentCanvasCandidatePromptPreview>
   onCandidateResourceSelect: (node: ContentCanvasNode | undefined, resource: ContentCanvasUploadedResource, position?: ContentCanvasNodePosition) => void
   onCandidateSelect: (node: ContentCanvasNode | undefined, candidate: ContentCanvasCandidate) => void
@@ -561,6 +567,7 @@ function ContentUnitInspector({
         prompt={prompt}
         candidateSelections={candidateSelections}
         onCandidateCreate={onCandidateCreate}
+        onCandidatePreflight={onCandidatePreflight}
         onCandidatePromptPreview={onCandidatePromptPreview}
         onCandidateResourceSelect={onCandidateResourceSelect}
         onCandidateSelect={onCandidateSelect}

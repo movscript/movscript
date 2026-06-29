@@ -73,6 +73,7 @@ import {
 import {
   editingProjectCreate,
   editingProjectAddAsset,
+  editingProjectCreateFromEditDecisions,
   editingProjectCreateFromEditPlan,
   editingProjectGet,
   editingProjectRemoveAsset,
@@ -99,6 +100,7 @@ import {
   editingTimelineSplitClip,
   editingTimelineUpdateClip,
   editingTimelineValidate,
+  editingVideoCompose,
 } from './editing/actions.js'
 import { listModels } from './model/actions'
 import {
@@ -147,7 +149,6 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
   const args = getObjectParam(params, 'arguments')
 
   switch (name) {
-    case 'system_focus_get':
     case 'movscript_focus_get':
       return toolText(getFocus())
     case 'system_model_list':
@@ -374,6 +375,10 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await editingProjectCreate(args))
     case 'editing_project_create_from_edit_plan':
       return toolText(await editingProjectCreateFromEditPlan(args))
+    case 'editing_project_create_from_edit_decisions':
+      return toolText(await editingProjectCreateFromEditDecisions(args))
+    case 'editing_video_compose':
+      return toolText(await editingVideoCompose(args))
     case 'editing_project_add_asset':
       return toolText(await editingProjectAddAsset(args))
     case 'editing_project_remove_asset':

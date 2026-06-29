@@ -1075,6 +1075,7 @@ func (a *OpenAIAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (Im
 	if req.AspectRatio != "" && req.Size == "" {
 		debugBody["aspect_ratio"] = req.AspectRatio
 	}
+	attachReferenceAssetDebugBindings(debugBody, req.ReferenceAssets, staticReferenceAssetProviderField("image"))
 	endpoint := a.BaseURL + "/images/generations"
 	start := time.Now()
 	resp, err := a.client.Images.Generate(ctx, params, reqOpts2...)
@@ -1189,6 +1190,7 @@ func (a *OpenAIAdapter) imageEdit(ctx context.Context, req ImageRequest) (ImageR
 	if req.Size != "" {
 		debugBody["size"] = req.Size
 	}
+	attachReferenceAssetDebugBindings(debugBody, req.ReferenceAssets, staticReferenceAssetProviderField("image"))
 	start := time.Now()
 	resp, err := a.client.Images.Edit(ctx, params)
 	latency := time.Since(start).Milliseconds()
@@ -1252,6 +1254,7 @@ func (a *OpenAIAdapter) imageEditByFileID(ctx context.Context, req ImageRequest)
 	if req.Size != "" {
 		debugBody["size"] = req.Size
 	}
+	attachReferenceAssetDebugBindings(debugBody, req.ReferenceAssets, staticReferenceAssetProviderField("image[]"))
 	start := time.Now()
 	resp, err := a.client.Images.Edit(ctx, params, reqOpts...)
 	latency := time.Since(start).Milliseconds()
@@ -1328,14 +1331,20 @@ func (a *OpenAIAdapter) imageEditMultipartCustomField(ctx context.Context, req I
 		"Content-Type":  w.FormDataContentType(),
 		"Authorization": "Bearer " + maskKey(a.APIKey),
 	}
-	editBody := fmt.Sprintf("(multipart: model=%s prompt=%q image_field=%s images=%d)", req.Model, req.Prompt, fieldName, imageCount)
+	editBody := map[string]any{
+		"model":       req.Model,
+		"prompt":      req.Prompt,
+		"image_field": fieldName,
+		"images":      imageCount,
+	}
+	attachReferenceAssetDebugBindings(editBody, req.ReferenceAssets, staticReferenceAssetProviderField(fieldName))
 	editStart := time.Now()
 	resp, err := a.rawHTTP.Do(httpReq)
 	editLatency := time.Since(editStart).Milliseconds()
 	if err != nil {
 		recordDebug(ctx, DebugCallResult{
 			ModelID: req.Model, Endpoint: endpoint, Method: "POST",
-			RequestHeaders: editHeaders, RequestBody: editBody,
+			RequestHeaders: editHeaders, RequestBody: mustJSON(editBody),
 			LatencyMs: editLatency, Error: err.Error(),
 		})
 		return ImageResponse{}, err
@@ -1344,7 +1353,7 @@ func (a *OpenAIAdapter) imageEditMultipartCustomField(ctx context.Context, req I
 	respBody, _ := io.ReadAll(resp.Body)
 	recordDebug(ctx, DebugCallResult{
 		Success: resp.StatusCode < 400, ModelID: req.Model, Endpoint: endpoint, Method: "POST",
-		RequestHeaders: editHeaders, RequestBody: editBody,
+		RequestHeaders: editHeaders, RequestBody: mustJSON(editBody),
 		ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: editLatency,
 	})
 	if resp.StatusCode >= 400 {
@@ -1443,9 +1452,6 @@ func (a *OpenAIAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (Vi
 }
 
 func (a *OpenAIAdapter) VideoStart(ctx context.Context, req VideoRequest) (VideoResponse, error) {
-	if openAIShouldUseXAIVideoGenerations(req) {
-		return a.xaiVideoStart(ctx, req)
-	}
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	_ = w.WriteField("model", req.Model)
@@ -1506,6 +1512,12 @@ func (a *OpenAIAdapter) VideoStart(ctx context.Context, req VideoRequest) (Video
 		_, _ = fw.Write(md.Bytes)
 	}
 	w.Close()
+	debugBody := map[string]any{
+		"model":  req.Model,
+		"prompt": req.Prompt,
+		"images": len(refImages),
+	}
+	attachReferenceAssetDebugBindings(debugBody, req.ReferenceAssets, staticReferenceAssetProviderField("input_reference[]"))
 
 	endpoint := a.BaseURL + "/videos"
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, &buf)
@@ -1526,7 +1538,7 @@ func (a *OpenAIAdapter) VideoStart(ctx context.Context, req VideoRequest) (Video
 		recordDebug(ctx, DebugCallResult{
 			ModelID: req.Model, Endpoint: endpoint, Method: "POST",
 			RequestHeaders: reqHeaders,
-			RequestBody:    fmt.Sprintf("(multipart: model=%s prompt=%q images=%d)", req.Model, req.Prompt, len(refImages)),
+			RequestBody:    mustJSON(debugBody),
 			LatencyMs:      latency, Error: err.Error(),
 		})
 		return VideoResponse{}, err
@@ -1536,7 +1548,7 @@ func (a *OpenAIAdapter) VideoStart(ctx context.Context, req VideoRequest) (Video
 	recordDebug(ctx, DebugCallResult{
 		Success: resp.StatusCode < 400, ModelID: req.Model, Endpoint: endpoint, Method: "POST",
 		RequestHeaders: reqHeaders,
-		RequestBody:    fmt.Sprintf("(multipart: model=%s prompt=%q images=%d)", req.Model, req.Prompt, len(refImages)),
+		RequestBody:    mustJSON(debugBody),
 		ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: latency,
 	})
 	if resp.StatusCode >= 400 {
@@ -1559,15 +1571,7 @@ func (a *OpenAIAdapter) VideoStart(ctx context.Context, req VideoRequest) (Video
 	return VideoResponse{TaskID: result.ID, Status: VideoStatusSubmitted, Debug: takeDebug(ctx)}, nil
 }
 
-func openAIShouldUseXAIVideoGenerations(req VideoRequest) bool {
-	model := strings.ToLower(strings.TrimSpace(req.Model))
-	if !strings.HasPrefix(model, "grok-imagine-video") {
-		return false
-	}
-	return req.Image == "" && len(req.InputImages) == 0 && len(req.InputImageDataList) == 0
-}
-
-func (a *OpenAIAdapter) xaiVideoStart(ctx context.Context, req VideoRequest) (VideoResponse, error) {
+func (a *OpenAIAdapter) officialVideoGenerationsStart(ctx context.Context, req VideoRequest) (VideoResponse, error) {
 	dur := req.Duration
 	if dur <= 0 {
 		dur = 5
@@ -1586,6 +1590,8 @@ func (a *OpenAIAdapter) xaiVideoStart(ctx context.Context, req VideoRequest) (Vi
 	if req.ResolutionName != "" {
 		body["resolution"] = req.ResolutionName
 	}
+	debugBody := cloneDebugMap(body)
+	attachReferenceAssetDebugBindings(debugBody, req.ReferenceAssets, staticReferenceAssetProviderField("input_reference[]"))
 	endpoint := strings.TrimRight(a.BaseURL, "/") + "/videos/generations"
 	rawBody, _ := json.Marshal(body)
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(rawBody))
@@ -1604,7 +1610,7 @@ func (a *OpenAIAdapter) xaiVideoStart(ctx context.Context, req VideoRequest) (Vi
 	if err != nil {
 		recordDebug(ctx, DebugCallResult{
 			ModelID: req.Model, Endpoint: endpoint, Method: http.MethodPost,
-			RequestHeaders: headers, RequestBody: mustJSON(body), LatencyMs: latency, Error: err.Error(),
+			RequestHeaders: headers, RequestBody: mustJSON(debugBody), LatencyMs: latency, Error: err.Error(),
 		})
 		return VideoResponse{}, err
 	}
@@ -1612,7 +1618,7 @@ func (a *OpenAIAdapter) xaiVideoStart(ctx context.Context, req VideoRequest) (Vi
 	respBody, _ := io.ReadAll(resp.Body)
 	recordDebug(ctx, DebugCallResult{
 		Success: resp.StatusCode < 400, ModelID: req.Model, Endpoint: endpoint, Method: http.MethodPost,
-		RequestHeaders: headers, RequestBody: mustJSON(body),
+		RequestHeaders: headers, RequestBody: mustJSON(debugBody),
 		ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: latency,
 	})
 	if resp.StatusCode >= 400 {

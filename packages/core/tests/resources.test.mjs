@@ -269,6 +269,8 @@ test('core resources typed resource refs normalize legacy ids without accepting 
     revision: 3,
   })
   assert.deepEqual(normalizeRawResourceRef('{{resource::42}}'), { kind: 'raw-resource', resourceId: '42' })
+  assert.deepEqual(normalizeRawResourceRef('@[resource:image:first_frame:42]'), { kind: 'raw-resource', resourceId: '42' })
+  assert.deepEqual(normalizeRawResourceRef('resource:video:motion_reference:77'), { kind: 'raw-resource', resourceId: '77' })
   assert.deepEqual(normalizeRawResourceRef('[[resource:asset/42]]'), { kind: 'raw-resource', resourceId: 'asset/42' })
   assert.deepEqual(normalizeRawResourceRef({ kind: 'raw-resource', resource_id: 7, project_id: 'p1', scope: 'project', revision: 'r2' }), {
     kind: 'raw-resource',

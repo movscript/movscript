@@ -20,7 +20,6 @@ export function listTools(): MCPTool[] {
   const baseExternalResourceTools = externalResourceTools()
   return [
     ...systemTools({
-      focus: focusTools(),
       models: modelTools(),
       generation: baseGenerationTools,
       resourceLibrary: baseResourceLibraryTools,
@@ -44,7 +43,6 @@ export function listTools(): MCPTool[] {
 }
 
 function systemTools(input: {
-  focus: MCPTool[]
   models: MCPTool[]
   generation: MCPTool[]
   resourceLibrary: MCPTool[]
@@ -54,7 +52,6 @@ function systemTools(input: {
   project: MCPTool[]
 }): MCPTool[] {
   return [
-    ...renameTools(input.focus, { movscript_focus_get: 'system_focus_get' }),
     ...renameTools(input.project, {
       movscript_project_create: 'system_project_create',
       movscript_project_init: 'system_project_init',

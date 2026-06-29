@@ -24,6 +24,20 @@ func (h *AIHandler) ListModelCatalogTemplates(c *gin.Context) {
 	c.JSON(http.StatusOK, h.service.ListModelCatalogTemplates(c.Request.Context(), c.Query("lab")))
 }
 
+func (h *AIHandler) DiagnoseModelRoute(c *gin.Context) {
+	var req adminai.ModelRouteDiagnoseInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	diagnosis, err := h.service.DiagnoseModelRoute(c.Request.Context(), req)
+	if err != nil {
+		writeModelCatalogError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, diagnosis)
+}
+
 func (h *AIHandler) CreateModelCatalogEntry(c *gin.Context) {
 	var req adminai.ModelCatalogEntryInput
 	if err := c.ShouldBindJSON(&req); err != nil {

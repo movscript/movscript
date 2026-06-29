@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
 import { handleJSONRPC } from '../dist/mcp/node/index.js'
 import { startEditingService } from '../../../services/editing-service/src/server.mjs'
+import {
+  MEDIA_PIPELINE_TASK_ACTION_ENDPOINT,
+  startMediaPipelineService,
+} from '../../../services/media-pipeline/src/server.mjs'
+import { createHeadlessMediaPipelineRuntimePort } from '../../../services/media-pipeline/src/headlessRuntime.mjs'
 
 let editingServiceRuntime
 let editingServiceHomeDir
@@ -52,6 +57,35 @@ async function callToolResponse(name, args, id = name) {
       arguments: args,
     },
   })
+}
+
+async function postJSON(url, body) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const data = await response.json()
+  if (!response.ok) {
+    throw new Error(data?.message ?? data?.error ?? `HTTP ${response.status}`)
+  }
+  return data
+}
+
+async function waitForMediaPipelineTask(baseUrl, taskId, status) {
+  let latest
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const response = await postJSON(`${baseUrl}${MEDIA_PIPELINE_TASK_ACTION_ENDPOINT}`, {
+      action: 'getTask',
+      taskId,
+      options: { projectId: 'project-tools-mvp' },
+    })
+    latest = response.task
+    if (latest?.status === status) return latest
+    if (latest?.status === 'failed' || latest?.status === 'canceled') break
+    await new Promise(resolve => setTimeout(resolve, 25))
+  }
+  throw new Error(`expected task ${taskId} to reach ${status}; latest=${JSON.stringify(latest)}`)
 }
 
 test('MCP editing project and timeline tools apply pure MediaEditingProject edits', async () => {
@@ -235,6 +269,140 @@ test('MCP editing project and timeline tools apply pure MediaEditingProject edit
   assert.equal(localExport.candidate_created, false)
 })
 
+test('MCP editing video compose creates edit-decision projects and preserves runtime blockers', async () => {
+  const created = await callTool('editing_project_create_from_edit_decisions', {
+    projectId: 'project-tools',
+    title: 'Compose project',
+    editDecisions: sampleEditDecisions(),
+    assetManifest: sampleAssetManifest(),
+  })
+  assert.equal(created.status, 'ok')
+  assert.equal(created.editing_project.source.kind, 'edit_decisions')
+  assert.equal(created.editing_project.timeline.tracks[0].id, 'track_primary_video')
+  assert.equal(created.editing_project.timeline.tracks[0].clips[0].asset.resourceId, 701)
+
+  const unsupportedRuntime = await callTool('editing_video_compose', {
+    projectId: 'project-tools',
+    render_runtime: 'hyperframes',
+    edit_decisions: sampleEditDecisions(),
+    asset_manifest: sampleAssetManifest(),
+  })
+  assert.equal(unsupportedRuntime.status, 'unsupported_runtime')
+  assert.equal(unsupportedRuntime.render_runtime, 'hyperframes')
+  assert.match(unsupportedRuntime.message, /no silent fallback/)
+
+  const compose = await callTool('editing_video_compose', {
+    projectId: 'project-tools',
+    render_runtime: 'ffmpeg',
+    timelineAssembly: sampleTimelineAssembly(),
+    edit_decisions: sampleEditDecisions(),
+    asset_manifest: sampleAssetManifest(),
+    output: { format: 'mp4' },
+  })
+  assert.ok(['ok', 'unsupported_runtime'].includes(compose.status))
+  if (compose.status === 'unsupported_runtime') {
+    assert.equal(compose.code, 'ELECTRON_EDITING_RUNTIME_REQUIRED')
+  } else {
+    assert.equal(compose.task.taskType, 'timeline_render')
+  }
+  assert.equal(compose.render_runtime, 'ffmpeg')
+  assert.equal(compose.editing_project.source.kind, 'edit_decisions')
+  assert.equal(compose.compile_manifest.schema, 'movscript.timeline_assembly.compile_manifest.v1')
+  assert.equal(compose.compile_manifest.status, 'ready')
+  assert.equal(compose.compile_result.status, 'ready')
+  assert.equal(compose.editing_project.provenance.sourceHash, compose.compile_manifest.input_hash)
+  assert.equal(compose.editing_project.timeline.metadata.compileManifestId, compose.compile_manifest.id)
+  assert.equal(compose.validation.valid, true)
+  assert.equal(compose.candidate_created, false)
+})
+
+test('MCP editing video compose renders a TimelineAssembly and local asset through MediaPipeline', async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), 'movscript-core-video-compose-'))
+  const fakeFFmpeg = join(tempDir, 'ffmpeg')
+  const sourcePath = join(tempDir, 'clip.mp4')
+  await writeFile(sourcePath, 'fake source', 'utf8')
+  await writeFile(fakeFFmpeg, [
+    '#!/bin/sh',
+    'if [ "$1" = "-version" ]; then',
+    '  echo "ffmpeg version fake-core-video-compose"',
+    '  exit 0',
+    'fi',
+    'last=""',
+    'for arg in "$@"; do',
+    '  last="$arg"',
+    'done',
+    'mkdir -p "$(dirname "$last")"',
+    'printf "fake composed output" > "$last"',
+    'exit 0',
+    '',
+  ].join('\n'), 'utf8')
+  await chmod(fakeFFmpeg, 0o755)
+
+  const runtime = await startMediaPipelineService({
+    runtimePort: createHeadlessMediaPipelineRuntimePort({
+      env: {
+        MOVSCRIPT_FFMPEG_PATH: fakeFFmpeg,
+        MOVSCRIPT_MEDIA_PIPELINE_WORK_DIR: join(tempDir, 'tasks'),
+      },
+    }),
+  })
+  const previousMediaPipelineURL = process.env.MOVSCRIPT_MEDIA_PIPELINE_URL
+  const previousMediaPipelineBaseURL = process.env.MOVSCRIPT_MEDIA_PIPELINE_BASE_URL
+  process.env.MOVSCRIPT_MEDIA_PIPELINE_URL = runtime.url
+  delete process.env.MOVSCRIPT_MEDIA_PIPELINE_BASE_URL
+
+  try {
+    const compose = await callTool('editing_video_compose', {
+      projectId: 'project-tools-mvp',
+      render_runtime: 'ffmpeg',
+      timelineAssembly: sampleLocalTimelineAssembly(),
+      edit_decisions: sampleLocalEditDecisions(),
+      asset_manifest: sampleLocalAssetManifest(sourcePath),
+      output: {
+        format: 'mp4',
+        filename: 'timeline-mvp.mp4',
+      },
+    })
+
+    assert.equal(compose.status, 'ok')
+    assert.equal(compose.render_runtime, 'ffmpeg')
+    assert.equal(compose.render_runtime_used, 'movscript_media_pipeline_ffmpeg')
+    assert.equal(compose.task.taskType, 'timeline_render')
+    assert.equal(compose.compile_manifest.status, 'ready')
+    assert.equal(compose.compile_result.status, 'ready')
+    assert.equal(compose.validation.valid, true)
+    assert.equal(compose.editing_project.timeline.tracks[0].clips[0].asset.localPath, sourcePath)
+    assert.equal(compose.render_report.task_id, compose.task.taskId)
+    assert.equal(compose.render_report.candidate_created, false)
+
+    const completedTask = await waitForMediaPipelineTask(runtime.url, compose.task.taskId, 'succeeded')
+    assert.equal(completedTask.taskType, 'timeline_render')
+    assert.equal(completedTask.outputName, 'timeline-mvp.mp4')
+    assert.match(completedTask.outputPath, /timeline-mvp\.mp4$/)
+    assert.equal(await readFile(completedTask.outputPath, 'utf8'), 'fake composed output')
+
+    const taskFromTool = await callTool('editing_task_get', {
+      projectId: 'project-tools-mvp',
+      taskId: compose.task.taskId,
+    })
+    assert.equal(taskFromTool.task.status, 'succeeded')
+    assert.equal(taskFromTool.task.outputPath, completedTask.outputPath)
+  } finally {
+    if (previousMediaPipelineURL === undefined) {
+      delete process.env.MOVSCRIPT_MEDIA_PIPELINE_URL
+    } else {
+      process.env.MOVSCRIPT_MEDIA_PIPELINE_URL = previousMediaPipelineURL
+    }
+    if (previousMediaPipelineBaseURL === undefined) {
+      delete process.env.MOVSCRIPT_MEDIA_PIPELINE_BASE_URL
+    } else {
+      process.env.MOVSCRIPT_MEDIA_PIPELINE_BASE_URL = previousMediaPipelineBaseURL
+    }
+    await runtime.close()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
 test('MCP editing timeline validation reports structural timeline diagnostics', async () => {
   const project = {
     version: 1,
@@ -337,6 +505,97 @@ test('MCP editing timeline validation reports structural timeline diagnostics', 
   assert.ok(codes.includes('clip_overlap'))
   assert.ok(codes.includes('subtitle_reference_missing'))
 })
+
+function sampleEditDecisions() {
+  return {
+    version: 1,
+    render_runtime: 'ffmpeg',
+    cuts: [{
+      id: 'cut_intro',
+      source: 'clip_intro',
+      in_seconds: 0,
+      out_seconds: 3,
+    }],
+    audio: {
+      music: {
+        asset_id: 'music_bed',
+        volume: 0.4,
+      },
+    },
+  }
+}
+
+function sampleTimelineAssembly() {
+  return {
+    schema: 'movscript.timeline_assembly.v1',
+    id: 'assembly_project_tools',
+    target_ref: 'timeline_assembly:production:pilot',
+    scope_kind: 'production',
+    scope_ref: 'pilot',
+    tracks: [{ id: 'video_main', kind: 'video' }],
+    clips: [{
+      id: 'clip_intro',
+      track_id: 'video_main',
+      kind: 'visual',
+      source: { resource_id: 701 },
+    }],
+  }
+}
+
+function sampleAssetManifest() {
+  return {
+    assets: [
+      { id: 'clip_intro', type: 'video', resource_id: 701, label: 'Intro' },
+      { id: 'music_bed', type: 'audio', resource_id: 702, label: 'Music' },
+    ],
+  }
+}
+
+function sampleLocalEditDecisions() {
+  return {
+    version: 1,
+    render_runtime: 'ffmpeg',
+    cuts: [{
+      id: 'cut_intro',
+      source: 'clip_intro',
+      in_seconds: 0,
+      out_seconds: 1.25,
+      transition_out: 'cut',
+      reason: 'MVP single selected source clip',
+    }],
+  }
+}
+
+function sampleLocalTimelineAssembly() {
+  return {
+    schema: 'movscript.timeline_assembly.v1',
+    id: 'assembly_project_tools_mvp',
+    target_ref: 'timeline_assembly:production:mvp',
+    scope_kind: 'production',
+    scope_ref: 'mvp',
+    tracks: [{ id: 'video_main', kind: 'video' }],
+    clips: [{
+      id: 'clip_intro',
+      track_id: 'video_main',
+      kind: 'visual',
+      source: { asset_id: 'clip_intro' },
+    }],
+  }
+}
+
+function sampleLocalAssetManifest(sourcePath) {
+  return {
+    assets: [
+      {
+        id: 'clip_intro',
+        type: 'video',
+        path: sourcePath,
+        label: 'Selected local intro',
+        candidate_id: 'cand_clip_intro_selected',
+      },
+    ],
+  }
+}
 
 test('MCP editing tools reject malformed MediaEditingProject envelopes before mutation', async () => {
   const response = await callToolResponse('editing_timeline_add_track', {

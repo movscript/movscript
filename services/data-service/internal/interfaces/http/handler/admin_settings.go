@@ -114,13 +114,60 @@ func (h *AdminSettingsHandler) UpdateProviderAssetSettings(c *gin.Context) {
 		TargetType: "admin_setting",
 		TargetID:   adminsettings.ProviderAssetSettingsKey,
 		Metadata: map[string]any{
-			"public_base_url":       updated.PublicBaseURL,
-			"signing_secret_set":    updated.SigningSecretSet,
 			"ark_openapi_base_url":  updated.ArkOpenAPIBaseURL,
 			"ark_region":            updated.ArkRegion,
 			"ark_access_key_id_set": updated.ArkAccessKeyID != "",
 			"ark_secret_key_set":    updated.ArkSecretKeySet,
 			"ark_asset_group_count": len(updated.ArkAssetGroups),
+		},
+	})
+	c.JSON(http.StatusOK, updated)
+}
+
+func (h *AdminSettingsHandler) GetResourceAccessSettings(c *gin.Context) {
+	settings, err := h.service.PublicResourceAccessSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("查询资源公网访问设置失败"))
+		return
+	}
+	c.JSON(http.StatusOK, settings)
+}
+
+func (h *AdminSettingsHandler) UpdateResourceAccessSettings(c *gin.Context) {
+	var req adminsettings.ResourceAccessSettings
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
+		return
+	}
+	updated, err := h.service.UpdateResourceAccessSettings(c.Request.Context(), req)
+	if err != nil {
+		if errors.Is(err, adminsettings.ErrInvalidResourceAccessSettings) {
+			c.JSON(http.StatusBadRequest, api.InvalidInput("资源公网访问设置无效：启用 public tunnel/public backend/object relay 时必须填写 http/https 公网地址，启用签名时必须填写签名密钥"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.Internal("保存资源公网访问设置失败"))
+		return
+	}
+	profiles := make([]map[string]any, 0, len(updated.Profiles))
+	for _, profile := range updated.Profiles {
+		profiles = append(profiles, map[string]any{
+			"id":                 profile.ID,
+			"mode":               profile.Mode,
+			"enabled":            profile.Enabled,
+			"public_base_url":    profile.PublicBaseURL,
+			"signing_enabled":    profile.SigningEnabled,
+			"signing_secret_set": profile.SigningSecretSet,
+			"expires_seconds":    profile.ExpiresSeconds,
+		})
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "settings.resource_access.admin_updated",
+		TargetType: "admin_setting",
+		TargetID:   adminsettings.ResourceAccessSettingsKey,
+		Metadata: map[string]any{
+			"default_profile_id": updated.DefaultProfileID,
+			"profile_count":      len(updated.Profiles),
+			"profiles":           profiles,
 		},
 	})
 	c.JSON(http.StatusOK, updated)

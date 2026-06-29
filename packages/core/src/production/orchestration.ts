@@ -69,7 +69,7 @@ export function createProductionOrchestrationDefaultsForType(
   if (type === 'contentUnits') return { production_id: productionId || 0, segment_id: segmentId ?? null, scene_moment_id: sceneMomentId ?? null }
   if (type === 'segments') return { kind: 'emotional_function', production_id: productionId || 0 }
   if (type === 'sceneMoments') return { production_id: productionId || 0, segment_id: segmentId ?? null }
-  if (type === 'expressionUnits') return { scene_moment_id: sceneMomentId ?? null, kind: 'dialogue', order: 1 }
+  if (type === 'expressionUnits') return { scene_moment_id: sceneMomentId ?? null, kind: 'visual', order: 1 }
   if (type === 'settings') return { importance: 'main' }
   return {}
 }

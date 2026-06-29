@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto'
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 
 const repoRoot = resolve(import.meta.dirname, '..')
 const sourceDir = resolve(repoRoot, 'apps/plugin')
 const distributionDir = resolve(repoRoot, 'plugins/movscript')
+const rootPackage = readJSON(resolve(repoRoot, 'package.json'))
+const pluginPackage = readJSON(resolve(sourceDir, 'package.json'))
 const mirroredPaths = [
   '.codex-plugin',
   '.provider-plugin',
@@ -53,6 +55,7 @@ function syncDistribution() {
     mkdirSync(dirname(targetPath), { recursive: true })
     cpSync(sourcePath, targetPath, { recursive: true })
   }
+  writeRuntimeManifest(distributionDir)
 }
 
 function distributionDifferences() {
@@ -66,7 +69,62 @@ function distributionDifferences() {
     }
     compareTrees(sourcePath, targetPath, relativePath, errors)
   }
+  validateRuntimeManifest(distributionDir, errors)
   return errors
+}
+
+function expectedRuntimeManifest(generatedAt = new Date().toISOString()) {
+  return {
+    appId: 'plugin',
+    applicationId: 'movscript.agent-plugin',
+    artifact: 'movscript-agent-plugin',
+    version: String(rootPackage.version || pluginPackage.version || '0.0.0'),
+    packageName: pluginPackage.name,
+    generatedAt,
+    mcpServer: 'movscript',
+    entrypoint: './bin/movscript',
+    mcpArgs: ['mcp', 'stdio'],
+    daemonArgs: ['daemon', 'run'],
+    cliEntrypoint: './bin/movscript',
+    legacyCliEntrypoint: './bin/movcli',
+    legacyMcpEntrypoint: './bin/movscript-agent-mcp',
+  }
+}
+
+function writeRuntimeManifest(pluginDir) {
+  writeFileSync(resolve(pluginDir, 'manifest.runtime.json'), `${JSON.stringify(expectedRuntimeManifest(), null, 2)}\n`, 'utf8')
+}
+
+function validateRuntimeManifest(pluginDir, errors) {
+  const manifestPath = resolve(pluginDir, 'manifest.runtime.json')
+  if (!existsSync(manifestPath)) {
+    errors.push('manifest.runtime.json is missing from plugins/movscript')
+    return
+  }
+  const actual = readJSON(manifestPath)
+  const expected = expectedRuntimeManifest(actual.generatedAt)
+  const fields = [
+    'appId',
+    'applicationId',
+    'artifact',
+    'version',
+    'packageName',
+    'mcpServer',
+    'entrypoint',
+    'cliEntrypoint',
+    'legacyCliEntrypoint',
+    'legacyMcpEntrypoint',
+  ]
+  for (const field of fields) {
+    if (actual[field] !== expected[field]) {
+      errors.push(`manifest.runtime.json ${field} is ${JSON.stringify(actual[field])}, expected ${JSON.stringify(expected[field])}`)
+    }
+  }
+  for (const field of ['mcpArgs', 'daemonArgs']) {
+    if (JSON.stringify(actual[field]) !== JSON.stringify(expected[field])) {
+      errors.push(`manifest.runtime.json ${field} is ${JSON.stringify(actual[field])}, expected ${JSON.stringify(expected[field])}`)
+    }
+  }
 }
 
 function compareTrees(sourcePath, targetPath, relativePath, errors) {
@@ -104,6 +162,10 @@ function visibleEntries(path) {
 
 function fileHash(path) {
   return createHash('sha256').update(readFileSync(path)).digest('hex')
+}
+
+function readJSON(path) {
+  return JSON.parse(readFileSync(path, 'utf8'))
 }
 
 function printUsage() {

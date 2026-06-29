@@ -165,7 +165,7 @@ function currentProductFactsForNode(node: ContentCanvasNode): Array<ContentCanva
   }
   if (node.kind === 'expression_unit') {
     return [
-      stringFact('expression-kind', '表达类型', node.record.expression_kind ?? node.record.expressionKind ?? node.record.kind),
+      stringFact('expression-kind', '表达类型', node.record.slot_kind ?? node.record.slotKind ?? node.record.expression_kind ?? node.record.expressionKind ?? node.record.kind),
       stringFact('expression-summary', '表达描述', node.summary),
       numberFact('expression-duration', '时长秒', node.record.duration_sec ?? node.record.durationSec),
       stringFact('expression-camera', 'Camera', node.record.camera),

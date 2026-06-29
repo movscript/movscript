@@ -9,11 +9,13 @@ import {
 } from '@movscript/project-surface/react'
 import type { ProjectSurfaceReadModelStatus } from '@movscript/project-surface/react'
 import {
-  createProjectSurfaceRuntime,
+  createHostedProjectSurfaceRuntime,
+  projectSurfaceContextCommandEnvelope,
   type ProjectSurfaceGitAction,
   type ProjectSurfaceRouteKey,
   type ProjectSurfaceRouteParams,
   type ProjectSurfaceRuntime,
+  unwrapProjectSurfaceGatewayResult,
 } from '@movscript/project-surface/runtime'
 
 import { ROUTES } from '@/routes/projectRoutes'
@@ -30,6 +32,9 @@ import { workspaceOwnerContext } from '@/shared/infrastructure/session/workspace
 import { toast } from '@movscript/ui/toast'
 
 const PROJECT_SERVICE_READ_MODEL_ENDPOINT = '/v1/project/read-model'
+const PROJECT_SERVICE_HOME_READ_MODEL_ENDPOINT = '/v1/project/home/read-model'
+const PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT = '/v1/project/standards/read-model'
+const PROJECT_SERVICE_SCRIPTS_READ_MODEL_ENDPOINT = '/v1/project/scripts/read-model'
 const PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT = '/v1/project/resources/view'
 const PROJECT_SERVICE_CANDIDATES_VIEW_ENDPOINT = '/v1/project/candidates/view'
 const PROJECT_SERVICE_STANDARDS_UPSERT_ENDPOINT = '/v1/project/standards/upsert'
@@ -134,15 +139,15 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
         endpoint,
         {
           projectDir: nextProjectDir,
-          ...desktopContextCommandEnvelope(contextEnvelope),
+          ...projectSurfaceContextCommandEnvelope(contextEnvelope),
           ...(recordValue(input.input) ?? {}),
           ...(decisionStore ? { decisionStore } : {}),
         },
       )
-      return Object.prototype.hasOwnProperty.call(payload, 'result') ? payload.result : payload
+      return unwrapProjectSurfaceGatewayResult(payload)
     }
 
-    return createProjectSurfaceRuntime({
+    return createHostedProjectSurfaceRuntime({
       context: contextEnvelope,
       project: {
         projectId: contextProjectId,
@@ -166,14 +171,12 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
         editing: true,
         mediaPipeline: true,
       },
-      navigator: {
-        href: (route, params) => desktopProjectSurfaceHref(route, contextProjectId, params),
-        open: (route, params) => {
-          window.location.assign(desktopProjectSurfaceHref(route, contextProjectId, params))
-        },
-        openExternal: (url) => {
-          window.open(url, '_blank', 'noopener,noreferrer')
-        },
+      href: (route, params, runtimeProject) => desktopProjectSurfaceHref(route, runtimeProject.projectId, params),
+      openHref: (href) => {
+        window.location.assign(href)
+      },
+      openExternal: (url) => {
+        window.open(url, '_blank', 'noopener,noreferrer')
       },
       notifier: {
         success: (message, detail) => toast.success(message, detail),
@@ -184,28 +187,106 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
       gateways: {
         project: {
           readModel: async () => {
-          const latestConfig = await refreshRuntimeConfigSnapshot()
-          const daemonGatewayBaseURL = readDesktopDaemonGatewayBaseURL(latestConfig ?? runtimeConfig)
-          if (!contextProjectDir) throw new Error('Daemon context does not expose a local project workspace for this Desktop project.')
-          if (!daemonGatewayBaseURL) throw new Error('Daemon gateway endpoint is not available in Desktop runtime config.')
-          const decisionStore = desktopProjectDecisionStoreConfig({
-            projectUid: contextProjectUid,
-            title: project?.name,
-            baseURL: daemonGatewayBaseURL,
-            context: contextEnvelope,
-            owner,
-          })
-          return postDaemonGateway(
-            daemonGatewayBaseURL,
-            PROJECT_SERVICE_READ_MODEL_ENDPOINT,
-            {
-              projectDir: contextProjectDir,
-              includeSource: false,
-              includeInspection: false,
-              ...desktopContextCommandEnvelope(contextEnvelope),
-              ...(decisionStore ? { decisionStore } : {}),
-            },
-          )
+            const latestConfig = await refreshRuntimeConfigSnapshot()
+            const daemonGatewayBaseURL = readDesktopDaemonGatewayBaseURL(latestConfig ?? runtimeConfig)
+            if (!contextProjectDir) throw new Error('Daemon context does not expose a local project workspace for this Desktop project.')
+            if (!daemonGatewayBaseURL) throw new Error('Daemon gateway endpoint is not available in Desktop runtime config.')
+            const decisionStore = desktopProjectDecisionStoreConfig({
+              projectUid: contextProjectUid,
+              title: project?.name,
+              baseURL: daemonGatewayBaseURL,
+              context: contextEnvelope,
+              owner,
+            })
+            return postDaemonGateway(
+              daemonGatewayBaseURL,
+              PROJECT_SERVICE_READ_MODEL_ENDPOINT,
+              {
+                projectDir: contextProjectDir,
+                includeSource: false,
+                includeInspection: false,
+                ...projectSurfaceContextCommandEnvelope(contextEnvelope),
+                ...(decisionStore ? { decisionStore } : {}),
+              },
+            )
+          },
+          homeReadModel: async (input = {}) => {
+            const latestConfig = await refreshRuntimeConfigSnapshot()
+            const daemonGatewayBaseURL = readDesktopDaemonGatewayBaseURL(latestConfig ?? runtimeConfig)
+            const nextProjectDir = input.projectDir ?? contextProjectDir
+            const nextProjectUid = input.projectUid ?? contextProjectUid
+            if (!nextProjectDir) throw new Error('Daemon context does not expose a local project workspace for this Desktop project.')
+            if (!daemonGatewayBaseURL) throw new Error('Daemon gateway endpoint is not available in Desktop runtime config.')
+            const decisionStore = desktopProjectDecisionStoreConfig({
+              projectUid: nextProjectUid,
+              title: project?.name,
+              baseURL: daemonGatewayBaseURL,
+              context: contextEnvelope,
+              owner,
+            })
+            return postDaemonGateway(
+              daemonGatewayBaseURL,
+              PROJECT_SERVICE_HOME_READ_MODEL_ENDPOINT,
+              {
+                projectDir: nextProjectDir,
+                projectId: input.projectId ?? contextProjectId,
+                ...(nextProjectUid ? { projectUid: nextProjectUid } : {}),
+                ...projectSurfaceContextCommandEnvelope(contextEnvelope),
+                ...(decisionStore ? { decisionStore } : {}),
+              },
+            )
+          },
+          standardsReadModel: async (input = {}) => {
+            const latestConfig = await refreshRuntimeConfigSnapshot()
+            const daemonGatewayBaseURL = readDesktopDaemonGatewayBaseURL(latestConfig ?? runtimeConfig)
+            const nextProjectDir = input.projectDir ?? contextProjectDir
+            const nextProjectUid = input.projectUid ?? contextProjectUid
+            if (!nextProjectDir) throw new Error('Daemon context does not expose a local project workspace for this Desktop project.')
+            if (!daemonGatewayBaseURL) throw new Error('Daemon gateway endpoint is not available in Desktop runtime config.')
+            const decisionStore = desktopProjectDecisionStoreConfig({
+              projectUid: nextProjectUid,
+              title: project?.name,
+              baseURL: daemonGatewayBaseURL,
+              context: contextEnvelope,
+              owner,
+            })
+            return postDaemonGateway(
+              daemonGatewayBaseURL,
+              PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT,
+              {
+                projectDir: nextProjectDir,
+                projectId: input.projectId ?? contextProjectId,
+                ...(nextProjectUid ? { projectUid: nextProjectUid } : {}),
+                ...projectSurfaceContextCommandEnvelope(contextEnvelope),
+                ...(decisionStore ? { decisionStore } : {}),
+              },
+            )
+          },
+          scriptsReadModel: async (input = {}) => {
+            const latestConfig = await refreshRuntimeConfigSnapshot()
+            const daemonGatewayBaseURL = readDesktopDaemonGatewayBaseURL(latestConfig ?? runtimeConfig)
+            const nextProjectDir = input.projectDir ?? contextProjectDir
+            const nextProjectUid = input.projectUid ?? contextProjectUid
+            if (!nextProjectDir) throw new Error('Daemon context does not expose a local project workspace for this Desktop project.')
+            if (!daemonGatewayBaseURL) throw new Error('Daemon gateway endpoint is not available in Desktop runtime config.')
+            const decisionStore = desktopProjectDecisionStoreConfig({
+              projectUid: nextProjectUid,
+              title: project?.name,
+              baseURL: daemonGatewayBaseURL,
+              context: contextEnvelope,
+              owner,
+            })
+            return postDaemonGateway(
+              daemonGatewayBaseURL,
+              PROJECT_SERVICE_SCRIPTS_READ_MODEL_ENDPOINT,
+              {
+                projectDir: nextProjectDir,
+                projectId: input.projectId ?? contextProjectId,
+                ...(nextProjectUid ? { projectUid: nextProjectUid } : {}),
+                ...projectSurfaceContextCommandEnvelope(contextEnvelope),
+                ...(decisionStore ? { decisionStore } : {}),
+              },
+            )
           },
           resourceView: async (input) => {
           const latestConfig = await refreshRuntimeConfigSnapshot()
@@ -219,7 +300,7 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
             {
               projectDir: nextProjectDir,
               kind: input.kind,
-              ...desktopContextCommandEnvelope(contextEnvelope),
+              ...projectSurfaceContextCommandEnvelope(contextEnvelope),
               ...(input.input !== undefined ? { input: input.input } : {}),
             },
           )
@@ -244,7 +325,7 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
               projectDir: nextProjectDir,
               contentUnitIds: input.contentUnitIds,
               ...(input.projectUid ?? contextProjectUid ? { projectUid: input.projectUid ?? contextProjectUid } : {}),
-              ...desktopContextCommandEnvelope(contextEnvelope),
+              ...projectSurfaceContextCommandEnvelope(contextEnvelope),
               ...(recordValue(input.input) ?? {}),
               ...(decisionStore ? { decisionStore } : {}),
             },
@@ -361,17 +442,6 @@ function desktopDataScopeFromOwner(owner: ReturnType<typeof workspaceOwnerContex
   return owner.orgId !== undefined
     ? { scopeKind: 'org', scopeId: owner.orgId }
     : { scopeKind: 'user', scopeId: owner.userId }
-}
-
-function desktopContextCommandEnvelope(context: MovScriptContextEnvelope | undefined): Record<string, unknown> {
-  const sessionId = context?.session?.sessionId
-  if (!sessionId) return {}
-  return {
-    context: {
-      sessionId,
-      revision: context.revision,
-    },
-  }
 }
 
 export function useDesktopProjectReadModel() {

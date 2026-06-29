@@ -5,7 +5,7 @@ templates:
       lab: anthropic
       model_id: claude-3-5-sonnet-20241022
       display_name: Claude 3.5 Sonnet
-      adapter_type: anthropic
+      route_adapter_hint: anthropic
       capabilities:
         - text
       source:
@@ -17,7 +17,7 @@ templates:
       lab: anthropic
       model_id: claude-3-7-sonnet-20250219
       display_name: Claude 3.7 Sonnet (推理)
-      adapter_type: anthropic
+      route_adapter_hint: anthropic
       capabilities:
         - text
         - reasoning
@@ -30,7 +30,7 @@ templates:
       lab: anthropic
       model_id: claude-3-5-haiku-20241022
       display_name: Claude 3.5 Haiku
-      adapter_type: anthropic
+      route_adapter_hint: anthropic
       capabilities:
         - text
       source:
@@ -42,7 +42,7 @@ templates:
       lab: anthropic
       model_id: claude-opus-4-5-20251101
       display_name: Claude Opus 4.5
-      adapter_type: anthropic
+      route_adapter_hint: anthropic
       capabilities:
         - text
       source:

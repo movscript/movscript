@@ -116,6 +116,20 @@ export async function backendPost(path: string, body: Record<string, unknown>, u
   return res.json()
 }
 
+export async function backendPut(path: string, body: Record<string, unknown>, userId?: unknown): Promise<any> {
+  const headers = backendHeaders({ json: true, userId })
+  const res = await fetch(`${getMovScriptBackendAPIBaseURL()}${path}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    throw await BackendHTTPError.fromResponse('PUT', path, res)
+  }
+  const text = await res.text()
+  return text.trim() ? JSON.parse(text) : null
+}
+
 export async function backendPostMultipart(path: string, form: FormData, userId?: unknown): Promise<any> {
   const headers = backendHeaders({ userId })
   const res = await fetch(`${getMovScriptBackendAPIBaseURL()}${path}`, {

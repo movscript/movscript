@@ -50,14 +50,16 @@ type comboRulesFile struct {
 }
 
 type comboRuleSource struct {
-	ProviderType     string   `yaml:"provider_type,omitempty" json:"provider_type,omitempty"`
-	Profile          string   `yaml:"profile,omitempty" json:"profile,omitempty"`
-	AdapterType      string   `yaml:"adapter_type,omitempty" json:"adapter_type,omitempty"`
-	Lab              string   `yaml:"lab,omitempty" json:"lab,omitempty"`
-	ExcludeLabs      []string `yaml:"exclude_labs,omitempty" json:"exclude_labs,omitempty"`
-	IDPrefix         string   `yaml:"id_prefix,omitempty" json:"id_prefix,omitempty"`
-	ProviderKind     string   `yaml:"provider_kind,omitempty" json:"provider_kind,omitempty"`
-	ProviderCategory string   `yaml:"provider_category,omitempty" json:"provider_category,omitempty"`
+	ProviderType      string   `yaml:"provider_type,omitempty" json:"provider_type,omitempty"`
+	Profile           string   `yaml:"profile,omitempty" json:"profile,omitempty"`
+	AdapterType       string   `yaml:"adapter_type,omitempty" json:"adapter_type,omitempty"`
+	Lab               string   `yaml:"lab,omitempty" json:"lab,omitempty"`
+	ExcludeLabs       []string `yaml:"exclude_labs,omitempty" json:"exclude_labs,omitempty"`
+	ModelTemplateKey  string   `yaml:"model_template_key,omitempty" json:"model_template_key,omitempty"`
+	IDPrefix          string   `yaml:"id_prefix,omitempty" json:"id_prefix,omitempty"`
+	ExcludeIDPrefixes []string `yaml:"exclude_id_prefixes,omitempty" json:"exclude_id_prefixes,omitempty"`
+	ProviderKind      string   `yaml:"provider_kind,omitempty" json:"provider_kind,omitempty"`
+	ProviderCategory  string   `yaml:"provider_category,omitempty" json:"provider_category,omitempty"`
 }
 
 type templateSource struct {
@@ -66,7 +68,7 @@ type templateSource struct {
 	Lab                  string         `yaml:"lab" json:"lab"`
 	ModelID              string         `yaml:"model_id" json:"model_id"`
 	DisplayName          string         `yaml:"display_name" json:"display_name"`
-	AdapterType          string         `yaml:"adapter_type" json:"adapter_type"`
+	RouteAdapterHint     string         `yaml:"route_adapter_hint,omitempty" json:"route_adapter_hint,omitempty"`
 	Capabilities         []string       `yaml:"capabilities" json:"capabilities"`
 	APIKinds             []string       `yaml:"api_kinds,omitempty" json:"api_kinds,omitempty"`
 	AllowModelIDOverride bool           `yaml:"allow_model_id_override,omitempty" json:"allow_model_id_override,omitempty"`
@@ -111,14 +113,14 @@ type paramSource struct {
 }
 
 type snapshotEntry struct {
-	ID           string         `json:"id"`
-	Lab          string         `json:"lab"`
-	ModelID      string         `json:"model_id"`
-	AdapterType  string         `json:"adapter_type"`
-	Capabilities []string       `json:"capabilities"`
-	APIKinds     []string       `json:"api_kinds,omitempty"`
-	ParamKeys    []string       `json:"param_keys,omitempty"`
-	Source       sourceEvidence `json:"source"`
+	ID               string         `json:"id"`
+	Lab              string         `json:"lab"`
+	ModelID          string         `json:"model_id"`
+	RouteAdapterHint string         `json:"route_adapter_hint,omitempty"`
+	Capabilities     []string       `json:"capabilities"`
+	APIKinds         []string       `json:"api_kinds,omitempty"`
+	ParamKeys        []string       `json:"param_keys,omitempty"`
+	Source           sourceEvidence `json:"source"`
 }
 
 func main() {
@@ -147,9 +149,6 @@ func main() {
 	if err := validateTemplates(templates); err != nil {
 		fatal(err)
 	}
-	if err := validateRuntimeCapabilityCoverage(templates); err != nil {
-		fatal(err)
-	}
 	providers, err := loadProviderTemplates(*providerSource)
 	if err != nil {
 		fatal(err)
@@ -165,6 +164,9 @@ func main() {
 		fatal(err)
 	}
 	if err := validateRegistryBoundaries(templates, providers, rules); err != nil {
+		fatal(err)
+	}
+	if err := validateRuntimeCapabilityCoverage(templates, rules); err != nil {
 		fatal(err)
 	}
 	if err := writeGeneratedGo(*goOut, templates, *check); err != nil {
@@ -200,13 +202,13 @@ func bootstrapFromCurrent(sourceDir string) error {
 		lab := labForTemplateID(template.ID)
 		source := sourceForTemplate(template.ID, template.Capabilities, today)
 		grouped[lab] = append(grouped[lab], templateSource{
-			Order:        i + 1,
-			ID:           template.ID,
-			Lab:          lab,
-			ModelID:      template.ModelID,
-			DisplayName:  template.DisplayName,
-			AdapterType:  template.AdapterType,
-			Capabilities: append([]string(nil), template.Capabilities...),
+			Order:            i + 1,
+			ID:               template.ID,
+			Lab:              lab,
+			ModelID:          template.ModelID,
+			DisplayName:      template.DisplayName,
+			RouteAdapterHint: template.RouteAdapterHint,
+			Capabilities:     append([]string(nil), template.Capabilities...),
 			Input: inputSource{
 				AcceptsImage: template.AcceptsImageInput,
 				MaxImages:    template.MaxInputImages,
@@ -304,8 +306,8 @@ func validateTemplates(templates []templateSource) error {
 		if strings.TrimSpace(template.DisplayName) == "" {
 			return fmt.Errorf("%s: display_name is required", template.ID)
 		}
-		if infraai.GetAdapterDef(template.AdapterType) == nil {
-			return fmt.Errorf("%s: unknown adapter_type %q", template.ID, template.AdapterType)
+		if strings.TrimSpace(template.RouteAdapterHint) != "" && infraai.GetAdapterDef(template.RouteAdapterHint) == nil {
+			return fmt.Errorf("%s: unknown route_adapter_hint %q", template.ID, template.RouteAdapterHint)
 		}
 		if len(template.Capabilities) == 0 {
 			return fmt.Errorf("%s: capabilities are required", template.ID)
@@ -340,18 +342,60 @@ func validateTemplates(templates []templateSource) error {
 	return nil
 }
 
-func validateRuntimeCapabilityCoverage(templates []templateSource) error {
+func validateRuntimeCapabilityCoverage(templates []templateSource, rules []comboRuleSource) error {
 	for _, template := range templates {
 		if strings.TrimSpace(template.Source.Status) == "template_only" {
 			continue
 		}
 		for _, capability := range template.Capabilities {
-			if !adapterSupportsRuntimeCapability(template.AdapterType, capability) {
-				return fmt.Errorf("%s: adapter_type %q does not implement runtime capability %q; mark the template source.status as template_only until the adapter path exists", template.ID, template.AdapterType, capability)
+			if !routeTemplatesCoverRuntimeCapability(template, rules, capability) {
+				return fmt.Errorf("%s: no route template adapter implements runtime capability %q; add a combo rule with a supported adapter or mark the template source.status as template_only", template.ID, capability)
 			}
 		}
 	}
 	return nil
+}
+
+func routeTemplatesCoverRuntimeCapability(template templateSource, rules []comboRuleSource, capability string) bool {
+	for _, rule := range rules {
+		if !comboRuleMatchesTemplateSource(rule, template) {
+			continue
+		}
+		if adapterSupportsRuntimeCapability(rule.AdapterType, capability) {
+			return true
+		}
+	}
+	return false
+}
+
+func comboRuleMatchesTemplateSource(rule comboRuleSource, template templateSource) bool {
+	if strings.TrimSpace(rule.Lab) != "" && strings.TrimSpace(rule.Lab) != strings.TrimSpace(template.Lab) {
+		return false
+	}
+	if hasStringValue(rule.ExcludeLabs, strings.TrimSpace(template.Lab)) {
+		return false
+	}
+	if strings.TrimSpace(rule.ModelTemplateKey) != "" && strings.TrimSpace(rule.ModelTemplateKey) != strings.TrimSpace(template.ID) {
+		return false
+	}
+	if rule.IDPrefix != "" && !strings.HasPrefix(template.ID, rule.IDPrefix) {
+		return false
+	}
+	for _, prefix := range rule.ExcludeIDPrefixes {
+		if prefix != "" && strings.HasPrefix(template.ID, prefix) {
+			return false
+		}
+	}
+	return true
+}
+
+func hasStringValue(values []string, target string) bool {
+	for _, value := range values {
+		if strings.TrimSpace(value) == target {
+			return true
+		}
+	}
+	return false
 }
 
 func adapterSupportsRuntimeCapability(adapterType, capability string) bool {
@@ -360,11 +404,16 @@ func adapterSupportsRuntimeCapability(adapterType, capability string) bool {
 		switch capability {
 		case infraai.CapabilityText, infraai.CapabilityReasoning,
 			infraai.CapabilityImage, infraai.CapabilityImageEdit,
-			infraai.CapabilityVideo, infraai.CapabilityVideoI2V, infraai.CapabilityVideoV2V,
 			infraai.CapabilityAudioTTS, infraai.CapabilityAudioSTT, infraai.CapabilityAudioChat,
 			infraai.CapabilityAudioTranslate, infraai.CapabilitySubAlign:
 			return true
 		}
+	case infraai.AdapterOpenAIVideoMultipart:
+		return capability == infraai.CapabilityVideo || capability == infraai.CapabilityVideoI2V || capability == infraai.CapabilityVideoV2V
+	case infraai.AdapterOfficialVideoGenerations:
+		return capability == infraai.CapabilityVideo
+	case infraai.AdapterYunwuUnifiedVideo:
+		return capability == infraai.CapabilityVideo || capability == infraai.CapabilityVideoI2V
 	case infraai.AdapterAnthropic:
 		return capability == infraai.CapabilityText || capability == infraai.CapabilityReasoning
 	case infraai.AdapterDashScope:
@@ -373,6 +422,8 @@ func adapterSupportsRuntimeCapability(adapterType, capability string) bool {
 			infraai.CapabilityAudioChat:
 			return true
 		}
+	case infraai.AdapterVyroSeedance:
+		return capability == infraai.CapabilityVideo || capability == infraai.CapabilityVideoI2V
 	case infraai.AdapterGemini:
 		switch capability {
 		case infraai.CapabilityText, infraai.CapabilityReasoning,
@@ -525,29 +576,39 @@ func validateComboRules(rules []comboRuleSource, providers []providerTemplateSou
 		if strings.TrimSpace(rule.ProviderCategory) == "" {
 			rule.ProviderCategory = provider.ProviderCategory
 		}
+		if strings.TrimSpace(rule.AdapterType) == "" {
+			rule.AdapterType = strings.TrimSpace(provider.DefaultAdapterType)
+		}
+		if strings.TrimSpace(rule.AdapterType) == "" {
+			return fmt.Errorf("combo rule for provider_kind %q has no adapter_type and provider has no default_adapter_type", rule.ProviderKind)
+		}
 	}
 	return nil
 }
 
 func validateRegistryBoundaries(templates []templateSource, providers []providerTemplateSource, rules []comboRuleSource) error {
 	labs := map[string]bool{}
+	templateKeys := map[string]bool{}
 	for _, template := range templates {
 		lab := strings.TrimSpace(template.Lab)
 		if providerOnlyLabName(lab) {
 			return fmt.Errorf("%s: lab %q is a provider or runtime boundary; use providers.yaml and route bindings instead", template.ID, lab)
 		}
 		labs[lab] = true
+		templateKeys[strings.TrimSpace(template.ID)] = true
 	}
 	for _, rule := range rules {
 		lab := strings.TrimSpace(rule.Lab)
-		if lab == "" {
-			continue
+		if lab != "" {
+			if providerOnlyLabName(lab) {
+				return fmt.Errorf("combo rule lab %q is a provider or runtime boundary; use an upstream model-family lab", lab)
+			}
+			if !labs[lab] {
+				return fmt.Errorf("combo rule references unknown lab %q", lab)
+			}
 		}
-		if providerOnlyLabName(lab) {
-			return fmt.Errorf("combo rule lab %q is a provider or runtime boundary; use an upstream model-family lab", lab)
-		}
-		if !labs[lab] {
-			return fmt.Errorf("combo rule references unknown lab %q", lab)
+		if modelTemplateKey := strings.TrimSpace(rule.ModelTemplateKey); modelTemplateKey != "" && !templateKeys[modelTemplateKey] {
+			return fmt.Errorf("combo rule references unknown model_template_key %q", modelTemplateKey)
 		}
 		for _, excludedLab := range rule.ExcludeLabs {
 			excludedLab = strings.TrimSpace(excludedLab)
@@ -559,6 +620,11 @@ func validateRegistryBoundaries(templates []templateSource, providers []provider
 			}
 			if !labs[excludedLab] {
 				return fmt.Errorf("combo rule exclude_labs references unknown lab %q", excludedLab)
+			}
+		}
+		for _, prefix := range rule.ExcludeIDPrefixes {
+			if strings.TrimSpace(prefix) == "" {
+				return fmt.Errorf("combo rule contains empty exclude_id_prefixes entry")
 			}
 		}
 	}
@@ -619,7 +685,7 @@ func writeGeneratedGo(path string, templates []templateSource, check bool) error
 		writeGoStringField(&buf, "DisplayName", template.DisplayName)
 		writeGoStringSliceField(&buf, "Capabilities", template.Capabilities)
 		writeGoStringSliceField(&buf, "APIKinds", infraai.NormalizeModelAPIKinds(template.APIKinds))
-		writeGoStringField(&buf, "AdapterType", template.AdapterType)
+		writeGoStringField(&buf, "AdapterType", template.RouteAdapterHint)
 		writeGoStringField(&buf, "SourceStatus", template.Source.Status)
 		if template.Input.AcceptsImage {
 			buf.WriteString("\t\tAcceptsImageInput: true,\n")
@@ -674,14 +740,14 @@ func writeSnapshot(path string, templates []templateSource, check bool) error {
 			keys = append(keys, param.Key)
 		}
 		snapshot = append(snapshot, snapshotEntry{
-			ID:           template.ID,
-			Lab:          template.Lab,
-			ModelID:      template.ModelID,
-			AdapterType:  template.AdapterType,
-			Capabilities: template.Capabilities,
-			APIKinds:     infraai.NormalizeModelAPIKinds(template.APIKinds),
-			ParamKeys:    keys,
-			Source:       template.Source,
+			ID:               template.ID,
+			Lab:              template.Lab,
+			ModelID:          template.ModelID,
+			RouteAdapterHint: template.RouteAdapterHint,
+			Capabilities:     template.Capabilities,
+			APIKinds:         infraai.NormalizeModelAPIKinds(template.APIKinds),
+			ParamKeys:        keys,
+			Source:           template.Source,
 		})
 	}
 	raw, err := json.MarshalIndent(snapshot, "", "  ")
@@ -739,9 +805,13 @@ func writeProviderGeneratedGo(path string, providers []providerTemplateSource, r
 			writeGoStringField(&buf, "Lab", rule.Lab)
 		}
 		writeGoStringSliceField(&buf, "ExcludeLabs", rule.ExcludeLabs)
+		if rule.ModelTemplateKey != "" {
+			writeGoStringField(&buf, "ModelTemplateKey", rule.ModelTemplateKey)
+		}
 		if rule.IDPrefix != "" {
 			writeGoStringField(&buf, "IDPrefix", rule.IDPrefix)
 		}
+		writeGoStringSliceField(&buf, "ExcludeIDPrefixes", rule.ExcludeIDPrefixes)
 		writeGoStringField(&buf, "ProviderKind", rule.ProviderKind)
 		writeGoStringField(&buf, "ProviderCategory", rule.ProviderCategory)
 		buf.WriteString("\t},\n")

@@ -57,6 +57,139 @@ func TestAIServiceRoutingPolicyContractResolvesGenerationRoute(t *testing.T) {
 	}
 }
 
+func TestAIServiceRoutingPolicyContractRoutesStructuredOperation(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-routing-structured-operation-contract.db",
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+	)
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID: "story-video",
+		DisplayName:   "Story Video",
+		IsEnabled:     true,
+		ModelCapabilitiesJSON: `{
+			"video_generation": {
+				"operations": ["image_to_video", "first_last_frame_to_video"],
+				"reference_assets": {
+					"min": 1,
+					"max": 2,
+					"modalities": ["image"],
+					"roles": ["generic", "first_frame", "last_frame"]
+				}
+			}
+		}`,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	firstLastRoute := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
+		ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
+		ProviderModelID: "provider-first-last-video",
+		IsEnabled:       true,
+		Priority:        1,
+		CapacityWeight:  1,
+		RouteCapabilitiesJSON: `{
+			"video_generation": {
+				"operations": ["first_last_frame_to_video"],
+				"reference_assets": {
+					"min": 2,
+					"max": 2,
+					"modalities": ["image"],
+					"roles": ["first_frame", "last_frame"]
+				}
+			}
+		}`,
+	}
+	if err := db.Create(&firstLastRoute).Error; err != nil {
+		t.Fatalf("create route: %v", err)
+	}
+	service := NewAIService(db, NewRegistry(db, nil))
+
+	route, err := service.ResolveGatewayModelRoute(context.Background(), providercontract.AIGatewayRouteRequest{
+		ModelID:    "story-video",
+		Capability: CapabilityFamilyVideoGeneration,
+		Operation:  VideoOperationFirstLastFrameToVideo,
+		ReferenceAssets: []providercontract.AIReferenceAssetIntent{
+			{Role: "first_frame", MediaType: "image"},
+			{Role: "last_frame", MediaType: "image"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ResolveGatewayModelRoute() error = %v", err)
+	}
+	if route.RouteBindingID != firstLastRoute.ID || route.Operation != VideoOperationFirstLastFrameToVideo {
+		t.Fatalf("route = %#v, want first-last structured operation route", route)
+	}
+}
+
+func TestAIServiceRoutingPolicyContractRoutesOmniReferenceVideoOperation(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-routing-omni-reference-video-contract.db",
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+	)
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID: "story-reference-video",
+		DisplayName:   "Story Reference Video",
+		IsEnabled:     true,
+		ModelCapabilitiesJSON: `{
+			"video_generation": {
+				"operations": ["reference_to_video"],
+				"reference_assets": {
+					"min": 1,
+					"max": 8,
+					"modalities": ["image", "video", "audio"],
+					"roles": ["generic", "reference_image", "reference_video", "reference_audio"]
+				}
+			}
+		}`,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	omniRoute := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
+		ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
+		ProviderModelID: "provider-omni-reference-video",
+		IsEnabled:       true,
+		Priority:        1,
+		CapacityWeight:  1,
+		RouteCapabilitiesJSON: `{
+			"video_generation": {
+				"operations": ["reference_to_video"],
+				"reference_assets": {
+					"min": 1,
+					"max": 8,
+					"modalities": ["image", "video", "audio"],
+					"roles": ["generic", "reference_image", "reference_video", "reference_audio"]
+				}
+			}
+		}`,
+	}
+	if err := db.Create(&omniRoute).Error; err != nil {
+		t.Fatalf("create route: %v", err)
+	}
+	service := NewAIService(db, NewRegistry(db, nil))
+
+	route, err := service.ResolveGatewayModelRoute(context.Background(), providercontract.AIGatewayRouteRequest{
+		ModelID:    "story-reference-video",
+		Capability: CapabilityFamilyVideoGeneration,
+		Operation:  VideoOperationReferenceToVideo,
+		ReferenceAssets: []providercontract.AIReferenceAssetIntent{
+			{Role: "reference_image", MediaType: "image"},
+			{Role: "reference_video", MediaType: "video"},
+			{Role: "reference_audio", MediaType: "audio"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ResolveGatewayModelRoute() error = %v", err)
+	}
+	if route.RouteBindingID != omniRoute.ID || route.Operation != VideoOperationReferenceToVideo {
+		t.Fatalf("route = %#v, want omni reference video route", route)
+	}
+}
+
 func TestAIServiceRoutingPolicyContractExposesFallbackRoutePlan(t *testing.T) {
 	resetFailoverTestState()
 	db := testutil.OpenSQLite(t, "ai-routing-fallback-plan-contract.db",

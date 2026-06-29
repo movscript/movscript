@@ -41,7 +41,7 @@ test('plugin full-local means ensure daemon then run a basic MCP session', () =>
   assert.match(source, /requested === 'plugin-desktop-compatible'/)
   assert.match(source, /if \(startupPolicy\.scenarioId === pluginFullLocalStartupPolicy\.scenarioId\) {[\s\S]*await ensureLocalNode\(homeDir\)[\s\S]*return pluginBasicStartupPolicy[\s\S]*}/)
   assert.match(source, /entrypoint: AGENT_MCP_ENTRYPOINT/)
-  assert.match(source, /runArgs: \['__movscript_local_node', 'run'\]/)
+  assert.match(source, /runArgs: \['daemon', 'run'\]/)
   assert.match(startupManifest, /scenarioId: 'plugin-full-local'/)
   assert.match(startupManifest, /serviceName: 'movscript\.local-node\.control'[\s\S]*profile: 'local-daemon'/)
 })

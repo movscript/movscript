@@ -3,7 +3,6 @@ name: editing
 description: Create MovScript MediaEditingProjects, edit timelines through Editing Service, run media-pipeline render/transcode/HLS tasks when available, and explicitly import/export editing artifacts without writing candidate decisions by default.
 toolGrants:
   - mcp__movscript__movscript_runtime_status
-  - mcp__movscript__system_focus_get
   - mcp__movscript__system_resource_library_query
   - mcp__movscript__system_resource_video_probe
   - mcp__movscript__domain_overview
@@ -19,6 +18,7 @@ toolGrants:
   - mcp__movscript__domain_regeneration_plan
   - mcp__movscript__editing_project_create
   - mcp__movscript__editing_project_create_from_edit_plan
+  - mcp__movscript__editing_project_create_from_edit_decisions
   - mcp__movscript__editing_project_get
   - mcp__movscript__editing_project_update_settings
   - mcp__movscript__editing_project_add_asset
@@ -34,6 +34,7 @@ toolGrants:
   - mcp__movscript__editing_timeline_apply_commands
   - mcp__movscript__editing_timeline_validate
   - mcp__movscript__editing_runtime_capabilities_get
+  - mcp__movscript__editing_video_compose
   - mcp__movscript__editing_task_render_create
   - mcp__movscript__editing_task_hls_create
   - mcp__movscript__editing_task_transcode_create
@@ -72,8 +73,10 @@ Open `references/ai-clip-editing-rhythm.md` when assembling AI-generated clips, 
 - `MediaTimelineRecipe` is the timeline inside the project. It contains tracks and clips, but it is not the user's whole editing project.
 - `MediaAssetDescriptor` points to a RawResource, generated resource, local file, or bytes-backed source. Asset registration is separate from placing a clip on the timeline.
 - `editing_project_*` creates, reads, saves, and expands editing projects.
+- `editing_project_create_from_edit_decisions` imports an OpenMontage-style `edit_decisions` + `asset_manifest` handoff into a MovScript `MediaEditingProject`.
 - `editing_project_update_settings` changes project-level editing settings; `editing_project_remove_asset` only removes unused asset references.
 - `editing_timeline_*` mutates tracks and clips. These tools only change project data; they do not render, call AI providers, or write candidates.
+- `editing_video_compose` is the MovScript video_compose entrypoint: it can create a MediaEditingProject from `edit_decisions`, validate the timeline, and submit a Media Pipeline MP4/HLS task. It supports `movscript_media_pipeline` / `ffmpeg` only today; Remotion, HyperFrames, and external NLE runtimes must return explicit blockers instead of silently falling back.
 - `editing_task_*` schedules media-pipeline tasks. MP4 render, HLS packaging, transcode, and mechanical reframe execute through the available Media Pipeline runtime: cloud/external media worker, local daemon-owned Media Pipeline, Desktop enhancement adapter when explicitly advertised, or another runtime advertised by capability status.
 - Subtitle burn-in is an editing concern: text/subtitle clips may use ASS/libass rendering, and subtitle assets such as `.ass`, `.ssa`, `.srt`, or `.vtt` are burned by the media pipeline during render.
 - `editing_export_*` handles completed editing artifacts. Export import uploads a local artifact as RawResource; HLS publish uploads manifest/segments as a MediaStreamArtifact; candidate creation remains an explicit separate action.
@@ -85,7 +88,7 @@ Do not use domain planning/production records as the editing workspace. Domain r
 
 ## Workflow
 
-1. Resolve focus with `system_focus_get` when project, timeline scope/assembly, or scene moment is ambiguous.
+1. Resolve the intended project and optional timeline scope/assembly/scene-moment target from explicit user input, a passed locator, or Project Service context. Do not infer it from UI focus.
 2. Use domain tools only to gather source context and selected materials:
    - use `domain_query_production_context` to inspect the legacy production projection, scene structure, and candidate selections,
    - use `domain_read_scene_moment_edit_plan` or `domain_read_scene_moment_timeline` when a scene-moment handoff is useful,
@@ -93,6 +96,7 @@ Do not use domain planning/production records as the editing workspace. Domain r
 3. If required expression-unit materials are missing or unselected, stop and ask for generation/selection first unless the user explicitly wants an unstable draft.
 4. Create the editing project:
    - Use `editing_project_create_from_edit_plan` when a scene-moment `edit_plan` is a good seed.
+   - Use `editing_project_create_from_edit_decisions` when the handoff already contains `cuts[]`, overlays, audio, subtitles, and asset refs.
    - Use `editing_project_create` for a manual project, imported local media, timeline assembly, alternate cut, revision, or any task that should not be coupled one-to-one to a domain handoff.
    - Give the project title/source/provenance enough detail to distinguish drafts and variants, such as target timeline scope/assembly, scene moment, requested cut, selected candidate ids, and user intent.
 5. Add extra materials with `editing_project_add_asset` before putting them on the timeline.
@@ -109,6 +113,7 @@ Do not use domain planning/production records as the editing workspace. Domain r
 9. Persist the project with `editing_project_save`. Read it later with `editing_project_get`.
 10. Before render/package work, call `editing_runtime_capabilities_get` to verify Media Pipeline and FFmpeg availability. If unavailable, keep the editing project/timeline work intact and report the render capability gap instead of treating editing itself as impossible.
 11. Render or package through Media Pipeline:
+   - use `editing_video_compose` when starting from `edit_decisions` or when you want one call to create/validate/submit a render task,
    - use `editing_task_render_create` for MP4 timeline render,
    - place subtitle assets on a `subtitle` track with `assetType: "subtitle"` and `subtitle.format` when subtitles should be burned into the render; use `subtitle.format: "ass"` or `subtitle.renderer: "ass"` for ASS/libass styling,
    - use `editing_task_hls_create` for HLS when available; pass `output.hlsVariants` for adaptive renditions such as `[{ "name": "360p", "width": 640, "height": 360, "videoBitrateKbps": 900 }]`,

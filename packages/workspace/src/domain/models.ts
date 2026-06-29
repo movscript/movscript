@@ -284,7 +284,7 @@ export const MOVSCRIPT_DOMAIN_WORKSPACE_MODELS: Record<MovScriptDomainWorkspaceK
       'productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/expression_units/**',
     ],
     schemaIds: ['movscript.expression_unit.v1'],
-    instructions: ['Expression units are scene-moment-owned production primitives. Their owning scene moment is the nearest scene_moment ancestor in the source path. Use expression_kind/kind=shot for makeable shot units; storyboard/keyframe records may be children of that expression unit.'],
+    instructions: ['Expression units are scene-moment-owned form/edit slots. Their owning scene moment is the nearest scene_moment ancestor in the source path. Use slot_kind=visual|voice|subtitle|audio for new records; expression_kind/kind are legacy compatibility hints. Content units target expression_unit_ref and declare output_kind.'],
   },
   content_unit_workspace: {
     kind: 'content_unit_workspace',

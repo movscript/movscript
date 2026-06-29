@@ -88,6 +88,8 @@ export function CanvasEditorChromeBar({
   workflowRunningCount: number
   workflowStats: { inputs: number; processors: number; outputs: number }
 }) {
+  const canvasTitle = typeof canvasName === 'string' ? canvasName : ''
+
   return (
     <CanvasEditorChrome embedded={embedded}>
       <CanvasEditorChromeContent>
@@ -134,7 +136,7 @@ export function CanvasEditorChromeBar({
                 title={t('canvas.editor.renameTitle', { defaultValue: '双击重命名' })}
                 aria-label={t('canvas.editor.renameTitle', { defaultValue: '双击重命名' })}
               >
-                {canvasName.trim() || t('canvas.editor.untitled')}
+                {canvasTitle.trim() || t('canvas.editor.untitled')}
               </CanvasEditorNameButton>
             )}
             <CanvasEditorMetricBadge icon={<Workflow size={12} />}>

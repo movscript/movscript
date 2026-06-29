@@ -40,6 +40,5 @@ function agentComposerModelId(model: PublicModel): string {
 }
 
 function agentComposerModelOptionLabel(model: PublicModel): string {
-  const modelId = agentComposerModelId(model)
-  return model.provider_name ? `${modelId} - ${model.provider_name}` : modelId
+  return agentComposerModelId(model)
 }

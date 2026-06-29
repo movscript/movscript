@@ -28,6 +28,10 @@ func newValidationError(code, message, field string) *ValidationError {
 	}
 }
 
+func NewGenerationIntentValidationError(code, message, field string) *ValidationError {
+	return newValidationError(code, message, field)
+}
+
 func unsupportedParameterError(key, model string) *ValidationError {
 	return newValidationError(
 		"UNSUPPORTED_PARAMETER",

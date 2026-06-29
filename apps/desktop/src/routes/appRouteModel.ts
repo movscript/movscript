@@ -6,6 +6,10 @@ import {
   canvasRouteSourceFromSearch,
   type CanvasRouteSource,
 } from '@movscript/shared/surface-routes'
+import {
+  sharedSurfaceRouteForPathname,
+  type SharedSurfaceRouteDefinition,
+} from '@movscript/shared'
 import { ROUTES } from './projectRoutes'
 import { routeLayoutSpecForPathname, type RouteLayoutSpec } from './routeLayoutRegistry'
 
@@ -26,6 +30,10 @@ export function getAppRouteLayoutSpec(pathname: string): RouteLayoutSpec {
   return routeLayoutSpecForPathname(pathname)
 }
 
+export function getAppSharedSurfaceRoute(pathname: string): SharedSurfaceRouteDefinition | undefined {
+  return sharedSurfaceRouteForPathname(pathname, { host: 'desktop' })
+}
+
 export function workModeForRoute(pathname: string, fallback: AppWorkMode): AppWorkMode {
   const routeLayout = routeLayoutSpecForPathname(pathname)
   if (routeLayout.preserveWorkMode) return fallback
@@ -39,7 +47,7 @@ export function workModeForRoute(pathname: string, fallback: AppWorkMode): AppWo
 export function routeForWorkMode(workMode: AppWorkMode, hasProject: boolean): string {
   if (workMode === 'agent') return ROUTES.project.agent
   if (workMode === 'project') return hasProject ? ROUTES.project.home : ROUTES.projects
-  return ROUTES.tools.refImageGen
+  return ROUTES.tools.image
 }
 
 export function canvasEditorPath(canvasId: string | number, options?: { source?: CanvasRouteSource }): string {

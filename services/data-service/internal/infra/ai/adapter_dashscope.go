@@ -475,8 +475,22 @@ func (a *DashScopeAdapter) VideoStart(ctx context.Context, req VideoRequest) (Vi
 	if err != nil {
 		return VideoResponse{}, err
 	}
+	debugBody := cloneDebugMap(body)
+	refs := dashScopeMediaRefs(req)
+	attachReferenceAssetDebugBindings(debugBody, req.ReferenceAssets, func(ref ReferenceAsset, _ int) string {
+		if len(refs.media) > 0 && strings.Contains(strings.ToLower(req.Model), "happyhorse") {
+			return "input.media[]"
+		}
+		if refs.hasVideo || len(refs.urls) > 1 {
+			return "input.reference_urls[]"
+		}
+		if strings.TrimSpace(ref.MediaType) == "video" {
+			return "input.reference_urls[]"
+		}
+		return "input.img_url"
+	})
 	var result map[string]any
-	if err := a.postJSON(ctx, "/services/aigc/video-generation/video-synthesis", body, &result); err != nil {
+	if err := a.postJSONWithDebugBody(ctx, "/services/aigc/video-generation/video-synthesis", body, debugBody, &result); err != nil {
 		return VideoResponse{}, err
 	}
 	output, _ := result["output"].(map[string]any)
@@ -767,14 +781,18 @@ func mediaProviderURL(md MediaData) string {
 }
 
 func (a *DashScopeAdapter) postJSON(ctx context.Context, path string, body any, out any) error {
-	return a.doJSON(ctx, http.MethodPost, path, "", body, out)
+	return a.doJSON(ctx, http.MethodPost, path, "", body, nil, out)
+}
+
+func (a *DashScopeAdapter) postJSONWithDebugBody(ctx context.Context, path string, body any, debugBody any, out any) error {
+	return a.doJSON(ctx, http.MethodPost, path, "", body, debugBody, out)
 }
 
 func (a *DashScopeAdapter) getJSON(ctx context.Context, path, modelID string, out any) error {
-	return a.doJSON(ctx, http.MethodGet, path, modelID, nil, out)
+	return a.doJSON(ctx, http.MethodGet, path, modelID, nil, nil, out)
 }
 
-func (a *DashScopeAdapter) doJSON(ctx context.Context, method, path, modelID string, body any, out any) error {
+func (a *DashScopeAdapter) doJSON(ctx context.Context, method, path, modelID string, body any, debugBody any, out any) error {
 	var reqBody []byte
 	if body != nil {
 		var err error
@@ -803,17 +821,21 @@ func (a *DashScopeAdapter) doJSON(ctx context.Context, method, path, modelID str
 			modelID, _ = m["model"].(string)
 		}
 	}
+	debugRequestBody := string(reqBody)
+	if debugBody != nil {
+		debugRequestBody = mustJSON(debugBody)
+	}
 
 	start := time.Now()
 	resp, err := a.client.Do(httpReq)
 	latency := time.Since(start).Milliseconds()
 	if err != nil {
-		recordDebug(ctx, DebugCallResult{Success: false, ModelID: modelID, Endpoint: endpoint, Method: method, RequestHeaders: headers, RequestBody: string(reqBody), LatencyMs: latency, Error: err.Error()})
+		recordDebug(ctx, DebugCallResult{Success: false, ModelID: modelID, Endpoint: endpoint, Method: method, RequestHeaders: headers, RequestBody: debugRequestBody, LatencyMs: latency, Error: err.Error()})
 		return err
 	}
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(resp.Body)
-	recordDebug(ctx, DebugCallResult{Success: resp.StatusCode < 400, ModelID: modelID, Endpoint: endpoint, Method: method, RequestHeaders: headers, RequestBody: string(reqBody), ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: latency})
+	recordDebug(ctx, DebugCallResult{Success: resp.StatusCode < 400, ModelID: modelID, Endpoint: endpoint, Method: method, RequestHeaders: headers, RequestBody: debugRequestBody, ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: latency})
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("dashscope API error %d: %s", resp.StatusCode, string(respBody))
 	}

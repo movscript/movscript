@@ -55,12 +55,14 @@ func TestValidateRuntimeCapabilityCoverageRejectsUnimplementedAdapterCapability(
 	err := validateRuntimeCapabilityCoverage([]templateSource{
 		{
 			ID:           "minimax:mimo-v2-omni",
-			AdapterType:  "minimax",
+			Lab:          "minimax",
 			Capabilities: []string{"audio_chat"},
 			Source:       sourceEvidence{Status: "verified"},
 		},
+	}, []comboRuleSource{
+		{Lab: "minimax", AdapterType: "minimax"},
 	})
-	if err == nil || !strings.Contains(err.Error(), "does not implement runtime capability") {
+	if err == nil || !strings.Contains(err.Error(), "no route template adapter implements runtime capability") {
 		t.Fatalf("validateRuntimeCapabilityCoverage() error = %v, want missing runtime capability rejection", err)
 	}
 }
@@ -69,12 +71,31 @@ func TestValidateRuntimeCapabilityCoverageAllowsTemplateOnlyDiscovery(t *testing
 	err := validateRuntimeCapabilityCoverage([]templateSource{
 		{
 			ID:           "minimax:mimo-v2-omni",
-			AdapterType:  "minimax",
+			Lab:          "minimax",
 			Capabilities: []string{"audio_chat"},
 			Source:       sourceEvidence{Status: "template_only"},
 		},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("validateRuntimeCapabilityCoverage() error = %v, want template-only discovery allowed", err)
+	}
+}
+
+func TestValidateRuntimeCapabilityCoverageUsesRouteTemplateAdapter(t *testing.T) {
+	err := validateRuntimeCapabilityCoverage([]templateSource{
+		{
+			ID:           "xai:grok-imagine-video",
+			Lab:          "xai",
+			Capabilities: []string{"video"},
+			Source:       sourceEvidence{Status: "verified"},
+		},
+	}, []comboRuleSource{
+		{
+			ModelTemplateKey: "xai:grok-imagine-video",
+			AdapterType:      "official_video_generations",
+		},
+	})
+	if err != nil {
+		t.Fatalf("validateRuntimeCapabilityCoverage() error = %v, want route adapter to cover video capability", err)
 	}
 }

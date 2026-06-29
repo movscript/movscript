@@ -175,7 +175,15 @@ type MovcliPackageSource = {
 }
 
 function movcliPluginPackageExists(packageDir: string, exists: (path: string) => boolean): boolean {
-  return exists(join(packageDir, 'bin', 'movcli')) && exists(join(packageDir, 'bin', 'movscript-agent-mcp.mjs'))
+  return exists(join(packageDir, 'bin', 'movcli')) && Boolean(movscriptPluginEntrypoint(packageDir, exists))
+}
+
+function movscriptPluginEntrypoint(packageDir: string, exists: (path: string) => boolean): string | undefined {
+  const modernEntry = join(packageDir, 'bin', 'movscript.mjs')
+  if (exists(modernEntry)) return modernEntry
+  const legacyEntry = join(packageDir, 'bin', 'movscript-agent-mcp.mjs')
+  if (exists(legacyEntry)) return legacyEntry
+  return undefined
 }
 
 function movcliPackageSourceExists(source: MovcliPackageSource, exists: (path: string) => boolean): boolean {
@@ -234,21 +242,24 @@ await import(pathToFileURL(builtEntry).href)
 }
 
 function workspacePluginMovcliEntry(packageDir: string): string {
-  const agentMCPEntry = resolve(packageDir, 'bin/movscript-agent-mcp.mjs')
+  const modernEntry = resolve(packageDir, 'bin/movscript.mjs')
+  const legacyEntry = resolve(packageDir, 'bin/movscript-agent-mcp.mjs')
   return `#!/usr/bin/env node
 
 import { existsSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
-const agentMCPEntry = ${JSON.stringify(agentMCPEntry)}
+const modernEntry = ${JSON.stringify(modernEntry)}
+const legacyEntry = ${JSON.stringify(legacyEntry)}
+const pluginEntry = existsSync(modernEntry) ? modernEntry : existsSync(legacyEntry) ? legacyEntry : undefined
 
-if (!existsSync(agentMCPEntry)) {
+if (!pluginEntry) {
   console.error('MovScript plugin CLI entrypoint was not found.')
   process.exit(1)
 }
 
-process.argv = [process.argv[0] ?? 'node', agentMCPEntry, '__movscript_movcli', ...process.argv.slice(2)]
-await import(pathToFileURL(agentMCPEntry).href)
+process.argv = [process.argv[0] ?? 'node', pluginEntry, '__movscript_movcli', ...process.argv.slice(2)]
+await import(pathToFileURL(pluginEntry).href)
 `
 }
 

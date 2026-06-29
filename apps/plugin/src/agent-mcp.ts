@@ -56,6 +56,7 @@ const LOCAL_NODE_APP_ID = LOCAL_RUNTIME_DAEMON_APP_ID
 const LOCAL_NODE_CONTROL_SERVICE = LOCAL_RUNTIME_DAEMON_CONTROL_SERVICE
 const LOCAL_NODE_GATEWAY_SERVICE = LOCAL_RUNTIME_DAEMON_GATEWAY_SERVICE
 const PROJECT_SERVICE_NAME = 'movscript.project.service'
+const EDITING_SERVICE_NAME = 'movscript.editing.service'
 const CANVAS_SERVICE_NAME = 'movscript.canvas.service'
 const DATA_SERVICE_NAME = 'movscript.data.service'
 const DEFAULT_LOCAL_NODE_GATEWAY_PORT = 8766
@@ -196,7 +197,7 @@ const PLUGIN_ROOT = resolve(import.meta.dirname, '..')
 const DEV_REPO_ROOT = resolve(import.meta.dirname, '../../..')
 const BUNDLED_RUNTIME_ROOT = resolve(PLUGIN_ROOT, 'runtime')
 const HAS_BUNDLED_RUNTIME = existsSync(BUNDLED_RUNTIME_ROOT)
-const AGENT_MCP_ENTRYPOINT = resolve(import.meta.dirname, 'movscript-agent-mcp.mjs')
+const AGENT_MCP_ENTRYPOINT = resolve(import.meta.dirname, 'movscript.mjs')
 const RUN_CWD = HAS_BUNDLED_RUNTIME ? PLUGIN_ROOT : DEV_REPO_ROOT
 
 function errorMessage(error: unknown): string {
@@ -224,7 +225,15 @@ function readPluginVersion(manifestPath: string): string | undefined {
 async function main(): Promise<void> {
   if (await runEmbeddedServiceCLI()) return
   if (await runLocalDaemonCLI()) return
+  if (isLegacyAgentMCPInvocation()) {
+    await runPluginMCPStdioSession()
+    return
+  }
 
+  await runMovcli([process.argv[0] ?? 'node', 'movscript', ...process.argv.slice(2)])
+}
+
+async function runPluginMCPStdioSession(): Promise<void> {
   const homeDir = resolveMovScriptHomeDir()
   const startupPolicy = await prepareSessionStartupPolicy(homeDir)
   const runner = createScenarioApplicationRunner({
@@ -277,7 +286,15 @@ async function runEmbeddedServiceCLI(): Promise<boolean> {
 async function runLocalDaemonCLI(): Promise<boolean> {
   const rawArgs = process.argv.slice(2)
   const [command, subcommand] = rawArgs
+  if (command === 'mcp' && (subcommand === undefined || subcommand === 'stdio')) {
+    await runPluginMCPStdioSession()
+    return true
+  }
   if (command === '__movscript_local_node' && subcommand === 'run') {
+    await runPersistentLocalNode()
+    return true
+  }
+  if ((command === 'daemon' || command === 'local-node') && subcommand === 'run') {
     await runPersistentLocalNode()
     return true
   }
@@ -498,10 +515,14 @@ function printMovScriptCLIHelp(): void {
     'MovScript command line',
     '',
     'Usage:',
+    '  movscript mcp stdio',
+    '  movscript daemon run',
     '  movscript daemon <start|status|stop|restart> [options]',
+    '  movscript admin|system|runtime|workspace ...',
     '',
-    'The MCP entrypoint also accepts daemon commands directly:',
-    '  movscript-agent-mcp daemon status',
+    'Compatibility:',
+    '  movscript-agent-mcp        # same as movscript mcp stdio',
+    '  movcli ...                 # same command runner, legacy name',
     '',
   ].join('\n'))
 }
@@ -537,11 +558,18 @@ async function ensureLocalNode(
   return await ensureLocalRuntimeDaemon({
     homeDir,
     entrypoint: AGENT_MCP_ENTRYPOINT,
-    runArgs: ['__movscript_local_node', 'run'],
+    runArgs: ['daemon', 'run'],
     cwd: RUN_CWD,
     env: localDaemonEnvFromOptions(options),
     identity: currentPluginIdentity(),
   })
+}
+
+function isLegacyAgentMCPInvocation(): boolean {
+  const invoked = process.argv[1]
+  if (!invoked) return false
+  const invokedName = basename(invoked)
+  return (invokedName === 'movscript-agent-mcp' || invokedName === 'movscript-agent-mcp.mjs') && process.argv.length <= 2
 }
 
 async function runPersistentLocalNode(): Promise<void> {
@@ -1311,6 +1339,28 @@ async function handleLocalSurfaceGatewayRequest(
     await proxyProjectServiceRequest(homeDir, request, response, url)
     return true
   }
+  if (url.pathname === '/v1/editing' || url.pathname.startsWith('/v1/editing/')) {
+    await proxyRuntimeServiceRequest(homeDir, request, response, url, {
+      serviceName: EDITING_SERVICE_NAME,
+      gatewayPrefix: '/v1/editing',
+      upstreamPrefix: '/v1/editing',
+      unavailableCode: 'editing_service_unavailable',
+      failureCode: 'editing_service_proxy_failed',
+      serviceLabel: 'Editing Service',
+    })
+    return true
+  }
+  if (url.pathname === '/v1/media-pipeline' || url.pathname.startsWith('/v1/media-pipeline/')) {
+    await proxyRuntimeServiceRequest(homeDir, request, response, url, {
+      serviceName: MEDIA_PIPELINE_SERVICE_NAME,
+      gatewayPrefix: '/v1/media-pipeline',
+      upstreamPrefix: '/v1/media-pipeline',
+      unavailableCode: 'media_pipeline_unavailable',
+      failureCode: 'media_pipeline_proxy_failed',
+      serviceLabel: 'Media Pipeline',
+    })
+    return true
+  }
   if (
     request.method === 'POST'
     && (url.pathname === '/v1/host/editing/import-file' || url.pathname === '/local-api/editing/import-file')
@@ -1365,6 +1415,10 @@ function isGatewayAPIPath(pathname: string): boolean {
     || pathname === DAEMON_RUNTIME_DIAGNOSTICS_ENDPOINT
     || pathname === DAEMON_RUNTIME_CONFIGURE_ENDPOINT
     || pathname.startsWith('/v1/project/')
+    || pathname === '/v1/editing'
+    || pathname.startsWith('/v1/editing/')
+    || pathname === '/v1/media-pipeline'
+    || pathname.startsWith('/v1/media-pipeline/')
     || pathname === '/v1/host/editing'
     || pathname.startsWith('/v1/host/editing/')
     || pathname === '/local-api/editing'
@@ -2037,6 +2091,48 @@ async function proxyCanvasServiceRequest(homeDir: string, request: IncomingMessa
   } catch (error) {
     writeLocalSurfaceJSON(response, 502, {
       error: 'canvas_service_proxy_failed',
+      message: errorMessage(error),
+    })
+  }
+}
+
+async function proxyRuntimeServiceRequest(
+  homeDir: string,
+  request: IncomingMessage,
+  response: ServerResponse,
+  url: URL,
+  options: {
+    serviceName: string
+    gatewayPrefix: string
+    upstreamPrefix: string
+    unavailableCode: string
+    failureCode: string
+    serviceLabel: string
+  },
+): Promise<void> {
+  const baseURL = await waitForRuntimeServiceURL(homeDir, options.serviceName)
+  if (!baseURL) {
+    writeLocalSurfaceJSON(response, 503, {
+      error: options.unavailableCode,
+      message: `${options.serviceLabel} endpoint was not found in MovScript runtime records.`,
+    })
+    return
+  }
+
+  const upstreamPath = `${options.upstreamPrefix}${url.pathname.slice(options.gatewayPrefix.length)}${url.search}`
+  try {
+    const body = request.method === 'GET' || request.method === 'HEAD'
+      ? undefined
+      : bufferToFetchBody(await readRequestBuffer(request))
+    const upstream = await fetch(`${baseURL}${upstreamPath}`, {
+      method: request.method,
+      headers: proxyHeaders(request),
+      body,
+    })
+    await writeProxyUpstreamResponse(response, upstream, request)
+  } catch (error) {
+    writeLocalSurfaceJSON(response, 502, {
+      error: options.failureCode,
       message: errorMessage(error),
     })
   }

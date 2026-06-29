@@ -115,14 +115,14 @@ func migrateBaselineSchema(db *gorm.DB) error {
 func migrateModelRouteTemplateMetadata(db *gorm.DB) error {
 	migrator := db.Migrator()
 	if migrator.HasTable(&persistencemodel.AIModelCatalogEntry{}) {
-		for _, columnName := range []string{"model_template_key", "template_version", "param_limits_json"} {
+		for _, columnName := range []string{"model_template_key", "template_version", "param_limits_json", "model_capabilities_json"} {
 			if err := addTextColumnIfMissing(db, "ai_model_catalog_entries", columnName); err != nil {
 				return err
 			}
 		}
 	}
 	if migrator.HasTable(&persistencemodel.AIModelRouteBinding{}) {
-		for _, columnName := range []string{"combo_template_key", "template_version"} {
+		for _, columnName := range []string{"combo_template_key", "template_version", "endpoint_base_url", "endpoint_path_prefix", "endpoint_mode", "operation_profile", "route_capabilities_json"} {
 			if err := addTextColumnIfMissing(db, "ai_model_route_bindings", columnName); err != nil {
 				return err
 			}

@@ -37,23 +37,34 @@ export function settingTypeLabel(node: ContentCanvasNode): string {
 
 export function expressionUnitKindValue(node: ContentCanvasNode): string {
   return stringField(
-    node.record.expression_kind
+    node.record.slot_kind
+      ?? node.record.slotKind
+      ?? node.record.expression_kind
       ?? node.record.expressionKind
       ?? node.record.kind
       ?? node.record.type,
-  ) ?? 'dialogue'
+  ) ?? 'visual'
 }
 
 export function expressionUnitKindLabel(value: string): string {
-  const normalized = value === 'visual' ? 'visual_note' : value
+  const normalized = normalizeExpressionUnitKindValue(value)
   const option = CONTENT_CANVAS_EXPRESSION_UNIT_KIND_OPTIONS.find((item) => item.value === (normalized as ContentCanvasExpressionUnitKind))
   return option ? `${option.label} (${value})` : value
 }
 
 export function expressionUnitKindShortLabel(value: string): string {
-  const normalized = value === 'visual' ? 'visual_note' : value
+  const normalized = normalizeExpressionUnitKindValue(value)
   const option = CONTENT_CANVAS_EXPRESSION_UNIT_KIND_OPTIONS.find((item) => item.value === (normalized as ContentCanvasExpressionUnitKind))
   return option?.label ?? value
+}
+
+function normalizeExpressionUnitKindValue(value: string): string {
+  const text = value.trim().toLowerCase()
+  if (text === 'dialogue' || text === 'narration' || text === 'voiceover' || text === 'verbal') return 'voice'
+  if (text === 'caption' || text === 'text') return 'subtitle'
+  if (text === 'sound' || text === 'sound_effect' || text === 'sfx' || text === 'music' || text === 'ambience' || text === 'foley') return 'audio'
+  if (text === 'shot' || text === 'action' || text === 'visual_note' || text === 'image' || text === 'video') return 'visual'
+  return text
 }
 
 function stringField(value: unknown): string | undefined {

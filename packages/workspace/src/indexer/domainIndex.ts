@@ -594,6 +594,8 @@ function recordKindMatches(record: Record<string, unknown>, kind: string): boole
     record.shotKind,
     record.segment_kind,
     record.segmentKind,
+    record.slot_kind,
+    record.slotKind,
     record.expression_kind,
     record.expressionKind,
     record.cue_kind,

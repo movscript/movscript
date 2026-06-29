@@ -2,6 +2,8 @@ package catalog
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/movscript/movscript/internal/infra/cache"
@@ -53,7 +55,7 @@ func TestServiceListByCapabilityUsesGatewayModelCatalogContract(t *testing.T) {
 		t.Fatalf("filter = %#v, want provider variants text+reasoning", filter)
 	}
 	model := models[0]
-	if model.ID != 42 || model.CatalogEntryID != 42 || model.ProviderID != "local_provider:7" || model.ModelDefID != "gpt-5.2" || model.ModelIDOverride != "" || model.ProviderName != "Primary provider" {
+	if model.ID != 42 || model.CatalogEntryID != 42 || model.ModelID != "gpt-5.2" || model.LogicalModelID != "" {
 		t.Fatalf("model = %#v, want public catalog model fields without provider override", model)
 	}
 	if len(model.SupportedParams) != 1 || model.InputRequirements.Image.Max != 1 || model.ParamsSchema["type"] != "object" {
@@ -61,6 +63,33 @@ func TestServiceListByCapabilityUsesGatewayModelCatalogContract(t *testing.T) {
 	}
 	if len(model.SupportedAPIKinds) != 2 || model.SupportedAPIKinds[0] != "openai_responses" || model.SupportedAPIKinds[1] != "openai_chat_completions" {
 		t.Fatalf("model supported api kinds = %#v, want descriptor values preserved", model.SupportedAPIKinds)
+	}
+	body, err := json.Marshal(model)
+	if err != nil {
+		t.Fatalf("marshal public model: %v", err)
+	}
+	payload := string(body)
+	for _, forbidden := range []string{
+		"provider_id",
+		"adapter_type",
+		"provider_model_id",
+		"provider_name",
+		"model_id_override",
+		"route_binding_id",
+		"route_bindings",
+		"credential_id",
+		"endpoint_base_url",
+		"endpoint_path_prefix",
+		"endpoint_mode",
+		"operation_profile",
+		"route_capabilities_json",
+		"priority",
+		"capacity_weight",
+		"max_concurrency",
+	} {
+		if strings.Contains(payload, forbidden) {
+			t.Fatalf("public model json = %s, want no %s", payload, forbidden)
+		}
 	}
 }
 

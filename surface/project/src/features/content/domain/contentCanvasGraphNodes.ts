@@ -107,7 +107,7 @@ function subtitleForEntity(entity: MovScriptWorkspaceIndexedEntity, domainNode?:
   }
   if (kind === 'content_unit') return stringValue(record.output_kind ?? record.content_unit_type ?? record.kind) ?? contentCanvasKindLabel(kind)
   if (kind === 'storyboard') return stringValue(record.slot ?? record.asset_kind ?? record.kind) ?? contentCanvasKindLabel(kind)
-  if (kind === 'expression_unit') return stringValue(record.expression_kind ?? record.kind) ?? contentCanvasKindLabel(kind)
+  if (kind === 'expression_unit') return stringValue(record.slot_kind ?? record.slotKind ?? record.expression_kind ?? record.kind) ?? contentCanvasKindLabel(kind)
   if (kind === 'asset') return stringValue(record.kind ?? record.asset_kind ?? record.slot_key) ?? contentCanvasKindLabel(kind)
   if (kind === 'state') return stringValue(record.namespace_kind ?? record.namespaceKind ?? record.state_kind ?? record.kind) ?? contentCanvasKindLabel(kind)
   if (kind === 'audio_cue') return stringValue(record.cue_kind ?? record.kind) ?? contentCanvasKindLabel(kind)

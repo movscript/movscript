@@ -11,7 +11,7 @@ import (
 
 func TestYunwuVideoStartUsesNativeCreateEndpoint(t *testing.T) {
 	var gotBody map[string]any
-	adapter := NewYunwuAdapter("test-key", "https://api3.wlai.vip/v1")
+	adapter := NewYunwuUnifiedVideoAdapter("test-key", "https://api3.wlai.vip/v1")
 	adapter.rawHTTP = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		if r.URL.Path != "/v1/video/create" {
 			t.Fatalf("path = %s, want /v1/video/create", r.URL.Path)
@@ -36,7 +36,8 @@ func TestYunwuVideoStartUsesNativeCreateEndpoint(t *testing.T) {
 		}, nil
 	})}
 
-	resp, err := adapter.VideoStart(context.Background(), VideoRequest{
+	ctx, _ := WithDebugRecorder(context.Background())
+	resp, err := adapter.VideoStart(ctx, VideoRequest{
 		Model:          "grok-video-3",
 		Prompt:         "小猫在吃鱼",
 		AspectRatio:    "3:2",
@@ -45,7 +46,11 @@ func TestYunwuVideoStartUsesNativeCreateEndpoint(t *testing.T) {
 			Bytes:        []byte("fake image bytes"),
 			PresignedURL: "https://cdn.example.test/ref.png",
 			MimeType:     "image/png",
+			ResourceID:   42,
 		}},
+		ReferenceAssets: []ReferenceAsset{
+			{Role: "first_frame", MediaType: "image", ResourceID: 42},
+		},
 	})
 	if err != nil {
 		t.Fatalf("VideoStart() error = %v", err)
@@ -61,10 +66,18 @@ func TestYunwuVideoStartUsesNativeCreateEndpoint(t *testing.T) {
 		gotBody["aspect_ratio"] != "3:2" || gotBody["size"] != "720P" {
 		t.Fatalf("body = %#v", gotBody)
 	}
+	if _, ok := gotBody["reference_asset_bindings"]; ok {
+		t.Fatalf("request body sent debug-only bindings: %#v", gotBody["reference_asset_bindings"])
+	}
+	debugBody := debugRequestBodyMap(t, resp.Debug)
+	bindings := debugBody["reference_asset_bindings"].([]any)
+	if len(bindings) != 1 || bindings[0].(map[string]any)["provider_field"] != "images[]" {
+		t.Fatalf("debug reference_asset_bindings = %#v", bindings)
+	}
 }
 
 func TestYunwuVideoPollParsesQueryResponse(t *testing.T) {
-	adapter := NewYunwuAdapter("test-key", "https://yunwu.ai/v1")
+	adapter := NewYunwuUnifiedVideoAdapter("test-key", "https://yunwu.ai/v1")
 	adapter.rawHTTP = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		if r.URL.Path != "/v1/video/query" || r.URL.Query().Get("id") != "grok:task-1" {
 			t.Fatalf("url = %s, want /v1/video/query?id=grok:task-1", r.URL.String())

@@ -42,6 +42,7 @@ type NodeData struct {
 	Prompt             string          `json:"prompt,omitempty"`
 	ProviderName       string          `json:"providerName,omitempty"`
 	ModelID            string          `json:"modelId,omitempty"`
+	ModelOperation     string          `json:"modelOperation,omitempty"`
 	ModelDbID          uint            `json:"modelDbId,omitempty"`
 	InputResourceIDs   []uint          `json:"inputResourceIds,omitempty"`
 	Params             map[string]any  `json:"params,omitempty"`
@@ -62,28 +63,39 @@ type NodeData struct {
 }
 
 type PortDef struct {
-	ID          string   `json:"id"`
-	Aliases     []string `json:"aliases,omitempty"`
-	Label       string   `json:"label,omitempty"`
-	LabelKey    string   `json:"labelKey,omitempty"`
-	Type        string   `json:"type,omitempty"`
-	Required    bool     `json:"required,omitempty"`
-	MaxCount    int      `json:"maxCount,omitempty"`
-	Deprecated  bool     `json:"deprecated,omitempty"`
-	Description string   `json:"description,omitempty"`
+	ID                 string   `json:"id"`
+	Aliases            []string `json:"aliases,omitempty"`
+	Label              string   `json:"label,omitempty"`
+	LabelKey           string   `json:"labelKey,omitempty"`
+	Type               string   `json:"type,omitempty"`
+	MediaType          string   `json:"mediaType,omitempty"`
+	AcceptedMediaTypes []string `json:"acceptedMediaTypes,omitempty"`
+	Role               string   `json:"role,omitempty"`
+	Required           bool     `json:"required,omitempty"`
+	MaxCount           int      `json:"maxCount,omitempty"`
+	Deprecated         bool     `json:"deprecated,omitempty"`
+	Description        string   `json:"description,omitempty"`
 }
 
 type ExecutableSpec struct {
-	Executor         string         `json:"executor"`
-	Capability       string         `json:"capability"`
-	ModelID          string         `json:"modelId,omitempty"`
-	ModelDbID        uint           `json:"modelDbId,omitempty"`
-	PluginToolKey    string         `json:"pluginToolKey,omitempty"`
-	Prompt           string         `json:"prompt,omitempty"`
-	InputResourceIDs []uint         `json:"inputResourceIds,omitempty"`
-	AspectRatio      string         `json:"aspectRatio,omitempty"`
-	Duration         int            `json:"duration,omitempty"`
-	Params           map[string]any `json:"params,omitempty"`
+	Executor         string           `json:"executor"`
+	Capability       string           `json:"capability"`
+	Operation        string           `json:"operation,omitempty"`
+	ModelID          string           `json:"modelId,omitempty"`
+	ModelDbID        uint             `json:"modelDbId,omitempty"`
+	PluginToolKey    string           `json:"pluginToolKey,omitempty"`
+	Prompt           string           `json:"prompt,omitempty"`
+	InputResourceIDs []uint           `json:"inputResourceIds,omitempty"`
+	ReferenceAssets  []ReferenceAsset `json:"referenceAssets,omitempty"`
+	AspectRatio      string           `json:"aspectRatio,omitempty"`
+	Duration         int              `json:"duration,omitempty"`
+	Params           map[string]any   `json:"params,omitempty"`
+}
+
+type ReferenceAsset struct {
+	ResourceID uint   `json:"resource_id,omitempty"`
+	MediaType  string `json:"media_type,omitempty"`
+	Role       string `json:"role"`
 }
 
 type PortValue struct {

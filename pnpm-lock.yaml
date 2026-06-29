@@ -10,6 +10,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@movscript/cli-commands':
+        specifier: workspace:*
+        version: link:../../packages/cli-commands
       '@movscript/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -22,6 +25,9 @@ importers:
       '@movscript/language':
         specifier: workspace:*
         version: link:../../packages/language
+      '@movscript/mcp-host':
+        specifier: workspace:*
+        version: link:../../packages/mcp-host
       '@movscript/workspace':
         specifier: workspace:*
         version: link:../../packages/workspace
@@ -365,6 +371,25 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  packages/cli-commands:
+    dependencies:
+      '@movscript/core':
+        specifier: workspace:*
+        version: link:../core
+      '@movscript/runtime-contracts':
+        specifier: workspace:*
+        version: link:../runtime-contracts
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.17
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
   packages/core:
     dependencies:
       '@movscript/agent-chat':
@@ -560,6 +585,9 @@ importers:
 
   packages/mcp-host:
     dependencies:
+      '@movscript/cli-commands':
+        specifier: workspace:*
+        version: link:../cli-commands
       '@movscript/core':
         specifier: workspace:*
         version: link:../core
@@ -1315,6 +1343,9 @@ importers:
       '@movscript/resource-surface':
         specifier: workspace:*
         version: link:../resource
+      '@movscript/resources':
+        specifier: workspace:*
+        version: link:../../packages/resources
       '@movscript/shared':
         specifier: workspace:*
         version: link:../../packages/shared

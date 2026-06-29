@@ -224,7 +224,8 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   const toolList = toolsResponse?.result?.tools ?? []
   const tools = toolList.map((tool) => tool.name)
   const toolsByName = new Map(toolList.map((tool) => [tool.name, tool]))
-  assert.ok(tools.includes('system_focus_get'))
+  assert.equal(tools.includes('system_focus_get'), false)
+  assert.ok(tools.includes('movscript_focus_get'))
   assert.ok(tools.includes('system_project_create'))
   assert.ok(tools.includes('system_project_init'))
   assert.ok(tools.includes('system_project_open'))
@@ -238,6 +239,17 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(tools.includes('generation_result_register'))
   assert.equal(tools.includes('system_generate_image'), false)
   assert.equal(tools.includes('system_generate_video'), false)
+
+  const removedFocusResponse = await handleJSONRPC({
+    jsonrpc: '2.0',
+    id: 'removed-system-focus',
+    method: 'tools/call',
+    params: {
+      name: 'system_focus_get',
+      arguments: {},
+    },
+  })
+  assert.match(removedFocusResponse?.error?.message ?? '', /Unknown tool: system_focus_get/)
   assert.ok(tools.includes('system_resource_library_query'))
   assert.ok(tools.includes('system_resource_library_open'))
   assert.ok(tools.includes('system_resource_image_transform_to_resource'))
@@ -2306,6 +2318,12 @@ test('MCP image generation compatible mode maps unsupported aspect ratio to mode
       if (binding) return binding
       const url = String(input)
       requests.push({ url, method: init?.method ?? 'GET' })
+      if (url === 'http://movscript.test/api/v1/models?capability=image_generation&operation=text_to_image') {
+        return new Response(JSON.stringify([seedream4]), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (url === 'http://movscript.test/api/v1/models?capability=image_edit&operation=text_to_image') {
+        return new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
       if (url === 'http://movscript.test/api/v1/models?capability=image') {
         return new Response(JSON.stringify([seedream4]), { status: 200, headers: { 'content-type': 'application/json' } })
       }
@@ -2323,6 +2341,7 @@ test('MCP image generation compatible mode maps unsupported aspect ratio to mode
     const result = await generateImage({
       prompt: 'wide cinematic frame',
       model_id: 'volcengine:seedream-4-0',
+      operation: 'text_to_image',
       aspect_ratio: '16:9',
       projectDir,
     })
@@ -2340,8 +2359,8 @@ test('MCP image generation compatible mode maps unsupported aspect ratio to mode
     assert.ok(result.param_audit.some((item) => item.key === 'aspect_ratio' && item.reason === 'mapped_unsupported_aspect_ratio_to_image_size'))
     assert.ok(result.param_audit.some((item) => item.key === 'aspect_ratio' && item.reason === 'dropped_unsupported_parameter'))
     assert.deepEqual(requests.map((item) => `${item.method} ${item.url}`), [
-      'GET http://movscript.test/api/v1/models?capability=image',
-      'GET http://movscript.test/api/v1/models?capability=image_edit',
+      'GET http://movscript.test/api/v1/models?capability=image_generation&operation=text_to_image',
+      'GET http://movscript.test/api/v1/models?capability=image_edit&operation=text_to_image',
       'POST http://movscript.test/api/v1/jobs',
     ])
   } finally {
@@ -2369,6 +2388,12 @@ test('MCP low-level image generation can submit without project binding', async 
   try {
     globalThis.fetch = async (input, init) => {
       const url = String(input)
+      if (url === 'http://movscript.test/api/v1/models?capability=image_generation&operation=text_to_image') {
+        return new Response(JSON.stringify([model]), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (url === 'http://movscript.test/api/v1/models?capability=image_edit&operation=text_to_image') {
+        return new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
       if (url === 'http://movscript.test/api/v1/models?capability=image') {
         return new Response(JSON.stringify([model]), { status: 200, headers: { 'content-type': 'application/json' } })
       }
@@ -2386,6 +2411,7 @@ test('MCP low-level image generation can submit without project binding', async 
     const result = await generateImage({
       prompt: 'quick model smoke test',
       model_id: 'gpt-image-2',
+      operation: 'text_to_image',
       image_size: '1024x1024',
       quality: 'low',
     })
@@ -2429,6 +2455,12 @@ test('MCP image generation strict mode rejects explicit unsupported params befor
       const binding = mockProjectBindingResponse(input, init)
       if (binding) return binding
       const url = String(input)
+      if (url === 'http://movscript.test/api/v1/models?capability=image_generation&operation=text_to_image') {
+        return new Response(JSON.stringify([seedream4]), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (url === 'http://movscript.test/api/v1/models?capability=image_edit&operation=text_to_image') {
+        return new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
       if (url === 'http://movscript.test/api/v1/models?capability=image') {
         return new Response(JSON.stringify([seedream4]), { status: 200, headers: { 'content-type': 'application/json' } })
       }
@@ -2446,6 +2478,7 @@ test('MCP image generation strict mode rejects explicit unsupported params befor
       generateImage({
         prompt: 'wide cinematic frame',
         model_id: 'volcengine:seedream-4-0',
+        operation: 'text_to_image',
         aspect_ratio: '16:9',
         parameter_mode: 'strict',
         projectDir,
@@ -2486,6 +2519,9 @@ test('MCP image generation drops unsupported defaults without treating them as s
       const binding = mockProjectBindingResponse(input, init)
       if (binding) return binding
       const url = String(input)
+      if (url === 'http://movscript.test/api/v1/models?capability=image_generation&operation=text_to_image') {
+        return new Response(JSON.stringify([seedream4]), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
       if (url === 'http://movscript.test/api/v1/models?capability=image') {
         return new Response(JSON.stringify([seedream4]), { status: 200, headers: { 'content-type': 'application/json' } })
       }
@@ -2499,6 +2535,7 @@ test('MCP image generation drops unsupported defaults without treating them as s
 
     const result = await generateImage({
       prompt: 'square frame',
+      operation: 'text_to_image',
       parameter_mode: 'strict',
       projectDir,
     })
@@ -2558,6 +2595,8 @@ test('MCP content-unit image generation compiles prompt and monitor auto-creates
       if (binding) return binding
       const url = new URL(String(input))
       const body = typeof init.body === 'string' && init.body ? JSON.parse(init.body) : {}
+      if (url.href === 'http://movscript.test/api/v1/models?capability=image_generation&operation=text_to_image') return json([model])
+      if (url.href === 'http://movscript.test/api/v1/models?capability=image_edit&operation=text_to_image') return json([])
       if (url.href === 'http://movscript.test/api/v1/models?capability=image') return json([model])
       if (url.href === 'http://movscript.test/api/v1/models?capability=image_edit') return json([])
       if (url.href === 'http://movscript.test/api/v1/jobs' && init.method === 'POST') {
@@ -2611,6 +2650,7 @@ test('MCP content-unit image generation compiles prompt and monitor auto-creates
 
     const submitted = await callTool('generation_submit', {
       capability: 'image',
+      operation: 'text_to_image',
       scope: 'content_unit',
       projectDir,
       projectUid: '1',

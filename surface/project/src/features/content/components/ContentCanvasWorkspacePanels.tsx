@@ -1,5 +1,6 @@
 import { PanelResizeHandle } from '@movscript/ui/layout'
 import { Plus, Search, SlidersHorizontal } from 'lucide-react'
+import type { GenerationBackendPreflightResult } from '@movscript/core/generation'
 
 import type { ContentCanvasCreateNodeInput, ContentCanvasExpressionUnitEditorInput } from '../application/contentCanvasCommands'
 import type { ContentCanvasUploadedResource } from '../application/contentCanvasWorkspaceGateway'
@@ -147,6 +148,7 @@ export function InspectorPanel({
   selection,
   onCandidateSelect,
   onCandidateCreate,
+  onCandidatePreflight,
   onCandidatePromptPreview,
   onCandidateResourceSelect,
   onCandidateUpload,
@@ -173,6 +175,7 @@ export function InspectorPanel({
   selection: InspectorSelection
   onCandidateSelect: (node: ContentCanvasNode | undefined, candidate: ContentCanvasCandidate) => void
   onCandidateCreate: (node: ContentCanvasNode | undefined, options?: ContentCanvasCandidateGenerationOptions) => void
+  onCandidatePreflight: (node: ContentCanvasNode | undefined, options?: Partial<ContentCanvasCandidateGenerationOptions>) => Promise<GenerationBackendPreflightResult>
   onCandidatePromptPreview: (node: ContentCanvasNode | undefined) => Promise<ContentCanvasCandidatePromptPreview>
   onCandidateResourceSelect: (node: ContentCanvasNode | undefined, resource: ContentCanvasUploadedResource, position?: ContentCanvasNodePosition) => void
   onCandidateUpload: (node: ContentCanvasNode | undefined, file: File) => void
@@ -215,6 +218,7 @@ export function InspectorPanel({
         onExpressionPromptChange={onExpressionPromptChange}
         onExpressionUnitSave={onExpressionUnitSave}
         onCandidateCreate={onCandidateCreate}
+        onCandidatePreflight={onCandidatePreflight}
         onCandidatePromptPreview={onCandidatePromptPreview}
         onCandidateResourceSelect={onCandidateResourceSelect}
         onCandidateSelect={onCandidateSelect}

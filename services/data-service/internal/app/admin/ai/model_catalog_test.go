@@ -420,6 +420,317 @@ func TestApplyModelImportInfersAPIyiGatewayProviderFromBaseURL(t *testing.T) {
 	}
 }
 
+func TestNormalizeModelImportProviderInputDefaultsYunwuGatewayBaseURL(t *testing.T) {
+	input := normalizeModelImportProviderInput(ModelImportProviderInput{
+		ProviderKind: persistencemodel.AIProviderKindYunwuGateway,
+		APIKey:       "sk-yunwu",
+	})
+	if input.BaseURLPrefix != "https://yunwu.ai/v1" {
+		t.Fatalf("base_url_prefix = %q, want Yunwu default /v1", input.BaseURLPrefix)
+	}
+	if input.Credentials["api_key"] != "sk-yunwu" || input.Credentials["base_url"] != "https://yunwu.ai/v1" {
+		t.Fatalf("credentials = %#v, want api key and default base url", input.Credentials)
+	}
+
+	inferred := normalizeModelImportProviderInput(ModelImportProviderInput{
+		BaseURLPrefix: "https://yunwu.ai/v1/",
+		APIKey:        "sk-yunwu",
+	})
+	if inferred.ProviderKind != persistencemodel.AIProviderKindYunwuGateway {
+		t.Fatalf("provider_kind = %q, want yunwu_gateway", inferred.ProviderKind)
+	}
+}
+
+func TestApplyModelImportCreatesYunwuUnifiedVideoRouteProfile(t *testing.T) {
+	service := newModelImportTestService(t)
+	ctx := context.Background()
+
+	result, err := service.ApplyModelImport(ctx, ModelImportApplyInput{
+		Provider: ModelImportProviderInput{
+			ProviderKind: persistencemodel.AIProviderKindYunwuGateway,
+			APIKey:       "sk-yunwu",
+		},
+		Models: []ModelImportModelInput{{
+			ProviderModelID: "grok-video-3",
+			PublicModelID:   "grok-video-3",
+			Capabilities:    []string{infraai.CapabilityVideo},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("ApplyModelImport() error = %v", err)
+	}
+	if result.Provider.ProviderKind != persistencemodel.AIProviderKindYunwuGateway ||
+		result.Provider.BaseURLPrefix != "https://yunwu.ai/v1" {
+		t.Fatalf("unexpected Yunwu provider: %+v", result.Provider)
+	}
+
+	var entry persistencemodel.AIModelCatalogEntry
+	if err := service.db.Where("public_model_id = ?", "grok-video-3").First(&entry).Error; err != nil {
+		t.Fatalf("load catalog entry: %v", err)
+	}
+	if entry.Capabilities != infraai.CapabilityVideoI2V ||
+		!strings.Contains(entry.ModelCapabilitiesJSON, `"image_to_video"`) {
+		t.Fatalf("entry capabilities/json = %q / %s, want Yunwu image-to-video contract", entry.Capabilities, entry.ModelCapabilitiesJSON)
+	}
+
+	var binding persistencemodel.AIModelRouteBinding
+	if err := service.db.Where("catalog_entry_id = ?", entry.ID).First(&binding).Error; err != nil {
+		t.Fatalf("load route binding: %v", err)
+	}
+	if binding.AdapterType != infraai.AdapterYunwuUnifiedVideo ||
+		binding.EndpointPathPrefix != "/v1" ||
+		binding.EndpointMode != "replace_path" ||
+		binding.OperationProfile != "generation" ||
+		!strings.Contains(binding.RouteCapabilitiesJSON, `"image_to_video"`) ||
+		!strings.Contains(binding.RouteCapabilitiesJSON, `"requires_public_image_url":true`) {
+		t.Fatalf("unexpected Yunwu unified route binding: %+v", binding)
+	}
+}
+
+func TestApplyModelImportCreatesYunwuAlibailianVideoRouteProfile(t *testing.T) {
+	service := newModelImportTestService(t)
+	ctx := context.Background()
+
+	_, err := service.ApplyModelImport(ctx, ModelImportApplyInput{
+		Provider: ModelImportProviderInput{
+			ProviderKind: persistencemodel.AIProviderKindYunwuGateway,
+			APIKey:       "sk-yunwu",
+		},
+		Models: []ModelImportModelInput{{
+			ProviderModelID: "wan2.2-i2v",
+			PublicModelID:   "wan2.2-i2v",
+			Capabilities:    []string{infraai.CapabilityVideoI2V},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("ApplyModelImport() error = %v", err)
+	}
+
+	var entry persistencemodel.AIModelCatalogEntry
+	if err := service.db.Where("public_model_id = ?", "wan2.2-i2v").First(&entry).Error; err != nil {
+		t.Fatalf("load catalog entry: %v", err)
+	}
+	var binding persistencemodel.AIModelRouteBinding
+	if err := service.db.Where("catalog_entry_id = ?", entry.ID).First(&binding).Error; err != nil {
+		t.Fatalf("load route binding: %v", err)
+	}
+	if binding.AdapterType != infraai.AdapterDashScope ||
+		binding.EndpointPathPrefix != "/alibailian/api/v1" ||
+		binding.EndpointMode != "replace_path" ||
+		binding.OperationProfile != "synthesis" ||
+		!strings.Contains(binding.RouteCapabilitiesJSON, `"reference_to_video"`) ||
+		!strings.Contains(binding.RouteCapabilitiesJSON, `"requires_public_video_url":true`) {
+		t.Fatalf("unexpected Yunwu AliBailian route binding: %+v", binding)
+	}
+}
+
+func TestApplyModelImportCreatesYunwuOfficialVideoGenerationsRouteProfile(t *testing.T) {
+	service := newModelImportTestService(t)
+	ctx := context.Background()
+
+	_, err := service.ApplyModelImport(ctx, ModelImportApplyInput{
+		Provider: ModelImportProviderInput{
+			ProviderKind: persistencemodel.AIProviderKindYunwuGateway,
+			APIKey:       "sk-yunwu",
+		},
+		Models: []ModelImportModelInput{{ProviderModelID: "grok-imagine-video"}},
+	})
+	if err != nil {
+		t.Fatalf("ApplyModelImport() error = %v", err)
+	}
+	var binding persistencemodel.AIModelRouteBinding
+	if err := service.db.Where("provider_model_id = ?", "grok-imagine-video").First(&binding).Error; err != nil {
+		t.Fatalf("load route binding: %v", err)
+	}
+	if binding.AdapterType != infraai.AdapterOfficialVideoGenerations ||
+		binding.EndpointPathPrefix != "/v1" ||
+		binding.EndpointMode != "replace_path" ||
+		binding.OperationProfile != "generation" ||
+		!strings.Contains(binding.RouteCapabilitiesJSON, `"prompt_to_video"`) {
+		t.Fatalf("unexpected Yunwu official video route binding: %+v", binding)
+	}
+}
+
+func TestApplyModelImportCreatesYunwuOpenAIVideoMultipartRouteProfile(t *testing.T) {
+	service := newModelImportTestService(t)
+	ctx := context.Background()
+
+	_, err := service.ApplyModelImport(ctx, ModelImportApplyInput{
+		Provider: ModelImportProviderInput{
+			ProviderKind: persistencemodel.AIProviderKindYunwuGateway,
+			APIKey:       "sk-yunwu",
+		},
+		Models: []ModelImportModelInput{{ProviderModelID: "grok-imagine-video-1.5"}},
+	})
+	if err != nil {
+		t.Fatalf("ApplyModelImport() error = %v", err)
+	}
+	var binding persistencemodel.AIModelRouteBinding
+	if err := service.db.Where("provider_model_id = ?", "grok-imagine-video-1.5").First(&binding).Error; err != nil {
+		t.Fatalf("load route binding: %v", err)
+	}
+	if binding.AdapterType != infraai.AdapterOpenAIVideoMultipart ||
+		binding.EndpointPathPrefix != "/v1" ||
+		binding.EndpointMode != "replace_path" ||
+		binding.OperationProfile != "generation" ||
+		!strings.Contains(binding.RouteCapabilitiesJSON, `"image_to_video"`) {
+		t.Fatalf("unexpected Yunwu multipart video route binding: %+v", binding)
+	}
+}
+
+func TestApplyModelImportAutoDiscoversYunwuRoutesAndDisablesMissingMappings(t *testing.T) {
+	service := newModelImportTestService(t)
+	ctx := context.Background()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || !strings.HasSuffix(r.URL.Path, "/models") {
+			t.Fatalf("unexpected upstream request: %s %s", r.Method, r.URL.String())
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer sk-yunwu-sync" {
+			t.Fatalf("authorization = %q, want bearer key", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"object":"list","data":[
+			{"id":"gpt-4.1"},
+			{"id":"grok-video-3"},
+			{"id":"grok-imagine-video"},
+			{"id":"grok-imagine-video-1.5"},
+			{"id":"wan2.1-i2v"},
+			{"id":"musicgen"}
+		]}`))
+	}))
+	defer upstream.Close()
+
+	result, err := service.ApplyModelImport(ctx, ModelImportApplyInput{
+		Provider: ModelImportProviderInput{
+			ProviderKind:  persistencemodel.AIProviderKindYunwuGateway,
+			BaseURLPrefix: upstream.URL,
+			APIKey:        "sk-yunwu-sync",
+		},
+	})
+	if err != nil {
+		t.Fatalf("ApplyModelImport() error = %v", err)
+	}
+	if result.Provider.ProviderKind != persistencemodel.AIProviderKindYunwuGateway {
+		t.Fatalf("provider kind = %q, want Yunwu", result.Provider.ProviderKind)
+	}
+	if result.Summary.CreatedCatalogEntries != 6 || result.Summary.CreatedRouteBindings != 6 || result.Summary.SkippedRouteBindings != 0 {
+		t.Fatalf("summary = %+v, want all discovered models visible as routes", result.Summary)
+	}
+	if len(result.Items) != 6 {
+		t.Fatalf("items = %d, want 6", len(result.Items))
+	}
+
+	routes := map[string]persistencemodel.AIModelRouteBinding{}
+	var bindings []persistencemodel.AIModelRouteBinding
+	if err := service.db.Find(&bindings).Error; err != nil {
+		t.Fatalf("list route bindings: %v", err)
+	}
+	for _, binding := range bindings {
+		routes[binding.ProviderModelID] = binding
+	}
+	if route := routes["grok-video-3"]; route.AdapterType != infraai.AdapterYunwuUnifiedVideo || !route.IsEnabled || route.EndpointPathPrefix != "/v1" {
+		t.Fatalf("grok-video-3 route = %+v, want enabled Yunwu unified route", route)
+	}
+	if route := routes["grok-imagine-video"]; route.AdapterType != infraai.AdapterOfficialVideoGenerations || !route.IsEnabled || route.EndpointPathPrefix != "/v1" {
+		t.Fatalf("grok-imagine-video route = %+v, want enabled official video generations route", route)
+	}
+	if route := routes["grok-imagine-video-1.5"]; route.AdapterType != infraai.AdapterOpenAIVideoMultipart || !route.IsEnabled || route.EndpointPathPrefix != "/v1" {
+		t.Fatalf("grok-imagine-video-1.5 route = %+v, want enabled multipart video route", route)
+	}
+	if route := routes["wan2.1-i2v"]; route.AdapterType != infraai.AdapterDashScope || !route.IsEnabled || route.EndpointPathPrefix != "/alibailian/api/v1" {
+		t.Fatalf("wan2.1-i2v route = %+v, want enabled Yunwu AliBailian route", route)
+	}
+	if route := routes["gpt-4.1"]; route.AdapterType != infraai.AdapterOpenAICompat || !route.IsEnabled {
+		t.Fatalf("gpt-4.1 route = %+v, want enabled OpenAI-compatible route", route)
+	}
+	musicRoute := routes["musicgen"]
+	if musicRoute.IsEnabled || musicRoute.AdapterType != infraai.AdapterOpenAICompat {
+		t.Fatalf("musicgen route = %+v, want disabled diagnostic route with gateway-safe adapter", musicRoute)
+	}
+	var musicItem *ModelImportApplyItem
+	for i := range result.Items {
+		if result.Items[i].ProviderModelID == "musicgen" {
+			musicItem = &result.Items[i]
+			break
+		}
+	}
+	if musicItem == nil || musicItem.Recommended || len(musicItem.Diagnostics) == 0 || !strings.Contains(strings.Join(musicItem.Diagnostics, " "), "disabled") {
+		t.Fatalf("musicgen item = %+v, want disabled diagnostic", musicItem)
+	}
+}
+
+func TestPreviewModelImportMarksYunwuMissingMappingsAsDisabledDiagnostics(t *testing.T) {
+	service := newModelImportTestService(t)
+	ctx := context.Background()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || !strings.HasSuffix(r.URL.Path, "/models") {
+			t.Fatalf("unexpected upstream request: %s %s", r.Method, r.URL.String())
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"object":"list","data":[{"id":"musicgen"}]}`))
+	}))
+	defer upstream.Close()
+
+	result, err := service.PreviewModelImport(ctx, ModelImportPreviewInput{
+		Provider: ModelImportProviderInput{
+			ProviderKind:  persistencemodel.AIProviderKindYunwuGateway,
+			BaseURLPrefix: upstream.URL,
+			APIKey:        "sk-yunwu-preview",
+		},
+	})
+	if err != nil {
+		t.Fatalf("PreviewModelImport() error = %v", err)
+	}
+	if len(result.Models) != 1 {
+		t.Fatalf("models = %d, want 1", len(result.Models))
+	}
+	model := result.Models[0]
+	if model.ProviderModelID != "musicgen" || model.Recommended || model.AdapterType != infraai.AdapterOpenAICompat || model.RouteCapabilitiesJSON == "" {
+		t.Fatalf("preview model = %+v, want disabled diagnostic route preview", model)
+	}
+	if !strings.Contains(strings.Join(model.Diagnostics, " "), "disabled") {
+		t.Fatalf("preview diagnostics = %#v, want disabled route explanation", model.Diagnostics)
+	}
+}
+
+func TestApplyModelImportCreatesYunwuDisabledDiagnosticRouteFromExplicitPreviewSelection(t *testing.T) {
+	service := newModelImportTestService(t)
+	ctx := context.Background()
+
+	result, err := service.ApplyModelImport(ctx, ModelImportApplyInput{
+		Provider: ModelImportProviderInput{
+			ProviderKind: persistencemodel.AIProviderKindYunwuGateway,
+			APIKey:       "sk-yunwu",
+		},
+		Models: []ModelImportModelInput{{
+			ProviderModelID: "musicgen",
+			PublicModelID:   "musicgen",
+			DisplayName:     "musicgen",
+			Capabilities:    []string{infraai.CapabilityAudioMusic},
+			TemplateID:      "open-source-audio:musicgen",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("ApplyModelImport() error = %v", err)
+	}
+	if result.Summary.CreatedRouteBindings != 1 || result.Summary.SkippedRouteBindings != 0 {
+		t.Fatalf("summary = %+v, want disabled route binding created", result.Summary)
+	}
+	item := result.Items[0]
+	if item.Recommended || len(item.Diagnostics) == 0 || !strings.Contains(strings.Join(item.Diagnostics, " "), "disabled") {
+		t.Fatalf("item = %+v, want disabled diagnostic", item)
+	}
+	var binding persistencemodel.AIModelRouteBinding
+	if err := service.db.Where("provider_model_id = ?", "musicgen").First(&binding).Error; err != nil {
+		t.Fatalf("load route binding: %v", err)
+	}
+	if binding.IsEnabled || binding.AdapterType != infraai.AdapterOpenAICompat || !strings.Contains(binding.RouteCapabilitiesJSON, `"music"`) {
+		t.Fatalf("binding = %+v, want disabled OpenAI-compatible diagnostic route", binding)
+	}
+}
+
 func TestModelCatalogNormalizesCapabilitiesAndRejectsInvalidEntryContracts(t *testing.T) {
 	service := newTestService(t)
 	ctx := context.Background()
@@ -465,6 +776,15 @@ func TestModelCatalogNormalizesCapabilitiesAndRejectsInvalidEntryContracts(t *te
 				SupportedParams: `{"allow":`,
 			},
 			want: "custom_supported_params",
+		},
+		{
+			name: "invalid model capabilities json",
+			input: ModelCatalogEntryInput{
+				PublicModelID:         "bad-capabilities-json",
+				Capabilities:          "video",
+				ModelCapabilitiesJSON: `{"video_generation":`,
+			},
+			want: "model_capabilities_json",
 		},
 		{
 			name: "invalid image input limit",
@@ -544,42 +864,46 @@ func TestModelCatalogRejectsDuplicateRouteBindingForSameProviderModelAndGroup(t 
 	}
 	if supportsRelayGatewayRouteBindings() {
 		if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-			RouteGroup:      "priority",
-			ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
-			ProviderModelID: "provider-video-priority",
-			Priority:        1,
-			CapacityWeight:  1,
+			RouteGroup:            "priority",
+			ProviderID:            persistencemodel.ModelRouteSourceRelayGateway,
+			ProviderModelID:       "provider-video-priority",
+			RouteCapabilitiesJSON: routeCapabilityPromptVideoJSON,
+			Priority:              1,
+			CapacityWeight:        1,
 		}); err != nil {
 			t.Fatalf("CreateModelRouteBinding() first error = %v", err)
 		}
 
 		if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-			RouteGroup:      "priority",
-			ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
-			ProviderModelID: "provider-video-priority-2",
-			Priority:        2,
-			CapacityWeight:  1,
+			RouteGroup:            "priority",
+			ProviderID:            persistencemodel.ModelRouteSourceRelayGateway,
+			ProviderModelID:       "provider-video-priority-2",
+			RouteCapabilitiesJSON: routeCapabilityPromptVideoJSON,
+			Priority:              2,
+			CapacityWeight:        1,
 		}); err != nil {
 			t.Fatalf("CreateModelRouteBinding() same provider different model error = %v", err)
 		}
 
 		_, err = service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-			RouteGroup:      "priority",
-			ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
-			ProviderModelID: "provider-video-priority",
-			Priority:        4,
-			CapacityWeight:  1,
+			RouteGroup:            "priority",
+			ProviderID:            persistencemodel.ModelRouteSourceRelayGateway,
+			ProviderModelID:       "provider-video-priority",
+			RouteCapabilitiesJSON: routeCapabilityPromptVideoJSON,
+			Priority:              4,
+			CapacityWeight:        1,
 		})
 		if !errors.Is(err, ErrInvalidModelCatalog) || !strings.Contains(err.Error(), "already exists") {
 			t.Fatalf("duplicate binding error = %v, want ErrInvalidModelCatalog with already exists", err)
 		}
 
 		if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-			RouteGroup:      "economy",
-			ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
-			ProviderModelID: "provider-video-economy",
-			Priority:        3,
-			CapacityWeight:  1,
+			RouteGroup:            "economy",
+			ProviderID:            persistencemodel.ModelRouteSourceRelayGateway,
+			ProviderModelID:       "provider-video-economy",
+			RouteCapabilitiesJSON: routeCapabilityPromptVideoJSON,
+			Priority:              3,
+			CapacityWeight:        1,
 		}); err != nil {
 			t.Fatalf("CreateModelRouteBinding() different group error = %v", err)
 		}
@@ -592,30 +916,34 @@ func TestModelCatalogRejectsDuplicateRouteBindingForSameProviderModelAndGroup(t 
 	credentialA := uint(101)
 	credentialB := uint(102)
 	if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-		ProviderModelID: "provider-video-a",
-		ProviderID:      localProviderTestProviderID(credentialA),
-		CapacityWeight:  1,
+		ProviderModelID:       "provider-video-a",
+		ProviderID:            localProviderTestProviderID(credentialA),
+		RouteCapabilitiesJSON: routeCapabilityPromptVideoJSON,
+		CapacityWeight:        1,
 	}); err != nil {
 		t.Fatalf("CreateModelRouteBinding() local provider credential A error = %v", err)
 	}
 	if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-		ProviderModelID: "provider-video-b",
-		ProviderID:      localProviderTestProviderID(credentialB),
-		CapacityWeight:  1,
+		ProviderModelID:       "provider-video-b",
+		ProviderID:            localProviderTestProviderID(credentialB),
+		RouteCapabilitiesJSON: routeCapabilityPromptVideoJSON,
+		CapacityWeight:        1,
 	}); err != nil {
 		t.Fatalf("CreateModelRouteBinding() local provider credential B error = %v", err)
 	}
 	if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-		ProviderModelID: "provider-video-a2",
-		ProviderID:      localProviderTestProviderID(credentialA),
-		CapacityWeight:  1,
+		ProviderModelID:       "provider-video-a2",
+		ProviderID:            localProviderTestProviderID(credentialA),
+		RouteCapabilitiesJSON: routeCapabilityPromptVideoJSON,
+		CapacityWeight:        1,
 	}); err != nil {
 		t.Fatalf("CreateModelRouteBinding() same provider different model error = %v", err)
 	}
 	_, err = service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-		ProviderModelID: "provider-video-a",
-		ProviderID:      localProviderTestProviderID(credentialA),
-		CapacityWeight:  1,
+		ProviderModelID:       "provider-video-a",
+		ProviderID:            localProviderTestProviderID(credentialA),
+		RouteCapabilitiesJSON: routeCapabilityPromptVideoJSON,
+		CapacityWeight:        1,
 	})
 	if !errors.Is(err, ErrInvalidModelCatalog) || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("duplicate credential binding error = %v, want ErrInvalidModelCatalog with already exists", err)
@@ -645,6 +973,93 @@ func TestModelCatalogNormalizesRouteBindingAPIKinds(t *testing.T) {
 	}
 }
 
+func TestModelCatalogRouteBindingPersistsEndpointAndCapabilities(t *testing.T) {
+	service := newTestService(t)
+	ctx := context.Background()
+
+	entry, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
+		PublicModelID:         "grok-video-public",
+		DisplayName:           "Grok Video Public",
+		Capabilities:          "video,video_i2v",
+		ModelCapabilitiesJSON: `{"video_generation":{"operations":["image_to_video"]}}`,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelCatalogEntry() error = %v", err)
+	}
+	if entry.ModelCapabilitiesJSON != `{"video_generation":{"operations":["image_to_video"]}}` {
+		t.Fatalf("model_capabilities_json = %q", entry.ModelCapabilitiesJSON)
+	}
+
+	input := validTestModelRouteBindingInput(151, "yunwu")
+	input.AdapterType = infraai.AdapterYunwuUnifiedVideo
+	input.EndpointBaseURL = "https://yunwu.ai/"
+	input.EndpointPathPrefix = "v1"
+	input.EndpointMode = "replace_path"
+	input.OperationProfile = "generation"
+	input.RouteCapabilitiesJSON = `{"video_generation":{"operations":["image_to_video"],"requires_public_image_url":true}}`
+	binding, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), input)
+	if err != nil {
+		t.Fatalf("CreateModelRouteBinding() error = %v", err)
+	}
+	if binding.EndpointBaseURL != "https://yunwu.ai" ||
+		binding.EndpointPathPrefix != "/v1" ||
+		binding.EndpointMode != "replace_path" ||
+		binding.OperationProfile != "generation" ||
+		binding.RouteCapabilitiesJSON != input.RouteCapabilitiesJSON {
+		t.Fatalf("route endpoint/capability fields = %+v", binding)
+	}
+
+	listed, err := service.ListModelCatalogEntries(ctx)
+	if err != nil {
+		t.Fatalf("ListModelCatalogEntries() error = %v", err)
+	}
+	if len(listed) != 1 || len(listed[0].RouteBindings) != 1 {
+		t.Fatalf("listed catalog = %+v", listed)
+	}
+	listedRoute := listed[0].RouteBindings[0]
+	if listed[0].ModelCapabilitiesJSON != entry.ModelCapabilitiesJSON ||
+		listedRoute.EndpointPathPrefix != "/v1" ||
+		listedRoute.RouteCapabilitiesJSON != input.RouteCapabilitiesJSON {
+		t.Fatalf("listed endpoint/capability fields entry=%+v route=%+v", listed[0], listedRoute)
+	}
+}
+
+func TestModelCatalogRouteBindingAcceptsOperationSlotCapabilities(t *testing.T) {
+	service := newTestService(t)
+	ctx := context.Background()
+	capabilitiesJSON := `{"video_generation":{"operations":[{"id":"first_last_frame_to_video","input_slots":[{"id":"first_frame","required":true,"max":1,"roles":["first_frame"],"modalities":["image"]},{"id":"last_frame","required":true,"max":1,"roles":["last_frame"],"modalities":["image"]}]}],"reference_assets":{"min":2,"max":2,"roles":["first_frame","last_frame"],"modalities":["image"]}}}`
+
+	entry, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
+		PublicModelID:         "slot-video-public",
+		DisplayName:           "Slot Video Public",
+		Capabilities:          "video_i2v",
+		ModelCapabilitiesJSON: capabilitiesJSON,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelCatalogEntry() error = %v", err)
+	}
+
+	input := validTestModelRouteBindingInput(152, "slot-route")
+	input.RouteCapabilitiesJSON = capabilitiesJSON
+	binding, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), input)
+	if err != nil {
+		t.Fatalf("CreateModelRouteBinding() error = %v", err)
+	}
+	if binding.RouteCapabilitiesJSON != capabilitiesJSON {
+		t.Fatalf("route capabilities json = %q", binding.RouteCapabilitiesJSON)
+	}
+
+	listed, err := service.ListModelCatalogEntries(ctx)
+	if err != nil {
+		t.Fatalf("ListModelCatalogEntries() error = %v", err)
+	}
+	if len(listed) != 1 || listed[0].ModelCapabilitiesJSON != capabilitiesJSON ||
+		len(listed[0].RouteBindings) != 1 ||
+		listed[0].RouteBindings[0].RouteCapabilitiesJSON != capabilitiesJSON {
+		t.Fatalf("listed catalog with operation slots = %+v", listed)
+	}
+}
+
 func TestModelCatalogInfersRouteSourceFromProviderID(t *testing.T) {
 	service := newTestService(t)
 	ctx := context.Background()
@@ -658,9 +1073,10 @@ func TestModelCatalogInfersRouteSourceFromProviderID(t *testing.T) {
 		t.Fatalf("CreateModelCatalogEntry() error = %v", err)
 	}
 	binding, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-		ProviderID:      localProviderTestProviderID(161),
-		ProviderModelID: "provider-video",
-		CapacityWeight:  1,
+		ProviderID:            localProviderTestProviderID(161),
+		ProviderModelID:       "provider-video",
+		RouteCapabilitiesJSON: routeCapabilityPromptVideoJSON,
+		CapacityWeight:        1,
 	})
 	if err != nil {
 		t.Fatalf("CreateModelRouteBinding() error = %v", err)
@@ -691,6 +1107,14 @@ func TestModelCatalogRejectsInvalidRouteBindingContracts(t *testing.T) {
 	negativeMaxConcurrencyInput.MaxConcurrency = -1
 	invalidAPIKindInput := validTestModelRouteBindingInput(3, "invalid-api-kind")
 	invalidAPIKindInput.APIKinds = "openai_responses,claude-ish"
+	invalidEndpointModeInput := validTestModelRouteBindingInput(4, "invalid-endpoint-mode")
+	invalidEndpointModeInput.EndpointMode = "guess"
+	invalidRouteCapabilitiesInput := validTestModelRouteBindingInput(5, "invalid-route-capabilities")
+	invalidRouteCapabilitiesInput.RouteCapabilitiesJSON = `{"video_generation":`
+	missingRouteCapabilitiesInput := validTestModelRouteBindingInput(6, "missing-route-capabilities")
+	missingRouteCapabilitiesInput.RouteCapabilitiesJSON = ""
+	unsupportedRouteOperationInput := validTestModelRouteBindingInput(7, "unsupported-route-operation")
+	unsupportedRouteOperationInput.RouteCapabilitiesJSON = `{"video_generation":{"operations":["first_last_frame_to_video"]}}`
 
 	tests := []struct {
 		name  string
@@ -711,6 +1135,26 @@ func TestModelCatalogRejectsInvalidRouteBindingContracts(t *testing.T) {
 			name:  "invalid api kind",
 			input: invalidAPIKindInput,
 			want:  "api_kind",
+		},
+		{
+			name:  "invalid endpoint mode",
+			input: invalidEndpointModeInput,
+			want:  "endpoint_mode",
+		},
+		{
+			name:  "invalid route capabilities json",
+			input: invalidRouteCapabilitiesInput,
+			want:  "route_capabilities_json",
+		},
+		{
+			name:  "enabled route requires route capabilities",
+			input: missingRouteCapabilitiesInput,
+			want:  "route_capabilities_json is required",
+		},
+		{
+			name:  "route operation must exist in catalog capability",
+			input: unsupportedRouteOperationInput,
+			want:  "not declared by catalog",
 		},
 	}
 	if supportsRelayGatewayRouteBindings() {
@@ -769,50 +1213,56 @@ func TestModelCatalogRejectsUpdatingRouteBindingIntoDuplicateGroup(t *testing.T)
 	var duplicateTarget ModelRouteBinding
 	if supportsRelayGatewayRouteBindings() {
 		if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-			RouteGroup:      "priority",
-			ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
-			ProviderModelID: "provider-image-priority",
-			CapacityWeight:  1,
+			RouteGroup:            "priority",
+			ProviderID:            persistencemodel.ModelRouteSourceRelayGateway,
+			ProviderModelID:       "provider-image-priority",
+			RouteCapabilitiesJSON: routeCapabilityImageJSON,
+			CapacityWeight:        1,
 		}); err != nil {
 			t.Fatalf("CreateModelRouteBinding() priority error = %v", err)
 		}
 		duplicateTarget, err = service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-			RouteGroup:      "economy",
-			ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
-			ProviderModelID: "provider-image-economy",
-			CapacityWeight:  1,
+			RouteGroup:            "economy",
+			ProviderID:            persistencemodel.ModelRouteSourceRelayGateway,
+			ProviderModelID:       "provider-image-economy",
+			RouteCapabilitiesJSON: routeCapabilityImageJSON,
+			CapacityWeight:        1,
 		})
 		if err != nil {
 			t.Fatalf("CreateModelRouteBinding() economy error = %v", err)
 		}
 		_, err = service.UpdateModelRouteBinding(ctx, strconvID(duplicateTarget.ID), ModelRouteBindingInput{
-			RouteGroup:      "priority",
-			ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
-			ProviderModelID: "provider-image-priority",
-			CapacityWeight:  1,
+			RouteGroup:            "priority",
+			ProviderID:            persistencemodel.ModelRouteSourceRelayGateway,
+			ProviderModelID:       "provider-image-priority",
+			RouteCapabilitiesJSON: routeCapabilityImageJSON,
+			CapacityWeight:        1,
 		})
 	} else {
 		credentialA := uint(201)
 		credentialB := uint(202)
 		if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-			ProviderModelID: "provider-image-a",
-			ProviderID:      localProviderTestProviderID(credentialA),
-			CapacityWeight:  1,
+			ProviderModelID:       "provider-image-a",
+			ProviderID:            localProviderTestProviderID(credentialA),
+			RouteCapabilitiesJSON: routeCapabilityImageJSON,
+			CapacityWeight:        1,
 		}); err != nil {
 			t.Fatalf("CreateModelRouteBinding() credential A error = %v", err)
 		}
 		duplicateTarget, err = service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-			ProviderModelID: "provider-image-b",
-			ProviderID:      localProviderTestProviderID(credentialB),
-			CapacityWeight:  1,
+			ProviderModelID:       "provider-image-b",
+			ProviderID:            localProviderTestProviderID(credentialB),
+			RouteCapabilitiesJSON: routeCapabilityImageJSON,
+			CapacityWeight:        1,
 		})
 		if err != nil {
 			t.Fatalf("CreateModelRouteBinding() credential B error = %v", err)
 		}
 		_, err = service.UpdateModelRouteBinding(ctx, strconvID(duplicateTarget.ID), ModelRouteBindingInput{
-			ProviderModelID: "provider-image-a",
-			ProviderID:      localProviderTestProviderID(credentialA),
-			CapacityWeight:  1,
+			ProviderModelID:       "provider-image-a",
+			ProviderID:            localProviderTestProviderID(credentialA),
+			RouteCapabilitiesJSON: routeCapabilityImageJSON,
+			CapacityWeight:        1,
 		})
 	}
 	if !errors.Is(err, ErrInvalidModelCatalog) || !strings.Contains(err.Error(), "already exists") {
@@ -844,7 +1294,9 @@ func TestModelCatalogDeleteRemovesRouteBindings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateModelCatalogEntry() error = %v", err)
 	}
-	if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), validTestModelRouteBindingInput(301, "delete-route")); err != nil {
+	input := validTestModelRouteBindingInput(301, "delete-route")
+	input.RouteCapabilitiesJSON = routeCapabilityAudioTTSJSON
+	if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), input); err != nil {
 		t.Fatalf("CreateModelRouteBinding() error = %v", err)
 	}
 
@@ -866,18 +1318,27 @@ func TestModelCatalogDeleteRemovesRouteBindings(t *testing.T) {
 func validTestModelRouteBindingInput(credentialID uint, routeGroup string) ModelRouteBindingInput {
 	if supportsRelayGatewayRouteBindings() {
 		return ModelRouteBindingInput{
-			RouteGroup:      routeGroup,
-			ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
-			ProviderModelID: "provider-" + routeGroup,
-			CapacityWeight:  1,
+			RouteGroup:            routeGroup,
+			ProviderID:            persistencemodel.ModelRouteSourceRelayGateway,
+			ProviderModelID:       "provider-" + routeGroup,
+			RouteCapabilitiesJSON: routeCapabilityTextJSON,
+			CapacityWeight:        1,
 		}
 	}
 	return ModelRouteBindingInput{
-		ProviderModelID: "provider-" + routeGroup,
-		ProviderID:      localProviderTestProviderID(credentialID),
-		CapacityWeight:  1,
+		ProviderModelID:       "provider-" + routeGroup,
+		ProviderID:            localProviderTestProviderID(credentialID),
+		RouteCapabilitiesJSON: routeCapabilityTextJSON,
+		CapacityWeight:        1,
 	}
 }
+
+const (
+	routeCapabilityTextJSON        = `{"text_generation":{"operations":["chat"]}}`
+	routeCapabilityImageJSON       = `{"image_generation":{"operations":["text_to_image"]}}`
+	routeCapabilityPromptVideoJSON = `{"video_generation":{"operations":["prompt_to_video"]}}`
+	routeCapabilityAudioTTSJSON    = `{"audio_generation":{"operations":["tts"]}}`
+)
 
 func localProviderTestProviderID(credentialID uint) string {
 	return persistencemodel.ModelRouteSourceLocalProvider + ":" + strconvID(credentialID)

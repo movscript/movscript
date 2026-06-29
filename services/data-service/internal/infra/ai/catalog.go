@@ -7,20 +7,24 @@ import (
 
 // Adapter type constants.
 const (
-	AdapterOpenAICompat = "openai_compat"
-	AdapterAnthropic    = "anthropic"
-	AdapterKling        = "kling"
-	AdapterVolcen       = "volcen" // Volcengine Ark: text (doubao), image (Seedream), video (Seedance)
-	AdapterGemini       = "gemini" // Google Gemini API (text/image/video)
-	AdapterDashScope    = "dashscope"
-	AdapterVidu         = "vidu"
-	AdapterElevenLabs   = "elevenlabs"
-	AdapterMiniMax      = "minimax"
-	AdapterXiaomiMimo   = "xiaomi_mimo"
-	AdapterMureka       = "mureka"
-	AdapterStability    = "stability"
-	AdapterYunwu        = "yunwu"
-	AdapterLocal        = "local"
+	AdapterOpenAICompat             = "openai_compat"
+	AdapterOpenAIVideoMultipart     = "openai_video_multipart"
+	AdapterOfficialVideoGenerations = "official_video_generations"
+	AdapterYunwuUnifiedVideo        = "yunwu_unified_video"
+	AdapterAnthropic                = "anthropic"
+	AdapterKling                    = "kling"
+	AdapterVolcen                   = "volcen" // Volcengine Ark: text (doubao), image (Seedream), video (Seedance)
+	AdapterGemini                   = "gemini" // Google Gemini API (text/image/video)
+	AdapterDashScope                = "dashscope"
+	AdapterVyroSeedance             = "vyro_seedance"
+	AdapterVidu                     = "vidu"
+	AdapterElevenLabs               = "elevenlabs"
+	AdapterMiniMax                  = "minimax"
+	AdapterXiaomiMimo               = "xiaomi_mimo"
+	AdapterMureka                   = "mureka"
+	AdapterStability                = "stability"
+	AdapterYunwuLegacy              = "yunwu"
+	AdapterLocal                    = "local"
 )
 
 const (
@@ -227,7 +231,7 @@ type CatalogTemplate struct {
 	ModelID              string     `json:"model_id"`
 	DisplayName          string     `json:"display_name"`
 	Capabilities         []string   `json:"capabilities"`
-	AdapterType          string     `json:"adapter_type"`
+	RouteAdapterHint     string     `json:"route_adapter_hint,omitempty"`
 	SourceStatus         string     `json:"source_status,omitempty"`
 	APIKinds             []string   `json:"api_kinds,omitempty"`
 	AcceptsImageInput    bool       `json:"accepts_image_input"`
@@ -435,6 +439,19 @@ func dashScopeVideoParams() []ParamDef {
 	}
 }
 
+func vyroSeedanceVideoParams() []ParamDef {
+	return []ParamDef{
+		{Key: "duration", Label: "时长(秒)", Type: "select",
+			Options: []string{"5", "10"}, Default: "5"},
+		{Key: "aspect_ratio", Label: "画面比例", Type: "select",
+			Options: []string{"16:9", "9:16", "1:1"}, Default: "16:9"},
+		{Key: "size", Label: "清晰度", Type: "select",
+			Options: []string{"720P", "1080P"}, Default: "720P"},
+		{Key: "resolution", Label: "分辨率", Type: "select",
+			Options: []string{"720p", "1080p"}, Default: "720p"},
+	}
+}
+
 func dashScopeTTSParams() []ParamDef {
 	return []ParamDef{
 		{Key: "voice", Label: "音色", Type: "string", Default: "Cherry"},
@@ -612,7 +629,7 @@ var AdapterDefs = []AdapterDef{
 	{
 		AdapterType:      AdapterOpenAICompat,
 		DisplayName:      "OpenAI 兼容 API",
-		Description:      "兼容 OpenAI 接口的文本/图像模型，支持 OpenAI、DeepSeek、豆包文本/图像等",
+		Description:      "兼容 OpenAI 接口的文本、图像和音频模型。视频协议请使用专门的视频 adapter。",
 		DefaultBaseURL:   "https://api.openai.com/v1",
 		SupportsFilesAPI: true,
 		CredFields: []CredField{
@@ -623,9 +640,6 @@ var AdapterDefs = []AdapterDef{
 			{Capability: CapabilityText, Params: commonTextParams()},
 			{Capability: CapabilityImage, Params: commonImageParams()},
 			{Capability: CapabilityImageEdit, Params: commonImageParams()},
-			{Capability: CapabilityVideo, Params: openAICompatVideoParams()},
-			{Capability: CapabilityVideoI2V, Params: openAICompatVideoParams()},
-			{Capability: CapabilityVideoV2V, Params: openAICompatVideoParams()},
 			{Capability: CapabilityAudioTTS, Params: openAICompatAudioSpeechParams()},
 			{Capability: CapabilityAudioSTT, Params: openAICompatAudioTranscribeParams()},
 			{Capability: CapabilityAudioChat, Params: openAICompatAudioChatParams()},
@@ -633,18 +647,44 @@ var AdapterDefs = []AdapterDef{
 		},
 	},
 	{
-		AdapterType:    AdapterYunwu,
-		DisplayName:    "云雾中转站",
-		Description:    "云雾聚合网关：文本/图片复用 OpenAI 兼容接口，视频任务使用云雾 /v1/video/create 协议",
+		AdapterType:      AdapterOpenAIVideoMultipart,
+		DisplayName:      "OpenAI 视频 Multipart",
+		Description:      "OpenAI 风格 /videos multipart 视频生成协议。账号和 endpoint 由 route/provider 提供。",
+		DefaultBaseURL:   "https://api.openai.com/v1",
+		SupportsFilesAPI: true,
+		CredFields: []CredField{
+			{Key: "api_key", Label: "API Key", Required: true},
+			{Key: "base_url", Label: "Base URL（可选，用于官方或中转站入口）", Required: false},
+		},
+		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityVideo, Params: openAICompatVideoParams()},
+			{Capability: CapabilityVideoI2V, Params: openAICompatVideoParams()},
+			{Capability: CapabilityVideoV2V, Params: openAICompatVideoParams()},
+		},
+	},
+	{
+		AdapterType:    AdapterOfficialVideoGenerations,
+		DisplayName:    "官方视频 Generations",
+		Description:    "官方 JSON 视频生成协议，例如 /v1/videos/generations。账号和 endpoint 由 route/provider 提供。",
+		DefaultBaseURL: "https://api.x.ai/v1",
+		CredFields: []CredField{
+			{Key: "api_key", Label: "API Key", Required: true},
+			{Key: "base_url", Label: "Base URL（可选，用于官方或中转站入口）", Required: false},
+		},
+		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityVideo, Params: openAICompatVideoParams()},
+		},
+	},
+	{
+		AdapterType:    AdapterYunwuUnifiedVideo,
+		DisplayName:    "云雾统一视频",
+		Description:    "云雾统一 JSON 视频任务协议：/v1/video/create 和 /v1/video/query。云雾文本/图片模型应通过各自协议 route 接入。",
 		DefaultBaseURL: "https://yunwu.ai/v1",
 		CredFields: []CredField{
 			{Key: "api_key", Label: "API Key", Required: true},
 			{Key: "base_url", Label: "Base URL（可选，用于 api3.wlai.vip 等云雾入口）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
-			{Capability: CapabilityText, Params: commonTextParams()},
-			{Capability: CapabilityImage, Params: commonImageParams()},
-			{Capability: CapabilityImageEdit, Params: commonImageParams()},
 			{Capability: CapabilityVideo, Params: yunwuVideoParams()},
 			{Capability: CapabilityVideoI2V, Params: yunwuVideoParams()},
 		},
@@ -747,6 +787,20 @@ var AdapterDefs = []AdapterDef{
 		ParamSets: []AdapterParamSet{
 			{Capability: CapabilityVideo, Params: viduVideoParams()},
 			{Capability: CapabilityVideoI2V, Params: viduVideoParams()},
+		},
+	},
+	{
+		AdapterType:    AdapterVyroSeedance,
+		DisplayName:    "Vyro Seedance 中转",
+		Description:    "Vyro/83zi Seedance 2.0 Fast 视频任务接口：/v1/videos multipart + /v1/videos/{id} 查询。",
+		DefaultBaseURL: "http://115.190.186.95:3002/v1",
+		CredFields: []CredField{
+			{Key: "api_key", Label: "API Key", Required: true},
+			{Key: "base_url", Label: "Base URL（可选，用于 83zi 或同协议入口）", Required: false},
+		},
+		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityVideo, Params: vyroSeedanceVideoParams()},
+			{Capability: CapabilityVideoI2V, Params: vyroSeedanceVideoParams()},
 		},
 	},
 	{
@@ -950,7 +1004,7 @@ func CatalogTemplates() []CatalogTemplate {
 			ModelID:              def.ModelID,
 			DisplayName:          def.DisplayName,
 			Capabilities:         def.Capabilities,
-			AdapterType:          def.AdapterType,
+			RouteAdapterHint:     def.AdapterType,
 			SourceStatus:         def.SourceStatus,
 			APIKinds:             NormalizeModelAPIKinds(def.APIKinds),
 			AcceptsImageInput:    def.AcceptsImageInput,

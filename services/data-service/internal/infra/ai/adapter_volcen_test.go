@@ -74,8 +74,14 @@ func TestBuildVolcenVideoTaskRequestUsesReferenceRoles(t *testing.T) {
 			PresignedURL: "https://example.test/final.jpg",
 			MimeType:     "image/jpeg",
 		}},
-		InputVideo:    "https://example.test/ref.mp4",
-		InputAudio:    "https://example.test/music.mp3",
+		InputVideo: "https://example.test/ref.mp4",
+		InputAudio: "https://example.test/music.mp3",
+		ReferenceAssets: []ReferenceAsset{
+			{Role: "first_frame", MediaType: "image", ResourceID: 11},
+			{Role: "last_frame", MediaType: "image", ResourceID: 12},
+			{Role: "reference_video", MediaType: "video", ResourceID: 13},
+			{Role: "reference_audio", MediaType: "audio", ResourceID: 14},
+		},
 		GenerateAudio: &generateAudio,
 		Ratio:         "16:9",
 		Duration:      11,
@@ -117,6 +123,19 @@ func TestBuildVolcenVideoTaskRequestUsesReferenceRoles(t *testing.T) {
 	}
 	if _, ok := debugBody["content"].([]map[string]any); !ok {
 		t.Fatalf("debug content = %#v, want official-shaped content array", debugBody["content"])
+	}
+	bindings, ok := debugBody["reference_asset_bindings"].([]map[string]any)
+	if !ok || len(bindings) != 4 {
+		t.Fatalf("reference_asset_bindings = %#v, want four structured bindings", debugBody["reference_asset_bindings"])
+	}
+	if bindings[0]["resource_id"] != uint(11) || bindings[0]["role"] != "first_frame" || bindings[0]["provider_field"] != "content[].image_url" || bindings[0]["provider_role"] != "reference_image" {
+		t.Fatalf("first frame binding = %#v", bindings[0])
+	}
+	if bindings[1]["role"] != "last_frame" || bindings[1]["provider_role"] != "reference_image" {
+		t.Fatalf("last frame binding = %#v", bindings[1])
+	}
+	if bindings[2]["provider_field"] != "content[].video_url" || bindings[2]["provider_role"] != "reference_video" {
+		t.Fatalf("video binding = %#v", bindings[2])
 	}
 }
 

@@ -9,10 +9,14 @@ import { surfaceDataApi as api } from '@movscript/shared/surface-http'
 import { publicAgentBackendModelId as publicModelId } from '@movscript/core/agent'
 import {
   buildContentUnitGenerationJobPayload,
+  compiledContentUnitGenerationPromptReferenceAssets,
   compiledContentUnitGenerationPromptText,
   compiledContentUnitGenerationPromptResourceIds,
-  resolveGenerationJobTypeFromResourceCount,
+  completeGenerationReferenceAssets,
+  generationExecutionJobTypeForIntent,
   type ContentUnitGenerationOutputKind,
+  type GenerationBackendPreflightResult,
+  type GenerationIntentPayload,
 } from '@movscript/core/generation'
 import type { ContentCandidateRecord } from '@movscript/core/content'
 import type { PublicModel, RawResource } from '@movscript/shared'
@@ -22,12 +26,16 @@ import {
 } from './contentSourceWorkspaceElectron'
 import type {
   ContentCanvasContentCandidateCreateInput,
+  ContentCanvasContentCandidateDecideInput,
   ContentCanvasContentCandidateGenerateInput,
   ContentCanvasGenerationPromptPreview,
   ContentCanvasContentCandidateSelectInput,
   ContentCanvasWorkspaceGateway,
   ContentCanvasWorkspaceService,
 } from '../application/contentCanvasWorkspaceGateway'
+
+const CONTENT_CANVAS_PROMPT_CACHE_LIMIT = 64
+const CONTENT_CANVAS_PROMPT_CACHE_TTL_MS = 30_000
 
 export function createElectronContentCanvasWorkspaceGateway(
   projectId: number,
@@ -39,8 +47,17 @@ export function createElectronContentCanvasWorkspaceGateway(
     ...(projectDir ? { projectDir } : {}),
   }
   const service = createSurfaceWorkspaceDomainService(projectContext)
+  const contentCanvasReadModel = readSurfaceHostApi()?.readMovScriptEngineContentCanvasReadModel
+  const promptCache = createContentCanvasPromptCache()
   return {
     service,
+    ...(contentCanvasReadModel ? {
+      readContentCanvasReadModel: (inputProjectId: number) => contentCanvasReadModel({
+        ...currentSurfaceWorkspaceOwnerContext(),
+        ...(projectDir ? { projectDir } : {}),
+        projectId: inputProjectId,
+      }),
+    } : {}),
     loadContentSourceWorkspaceData: (inputProjectId) => loadContentSourceWorkspaceData(inputProjectId, {
       ...currentSurfaceWorkspaceOwnerContext(),
       ...(projectDir ? { projectDir } : {}),
@@ -184,6 +201,7 @@ export function createElectronContentCanvasWorkspaceGateway(
           segmentId: input.segmentId,
           sceneMomentId: input.sceneMomentId,
           id: input.id,
+          slotKind: input.slotKind,
           kind: input.kind,
           text: input.text,
           title: input.title,
@@ -263,44 +281,19 @@ export function createElectronContentCanvasWorkspaceGateway(
     },
     createContentUnitCandidate: async (input: ContentCanvasContentCandidateCreateInput) => createBackendContentCandidate(input),
     previewContentUnitGenerationPrompt: async (input: ContentCanvasContentCandidateGenerateInput) => (
-      previewContentUnitGenerationPromptForCanvas(service, input)
+      previewContentUnitGenerationPromptForCanvas(service, input, promptCache)
     ),
+    preflightContentUnitCandidate: async (input: ContentCanvasContentCandidateGenerateInput) => {
+      const built = await buildContentUnitCandidateGenerationForCanvas(service, input, promptCache)
+      return api.post(
+        `/projects/${input.projectId}/content-units/${encodeURIComponent(input.contentUnitId)}/candidates/preflight`,
+        contentUnitCandidateGenerationRequestBody(built),
+      ).then((result) => result.data as GenerationBackendPreflightResult)
+    },
     generateContentUnitCandidate: async (input: ContentCanvasContentCandidateGenerateInput) => {
-      const compiledPrompt = await readContentUnitGenerationPromptForCanvas(service, input)
-      const blockers = promptBlockers(compiledPrompt)
-      if (blockers.length) throw new Error(`提示词引用尚未解析：${blockers.map(promptBlockerLabel).join('；')}`)
-      const inputResourceIds = compiledContentUnitGenerationPromptResourceIds(compiledPrompt)
-      const jobType = resolveGenerationJobTypeFromResourceCount({
-        outputType: input.outputKind,
-        inputResourceCount: inputResourceIds.length,
-      })
-      const resolvedModel = input.modelId ? undefined : await resolveContentUnitGenerationModel(jobType, input.outputKind)
-      const modelId = input.modelId ?? (resolvedModel ? publicModelId(resolvedModel) : '')
-      if (!modelId) throw new Error(`没有可用于 ${jobType} 的生成模型`)
-      const supportedParams = input.supportedParams ?? resolvedModel?.supported_params
-      const built = buildContentUnitGenerationJobPayload({
-        projectId: input.projectId,
-        contentUnitId: input.contentUnitId,
-        outputKind: input.outputKind,
-        compiledPrompt,
-        modelId,
-        params: input.params,
-        supportedParams,
-      })
-      const payload = built.payload
+      const built = await buildContentUnitCandidateGenerationForCanvas(service, input, promptCache)
       const response = await api.post(`/projects/${input.projectId}/content-units/${encodeURIComponent(input.contentUnitId)}/candidates/generate`, {
-        candidate_id: input.candidateId,
-        ...currentProjectDataCandidateContext(),
-        output_kind: input.outputKind,
-        model_id: payload.model_id,
-        job_type: payload.job_type,
-        title: payload.title,
-        prompt: payload.prompt,
-        extra_params: payload.extra_params,
-        aspect_ratio: payload.aspect_ratio,
-        duration: payload.duration,
-        input_resource_ids: payload.input_resource_ids,
-        prompt_snapshot: built.promptSnapshot,
+        ...contentUnitCandidateGenerationRequestBody(built),
       }).then((result) => result.data as { candidate: ContentCandidateRecord })
       return response.candidate
     },
@@ -319,6 +312,124 @@ export function createElectronContentCanvasWorkspaceGateway(
         reason: input.reason,
       })
     },
+    decideContentUnitCandidate: async (input: ContentCanvasContentCandidateDecideInput) => {
+      const decideCandidate = readSurfaceHostApi()?.decideMovScriptEngineContentUnitCandidate
+      if (!decideCandidate) throw new Error('当前窗口没有创作片段候选决策能力')
+      const projectDir = currentSurfaceWorkspaceProjectDir()
+      await decideCandidate({
+        ...currentSurfaceWorkspaceOwnerContext(),
+        ...(projectDir ? { projectDir } : {}),
+        projectId: input.projectId,
+        expectedWorkspaceVersions: {},
+        contentUnitId: input.contentUnitId,
+        candidateId: input.candidateId,
+        resourceId: input.resourceId,
+        decision: input.decision,
+        reason: input.reason,
+        metadata: input.metadata,
+      })
+    },
+  }
+}
+
+type BuiltContentUnitCandidateGeneration = {
+  candidateId: string
+  outputKind: ContentUnitGenerationOutputKind
+  payload: Record<string, unknown>
+  promptSnapshot: Record<string, unknown>
+}
+
+type ContentCanvasPromptCacheEntry = {
+  createdAt: number
+  promise: Promise<Record<string, unknown>>
+}
+
+type ContentCanvasPromptCache = {
+  entries: Map<string, ContentCanvasPromptCacheEntry>
+}
+
+async function buildContentUnitCandidateGenerationForCanvas(
+  service: ContentCanvasWorkspaceService,
+  input: ContentCanvasContentCandidateGenerateInput,
+  promptCache?: ContentCanvasPromptCache,
+): Promise<BuiltContentUnitCandidateGeneration> {
+  if (input.outputKind === 'audio') {
+    throw new Error('当前创作片段候选生成暂不支持音频产物')
+  }
+  const outputKind: ContentUnitGenerationOutputKind = input.outputKind
+  const compiledPrompt = await readContentUnitGenerationPromptForCanvas(service, input, promptCache)
+  const blockers = promptBlockers(compiledPrompt)
+  if (blockers.length) throw new Error(`提示词引用尚未解析：${blockers.map(promptBlockerLabel).join('；')}`)
+  const inputResourceIds = compiledContentUnitGenerationPromptResourceIds(compiledPrompt)
+  const promptReferenceAssets = compiledContentUnitGenerationPromptReferenceAssets(compiledPrompt)
+  const generationIntent = completeCanvasContentUnitGenerationIntent(input.generationIntent, outputKind, inputResourceIds, promptReferenceAssets)
+  const jobType = generationExecutionJobTypeForIntent(generationIntent, outputKind)
+  const modelCapability = generationIntent.capability
+  const resolvedModel = input.modelId
+    ? undefined
+    : await resolveContentUnitGenerationModel(modelCapability, outputKind, generationIntent.operation, generationIntent.reference_assets)
+  const modelId = input.modelId ?? (resolvedModel ? publicModelId(resolvedModel) : '')
+  if (!modelId) throw new Error(`没有可用于 ${jobType} 的生成模型`)
+  const supportedParams = input.supportedParams ?? resolvedModel?.supported_params
+  const built = buildContentUnitGenerationJobPayload({
+    projectId: input.projectId,
+    contentUnitId: input.contentUnitId,
+    outputKind,
+    compiledPrompt,
+    modelId,
+    params: input.params,
+    supportedParams,
+    generationIntent,
+  })
+  return {
+    candidateId: input.candidateId,
+    outputKind,
+    payload: built.payload,
+    promptSnapshot: built.promptSnapshot,
+  }
+}
+
+function createContentCanvasPromptCache(): ContentCanvasPromptCache {
+  return { entries: new Map() }
+}
+
+function contentUnitCandidateGenerationRequestBody(input: BuiltContentUnitCandidateGeneration): Record<string, unknown> {
+  const payload = input.payload
+  return {
+    candidate_id: input.candidateId,
+    ...currentProjectDataCandidateContext(),
+    output_kind: input.outputKind,
+    model_id: payload.model_id,
+    job_type: payload.job_type,
+    title: payload.title,
+    prompt: payload.prompt,
+    extra_params: payload.extra_params,
+    aspect_ratio: payload.aspect_ratio,
+    duration: payload.duration,
+    input_resource_ids: payload.input_resource_ids,
+    generation_intent: payload.generation_intent,
+    prompt_snapshot: input.promptSnapshot,
+  }
+}
+
+function completeCanvasContentUnitGenerationIntent(
+  intent: GenerationIntentPayload | undefined,
+  outputKind: ContentUnitGenerationOutputKind,
+  inputResourceIds: readonly number[],
+  promptReferenceAssets: GenerationIntentPayload['reference_assets'] = [],
+): GenerationIntentPayload {
+  if (!intent?.capability?.trim() || !intent.operation?.trim()) {
+    throw new Error('生成候选需要显式选择模型能力和 operation')
+  }
+  const referenceAssets = completeGenerationReferenceAssets({
+    operation: intent.operation,
+    existing: intent.reference_assets && intent.reference_assets.length > 0 ? intent.reference_assets : promptReferenceAssets,
+    inputResourceIds,
+  })
+  return {
+    capability: intent.capability.trim(),
+    operation: intent.operation.trim(),
+    ...(referenceAssets.length > 0 ? { reference_assets: referenceAssets } : {}),
   }
 }
 
@@ -394,16 +505,18 @@ function currentProjectDataCandidateContext(): Record<string, string> {
 async function readContentUnitGenerationPromptForCanvas(
   _service: ContentCanvasWorkspaceService,
   input: ContentCanvasContentCandidateGenerateInput,
+  promptCache?: ContentCanvasPromptCache,
 ): Promise<Record<string, unknown>> {
-  const backendPrompt = await buildContentUnitBackendPromptForCanvas(input)
+  const backendPrompt = await cachedContentUnitBackendPromptForCanvas(input, promptCache)
   return { ...backendPrompt, __contentCanvasPromptSource: 'backend' }
 }
 
 async function previewContentUnitGenerationPromptForCanvas(
   service: ContentCanvasWorkspaceService,
   input: ContentCanvasContentCandidateGenerateInput,
+  promptCache?: ContentCanvasPromptCache,
 ): Promise<ContentCanvasGenerationPromptPreview> {
-  const prompt = await readContentUnitGenerationPromptForCanvas(service, input)
+  const prompt = await readContentUnitGenerationPromptForCanvas(service, input, promptCache)
   console.info('[content-canvas] compiled prompt source', JSON.stringify({
     contentUnitId: input.contentUnitId,
     source: prompt.__contentCanvasPromptSource,
@@ -416,8 +529,54 @@ async function previewContentUnitGenerationPromptForCanvas(
     text: compiledContentUnitGenerationPromptText(prompt),
     compiledText: typeof prompt.text === 'string' ? prompt.text : undefined,
     resourceIds: compiledContentUnitGenerationPromptResourceIds(prompt),
+    referenceAssets: compiledContentUnitGenerationPromptReferenceAssets(prompt),
     replacements: Array.isArray(prompt.replacements) ? prompt.replacements.filter(isRecord) : [],
     blockers: promptBlockers(prompt),
+  }
+}
+
+async function cachedContentUnitBackendPromptForCanvas(
+  input: ContentCanvasContentCandidateGenerateInput,
+  promptCache?: ContentCanvasPromptCache,
+): Promise<Record<string, unknown>> {
+  if (!promptCache) return buildContentUnitBackendPromptForCanvas(input)
+  const now = Date.now()
+  const key = contentCanvasPromptCacheKey(input)
+  const cached = promptCache.entries.get(key)
+  if (cached && now - cached.createdAt < CONTENT_CANVAS_PROMPT_CACHE_TTL_MS) {
+    return cached.promise
+  }
+  if (cached) promptCache.entries.delete(key)
+  const promise = buildContentUnitBackendPromptForCanvas(input).catch((error) => {
+    if (promptCache.entries.get(key)?.promise === promise) promptCache.entries.delete(key)
+    throw error
+  })
+  promptCache.entries.set(key, { createdAt: now, promise })
+  trimContentCanvasPromptCache(promptCache)
+  return promise
+}
+
+function contentCanvasPromptCacheKey(input: ContentCanvasContentCandidateGenerateInput): string {
+  const owner = currentSurfaceWorkspaceOwnerContext()
+  const candidateContext = currentProjectDataCandidateContext()
+  return stableJSONString({
+    projectDir: currentSurfaceWorkspaceProjectDir() ?? '',
+    projectId: input.projectId,
+    contentUnitId: input.contentUnitId,
+    promptText: input.promptText ?? '',
+    projectUid: candidateContext.project_uid ?? '',
+    scopeKind: candidateContext.scope_kind ?? '',
+    scopeId: candidateContext.scope_id ?? '',
+    userId: owner.userId ?? '',
+    orgId: owner.orgId ?? '',
+  })
+}
+
+function trimContentCanvasPromptCache(promptCache: ContentCanvasPromptCache): void {
+  while (promptCache.entries.size > CONTENT_CANVAS_PROMPT_CACHE_LIMIT) {
+    const oldest = promptCache.entries.keys().next().value
+    if (oldest === undefined) break
+    promptCache.entries.delete(oldest)
   }
 }
 
@@ -435,14 +594,16 @@ async function buildContentUnitBackendPromptForCanvas(
     contentUnitId: input.contentUnitId,
     promptText: input.promptText,
   })
-  const promptText = typeof input.promptText === 'string' ? input.promptText : undefined
-  const prompt = promptText === undefined
-    ? result.prompt
-    : { ...(result.prompt ?? {}), text: promptText }
   return {
-    ...prompt,
+    ...result.prompt,
     ...(result.ok ? {} : { blockers: result.blockers }),
   }
+}
+
+function stableJSONString(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJSONString).join(',')}]`
+  if (!isRecord(value)) return JSON.stringify(value)
+  return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJSONString(value[key])}`).join(',')}}`
 }
 
 function promptBlockers(prompt: Record<string, unknown>): Array<Record<string, unknown>> {
@@ -467,18 +628,33 @@ function stringValue(value: unknown): string | undefined {
 async function resolveContentUnitGenerationModel(
   capability: string,
   fallbackCapability: ContentUnitGenerationOutputKind,
+  operation?: string,
+  referenceAssets?: GenerationIntentPayload['reference_assets'],
 ): Promise<PublicModel> {
-  const models = await listGenerationModels(capability)
+  const models = await listGenerationModels(capability, operation, referenceAssets)
   const fallbackModels = models.length > 0 || capability === fallbackCapability
     ? models
-    : await listGenerationModels(fallbackCapability)
+    : await listGenerationModels(fallbackCapability, operation, referenceAssets)
   const model = fallbackModels.find((item) => item.is_default) ?? fallbackModels[0]
   if (!model) throw new Error(`没有可用于 ${capability} 的生成模型`)
   return model
 }
 
-async function listGenerationModels(capability: string): Promise<PublicModel[]> {
-  return api.get('/models', { params: { capability } }).then((response) => response.data as PublicModel[])
+async function listGenerationModels(
+  capability: string,
+  operation?: string,
+  referenceAssets?: GenerationIntentPayload['reference_assets'],
+): Promise<PublicModel[]> {
+  return api.get('/models', {
+    params: {
+      capability,
+      ...(operation ? { operation } : {}),
+      ...(referenceAssets && referenceAssets.length > 0 ? { reference_assets: JSON.stringify(referenceAssets.map((asset) => ({
+        role: asset.role,
+        ...(asset.media_type ? { media_type: asset.media_type } : {}),
+      }))) } : {}),
+    },
+  }).then((response) => response.data as PublicModel[])
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

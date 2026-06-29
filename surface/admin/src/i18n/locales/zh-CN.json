@@ -2057,7 +2057,7 @@
       "debug": "调试",
       "uiPreview": "UI 预览",
       "storage": "资源存储",
-      "cloudFiles": "输入中转",
+      "cloudFiles": "资源公网访问",
       "settings": "系统设置"
     },
     "home": {
@@ -2086,7 +2086,7 @@
         "usageLogs": "按供应商、模型、用户和项目筛选 {{count}} 条 AI 调用成本。",
         "shotVectors": "管理镜头库检索文档、重建索引并抽查召回质量。",
         "storage": "管理 {{count}} 个内部资源文件、存储后端状态和用户占用。",
-        "cloudFiles": "公共对象中转和云文件存储配置。",
+        "cloudFiles": "资源公网访问、内网穿透和对象中转配置。",
         "settings": "注册策略、邮箱验证码和基础认证配置。",
         "debug": "系统健康、慢请求、任务队列和供应商调用调试。"
       }
@@ -2872,13 +2872,13 @@
       "confirmEnable": "确认启用云端存储配置“{{name}}”？",
       "confirmDisable": "确认禁用云端存储配置“{{name}}”？禁用后 Worker 不会再使用它上传输入素材。",
       "publicObjectRelay": "公网对象中转",
-      "publicObjectRelayDescription": "S3、OSS、TOS 桶必须能被服务商公网访问，用于只接受 URL 的图生视频、视频参考输入。",
+      "publicObjectRelayDescription": "S3、OSS、TOS 桶是 Resource Access 的一种模式，用于需要公网媒体 URL 的路由。",
       "providerFilesAPI": "服务商 Files API",
       "providerFilesAPIDescription": "OpenAI、Volcen 等服务商自己的文件空间，在“模型管理”的凭据里启用，传给模型的是 file_id。",
       "internalMinio": "内部 MinIO",
       "internalMinioDescription": "只负责 MovScript 持久化资源。Worker 不会再把 MinIO 私网 presigned URL 发给外部服务商。",
-      "title": "公网对象中转配置",
-      "description": "配置 S3、OSS、TOS 后，Worker 会按优先级上传输入素材，并把公网 URL 传给只接受 URL 的服务商接口。",
+      "title": "对象中转配置",
+      "description": "对象中转仍作为 Resource Access 的一种模式保留；公网隧道和公网后端地址在上方统一配置。",
       "addConfig": "添加配置",
       "empty": "暂无公网对象中转配置",
       "enabledMark": "● 启用",
@@ -2964,6 +2964,23 @@
       "arkAccessKeyId": "Access Key ID",
       "arkSecretAccessKey": "Secret Access Key",
       "providerAssetSecretKeySet": "已保存，留空则不修改",
+      "providerRuntime": {
+        "publicResourceAccess": "资源公网访问",
+        "signedAccess": "访问签名",
+        "gatewayToken": "Gateway token",
+        "arkCredentials": "Ark AK/SK",
+        "globalGroup": "global group",
+        "assetLibrary": "素材库",
+        "assetReady": "asset:// 就绪",
+        "unsupported": "不支持",
+        "assetUnsupportedHint": "该 Provider 未声明素材库能力。RawResource 不会被映射为 asset://。",
+        "originalArtifactTrust": "原始产物信任",
+        "sameProvider": "同 Provider",
+        "originalOnly": "仅模型原始产物",
+        "derivedAllowed": "允许派生产物",
+        "providerScope": "Provider 范围",
+        "trustUnsupportedHint": "该 Provider 不提供跨 RawResource 的原始产物信任。"
+      },
       "smtp": "邮箱验证码 SMTP",
       "enableEmail": "启用邮箱验证码发送",
       "enableEmailHint": "用于注册邮箱验证码，登录邮箱验证码也会复用此配置。",
@@ -2978,6 +2995,51 @@
       "useTLS": "TLS 直连",
       "registrationRequiresEmail": "启用邮箱发送时必须补全 SMTP Host、端口和发件邮箱；开放注册还必须启用邮箱验证码。",
       "saved": "已保存"
+    },
+    "resourceAccess": {
+      "title": "资源公网访问",
+      "description": "统一配置 RawResource 如何被上游模型访问；Provider 页面只保留账号和素材库私有能力。",
+      "addProfile": "添加访问方式",
+      "empty": "暂无资源公网访问配置。添加 ngrok、Cloudflare Tunnel 或公网后端地址后，需要 public URL 的模型路由才能消费本地资源。",
+      "unnamed": "未命名访问方式",
+      "optional": "可选",
+      "defaultSummary": "默认：{{id}}",
+      "noDefault": "未选择默认访问方式",
+      "modes": {
+        "public_tunnel": "公网隧道",
+        "public_backend": "公网后端",
+        "object_relay": "对象中转",
+        "provider_files": "Provider Files",
+        "provider_asset_uri": "Provider Asset URI"
+      },
+      "status": {
+        "publicReady": "公网访问已就绪",
+        "publicMissing": "缺少公网访问",
+        "enabled": "已启用",
+        "disabled": "已停用",
+        "default": "默认"
+      },
+      "fields": {
+        "id": "Profile ID",
+        "name": "名称",
+        "mode": "模式",
+        "publicBaseUrl": "公网 Base URL",
+        "internalBaseUrl": "内网 Base URL",
+        "expiresSeconds": "过期秒数",
+        "healthPath": "健康检查路径",
+        "signingSecret": "签名密钥",
+        "enabled": "启用",
+        "signingEnabled": "签名 URL",
+        "defaultProfile": "默认访问方式"
+      },
+      "check": {
+        "resourceId": "RawResource ID",
+        "running": "测试中…",
+        "run": "测试公网 URL",
+        "reachable": "可访问",
+        "unreachable": "不可访问",
+        "bytes": "{{count}} bytes"
+      }
     },
     "debug": {
       "copy": "复制",

@@ -59,7 +59,7 @@ export function groupBackendModelProviders(models: PublicModel[]): BackendModelP
     const providerId = backendModelProviderId(model)
     const key = `backend:${providerId}`
     const current = providers.get(key) ?? {
-      label: model.provider_name?.trim() || 'Backend Provider',
+      label: 'MovScript Model',
       providerId,
       models: [],
       capabilities: new Set<string>(),
@@ -120,8 +120,8 @@ export function errorMessage(error: unknown): string {
 }
 
 function backendModelProviderId(model: PublicModel): string {
-  const providerID = model.provider_id?.trim()
-  if (providerID) return providerID
+  const modelID = publicModelId(model)
+  if (modelID) return `model:${modelID}`
   return `catalog:${model.catalog_entry_id || model.id}`
 }
 

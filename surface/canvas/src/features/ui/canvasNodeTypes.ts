@@ -1,9 +1,10 @@
-import type { CanvasNodeData, CanvasParamType, RawResource } from '@movscript/shared'
+import type { CanvasNodeData, CanvasParamType, CanvasPortValue, RawResource } from '@movscript/shared'
 
 export type NodeDataWithHandlers = CanvasNodeData & {
   label: string
   availableResources?: RawResource[]
   referenceResources?: RawResource[]
+  runtimeInputValues?: Record<string, CanvasPortValue[]>
   canvasDebug?: {
     media?: boolean
     images?: boolean
@@ -17,6 +18,7 @@ export type NodeDataWithHandlers = CanvasNodeData & {
   onUpdatePrompt?: (prompt: string) => void
   onUpdateOutputType?: (type: 'image' | 'video' | 'text') => void
   onUpdateModelId?: (modelId: string) => void
+  onUpdateModelOperation?: (operation: string) => void
   onUpdateAttachments?: (ids: number[]) => void
   onUpdateParams?: (params: Record<string, unknown>) => void
   onUpdateParamName?: (name: string) => void
