@@ -807,7 +807,8 @@ func parseRouteCapabilityOperations(raw string) (map[string]map[string]bool, err
 		return nil, nil
 	}
 	var domains map[string]struct {
-		Operations []string `json:"operations"`
+		Operations     json.RawMessage `json:"operations"`
+		OperationSlots map[string]any  `json:"operation_slots"`
 	}
 	if err := json.Unmarshal([]byte(raw), &domains); err != nil {
 		return nil, err
@@ -818,18 +819,94 @@ func parseRouteCapabilityOperations(raw string) (map[string]map[string]bool, err
 		if capability == "" {
 			continue
 		}
-		for _, operation := range domain.Operations {
-			operation = strings.TrimSpace(operation)
-			if operation == "" {
-				continue
-			}
-			if out[capability] == nil {
-				out[capability] = map[string]bool{}
-			}
-			out[capability][operation] = true
+		operations, err := parseRouteCapabilityOperationNames(domain.Operations)
+		if err != nil {
+			return nil, err
+		}
+		for operation := range domain.OperationSlots {
+			operations = appendUniqueString(operations, operation)
+		}
+		for _, operation := range operations {
+			addRouteCapabilityOperation(out, capability, operation)
 		}
 	}
 	return out, nil
+}
+
+func parseRouteCapabilityOperationNames(raw json.RawMessage) ([]string, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	var names []string
+	if err := json.Unmarshal(raw, &names); err == nil {
+		return compactStrings(names), nil
+	}
+	var defs []struct {
+		ID        string `json:"id"`
+		Operation string `json:"operation"`
+	}
+	if err := json.Unmarshal(raw, &defs); err == nil {
+		names := make([]string, 0, len(defs))
+		for _, def := range defs {
+			name := strings.TrimSpace(def.ID)
+			if name == "" {
+				name = strings.TrimSpace(def.Operation)
+			}
+			names = appendUniqueString(names, name)
+		}
+		return names, nil
+	}
+	var defMap map[string]struct {
+		ID        string `json:"id"`
+		Operation string `json:"operation"`
+	}
+	if err := json.Unmarshal(raw, &defMap); err == nil {
+		names := make([]string, 0, len(defMap))
+		for key, def := range defMap {
+			name := strings.TrimSpace(key)
+			if name == "" {
+				name = strings.TrimSpace(def.ID)
+			}
+			if name == "" {
+				name = strings.TrimSpace(def.Operation)
+			}
+			names = appendUniqueString(names, name)
+		}
+		return names, nil
+	}
+	return nil, fmt.Errorf("invalid operations schema")
+}
+
+func addRouteCapabilityOperation(out map[string]map[string]bool, capability, operation string) {
+	operation = strings.TrimSpace(operation)
+	if operation == "" {
+		return
+	}
+	if out[capability] == nil {
+		out[capability] = map[string]bool{}
+	}
+	out[capability][operation] = true
+}
+
+func appendUniqueString(values []string, value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return values
+	}
+	for _, existing := range values {
+		if strings.TrimSpace(existing) == value {
+			return values
+		}
+	}
+	return append(values, value)
+}
+
+func compactStrings(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		out = appendUniqueString(out, value)
+	}
+	return out
 }
 
 func legacyModelCapabilitiesAsStructuredJSON(capabilities string) string {

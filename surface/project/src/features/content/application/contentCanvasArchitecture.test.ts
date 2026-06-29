@@ -661,6 +661,65 @@ test('content canvas project loader maps workspace editing timelines to scene, p
   assert.equal(project.contentUnitCandidates.cu_rain_call[1].resourceId, 56)
 })
 
+test('content canvas project loader prefers the project service read model when available', async () => {
+  let serviceQueryCount = 0
+  const gateway = {
+    service: {
+      queryEntities: async () => {
+        serviceQueryCount += 1
+        return []
+      },
+      querySettings: async () => {
+        serviceQueryCount += 1
+        return []
+      },
+      queryAssets: async () => {
+        serviceQueryCount += 1
+        return { assets: [] }
+      },
+    },
+    readContentCanvasReadModel: async () => ({
+      schema: 'movscript.project-content-canvas-read-model.v1',
+      projectId: 7,
+      project: null,
+      productions: [{
+        entityKind: 'production',
+        path: 'productions/pilot/production.json',
+        id: 'pilot',
+        record: { id: 'pilot', title: 'Pilot' },
+      }],
+      segments: [],
+      sceneMoments: [],
+      storyboards: [],
+      expressionUnits: [],
+      contentUnits: [],
+      keyframes: [],
+      settings: [],
+      settingStates: [],
+      audioCues: [],
+      assets: [],
+      contentUnitCandidates: {
+        cu_opening: [{
+          id: 'cand_read_model',
+          title: 'Read model candidate',
+          source: 'ai_generate',
+          selected: false,
+          notes: '',
+        }],
+      },
+    }),
+    loadContentSourceWorkspaceData: async () => {
+      throw new Error('legacy content workspace loader should not be called')
+    },
+  } as never
+
+  const project = await loadContentCanvasProject(7, gateway)
+
+  assert.equal(serviceQueryCount, 0)
+  assert.equal(project.productions[0].id, 'pilot')
+  assert.equal(project.contentUnitCandidates.cu_opening[0].id, 'cand_read_model')
+})
+
 test('content canvas view plan delegates hidden relation summaries', () => {
   const viewPlanSource = readFileSync(resolve('src/features/content/application/contentCanvasViewPlan.ts'), 'utf8')
   const summariesSource = readFileSync(resolve('src/features/content/application/contentCanvasViewSummaries.ts'), 'utf8')
@@ -970,6 +1029,10 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(promptEditorSource, /PromptReferenceInlineEditor/)
   assert.match(promptEditorSource, /PromptReferenceStrip/)
   assert.match(promptEditorSource, /className="nodrag"/)
+  assert.match(promptEditorSource, /const \[promptDraft, setPromptDraft\] = useState\(value\)/)
+  assert.match(promptEditorSource, /const commitPromptDraft = useCallback/)
+  assert.match(promptEditorSource, /onChange=\{setPromptDraft\}/)
+  assert.match(promptEditorSource, /aria-label="保存提示词"/)
   assert.doesNotMatch(promptCanvasPanelSource, /CandidateDecisionPanel/)
   assert.match(creativeLayoutSource, /function outgoingCreativeCanvasEdges/)
   assert.match(creativeLayoutSource, /function alignSceneMomentRanks/)
@@ -1070,7 +1133,10 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(controllerSource, /node\.kind === 'state'/)
   assert.match(controllerSource, /node\.kind === 'content_unit'/)
   assert.match(controllerSource, /requestedCanvasId/)
+  assert.match(controllerSource, /requestedCreativeCanvasDocument/)
+  assert.match(controllerSource, /requestedCreativeCanvasDocument \?\? activeContentCanvasDocument\(canvasDocumentsState\)/)
   assert.match(controllerSource, /selectContentCanvasDocument\(projectId, requestedCanvasId\)/)
+  assert.match(controllerSource, /nextSearchParams\.set\('canvasId', nextCanvasId\)/)
   assert.match(controllerSource, /positionForCreativeCanvasChild/)
   assert.match(controllerSource, /creativeCanvasNodePositions\[node\.id\] \?\? node\.position/)
   assert.match(pageSource, /activeCanvasDocument=\{controller\.activeCreativeCanvasDocument\}/)
@@ -1091,6 +1157,8 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(workspaceSessionSource, /useProjectEntrySessionStore/)
   assert.match(workspaceSessionSource, /resolveContentCanvasProjectEntrySessionState/)
   assert.match(workspaceSessionSource, /buildContentCanvasProjectEntrySessionSearch/)
+  assert.match(workspaceSessionSource, /'canvasId'/)
+  assert.match(workspaceSessionSource, /'canvas'/)
   assert.match(workspaceSessionSource, /contentCanvasProjectEntryRouteKey\(input\.projectEntryId, input\.workspaceTab\)/)
   assert.match(workspaceSessionSource, /projectEntryId === 'setting_preview'/)
   assert.match(workspaceCreationCommandsSource, /export function useContentCanvasWorkspaceCreationCommands/)
@@ -1161,6 +1229,11 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(promptReferencesSource, /export function PromptReferenceInlineEditor/)
   assert.match(promptReferencesSource, /contentEditable/)
   assert.match(promptReferencesSource, /export function PromptReferenceStrip/)
+  assert.match(promptReferencesSource, /parseResourceMentions\(prompt\)/)
+  assert.match(promptReferencesSource, /formatResourceMention\(resourceId/)
+  assert.match(promptReferencesSource, /defaultReferenceRoleForMediaType/)
+  assert.match(promptReferencesSource, /function PromptReferenceRoleMenu/)
+  assert.match(promptReferencesSource, /role="menuitemradio"/)
   assert.match(promptReferencesSource, /:\{1,2\}/)
   assert.doesNotMatch(promptCanvasPanelSource, /<PromptReferenceStrip/)
   assert.match(promptReferencesSource, /serializePromptEditor/)
@@ -5550,13 +5623,24 @@ test('content canvas generation requires explicit model operation intent', () =>
   const gatewaySource = readFileSync(resolve(process.cwd(), 'src/features/content/integrations/contentCanvasWorkspaceElectronGateway.ts'), 'utf8')
 
   assert.match(panelSource, /contentCanvasGenerationOperationOptions/)
-  assert.match(panelSource, /generationIntent: GenerationIntentPayload = \{\s*capability,\s*operation,/)
-  assert.match(selectorSource, /listSurfaceModelsByCapability\(queryCapability, \{ operation \}\)/)
-  assert.match(gatewaySource, /completeCanvasContentUnitGenerationIntent\(input\.generationIntent, input\.outputKind, inputResourceIds\)/)
-  assert.match(gatewaySource, /case 'reference_to_video':\s*return 'generic'/)
-  assert.match(gatewaySource, /operation\.trim\(\) === 'reference_to_video' && role === 'generic'\) return undefined/)
+  assert.match(panelSource, /contentCanvasGenerationIntent\(mediaKind, operation, promptReferenceResourceIds, promptReferenceAssets\)/)
+  assert.match(selectorSource, /listSurfaceModelsByCapability\(queryCapability, \{ operation, referenceAssets \}\)/)
+  assert.match(gatewaySource, /completeCanvasContentUnitGenerationIntent\(input\.generationIntent, outputKind, inputResourceIds, promptReferenceAssets\)/)
+  assert.match(gatewaySource, /compiledContentUnitGenerationPromptReferenceAssets\(compiledPrompt\)/)
+  assert.doesNotMatch(gatewaySource, /case 'reference_to_video':\s*return 'generic'/)
+  assert.doesNotMatch(gatewaySource, /operation\.trim\(\) === 'reference_to_video' && role === 'generic'\) return undefined/)
   assert.doesNotMatch(gatewaySource, /referenceAssets\.length > 0 \? 'image_to_video' : 'prompt_to_video'/)
   assert.doesNotMatch(gatewaySource, /canvasContentUnitGenerationIntent\(input\.outputKind, inputResourceIds\)/)
+})
+
+test('content canvas generation reuses compiled prompt context across preview, preflight, and submit', () => {
+  const gatewaySource = readFileSync(resolve(process.cwd(), 'src/features/content/integrations/contentCanvasWorkspaceElectronGateway.ts'), 'utf8')
+
+  assert.match(gatewaySource, /const promptCache = createContentCanvasPromptCache\(\)/)
+  assert.match(gatewaySource, /previewContentUnitGenerationPromptForCanvas\(service, input, promptCache\)/)
+  assert.match(gatewaySource, /buildContentUnitCandidateGenerationForCanvas\(service, input, promptCache\)/)
+  assert.match(gatewaySource, /CONTENT_CANVAS_PROMPT_CACHE_TTL_MS/)
+  assert.match(gatewaySource, /contentCanvasPromptCacheKey\(input\)/)
 })
 
 test('content canvas existing resource creates a resource library content candidate without uploading', async () => {

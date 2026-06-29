@@ -18,6 +18,7 @@ type TokenUsage = providercontract.TokenUsage
 type ImageRequest = providercontract.ImageRequest
 type ImageResponse = providercontract.ImageResponse
 type VideoRequest = providercontract.VideoRequest
+type ReferenceAsset = providercontract.ReferenceAsset
 type MediaData = providercontract.MediaData
 type VideoResponse = providercontract.VideoResponse
 type VideoPollRequest = providercontract.VideoPollRequest

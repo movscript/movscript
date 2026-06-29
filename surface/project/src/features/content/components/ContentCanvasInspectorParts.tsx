@@ -1,11 +1,31 @@
-import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, Clock3, File, FileAudio, FileText, FolderOpen, Info, Plus, Save, Star, TextCursorInput, Upload, WandSparkles, X, type LucideIcon } from 'lucide-react'
-import { generationParamDefaults, type GenerationIntentPayload } from '@movscript/core/generation'
+import {
+  evaluateGenerationReadiness,
+  generationBackendPreflightBlockerMessages,
+  generationBackendPreflightIsReady,
+  generationReferenceAssetsFromPromptText,
+  generationReadinessBlockerMessages,
+  generationReadinessIsReady,
+  generationParamDefaults,
+  type GenerationBackendPreflightResult,
+  type GenerationIntentPayload,
+} from '@movscript/core/generation'
 import { suggestMovScriptEntityId } from '@movscript/domain'
 
 import { ResourceFileAudio, ResourceFileImage, ResourceFileVideo } from '@movscript/resource-surface/resource-media-components'
 import type { PublicModel } from '@movscript/shared'
+import {
+  GenerationCallBadge,
+  GenerationCallComposerRoot,
+  GenerationCallConfigBlock,
+  GenerationCallField,
+  GenerationCallFooter,
+  GenerationCallMessages,
+  GenerationCallMetaRow,
+  GenerationCallPromptBlock,
+} from '@movscript/ui/business/generation'
 import {
   CONTENT_CANVAS_EXPRESSION_UNIT_KIND_OPTIONS,
   type ContentCanvasCreateNodeInput,
@@ -18,6 +38,12 @@ import type { CandidateSelections, ContentCanvasNodePosition, InspectorSelection
 import type { NodeMediaKind } from './contentCanvasWorkspaceNodeModel'
 import { ContentCanvasGenerationParamControls } from './ContentCanvasGenerationParamControls'
 import { ContentCanvasModelSelector } from './ContentCanvasModelSelector'
+import {
+  contentCanvasGenerationCapability,
+  contentCanvasGenerationIntent,
+  contentCanvasGenerationOperationOptions,
+  contentCanvasReferenceAssetsForOperation,
+} from './contentCanvasGenerationOptions'
 import { expressionUnitKindValue } from './contentCanvasWorkspaceDisplayModel'
 import { contentCanvasGenerationTargetForNode } from './contentCanvasWorkspaceGenerationModel'
 import { ContentCanvasResourceCandidatePicker } from './ContentCanvasResourceCandidatePicker'
@@ -41,6 +67,7 @@ export type ContentCanvasCandidatePromptPreview = {
   text: string
   compiledText?: string
   resourceIds: number[]
+  referenceAssets?: NonNullable<GenerationIntentPayload['reference_assets']>
   replacements: Array<Record<string, unknown>>
   blockers: Array<Record<string, unknown>>
 }
@@ -254,6 +281,7 @@ export function CandidateDecisionPanel({
   prompt,
   candidateSelections,
   onCandidateCreate,
+  onCandidatePreflight,
   onCandidatePromptPreview,
   onCandidateSelect,
   onCandidateResourceSelect,
@@ -263,6 +291,7 @@ export function CandidateDecisionPanel({
   prompt?: string
   candidateSelections: CandidateSelections
   onCandidateCreate?: (node: ContentCanvasNode | undefined, options: ContentCanvasCandidateGenerationOptions) => void
+  onCandidatePreflight?: (node: ContentCanvasNode | undefined, options: Partial<ContentCanvasCandidateGenerationOptions>) => Promise<GenerationBackendPreflightResult>
   onCandidatePromptPreview?: (node: ContentCanvasNode | undefined) => Promise<ContentCanvasCandidatePromptPreview>
   onCandidateSelect: (node: ContentCanvasNode | undefined, candidate: ContentCanvasCandidate) => void
   onCandidateResourceSelect?: (node: ContentCanvasNode | undefined, resource: ContentCanvasUploadedResource, position?: ContentCanvasNodePosition) => void
@@ -276,7 +305,7 @@ export function CandidateDecisionPanel({
   const closeGenerationDialog = useCallback(() => setShowGenerationDialog(false), [])
   const loadGenerationPromptPreview = useCallback(() => {
     if (onCandidatePromptPreview) return onCandidatePromptPreview(node)
-    return Promise.resolve({ text: prompt ?? '', compiledText: prompt ?? '', resourceIds: [], replacements: [], blockers: [] })
+    return Promise.resolve({ text: prompt ?? '', compiledText: prompt ?? '', resourceIds: [], referenceAssets: [], replacements: [], blockers: [] })
   }, [node, onCandidatePromptPreview, prompt])
   const target = contentCanvasGenerationTargetForNode(node)
   const decision = candidateDecisionForNode(target?.node, candidateSelections)
@@ -289,7 +318,7 @@ export function CandidateDecisionPanel({
   const candidates = target.candidates
   const selectedCandidate = selectedCandidateForNode(target.node, candidateSelections)
   const mediaKind = mediaKindForNode(target.node)
-  const canGenerateCandidate = mediaKind === 'image' || mediaKind === 'video' || mediaKind === 'audio'
+  const canGenerateCandidate = mediaKind === 'image' || mediaKind === 'video'
   const generationPrompt = prompt ?? promptFromContentNode(target.node) ?? ''
   return (
     <InspectorSection title="候选决策">
@@ -365,9 +394,10 @@ export function CandidateDecisionPanel({
       ) : null}
       {showGenerationDialog && onCandidateCreate && canGenerateCandidate ? (
         <GenerationCandidateDialog
-          mediaKind={mediaKind === 'video' || mediaKind === 'audio' ? mediaKind : 'image'}
+          mediaKind={mediaKind === 'video' ? 'video' : 'image'}
           prompt={generationPrompt}
           loadCompiledPrompt={loadGenerationPromptPreview}
+          onPreflight={onCandidatePreflight ? (options) => onCandidatePreflight(node, options) : undefined}
           onClose={closeGenerationDialog}
           onSubmit={(options) => {
             onCandidateCreate(node, options)
@@ -742,25 +772,71 @@ export function GenerationCandidateDialog({
   mediaKind,
   prompt,
   loadCompiledPrompt,
+  onPreflight,
   onSubmit,
   onClose,
 }: {
   mediaKind: 'image' | 'video' | 'audio'
   prompt: string
   loadCompiledPrompt?: () => Promise<ContentCanvasCandidatePromptPreview>
+  onPreflight?: (options: Partial<ContentCanvasCandidateGenerationOptions>) => Promise<GenerationBackendPreflightResult>
   onSubmit: (options: ContentCanvasCandidateGenerationOptions) => void
   onClose: () => void
 }) {
   const titleId = useId()
+  const capability = contentCanvasGenerationCapability(mediaKind)
+  const [compiledPrompt, setCompiledPrompt] = useState<string | null>(null)
+  const [compiledPromptPreview, setCompiledPromptPreview] = useState<ContentCanvasCandidatePromptPreview | null>(null)
+  const compiledPromptResourceIds = compiledPromptPreview?.resourceIds ?? []
+  const compiledPromptResourceKey = compiledPromptResourceIds.join(',')
+  const compiledPromptReferenceAssets = useMemo(
+    () => {
+      if (compiledPromptPreview?.referenceAssets?.length) return compiledPromptPreview.referenceAssets
+      const promptMentions = generationReferenceAssetsFromPromptText(compiledPrompt)
+      if (promptMentions.length > 0) return promptMentions
+      return contentCanvasReferenceAssetsForOperation('', compiledPromptResourceIds)
+    },
+    [compiledPrompt, compiledPromptPreview?.referenceAssets, compiledPromptResourceKey],
+  )
+  const operationOptions = useMemo(
+    () => contentCanvasGenerationOperationOptions(mediaKind, compiledPromptReferenceAssets),
+    [compiledPromptReferenceAssets, mediaKind],
+  )
+  const [operation, setOperation] = useState(() => operationOptions[0]?.value ?? '')
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
   const [selectedModel, setSelectedModel] = useState<PublicModel | null>(null)
   const [params, setParams] = useState<Record<string, string | number | boolean>>({})
-  const [compiledPrompt, setCompiledPrompt] = useState<string | null>(null)
-  const [compiledPromptPreview, setCompiledPromptPreview] = useState<ContentCanvasCandidatePromptPreview | null>(null)
   const [compiledPromptBlockers, setCompiledPromptBlockers] = useState<Array<Record<string, unknown>>>([])
   const [compiledPromptError, setCompiledPromptError] = useState<string | null>(null)
-  const supportedParams = selectedModel?.supported_params ?? []
-  const canSubmit = Boolean(selectedModelId)
+  const [backendPreflight, setBackendPreflight] = useState<GenerationBackendPreflightResult | null>(null)
+  const [backendPreflightPending, setBackendPreflightPending] = useState(false)
+  const supportedParams = useMemo(() => selectedModel?.supported_params ?? [], [selectedModel?.supported_params])
+  const generationIntent = useMemo(() => (
+    operation ? contentCanvasGenerationIntent(mediaKind, operation, compiledPromptResourceIds, compiledPromptReferenceAssets) : null
+  ), [compiledPromptReferenceAssets, compiledPromptResourceKey, mediaKind, operation])
+  const generationReadiness = evaluateGenerationReadiness({
+    prompt: compiledPrompt ?? prompt,
+    promptRequired: true,
+    modelId: selectedModelId,
+    outputKind: mediaKind,
+    supportedOutputKinds: ['image', 'video'],
+    requireGenerationIntent: true,
+    generationIntent,
+    inputResourceIds: compiledPromptResourceIds,
+    compiledPromptLoaded: compiledPrompt !== null || Boolean(compiledPromptError),
+    compiledPromptError,
+    promptBlockers: compiledPromptBlockers,
+  })
+  const localCanSubmit = generationReadinessIsReady(generationReadiness)
+  const readinessMessages = generationReadinessBlockerMessages(generationReadiness)
+  const backendPreflightMessages = localCanSubmit
+    ? generationBackendPreflightBlockerMessages(backendPreflight)
+    : []
+  const preflightMessages = localCanSubmit && backendPreflightPending
+    ? ['后端预检中…']
+    : backendPreflightMessages
+  const generationMessages = [...readinessMessages, ...preflightMessages]
+  const canSubmit = localCanSubmit && Boolean(backendPreflight) && generationBackendPreflightIsReady(backendPreflight)
 
   useEffect(() => {
     if (!selectedModel) {
@@ -769,6 +845,11 @@ export function GenerationCandidateDialog({
     }
     setParams(generationParamDefaults(selectedModel))
   }, [selectedModel?.model_id])
+
+  useEffect(() => {
+    const nextOperation = operationOptions[0]?.value ?? ''
+    if (!operationOptions.some((option) => option.value === operation)) setOperation(nextOperation)
+  }, [operation, operationOptions])
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -785,7 +866,7 @@ export function GenerationCandidateDialog({
     setCompiledPromptBlockers([])
     setCompiledPromptError(null)
     if (!loadCompiledPrompt) {
-      const preview = { text: prompt, compiledText: prompt, resourceIds: [], replacements: [], blockers: [] }
+      const preview = { text: prompt, compiledText: prompt, resourceIds: [], referenceAssets: [], replacements: [], blockers: [] }
       setCompiledPrompt(prompt)
       setCompiledPromptPreview(preview)
       return () => {
@@ -808,13 +889,53 @@ export function GenerationCandidateDialog({
     }
   }, [loadCompiledPrompt, prompt])
 
+  useEffect(() => {
+    let cancelled = false
+    setBackendPreflight(null)
+    setBackendPreflightPending(false)
+    if (!localCanSubmit || !selectedModelId || !generationIntent) return undefined
+    if (!onPreflight) {
+      setBackendPreflight({ status: 'ready', ready: true, blockers: [] })
+      return undefined
+    }
+    setBackendPreflightPending(true)
+    onPreflight({
+      modelId: selectedModelId,
+      params,
+      supportedParams,
+      generationIntent,
+    })
+      .then((result) => {
+        if (!cancelled) setBackendPreflight(result)
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setBackendPreflight({
+            status: 'blocked',
+            ready: false,
+            blockers: [{
+              code: 'content_candidate_preflight_failed',
+              message: error instanceof Error ? error.message : '候选生成预检失败',
+            }],
+          })
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setBackendPreflightPending(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [generationIntent, localCanSubmit, onPreflight, params, selectedModelId, supportedParams])
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!selectedModelId) return
+    if (!canSubmit || !selectedModelId || !generationIntent) return
     onSubmit({
       modelId: selectedModelId,
       params,
       supportedParams,
+      generationIntent,
     })
   }
 
@@ -846,53 +967,87 @@ export function GenerationCandidateDialog({
             <X size={14} aria-hidden="true" />
           </button>
         </div>
-        <div className="content-canvas-generation-candidate-dialog__body">
-          <section className="content-canvas-generation-candidate-prompt">
-            <span>本次编译提示词</span>
-            {compiledPromptError || compiledPrompt === null ? (
-              <pre data-state={compiledPromptError ? 'error' : 'loading'}>
-                {compiledPromptError ?? '正在编译提示词…'}
-              </pre>
+        <GenerationCallComposerRoot className="content-canvas-generation-candidate-dialog__body">
+          <GenerationCallPromptBlock label="提示词">
+            <section className="content-canvas-generation-candidate-prompt">
+              {compiledPromptError || compiledPrompt === null ? (
+                <pre data-state={compiledPromptError ? 'error' : 'loading'}>
+                  {compiledPromptError ?? '正在编译提示词…'}
+                </pre>
+              ) : (
+                <CompiledPromptPreview preview={compiledPromptPreview} fallbackText={compiledPrompt} />
+              )}
+              {compiledPromptBlockers.length ? (
+                <div className="content-canvas-generation-candidate-prompt__blockers">
+                  {compiledPromptBlockers.map((blocker, index) => (
+                    <small key={index}>{promptBlockerLabel(blocker)}</small>
+                  ))}
+                </div>
+              ) : null}
+            </section>
+          </GenerationCallPromptBlock>
+          <GenerationCallConfigBlock label="模型与参数">
+            <GenerationCallMetaRow>
+              <GenerationCallField label="品类">
+                <select
+                  className="content-canvas-generation-candidate-select"
+                  value={operation}
+                  disabled={!capability || operationOptions.length === 0}
+                  onChange={(event) => {
+                    setOperation(event.currentTarget.value)
+                    setSelectedModelId(null)
+                    setSelectedModel(null)
+                  }}
+                >
+                  {operationOptions.length > 0 ? operationOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  )) : (
+                    <option value="">当前产物不支持生成</option>
+                  )}
+                </select>
+              </GenerationCallField>
+              <GenerationCallField label="输出">
+                <GenerationCallBadge>
+                  {mediaKindLabel(mediaKind)}
+                </GenerationCallBadge>
+              </GenerationCallField>
+              <GenerationCallField label="模型">
+                <ContentCanvasModelSelector
+                  capability={capability ?? mediaKind}
+                  operation={operation}
+                  referenceAssets={generationIntent?.reference_assets}
+                  value={selectedModelId}
+                  onChange={setSelectedModelId}
+                  onModelChange={setSelectedModel}
+                  disabled={!capability || !operation}
+                />
+              </GenerationCallField>
+            </GenerationCallMetaRow>
+            <GenerationCallMessages messages={generationMessages} />
+            {supportedParams.length ? (
+              <ContentCanvasGenerationParamControls
+                params={supportedParams}
+                values={params}
+                onChange={(key, value) => setParams((current) => ({ ...current, [key]: value }))}
+                className="content-canvas-generation-candidate-params"
+              />
             ) : (
-              <CompiledPromptPreview preview={compiledPromptPreview} fallbackText={compiledPrompt} />
-            )}
-            {compiledPromptBlockers.length ? (
-              <div className="content-canvas-generation-candidate-prompt__blockers">
-                {compiledPromptBlockers.map((blocker, index) => (
-                  <small key={index}>{promptBlockerLabel(blocker)}</small>
-                ))}
+              <div className="content-canvas-generation-candidate-empty-params">
+                当前模型没有可配置参数
               </div>
-            ) : null}
-          </section>
-          <label className="content-canvas-generation-candidate-field">
-            <span>模型</span>
-            <ContentCanvasModelSelector
-              capability={mediaKind}
-              value={selectedModelId}
-              onChange={setSelectedModelId}
-              onModelChange={setSelectedModel}
-            />
-          </label>
-          {supportedParams.length ? (
-            <ContentCanvasGenerationParamControls
-              params={supportedParams}
-              values={params}
-              onChange={(key, value) => setParams((current) => ({ ...current, [key]: value }))}
-              className="content-canvas-generation-candidate-params"
-            />
-          ) : (
-            <div className="content-canvas-generation-candidate-empty-params">
-              当前模型没有可配置参数
-            </div>
-          )}
-        </div>
-        <div className="content-canvas-generation-candidate-dialog__footer">
-          <button type="submit" disabled={!canSubmit}>
-            <WandSparkles size={12} aria-hidden="true" />
-            提交生成
-          </button>
-          <button type="button" onClick={onClose}>取消</button>
-        </div>
+            )}
+            <GenerationCallFooter className="content-canvas-generation-candidate-dialog__footer">
+              <span />
+              <span className="content-canvas-generation-candidate-dialog__actions">
+                <button type="submit" disabled={!canSubmit}>
+                  <WandSparkles size={12} aria-hidden="true" />
+                  提交生成
+                </button>
+                <button type="button" onClick={onClose}>取消</button>
+              </span>
+            </GenerationCallFooter>
+          </GenerationCallConfigBlock>
+        </GenerationCallComposerRoot>
       </form>
     </div>
   )

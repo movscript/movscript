@@ -22,6 +22,11 @@ import {
 import {
   agentImpactPreviewTimelineHref,
 } from '../dist/react.js'
+import {
+  createHostedProjectSurfaceRuntime,
+  projectSurfaceContextCommandEnvelope,
+  unwrapProjectSurfaceGatewayResult,
+} from '../dist/runtime.js'
 
 test('project surface exposes studio routes independent of legacy agent routes', () => {
   assert.equal(PROJECT_SURFACE_ROUTES.overview, '/studio/:projectId/overview')
@@ -41,6 +46,74 @@ test('project surface exposes studio routes independent of legacy agent routes',
   assert.equal(projectSurfacePath('impact', 'rain/night'), '/studio/rain%2Fnight/impact')
 })
 
+test('hosted project surface runtime normalizes context and delegates host navigation', async () => {
+  const opened = []
+  const context = {
+    schema: 'movscript.context-envelope.v1',
+    contextId: 'ctx_1',
+    revision: 3,
+    issuedAt: '2026-06-29T00:00:00.000Z',
+    runtime: { owner: 'desktop-owned' },
+    principal: { userId: 'user_1', kind: 'cloud-user', scopeKind: 'org', scopeId: 7 },
+    dataConnection: { kind: 'local' },
+    session: {
+      sessionId: 'session_1',
+      project: { id: 'context-project', uid: 'proj_uid_7', title: 'Context Project' },
+      workspace: { kind: 'local-fs', projectCwd: '/tmp/context-project' },
+      capabilities: { localFileAccess: true, fileImport: true, mediaPreview: true },
+    },
+  }
+
+  const runtime = createHostedProjectSurfaceRuntime({
+    context,
+    project: {
+      projectId: 'fallback-project',
+      location: 'remote',
+      projectDir: '/tmp/fallback',
+      title: 'Fallback Project',
+    },
+    href: (route, params, project) => {
+      const query = new URLSearchParams()
+      for (const [key, value] of Object.entries(params ?? {})) {
+        if (value !== undefined) query.set(key, String(value))
+      }
+      const search = query.toString()
+      return `/hosted/${project.projectId}/${route}${search ? `?${search}` : ''}`
+    },
+    openHref: (href) => {
+      opened.push(href)
+    },
+    capabilities: {
+      localGit: true,
+    },
+    gateways: {
+      project: {
+        readModel: async () => ({ ok: true }),
+      },
+    },
+  })
+
+  assert.equal(runtime.project.projectId, 'context-project')
+  assert.equal(runtime.project.projectDir, '/tmp/context-project')
+  assert.equal(runtime.project.projectUid, 'proj_uid_7')
+  assert.equal(runtime.project.title, 'Context Project')
+  assert.equal(runtime.project.location, 'local')
+  assert.equal(runtime.capabilities.localGit, true)
+  assert.equal(runtime.capabilities.nativeWindowControls, false)
+  assert.equal(runtime.navigator.href('scripts', { scriptId: 42 }), '/hosted/context-project/scripts?scriptId=42')
+
+  await runtime.navigator.open('standards', { tab: 'style' })
+  assert.deepEqual(opened, ['/hosted/context-project/standards?tab=style'])
+  assert.deepEqual(projectSurfaceContextCommandEnvelope(context), {
+    context: {
+      sessionId: 'session_1',
+      revision: 3,
+    },
+  })
+  assert.equal(unwrapProjectSurfaceGatewayResult({ result: { ok: true } }).ok, true)
+  assert.equal(unwrapProjectSurfaceGatewayResult({ ok: true }).ok, true)
+})
+
 test('project scripts surface reads script selection from router search params', () => {
   const source = readFileSync(new URL('../src/components/scripts/ProjectScriptsSurface.tsx', import.meta.url), 'utf8')
   const routeSource = readFileSync(new URL('../src/components/routes/ProjectSurfaceRouteView.tsx', import.meta.url), 'utf8')
@@ -56,26 +129,55 @@ test('project edit desk exposes a draggable timeline assembly workbench', () => 
   const css = readFileSync(new URL('../src/components/edit-desk/ProjectEditDeskSurface.css', import.meta.url), 'utf8')
 
   assert.match(source, /ProjectEditDeskWorkbench/)
+  assert.match(source, /compileTimelineAssemblyToFinishingProject/)
   assert.match(source, /TimelineAssemblyState/)
   assert.match(source, /TimelineAssemblySourceNamespace/)
   assert.match(source, /TimelineAssemblyCoverageMap/)
   assert.match(source, /TimelineAssemblyDecisionLogEntry/)
+  assert.match(source, /TimelineAssemblyEditActionPlan/)
+  assert.match(source, /TimelineAssemblyClipEditIntent/)
+  assert.match(source, /DEFAULT_EDIT_PROFILE/)
   assert.match(source, /buildTimelineAssemblyState/)
   assert.match(source, /buildTimelineAssemblySourceNamespace/)
   assert.match(source, /NamespaceSpinePanel/)
   assert.match(source, /buildEditDecisionHandoff/)
-  assert.match(source, /createMediaEditingProjectFromEditDecisions/)
-  assert.match(source, /validateMediaEditingProjectTimeline/)
+  assert.match(source, /buildTimelineAssemblyEditActionPlan/)
   assert.match(source, /buildOpenMontageEditDecisions/)
   assert.match(source, /buildOpenMontageAssetManifest/)
+  assert.match(source, /openMontageTransitionsFromClips/)
   assert.match(source, /timelineAssemblyCoverage/)
   assert.match(source, /timelineAssemblyDecisionLog/)
   assert.match(source, /intentRefFromAsset/)
   assert.match(source, /editing_project_create_from_edit_decisions/)
+  assert.match(source, /compile_manifest/)
+  assert.match(source, /compile_result/)
+  assert.match(source, /compile_diagnostics/)
+  assert.match(source, /backend_options/)
+  assert.match(source, /finishing_projects/)
+  assert.match(source, /Finishing backend projects/)
+  assert.match(source, /video_compose_request/)
+  assert.match(source, /editing_video_compose/)
+  assert.match(source, /EditingServiceGateway/)
+  assert.match(source, /editingGateway\.render/)
+  assert.match(source, /editingGateway\.taskGet/)
+  assert.match(source, /ComposeResultCard/)
+  assert.match(source, /edit-desk-compose-progress/)
+  assert.match(source, /mediaLocalPathFromRecord/)
+  assert.match(source, /local_path/)
+  assert.match(source, /创建成片任务/)
+  assert.match(source, /composeResultMessage/)
+  assert.match(source, /composeResultSummary/)
+  assert.match(source, /CompileManifest/)
   assert.match(source, /source_namespace/)
   assert.match(source, /coverage_map/)
   assert.match(source, /decision_log/)
+  assert.match(source, /edit_action_plan/)
   assert.match(source, /intent_ref/)
+  assert.match(source, /OpenMontage 动作/)
+  assert.match(source, /成片请求/)
+  assert.match(source, /transition_in/)
+  assert.match(source, /ducking/)
+  assert.match(source, /subtitle_style/)
   assert.match(source, /render_contract/)
   assert.match(source, /runtime: 'video_compose'/)
   assert.match(source, /fallback_policy: 'no_implicit_fallback'/)
@@ -86,9 +188,13 @@ test('project edit desk exposes a draggable timeline assembly workbench', () => 
   assert.match(css, /\.edit-desk-left-rail/)
   assert.match(css, /\.edit-desk-namespace-spine/)
   assert.match(css, /\.edit-desk-coverage-strip/)
+  assert.match(css, /\.edit-desk-inspector-section/)
   assert.match(css, /\.edit-desk-timeline/)
   assert.match(css, /\.edit-desk-clip/)
+  assert.match(css, /\.edit-desk-compose-card/)
+  assert.match(css, /\.edit-desk-compose-progress/)
   assert.match(css, /\.edit-desk-issues/)
+  assert.match(css, /max-height: 310px/)
 })
 
 test('project surface descriptor carries host-neutral project intent', () => {
@@ -263,6 +369,79 @@ test('content canvas domain graph treats namespaces as structure, not candidate 
   assert.equal(contentCanvasNodeCanUseCandidateFlow(beat), false)
   assert.equal(contentCanvasNodeCanUseCandidateFlow(scene), true)
   assert.equal(contentCanvasNodeCanGenerate(scene), true)
+})
+
+test('content prompt canvas inline generation compiles prompt refs before choosing operation', () => {
+  const source = readFileSync(new URL('../src/features/content/components/ContentPromptCanvasPanel.tsx', import.meta.url), 'utf8')
+
+  assert.match(source, /onCandidatePromptPreview/)
+  assert.doesNotMatch(source, /void onCandidatePromptPreview/)
+  assert.match(source, /onPromptPreview=\{data\.onCandidatePromptPreview\}/)
+  assert.match(source, /compiledPromptPreview\?\.referenceAssets/)
+  assert.match(source, /contentCanvasGenerationOperationOptions\(mediaKind, promptReferenceAssets\)/)
+  assert.match(source, /compiledPromptLoaded: onPromptPreview \? !compiledPromptPending/)
+})
+
+test('content prompt canvas does not recompile generation prompt on node drag identity churn', () => {
+  const source = readFileSync(new URL('../src/features/content/components/ContentPromptCanvasPanel.tsx', import.meta.url), 'utf8')
+  const css = readFileSync(new URL('../src/features/content/components/ContentCanvasWorkspacePage.prompt-canvas.css', import.meta.url), 'utf8')
+
+  assert.match(source, /contentPromptGenerationNodeKey/)
+  assert.match(source, /promptPreviewTargetKey/)
+  assert.match(source, /generationNodeKey/)
+  assert.match(source, /reconcileCreativeFlowNodes/)
+  assert.doesNotMatch(source, /\[generationPrompt, node, onPromptPreview/)
+  assert.doesNotMatch(source, /setManualPositions/)
+  assert.match(css, /\.content-prompt-flow-node[\s\S]*transition: none/)
+  assert.doesNotMatch(css, /transition: width 180ms ease, transform 180ms ease/)
+})
+
+test('content prompt reference drops require choosing reference role before inserting typed token', () => {
+  const panelSource = readFileSync(new URL('../src/features/content/components/ContentPromptCanvasPanel.tsx', import.meta.url), 'utf8')
+  const editorSource = readFileSync(new URL('../src/features/content/components/ContentCanvasPromptReferences.tsx', import.meta.url), 'utf8')
+  const nodeModelSource = readFileSync(new URL('../src/features/content/components/contentCanvasWorkspaceNodeModel.ts', import.meta.url), 'utf8')
+
+  assert.match(panelSource, /GenerationReferenceRoleMenu/)
+  assert.match(panelSource, /onReferenceDrop\(node, sourceNodeId, \{ x: event\.clientX, y: event\.clientY \}\)/)
+  assert.match(panelSource, /appendReferenceToPromptTargetWithRole/)
+  assert.match(editorSource, /PromptReferenceDropRoleMenu/)
+  assert.match(editorSource, /insertAt: \{\s*value: dropRoleMenu\.promptValue/)
+  assert.match(nodeModelSource, /role=\$\{normalizePromptReferenceMetadataValue\(options\.role\)\}/)
+  assert.match(nodeModelSource, /media=\$\{normalizePromptReferenceMetadataValue\(options\.mediaType\)\}/)
+})
+
+test('content prompt and candidate generation use the shared call composer layout', () => {
+  const promptPanelSource = readFileSync(new URL('../src/features/content/components/ContentPromptCanvasPanel.tsx', import.meta.url), 'utf8')
+  const inspectorSource = readFileSync(new URL('../src/features/content/components/ContentCanvasInspectorParts.tsx', import.meta.url), 'utf8')
+  const promptCss = readFileSync(new URL('../src/features/content/components/ContentCanvasWorkspacePage.prompt-canvas.css', import.meta.url), 'utf8')
+  const inspectorCss = readFileSync(new URL('../src/features/content/components/ContentCanvasWorkspacePage.inspector-candidates.css', import.meta.url), 'utf8')
+
+  assert.match(promptPanelSource, /\bGenerationCallComposerRoot\b/)
+  assert.match(promptPanelSource, /\bGenerationCallPromptBlock\b/)
+  assert.match(promptPanelSource, /\bGenerationCallConfigBlock\b/)
+  assert.match(promptPanelSource, /\bGenerationCallMetaRow\b/)
+  assert.match(promptPanelSource, /\bGenerationCallField\b/)
+  assert.match(promptPanelSource, /\bGenerationCallBadge\b/)
+  assert.match(promptPanelSource, /\bGenerationCallMessages\b/)
+  assert.match(promptPanelSource, /\bGenerationCallFooter\b/)
+  assert.match(promptPanelSource, /content-prompt-flow-node__generation-composer/)
+  assert.match(promptPanelSource, /content-prompt-flow-node__generation-grid/)
+  assert.match(promptCss, /\.content-prompt-flow-node__generation-composer/)
+  assert.match(promptCss, /\.content-prompt-flow-node__generation-grid[\s\S]*grid-template-columns: minmax\(92px, 0\.75fr\) minmax\(82px, 0\.55fr\) minmax\(132px, 1\.15fr\)/)
+  assert.match(promptCss, /\.content-prompt-flow-node__generation-params[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/)
+
+  assert.match(inspectorSource, /\bGenerationCallComposerRoot\b/)
+  assert.match(inspectorSource, /\bGenerationCallPromptBlock\b/)
+  assert.match(inspectorSource, /\bGenerationCallConfigBlock\b/)
+  assert.match(inspectorSource, /\bGenerationCallMetaRow\b/)
+  assert.match(inspectorSource, /\bGenerationCallField\b/)
+  assert.match(inspectorSource, /\bGenerationCallBadge\b/)
+  assert.match(inspectorSource, /\bGenerationCallMessages\b/)
+  assert.match(inspectorSource, /\bGenerationCallFooter\b/)
+  assert.match(inspectorSource, /content-canvas-generation-candidate-select/)
+  assert.match(inspectorCss, /\.content-canvas-generation-candidate-dialog__body/)
+  assert.match(inspectorCss, /\.content-canvas-generation-candidate-select/)
+  assert.match(inspectorCss, /\.content-canvas-generation-candidate-dialog__actions/)
 })
 
 test('content canvas hierarchy prefers normalized domain parent edges over legacy namespace fields', () => {

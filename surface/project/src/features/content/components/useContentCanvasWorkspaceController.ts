@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Viewport } from '@xyflow/react'
 
+import type { GenerationBackendPreflightResult } from '@movscript/core/generation'
 import { toast } from '@movscript/ui/toast'
 import { subscribeSurfaceGenerationJobStatus, surfaceRoutePath } from '@movscript/shared'
 import { contentCanvasKeys } from '../application/contentCanvasQueryKeys'
@@ -125,7 +126,7 @@ export function useContentCanvasWorkspaceController({
     () => contentCanvasProjectEntryIdForRoute(location.pathname, workspaceMode),
     [location.pathname, workspaceMode],
   )
-  const requestedCanvasId = searchParams.get('canvasId') ?? searchParams.get('canvas') ?? undefined
+  const requestedCanvasId = (searchParams.get('canvasId') ?? searchParams.get('canvas'))?.trim() || undefined
   const [settingQuery, setSettingQuery] = useState('')
   const [activeKind, setActiveKind] = useState<SettingKind | 'all'>('all')
   const [workspaceTab, setWorkspaceTab] = useState<ContentWorkspaceTab>(() => workspaceMode ?? 'preview')
@@ -182,14 +183,6 @@ export function useContentCanvasWorkspaceController({
     })
   }, [projectId])
 
-  useEffect(() => {
-    if (!projectId || !requestedCanvasId) return
-    const current = readContentCanvasDocumentsState(projectId)
-    if (!current?.documents[requestedCanvasId] || current.activeCanvasId === requestedCanvasId) return
-    selectContentCanvasDocument(projectId, requestedCanvasId)
-    setCanvasDocumentsVersion((version) => version + 1)
-  }, [canvasDocumentsVersion, projectId, requestedCanvasId])
-
   const canvasDocumentsState = useMemo(
     () => {
       void canvasDocumentsVersion
@@ -197,10 +190,20 @@ export function useContentCanvasWorkspaceController({
     },
     [canvasDocumentsVersion, projectId],
   )
-  const creativeCanvasDocument = useMemo(
-    () => activeContentCanvasDocument(canvasDocumentsState),
-    [canvasDocumentsState],
+  const requestedCreativeCanvasDocument = useMemo(
+    () => requestedCanvasId ? canvasDocumentsState?.documents[requestedCanvasId] : undefined,
+    [canvasDocumentsState?.documents, requestedCanvasId],
   )
+  const creativeCanvasDocument = useMemo(
+    () => requestedCreativeCanvasDocument ?? activeContentCanvasDocument(canvasDocumentsState),
+    [canvasDocumentsState, requestedCreativeCanvasDocument],
+  )
+  useEffect(() => {
+    if (!projectId || !requestedCanvasId) return
+    if (!canvasDocumentsState?.documents[requestedCanvasId] || canvasDocumentsState.activeCanvasId === requestedCanvasId) return
+    selectContentCanvasDocument(projectId, requestedCanvasId)
+    setCanvasDocumentsVersion((version) => version + 1)
+  }, [canvasDocumentsState?.activeCanvasId, canvasDocumentsState?.documents, projectId, requestedCanvasId])
   const creativeCanvasDocumentId = creativeCanvasDocument?.id
   const creativeCanvasViewStateScope = useMemo(
     () => contentCanvasDocumentViewStateScope(creativeCanvasDocumentId),
@@ -509,8 +512,18 @@ export function useContentCanvasWorkspaceController({
   }, [projectId])
 
   const selectFreeCreativeCanvasDocument = useCallback((canvasId: string) => {
-    selectContentCanvasDocument(projectId, canvasId)
-  }, [projectId])
+    const nextCanvasId = canvasId.trim()
+    if (!nextCanvasId) return
+    selectContentCanvasDocument(projectId, nextCanvasId)
+    if (projectEntryId !== 'content_canvas' || requestedCanvasId === nextCanvasId) return
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.set('canvasId', nextCanvasId)
+    nextSearchParams.delete('canvas')
+    navigate({
+      pathname: location.pathname,
+      search: `?${nextSearchParams.toString()}`,
+    }, { replace: true })
+  }, [location.pathname, navigate, projectEntryId, projectId, requestedCanvasId, searchParams])
 
   const saveCreativeCanvasDocuments = useCallback(() => {
     if (!projectId || creativeCanvasSavePending) return
@@ -714,6 +727,7 @@ export function useContentCanvasWorkspaceController({
         text: previewPromptText,
         compiledText: previewPromptText,
         resourceIds: [],
+        referenceAssets: [],
         replacements: [],
         blockers: [],
       }
@@ -733,6 +747,43 @@ export function useContentCanvasWorkspaceController({
       blockers: preview.blockers,
     }))
     return preview
+  }, [draftPromptForCandidateNode, gateway, projectId])
+
+  const preflightCandidateForNode = useCallback(async (
+    node: ContentCanvasNode | undefined,
+    options: Partial<ContentCanvasCandidateGenerationOptions> = {},
+  ): Promise<GenerationBackendPreflightResult> => {
+    const target = contentCanvasGenerationTargetForNode(node)
+    if (!node || !target || !projectId || !gateway) {
+      return blockedGenerationPreflight('content_canvas_context_missing', '内容画布未连接项目工作区')
+    }
+    const promptDraft = draftPromptForCandidateNode(node)
+    const previewPromptText = promptDraft ?? promptFromContentNode(target.node) ?? ''
+    const outputKind = contentUnitGenerationOutputKind(target.node)
+    if (outputKind !== 'image' && outputKind !== 'video') {
+      return blockedGenerationPreflight('unsupported_output_kind', '当前创作片段候选生成只支持图像/视频')
+    }
+    if (!target.node.sourcePath) {
+      return { status: 'ready', ready: true, blockers: [] }
+    }
+    try {
+      return await gateway.preflightContentUnitCandidate({
+        projectId,
+        contentUnitId: target.contentUnitId,
+        candidateId: 'preflight',
+        outputKind,
+        promptText: previewPromptText,
+        ...(options.modelId ? { modelId: options.modelId } : {}),
+        ...(options.params ? { params: options.params } : {}),
+        ...(options.supportedParams ? { supportedParams: options.supportedParams } : {}),
+        ...(options.generationIntent ? { generationIntent: options.generationIntent } : {}),
+      })
+    } catch (error) {
+      return blockedGenerationPreflight(
+        'content_candidate_preflight_failed',
+        error instanceof Error ? error.message : '候选生成预检失败',
+      )
+    }
   }, [draftPromptForCandidateNode, gateway, projectId])
 
   const createCandidateForNode = useCallback((
@@ -874,6 +925,7 @@ export function useContentCanvasWorkspaceController({
     createTimelineAssemblyForNamespace,
     deleteCreativeCanvasNode,
     previewCandidatePromptForNode,
+    preflightCandidateForNode,
     createResourceCandidateForNode,
     createCreativeCanvasNode: creationCommands.createCreativeCanvasNode,
     uploadCandidateForNode,
@@ -1136,7 +1188,15 @@ function contentCanvasWorkspacePreviewInputForRoute(input: {
 }
 
 function emptyPromptPreview(): ContentCanvasGenerationPromptPreview {
-  return { text: '', compiledText: '', resourceIds: [], replacements: [], blockers: [] }
+  return { text: '', compiledText: '', resourceIds: [], referenceAssets: [], replacements: [], blockers: [] }
+}
+
+function blockedGenerationPreflight(code: string, message: string): GenerationBackendPreflightResult {
+  return {
+    status: 'blocked',
+    ready: false,
+    blockers: [{ code, message }],
+  }
 }
 
 function contentCanvasProjectEntryIdForRoute(

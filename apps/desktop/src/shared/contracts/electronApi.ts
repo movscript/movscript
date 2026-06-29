@@ -266,6 +266,7 @@ export type ElectronAPI = {
   readMovScriptEngineWorkspaceScriptSource?: (input: ElectronMovScriptEngineWorkspaceReadScriptSourceInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['readScriptSource']>>>
   readMovScriptEngineContentUnitGenerationPrompt?: (input: ElectronMovScriptEngineContentUnitGenerationPromptReadInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['readContentUnitGenerationPrompt']>>>
   buildMovScriptEngineContentUnitBackendPrompt?: (input: ElectronMovScriptEngineContentUnitBackendPromptBuildInput) => Promise<ElectronMovScriptEngineContentUnitBackendPromptBuildResult>
+  readMovScriptEngineContentCanvasReadModel?: (input: ElectronMovScriptEngineProjectInput) => Promise<unknown>
   deleteMovScriptEngineWorkspaceEntity?: (input: ElectronMovScriptEngineWorkspaceDeleteEntityInput) => Promise<void>
   saveMovScriptEngineWorkspaceProductionSnapshot?: (input: ElectronMovScriptEngineWorkspaceSaveProductionSnapshotInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['saveProductionSnapshot']>>>
   upsertMovScriptEngineWorkspaceProjectStandards?: (input: ElectronMovScriptEngineWorkspaceUpsertProjectStandardsInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['upsertProjectStandards']>>>

@@ -86,19 +86,21 @@ func (a *YunwuUnifiedVideoAdapter) VideoStart(ctx context.Context, req VideoRequ
 		"size":         yunwuVideoSize(req),
 		"images":       imageURLs,
 	}
+	debugBody := cloneDebugMap(body)
+	attachReferenceAssetDebugBindings(debugBody, req.ReferenceAssets, staticReferenceAssetProviderField("images[]"))
 	endpoint := strings.TrimRight(a.BaseURL, "/") + "/video/create"
-	respBody, status, latency, err := a.postJSON(ctx, http.MethodPost, endpoint, body)
+	respBody, status, latency, err := a.postJSONWithDebugBody(ctx, http.MethodPost, endpoint, body, debugBody)
 	if err != nil {
 		recordDebug(ctx, DebugCallResult{
 			Success: false, ModelID: req.Model, Endpoint: endpoint, Method: http.MethodPost,
-			RequestHeaders: a.debugHeaders(), RequestBody: mustJSON(body), ResponseStatus: status, ResponseBody: string(respBody),
+			RequestHeaders: a.debugHeaders(), RequestBody: mustJSON(debugBody), ResponseStatus: status, ResponseBody: string(respBody),
 			LatencyMs: latency, Error: err.Error(),
 		})
 		return VideoResponse{}, err
 	}
 	recordDebug(ctx, DebugCallResult{
 		Success: status < 400, ModelID: req.Model, Endpoint: endpoint, Method: http.MethodPost,
-		RequestHeaders: a.debugHeaders(), RequestBody: mustJSON(body), ResponseStatus: status, ResponseBody: string(respBody),
+		RequestHeaders: a.debugHeaders(), RequestBody: mustJSON(debugBody), ResponseStatus: status, ResponseBody: string(respBody),
 		LatencyMs: latency,
 	})
 	if status >= 400 {
@@ -172,6 +174,10 @@ func (a *YunwuUnifiedVideoAdapter) VideoPoll(ctx context.Context, req VideoPollR
 }
 
 func (a *YunwuUnifiedVideoAdapter) postJSON(ctx context.Context, method, endpoint string, body map[string]any) ([]byte, int, int64, error) {
+	return a.postJSONWithDebugBody(ctx, method, endpoint, body, nil)
+}
+
+func (a *YunwuUnifiedVideoAdapter) postJSONWithDebugBody(ctx context.Context, method, endpoint string, body map[string]any, debugBody map[string]any) ([]byte, int, int64, error) {
 	rawBody, _ := json.Marshal(body)
 	return a.doJSON(ctx, method, endpoint, rawBody)
 }

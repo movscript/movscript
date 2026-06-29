@@ -1,10 +1,23 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, type MouseEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatResourceMention } from '@movscript/workspace'
+import {
+  generationDefaultReferenceRoleForMediaType,
+  generationReferenceRoleLabel,
+  generationReferenceRoleOptionsForMediaType,
+} from '@movscript/core/generation'
 import { Upload, Wand2, Loader2, AtSign, Library } from 'lucide-react'
 import { MediaViewer } from '@movscript/resource-surface/resource-media-viewer'
-import { AgentComposer, AgentComposerAction, AgentComposerSubmit, AgentComposerToolbar } from '@/shared/ui/AgentComposerUi'
+import { AgentComposerAction, AgentComposerSubmit } from '@/shared/ui/AgentComposerUi'
 import {
+  GenerationCallBadge,
+  GenerationCallComposerForm,
+  GenerationCallConfigBlock,
+  GenerationCallField,
+  GenerationCallFooter,
+  GenerationCallMessages,
+  GenerationCallMetaRow,
+  GenerationCallPromptBlock,
   GenerationActionHint,
   GenerationAttachmentList,
   GenerationHiddenFileInput,
@@ -13,6 +26,7 @@ import {
   GenerationMentionList,
   GenerationMentionMenu,
   GenerationPromptEditor,
+  GenerationReferenceRoleMenu,
 } from '@movscript/ui/business/generation'
 import type { RawResource, ParamDef } from '@/types'
 import { applyResourceChipMediaUrl, buildResourceChipElement, loadResourceChipMediaUrl } from '@/shared/ui/ResourceChipDom'
@@ -23,6 +37,19 @@ import { GenerationParamControls } from './GenerationParamControls'
 
 export type ToolInputResourceType = 'image' | 'video' | 'audio' | 'text'
 export type ToolInputType = 'none' | ToolInputResourceType | 'image+video' | 'media'
+export type GenInputReferenceAsset = {
+  role: string
+  media_type?: string
+  resource_id?: number
+}
+
+type ResourceRoleMenuState = {
+  left: number
+  top: number
+  resourceId: number
+  mediaType?: string
+  role?: string
+}
 
 export interface InputSlotDef {
   key: string
@@ -52,6 +79,12 @@ export interface GenInputCardProps {
   promptPlaceholder?: string
   uploading: boolean
   imageEditRequired?: boolean
+  referenceAssets?: readonly GenInputReferenceAsset[]
+  intentLabel?: ReactNode
+  outputLabel?: ReactNode
+  modelControl?: ReactNode
+  modelLabel?: ReactNode
+  messages?: readonly ReactNode[]
 }
 
 export function GenInputCard({
@@ -72,12 +105,21 @@ export function GenInputCard({
   promptPlaceholder,
   uploading,
   imageEditRequired: _imageEditRequired,
+  referenceAssets,
+  intentLabel,
+  outputLabel,
+  modelControl,
+  modelLabel,
+  messages = [],
 }: GenInputCardProps) {
   const { t } = useTranslation()
   const fileRef = useRef<HTMLInputElement>(null)
+  const promptShellRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<HTMLDivElement>(null)
+  const roleMenuChipRef = useRef<HTMLElement | null>(null)
   const chipObjectUrlsRef = useRef<Set<string>>(new Set())
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+  const [roleMenu, setRoleMenu] = useState<ResourceRoleMenuState | null>(null)
 
   const acceptsMediaInput = inputType !== 'none'
   const accept = inputType === 'video'
@@ -96,18 +138,31 @@ export function GenInputCard({
       return r.name.toLowerCase().includes(mentionQuery)
     })
     .slice(0, 8)
+  const referenceAssetById = new Map(
+    (referenceAssets ?? [])
+      .filter((asset) => asset.resource_id)
+      .map((asset) => [asset.resource_id as number, asset]),
+  )
 
   // Serialize contenteditable DOM → plain text (chip spans → @[resource:ID])
   function serialize(node: Node): string {
     if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
     const el = node as HTMLElement
-    if (el.dataset?.resourceId) return `${formatResourceMention(Number(el.dataset.resourceId))} `
+    if (el.dataset?.resourceId) {
+      const resourceId = Number(el.dataset.resourceId)
+      const asset = referenceAssetById.get(resourceId)
+      return `${formatResourceMention(resourceId, {
+        mediaType: el.dataset.mediaType ?? asset?.media_type,
+        role: el.dataset.role ?? asset?.role,
+      })} `
+    }
     return Array.from(node.childNodes).map(serialize).join('')
   }
 
   // Sync contenteditable → prompt state
   function handleInput() {
     if (!editorRef.current) return
+    setRoleMenu(null)
     const text = serialize(editorRef.current)
     onPromptChange(text)
 
@@ -139,7 +194,12 @@ export function GenInputCard({
       }
     }
 
-    const { chip, media } = buildResourceChipElement(resource)
+    const metadata = referenceMetadataForResource(resource)
+    const { chip, media } = buildResourceChipElement(resource, {
+      mediaType: metadata.mediaType,
+      role: metadata.role,
+      roleLabel: generationReferenceRoleLabel(metadata.role),
+    })
 
     const space = document.createTextNode('​')
     const insertRange = sel.getRangeAt(0)
@@ -169,6 +229,55 @@ export function GenInputCard({
       .catch((e) => { console.error('[chip thumb] fetch failed', resource.url, e?.response?.status, e?.message) })
   }
 
+  function referenceMetadataForResource(resource: RawResource) {
+    const asset = referenceAssetById.get(resource.ID)
+    const mediaType = asset?.media_type ?? resource.type
+    const role = asset?.role ?? generationDefaultReferenceRoleForMediaType(mediaType)
+    return { mediaType, role }
+  }
+
+  function handleEditorMouseDown(event: MouseEvent<HTMLDivElement>) {
+    const target = event.target as HTMLElement | null
+    const chip = target?.closest<HTMLElement>('[data-resource-id]')
+    if (!chip || !editorRef.current?.contains(chip)) {
+      setRoleMenu(null)
+      roleMenuChipRef.current = null
+      return
+    }
+    event.preventDefault()
+    const resourceId = Number(chip.dataset.resourceId)
+    if (!Number.isInteger(resourceId)) return
+    const shellRect = promptShellRef.current?.getBoundingClientRect()
+    const chipRect = chip.getBoundingClientRect()
+    roleMenuChipRef.current = chip
+    const mediaType = chip.dataset.mediaType ?? referenceAssetById.get(resourceId)?.media_type
+    const role = chip.dataset.role ?? referenceAssetById.get(resourceId)?.role
+    setMentionQuery(null)
+    setRoleMenu({
+      resourceId,
+      mediaType,
+      role,
+      left: shellRect ? Math.max(4, Math.min(chipRect.left - shellRect.left, shellRect.width - 184)) : 0,
+      top: shellRect ? chipRect.bottom - shellRect.top + 6 : 0,
+    })
+  }
+
+  function selectResourceRole(role: string) {
+    const chip = roleMenuChipRef.current
+    if (!chip || !editorRef.current) {
+      setRoleMenu(null)
+      return
+    }
+    const mediaType = roleMenu?.mediaType ?? chip.dataset.mediaType
+    chip.dataset.role = role
+    if (mediaType) chip.dataset.mediaType = mediaType
+    const label = chip.querySelector<HTMLElement>('.generation-input-chip__label')
+    if (label) label.textContent = `${chip.dataset.resourceName ?? ''} · ${generationReferenceRoleLabel(role)}`
+    onPromptChange(serialize(editorRef.current))
+    setRoleMenu(null)
+    roleMenuChipRef.current = null
+  }
+
   // Keep editor DOM in sync when prompt is cleared externally (e.g. after generate)
   const prevPromptRef = useRef(prompt)
   useEffect(() => {
@@ -188,77 +297,108 @@ export function GenInputCard({
   }, [])
 
   return (
-    <AgentComposer
+    <GenerationCallComposerForm
       className="ms-agent-composer--panel"
       onSubmit={(event) => {
         event.preventDefault()
         if (canGenerate) onGenerate()
       }}
     >
-      {/* Prompt area — contenteditable */}
-      <div className="relative">
-        <GenerationPromptEditor
-          ref={editorRef}
-          className="ms-agent-composer__rich-field"
-          onInput={handleInput}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') setMentionQuery(null)
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); onGenerate() }
-          }}
-          data-placeholder={
-            promptPlaceholder ??
-            t(`shared.genInput.promptPlaceholder.${inputType}`)
-          }
+      <GenerationCallPromptBlock label={t('shared.generation.promptLabel', { defaultValue: '提示词' })}>
+        <div ref={promptShellRef} className="relative">
+          <GenerationPromptEditor
+            ref={editorRef}
+            className="ms-agent-composer__rich-field"
+            onInput={handleInput}
+            onMouseDown={handleEditorMouseDown}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setMentionQuery(null)
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault()
+                if (canGenerate) onGenerate()
+              }
+            }}
+            data-placeholder={
+              promptPlaceholder ??
+              t(`shared.genInput.promptPlaceholder.${inputType}`)
+            }
+          />
+
+          {roleMenu ? (
+            <GenerationReferenceRoleMenu
+              options={generationReferenceRoleOptionsForMediaType(roleMenu.mediaType)}
+              value={roleMenu.role}
+              onRoleSelect={selectResourceRole}
+              style={{ left: roleMenu.left, top: roleMenu.top }}
+            />
+          ) : null}
+
+          {acceptsMediaInput && mentionQuery !== null && (
+            <GenerationMentionMenu>
+              {mentionResources.length === 0 ? (
+                <GenerationMentionEmpty>
+                  {attachments.length === 0 ? t('shared.genInput.addResourcesFirst') : t('shared.genInput.noMatchedResources')}
+                </GenerationMentionEmpty>
+              ) : (
+                <GenerationMentionList>
+                  {mentionResources.map((r) => (
+                    <GenerationMentionItem
+                      key={r.ID}
+                      media={<MediaViewer resource={r} lightbox={false} />}
+                      label={r.name}
+                      onMouseDown={(e) => { e.preventDefault(); insertMentionChip(r) }}
+                    />
+                  ))}
+                </GenerationMentionList>
+              )}
+            </GenerationMentionMenu>
+          )}
+        </div>
+
+        {inputSlots && inputSlots.length > 0 ? (
+          <GenerationInputSlots
+            slots={inputSlots}
+            attachments={attachments}
+            onRemoveAttachment={onRemoveAttachment}
+          />
+        ) : acceptsMediaInput && attachments.length > 0 ? (
+          <GenerationAttachmentList>
+            {attachments.map((r, i) => (
+              <AttachmentTag key={r.ID} resource={r} onRemove={() => onRemoveAttachment(i)} />
+            ))}
+          </GenerationAttachmentList>
+        ) : null}
+      </GenerationCallPromptBlock>
+
+      <GenerationCallConfigBlock label={t('shared.generation.parametersLabel', { defaultValue: '模型与参数' })}>
+        <GenerationCallMetaRow>
+          <GenerationCallField label={t('shared.generation.intentLabel', { defaultValue: '品类' })}>
+            <GenerationCallBadge tone={canGenerate ? 'ready' : messages.length > 0 ? 'warning' : 'neutral'}>
+              {intentLabel ?? t('shared.generation.intentUnknown', { defaultValue: '待推导' })}
+            </GenerationCallBadge>
+          </GenerationCallField>
+          <GenerationCallField label={t('shared.generation.outputLabel', { defaultValue: '输出' })}>
+            <GenerationCallBadge>
+              {outputLabel ?? t(`shared.genInput.promptPlaceholder.${inputType}`, { defaultValue: inputType })}
+            </GenerationCallBadge>
+          </GenerationCallField>
+          {modelControl ? (
+            <GenerationCallField label={modelLabel ?? t('shared.modelSelector.label', { defaultValue: '模型' })}>
+              {modelControl}
+            </GenerationCallField>
+          ) : null}
+        </GenerationCallMetaRow>
+
+        <GenerationParamControls
+          params={params}
+          values={paramValues}
+          onChange={onParamChange}
+          className="ms-agent-composer__workspace-row"
         />
 
-        {acceptsMediaInput && mentionQuery !== null && (
-          <GenerationMentionMenu>
-            {mentionResources.length === 0 ? (
-              <GenerationMentionEmpty>
-                {attachments.length === 0 ? t('shared.genInput.addResourcesFirst') : t('shared.genInput.noMatchedResources')}
-              </GenerationMentionEmpty>
-            ) : (
-              <GenerationMentionList>
-                {mentionResources.map((r) => (
-                  <GenerationMentionItem
-                    key={r.ID}
-                    media={<MediaViewer resource={r} lightbox={false} />}
-                    label={r.name}
-                    onMouseDown={(e) => { e.preventDefault(); insertMentionChip(r) }}
-                  />
-                ))}
-              </GenerationMentionList>
-            )}
-          </GenerationMentionMenu>
-        )}
-      </div>
+        <GenerationCallMessages messages={messages} />
 
-      {/* Input slots (typed, ordered) — shown when model declares specific input requirements */}
-      {inputSlots && inputSlots.length > 0 ? (
-        <GenerationInputSlots
-          slots={inputSlots}
-          attachments={attachments}
-          onRemoveAttachment={onRemoveAttachment}
-        />
-      ) : acceptsMediaInput && attachments.length > 0 ? (
-        /* Legacy flat attachment list */
-        <GenerationAttachmentList>
-          {attachments.map((r, i) => (
-            <AttachmentTag key={r.ID} resource={r} onRemove={() => onRemoveAttachment(i)} />
-          ))}
-        </GenerationAttachmentList>
-      ) : null}
-
-      {/* Params row */}
-      <GenerationParamControls
-        params={params}
-        values={paramValues}
-        onChange={onParamChange}
-        className="ms-agent-composer__workspace-row"
-      />
-
-      {/* Action bar */}
-      <AgentComposerToolbar>
+        <GenerationCallFooter>
         <div className="ms-agent-composer__toolstrip flex min-w-0 flex-1 flex-wrap items-center gap-1">
           {acceptsMediaInput ? (
             <>
@@ -304,7 +444,8 @@ export function GenInputCard({
             {isRunning ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
           </AgentComposerSubmit>
         </div>
-      </AgentComposerToolbar>
-    </AgentComposer>
+        </GenerationCallFooter>
+      </GenerationCallConfigBlock>
+    </GenerationCallComposerForm>
   )
 }

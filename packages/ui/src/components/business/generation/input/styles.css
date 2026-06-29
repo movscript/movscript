@@ -4,3 +4,5 @@
 @import "./slots/styles.css";
 @import "./params/styles.css";
 @import "./actions/styles.css";
+@import "./reference-role-menu/styles.css";
+@import "./composer/styles.css";

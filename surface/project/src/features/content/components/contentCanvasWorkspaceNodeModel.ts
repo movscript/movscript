@@ -185,9 +185,13 @@ export function appendAssetReferenceToPrompt(prompt: string, asset: ContentCanva
   return appendContentNodeReferenceToPrompt(prompt, asset)
 }
 
-export function appendContentNodeReferenceToPrompt(prompt: string, node: ContentCanvasNode) {
+export function appendContentNodeReferenceToPrompt(
+  prompt: string,
+  node: ContentCanvasNode,
+  options: { role?: string; mediaType?: string } = {},
+) {
   const kind = promptReferenceKindForNode(node)
-  const token = `{{${kind}:${node.entityKey || node.id}}}`
+  const token = formatContentNodeReferenceToken(kind, node.entityKey || node.id, options)
   if (prompt.includes(token)) return prompt
   return [prompt.trim(), token].filter(Boolean).join('\n')
 }
@@ -198,6 +202,22 @@ function promptReferenceKindForNode(node: ContentCanvasNode): 'asset' | 'candida
   if (node.kind === 'candidate') return 'candidate'
   if (node.kind === 'resource') return 'resource'
   return 'asset'
+}
+
+function formatContentNodeReferenceToken(
+  kind: ReturnType<typeof promptReferenceKindForNode>,
+  token: string,
+  options: { role?: string; mediaType?: string },
+) {
+  const metadata = [
+    options.role ? `role=${normalizePromptReferenceMetadataValue(options.role)}` : '',
+    options.mediaType ? `media=${normalizePromptReferenceMetadataValue(options.mediaType)}` : '',
+  ].filter(Boolean).join(' ')
+  return metadata ? `{{${kind}::${token} ${metadata}}}` : `{{${kind}:${token}}}`
+}
+
+function normalizePromptReferenceMetadataValue(value: string): string {
+  return value.trim().toLowerCase().replace(/^['"]|['"]$/g, '').replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')
 }
 
 export function uniqueContentNodes(nodes: ContentCanvasNode[]) {

@@ -149,7 +149,6 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
   const args = getObjectParam(params, 'arguments')
 
   switch (name) {
-    case 'system_focus_get':
     case 'movscript_focus_get':
       return toolText(getFocus())
     case 'system_model_list':

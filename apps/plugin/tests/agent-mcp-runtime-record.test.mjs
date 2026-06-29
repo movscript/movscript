@@ -8,7 +8,7 @@ import test from 'node:test'
 
 const gatewayPorts = new Map()
 
-test('movscript-agent-mcp writes plugin-basic app and service records only when explicitly requested', async () => {
+test('movscript mcp stdio writes plugin-basic app and service records only when explicitly requested', async () => {
   const homeDir = mkdtempSync(join(tmpdir(), 'movscript-plugin-home-'))
   const result = await runAgentMCP(homeDir, {
     env: {
@@ -57,7 +57,7 @@ test('plugin-full-local startup policy attaches to daemon instead of owning busi
   }
 })
 
-test('movscript-agent-mcp canonicalizes Desktop compatibility mode without Desktop ownership wording', async () => {
+test('movscript mcp stdio canonicalizes Desktop compatibility mode without Desktop ownership wording', async () => {
   const homeDir = mkdtempSync(join(tmpdir(), 'movscript-plugin-home-'))
   mkdirSync(join(homeDir, 'runtime', 'apps'), { recursive: true })
   writeFileSync(join(homeDir, 'runtime', 'apps', 'movscript.desktop.json'), JSON.stringify({
@@ -94,7 +94,7 @@ test('movscript-agent-mcp canonicalizes Desktop compatibility mode without Deskt
   assert.equal(records.mediaPipelineEndpoint, undefined)
 })
 
-test('movscript-agent-mcp accepts plugin-desktop-owned only as a legacy alias', async () => {
+test('movscript mcp stdio accepts plugin-desktop-owned only as a legacy alias', async () => {
   const homeDir = mkdtempSync(join(tmpdir(), 'movscript-plugin-home-'))
   const result = await runAgentMCP(homeDir, {
     env: {
@@ -112,7 +112,7 @@ test('movscript-agent-mcp accepts plugin-desktop-owned only as a legacy alias', 
   assert.equal(records.editingService, undefined)
 })
 
-test('movscript-agent-mcp ignores legacy Desktop records and defaults to daemon attach', async () => {
+test('movscript mcp stdio ignores legacy Desktop records and defaults to daemon attach', async () => {
   const homeDir = mkdtempSync(join(tmpdir(), 'movscript-plugin-home-'))
   mkdirSync(join(homeDir, 'runtime', 'apps'), { recursive: true })
   writeFileSync(join(homeDir, 'runtime', 'apps', 'movscript.desktop.json'), JSON.stringify({
@@ -150,7 +150,7 @@ test('movscript-agent-mcp ignores legacy Desktop records and defaults to daemon 
   assert.match(stop.stdout, /stopping|not_running/)
 })
 
-test('movscript-agent-mcp defaults to persistent full-local local-node without Desktop and handles MCP smoke calls', async () => {
+test('movscript mcp stdio defaults to persistent full-local local-node without Desktop and handles MCP smoke calls', async () => {
   const homeDir = mkdtempSync(join(tmpdir(), 'movscript-plugin-home-'))
   const projectDir = mkdtempSync(join(tmpdir(), 'movscript-project-'))
   mkdirSync(join(projectDir, 'settings'), { recursive: true })
@@ -268,6 +268,22 @@ test('movscript-agent-mcp defaults to persistent full-local local-node without D
   assert.match(directAdminCredentials.headers.get('content-type') ?? '', /application\/json/)
 
   const devOrigin = 'http://127.0.0.1:5173'
+  const editingCapabilities = await fetch(`${localNode.gatewayEndpoint.url}/v1/editing/capabilities`, {
+    headers: { origin: devOrigin },
+  })
+  assert.equal(editingCapabilities.ok, true)
+  assert.equal(editingCapabilities.headers.get('access-control-allow-origin'), devOrigin)
+  assert.equal((await editingCapabilities.json()).serviceName, 'movscript.editing.service')
+
+  const mediaPipelineProbe = await fetch(`${localNode.gatewayEndpoint.url}/v1/media-pipeline/probe`, {
+    method: 'POST',
+    headers: { origin: devOrigin, 'content-type': 'application/json' },
+    body: JSON.stringify({ taskType: 'timeline_render' }),
+  })
+  assert.equal(mediaPipelineProbe.ok, true)
+  assert.equal(mediaPipelineProbe.headers.get('access-control-allow-origin'), devOrigin)
+  assert.equal((await mediaPipelineProbe.json()).serviceName, 'movscript.media.pipeline')
+
   const gatewayHealth = await fetch(`${localNode.gatewayEndpoint.url}/health`, {
     headers: { origin: devOrigin },
   })
@@ -335,7 +351,7 @@ async function runAgentMCP(homeDir, options = {}) {
     { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} },
   ]
   const gatewayPort = await gatewayPortForHome(homeDir)
-  const child = spawn(process.execPath, ['bin/movscript-agent-mcp.mjs'], {
+  const child = spawn('bin/movscript', ['mcp', 'stdio'], {
     cwd: resolve(import.meta.dirname, '..'),
     env: {
       ...process.env,
@@ -375,7 +391,7 @@ async function runAgentMCP(homeDir, options = {}) {
 
 async function runLocalNodeCommand(homeDir, args) {
   const gatewayPort = await gatewayPortForHome(homeDir)
-  const child = spawn(process.execPath, ['bin/movscript-agent-mcp.mjs', ...args], {
+  const child = spawn('bin/movscript', args, {
     cwd: resolve(import.meta.dirname, '..'),
     env: {
       ...process.env,

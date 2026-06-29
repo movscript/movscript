@@ -105,6 +105,8 @@ func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelD
 		return NewGeminiAdapter(apiKey, baseURL), nil
 	case AdapterDashScope:
 		return NewDashScopeAdapter(apiKey, baseURL), nil
+	case AdapterVyroSeedance:
+		return NewVyroSeedanceAdapter(apiKey, baseURL), nil
 	case AdapterVidu:
 		return NewViduAdapter(apiKey, baseURL), nil
 	case AdapterElevenLabs:

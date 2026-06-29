@@ -136,12 +136,19 @@ func (a *KlingAdapter) imageToVideo(ctx context.Context, req VideoRequest) (Vide
 	if req.AspectRatio != "" {
 		body["aspect_ratio"] = req.AspectRatio
 	}
+	debugBody := cloneDebugMap(body)
+	attachReferenceAssetDebugBindings(debugBody, req.ReferenceAssets, func(_ ReferenceAsset, _ int) string {
+		if strings.HasPrefix(req.Image, "base64:") {
+			return "image_base64"
+		}
+		return "image"
+	})
 	var result struct {
 		Data struct {
 			TaskID string `json:"task_id"`
 		} `json:"data"`
 	}
-	if err := a.post(ctx, "/v1/videos/image2video", body, &result); err != nil {
+	if err := a.postWithDebugBody(ctx, "/v1/videos/image2video", body, debugBody, &result); err != nil {
 		return VideoResponse{}, err
 	}
 	return VideoResponse{TaskID: result.Data.TaskID, TaskKind: "image2video", Status: VideoStatusSubmitted, Debug: takeDebug(ctx)}, nil
@@ -217,6 +224,10 @@ func (a *KlingAdapter) Ping(ctx context.Context) error {
 }
 
 func (a *KlingAdapter) post(ctx context.Context, path string, body any, out any) error {
+	return a.postWithDebugBody(ctx, path, body, nil, out)
+}
+
+func (a *KlingAdapter) postWithDebugBody(ctx context.Context, path string, body any, debugBody any, out any) error {
 	b, err := json.Marshal(body)
 	if err != nil {
 		return err
@@ -240,13 +251,17 @@ func (a *KlingAdapter) post(ctx context.Context, path string, body any, out any)
 			modelID, _ = v.(string)
 		}
 	}
+	debugRequestBody := string(b)
+	if debugBody != nil {
+		debugRequestBody = mustJSON(debugBody)
+	}
 	start := time.Now()
 	resp, err := a.client.Do(req)
 	latency := time.Since(start).Milliseconds()
 	if err != nil {
 		recordDebug(ctx, DebugCallResult{
 			ModelID: modelID, Endpoint: endpoint, Method: "POST",
-			RequestHeaders: headers, RequestBody: string(b),
+			RequestHeaders: headers, RequestBody: debugRequestBody,
 			LatencyMs: latency, Error: err.Error(),
 		})
 		return err
@@ -256,7 +271,7 @@ func (a *KlingAdapter) post(ctx context.Context, path string, body any, out any)
 	recordDebug(ctx, DebugCallResult{
 		Success: resp.StatusCode < 400, ModelID: modelID,
 		Endpoint: endpoint, Method: "POST",
-		RequestHeaders: headers, RequestBody: string(b),
+		RequestHeaders: headers, RequestBody: debugRequestBody,
 		ResponseStatus: resp.StatusCode, ResponseBody: string(respBody),
 		LatencyMs: latency,
 	})

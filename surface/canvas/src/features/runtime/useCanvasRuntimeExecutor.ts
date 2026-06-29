@@ -182,12 +182,16 @@ export function useCanvasRuntimeExecutor({
       const value: CanvasPortValue = { type: 'text', text: response.text }
       return { text: value, result: value, value }
     }
+    const inputResourceIds = runtimeResourceIdsForNode(node, inputs)
     const job = await generateCanvasRuntimeMedia({
       nodeType: node.type,
       data,
       outputType,
       prompt,
-      inputResourceIds: runtimeResourceIdsForNode(node, inputs),
+      inputResourceIds,
+      inputResources: inputResourceIds
+        .map((id) => resourceById.get(id))
+        .filter((resource): resource is NonNullable<typeof resource> => Boolean(resource)),
       inputValues: inputs,
       projectId,
     })

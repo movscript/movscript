@@ -1008,6 +1008,107 @@ func TestAIServiceStructuredCapabilityRoutesByOperationAndInputRoles(t *testing.
 	}
 }
 
+func TestAIServiceStructuredCapabilityUsesOperationSlotSchema(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-model-catalog-operation-slots.db",
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+	)
+	capabilitiesJSON := `{
+		"video_generation": {
+			"operations": [
+				{
+					"id": "first_last_frame_to_video",
+					"input_slots": [
+						{"id": "first_frame", "required": true, "max": 1, "roles": ["first_frame"], "modalities": ["image"]},
+						{"id": "last_frame", "required": true, "max": 1, "roles": ["last_frame"], "modalities": ["image"]}
+					]
+				}
+			],
+			"reference_assets": {
+				"min": 1,
+				"max": 2,
+				"modalities": ["image"],
+				"roles": ["reference_image", "first_frame", "last_frame"]
+			}
+		}
+	}`
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:         "slot-video",
+		DisplayName:           "Slot Video",
+		IsEnabled:             true,
+		ModelCapabilitiesJSON: capabilitiesJSON,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	route := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:        entry.ID,
+		SourceType:            persistencemodel.ModelRouteSourceRelayGateway,
+		RouteGroup:            "default",
+		ProviderID:            persistencemodel.ModelRouteSourceRelayGateway,
+		ProviderModelID:       "provider-slot-video",
+		IsEnabled:             true,
+		Priority:              10,
+		CapacityWeight:        1,
+		RouteCapabilitiesJSON: capabilitiesJSON,
+	}
+	if err := db.Create(&route).Error; err != nil {
+		t.Fatalf("create route: %v", err)
+	}
+	service := NewAIService(db, NewRegistry(db, nil))
+
+	models, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{
+		Capability: CapabilityFamilyVideoGeneration,
+		Operation:  VideoOperationFirstLastFrameToVideo,
+		ReferenceAssets: []providercontract.AIReferenceAssetIntent{
+			{Role: "reference_image", MediaType: "image"},
+			{Role: "last_frame", MediaType: "image"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ListModels() error = %v", err)
+	}
+	if len(models) != 0 {
+		t.Fatalf("ordinary reference for first-last slot models = %#v, want none", models)
+	}
+
+	resolved, err := service.ResolveModelRoute(ModelRouteRequest{
+		ModelID:    "slot-video",
+		Capability: CapabilityFamilyVideoGeneration,
+		Operation:  VideoOperationFirstLastFrameToVideo,
+		RouteGroup: "default",
+		ReferenceAssets: []RouteReferenceAssetIntent{
+			{Role: "first_frame", MediaType: "image"},
+			{Role: "last_frame", MediaType: "image"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute() error = %v", err)
+	}
+	if resolved.RouteBindingID != route.ID || resolved.ProviderModelID != "provider-slot-video" {
+		t.Fatalf("resolved route = %#v", resolved)
+	}
+
+	diagnosis, err := service.DiagnoseModelRoute(context.Background(), ModelRouteRequest{
+		ModelID:    "slot-video",
+		Capability: CapabilityFamilyVideoGeneration,
+		Operation:  VideoOperationFirstLastFrameToVideo,
+		RouteGroup: "default",
+		ReferenceAssets: []RouteReferenceAssetIntent{
+			{Role: "reference_image", MediaType: "image"},
+			{Role: "last_frame", MediaType: "image"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("DiagnoseModelRoute() error = %v", err)
+	}
+	if len(diagnosis.Candidates) != 1 ||
+		!hasString(diagnosis.Candidates[0].Reasons, "missing_model_capability:unsupported_operation_input:reference_image:image") ||
+		!hasString(diagnosis.Candidates[0].Reasons, "missing_route_capability:unsupported_operation_input:reference_image:image") {
+		t.Fatalf("diagnosis = %#v, want operation slot reasons", diagnosis.Candidates)
+	}
+}
+
 func TestAIServiceCatalogRouteRejectsUnsupportedSourceWithoutLegacyFallback(t *testing.T) {
 	db := testutil.OpenSQLite(t, "ai-model-catalog-route-no-legacy-fallback.db",
 		&persistencemodel.AIModelCatalogEntry{},

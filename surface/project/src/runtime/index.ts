@@ -5,6 +5,16 @@ export {
   projectSurfaceProjectFromContext,
   withProjectSurfaceProjectRequest,
 } from './ProjectSurfaceRuntime.js'
+export type {
+  HostedProjectSurfaceHrefOpener,
+  HostedProjectSurfaceHrefResolver,
+  HostedProjectSurfaceRuntimeInput,
+} from './HostedProjectSurfaceRuntime.js'
+export {
+  createHostedProjectSurfaceRuntime,
+  projectSurfaceContextCommandEnvelope,
+  unwrapProjectSurfaceGatewayResult,
+} from './HostedProjectSurfaceRuntime.js'
 export { PROJECT_SURFACE_ROUTE_KEYS } from '../domain/index.js'
 export type {
   EditingServiceGateway,

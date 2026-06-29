@@ -196,6 +196,7 @@ export interface SurfaceHostApi {
   buildMovScriptEngineContentUnitBackendPrompt?: (
     input: SurfaceHostMovScriptProjectInput,
   ) => Promise<{ ok?: boolean; prompt?: Record<string, unknown>; blockers?: unknown[] }>
+  readMovScriptEngineContentCanvasReadModel?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   loadMovScriptEngineContentWorkspaceSnapshot?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   loadMovScriptEngineContentWorkspace?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   listMovScriptEngineContentCanvases?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>

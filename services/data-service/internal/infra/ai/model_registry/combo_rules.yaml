@@ -7,6 +7,9 @@ rules:
     profile: gateway
     exclude_labs:
       - open-source-audio
+  - provider_type: 83zi
+    profile: sd2
+    lab: 83zi
   - provider_type: volcen
     profile: ark
     lab: seed

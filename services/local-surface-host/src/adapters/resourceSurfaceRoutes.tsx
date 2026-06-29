@@ -92,6 +92,9 @@ export function LocalAgentResourceDetailRoute() {
 function LocalResourcePreview({ resource }: { resource: LocalRawResource }) {
   const url = localResourceURL(resource.url)
   const label = resource.name || `Resource #${resource.ID}`
+  if (!url) {
+    return <div className="agent-surface-status">Resource URL is unavailable.</div>
+  }
 
   if (resource.type === 'image') {
     return <img className="local-resource-preview" src={url} alt={label} loading="lazy" />
@@ -109,10 +112,13 @@ function LocalResourcePreview({ resource }: { resource: LocalRawResource }) {
   )
 }
 
-function localResourceURL(url: string): string {
-  if (/^https?:\/\//.test(url) || url.startsWith('blob:') || url.startsWith('data:')) return url
-  if (url.startsWith('/')) return url
-  return url
+function localResourceURL(url: unknown): string | undefined {
+  if (typeof url !== 'string') return undefined
+  const trimmed = url.trim()
+  if (!trimmed) return undefined
+  if (/^https?:\/\//.test(trimmed) || trimmed.startsWith('blob:') || trimmed.startsWith('data:')) return trimmed
+  if (trimmed.startsWith('/')) return trimmed
+  return trimmed
 }
 
 function useLocalAgentSurfaceParams(): URLSearchParams {

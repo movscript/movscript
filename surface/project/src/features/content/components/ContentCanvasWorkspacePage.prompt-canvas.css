@@ -559,8 +559,7 @@
   color: var(--cc-text);
   cursor: grab;
   transform-origin: top center;
-  transition: width 180ms ease, transform 180ms ease;
-  will-change: width, transform;
+  transition: none;
 }
 
 .content-prompt-flow-node:active {
@@ -605,7 +604,7 @@
   justify-self: center;
   width: var(--content-prompt-flow-node-preview-width);
   transform-origin: top center;
-  transition: width 180ms ease, box-shadow 160ms ease, border-color 160ms ease;
+  transition: box-shadow 160ms ease, border-color 160ms ease;
 }
 
 .content-prompt-flow-node[data-expanded="true"] .content-prompt-flow-node__preview-card {
@@ -621,7 +620,7 @@
   gap: 8px;
   padding: 10px;
   transform-origin: top center;
-  animation: contentPromptFlowPromptPanelExpand 180ms ease-out backwards;
+  animation: none;
 }
 
 @keyframes contentPromptFlowPromptPanelExpand {
@@ -1004,28 +1003,22 @@
   min-height: 216px;
 }
 
+.content-prompt-flow-node__generation-composer {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
 .content-prompt-flow-node__generation {
   display: grid;
   gap: 8px;
-  border: 1px solid color-mix(in srgb, var(--cc-accent) 22%, var(--cc-border));
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--cc-accent-soft) 46%, transparent);
-  padding: 8px;
+  border-top-color: color-mix(in srgb, var(--cc-accent) 24%, var(--cc-border));
+  background: transparent;
+  padding-top: 8px;
 }
 
-.content-prompt-flow-node__generation-header,
-.content-prompt-flow-node__generation-controls {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-}
-
-.content-prompt-flow-node__generation-header {
-  justify-content: space-between;
-}
-
-.content-prompt-flow-node__generation-header > span {
+.content-prompt-flow-node__generation-title {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -1034,29 +1027,25 @@
   font-weight: 860;
 }
 
-.content-prompt-flow-node__generation-header > small {
-  color: var(--cc-muted);
-  font-size: 10px;
-  font-weight: 780;
-}
-
-.content-prompt-flow-node__generation-controls {
-  align-items: end;
+.content-prompt-flow-node__generation-grid {
+  display: grid;
+  grid-template-columns: minmax(92px, 0.75fr) minmax(82px, 0.55fr) minmax(132px, 1.15fr);
+  gap: 8px;
+  min-width: 0;
 }
 
 .content-prompt-flow-node__generation label {
   display: grid;
-  flex: 0 0 196px;
   gap: 4px;
   min-width: 0;
 }
 
 .content-prompt-flow-node__generation label > span,
-.content-prompt-flow-node__generation-controls > small {
+.content-prompt-flow-node__generation-defaults,
+.content-prompt-flow-node__generation-messages small {
   color: var(--cc-muted);
   font-size: 10px;
   font-weight: 780;
-  align-self: center;
 }
 
 .content-prompt-flow-node__generation-model {
@@ -1065,17 +1054,54 @@
 }
 
 .content-prompt-flow-node__generation-params {
-  flex: 1 1 auto;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
   min-width: 0;
+}
+
+.content-prompt-flow-node__generation-params .generation-input-param {
+  display: grid;
+  align-items: start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.content-prompt-flow-node__generation-params .generation-input-param__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .content-prompt-flow-node__generation-params input,
 .content-prompt-flow-node__generation-params select {
+  width: 100%;
   max-width: 100%;
 }
 
-.content-prompt-flow-node__generation-controls > button {
+.content-prompt-flow-node__generation-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.content-prompt-flow-node__generation-messages {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.content-prompt-flow-node__generation-messages:empty {
+  min-height: 1px;
+}
+
+.content-prompt-flow-node__generation-messages small {
+  overflow-wrap: anywhere;
+}
+
+.content-prompt-flow-node__generation-footer > button {
   display: inline-flex;
   width: fit-content;
   min-height: 32px;
@@ -1092,9 +1118,13 @@
   white-space: nowrap;
 }
 
-.content-prompt-flow-node__generation-controls > button:disabled {
+.content-prompt-flow-node__generation-footer > button:disabled {
   cursor: not-allowed;
   opacity: 0.52;
+}
+
+.content-prompt-canvas-reference-role-menu {
+  z-index: 30;
 }
 
 .content-prompt-flow-node__meta {

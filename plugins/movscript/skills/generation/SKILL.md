@@ -10,7 +10,6 @@ toolGrants:
   - mcp__movscript__generation_job_get
   - mcp__movscript__generation_job_get_batch
   - mcp__movscript__generation_result_register
-  - mcp__movscript__system_focus_get
   - mcp__movscript__system_resource_library_query
   - mcp__movscript__system_resource_image_read
   - mcp__movscript__system_resource_image_transform_to_resource
@@ -133,7 +132,7 @@ Use this skill when a user asks to generate or prepare creative outputs through 
 ## Workflow
 
 1. Read workspace context first when the request references project entities, scenes, script passages, keyframes, asset slots, or house style.
-2. Use `system_focus_get` for the selected project/production. Call `domain_read_project_context_snapshot`, then use `domain_overview`, `domain_query_production_context`, `domain_query_assets`, and content-unit artifact tools before reading many files.
+2. Resolve the intended project from explicit user input, a passed `projectId`/`project_id`, or a Project Service locator. Do not infer it from UI focus. Call `domain_read_project_context_snapshot`, then use `domain_overview`, `domain_query_production_context`, `domain_query_assets`, and content-unit artifact tools before reading many files.
 3. Identify the output center: a direct `scene_moment`, an `expression_unit` material, or an upstream evidence item such as an asset, keyframe, or storyboard.
 4. Decide whether the current goal needs strong consistency evidence or a fast draft path. Do not block a simple draft only because optional setting, asset, keyframe, or storyboard references are absent.
 5. If continuity assets are required, open `references/continuity-asset-prompts.md` and generate or refine `asset_ref` candidates first. Use selected simpler asset resources as references for more complex asset variants by writing refs such as `{{asset::base_character}}` in the downstream content unit `edit_prompt`, then compile it with `domain_build_content_unit_backend_prompt`. Stop before downstream generation until required asset candidates are adopted/selected and the compiled prompt has no blockers. If candidates already exist, recommend adoption/selection instead of regenerating or moving downstream.

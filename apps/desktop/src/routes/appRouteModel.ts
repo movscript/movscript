@@ -6,6 +6,10 @@ import {
   canvasRouteSourceFromSearch,
   type CanvasRouteSource,
 } from '@movscript/shared/surface-routes'
+import {
+  sharedSurfaceRouteForPathname,
+  type SharedSurfaceRouteDefinition,
+} from '@movscript/shared'
 import { ROUTES } from './projectRoutes'
 import { routeLayoutSpecForPathname, type RouteLayoutSpec } from './routeLayoutRegistry'
 
@@ -24,6 +28,10 @@ export function isCanvasEditorRoute(pathname: string): boolean {
 
 export function getAppRouteLayoutSpec(pathname: string): RouteLayoutSpec {
   return routeLayoutSpecForPathname(pathname)
+}
+
+export function getAppSharedSurfaceRoute(pathname: string): SharedSurfaceRouteDefinition | undefined {
+  return sharedSurfaceRouteForPathname(pathname, { host: 'desktop' })
 }
 
 export function workModeForRoute(pathname: string, fallback: AppWorkMode): AppWorkMode {

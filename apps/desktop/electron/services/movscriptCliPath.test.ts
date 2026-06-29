@@ -40,7 +40,7 @@ test('resolveMovScriptCliBinDir uses packaged plugin CLI resources when availabl
   assert.equal(resolveMovScriptCliBinDir({
     resourcesPath,
     platform: 'darwin',
-    exists: (path) => path === resolve(binDir, 'movcli') || path === resolve(binDir, 'movscript-agent-mcp.mjs'),
+    exists: (path) => path === resolve(binDir, 'movcli') || path === resolve(binDir, 'movscript.mjs'),
   }), binDir)
 })
 
@@ -56,7 +56,7 @@ test('resolveMovScriptCliBinDir prefers workspace bin before packaged resources'
     exists: (path) => (
       path === resolve(workspaceBinDir, 'movcli')
       || path === resolve(packagedBinDir, 'movcli')
-      || path === resolve(packagedBinDir, 'movscript-agent-mcp.mjs')
+      || path === resolve(packagedBinDir, 'movscript.mjs')
     ),
   }), workspaceBinDir)
 })
@@ -68,7 +68,7 @@ test('resolveMovScriptCliBinDir finds repository plugin cli bin in development',
     cwd: resolve(repo, 'apps/desktop'),
     dirname: resolve(repo, 'apps/desktop/out/main'),
     platform: 'darwin',
-    exists: (path) => path === resolve(binDir, 'movcli') || path === resolve(binDir, 'movscript-agent-mcp.mjs'),
+    exists: (path) => path === resolve(binDir, 'movcli') || path === resolve(binDir, 'movscript.mjs'),
   }), binDir)
 })
 
@@ -91,7 +91,7 @@ test('ensureWorkspaceMovScriptCliBin writes a workspace shim that points at pack
     const sourceBinDir = join(packageDir, 'bin')
     mkdirSync(sourceBinDir, { recursive: true })
     writeFileSync(join(sourceBinDir, 'movcli'), '#!/bin/sh\nexec node "$0.mjs" "$@"\n')
-    writeFileSync(join(sourceBinDir, 'movscript-agent-mcp.mjs'), 'export {}\n')
+    writeFileSync(join(sourceBinDir, 'movscript.mjs'), 'export {}\n')
     chmodSync(join(sourceBinDir, 'movcli'), 0o755)
 
     const binDir = ensureWorkspaceMovScriptCliBin({
@@ -103,7 +103,7 @@ test('ensureWorkspaceMovScriptCliBin writes a workspace shim that points at pack
     assert.equal(binDir, join(workspaceDir, 'bin'))
     assert.equal(existsSync(join(binDir!, 'movcli')), true)
     assert.equal(existsSync(join(binDir!, 'movcli.mjs')), true)
-    assert.match(readFileSync(join(binDir!, 'movcli.mjs'), 'utf8'), /movscript-agent-mcp\.mjs/)
+    assert.match(readFileSync(join(binDir!, 'movcli.mjs'), 'utf8'), /movscript\.mjs/)
     assert.match(readFileSync(join(binDir!, 'movcli.mjs'), 'utf8'), /__movscript_movcli/)
     assert.equal(resolveMovScriptCliBinDir({ workspaceDir, platform: 'darwin' }), binDir)
   } finally {
@@ -119,7 +119,7 @@ test('ensureWorkspaceMovScriptCliBin writes a Windows cmd shim', () => {
     const sourceBinDir = join(packageDir, 'bin')
     mkdirSync(sourceBinDir, { recursive: true })
     writeFileSync(join(sourceBinDir, 'movcli'), '#!/bin/sh\nexec node "$0.mjs" "$@"\n')
-    writeFileSync(join(sourceBinDir, 'movscript-agent-mcp.mjs'), 'export {}\n')
+    writeFileSync(join(sourceBinDir, 'movscript.mjs'), 'export {}\n')
 
     const binDir = ensureWorkspaceMovScriptCliBin({
       workspaceDir,

@@ -3081,6 +3081,23 @@
       "arkAccessKeyId": "Access Key ID",
       "arkSecretAccessKey": "Secret Access Key",
       "providerAssetSecretKeySet": "Saved; leave blank to keep unchanged",
+      "providerRuntime": {
+        "publicResourceAccess": "Public resource access",
+        "signedAccess": "Signed access",
+        "gatewayToken": "Gateway token",
+        "arkCredentials": "Ark AK/SK",
+        "globalGroup": "Global group",
+        "assetLibrary": "Asset library",
+        "assetReady": "asset:// ready",
+        "unsupported": "Unsupported",
+        "assetUnsupportedHint": "This provider does not declare asset-library support. RawResource will not be mapped to asset://.",
+        "originalArtifactTrust": "Original artifact trust",
+        "sameProvider": "Same provider",
+        "originalOnly": "Original model artifacts only",
+        "derivedAllowed": "Derived artifacts allowed",
+        "providerScope": "Provider scope",
+        "trustUnsupportedHint": "This provider does not provide original artifact trust across RawResources."
+      },
       "smtp": "Email Verification SMTP",
       "enableEmail": "Enable verification email sending",
       "enableEmailHint": "Used for registration verification codes. Email login codes reuse this configuration.",
@@ -3095,6 +3112,51 @@
       "useTLS": "TLS",
       "registrationRequiresEmail": "Email sending requires SMTP host, port, and from email; open registration also requires email verification.",
       "saved": "Saved"
+    },
+    "resourceAccess": {
+      "title": "Public Resource Access",
+      "description": "Configure how RawResources are made accessible to upstream models. Provider pages only keep account settings and provider-private asset-library capabilities.",
+      "addProfile": "Add profile",
+      "empty": "No public resource access profiles yet. Add an ngrok URL, Cloudflare Tunnel, or public backend URL so routes that require public URLs can consume local resources.",
+      "unnamed": "Unnamed access profile",
+      "optional": "Optional",
+      "defaultSummary": "Default: {{id}}",
+      "noDefault": "No default profile selected",
+      "modes": {
+        "public_tunnel": "Public tunnel",
+        "public_backend": "Public backend",
+        "object_relay": "Object relay",
+        "provider_files": "Provider Files",
+        "provider_asset_uri": "Provider Asset URI"
+      },
+      "status": {
+        "publicReady": "Public access ready",
+        "publicMissing": "Public access missing",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "default": "Default"
+      },
+      "fields": {
+        "id": "Profile ID",
+        "name": "Name",
+        "mode": "Mode",
+        "publicBaseUrl": "Public Base URL",
+        "internalBaseUrl": "Internal Base URL",
+        "expiresSeconds": "Expires seconds",
+        "healthPath": "Health check path",
+        "signingSecret": "Signing secret",
+        "enabled": "Enabled",
+        "signingEnabled": "Signed URLs",
+        "defaultProfile": "Default profile"
+      },
+      "check": {
+        "resourceId": "RawResource ID",
+        "running": "Testing...",
+        "run": "Test public URL",
+        "reachable": "Reachable",
+        "unreachable": "Unreachable",
+        "bytes": "{{count}} bytes"
+      }
     },
     "debug": {
       "copy": "Copy",

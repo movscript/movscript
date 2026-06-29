@@ -440,7 +440,10 @@
       "paramName": "参数名",
       "paramNamePlaceholder": "例如 prompt",
       "paramType": "参数类型",
-      "saveResource": "保存资源"
+      "saveResource": "保存资源",
+      "variant": "变体",
+      "type": "类型",
+      "outputLabel": "输出 {{type}}"
     },
     "generatedByCanvas": "工作流画布生成",
     "namePlaceholder": "工作流画布名称",

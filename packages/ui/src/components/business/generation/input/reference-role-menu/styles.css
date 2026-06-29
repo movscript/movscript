@@ -1,0 +1,43 @@
+.generation-reference-role-menu {
+  position: absolute;
+  z-index: 40;
+  min-width: 176px;
+  max-width: min(280px, calc(100vw - 24px));
+  padding: var(--ms-space-1);
+  border: 1px solid color-mix(in srgb, var(--ms-color-border) 82%, transparent);
+  border-radius: var(--ms-radius-md);
+  background: var(--ms-color-surface);
+  box-shadow: var(--ms-shadow-lg);
+}
+
+.generation-reference-role-menu__item {
+  width: 100%;
+  height: auto;
+  justify-content: flex-start;
+  gap: var(--ms-space-2);
+  padding: var(--ms-space-2) 10px;
+  text-align: left;
+}
+
+.generation-reference-role-menu__item[data-active="true"] {
+  background: color-mix(in srgb, var(--ms-color-primary) 12%, transparent);
+  color: var(--ms-color-foreground);
+}
+
+.generation-reference-role-menu__label {
+  flex-shrink: 0;
+  font-size: var(--ms-text-caption);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.generation-reference-role-menu__hint {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  font-weight: 400;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

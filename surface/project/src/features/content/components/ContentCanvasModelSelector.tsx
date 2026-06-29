@@ -8,15 +8,18 @@ import {
 import {
   listSurfaceModelsByCapability,
   modelKeys,
+  surfaceModelReferenceAssetsKey,
   surfaceModelQueryCapability,
   type PublicModel,
   type SurfaceModelCapability,
+  type SurfaceModelReferenceAssetIntent,
 } from '@movscript/shared'
 import { GenerationModelSelector } from '@movscript/ui/business/generation'
 
 interface ContentCanvasModelSelectorProps {
   capability: SurfaceModelCapability
   operation?: string
+  referenceAssets?: SurfaceModelReferenceAssetIntent[]
   value: string | null
   onChange: (id: string) => void
   onModelChange?: (model: PublicModel | null) => void
@@ -27,6 +30,7 @@ interface ContentCanvasModelSelectorProps {
 export function ContentCanvasModelSelector({
   capability,
   operation,
+  referenceAssets,
   value,
   onChange,
   onModelChange,
@@ -35,10 +39,11 @@ export function ContentCanvasModelSelector({
 }: ContentCanvasModelSelectorProps) {
   const { t } = useTranslation()
   const queryCapability = surfaceModelQueryCapability(capability)
+  const referenceAssetsKey = surfaceModelReferenceAssetsKey(referenceAssets)
 
   const { data: modelsData, isFetching, refetch } = useQuery<PublicModel[]>({
-    queryKey: modelKeys.intent(queryCapability, operation),
-    queryFn: () => listSurfaceModelsByCapability(queryCapability, { operation }),
+    queryKey: modelKeys.intent(queryCapability, operation, referenceAssetsKey),
+    queryFn: () => listSurfaceModelsByCapability(queryCapability, { operation, referenceAssets }),
     staleTime: 0,
   })
   const models = modelsData ?? []

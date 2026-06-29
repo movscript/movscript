@@ -106,6 +106,7 @@ export interface MovScriptWorkspaceServiceOptions {
   fileRepository: MovScriptWorkspaceFileRepository
   decisionStore?: MovScriptDecisionStore
   now?: () => Date
+  indexCacheTtlMs?: number
 }
 
 export interface MovScriptWorkspaceInitializeInput {
@@ -250,10 +251,43 @@ export function createMovScriptWorkspaceService(
   const domainRepository = createMovScriptWorkspaceDomainRepository({
     fileRepository: options.fileRepository,
   })
+  const indexCacheTtlMs = options.indexCacheTtlMs ?? 2_000
+  const indexCache = new Map<string, {
+    expiresAt: number
+    index?: MovScriptWorkspaceDomainIndex
+    promise?: Promise<MovScriptWorkspaceDomainIndex>
+  }>()
+  const invalidateIndexCache = () => {
+    indexCache.clear()
+  }
   const loadIndex = async (input?: { path?: string }) => {
-    const documents = await domainRepository.loadDocuments(input)
-    const decisionDocuments = await overlayMovScriptDecisionDocuments(documents, options.decisionStore)
-    return deriveMovScriptWorkspaceDomainIndex(decisionDocuments)
+    const cacheKey = normalizeWorkspacePath(input?.path ?? '')
+    const nowMs = Date.now()
+    const cached = indexCache.get(cacheKey)
+    if (cached?.index && cached.expiresAt > nowMs) return cached.index
+    if (cached?.promise) return cached.promise
+    const promise = (async () => {
+      const documents = await domainRepository.loadDocuments(input)
+      const decisionDocuments = await overlayMovScriptDecisionDocuments(documents, options.decisionStore)
+      return deriveMovScriptWorkspaceDomainIndex(decisionDocuments)
+    })()
+    indexCache.set(cacheKey, { expiresAt: 0, promise })
+    try {
+      const index = await promise
+      indexCache.set(cacheKey, {
+        expiresAt: Date.now() + Math.max(0, indexCacheTtlMs),
+        index,
+      })
+      return index
+    } catch (error) {
+      if (indexCache.get(cacheKey)?.promise === promise) indexCache.delete(cacheKey)
+      throw error
+    }
+  }
+  const invalidateAfter = async <T>(operation: () => Promise<T>): Promise<T> => {
+    const result = await operation()
+    invalidateIndexCache()
+    return result
   }
 
   return {
@@ -308,6 +342,7 @@ export function createMovScriptWorkspaceService(
         fileRepository: options.fileRepository,
         standards: standardsRecord,
       })
+      invalidateIndexCache()
       return { projectId, projectUid, files, standardSkillFiles }
     },
     getModel: getMovScriptWorkspaceModel,
@@ -354,37 +389,37 @@ export function createMovScriptWorkspaceService(
     },
     async upsertSetting(input) {
       const payload = await writePayloadWithGeneratedEntityId(loadIndex, 'setting', input)
-      return upsertMovScriptWorkspaceSetting({
+      return invalidateAfter(() => upsertMovScriptWorkspaceSetting({
         fileRepository: options.fileRepository,
         now: options.now?.(),
         ...input,
         payload,
-      })
+      }))
     },
     async upsertSettingState(input) {
       const payload = await writePayloadWithGeneratedEntityId(loadIndex, 'setting_state', input)
-      return upsertMovScriptWorkspaceSettingState({
+      return invalidateAfter(() => upsertMovScriptWorkspaceSettingState({
         fileRepository: options.fileRepository,
         now: options.now?.(),
         ...input,
         payload,
-      })
+      }))
     },
     async upsertAsset(input) {
       const payload = await writePayloadWithGeneratedEntityId(loadIndex, 'asset', input)
-      return upsertMovScriptWorkspaceAsset({
+      return invalidateAfter(() => upsertMovScriptWorkspaceAsset({
         fileRepository: options.fileRepository,
         now: options.now?.(),
         ...input,
         payload,
-      })
+      }))
     },
     upsertScript(input) {
-      return upsertMovScriptWorkspaceScript({
+      return invalidateAfter(() => upsertMovScriptWorkspaceScript({
         fileRepository: options.fileRepository,
         now: options.now?.(),
         ...input,
-      })
+      }))
     },
     readScriptSource(input) {
       return readMovScriptWorkspaceScriptSource({
@@ -393,79 +428,80 @@ export function createMovScriptWorkspaceService(
       })
     },
     saveProductionSnapshot(input) {
-      return saveMovScriptProductionWorkspaceSnapshot({
+      return invalidateAfter(() => saveMovScriptProductionWorkspaceSnapshot({
         fileRepository: options.fileRepository,
         now: options.now?.(),
         ...input,
-      })
+      }))
     },
     deleteEntity(input) {
-      return deleteMovScriptWorkspaceEntity({
+      return invalidateAfter(() => deleteMovScriptWorkspaceEntity({
         fileRepository: options.fileRepository,
         ...input,
-      })
+      }))
     },
     snapshotScriptVersionFromMarkdown(input) {
-      return snapshotMovScriptVersionFromMarkdown({
+      return invalidateAfter(() => snapshotMovScriptVersionFromMarkdown({
         fileRepository: options.fileRepository,
         ...input,
-      })
+      }))
     },
     updateContentUnitEditPrompt(input) {
-      return updateMovScriptContentUnitEditPrompt({
+      return invalidateAfter(() => updateMovScriptContentUnitEditPrompt({
         fileRepository: options.fileRepository,
         ...input,
-      })
+      }))
     },
     async upsertContentUnit(input) {
       const unit = await contentUnitWithGeneratedEntityId(loadIndex, input.unit)
-      return upsertMovScriptContentUnit({
+      return invalidateAfter(() => upsertMovScriptContentUnit({
         fileRepository: options.fileRepository,
         ...input,
         unit,
-      })
+      }))
     },
     async upsertProjectStandards(input) {
-      const result = await upsertMovScriptProjectStandards({
+      const result = await invalidateAfter(() => upsertMovScriptProjectStandards({
         fileRepository: options.fileRepository,
         now: options.now?.(),
         ...input,
-      })
+      }))
       const standardSkillFiles = await syncMovScriptProjectStandardSkills({
         fileRepository: options.fileRepository,
         standards: result.record,
       })
+      invalidateIndexCache()
       return { ...result, standardSkillFiles }
     },
     updateEntityTransition(input) {
-      return updateMovScriptEntityTransition({
+      return invalidateAfter(() => updateMovScriptEntityTransition({
         fileRepository: options.fileRepository,
         ...input,
-      })
+      }))
     },
     updateStoryboardTimeline(input) {
-      return updateMovScriptStoryboardTimeline({
+      return invalidateAfter(() => updateMovScriptStoryboardTimeline({
         fileRepository: options.fileRepository,
         ...input,
-      })
+      }))
     },
     upsertSourceRecord(input) {
-      return upsertMovScriptSourceRecord({
+      return invalidateAfter(() => upsertMovScriptSourceRecord({
         fileRepository: options.fileRepository,
         ...input,
-      })
+      }))
     },
     updateExpressionUnitSource(input) {
-      return updateMovScriptExpressionUnit(options.fileRepository, input)
+      return invalidateAfter(() => updateMovScriptExpressionUnit(options.fileRepository, input))
     },
     updateAudioCueSource(input) {
-      return updateMovScriptAudioCue(options.fileRepository, input)
+      return invalidateAfter(() => updateMovScriptAudioCue(options.fileRepository, input))
     },
     appendCandidate(input) {
-      return appendMovScriptInlineCandidate({
+      return invalidateAfter(() => appendMovScriptInlineCandidate({
         fileRepository: options.fileRepository,
         ...input,
-      })
+      }))
     },
     async createContentCandidate(input) {
       const promptSnapshot = mergePromptSnapshots(
@@ -481,6 +517,7 @@ export function createMovScriptWorkspaceService(
           contentUnitId: input.contentUnitId,
           candidate: result.record,
         })
+        invalidateIndexCache()
         return result
       }
       throw new Error('content unit candidate creation requires a backend scoped project data decisionStore')
@@ -500,6 +537,7 @@ export function createMovScriptWorkspaceService(
         reason: input.reason,
         selectedAt: input.selectedAt,
       })
+      invalidateIndexCache()
       return {
         path: contentUnitDecisionContextPath(input.contentUnitId),
         record: normalizeDecisionContext(context),
@@ -523,6 +561,7 @@ export function createMovScriptWorkspaceService(
           selectedAt: input.decidedAt,
           metadata: input.metadata,
         })
+        invalidateIndexCache()
         return {
           path: contentUnitDecisionContextPath(input.contentUnitId),
           record: normalizeDecisionContext(context),
@@ -542,6 +581,7 @@ export function createMovScriptWorkspaceService(
           decision_metadata: input.metadata,
         }),
       })
+      invalidateIndexCache()
       return {
         path: contentUnitDecisionContextPath(input.contentUnitId),
         record: normalizeDecisionContext(context),
@@ -549,36 +589,36 @@ export function createMovScriptWorkspaceService(
       }
     },
     createAssetSlotCandidate(input) {
-      return createMovScriptWorkspaceAssetSlotCandidate({
+      return invalidateAfter(() => createMovScriptWorkspaceAssetSlotCandidate({
         fileRepository: options.fileRepository,
         projectPath: input.projectPath ?? '',
         ...input,
-      })
+      }))
     },
     createKeyframeCandidate(input) {
-      return createMovScriptWorkspaceKeyframeCandidate({
+      return invalidateAfter(() => createMovScriptWorkspaceKeyframeCandidate({
         fileRepository: options.fileRepository,
         projectPath: input.projectPath ?? '',
         ...input,
-      })
+      }))
     },
     selectCandidate(input) {
-      return selectMovScriptInlineCandidate({
+      return invalidateAfter(() => selectMovScriptInlineCandidate({
         fileRepository: options.fileRepository,
         ...input,
-      })
+      }))
     },
     updateCandidate(input) {
-      return updateMovScriptInlineCandidate({
+      return invalidateAfter(() => updateMovScriptInlineCandidate({
         fileRepository: options.fileRepository,
         ...input,
-      })
+      }))
     },
     unlockCandidate(input) {
-      return unlockMovScriptInlineCandidate({
+      return invalidateAfter(() => unlockMovScriptInlineCandidate({
         fileRepository: options.fileRepository,
         ...input,
-      })
+      }))
     },
   }
 }

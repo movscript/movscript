@@ -1,17 +1,19 @@
 import {
-  createMediaEditingProjectFromEditDecisions,
-  validateMediaEditingProjectTimeline,
+  compileTimelineAssemblyToFinishingProject,
   type MediaEditingProject,
   type MediaTimelineDiagnostic,
   type MovScriptAssetManifest,
   type MovScriptEditDecisionsArtifact,
+  type TimelineAssemblyCompileDiagnostic,
+  type TimelineAssemblyCompileManifest,
+  type TimelineAssemblyFinishingCompileResult,
+  type TimelineAssemblyMediaEditingCompileResult,
 } from '@movscript/editing/browser'
 import { useEffect, useMemo, useState, type Dispatch, type DragEvent, type MouseEvent, type SetStateAction } from 'react'
 
 import type { AgentSurfaceSnapshot } from '../../data.js'
 import {
   agentSurfaceDomainFocus,
-  agentSurfaceFocusChips,
   agentSurfaceFocusLabel,
   agentSurfaceLegacyProductionId,
   agentSurfaceSnapshotDomainFocus,
@@ -20,7 +22,7 @@ import {
   recordValue,
   stringValue,
 } from '../../data.js'
-import { useProjectSurfaceRuntime } from '../../runtime/index.js'
+import { useProjectSurfaceRuntime, type EditingServiceGateway } from '../../runtime/index.js'
 import {
   AgentSurfaceJson,
   AgentSurfaceLink,
@@ -96,7 +98,7 @@ interface WorkflowTimelineNamespaceRow {
   raw: Record<string, unknown>
 }
 
-interface WorkflowArtifactDebugView {
+export interface WorkflowArtifactDebugView {
   schema: 'movscript.workflow_artifact_debug_view.v1'
   timelineNamespaces: WorkflowTimelineNamespaceRow[]
   requiredAssets: WorkflowRequiredAssetRow[]
@@ -111,7 +113,96 @@ interface WorkflowArtifactDebugView {
 type AssemblyTrackKind = 'video' | 'audio' | 'subtitle' | 'effect' | 'marker'
 type AssemblyClipKind = 'visual' | 'voice' | 'music' | 'sfx' | 'subtitle' | 'effect'
 type CopyStatus = 'idle' | 'copied' | 'failed'
+type ComposeStatus = 'idle' | 'running' | 'succeeded' | 'blocked' | 'error'
 type AssemblyValidationSeverity = 'error' | 'warning' | 'info'
+type TimelineAssemblyOpenMontageLayer = 'primary' | 'overlay' | 'background'
+type TimelineAssemblyEditActionFamily = 'visual' | 'overlay' | 'audio' | 'subtitle' | 'transition' | 'runtime' | 'validation'
+type TimelineAssemblyEditActionKind =
+  | 'cut'
+  | 'overlay'
+  | 'narration_segment'
+  | 'music_bed'
+  | 'sfx_hit'
+  | 'subtitle_style'
+  | 'subtitle_segment'
+  | 'global_transition'
+  | 'runtime_lock'
+  | 'timeline_coverage_check'
+
+interface TimelineAssemblyCropIntent {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+interface TimelineAssemblyTransformIntent {
+  scale: number
+  position: string
+  animation: string
+  crop?: TimelineAssemblyCropIntent
+}
+
+interface TimelineAssemblyOverlayIntent {
+  x: number
+  y: number
+  width: number
+  height: number
+  opacity: number
+  animation: string
+}
+
+interface TimelineAssemblyClipEditIntent {
+  layer: TimelineAssemblyOpenMontageLayer
+  speed: number
+  transform: TimelineAssemblyTransformIntent
+  transitionIn: string
+  transitionOut: string
+  transitionDurationMs: number
+  overlay: TimelineAssemblyOverlayIntent
+  reason: string
+}
+
+interface TimelineAssemblySubtitleProfile {
+  enabled: boolean
+  style: 'phrase' | 'sentence' | 'word-by-word' | 'karaoke'
+  font: string
+  fontSize: number
+  color: string
+  background: string
+  position: 'top-center' | 'bottom-center' | 'center'
+  maxWordsPerLine: number
+}
+
+interface TimelineAssemblyAudioProfile {
+  musicVolume: number
+  musicFadeInMs: number
+  musicFadeOutMs: number
+  ducking: {
+    enabled: boolean
+    thresholdDb: number
+    reductionDb: number
+    attackMs: number
+    releaseMs: number
+  }
+}
+
+interface TimelineAssemblyPacingProfile {
+  minSceneHoldMs: number
+  maxSceneHoldMs: number
+  textCardHoldMs: number
+  transitionDurationMs: number
+}
+
+interface TimelineAssemblyEditProfile {
+  schema: 'movscript.timeline_assembly.openmontage_edit_profile.v1'
+  rendererFamily: string
+  renderRuntime: string
+  compositionMode: 'templated' | 'atelier' | 'timeline_assembly'
+  subtitles: TimelineAssemblySubtitleProfile
+  audio: TimelineAssemblyAudioProfile
+  pacing: TimelineAssemblyPacingProfile
+}
 
 interface AssemblyValidationIssue {
   code: string
@@ -207,7 +298,48 @@ interface TimelineAssemblyDecisionLogEntry {
   expressionUnitId?: string
 }
 
-interface EditDeskHandoffBundle {
+interface TimelineAssemblyEditAction {
+  id: string
+  family: TimelineAssemblyEditActionFamily
+  kind: TimelineAssemblyEditActionKind
+  clipId?: string
+  trackId?: string
+  sourceAssetId?: string
+  startMs?: number
+  endMs?: number
+  params: Record<string, unknown>
+}
+
+interface TimelineAssemblyEditActionPlan {
+  schema: 'movscript.timeline_assembly.openmontage_edit_actions.v1'
+  source: 'openmontage_edit_decisions'
+  actions: TimelineAssemblyEditAction[]
+  runtimeLock: {
+    renderRuntime: string
+    fallbackPolicy: 'no_implicit_fallback'
+    forbiddenImplicitFallbacks: string[]
+  }
+  reviewGates: string[]
+}
+
+type EditDeskFinishingBackend = 'media_editing_project' | 'hyperframes' | 'remotion'
+
+interface EditDeskFinishingBackendOption {
+  backend: EditDeskFinishingBackend
+  label: string
+  role: 'system_editing' | 'html_composition' | 'react_composition'
+  status: string
+  compile_manifest_id: string
+  render_runtime?: string
+  runtime_locked: boolean
+  fallback_policy: 'no_implicit_fallback'
+  editable: boolean
+  entrypoint?: string
+  file_count: number
+  summary: string
+}
+
+export interface EditDeskHandoffBundle {
   schema: 'movscript.edit_desk.handoff.v1'
   production_id?: string
   target_ref: string
@@ -217,14 +349,21 @@ interface EditDeskHandoffBundle {
   source_namespace: TimelineAssemblySourceNamespace
   coverage_map: TimelineAssemblyCoverageMap
   decision_log: TimelineAssemblyDecisionLogEntry[]
+  edit_action_plan: TimelineAssemblyEditActionPlan
   assembly: Record<string, unknown>
   openmontage: {
     asset_manifest: MovScriptAssetManifest
     edit_decisions: MovScriptEditDecisionsArtifact
   }
+  compile_manifest: TimelineAssemblyCompileManifest
+  compile_result: TimelineAssemblyMediaEditingCompileResult
+  backend_options: EditDeskFinishingBackendOption[]
+  finishing_projects: Record<EditDeskFinishingBackend, TimelineAssemblyFinishingCompileResult>
   editing_project_create_from_edit_decisions: Record<string, unknown>
+  video_compose_request: Record<string, unknown>
   media_editing_project_preview?: MediaEditingProject
   validation: AssemblyValidationResult & {
+    compile_diagnostics: TimelineAssemblyCompileDiagnostic[]
     editing_timeline_diagnostics: MediaTimelineDiagnostic[]
   }
 }
@@ -232,9 +371,22 @@ interface EditDeskHandoffBundle {
 interface EditDeskAssetItem extends WorkflowAssetManifestRow {
   blockers: string[]
   mediaUrl?: string
+  localPath?: string
   sceneId?: string
   expressionUnitId?: string
   targetRef?: string
+}
+
+interface EditDeskComposeState {
+  status: ComposeStatus
+  message?: string
+  result?: Record<string, unknown>
+  taskId?: string
+  projectId?: string
+  taskStatus?: string
+  progressPercent?: number
+  outputPath?: string
+  updatedAt?: string
 }
 
 interface AssemblyTrack {
@@ -266,6 +418,7 @@ interface AssemblyClip {
     candidateId?: string
     resourceId?: string
     mediaUrl?: string
+    localPath?: string
   }
   binding: {
     sceneId?: string
@@ -273,15 +426,17 @@ interface AssemblyClip {
     targetRef?: string
   }
   intentRef: TimelineAssemblyIntentRef
+  edit: TimelineAssemblyClipEditIntent
 }
 
-interface TimelineAssemblyState {
+export interface TimelineAssemblyState {
   schema: 'movscript.timeline_assembly.intent_workbench.v1'
   id: string
   seedKey: string
   productionId?: string
   targetRef: string
   sourceNamespace: TimelineAssemblySourceNamespace
+  editProfile: TimelineAssemblyEditProfile
   tracks: AssemblyTrack[]
   clips: AssemblyClip[]
   selectedClipId?: string
@@ -307,6 +462,50 @@ const DEFAULT_ASSEMBLY_TRACKS: AssemblyTrack[] = [
   { id: 'sfx', name: '音效', kind: 'audio', role: 'sound_effect', color: 'rose', order: 50 },
   { id: 'subtitle', name: '字幕', kind: 'subtitle', role: 'subtitle', color: 'slate', order: 60 },
   { id: 'effect', name: '转场/特效', kind: 'effect', role: 'effect', color: 'violet', order: 70 },
+]
+
+const DEFAULT_EDIT_PROFILE: TimelineAssemblyEditProfile = {
+  schema: 'movscript.timeline_assembly.openmontage_edit_profile.v1',
+  rendererFamily: 'explainer-data',
+  renderRuntime: 'movscript_media_pipeline',
+  compositionMode: 'templated',
+  subtitles: {
+    enabled: true,
+    style: 'phrase',
+    font: 'Inter',
+    fontSize: 42,
+    color: '#FFFFFF',
+    background: '#00000088',
+    position: 'bottom-center',
+    maxWordsPerLine: 8,
+  },
+  audio: {
+    musicVolume: 0.45,
+    musicFadeInMs: 1000,
+    musicFadeOutMs: 1000,
+    ducking: {
+      enabled: true,
+      thresholdDb: -3,
+      reductionDb: -8,
+      attackMs: 200,
+      releaseMs: 500,
+    },
+  },
+  pacing: {
+    minSceneHoldMs: 1000,
+    maxSceneHoldMs: 10000,
+    textCardHoldMs: 3000,
+    transitionDurationMs: 300,
+  },
+}
+
+const OPENMONTAGE_REVIEW_GATES = [
+  'all_cuts_reference_manifest_assets',
+  'primary_visuals_cover_full_duration',
+  'primary_visuals_have_no_overlap',
+  'subtitles_enabled_or_explicitly_disabled',
+  'music_ducking_configured_when_narration_exists',
+  'render_runtime_locked_no_silent_swap',
 ]
 
 export function ProjectEditDeskSurface({
@@ -345,12 +544,10 @@ export function ProjectEditDeskSurface({
 
   return (
     <AgentSurfaceShell
-      title="剪辑意图编排台"
-      description="把 ContentUnit、候选素材、选择结果和 OpenMontage 风格 handoff 组织成一个可交给 video_compose 的多轨意图时间线。"
+      title="剪辑台"
       chips={[
-        ...agentSurfaceFocusChips(domainFocus),
         `project: ${runtime.project.projectId}`,
-        'surface: edit-desk',
+        focusLabel || domainFocus.target?.targetRef || 'timeline assembly',
       ]}
       ready
     >
@@ -366,6 +563,7 @@ export function ProjectEditDeskSurface({
           generatedAt={snapshot?.generated_at}
           params={params}
           projectId={runtime.project.projectId}
+          editingGateway={runtime.gateways.editing}
           readModelStatus={readModelStatus}
           setAssembly={setAssembly}
           onResetAssembly={resetAssembly}
@@ -382,6 +580,7 @@ function ProjectEditDeskWorkbench({
   generatedAt,
   params,
   projectId,
+  editingGateway,
   readModelStatus,
   setAssembly,
   onResetAssembly,
@@ -392,6 +591,7 @@ function ProjectEditDeskWorkbench({
   generatedAt?: string
   params: URLSearchParams
   projectId: string
+  editingGateway?: EditingServiceGateway
   readModelStatus: ProjectEditDeskReadModelStatus
   setAssembly: Dispatch<SetStateAction<TimelineAssemblyState>>
   onResetAssembly: () => void
@@ -402,10 +602,12 @@ function ProjectEditDeskWorkbench({
   const handoff = useMemo(() => buildEditDecisionHandoff(assembly, debugView, projectId), [assembly, debugView, projectId])
   const validation = handoff.validation
   const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle')
+  const [composeState, setComposeState] = useState<EditDeskComposeState>({ status: 'idle' })
 
   const updateAssembly = (updater: (current: TimelineAssemblyState) => TimelineAssemblyState) => {
     setAssembly((current) => updater(current))
     setCopyStatus('idle')
+    setComposeState((current) => current.status === 'idle' ? current : { status: 'idle' })
   }
 
   const updateClip = (clipId: string, patch: Partial<AssemblyClip>) => {
@@ -509,6 +711,108 @@ function ProjectEditDeskWorkbench({
   const copyHandoff = () => copyJson(handoff)
   const copyOpenMontage = () => copyJson(handoff.openmontage)
   const copyEditingProjectRequest = () => copyJson(handoff.editing_project_create_from_edit_decisions)
+  const copyVideoComposeRequest = () => copyJson(handoff.video_compose_request)
+
+  const runVideoCompose = async () => {
+    if (!editingGateway?.render) {
+      setComposeState({
+        status: 'error',
+        message: '当前 project surface 没有 Editing Service gateway，无法直接创建成片任务。',
+      })
+      return
+    }
+    setComposeState({ status: 'running', message: '正在创建 MediaEditingProject 和渲染任务...' })
+    try {
+      const result = await editingGateway.render(handoff.video_compose_request)
+      const resultRecord = recordValue(result) ?? { result }
+      const status = stringValue(resultRecord.status)
+      if (status === 'blocked' || status === 'unsupported_runtime') {
+        setComposeState({
+          status: 'blocked',
+          message: stringValue(resultRecord.message) ?? '成片请求被编译或运行时能力检查阻塞。',
+          result: resultRecord,
+        })
+        return
+      }
+      setComposeState({
+        status: composeStatusFromTask(composeTaskRecord(resultRecord), 'succeeded'),
+        message: composeResultMessage(resultRecord),
+        result: resultRecord,
+        taskId: composeTaskId(resultRecord),
+        projectId: composeProjectId(resultRecord) ?? projectId,
+        taskStatus: composeTaskStatus(resultRecord),
+        progressPercent: composeTaskProgress(resultRecord),
+        outputPath: composeOutputPath(resultRecord),
+        updatedAt: new Date().toISOString(),
+      })
+    } catch (error) {
+      setComposeState({
+        status: 'error',
+        message: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  useEffect(() => {
+    if (!editingGateway?.taskGet || !composeState.taskId || composeState.status !== 'running') return
+    let cancelled = false
+    let timeout: number | undefined
+    const taskId = composeState.taskId
+    const taskProjectId = composeState.projectId ?? projectId
+
+    const pollTask = async () => {
+      try {
+        const response = await editingGateway.taskGet?.({ projectId: taskProjectId, taskId })
+        if (cancelled) return
+        const responseRecord = recordValue(response) ?? {}
+        const task = recordValue(responseRecord.task ?? responseRecord.media_pipeline_task ?? response)
+        if (!task) {
+          setComposeState((current) => current.taskId === taskId
+            ? {
+              ...current,
+              status: 'error',
+              message: `成片任务不存在：${taskId}`,
+              updatedAt: new Date().toISOString(),
+            }
+            : current)
+          return
+        }
+        setComposeState((current) => {
+          if (current.taskId !== taskId) return current
+          const result = mergeComposeTaskResult(current.result, task)
+          return {
+            ...current,
+            status: composeStatusFromTask(task, current.status),
+            message: composeResultMessage(result),
+            result,
+            taskStatus: composeTaskStatus(result),
+            progressPercent: composeTaskProgress(result),
+            outputPath: composeOutputPath(result),
+            updatedAt: new Date().toISOString(),
+          }
+        })
+        if (!composeTaskIsTerminal(task)) {
+          timeout = window.setTimeout(pollTask, 1000)
+        }
+      } catch (error) {
+        if (cancelled) return
+        setComposeState((current) => current.taskId === taskId
+          ? {
+            ...current,
+            status: 'error',
+            message: error instanceof Error ? error.message : String(error),
+            updatedAt: new Date().toISOString(),
+          }
+          : current)
+      }
+    }
+
+    timeout = window.setTimeout(pollTask, 350)
+    return () => {
+      cancelled = true
+      if (timeout !== undefined) window.clearTimeout(timeout)
+    }
+  }, [composeState.projectId, composeState.status, composeState.taskId, editingGateway, projectId])
 
   return (
     <div className="edit-desk-workbench">
@@ -520,11 +824,21 @@ function ProjectEditDeskWorkbench({
         <div className="edit-desk-toolbar__metrics" aria-label="剪辑台状态">
           <EditDeskMetric label="素材" value={assets.length} />
           <EditDeskMetric label="Clips" value={assembly.clips.length} />
+          <EditDeskMetric label="动作" value={handoff.edit_action_plan.actions.length} />
           <EditDeskMetric label="时长" value={formatDuration(assemblyDurationMs(assembly))} />
           <EditDeskMetric label="阻塞" value={validation.blockerCount} tone={validation.blockerCount > 0 ? 'warning' : 'ok'} />
         </div>
         <div className="edit-desk-toolbar__actions">
           <button className="agent-surface-button" type="button" onClick={onResetAssembly}>重建草案</button>
+          <button
+            className="agent-surface-button"
+            type="button"
+            data-intent="adopt"
+            disabled={composeState.status === 'running' || handoff.compile_manifest.status !== 'ready'}
+            onClick={() => void runVideoCompose()}
+          >
+            {composeState.status === 'running' ? '创建中...' : '创建成片任务'}
+          </button>
           <button className="agent-surface-button" type="button" data-intent="adopt" onClick={copyHandoff}>复制 edit decisions</button>
         </div>
       </div>
@@ -574,10 +888,13 @@ function ProjectEditDeskWorkbench({
         copyStatus={copyStatus}
         debugView={debugView}
         handoff={handoff}
+        composeState={composeState}
         validation={validation}
         onCopyHandoff={copyHandoff}
         onCopyEditingProjectRequest={copyEditingProjectRequest}
         onCopyOpenMontage={copyOpenMontage}
+        onCopyVideoComposeRequest={copyVideoComposeRequest}
+        onRunVideoCompose={() => void runVideoCompose()}
       />
     </div>
   )
@@ -847,6 +1164,108 @@ function ClipInspector({
             <span>意图备注</span>
             <textarea value={clip.notes} rows={4} onChange={(event) => onUpdateClip(clip.id, { notes: event.currentTarget.value })} />
           </label>
+          <details className="edit-desk-inspector-section" open>
+            <summary>OpenMontage 动作</summary>
+            <div className="edit-desk-field-grid">
+              <label className="edit-desk-field">
+                <span>Layer</span>
+                <select value={clip.edit.layer} onChange={(event) => onUpdateClip(clip.id, { edit: { ...clip.edit, layer: event.currentTarget.value as TimelineAssemblyOpenMontageLayer } })}>
+                  <option value="primary">primary</option>
+                  <option value="overlay">overlay</option>
+                  <option value="background">background</option>
+                </select>
+              </label>
+              <label className="edit-desk-field">
+                <span>Speed</span>
+                <input
+                  min={0.1}
+                  step={0.1}
+                  type="number"
+                  value={clip.edit.speed}
+                  onChange={(event) => onUpdateClip(clip.id, { edit: { ...clip.edit, speed: Number(event.currentTarget.value) || 1 } })}
+                />
+              </label>
+            </div>
+            <div className="edit-desk-field-grid">
+              <label className="edit-desk-field">
+                <span>Motion</span>
+                <select value={clip.edit.transform.animation} onChange={(event) => onUpdateClip(clip.id, { edit: { ...clip.edit, transform: { ...clip.edit.transform, animation: event.currentTarget.value } } })}>
+                  <option value="static">static</option>
+                  <option value="ken-burns-slow-zoom">ken-burns-slow-zoom</option>
+                  <option value="pan-left">pan-left</option>
+                  <option value="pan-right">pan-right</option>
+                  <option value="push-in">push-in</option>
+                </select>
+              </label>
+              <label className="edit-desk-field">
+                <span>Scale</span>
+                <input
+                  min={0}
+                  step={0.05}
+                  type="number"
+                  value={clip.edit.transform.scale}
+                  onChange={(event) => onUpdateClip(clip.id, { edit: { ...clip.edit, transform: { ...clip.edit.transform, scale: Number(event.currentTarget.value) || 1 } } })}
+                />
+              </label>
+            </div>
+            <div className="edit-desk-field-grid">
+              <label className="edit-desk-field">
+                <span>Transition in</span>
+                <select value={clip.edit.transitionIn} onChange={(event) => onUpdateClip(clip.id, { edit: { ...clip.edit, transitionIn: event.currentTarget.value } })}>
+                  <option value="cut">cut</option>
+                  <option value="fade">fade</option>
+                  <option value="dissolve">dissolve</option>
+                  <option value="wipe">wipe</option>
+                </select>
+              </label>
+              <label className="edit-desk-field">
+                <span>Transition out</span>
+                <select value={clip.edit.transitionOut} onChange={(event) => onUpdateClip(clip.id, { edit: { ...clip.edit, transitionOut: event.currentTarget.value } })}>
+                  <option value="cut">cut</option>
+                  <option value="fade">fade</option>
+                  <option value="dissolve">dissolve</option>
+                  <option value="wipe">wipe</option>
+                </select>
+              </label>
+            </div>
+            <div className="edit-desk-field-grid">
+              <label className="edit-desk-field">
+                <span>Transition 秒</span>
+                <input
+                  min={0}
+                  step={0.1}
+                  type="number"
+                  value={formatSecondsInput(clip.edit.transitionDurationMs)}
+                  onChange={(event) => onUpdateClip(clip.id, { edit: { ...clip.edit, transitionDurationMs: secondsToDurationMs(event.currentTarget.value) } })}
+                />
+              </label>
+              <label className="edit-desk-field">
+                <span>Position</span>
+                <input
+                  value={clip.edit.transform.position}
+                  onChange={(event) => onUpdateClip(clip.id, { edit: { ...clip.edit, transform: { ...clip.edit.transform, position: event.currentTarget.value } } })}
+                />
+              </label>
+            </div>
+            <div className="edit-desk-field-grid edit-desk-field-grid--overlay">
+              <label className="edit-desk-field">
+                <span>Overlay X</span>
+                <input min={0} max={1} step={0.05} type="number" value={clip.edit.overlay.x} onChange={(event) => onUpdateClip(clip.id, { edit: { ...clip.edit, overlay: { ...clip.edit.overlay, x: Number(event.currentTarget.value) || 0 } } })} />
+              </label>
+              <label className="edit-desk-field">
+                <span>Overlay Y</span>
+                <input min={0} max={1} step={0.05} type="number" value={clip.edit.overlay.y} onChange={(event) => onUpdateClip(clip.id, { edit: { ...clip.edit, overlay: { ...clip.edit.overlay, y: Number(event.currentTarget.value) || 0 } } })} />
+              </label>
+              <label className="edit-desk-field">
+                <span>W</span>
+                <input min={0} max={1} step={0.05} type="number" value={clip.edit.overlay.width} onChange={(event) => onUpdateClip(clip.id, { edit: { ...clip.edit, overlay: { ...clip.edit.overlay, width: Number(event.currentTarget.value) || 1 } } })} />
+              </label>
+              <label className="edit-desk-field">
+                <span>H</span>
+                <input min={0} max={1} step={0.05} type="number" value={clip.edit.overlay.height} onChange={(event) => onUpdateClip(clip.id, { edit: { ...clip.edit, overlay: { ...clip.edit.overlay, height: Number(event.currentTarget.value) || 1 } } })} />
+              </label>
+            </div>
+          </details>
           <div className="edit-desk-chip-row">
             <StatusPill status={clip.source.status} />
             {clip.source.contentUnitId ? <span className="edit-desk-chip">CU {clip.source.contentUnitId}</span> : null}
@@ -961,20 +1380,26 @@ function AssemblyTimeline({
 
 function HandoffPanel({
   copyStatus,
+  composeState,
   debugView,
   handoff,
   validation,
   onCopyHandoff,
   onCopyEditingProjectRequest,
   onCopyOpenMontage,
+  onCopyVideoComposeRequest,
+  onRunVideoCompose,
 }: {
   copyStatus: CopyStatus
+  composeState: EditDeskComposeState
   debugView: WorkflowArtifactDebugView
   handoff: EditDeskHandoffBundle
   validation: AssemblyValidationResult
   onCopyHandoff: () => void
   onCopyEditingProjectRequest: () => void
   onCopyOpenMontage: () => void
+  onCopyVideoComposeRequest: () => void
+  onRunVideoCompose: () => void
 }) {
   return (
     <section className="edit-desk-panel edit-desk-handoff" aria-label="交接与调试">
@@ -986,6 +1411,16 @@ function HandoffPanel({
         <div className="edit-desk-panel__actions">
           <button className="agent-surface-button" type="button" onClick={onCopyOpenMontage}>复制 OpenMontage</button>
           <button className="agent-surface-button" type="button" onClick={onCopyEditingProjectRequest}>复制创建请求</button>
+          <button
+            className="agent-surface-button"
+            type="button"
+            data-intent="adopt"
+            disabled={composeState.status === 'running' || handoff.compile_manifest.status !== 'ready'}
+            onClick={onRunVideoCompose}
+          >
+            {composeState.status === 'running' ? '创建中...' : '创建成片任务'}
+          </button>
+          <button className="agent-surface-button" type="button" data-intent="adopt" onClick={onCopyVideoComposeRequest}>复制成片请求</button>
           <button className="agent-surface-button" type="button" onClick={onCopyHandoff}>复制全部</button>
         </div>
       </header>
@@ -993,11 +1428,36 @@ function HandoffPanel({
         <EditDeskMetric label="未选择素材" value={validation.unresolvedClipCount} tone={validation.unresolvedClipCount > 0 ? 'warning' : 'ok'} />
         <EditDeskMetric label="未覆盖 CU" value={handoff.coverage_map.summary.uncoveredContentUnitCount} tone={handoff.coverage_map.summary.uncoveredContentUnitCount > 0 ? 'warning' : 'ok'} />
         <EditDeskMetric label="决策日志" value={handoff.decision_log.length} tone={handoff.decision_log.some((entry) => entry.severity === 'error') ? 'warning' : undefined} />
+        <EditDeskMetric label="剪辑动作" value={handoff.edit_action_plan.actions.length} />
+        <EditDeskMetric label="编译" value={handoff.compile_manifest.status} tone={handoff.compile_manifest.status === 'ready' ? 'ok' : 'warning'} />
+        <EditDeskMetric label="后端草案" value={`${handoff.backend_options.filter((option) => option.status === 'ready').length}/${handoff.backend_options.length}`} tone={handoff.backend_options.every((option) => option.status === 'ready') ? 'ok' : 'warning'} />
         <EditDeskMetric label="空轨道" value={validation.emptyTrackCount} />
+        <EditDeskMetric label="编译诊断" value={handoff.validation.compile_diagnostics.length} tone={handoff.validation.compile_diagnostics.some((issue) => issue.severity === 'error') ? 'warning' : 'ok'} />
         <EditDeskMetric label="时间线诊断" value={handoff.validation.editing_timeline_diagnostics.length} tone={handoff.validation.editing_timeline_diagnostics.some((issue) => issue.severity === 'error') ? 'warning' : 'ok'} />
         <EditDeskMetric label="OpenMontage rows" value={debugView.editDecisions.length} />
+        <EditDeskMetric label="成片任务" value={composeState.status} tone={composeState.status === 'succeeded' ? 'ok' : composeState.status === 'blocked' || composeState.status === 'error' ? 'warning' : undefined} />
         <EditDeskMetric label="复制状态" value={copyStatus} />
       </div>
+      <div className="edit-desk-backend-options" aria-label="Finishing backend options">
+        {handoff.backend_options.map((option) => (
+          <article key={option.backend} className="edit-desk-backend-option" data-status={option.status}>
+            <div>
+              <strong>{option.label}</strong>
+              <span>{option.role}</span>
+            </div>
+            <p>{option.summary}</p>
+            <small>{[
+              option.status,
+              option.render_runtime ? `runtime ${option.render_runtime}` : undefined,
+              option.entrypoint,
+              option.file_count > 0 ? `${option.file_count} files` : undefined,
+            ].filter(Boolean).join(' · ')}</small>
+          </article>
+        ))}
+      </div>
+      {composeState.status !== 'idle' ? (
+        <ComposeResultCard composeState={composeState} />
+      ) : null}
       {validation.issues.length > 0 ? (
         <div className="edit-desk-issues" aria-label="TimelineAssembly blockers">
           {validation.issues.map((issue) => (
@@ -1009,9 +1469,36 @@ function HandoffPanel({
           ))}
         </div>
       ) : null}
+      {handoff.validation.compile_diagnostics.length > 0 ? (
+        <div className="edit-desk-issues" aria-label="TimelineAssembly compile diagnostics">
+          {handoff.validation.compile_diagnostics.map((issue) => (
+            <article key={`${issue.code}:${issue.asset_ref ?? issue.action ?? issue.message}`} className="edit-desk-issue" data-severity={issue.severity}>
+              <strong>{issue.code}</strong>
+              <p>{issue.message}</p>
+              <span>{[issue.action ? `action ${issue.action}` : undefined, issue.asset_ref ? `asset ${issue.asset_ref}` : undefined].filter(Boolean).join(' · ')}</span>
+            </article>
+          ))}
+        </div>
+      ) : null}
       <details className="edit-desk-details">
         <summary>TimelineAssembly coverage / decision log</summary>
         <AgentSurfaceJson value={{ coverage_map: handoff.coverage_map, decision_log: handoff.decision_log }} />
+      </details>
+      <details className="edit-desk-details">
+        <summary>CompileManifest</summary>
+        <AgentSurfaceJson value={handoff.compile_manifest} />
+      </details>
+      <details className="edit-desk-details">
+        <summary>TimelineAssembly compile result</summary>
+        <AgentSurfaceJson value={handoff.compile_result} />
+      </details>
+      <details className="edit-desk-details">
+        <summary>Finishing backend projects</summary>
+        <AgentSurfaceJson value={{ backend_options: handoff.backend_options, finishing_projects: handoff.finishing_projects }} />
+      </details>
+      <details className="edit-desk-details">
+        <summary>OpenMontage edit action plan</summary>
+        <AgentSurfaceJson value={handoff.edit_action_plan} />
       </details>
       <details className="edit-desk-details">
         <summary>OpenMontage asset_manifest / edit_decisions</summary>
@@ -1021,6 +1508,16 @@ function HandoffPanel({
         <summary>EditingProject 创建请求</summary>
         <AgentSurfaceJson value={handoff.editing_project_create_from_edit_decisions} />
       </details>
+      <details className="edit-desk-details">
+        <summary>editing_video_compose 成片请求</summary>
+        <AgentSurfaceJson value={handoff.video_compose_request} />
+      </details>
+      {composeState.result ? (
+        <details className="edit-desk-details" open>
+          <summary>成片任务结果</summary>
+          <AgentSurfaceJson value={composeState.result} />
+        </details>
+      ) : null}
       <details className="edit-desk-details">
         <summary>MediaEditingProject 预览</summary>
         <AgentSurfaceJson value={handoff.media_editing_project_preview ?? { status: 'blocked', diagnostics: handoff.validation.editing_timeline_diagnostics }} />
@@ -1035,6 +1532,41 @@ function HandoffPanel({
       </details>
     </section>
   )
+}
+
+function ComposeResultCard({ composeState }: { composeState: EditDeskComposeState }) {
+  const progress = composeState.progressPercent ?? composeTaskProgress(composeState.result)
+  const outputPath = composeState.outputPath ?? composeOutputPath(composeState.result)
+  const taskId = composeState.taskId ?? composeTaskId(composeState.result)
+  const taskStatus = composeState.taskStatus ?? composeTaskStatus(composeState.result)
+  return (
+    <div className="edit-desk-compose-card" data-status={composeState.status} aria-label="Video compose result">
+      <div className="edit-desk-compose-card__header">
+        <div>
+          <span>Render</span>
+          <strong>{composeState.message ?? '成片任务状态已更新。'}</strong>
+        </div>
+        <StatusDot status={composeState.status} />
+      </div>
+      <div className="edit-desk-compose-card__metrics">
+        <EditDeskMetric label="task" value={taskId ?? 'pending'} />
+        <EditDeskMetric label="status" value={taskStatus ?? composeState.status} tone={composeState.status === 'succeeded' ? 'ok' : composeState.status === 'blocked' || composeState.status === 'error' ? 'warning' : undefined} />
+        <EditDeskMetric label="progress" value={progress !== undefined ? `${Math.round(progress)}%` : 'n/a'} />
+        <EditDeskMetric label="output" value={outputPath ?? 'pending'} tone={outputPath && composeState.status === 'succeeded' ? 'ok' : undefined} />
+      </div>
+      {progress !== undefined ? (
+        <div className="edit-desk-compose-progress" aria-label="Render progress">
+          <span style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} />
+        </div>
+      ) : null}
+      <p>{composeResultSummary(composeState.result) || composeState.message}</p>
+      {composeState.updatedAt ? <small>updated {new Date(composeState.updatedAt).toLocaleTimeString()}</small> : null}
+    </div>
+  )
+}
+
+function StatusDot({ status }: { status: ComposeStatus }) {
+  return <span className="edit-desk-status-dot" data-status={status}>{status}</span>
 }
 
 function EditDeskMetric({
@@ -1058,7 +1590,108 @@ function StatusPill({ status }: { status: WorkflowAssetManifestRow['status'] }) 
   return <span className="edit-desk-status-pill" data-status={status}>{assetStatusLabel(status)}</span>
 }
 
-function buildTimelineAssemblyState({
+function composeTaskRecord(result: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!result) return undefined
+  return recordValue(result.task ?? result.media_pipeline_task)
+}
+
+function composeRenderReport(result: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  return recordValue(result?.render_report)
+}
+
+function composeTaskId(result: Record<string, unknown> | undefined): string | undefined {
+  const task = composeTaskRecord(result)
+  const renderReport = composeRenderReport(result)
+  return stringValue(task?.taskId ?? task?.task_id ?? renderReport?.task_id)
+}
+
+function composeProjectId(result: Record<string, unknown> | undefined): string | undefined {
+  const task = composeTaskRecord(result)
+  const renderReport = composeRenderReport(result)
+  const editingProject = recordValue(result?.editing_project ?? result?.editingProject)
+  return stringValue(task?.projectId ?? task?.project_id ?? renderReport?.project_id ?? editingProject?.projectId ?? editingProject?.project_id)
+}
+
+function composeTaskStatus(resultOrTask: Record<string, unknown> | undefined): string | undefined {
+  const task = composeTaskRecord(resultOrTask) ?? resultOrTask
+  const renderReport = composeRenderReport(resultOrTask)
+  return stringValue(task?.status ?? renderReport?.status)
+}
+
+function composeTaskProgress(resultOrTask: Record<string, unknown> | undefined): number | undefined {
+  const task = composeTaskRecord(resultOrTask) ?? resultOrTask
+  const progress = numberValue(task?.progressPercent ?? task?.progress_percent)
+  return progress === undefined ? undefined : Math.max(0, Math.min(100, progress))
+}
+
+function composeOutputPath(result: Record<string, unknown> | undefined): string | undefined {
+  const task = composeTaskRecord(result)
+  const renderReport = composeRenderReport(result)
+  return stringValue(task?.outputPath ?? task?.output_path ?? renderReport?.output_path)
+}
+
+function composeTaskIsTerminal(resultOrTask: Record<string, unknown> | undefined): boolean {
+  const status = composeTaskStatus(resultOrTask)
+  return status === 'succeeded' || status === 'failed' || status === 'canceled'
+}
+
+function composeStatusFromTask(task: Record<string, unknown> | undefined, fallback: ComposeStatus): ComposeStatus {
+  const status = composeTaskStatus(task)
+  if (status === 'succeeded') return 'succeeded'
+  if (status === 'failed' || status === 'canceled') return 'error'
+  if (status === 'queued' || status === 'running') return 'running'
+  return fallback
+}
+
+function mergeComposeTaskResult(result: Record<string, unknown> | undefined, task: Record<string, unknown>): Record<string, unknown> {
+  const renderReport = composeRenderReport(result)
+  const taskId = stringValue(task.taskId ?? task.task_id)
+  const outputPath = stringValue(task.outputPath ?? task.output_path)
+  return {
+    ...(result ?? {}),
+    task,
+    media_pipeline_task: task,
+    render_report: {
+      ...(renderReport ?? {}),
+      ...(stringValue(task.status) ? { status: stringValue(task.status) } : {}),
+      ...(taskId ? { task_id: taskId } : {}),
+      ...(outputPath ? { output_path: outputPath } : {}),
+      ...(task.outputResourceId !== undefined ? { output_resource_id: task.outputResourceId } : {}),
+    },
+  }
+}
+
+function composeResultMessage(result: Record<string, unknown>): string {
+  const taskId = composeTaskId(result)
+  const taskStatus = composeTaskStatus(result)
+  const outputPath = composeOutputPath(result)
+  if (taskStatus === 'succeeded' && outputPath) return `成片已完成：${outputPath}`
+  if (taskStatus === 'failed' || taskStatus === 'canceled') return `成片任务${taskStatus === 'failed' ? '失败' : '已取消'}：${taskId ?? 'unknown task'}`
+  if (taskId) return `成片任务已创建：${taskId}${taskStatus ? ` (${taskStatus})` : ''}`
+
+  const renderReport = composeRenderReport(result)
+  const editingProject = recordValue(result.editing_project ?? result.editingProject)
+  const editingProjectId = stringValue(editingProject?.id ?? renderReport?.editing_project_id)
+  if (editingProjectId) return `MediaEditingProject 已创建：${editingProjectId}`
+
+  return stringValue(result.message) ?? '成片任务已创建。'
+}
+
+function composeResultSummary(result: Record<string, unknown> | undefined): string {
+  if (!result) return ''
+  const taskId = composeTaskId(result)
+  const taskStatus = composeTaskStatus(result)
+  const progress = composeTaskProgress(result)
+  const outputPath = composeOutputPath(result)
+  return [
+    taskId ? `task ${taskId}` : undefined,
+    taskStatus ? `status ${taskStatus}` : undefined,
+    progress !== undefined ? `progress ${Math.round(progress)}%` : undefined,
+    outputPath ? `output ${outputPath}` : undefined,
+  ].filter(Boolean).join(' · ')
+}
+
+export function buildTimelineAssemblyState({
   debugView,
   productionId,
   targetRef,
@@ -1108,6 +1741,7 @@ function buildTimelineAssemblyState({
     productionId,
     targetRef: targetRef || focusLabel || 'timeline_assembly:draft',
     sourceNamespace,
+    editProfile: { ...DEFAULT_EDIT_PROFILE },
     tracks: DEFAULT_ASSEMBLY_TRACKS.map((track) => ({ ...track })),
     clips,
     selectedClipId: clips[0]?.id,
@@ -1187,6 +1821,7 @@ function editDeskAssetItems(debugView: WorkflowArtifactDebugView): EditDeskAsset
       ...asset,
       blockers: requiredAsset?.blockers ?? [],
       mediaUrl: mediaUrlFromRecord(asset.raw),
+      localPath: mediaLocalPathFromRecord(asset.raw),
       sceneId: requiredAsset?.sceneId,
       expressionUnitId: requiredAsset?.expressionUnitId,
       targetRef: requiredAsset?.targetRef,
@@ -1244,6 +1879,7 @@ function clipFromAsset(
 ): AssemblyClip {
   const kind = clipKindForAsset(asset)
   const intentRef = intentRefFromAsset(asset, sourceNamespace, productionId)
+  const edit = defaultClipEditIntent(asset, trackId, startMs, kind)
   return normalizeClip({
     id: `clip-${sanitizeId(asset.id)}-${index}`,
     trackId,
@@ -1262,6 +1898,7 @@ function clipFromAsset(
       candidateId: asset.candidateId,
       resourceId: asset.resourceId,
       mediaUrl: asset.mediaUrl,
+      localPath: asset.localPath,
     },
     binding: {
       sceneId: asset.sceneId,
@@ -1269,10 +1906,48 @@ function clipFromAsset(
       targetRef: asset.targetRef,
     },
     intentRef,
+    edit,
   })
 }
 
-function buildEditDecisionHandoff(
+function defaultClipEditIntent(
+  asset: EditDeskAssetItem,
+  trackId: string,
+  startMs: number,
+  kind: AssemblyClipKind,
+): TimelineAssemblyClipEditIntent {
+  const isStill = asset.type.toLowerCase().includes('image')
+    || asset.type.toLowerCase().includes('storyboard')
+    || asset.type.toLowerCase().includes('keyframe')
+  const layer: TimelineAssemblyOpenMontageLayer = trackId === 'video_overlay' || kind === 'effect'
+    ? 'overlay'
+    : trackId === 'effect'
+      ? 'background'
+      : 'primary'
+  return {
+    layer,
+    speed: 1,
+    transform: {
+      scale: 1,
+      position: 'center',
+      animation: isStill ? 'ken-burns-slow-zoom' : 'static',
+    },
+    transitionIn: startMs === 0 ? 'fade' : 'cut',
+    transitionOut: 'cut',
+    transitionDurationMs: startMs === 0 ? DEFAULT_EDIT_PROFILE.pacing.transitionDurationMs : 0,
+    overlay: {
+      x: 0.5,
+      y: 0.5,
+      width: 1,
+      height: 1,
+      opacity: 1,
+      animation: 'fade-in',
+    },
+    reason: '',
+  }
+}
+
+export function buildEditDecisionHandoff(
   assembly: TimelineAssemblyState,
   debugView: WorkflowArtifactDebugView,
   projectId: string,
@@ -1281,21 +1956,73 @@ function buildEditDecisionHandoff(
   const coverage = timelineAssemblyCoverage(assembly, debugView)
   const decisionLog = timelineAssemblyDecisionLog(assembly, debugView, coverage)
   const editDecisions = buildOpenMontageEditDecisions(assembly, coverage, decisionLog)
+  const editActionPlan = buildTimelineAssemblyEditActionPlan(assembly, coverage)
   const validation = assemblyValidation(assembly, debugView)
   const scope = scopeFromAssembly(assembly)
+  const assemblyExport = timelineAssemblyExport(assembly)
+  const finishingCompileInput = {
+    timelineAssembly: assemblyExport,
+    assetManifest,
+    editDecisions,
+    runtimeLocked: true,
+    renderSettings: {
+      width: 1920,
+      height: 1080,
+      fps: 30,
+      background: '#000000',
+      default_duration_ms: 4000,
+    },
+    projectOptions: {
+      projectId,
+      title: `Edit desk ${assembly.targetRef}`,
+      productionId: assembly.productionId,
+      targetKind: 'timeline_assembly',
+      targetRef: assembly.targetRef,
+      scopeKind: scope.scopeKind,
+      scopeRef: scope.scopeRef,
+      width: 1920,
+      height: 1080,
+      fps: 30,
+      background: '#000000',
+      defaultDurationMs: 4000,
+    },
+  }
+  const mediaFinishingProject = compileTimelineAssemblyToFinishingProject({
+    ...finishingCompileInput,
+    backend: 'media_editing_project',
+    renderRuntime: assembly.editProfile.renderRuntime,
+  })
+  const hyperframesFinishingProject = compileTimelineAssemblyToFinishingProject({
+    ...finishingCompileInput,
+    backend: 'hyperframes',
+  })
+  const remotionFinishingProject = compileTimelineAssemblyToFinishingProject({
+    ...finishingCompileInput,
+    backend: 'remotion',
+  })
+  const finishingProjects: Record<EditDeskFinishingBackend, TimelineAssemblyFinishingCompileResult> = {
+    media_editing_project: mediaFinishingProject,
+    hyperframes: hyperframesFinishingProject,
+    remotion: remotionFinishingProject,
+  }
+  const backendOptions = buildFinishingBackendOptions(finishingProjects)
+  const compileResult = mediaEditingCompileResultFromFinishing(mediaFinishingProject)
   const editingProjectRequest = buildEditingProjectCreateRequest({
     assembly,
     assetManifest,
+    compileManifest: compileResult.compile_manifest,
     editDecisions,
     projectId,
     scope,
   })
-  const preview = buildMediaEditingProjectPreview({
+  const videoComposeRequest = buildVideoComposeRequest({
+    assembly,
+    assemblyExport,
     assetManifest,
+    compileManifest: compileResult.compile_manifest,
     editDecisions,
     projectId,
     scope,
-    assembly,
   })
 
   return {
@@ -1313,18 +2040,77 @@ function buildEditDecisionHandoff(
     source_namespace: assembly.sourceNamespace,
     coverage_map: coverage,
     decision_log: decisionLog,
-    assembly: timelineAssemblyExport(assembly),
+    edit_action_plan: editActionPlan,
+    assembly: assemblyExport,
     openmontage: {
       asset_manifest: assetManifest,
       edit_decisions: editDecisions,
     },
+    compile_manifest: compileResult.compile_manifest,
+    compile_result: compileResult,
+    backend_options: backendOptions,
+    finishing_projects: finishingProjects,
     editing_project_create_from_edit_decisions: editingProjectRequest,
-    ...(preview.mediaEditingProject ? { media_editing_project_preview: preview.mediaEditingProject } : {}),
+    video_compose_request: videoComposeRequest,
+    ...(compileResult.media_editing_project ? { media_editing_project_preview: compileResult.media_editing_project } : {}),
     validation: {
       ...validation,
-      editing_timeline_diagnostics: preview.diagnostics,
+      compile_diagnostics: compileResult.diagnostics,
+      editing_timeline_diagnostics: compileResult.editing_timeline_diagnostics,
     },
   }
+}
+
+function mediaEditingCompileResultFromFinishing(
+  result: TimelineAssemblyFinishingCompileResult,
+): TimelineAssemblyMediaEditingCompileResult {
+  const mediaEditingProject = result.media_editing_project ?? result.finishing_project?.media_editing_project
+  return {
+    schema: 'movscript.timeline_assembly.media_editing_compile_result.v1',
+    status: result.status,
+    compile_manifest: result.compile_manifest,
+    ...(mediaEditingProject ? { media_editing_project: mediaEditingProject } : {}),
+    editing_timeline_diagnostics: result.editing_timeline_diagnostics,
+    diagnostics: result.diagnostics,
+  }
+}
+
+function buildFinishingBackendOptions(
+  projects: Record<EditDeskFinishingBackend, TimelineAssemblyFinishingCompileResult>,
+): EditDeskFinishingBackendOption[] {
+  const labels: Record<EditDeskFinishingBackend, string> = {
+    media_editing_project: '系统剪辑项目',
+    hyperframes: 'HyperFrames',
+    remotion: 'Remotion',
+  }
+  const roles: Record<EditDeskFinishingBackend, EditDeskFinishingBackendOption['role']> = {
+    media_editing_project: 'system_editing',
+    hyperframes: 'html_composition',
+    remotion: 'react_composition',
+  }
+  const summaries: Record<EditDeskFinishingBackend, string> = {
+    media_editing_project: '当前可创建成片任务的默认路径，细剪继续在 MovScript MediaEditingProject 中完成。',
+    hyperframes: '生成 HTML/GSAP 静态 composition 草案，适合动画字幕、视觉包装和网页式细剪。',
+    remotion: '生成 React/Remotion composition 草案，适合代码化组件、参数化模板和可测试细剪。',
+  }
+
+  return (['media_editing_project', 'hyperframes', 'remotion'] as EditDeskFinishingBackend[]).map((backend) => {
+    const result = projects[backend]
+    return {
+      backend,
+      label: labels[backend],
+      role: roles[backend],
+      status: result.status,
+      compile_manifest_id: result.compile_manifest.id,
+      render_runtime: result.compile_manifest.backend.render_runtime,
+      runtime_locked: result.compile_manifest.backend.runtime_locked,
+      fallback_policy: result.compile_manifest.backend.fallback_policy,
+      editable: result.finishing_project?.editable === true,
+      entrypoint: result.finishing_project?.entrypoint,
+      file_count: result.finishing_project?.files?.length ?? 0,
+      summary: summaries[backend],
+    }
+  })
 }
 
 function buildOpenMontageAssetManifest(assembly: TimelineAssemblyState): MovScriptAssetManifest {
@@ -1333,15 +2119,17 @@ function buildOpenMontageAssetManifest(assembly: TimelineAssemblyState): MovScri
     version: '1.0',
     assets: assets.map((clip) => {
       const resourceId = resourceIdNumber(clip.source.resourceId)
+      const localPath = clip.source.localPath
       return {
         id: openMontageAssetIdForClip(clip),
         type: openMontageAssetType(clip),
-        path: resourceId !== undefined ? `resource:${resourceId}` : clip.source.mediaUrl ?? `content-unit:${clip.source.contentUnitId ?? clip.source.assetId}`,
+        path: localPath ?? (resourceId !== undefined ? `resource:${resourceId}` : clip.source.mediaUrl ?? `content-unit:${clip.source.contentUnitId ?? clip.source.assetId}`),
         source_tool: clip.source.status === 'selected' ? 'movscript_content_unit_selection' : 'movscript_placeholder',
         scene_id: clip.binding.sceneId ?? clip.source.contentUnitId ?? 'timeline_assembly',
         title: clip.title,
         duration_seconds: clip.durationMs / 1000,
         ...(resourceId !== undefined ? { resource_id: resourceId } : {}),
+        ...(localPath ? { localPath, local_path: localPath } : {}),
         metadata: {
           content_unit_id: clip.source.contentUnitId,
           candidate_id: clip.source.candidateId,
@@ -1379,35 +2167,40 @@ function buildOpenMontageEditDecisions(
 ): MovScriptEditDecisionsArtifact {
   const sortedClips = [...assembly.clips].sort((a, b) => a.startMs - b.startMs || a.trackId.localeCompare(b.trackId))
   const visualClips = sortedClips.filter((clip) => clip.kind === 'visual')
-  const overlayClips = visualClips.filter((clip) => clip.trackId !== 'video_main')
+  const cutClips = visualClips.filter((clip) => clip.edit.layer !== 'overlay')
+  const overlayClips = visualClips.filter((clip) => clip.edit.layer === 'overlay')
   const narrationClips = sortedClips.filter((clip) => clip.kind === 'voice')
   const musicClip = sortedClips.find((clip) => clip.kind === 'music')
   const sfxClips = sortedClips.filter((clip) => clip.kind === 'sfx')
   const subtitleClips = sortedClips.filter((clip) => clip.kind === 'subtitle')
+  const subtitleProfile = assembly.editProfile.subtitles
+  const audioProfile = assembly.editProfile.audio
 
   return {
     schema: 'openmontage/artifacts/edit_decisions',
     version: '1.0',
-    renderer_family: 'movscript-timeline-assembly',
-    render_runtime: 'movscript_media_pipeline',
-    composition_mode: 'timeline_assembly',
-    cuts: visualClips.filter((clip) => clip.trackId === 'video_main').map((clip) => ({
+    renderer_family: assembly.editProfile.rendererFamily,
+    render_runtime: assembly.editProfile.renderRuntime,
+    composition_mode: assembly.editProfile.compositionMode,
+    cuts: cutClips.map((clip) => ({
       id: clip.id,
       source: openMontageAssetIdForClip(clip),
       in_seconds: clip.sourceInMs / 1000,
       out_seconds: (clip.sourceInMs + clip.durationMs) / 1000,
       timeline_start_seconds: clip.startMs / 1000,
       duration_seconds: clip.durationMs / 1000,
-      layer: 'primary',
+      speed: clip.edit.speed,
+      layer: clip.edit.layer,
       transform: {
-        scale: 1,
-        position: 'center',
-        animation: clip.source.type.toLowerCase().includes('image') ? 'ken-burns-slow-zoom' : 'static',
+        scale: clip.edit.transform.scale,
+        position: clip.edit.transform.position,
+        animation: clip.edit.transform.animation,
+        ...(clip.edit.transform.crop ? { crop: clip.edit.transform.crop } : {}),
       },
-      transition_in: clip.startMs === 0 ? 'fade' : 'cut',
-      transition_out: 'cut',
-      transition_duration: clip.startMs === 0 ? 0.3 : 0,
-      reason: clip.notes || `TimelineAssembly primary visual from ${clip.source.contentUnitId ?? clip.source.assetId}`,
+      transition_in: clip.edit.transitionIn,
+      transition_out: clip.edit.transitionOut,
+      transition_duration: clip.edit.transitionDurationMs / 1000,
+      reason: clip.edit.reason || clip.notes || `TimelineAssembly ${clip.edit.layer} visual from ${clip.source.contentUnitId ?? clip.source.assetId}`,
       metadata: editDecisionClipMetadata(clip),
     })),
     overlays: overlayClips.map((clip) => ({
@@ -1415,9 +2208,14 @@ function buildOpenMontageEditDecisions(
       asset_id: openMontageAssetIdForClip(clip),
       start_seconds: clip.startMs / 1000,
       end_seconds: (clip.startMs + clip.durationMs) / 1000,
-      position: { x: 0.5, y: 0.5, width: 1, height: 1 },
-      opacity: 1,
-      animation: 'fade-in',
+      position: {
+        x: clip.edit.overlay.x,
+        y: clip.edit.overlay.y,
+        width: clip.edit.overlay.width,
+        height: clip.edit.overlay.height,
+      },
+      opacity: clip.edit.overlay.opacity,
+      animation: clip.edit.overlay.animation,
       metadata: editDecisionClipMetadata(clip),
     })),
     audio: {
@@ -1436,15 +2234,15 @@ function buildOpenMontageEditDecisions(
           asset_id: openMontageAssetIdForClip(musicClip),
           start_seconds: musicClip.startMs / 1000,
           end_seconds: (musicClip.startMs + musicClip.durationMs) / 1000,
-          volume: normalizedOpenMontageVolume(musicClip.volume),
-          fade_in_seconds: 1,
-          fade_out_seconds: 1,
+          volume: normalizedOpenMontageVolume(musicClip.volume || audioProfile.musicVolume),
+          fade_in_seconds: audioProfile.musicFadeInMs / 1000,
+          fade_out_seconds: audioProfile.musicFadeOutMs / 1000,
           ducking: {
-            enabled: narrationClips.length > 0,
-            threshold_db: -3,
-            reduction_db: -8,
-            attack_ms: 200,
-            release_ms: 500,
+            enabled: audioProfile.ducking.enabled && narrationClips.length > 0,
+            threshold_db: audioProfile.ducking.thresholdDb,
+            reduction_db: audioProfile.ducking.reductionDb,
+            attack_ms: audioProfile.ducking.attackMs,
+            release_ms: audioProfile.ducking.releaseMs,
           },
           metadata: editDecisionClipMetadata(musicClip),
         },
@@ -1458,22 +2256,32 @@ function buildOpenMontageEditDecisions(
         metadata: editDecisionClipMetadata(clip),
       })),
     },
-    subtitles: {
-      enabled: subtitleClips.length > 0,
-      style: {
-        mode: 'phrase',
-        fontFamily: 'Inter',
-        fontSize: 42,
-        color: '#FFFFFF',
-        backgroundColor: '#00000088',
-        position: 'bottom-center',
+    ...(musicClip ? {
+      music: {
+        asset_id: openMontageAssetIdForClip(musicClip),
+        volume: normalizedOpenMontageVolume(musicClip.volume || audioProfile.musicVolume),
+        fade_in_seconds: audioProfile.musicFadeInMs / 1000,
+        fade_out_seconds: audioProfile.musicFadeOutMs / 1000,
+        ducking: audioProfile.ducking.enabled && narrationClips.length > 0,
       },
-      font: 'Inter',
-      font_size: 42,
-      color: '#FFFFFF',
-      background: '#00000088',
-      position: 'bottom-center',
-      max_words_per_line: 8,
+    } : {}),
+    subtitles: {
+      enabled: subtitleProfile.enabled && subtitleClips.length > 0,
+      style: {
+        mode: subtitleProfile.style,
+        fontFamily: subtitleProfile.font,
+        fontSize: subtitleProfile.fontSize,
+        color: subtitleProfile.color,
+        backgroundColor: subtitleProfile.background,
+        position: subtitleProfile.position,
+      },
+      openmontage_style: subtitleProfile.style,
+      font: subtitleProfile.font,
+      font_size: subtitleProfile.fontSize,
+      color: subtitleProfile.color,
+      background: subtitleProfile.background,
+      position: subtitleProfile.position,
+      max_words_per_line: subtitleProfile.maxWordsPerLine,
       segments: subtitleClips.map((clip) => ({
         id: clip.id,
         text: clip.notes || clip.title,
@@ -1481,11 +2289,14 @@ function buildOpenMontageEditDecisions(
         end_seconds: (clip.startMs + clip.durationMs) / 1000,
       })),
     },
+    transitions: openMontageTransitionsFromClips(cutClips),
     metadata: {
       source: 'movscript_edit_desk',
       timeline_assembly_id: assembly.id,
       target_ref: assembly.targetRef,
       source_namespace: assembly.sourceNamespace,
+      edit_profile: assembly.editProfile,
+      movscript_composition_mode: 'timeline_assembly',
       coverage_summary: coverage.summary,
       decision_log: decisionLog,
       render_contract: {
@@ -1500,12 +2311,14 @@ function buildOpenMontageEditDecisions(
 function buildEditingProjectCreateRequest({
   assembly,
   assetManifest,
+  compileManifest,
   editDecisions,
   projectId,
   scope,
 }: {
   assembly: TimelineAssemblyState
   assetManifest: MovScriptAssetManifest
+  compileManifest: TimelineAssemblyCompileManifest
   editDecisions: MovScriptEditDecisionsArtifact
   projectId: string
   scope: ReturnType<typeof scopeFromAssembly>
@@ -1526,51 +2339,52 @@ function buildEditingProjectCreateRequest({
     targetRef: assembly.targetRef,
     ...(scope.scopeKind ? { scopeKind: scope.scopeKind } : {}),
     ...(scope.scopeRef ? { scopeRef: scope.scopeRef } : {}),
+    compileManifest,
     timelineAssembly: timelineAssemblyExport(assembly),
   }
 }
 
-function buildMediaEditingProjectPreview({
+function buildVideoComposeRequest({
   assembly,
+  assemblyExport,
   assetManifest,
+  compileManifest,
   editDecisions,
   projectId,
   scope,
 }: {
   assembly: TimelineAssemblyState
+  assemblyExport: Record<string, unknown>
   assetManifest: MovScriptAssetManifest
+  compileManifest: TimelineAssemblyCompileManifest
   editDecisions: MovScriptEditDecisionsArtifact
   projectId: string
   scope: ReturnType<typeof scopeFromAssembly>
-}): { mediaEditingProject?: MediaEditingProject; diagnostics: MediaTimelineDiagnostic[] } {
-  try {
-    const mediaEditingProject = createMediaEditingProjectFromEditDecisions(editDecisions, {
-      assetManifest,
-      projectId,
-      title: `Edit desk ${assembly.targetRef}`,
-      productionId: assembly.productionId,
-      targetKind: 'timeline_assembly',
-      targetRef: assembly.targetRef,
-      scopeKind: scope.scopeKind,
-      scopeRef: scope.scopeRef,
-      width: 1920,
-      height: 1080,
-      fps: 30,
-      background: '#000000',
-      defaultDurationMs: 4000,
-    })
-    return {
-      mediaEditingProject,
-      diagnostics: validateMediaEditingProjectTimeline(mediaEditingProject),
-    }
-  } catch (error) {
-    return {
-      diagnostics: [{
-        code: 'editing_project_preview_failed',
-        severity: 'error',
-        message: error instanceof Error ? error.message : 'Failed to create MediaEditingProject preview.',
-      }],
-    }
+}): Record<string, unknown> {
+  return {
+    tool: 'editing_video_compose',
+    projectId,
+    render_runtime: assembly.editProfile.renderRuntime,
+    format: 'mp4',
+    output: {
+      format: 'mp4',
+      importToResource: false,
+    },
+    editDecisions,
+    assetManifest,
+    timelineAssembly: assemblyExport,
+    compileManifest,
+    title: `Edit desk ${assembly.targetRef}`,
+    width: 1920,
+    height: 1080,
+    fps: 30,
+    background: '#000000',
+    defaultDurationMs: 4000,
+    ...(assembly.productionId ? { productionId: assembly.productionId } : {}),
+    targetKind: 'timeline_assembly',
+    targetRef: assembly.targetRef,
+    ...(scope.scopeKind ? { scopeKind: scope.scopeKind } : {}),
+    ...(scope.scopeRef ? { scopeRef: scope.scopeRef } : {}),
   }
 }
 
@@ -1581,6 +2395,7 @@ function timelineAssemblyExport(assembly: TimelineAssemblyState): Record<string,
     production_id: assembly.productionId,
     target_ref: assembly.targetRef,
     source_namespace: assembly.sourceNamespace,
+    edit_profile: assembly.editProfile,
     duration_ms: assemblyDurationMs(assembly),
     tracks: assembly.tracks.map((track) => ({
       id: track.id,
@@ -1604,6 +2419,7 @@ function timelineAssemblyExport(assembly: TimelineAssemblyState): Record<string,
         content_unit_id: clip.source.contentUnitId,
         candidate_id: clip.source.candidateId,
         resource_id: clip.source.resourceId,
+        local_path: clip.source.localPath,
         status: clip.source.status,
         type: clip.source.type,
       },
@@ -1624,7 +2440,26 @@ function timelineAssemblyExport(assembly: TimelineAssemblyState): Record<string,
         content_unit_id: clip.intentRef.contentUnitId,
         target_ref: clip.intentRef.targetRef,
       }),
+      edit: clipEditExport(clip),
     })),
+  }
+}
+
+function clipEditExport(clip: AssemblyClip): Record<string, unknown> {
+  return {
+    layer: clip.edit.layer,
+    speed: clip.edit.speed,
+    transform: {
+      scale: clip.edit.transform.scale,
+      position: clip.edit.transform.position,
+      animation: clip.edit.transform.animation,
+      ...(clip.edit.transform.crop ? { crop: clip.edit.transform.crop } : {}),
+    },
+    transition_in: clip.edit.transitionIn,
+    transition_out: clip.edit.transitionOut,
+    transition_duration_ms: clip.edit.transitionDurationMs,
+    overlay: clip.edit.overlay,
+    reason: clip.edit.reason,
   }
 }
 
@@ -1651,12 +2486,45 @@ function assemblyValidation(assembly: TimelineAssemblyState, debugView?: Workflo
         message: `${clip.title} is still a placeholder and needs a selected candidate/resource before render.`,
       })
     }
+    if (clip.source.status === 'selected' && assembly.editProfile.renderRuntime === 'movscript_media_pipeline' && !clip.source.localPath) {
+      const resourceId = resourceIdNumber(clip.source.resourceId)
+      issues.push({
+        code: resourceId !== undefined ? 'selected_asset_runtime_resolution_required' : 'selected_asset_local_path_missing',
+        severity: resourceId !== undefined ? 'info' : 'warning',
+        clipId: clip.id,
+        message: resourceId !== undefined
+          ? `${clip.title} will be materialized from resource ${resourceId} by MediaPipeline before compose.`
+          : `${clip.title} has a selected asset but no local media path; local MediaPipeline render must resolve the resource before compose.`,
+        details: {
+          resourceId: clip.source.resourceId,
+          mediaUrl: clip.source.mediaUrl,
+          renderRuntime: assembly.editProfile.renderRuntime,
+          ...(resourceId !== undefined ? { resolver: 'resourceDownload' } : {}),
+        },
+      })
+    }
     if (clip.durationMs < MIN_CLIP_DURATION_MS) {
       issues.push({
         code: 'clip_duration_too_short',
         severity: 'error',
         clipId: clip.id,
         message: `${clip.title} is shorter than ${MIN_CLIP_DURATION_MS}ms.`,
+      })
+    }
+    if (clip.edit.speed < 0.1) {
+      issues.push({
+        code: 'clip_speed_too_low',
+        severity: 'error',
+        clipId: clip.id,
+        message: `${clip.title} speed is below OpenMontage's minimum 0.1.`,
+      })
+    }
+    if (clip.edit.transitionDurationMs > clip.durationMs / 2) {
+      issues.push({
+        code: 'transition_too_long',
+        severity: 'warning',
+        clipId: clip.id,
+        message: `${clip.title} transition is longer than half of the clip duration.`,
       })
     }
     if (clip.volume > 1) {
@@ -1690,6 +2558,24 @@ function assemblyValidation(assembly: TimelineAssemblyState, debugView?: Workflo
   }
   let cursor = 0
   for (const clip of primaryClips) {
+    if (clip.durationMs < assembly.editProfile.pacing.minSceneHoldMs) {
+      issues.push({
+        code: 'primary_visual_hold_too_short',
+        severity: 'warning',
+        clipId: clip.id,
+        trackId: clip.trackId,
+        message: `${clip.title} is shorter than the OpenMontage pacing minimum hold.`,
+      })
+    }
+    if (clip.durationMs > assembly.editProfile.pacing.maxSceneHoldMs) {
+      issues.push({
+        code: 'primary_visual_hold_too_long',
+        severity: 'warning',
+        clipId: clip.id,
+        trackId: clip.trackId,
+        message: `${clip.title} is longer than the OpenMontage pacing maximum hold.`,
+      })
+    }
     if (clip.startMs > cursor + TIMELINE_SNAP_MS) {
       issues.push({
         code: 'primary_visual_gap',
@@ -1743,6 +2629,190 @@ function assemblyValidation(assembly: TimelineAssemblyState, debugView?: Workflo
     emptyTrackCount,
     selectedResourceCount: assembly.clips.filter((clip) => clip.source.resourceId).length,
     issues,
+  }
+}
+
+function buildTimelineAssemblyEditActionPlan(
+  assembly: TimelineAssemblyState,
+  coverage: TimelineAssemblyCoverageMap,
+): TimelineAssemblyEditActionPlan {
+  const sortedClips = [...assembly.clips].sort((a, b) => a.startMs - b.startMs || a.trackId.localeCompare(b.trackId))
+  const actions: TimelineAssemblyEditAction[] = [{
+    id: 'runtime-lock',
+    family: 'runtime',
+    kind: 'runtime_lock',
+    params: {
+      renderer_family: assembly.editProfile.rendererFamily,
+      render_runtime: assembly.editProfile.renderRuntime,
+      composition_mode: assembly.editProfile.compositionMode,
+      fallback_policy: 'no_implicit_fallback',
+      forbidden_implicit_fallbacks: ['remotion', 'ffmpeg', 'hyperframes'],
+    },
+  }, {
+    id: 'timeline-coverage-check',
+    family: 'validation',
+    kind: 'timeline_coverage_check',
+    params: coverage.summary,
+  }]
+
+  for (const clip of sortedClips) {
+    if (clip.kind === 'visual' && clip.edit.layer !== 'overlay') {
+      actions.push({
+        id: `cut:${clip.id}`,
+        family: 'visual',
+        kind: 'cut',
+        clipId: clip.id,
+        trackId: clip.trackId,
+        sourceAssetId: openMontageAssetIdForClip(clip),
+        startMs: clip.startMs,
+        endMs: clip.startMs + clip.durationMs,
+        params: {
+          source: openMontageAssetIdForClip(clip),
+          in_seconds: clip.sourceInMs / 1000,
+          out_seconds: (clip.sourceInMs + clip.durationMs) / 1000,
+          speed: clip.edit.speed,
+          layer: clip.edit.layer,
+          transform: clip.edit.transform,
+          transition_in: clip.edit.transitionIn,
+          transition_out: clip.edit.transitionOut,
+          transition_duration_seconds: clip.edit.transitionDurationMs / 1000,
+          reason: clip.edit.reason || clip.notes,
+        },
+      })
+    }
+    if (clip.kind === 'visual' && clip.edit.layer === 'overlay') {
+      actions.push({
+        id: `overlay:${clip.id}`,
+        family: 'overlay',
+        kind: 'overlay',
+        clipId: clip.id,
+        trackId: clip.trackId,
+        sourceAssetId: openMontageAssetIdForClip(clip),
+        startMs: clip.startMs,
+        endMs: clip.startMs + clip.durationMs,
+        params: {
+          asset_id: openMontageAssetIdForClip(clip),
+          position: {
+            x: clip.edit.overlay.x,
+            y: clip.edit.overlay.y,
+            width: clip.edit.overlay.width,
+            height: clip.edit.overlay.height,
+          },
+          opacity: clip.edit.overlay.opacity,
+          animation: clip.edit.overlay.animation,
+        },
+      })
+    }
+    if (clip.kind === 'voice') {
+      actions.push({
+        id: `narration:${clip.id}`,
+        family: 'audio',
+        kind: 'narration_segment',
+        clipId: clip.id,
+        trackId: clip.trackId,
+        sourceAssetId: openMontageAssetIdForClip(clip),
+        startMs: clip.startMs,
+        endMs: clip.startMs + clip.durationMs,
+        params: {
+          asset_id: openMontageAssetIdForClip(clip),
+          volume: normalizedOpenMontageVolume(clip.volume),
+        },
+      })
+    }
+    if (clip.kind === 'music') {
+      actions.push({
+        id: `music:${clip.id}`,
+        family: 'audio',
+        kind: 'music_bed',
+        clipId: clip.id,
+        trackId: clip.trackId,
+        sourceAssetId: openMontageAssetIdForClip(clip),
+        startMs: clip.startMs,
+        endMs: clip.startMs + clip.durationMs,
+        params: {
+          asset_id: openMontageAssetIdForClip(clip),
+          volume: normalizedOpenMontageVolume(clip.volume || assembly.editProfile.audio.musicVolume),
+          fade_in_seconds: assembly.editProfile.audio.musicFadeInMs / 1000,
+          fade_out_seconds: assembly.editProfile.audio.musicFadeOutMs / 1000,
+          ducking: assembly.editProfile.audio.ducking,
+        },
+      })
+    }
+    if (clip.kind === 'sfx') {
+      actions.push({
+        id: `sfx:${clip.id}`,
+        family: 'audio',
+        kind: 'sfx_hit',
+        clipId: clip.id,
+        trackId: clip.trackId,
+        sourceAssetId: openMontageAssetIdForClip(clip),
+        startMs: clip.startMs,
+        endMs: clip.startMs + clip.durationMs,
+        params: {
+          asset_id: openMontageAssetIdForClip(clip),
+          volume: normalizedOpenMontageVolume(clip.volume),
+        },
+      })
+    }
+    if (clip.kind === 'subtitle') {
+      actions.push({
+        id: `subtitle:${clip.id}`,
+        family: 'subtitle',
+        kind: 'subtitle_segment',
+        clipId: clip.id,
+        trackId: clip.trackId,
+        startMs: clip.startMs,
+        endMs: clip.startMs + clip.durationMs,
+        params: {
+          text: clip.notes || clip.title,
+          style: assembly.editProfile.subtitles,
+        },
+      })
+    }
+  }
+
+  for (const transition of openMontageTransitionsFromClips(sortedClips.filter((clip) => clip.kind === 'visual' && clip.edit.layer !== 'overlay'))) {
+    actions.push({
+      id: `transition:${transition.type}:${transition.at_seconds}`,
+      family: 'transition',
+      kind: 'global_transition',
+      startMs: Math.round(Number(transition.at_seconds) * 1000),
+      params: transition,
+    })
+  }
+
+  if (assembly.editProfile.subtitles.enabled) {
+    actions.push({
+      id: 'subtitle-style',
+      family: 'subtitle',
+      kind: 'subtitle_style',
+      params: subtitleProfileRecord(assembly.editProfile.subtitles),
+    })
+  }
+
+  return {
+    schema: 'movscript.timeline_assembly.openmontage_edit_actions.v1',
+    source: 'openmontage_edit_decisions',
+    actions,
+    runtimeLock: {
+      renderRuntime: assembly.editProfile.renderRuntime,
+      fallbackPolicy: 'no_implicit_fallback',
+      forbiddenImplicitFallbacks: ['remotion', 'ffmpeg', 'hyperframes'],
+    },
+    reviewGates: OPENMONTAGE_REVIEW_GATES,
+  }
+}
+
+function subtitleProfileRecord(profile: TimelineAssemblySubtitleProfile): Record<string, unknown> {
+  return {
+    enabled: profile.enabled,
+    style: profile.style,
+    font: profile.font,
+    font_size: profile.fontSize,
+    color: profile.color,
+    background: profile.background,
+    position: profile.position,
+    max_words_per_line: profile.maxWordsPerLine,
   }
 }
 
@@ -1904,6 +2974,17 @@ function openMontageAssetType(clip: AssemblyClip): string {
   return 'video'
 }
 
+function openMontageTransitionsFromClips(clips: AssemblyClip[]): Array<Record<string, unknown>> {
+  return clips
+    .filter((clip) => clip.edit.transitionOut !== 'cut' && clip.edit.transitionDurationMs > 0)
+    .map((clip) => ({
+      type: clip.edit.transitionOut,
+      at_seconds: (clip.startMs + clip.durationMs) / 1000,
+      duration_seconds: clip.edit.transitionDurationMs / 1000,
+      clip_id: clip.id,
+    }))
+}
+
 function editDecisionClipMetadata(clip: AssemblyClip): Record<string, unknown> {
   return {
     movscript: {
@@ -1971,6 +3052,27 @@ function normalizeClip(clip: AssemblyClip): AssemblyClip {
     durationMs: Math.max(MIN_CLIP_DURATION_MS, snapMs(clip.durationMs)),
     sourceInMs: clampTimelineMs(clip.sourceInMs),
     volume: Math.max(0, Math.min(2, clip.volume)),
+    edit: normalizeClipEditIntent(clip.edit),
+  }
+}
+
+function normalizeClipEditIntent(edit: TimelineAssemblyClipEditIntent): TimelineAssemblyClipEditIntent {
+  return {
+    ...edit,
+    speed: Math.max(0.1, edit.speed),
+    transitionDurationMs: Math.max(0, Number.isFinite(edit.transitionDurationMs) ? edit.transitionDurationMs : 0),
+    transform: {
+      ...edit.transform,
+      scale: Math.max(0, edit.transform.scale),
+    },
+    overlay: {
+      ...edit.overlay,
+      x: Math.max(0, Math.min(1, edit.overlay.x)),
+      y: Math.max(0, Math.min(1, edit.overlay.y)),
+      width: Math.max(0, Math.min(1, edit.overlay.width)),
+      height: Math.max(0, Math.min(1, edit.overlay.height)),
+      opacity: Math.max(0, Math.min(1, edit.overlay.opacity)),
+    },
   }
 }
 
@@ -2013,6 +3115,10 @@ function clampTimelineMs(valueMs: number): number {
 
 function secondsToMs(value: string): number {
   return clampTimelineMs((Number(value) || 0) * 1000)
+}
+
+function secondsToDurationMs(value: string): number {
+  return Math.max(0, Math.round((Number(value) || 0) * 1000))
 }
 
 function formatSecondsInput(valueMs: number): string {
@@ -2134,6 +3240,44 @@ function mediaUrlFromRecord(row: Record<string, unknown>): string | undefined {
   return candidates.map(stringValue).find((value) => Boolean(value))
 }
 
+function mediaLocalPathFromRecord(row: Record<string, unknown>): string | undefined {
+  const selection = recordValue(row.selection)
+  const resource = recordValue(row.resource)
+    ?? recordValue(row.selected_resource)
+    ?? recordValue(row.selectedResource)
+    ?? recordValue(selection?.resource)
+  const candidates = [
+    row.localPath,
+    row.local_path,
+    row.file_path,
+    row.filePath,
+    row.path,
+    resource?.localPath,
+    resource?.local_path,
+    resource?.file_path,
+    resource?.filePath,
+    resource?.path,
+  ]
+  return candidates
+    .map(stringValue)
+    .map(normalizeLocalMediaPath)
+    .find((value) => Boolean(value))
+}
+
+function normalizeLocalMediaPath(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  if (/^file:\/\//i.test(value)) {
+    try {
+      return decodeURIComponent(new URL(value).pathname)
+    } catch {
+      return undefined
+    }
+  }
+  if (/^(https?:|blob:|data:|resource:|content-unit:)/i.test(value)) return undefined
+  if (value.startsWith('/') || value.startsWith('~/') || /^[a-zA-Z]:[\\/]/.test(value)) return value
+  return undefined
+}
+
 function looksLikeVideo(mediaUrl: string | undefined, type: string): boolean {
   const lowerUrl = mediaUrl?.toLowerCase() ?? ''
   const lowerType = type.toLowerCase()
@@ -2144,7 +3288,7 @@ function sanitizeId(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'draft'
 }
 
-function buildWorkflowArtifactDebugView({
+export function buildWorkflowArtifactDebugView({
   readModel,
   snapshot,
 }: {

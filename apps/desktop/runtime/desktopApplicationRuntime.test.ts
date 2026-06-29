@@ -145,7 +145,7 @@ test('Desktop cloud data runtime attaches to daemon without local Data Service',
 test('Desktop local runtime restarts daemon when installed plugin identity changes', async () => {
   const homeDir = mkdtempSync(join(tmpdir(), 'movscript-desktop-local-runtime-identity-home-'))
   const pluginRoot = join(homeDir, 'installed-plugin')
-  const entrypoint = join(pluginRoot, 'bin', 'movscript-agent-mcp.mjs')
+  const entrypoint = join(pluginRoot, 'bin', 'movscript.mjs')
   mkdirSync(dirname(entrypoint), { recursive: true })
   writeFileSync(join(pluginRoot, 'manifest.runtime.json'), JSON.stringify({ version: 'desktop-installed-version' }), 'utf8')
   writeFileSync(entrypoint, fakeDaemonSource({
@@ -189,7 +189,7 @@ test('Desktop local runtime restarts daemon when installed plugin identity chang
 test('Desktop local runtime force refreshes daemon on startup when requested', async () => {
   const homeDir = mkdtempSync(join(tmpdir(), 'movscript-desktop-local-runtime-refresh-home-'))
   const pluginRoot = join(homeDir, 'installed-plugin')
-  const entrypoint = join(pluginRoot, 'bin', 'movscript-agent-mcp.mjs')
+  const entrypoint = join(pluginRoot, 'bin', 'movscript.mjs')
   mkdirSync(dirname(entrypoint), { recursive: true })
   writeFileSync(join(pluginRoot, 'manifest.runtime.json'), JSON.stringify({ version: 'desktop-installed-version' }), 'utf8')
   writeFileSync(entrypoint, fakeDaemonSource({
@@ -268,17 +268,17 @@ test('Desktop runtime resolves repo root from bundled main output directory', ()
 test('Desktop runtime resolves local daemon entrypoint from explicit environment', () => {
   assert.equal(
     resolveDesktopLocalRuntimeDaemonEntrypoint({
-      env: { MOVSCRIPT_LOCAL_DAEMON_ENTRYPOINT: '/tmp/movscript-agent-mcp.mjs' },
+      env: { MOVSCRIPT_LOCAL_DAEMON_ENTRYPOINT: '/tmp/movscript.mjs' },
       repoRoot: REPO_ROOT,
     }),
-    '/tmp/movscript-agent-mcp.mjs',
+    '/tmp/movscript.mjs',
   )
 })
 
 test('Desktop runtime resolves local daemon entrypoint from packaged provider plugin resources', () => {
   const resourcesPath = mkdtempSync(join(tmpdir(), 'movscript-desktop-provider-plugin-resources-'))
   try {
-    const entrypoint = join(resourcesPath, 'provider-plugins/movscript/bin/movscript-agent-mcp.mjs')
+    const entrypoint = join(resourcesPath, 'provider-plugins/movscript/bin/movscript.mjs')
     mkdirSync(dirname(entrypoint), { recursive: true })
     writeFileSync(entrypoint, '#!/usr/bin/env node\n', 'utf8')
 
@@ -298,7 +298,7 @@ test('Desktop runtime resolves local daemon entrypoint from packaged provider pl
 test('Desktop runtime identity resolves installed plugin version and root from entrypoint', () => {
   const pluginRoot = mkdtempSync(join(tmpdir(), 'movscript-desktop-plugin-identity-'))
   try {
-    const entrypoint = join(pluginRoot, 'bin/movscript-agent-mcp.mjs')
+    const entrypoint = join(pluginRoot, 'bin/movscript.mjs')
     mkdirSync(dirname(entrypoint), { recursive: true })
     writeFileSync(join(pluginRoot, 'manifest.runtime.json'), JSON.stringify({ version: '1.2.3' }), 'utf8')
 

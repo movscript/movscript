@@ -643,6 +643,7 @@ export function packagePluginArtifact(root = repoRoot, options = {}) {
     'assets',
     'bin/movcli',
     'bin/movscript',
+    'bin/movscript.mjs',
     'bin/movscript-agent-mcp',
     'bin/movscript-agent-mcp.mjs',
     'runtime',
@@ -691,9 +692,12 @@ function writePluginRuntimeManifest(pluginDir, input) {
     packageName: input.packageName,
     generatedAt: new Date().toISOString(),
     mcpServer: 'movscript',
-    entrypoint: './bin/movscript-agent-mcp',
+    entrypoint: './bin/movscript',
+    mcpArgs: ['mcp', 'stdio'],
+    daemonArgs: ['daemon', 'run'],
     cliEntrypoint: './bin/movscript',
     legacyCliEntrypoint: './bin/movcli',
+    legacyMcpEntrypoint: './bin/movscript-agent-mcp',
   }, null, 2)}\n`, 'utf8')
 }
 
@@ -749,6 +753,7 @@ function validatePluginArtifactInputs(pluginDir) {
     '.mcp.json',
     'bin/movcli',
     'bin/movscript',
+    'bin/movscript.mjs',
     'bin/movscript-agent-mcp',
     'bin/movscript-agent-mcp.mjs',
     `runtime/services/data-service/bin/${dataServiceBinaryName()}`,

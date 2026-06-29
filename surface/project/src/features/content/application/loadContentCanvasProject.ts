@@ -7,6 +7,11 @@ export async function loadContentCanvasProject(
   projectId: number,
   gateway: ContentCanvasWorkspaceGateway,
 ): Promise<ContentCanvasProjectData> {
+  if (gateway.readContentCanvasReadModel) {
+    const readModel = contentCanvasReadModelPayload(await gateway.readContentCanvasReadModel(projectId))
+    return contentCanvasProjectDataFromReadModel(projectId, readModel)
+  }
+
   const { service } = gateway
   const [
     projects,
@@ -82,6 +87,48 @@ export async function loadContentCanvasProject(
     assetReferenceUnits: contentWorkspaceData?.assetReferenceUnits,
     productionWorkPlan: contentWorkspaceData?.productionWorkPlan,
   }
+}
+
+function contentCanvasReadModelPayload(value: unknown): Record<string, unknown> {
+  const record = recordValue(value) ?? {}
+  return recordValue(record.projectContentCanvasReadModel) ?? record
+}
+
+function contentCanvasProjectDataFromReadModel(
+  fallbackProjectId: number,
+  model: Record<string, unknown>,
+): ContentCanvasProjectData {
+  return {
+    projectId: numberValue(model.projectId) ?? fallbackProjectId,
+    project: recordValue(model.project) as MovScriptWorkspaceIndexedEntity | undefined ?? null,
+    productions: sortEntities(indexedEntities(model.productions)),
+    segments: sortEntities(indexedEntities(model.segments)),
+    sceneMoments: sortEntities(indexedEntities(model.sceneMoments)),
+    storyboards: sortEntities(indexedEntities(model.storyboards)),
+    expressionUnits: sortEntities(indexedEntities(model.expressionUnits)),
+    contentUnits: sortEntities(indexedEntities(model.contentUnits)),
+    keyframes: sortEntities(indexedEntities(model.keyframes)),
+    settings: sortEntities(indexedEntities(model.settings)),
+    settingStates: sortEntities(indexedEntities(model.settingStates)),
+    audioCues: sortEntities(indexedEntities(model.audioCues)),
+    assets: sortEntities(indexedEntities(model.assets)),
+    contentUnitCandidates: recordValue(model.contentUnitCandidates) as Record<string, ContentCanvasCandidate[]> | undefined ?? {},
+    domainGraph: model.domainGraph as ContentCanvasProjectData['domainGraph'],
+    editingProjectsByNodeId: recordValue(model.editingProjectsByNodeId) as Record<string, MediaEditingProjectLike> | undefined ?? {},
+    assetReferenceUnits: model.assetReferenceUnits as ContentCanvasProjectData['assetReferenceUnits'],
+    productionWorkPlan: model.productionWorkPlan as ContentCanvasProjectData['productionWorkPlan'],
+  }
+}
+
+function indexedEntities(value: unknown): MovScriptWorkspaceIndexedEntity[] {
+  return arrayValue(value)
+    .map(indexedEntityValue)
+    .filter((item): item is MovScriptWorkspaceIndexedEntity => item !== undefined)
+}
+
+function indexedEntityValue(value: unknown): MovScriptWorkspaceIndexedEntity | undefined {
+  const record = recordValue(value)
+  return record ? record as unknown as MovScriptWorkspaceIndexedEntity : undefined
 }
 
 function editingProjectsByNodeIdFromWorkspace(
@@ -247,4 +294,12 @@ function numberValue(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value.trim())) return Number(value)
   return undefined
+}
+
+function recordValue(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
+}
+
+function arrayValue(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
 }

@@ -13,7 +13,7 @@ for candidate in \
 do
   [ -n "$candidate" ] || continue
   if command -v "$candidate" >/dev/null 2>&1; then
-    exec "$candidate" "$script_dir/movscript-agent-mcp.mjs" __movscript_movcli "$@"
+    exec "$candidate" "$script_dir/movscript.mjs" __movscript_movcli "$@"
   fi
 done
 

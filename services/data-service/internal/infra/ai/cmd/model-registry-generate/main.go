@@ -422,6 +422,8 @@ func adapterSupportsRuntimeCapability(adapterType, capability string) bool {
 			infraai.CapabilityAudioChat:
 			return true
 		}
+	case infraai.AdapterVyroSeedance:
+		return capability == infraai.CapabilityVideo || capability == infraai.CapabilityVideoI2V
 	case infraai.AdapterGemini:
 		switch capability {
 		case infraai.CapabilityText, infraai.CapabilityReasoning,

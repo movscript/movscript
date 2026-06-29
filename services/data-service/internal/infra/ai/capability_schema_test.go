@@ -100,6 +100,90 @@ func TestCapabilityJSONAllowsOmniReferenceVideoInputs(t *testing.T) {
 	}
 }
 
+func TestCapabilityJSONOperationSlotsOverrideCoarseReferenceAssets(t *testing.T) {
+	raw := `{
+		"video_generation": {
+			"operations": [
+				{
+					"id": "first_last_frame_to_video",
+					"input_slots": [
+						{"id": "first_frame", "required": true, "max": 1, "roles": ["first_frame"], "modalities": ["image"]},
+						{"id": "last_frame", "required": true, "max": 1, "roles": ["last_frame"], "modalities": ["image"]}
+					]
+				},
+				{
+					"id": "image_to_video",
+					"input_slots": [
+						{"id": "reference_image", "min": 1, "max": 1, "roles": ["generic", "reference_image"], "media_types": ["image"]}
+					]
+				}
+			],
+			"reference_assets": {
+				"min": 1,
+				"max": 3,
+				"roles": ["generic", "reference_image", "first_frame", "last_frame"],
+				"modalities": ["image"]
+			}
+		}
+	}`
+
+	ok, reason := capabilityJSONSupportsIntent(raw, CapabilityFamilyVideoGeneration, VideoOperationFirstLastFrameToVideo, []RouteReferenceAssetIntent{
+		{Role: "first_frame", MediaType: "image"},
+		{Role: "last_frame", MediaType: "image"},
+	})
+	if !ok || reason != "" {
+		t.Fatalf("first/last V2 slot intent supported = %v reason=%q, want supported", ok, reason)
+	}
+
+	ok, reason = capabilityJSONSupportsIntent(raw, CapabilityFamilyVideoGeneration, VideoOperationFirstLastFrameToVideo, []RouteReferenceAssetIntent{
+		{Role: "reference_image", MediaType: "image"},
+		{Role: "last_frame", MediaType: "image"},
+	})
+	if ok || reason != "unsupported_operation_input:reference_image:image" {
+		t.Fatalf("ordinary reference as first frame supported = %v reason=%q, want unsupported operation input", ok, reason)
+	}
+
+	ok, reason = capabilityJSONSupportsIntent(raw, CapabilityFamilyVideoGeneration, VideoOperationFirstLastFrameToVideo, []RouteReferenceAssetIntent{
+		{Role: "first_frame", MediaType: "image"},
+	})
+	if ok || reason != "missing_operation_input:last_frame" {
+		t.Fatalf("missing last frame supported = %v reason=%q, want missing slot", ok, reason)
+	}
+
+	ok, reason = capabilityJSONSupportsIntent(raw, CapabilityFamilyVideoGeneration, VideoOperationImageToVideo, []RouteReferenceAssetIntent{
+		{Role: "reference_image", MediaType: "image"},
+	})
+	if !ok || reason != "" {
+		t.Fatalf("ordinary image-to-video V2 slot intent supported = %v reason=%q, want supported", ok, reason)
+	}
+}
+
+func TestCapabilityJSONOperationSlotsMapIsAccepted(t *testing.T) {
+	raw := `{
+		"video_generation": {
+			"operations": ["first_frame_to_video"],
+			"operation_slots": {
+				"first_frame_to_video": [
+					{"id": "first_frame", "required": true, "max": 1, "role": "first_frame", "media_type": "image"}
+				]
+			},
+			"reference_assets": {
+				"min": 1,
+				"max": 1,
+				"roles": ["reference_image", "first_frame"],
+				"modalities": ["image"]
+			}
+		}
+	}`
+
+	ok, reason := capabilityJSONSupportsIntent(raw, CapabilityFamilyVideoGeneration, VideoOperationFirstFrameToVideo, []RouteReferenceAssetIntent{
+		{Role: "reference_image", MediaType: "image"},
+	})
+	if ok || reason != "unsupported_operation_input:reference_image:image" {
+		t.Fatalf("ordinary reference first-frame slot supported = %v reason=%q, want unsupported slot input", ok, reason)
+	}
+}
+
 func TestRouteCapabilityPublicURLRequirementsReadsAssetTransport(t *testing.T) {
 	raw := `{
 		"video_generation": {

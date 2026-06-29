@@ -616,8 +616,10 @@ class ComposeAssetRegistry {
   }
 
   private assetFromRecord(record: Record<string, unknown>, preferredType: MediaAssetType = 'video'): MediaAssetDescriptor | undefined {
+    const rawPath = stringField(record.localPath ?? record.local_path ?? record.path ?? record.file_path ?? record.filePath ?? record.src)
     const resourceId = integerField(record.resourceId ?? record.resource_id)
-    const localPath = stringField(record.localPath ?? record.local_path ?? record.path ?? record.file_path ?? record.filePath ?? record.src)
+      ?? resourceIdFromString(rawPath ?? '')
+    const localPath = localPathField(rawPath)
     const idSource = stringField(record.mediaAssetId ?? record.media_asset_id ?? record.id ?? record.asset_id ?? record.assetId)
       ?? (resourceId !== undefined ? `resource_${resourceId}` : undefined)
       ?? localPath
@@ -779,7 +781,7 @@ function inferAssetTypeFromRecord(record: Record<string, unknown>, fallback: Med
   if (mime?.startsWith('audio/')) return 'audio'
   if (mime?.startsWith('image/')) return 'image'
   if (mime?.startsWith('text/') || mime?.includes('subrip') || mime?.includes('vtt')) return 'subtitle'
-  const path = stringField(record.localPath ?? record.local_path ?? record.path ?? record.file_path ?? record.filePath ?? record.src)
+  const path = localPathField(stringField(record.localPath ?? record.local_path ?? record.path ?? record.file_path ?? record.filePath ?? record.src))
   return assetTypeFromPath(path) ?? fallback
 }
 
@@ -836,6 +838,13 @@ function stringField(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   const trimmed = value.trim()
   return trimmed ? trimmed : undefined
+}
+
+function localPathField(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  if (/^(?:resource|raw_resource|backend_resource|content-unit|content_unit):/i.test(value)) return undefined
+  if (/^(?:https?:|blob:|data:)/i.test(value)) return undefined
+  return value
 }
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {

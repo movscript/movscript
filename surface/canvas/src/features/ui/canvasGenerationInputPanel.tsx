@@ -1,5 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { formatResourceMention } from '@movscript/workspace'
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { formatResourceMention, parseResourceMentions } from '@movscript/workspace'
+import {
+  generationDefaultReferenceRoleForMediaType,
+  generationReferenceRoleLabel,
+  generationReferenceRoleOptionsForMediaType,
+} from '@movscript/core/generation'
 import { FileText, Image, Video, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,6 +17,7 @@ import {
   type CanvasNodeMentionItem,
   type CanvasNodePromptAttachmentItem,
 } from '@movscript/ui/business/canvas'
+import { GenerationReferenceRoleMenu } from '@movscript/ui/business/generation'
 import { selectedInputResources } from './canvasNodeUiAdapters'
 import type { NodeDataWithHandlers } from './canvasNodeTypes'
 
@@ -21,21 +27,28 @@ function canvasResourceIcon(resource: Pick<RawResource, 'type'>, size = 12) {
   return <FileText size={size} />
 }
 
-function buildCanvasChipElement(resource: RawResource): HTMLElement {
+type CanvasPromptReferenceMetadata = {
+  role?: string
+  mediaType?: string
+}
+
+function buildCanvasChipElement(resource: RawResource, metadata: CanvasPromptReferenceMetadata = {}): HTMLElement {
   const chip = document.createElement('span')
   chip.contentEditable = 'false'
   chip.dataset.resourceName = resource.name
   chip.dataset.resourceId = String(resource.ID)
+  if (metadata.role) chip.dataset.role = metadata.role
+  if (metadata.mediaType) chip.dataset.mediaType = metadata.mediaType
   chip.className = canvasMentionChipClassNames.chip
 
   const media = document.createElement('span')
   media.className = canvasMentionChipClassNames.media
-  media.dataset.type = resource.type
+  media.dataset.type = metadata.mediaType ?? resource.type
   media.textContent = resource.type === 'video' ? 'V' : resource.type === 'image' ? 'I' : 'T'
   chip.appendChild(media)
 
   const label = document.createElement('span')
-  label.textContent = resource.name
+  label.textContent = metadata.role ? `${resource.name} · ${generationReferenceRoleLabel(metadata.role)}` : resource.name
   label.className = canvasMentionChipClassNames.label
   chip.appendChild(label)
 
@@ -45,8 +58,21 @@ function buildCanvasChipElement(resource: RawResource): HTMLElement {
 function serializeCanvasPrompt(node: Node): string {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
   const el = node as HTMLElement
-  if (el.dataset?.resourceId) return formatResourceMention(Number(el.dataset.resourceId))
+  if (el.dataset?.resourceId) {
+    return formatResourceMention(Number(el.dataset.resourceId), {
+      mediaType: el.dataset.mediaType,
+      role: el.dataset.role,
+    })
+  }
   return Array.from(node.childNodes).map(serializeCanvasPrompt).join('')
+}
+
+type CanvasRoleMenuState = {
+  left: number
+  top: number
+  resourceId: number
+  mediaType?: string
+  role?: string
 }
 
 export function CanvasGenerationInputPanel({
@@ -59,11 +85,14 @@ export function CanvasGenerationInputPanel({
   placeholder?: string
 }) {
   const { t } = useTranslation()
+  const shellRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<HTMLDivElement>(null)
+  const roleMenuChipRef = useRef<HTMLElement | null>(null)
   const mentionRangeRef = useRef<{ node: Text; start: number; end: number } | null>(null)
   const syncedPromptRef = useRef<string | null>(null)
   const renderedResourceKeyRef = useRef<string>('')
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+  const [roleMenu, setRoleMenu] = useState<CanvasRoleMenuState | null>(null)
   const attachments = useMemo(
     () => selectedInputResources(data),
     [data.availableResources, data.inputResourceIds, data.prompt, data.referenceResources],
@@ -104,6 +133,29 @@ export function CanvasGenerationInputPanel({
     }
   })
   const resourceById = useMemo(() => new Map(attachments.map((resource) => [resource.ID, resource])), [attachments])
+  const referenceMetadataById = useMemo(() => {
+    const out = new Map<number, CanvasPromptReferenceMetadata>()
+    for (const values of Object.values(data.runtimeInputValues ?? {})) {
+      for (const value of values) {
+        if (!value.resource_id) continue
+        const mediaType = value.media_type && value.media_type !== 'any' && value.media_type !== 'text'
+          ? value.media_type
+          : value.type
+        out.set(value.resource_id, {
+          mediaType,
+          role: value.role || generationDefaultReferenceRoleForMediaType(mediaType),
+        })
+      }
+    }
+    for (const resource of attachments) {
+      if (out.has(resource.ID)) continue
+      out.set(resource.ID, {
+        mediaType: resource.type,
+        role: generationDefaultReferenceRoleForMediaType(resource.type),
+      })
+    }
+    return out
+  }, [attachments, data.runtimeInputValues])
   const resourceLookupKey = useMemo(
     () => attachments.map((resource) => `${resource.ID}:${resource.type}:${resource.name}:${resource.url}:${resource.direct_url ?? ''}`).join('|'),
     [attachments],
@@ -114,6 +166,7 @@ export function CanvasGenerationInputPanel({
   }
 
   function handleInput() {
+    setRoleMenu(null)
     const text = editorText()
     syncedPromptRef.current = text
     data.onUpdatePrompt?.(text)
@@ -177,7 +230,7 @@ export function CanvasGenerationInputPanel({
       }
     }
 
-    const chip = buildCanvasChipElement(resource)
+    const chip = buildCanvasChipElement(resource, referenceMetadataById.get(resource.ID))
     const space = document.createTextNode(' ')
     insertRange.insertNode(space)
     insertRange.insertNode(chip)
@@ -195,6 +248,50 @@ export function CanvasGenerationInputPanel({
     data.onUpdatePrompt?.(nextText)
   }
 
+  function handlePanelMouseDown(event: MouseEvent<HTMLDivElement>) {
+    const target = event.target as HTMLElement | null
+    const chip = target?.closest<HTMLElement>('[data-resource-id]')
+    if (!chip || !editorRef.current?.contains(chip)) {
+      setRoleMenu(null)
+      roleMenuChipRef.current = null
+      return
+    }
+    event.preventDefault()
+    const resourceId = Number(chip.dataset.resourceId)
+    if (!Number.isInteger(resourceId)) return
+    const shellRect = shellRef.current?.getBoundingClientRect()
+    const chipRect = chip.getBoundingClientRect()
+    const resource = resourceById.get(resourceId)
+    const mediaType = chip.dataset.mediaType ?? resource?.type
+    roleMenuChipRef.current = chip
+    setMentionQuery(null)
+    setRoleMenu({
+      resourceId,
+      mediaType,
+      role: chip.dataset.role ?? generationDefaultReferenceRoleForMediaType(mediaType),
+      left: shellRect ? Math.max(4, Math.min(chipRect.left - shellRect.left, shellRect.width - 184)) : 0,
+      top: shellRect ? chipRect.bottom - shellRect.top + 6 : 0,
+    })
+  }
+
+  function selectResourceRole(role: string) {
+    const chip = roleMenuChipRef.current
+    if (!chip || !editorRef.current) {
+      setRoleMenu(null)
+      return
+    }
+    const mediaType = roleMenu?.mediaType ?? chip.dataset.mediaType
+    chip.dataset.role = role
+    if (mediaType) chip.dataset.mediaType = mediaType
+    const label = chip.querySelector<HTMLElement>(`.${canvasMentionChipClassNames.label}`)
+    if (label) label.textContent = `${chip.dataset.resourceName ?? ''} · ${generationReferenceRoleLabel(role)}`
+    const nextText = editorText()
+    syncedPromptRef.current = nextText
+    data.onUpdatePrompt?.(nextText)
+    setRoleMenu(null)
+    roleMenuChipRef.current = null
+  }
+
   useEffect(() => {
     const editor = editorRef.current
     if (!editor) return
@@ -208,39 +305,55 @@ export function CanvasGenerationInputPanel({
     if (isFocused && syncedPromptRef.current === currentPrompt) return
     if (isFocused && syncedPromptRef.current === prompt) return
     editor.innerHTML = ''
-    const pattern = /@\[resource:(\d+)\]\s?/g
     let lastIndex = 0
-    let match: RegExpExecArray | null
-    while ((match = pattern.exec(prompt)) !== null) {
-      const before = prompt.slice(lastIndex, match.index)
+    for (const mention of parseResourceMentions(prompt)) {
+      const before = prompt.slice(lastIndex, mention.index)
       if (before) editor.appendChild(document.createTextNode(before))
-      const resource = resourceById.get(Number(match[1]))
+      const resource = resourceById.get(mention.id)
       if (resource) {
-        const chip = buildCanvasChipElement(resource)
+        const fallbackMetadata = referenceMetadataById.get(mention.id)
+        const chip = buildCanvasChipElement(resource, {
+          mediaType: mention.mediaType ?? fallbackMetadata?.mediaType,
+          role: mention.role ?? fallbackMetadata?.role,
+        })
         editor.appendChild(chip)
         editor.appendChild(document.createTextNode(' '))
       } else {
-        editor.appendChild(document.createTextNode(match[0]))
+        editor.appendChild(document.createTextNode(mention.token))
       }
-      lastIndex = pattern.lastIndex
+      lastIndex = mention.index + mention.token.length
     }
     const after = prompt.slice(lastIndex)
     if (after) editor.appendChild(document.createTextNode(after))
     syncedPromptRef.current = prompt
     renderedResourceKeyRef.current = resourceLookupKey
-  }, [data.prompt, resourceById, resourceLookupKey])
+  }, [data.prompt, referenceMetadataById, resourceById, resourceLookupKey])
 
   return (
-    <CanvasNodePromptInputView
-      editorRef={editorRef}
-      placeholder={placeholder ?? (inputType ? t(`shared.genInput.promptPlaceholder.${inputType}`, { defaultValue: t('shared.generation.promptPlaceholder') }) : t('shared.generation.promptPlaceholder'))}
-      onEditorInput={handleInput}
-      onEditorEscape={() => setMentionQuery(null)}
-      mentionOpen={mentionQuery !== null}
-      mentionItems={mentionItems}
-      mentionEmptyLabel={attachments.length === 0 ? t('shared.genInput.addResourcesFirst') : t('shared.genInput.noMatchedResources')}
-      attachmentItems={attachmentItems}
-      attachmentEmptyLabel={t('shared.genInput.selectOrUploadHint', { defaultValue: 'Select or upload resources' })}
-    />
+    <div ref={shellRef} style={{ position: 'relative' }}>
+      <CanvasNodePromptInputView
+        editorRef={editorRef}
+        placeholder={placeholder ?? (inputType ? t(`shared.genInput.promptPlaceholder.${inputType}`, { defaultValue: t('shared.generation.promptPlaceholder') }) : t('shared.generation.promptPlaceholder'))}
+        onEditorInput={handleInput}
+        onEditorEscape={() => {
+          setMentionQuery(null)
+          setRoleMenu(null)
+        }}
+        onMouseDown={handlePanelMouseDown}
+        mentionOpen={mentionQuery !== null}
+        mentionItems={mentionItems}
+        mentionEmptyLabel={attachments.length === 0 ? t('shared.genInput.addResourcesFirst') : t('shared.genInput.noMatchedResources')}
+        attachmentItems={attachmentItems}
+        attachmentEmptyLabel={t('shared.genInput.selectOrUploadHint', { defaultValue: 'Select or upload resources' })}
+      />
+      {roleMenu ? (
+        <GenerationReferenceRoleMenu
+          options={generationReferenceRoleOptionsForMediaType(roleMenu.mediaType)}
+          value={roleMenu.role}
+          onRoleSelect={selectResourceRole}
+          style={{ left: roleMenu.left, top: roleMenu.top }}
+        />
+      ) : null}
+    </div>
   )
 }

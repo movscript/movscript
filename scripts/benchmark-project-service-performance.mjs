@@ -1,24 +1,41 @@
 #!/usr/bin/env node
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
-import { homedir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
+import { startProjectService } from '../services/project-service/src/server.mjs'
+import { sourceFileEntries } from '../packages/interpreter/tests/helpers.mjs'
 
 const env = process.env
 const movScriptHome = resolve(env.MOVSCRIPT_HOME || join(homedir(), '.movscript'))
-const projectServiceURL = normalizeBaseURL(
-  env.MOVSCRIPT_PROJECT_SERVICE_URL
-    || env.PROJECT_SERVICE_URL
-    || readEndpointURL('movscript.project.service'),
-)
+const useFixture = env.MOVSCRIPT_PROJECT_BENCHMARK_FIXTURE === '1'
+  || env.MOVSCRIPT_PROJECT_BENCHMARK_FIXTURE === 'true'
+let fixtureRuntime
+let fixtureProjectDir
+const benchmarkServerLogs = []
+let benchmarkRequestSequence = 0
+const explicitProjectServiceURL = normalizeBaseURL(env.MOVSCRIPT_PROJECT_SERVICE_URL || env.PROJECT_SERVICE_URL)
+let projectServiceURL = explicitProjectServiceURL || normalizeBaseURL(readEndpointURL('movscript.project.service'))
 const dataServiceBaseURL = normalizeBaseURL(
   env.MOVSCRIPT_DATA_SERVICE_BASE_URL
     || env.MOVSCRIPT_DATA_SERVICE_URL
     || readEndpointURL('movscript.data.service'),
 )
+
+if (useFixture) {
+  fixtureProjectDir = createBenchmarkProjectFixture()
+  if (!explicitProjectServiceURL) {
+    fixtureRuntime = await startProjectService({
+      logger: (event) => benchmarkServerLogs.push(event),
+    })
+    projectServiceURL = fixtureRuntime.url
+  }
+}
+
 const projectDir = resolve(
   env.MOVSCRIPT_PROJECT_DIR
     || env.PROJECT_DIR
+    || fixtureProjectDir
     || readDesktopCurrentProjectDir()
     || '',
 )
@@ -38,10 +55,7 @@ if (!projectDir || projectDir === resolve('')) {
   fail('Project dir is required. Set MOVSCRIPT_PROJECT_DIR or open a project in Desktop first.')
 }
 if (!contentUnitId) {
-  fail(`No content unit found under ${projectDir}. Set MOVSCRIPT_CONTENT_UNIT_ID to benchmark candidate view.`)
-}
-if (!decisionStore) {
-  fail('Project uid and Data Service URL are required for candidate benchmarks. Set MOVSCRIPT_PROJECT_UID and MOVSCRIPT_DATA_SERVICE_BASE_URL, or open a project with workspace.json in Desktop.')
+  console.warn(`No content unit found under ${projectDir}. Prompt and candidate tasks will be skipped.`)
 }
 
 const sharedBody = {
@@ -57,36 +71,27 @@ const tasks = [
     request: () => postJSON('/v1/project/source/overview', { projectDir }),
   },
   {
-    name: 'interpret',
-    request: () => postJSON('/v1/project/source/interpret', { projectDir }),
+    name: 'home-read-model',
+    request: () => postJSON('/v1/project/home/read-model', { projectDir }),
   },
   {
-    name: 'candidate-view',
-    request: () => postJSON('/v1/project/candidates/view', {
-      ...sharedBody,
-      contentUnitId,
+    name: 'standards-read-model',
+    request: () => postJSON('/v1/project/standards/read-model', { projectDir }),
+  },
+  {
+    name: 'scripts-read-model',
+    request: () => postJSON('/v1/project/scripts/read-model', { projectDir }),
+  },
+  {
+    name: 'content-canvas-read-model',
+    request: () => postJSON('/v1/project/content-canvas/read-model', {
+      projectDir,
+      ...(projectMetadata?.projectId ? { projectId: projectMetadata.projectId } : {}),
     }),
   },
   {
-    name: 'interpret+candidate-view',
-    request: async () => {
-      const started = performance.now()
-      const interpret = await postJSON('/v1/project/source/interpret', { projectDir })
-      const candidate = await postJSON('/v1/project/candidates/view', {
-        ...sharedBody,
-        contentUnitId,
-      })
-      return {
-        ok: interpret.ok && candidate.ok,
-        status: `${interpret.status}/${candidate.status}`,
-        elapsedMs: performance.now() - started,
-        summary: {
-          interpret: interpret.summary,
-          candidate: candidate.summary,
-        },
-        error: interpret.error || candidate.error,
-      }
-    },
+    name: 'interpret',
+    request: () => postJSON('/v1/project/source/interpret', { projectDir }),
   },
   {
     name: 'read-model',
@@ -100,6 +105,55 @@ const tasks = [
     }),
   },
 ]
+if (contentUnitId) {
+  tasks.push({
+    name: 'prompt-context:backend',
+    request: () => postJSON('/v1/project/prompt/context', {
+      projectDir,
+      contentUnitId,
+      include: ['backendPrompt'],
+    }),
+  })
+  tasks.push({
+    name: 'content-units-read-model',
+    request: () => postJSON('/v1/project/content-units/read-model', {
+      ...sharedBody,
+      contentUnitIds: [contentUnitId],
+    }),
+  })
+}
+if (contentUnitId && decisionStore) {
+  tasks.push(
+    {
+      name: 'candidate-view',
+      request: () => postJSON('/v1/project/candidates/view', {
+        ...sharedBody,
+        contentUnitId,
+      }),
+    },
+    {
+      name: 'interpret+candidate-view',
+      request: async () => {
+        const started = performance.now()
+        const interpret = await postJSON('/v1/project/source/interpret', { projectDir })
+        const candidate = await postJSON('/v1/project/candidates/view', {
+          ...sharedBody,
+          contentUnitId,
+        })
+        return {
+          ok: interpret.ok && candidate.ok,
+          status: `${interpret.status}/${candidate.status}`,
+          elapsedMs: performance.now() - started,
+          summary: {
+            interpret: interpret.summary,
+            candidate: candidate.summary,
+          },
+          error: interpret.error || candidate.error,
+        }
+      },
+    },
+  )
+}
 
 const results = []
 for (const task of tasks) {
@@ -127,11 +181,22 @@ console.log(JSON.stringify({
   results,
 }, null, 2))
 
+if (fixtureRuntime) {
+  await fixtureRuntime.close()
+}
+if (fixtureProjectDir) {
+  rmSync(fixtureProjectDir, { recursive: true, force: true })
+}
+
 async function postJSON(path, body) {
   const started = performance.now()
+  const requestId = `bench_${Date.now().toString(36)}_${++benchmarkRequestSequence}`
   const response = await fetch(`${projectServiceURL}${path}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      'x-request-id': requestId,
+    },
     body: JSON.stringify(body),
   })
   const text = await response.text()
@@ -143,6 +208,8 @@ async function postJSON(path, body) {
       status: response.status,
       elapsedMs,
       sizeBytes: text.length,
+      requestId,
+      serverMetrics: serverMetricsForRequest(requestId),
       error: json?.error,
       message: json?.message || text.slice(0, 240),
     }
@@ -152,6 +219,8 @@ async function postJSON(path, body) {
     status: response.status,
     elapsedMs,
     sizeBytes: text.length,
+    requestId,
+    serverMetrics: serverMetricsForRequest(requestId),
     schema: json?.schema,
     summary: summarizeResponse(json),
   }
@@ -171,9 +240,25 @@ function summarizeTask(name, taskRuns) {
       status: run.status,
       ms: round(run.elapsedMs),
       sizeBytes: run.sizeBytes,
+      serverMetrics: run.serverMetrics,
       error: run.error,
       summary: run.summary,
     })),
+  }
+}
+
+function serverMetricsForRequest(requestId) {
+  const event = benchmarkServerLogs.find((item) => item?.requestId === requestId)
+  if (!event) return undefined
+  return {
+    endpoint: event.endpoint,
+    routeKind: event.routeKind,
+    durationMs: event.durationMs,
+    indexLoadMs: event.indexLoadMs,
+    deriveMs: event.deriveMs,
+    decisionMs: event.decisionMs,
+    cacheHit: event.cacheHit,
+    responseBytes: event.responseBytes,
   }
 }
 
@@ -189,6 +274,53 @@ function summarizeResponse(json) {
     return {
       documents: json.projectReadModel.sourceSummary?.documentCount,
       timelineAssemblies: json.projectReadModel.projectTimelineStatus?.timeline_assembly_count,
+    }
+  }
+  if (json.projectHomeReadModel) {
+    return {
+      documents: json.projectHomeReadModel.workspace?.documentCount,
+      scripts: json.projectHomeReadModel.counts?.scripts,
+      contentUnits: json.projectHomeReadModel.counts?.contentUnits,
+      total: json.projectHomeReadModel.counts?.total,
+    }
+  }
+  if (json.projectStandardsReadModel) {
+    return {
+      documents: json.projectStandardsReadModel.workspace?.documentCount,
+      settings: json.projectStandardsReadModel.counts?.settings,
+      assetSlots: json.projectStandardsReadModel.counts?.assetSlots,
+      total: json.projectStandardsReadModel.counts?.total,
+    }
+  }
+  if (json.projectScriptsReadModel) {
+    return {
+      documents: json.projectScriptsReadModel.workspace?.documentCount,
+      scripts: json.projectScriptsReadModel.counts?.scripts,
+      versions: json.projectScriptsReadModel.counts?.versions,
+      total: json.projectScriptsReadModel.counts?.total,
+    }
+  }
+  if (json.projectContentUnitsReadModel) {
+    return {
+      contentUnits: json.projectContentUnitsReadModel.counts?.contentUnits,
+      candidates: json.projectContentUnitsReadModel.counts?.candidates,
+      selected: json.projectContentUnitsReadModel.counts?.selected,
+    }
+  }
+  if (json.projectContentCanvasReadModel) {
+    return {
+      documents: json.projectContentCanvasReadModel.workspace?.documentCount,
+      contentUnits: json.projectContentCanvasReadModel.counts?.contentUnits,
+      candidates: json.projectContentCanvasReadModel.counts?.candidates,
+      editingProjects: json.projectContentCanvasReadModel.counts?.editingProjects,
+    }
+  }
+  if (json.backendPrompt || json.generationPrompt) {
+    return {
+      contentUnitId: json.contentUnitId,
+      contexts: json.contexts?.length,
+      hasBackendPrompt: Boolean(json.backendPrompt),
+      blockers: json.backendPrompt?.blockers?.length ?? json.backendPrompt?.prompt?.blockers?.length,
     }
   }
   if (Array.isArray(json.items)) return { items: json.items.length }
@@ -266,6 +398,29 @@ function createBenchmarkDecisionStore() {
     scopeKind,
     scopeId,
   }
+}
+
+function createBenchmarkProjectFixture() {
+  const root = mkdtempInTmp()
+  for (const [relativePath, content] of sourceFileEntries()) {
+    const target = join(root, relativePath)
+    mkdirSync(join(target, '..'), { recursive: true })
+    writeFileSync(target, content, 'utf8')
+  }
+  return root
+}
+
+function mkdtempInTmp() {
+  const prefix = join(tmpdir(), 'movscript-project-service-benchmark-')
+  let index = 0
+  while (index < 1000) {
+    const candidate = `${prefix}${Date.now()}-${process.pid}-${index}`
+    index += 1
+    if (existsSync(candidate)) continue
+    mkdirSync(candidate, { recursive: true })
+    return candidate
+  }
+  fail('Unable to create benchmark fixture directory')
 }
 
 function findFirstContentUnitId(root) {

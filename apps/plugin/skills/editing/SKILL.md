@@ -3,7 +3,6 @@ name: editing
 description: Create MovScript MediaEditingProjects, edit timelines through Editing Service, run media-pipeline render/transcode/HLS tasks when available, and explicitly import/export editing artifacts without writing candidate decisions by default.
 toolGrants:
   - mcp__movscript__movscript_runtime_status
-  - mcp__movscript__system_focus_get
   - mcp__movscript__system_resource_library_query
   - mcp__movscript__system_resource_video_probe
   - mcp__movscript__domain_overview
@@ -89,7 +88,7 @@ Do not use domain planning/production records as the editing workspace. Domain r
 
 ## Workflow
 
-1. Resolve focus with `system_focus_get` when project, timeline scope/assembly, or scene moment is ambiguous.
+1. Resolve the intended project and optional timeline scope/assembly/scene-moment target from explicit user input, a passed locator, or Project Service context. Do not infer it from UI focus.
 2. Use domain tools only to gather source context and selected materials:
    - use `domain_query_production_context` to inspect the legacy production projection, scene structure, and candidate selections,
    - use `domain_read_scene_moment_edit_plan` or `domain_read_scene_moment_timeline` when a scene-moment handoff is useful,

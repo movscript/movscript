@@ -15,17 +15,19 @@ MovScript keeps a provider-neutral manifest and a Codex-compatible plugin manife
 - compatibility guidance at `skills/workspace/SKILL.md`
 - `.mcp.json`
 
-The `.mcp.json` file starts the Agent MCP host through `bin/movscript-agent-mcp`, which locates Node.js and then runs the bundled `bin/movscript-agent-mcp.mjs` runtime. The MCP server key is `movscript`, so provider tool grants use names such as `mcp__movscript__domain_interpret`. The host exposes MovScript tools directly from the shared core MCP registry, detects local/cloud backend availability, and does not require MovScript Desktop to be running. MovScript keeps business source files in the project Git workspace; `.interpret/` is interpreter debug output, not product state.
+The `.mcp.json` file starts the Agent MCP host through `bin/movscript mcp stdio`, which locates Node.js and then runs the bundled `bin/movscript.mjs` product CLI. The MCP server key is `movscript`, so provider tool grants use names such as `mcp__movscript__domain_interpret`. The host exposes MovScript tools directly from the shared core MCP registry, detects local/cloud backend availability, and does not require MovScript Desktop to be running. MovScript keeps business source files in the project Git workspace; `.interpret/` is interpreter debug output, not product state.
 
 The same plugin bundle also carries the MovScript command line entrypoint:
 
 ```bash
+bin/movscript mcp stdio
 bin/movscript daemon start
 bin/movscript daemon status
 bin/movscript daemon stop
+bin/movscript admin provider list
 ```
 
-Use `bin/movscript daemon start --data-plane cloud --data-service-url <url>` when the daemon should start local Project, Editing, Canvas, Surface, and Media services while reusing a cloud Data Service instead of launching the local Data Service. The plugin also ships `bin/movcli` as a compatibility command name for the legacy CLI surface; it is backed by the same plugin bundle. The older `bin/movscript-agent-mcp local-node ...` command is kept as a compatibility alias.
+Use `bin/movscript daemon start --data-plane cloud --data-service-url <url>` when the daemon should start local Project, Editing, Canvas, Surface, and Media services while reusing a cloud Data Service instead of launching the local Data Service. The plugin also ships `bin/movcli` as a compatibility command name for the legacy CLI surface; it is backed by the same plugin bundle. `bin/movscript-agent-mcp` is now only a compatibility shim for `bin/movscript mcp stdio`, and the older `local-node` / `__movscript_local_node` commands are compatibility aliases for `daemon`.
 
 Inside a MovScript project workspace, the selected local folder is the project repo root. `.movscript/manifest.json` is the local control contract. Agent/UI edits target source paths such as `project.json`, `project_standards.json`, `settings/**`, `scripts/**`, `content_units/**`, and `productions/**`. Agents should use domain query/read tools for derived context rather than reading interpreter debug files. Provider config/cache/run/session indexes live under `.movscript/providers/{profile}`.
 
@@ -33,7 +35,7 @@ The host exposes these MCP surfaces to provider runtimes:
 
 - Runtime tools: `movscript_runtime_status` detects the local runtime daemon, data plane, project source, Desktop enhancement availability, and the discovered `movscript.media.pipeline` endpoint; `movscript_runtime_configure` lets a user explicitly set backend URL or project directory.
 - MCP resources: `resources/list` and `resources/read` come from the shared MovScript core MCP resource registry. These are read-only context/catalog entries, not generation input resources.
-- System tools: `system_focus_get`, `system_project_create`, `system_model_list`, unified generation tools (`generation_capability_list`, `generation_prepare`, `generation_submit`, `generation_job_get`, `generation_job_get_batch`, `generation_result_register`), resource-library search, shot-library search, external media search, image/video inspection, annotation, and resource upload.
+- System tools: `system_project_create`, `system_model_list`, unified generation tools (`generation_capability_list`, `generation_prepare`, `generation_submit`, `generation_job_get`, `generation_job_get_batch`, `generation_result_register`), resource-library search, shot-library search, external media search, image/video inspection, annotation, and resource upload.
 - Domain tools: `domain_get_model`, `domain_overview`, `domain_query_*`, `domain_read_*`, `domain_upsert_*`, `domain_update_*`, candidate tools, `domain_inspect`, `domain_interpret`, and `domain_regeneration_plan`. Planning upserts cover production, segment, scene_moment, shot, keyframe, storyboard, audio_cue, expression_unit, and content_unit source records. `domain_inspect` diagnoses current source; `domain_interpret` validates source and can refresh diagnostic artifacts; `domain_review` is compatibility-only.
 - Editing tools: `editing_project_*`, `editing_timeline_*`, `editing_runtime_capabilities_get`, `editing_task_*`, and `editing_export_*`. Pure project/timeline operations can run in the headless host. Render/HLS/transcode/reframe work is routed toward Electron `mediaPipeline` / daemon-owned `movscript.media.pipeline`; Desktop may provide enhanced preview or bridge capabilities, but it is not the business sidecar owner.
 

@@ -101,6 +101,7 @@ func registerAudioRoutes(protected *gin.RouterGroup, h handlers) {
 
 func registerJobRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.POST("/jobs", h.jobs.Create)
+	protected.POST("/jobs/preflight", h.jobs.Preflight)
 	protected.GET("/jobs", h.jobs.List)
 	protected.GET("/jobs/:id", h.jobs.Get)
 	protected.POST("/jobs/:id/cancel", h.jobs.Cancel)

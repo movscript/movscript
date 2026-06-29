@@ -6,13 +6,18 @@ import test from 'node:test'
 
 import {
   PROJECT_SERVICE_CANDIDATE_VIEW_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANVAS_READ_MODEL_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNITS_READ_MODEL_ENDPOINT,
   PROJECT_SERVICE_CONTENT_CANDIDATE_CREATE_ENDPOINT,
   PROJECT_SERVICE_LIFECYCLE_COMMAND_ENDPOINT,
   PROJECT_SERVICE_LOCATOR_RESOLVE_ENDPOINT,
   PROJECT_SERVICE_NAME,
+  PROJECT_SERVICE_HOME_READ_MODEL_ENDPOINT,
   PROJECT_SERVICE_PROMPT_CONTEXT_ENDPOINT,
   PROJECT_SERVICE_READ_MODEL_ENDPOINT,
   PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT,
+  PROJECT_SERVICE_SCRIPTS_READ_MODEL_ENDPOINT,
+  PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT,
   PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT,
   PROJECT_SERVICE_SOURCE_INTERPRET_ENDPOINT,
   ProjectServiceClient,
@@ -93,6 +98,190 @@ test('project service client posts read-model requests to the stable endpoint', 
       projectDir: '/tmp/project',
       includeSource: true,
       includeInspection: true,
+    },
+  }])
+})
+
+test('project service client posts home read-model requests to the stable endpoint', async () => {
+  const requests = []
+  const client = new ProjectServiceClient({
+    baseUrl: 'http://127.0.0.1:9005',
+    fetch: async (url, init = {}) => {
+      requests.push({
+        url: String(url),
+        method: init.method,
+        body: init.body ? JSON.parse(String(init.body)) : undefined,
+      })
+      return new Response(JSON.stringify({
+        schema: 'movscript.project-home-read-model.v1',
+        projectDir: '/tmp/project',
+        projectHomeReadModel: {
+          schema: 'movscript.project-home-read-model.v1',
+          scripts: [{ id: 'main' }],
+        },
+      }), { status: 200 })
+    },
+  })
+
+  const result = await client.homeReadModel({ projectDir: '/tmp/project' })
+
+  assert.deepEqual(result.projectHomeReadModel.scripts, [{ id: 'main' }])
+  assert.deepEqual(requests, [{
+    url: `http://127.0.0.1:9005${PROJECT_SERVICE_HOME_READ_MODEL_ENDPOINT}`,
+    method: 'POST',
+    body: {
+      projectDir: '/tmp/project',
+    },
+  }])
+})
+
+test('project service client posts standards read-model requests to the stable endpoint', async () => {
+  const requests = []
+  const client = new ProjectServiceClient({
+    baseUrl: 'http://127.0.0.1:9005',
+    fetch: async (url, init = {}) => {
+      requests.push({
+        url: String(url),
+        method: init.method,
+        body: init.body ? JSON.parse(String(init.body)) : undefined,
+      })
+      return new Response(JSON.stringify({
+        schema: 'movscript.project-standards-read-model.v1',
+        projectDir: '/tmp/project',
+        projectStandardsReadModel: {
+          schema: 'movscript.project-standards-read-model.v1',
+          settings: [{ id: 'hero' }],
+        },
+      }), { status: 200 })
+    },
+  })
+
+  const result = await client.standardsReadModel({ projectDir: '/tmp/project' })
+
+  assert.deepEqual(result.projectStandardsReadModel.settings, [{ id: 'hero' }])
+  assert.deepEqual(requests, [{
+    url: `http://127.0.0.1:9005${PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT}`,
+    method: 'POST',
+    body: {
+      projectDir: '/tmp/project',
+    },
+  }])
+})
+
+test('project service client posts content canvas read-model requests to the stable endpoint', async () => {
+  const requests = []
+  const client = new ProjectServiceClient({
+    baseUrl: 'http://127.0.0.1:9005',
+    fetch: async (url, init = {}) => {
+      requests.push({
+        url: String(url),
+        method: init.method,
+        body: init.body ? JSON.parse(String(init.body)) : undefined,
+      })
+      return new Response(JSON.stringify({
+        schema: 'movscript.project-content-canvas-read-model.v1',
+        projectDir: '/tmp/project',
+        projectContentCanvasReadModel: {
+          schema: 'movscript.project-content-canvas-read-model.v1',
+          projectId: 7,
+          contentUnits: [{ id: 'opening' }],
+        },
+      }), { status: 200 })
+    },
+  })
+
+  const result = await client.contentCanvasReadModel({ projectDir: '/tmp/project', projectId: 7 })
+
+  assert.equal(result.projectContentCanvasReadModel.projectId, 7)
+  assert.deepEqual(requests, [{
+    url: `http://127.0.0.1:9005${PROJECT_SERVICE_CONTENT_CANVAS_READ_MODEL_ENDPOINT}`,
+    method: 'POST',
+    body: {
+      projectDir: '/tmp/project',
+      projectId: 7,
+    },
+  }])
+})
+
+test('project service client posts scripts read-model requests to the stable endpoint', async () => {
+  const requests = []
+  const client = new ProjectServiceClient({
+    baseUrl: 'http://127.0.0.1:9005',
+    fetch: async (url, init = {}) => {
+      requests.push({
+        url: String(url),
+        method: init.method,
+        body: init.body ? JSON.parse(String(init.body)) : undefined,
+      })
+      return new Response(JSON.stringify({
+        schema: 'movscript.project-scripts-read-model.v1',
+        projectDir: '/tmp/project',
+        projectScriptsReadModel: {
+          schema: 'movscript.project-scripts-read-model.v1',
+          scripts: [{ id: 'main', bodyLength: 120 }],
+          versions: [{ id: 'v1' }],
+        },
+      }), { status: 200 })
+    },
+  })
+
+  const result = await client.scriptsReadModel({ projectDir: '/tmp/project', projectId: 7 })
+
+  assert.deepEqual(result.projectScriptsReadModel.scripts, [{ id: 'main', bodyLength: 120 }])
+  assert.deepEqual(requests, [{
+    url: `http://127.0.0.1:9005${PROJECT_SERVICE_SCRIPTS_READ_MODEL_ENDPOINT}`,
+    method: 'POST',
+    body: {
+      projectDir: '/tmp/project',
+      projectId: 7,
+    },
+  }])
+})
+
+test('project service client posts content units read-model requests to the stable endpoint', async () => {
+  const requests = []
+  const decisionStore = {
+    kind: 'scoped-project-data',
+    baseUrl: 'https://data.example',
+    projectUid: 'prj_demo',
+    scopeKind: 'user',
+    scopeId: '1',
+  }
+  const client = new ProjectServiceClient({
+    baseUrl: 'http://127.0.0.1:9005',
+    fetch: async (url, init = {}) => {
+      requests.push({
+        url: String(url),
+        method: init.method,
+        body: init.body ? JSON.parse(String(init.body)) : undefined,
+      })
+      return new Response(JSON.stringify({
+        schema: 'movscript.project-content-units-read-model.v1',
+        projectDir: '/tmp/project',
+        projectContentUnitsReadModel: {
+          schema: 'movscript.project-content-units-read-model.v1',
+          contentUnits: [{ id: 'cu_1', candidates: [] }],
+        },
+      }), { status: 200 })
+    },
+  })
+
+  const result = await client.contentUnitsReadModel({
+    projectDir: '/tmp/project',
+    projectId: 7,
+    contentUnitIds: ['cu_1'],
+    decisionStore,
+  })
+
+  assert.deepEqual(result.projectContentUnitsReadModel.contentUnits, [{ id: 'cu_1', candidates: [] }])
+  assert.deepEqual(requests, [{
+    url: `http://127.0.0.1:9005${PROJECT_SERVICE_CONTENT_UNITS_READ_MODEL_ENDPOINT}`,
+    method: 'POST',
+    body: {
+      projectDir: '/tmp/project',
+      projectId: 7,
+      contentUnitIds: ['cu_1'],
+      decisionStore,
     },
   }])
 })
@@ -201,6 +390,8 @@ test('project service client reads resource views through the resource view endp
         schema: 'movscript.project-resource-view.v1',
         projectDir: '/tmp/project',
         kind: 'settings',
+        usage: 'debug_compat',
+        preferredEndpoint: PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT,
         items: [{ id: 'hero', title: 'Hero' }],
       }), { status: 200 })
     },
@@ -212,6 +403,8 @@ test('project service client reads resource views through the resource view endp
   })
 
   assert.equal(result.kind, 'settings')
+  assert.equal(result.usage, 'debug_compat')
+  assert.equal(result.preferredEndpoint, PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT)
   assert.equal(result.items[0].title, 'Hero')
   assert.deepEqual(requests, [{
     url: `http://127.0.0.1:9008${PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT}`,
@@ -332,11 +525,25 @@ test('project service client posts prompt context requests', async () => {
   const client = new ProjectServiceClient({
     baseUrl: 'http://127.0.0.1:9004',
     fetch: async (url, init = {}) => {
+      const body = init.body ? JSON.parse(String(init.body)) : undefined
       requests.push({
         url: String(url),
         method: init.method,
-        body: init.body ? JSON.parse(String(init.body)) : undefined,
+        body,
       })
+      if (Array.isArray(body?.contentUnitIds)) {
+        return new Response(JSON.stringify({
+          schema: 'movscript.project-prompt-context.v1',
+          projectDir: '/tmp/project',
+          contentUnitIds: body.contentUnitIds,
+          contexts: body.contentUnitIds.map((contentUnitId) => ({
+            contentUnitId,
+            context: {
+              backendPrompt: { ok: true, prompt: { text: body.promptText } },
+            },
+          })),
+        }), { status: 200 })
+      }
       return new Response(JSON.stringify({
         schema: 'movscript.project-prompt-context.v1',
         projectDir: '/tmp/project',
@@ -353,12 +560,30 @@ test('project service client posts prompt context requests', async () => {
   })
 
   assert.equal(result.contentUnitId, 'opening')
+  const batch = await client.promptContext({
+    projectDir: '/tmp/project',
+    contentUnitIds: ['opening', 'closing'],
+    include: ['backendPrompt'],
+    promptText: 'draft prompt',
+  })
+
+  assert.equal(batch.contexts.length, 2)
+  assert.equal(batch.contexts[0].context.backendPrompt.prompt.text, 'draft prompt')
   assert.deepEqual(requests, [{
     url: `http://127.0.0.1:9004${PROJECT_SERVICE_PROMPT_CONTEXT_ENDPOINT}`,
     method: 'POST',
     body: {
       projectDir: '/tmp/project',
       contentUnitId: 'opening',
+    },
+  }, {
+    url: `http://127.0.0.1:9004${PROJECT_SERVICE_PROMPT_CONTEXT_ENDPOINT}`,
+    method: 'POST',
+    body: {
+      projectDir: '/tmp/project',
+      contentUnitIds: ['opening', 'closing'],
+      include: ['backendPrompt'],
+      promptText: 'draft prompt',
     },
   }])
 })

@@ -4,6 +4,14 @@ import { adminSurfacePath } from '@movscript/admin-surface'
 import { useQuery } from '@tanstack/react-query'
 import type { Project } from '@movscript/shared'
 import {
+  AppSidebarHeader,
+  AppSidebarNav,
+  AppSidebarNavItemContent,
+  AppSidebarNavItemFrame,
+  AppSidebarSection,
+  AppSidebarShell,
+} from '@movscript/ui/layout'
+import {
   Badge,
   Button,
 } from '@movscript/ui/primitives'
@@ -296,28 +304,31 @@ export function LocalSurfaceToolFrame({
       query={query}
     >
       <div className="surface-host-tool-shell">
-        <aside className="surface-host-tool-sidebar" aria-label={t('localSurfaceHost.toolHome.navigation')}>
-          <div className="surface-host-tool-sidebar__header">
+        <AppSidebarShell className="surface-host-tool-sidebar" width={232} aria-label={t('localSurfaceHost.toolHome.navigation')}>
+          <AppSidebarHeader className="surface-host-tool-sidebar__header">
             <span className="surface-host-tool-sidebar__icon"><Images size={16} /></span>
             <span>
               <strong>{t('localSurfaceHost.toolHome.title')}</strong>
               <small>{t('localSurfaceHost.toolHome.sidebarDescription')}</small>
             </span>
-          </div>
-          <nav className="surface-host-tool-sidebar__nav">
+          </AppSidebarHeader>
+          <AppSidebarNav className="surface-host-tool-sidebar__nav">
             {groups.map((group) => {
               const GroupIcon = group.icon
               return (
-                <section className="surface-host-tool-sidebar__group" key={group.title}>
-                  <p><GroupIcon size={13} /> {group.title}</p>
+                <AppSidebarSection
+                  className="surface-host-tool-sidebar__group"
+                  key={group.title}
+                  title={<><GroupIcon size={13} /> <span>{group.title}</span></>}
+                >
                   {group.entries.map((entry) => (
                     <ToolSidebarEntry key={entry.to} entry={entry} />
                   ))}
-                </section>
+                </AppSidebarSection>
               )
             })}
-          </nav>
-        </aside>
+          </AppSidebarNav>
+        </AppSidebarShell>
         <div className="surface-host-tool-shell__content">
           {children}
         </div>
@@ -329,10 +340,9 @@ export function LocalSurfaceToolFrame({
 function ToolSidebarEntry({ entry }: { entry: ToolHomeEntry }) {
   const EntryIcon = entry.icon
   const content = (
-    <span className="surface-host-tool-sidebar__entry-frame" data-active="false">
-      <EntryIcon size={15} />
-      <span>{entry.title}</span>
-    </span>
+    <AppSidebarNavItemFrame>
+      <AppSidebarNavItemContent icon={EntryIcon} label={entry.title} />
+    </AppSidebarNavItemFrame>
   )
   if (entry.external) {
     return <a className="surface-host-tool-sidebar__entry" href={entry.to}>{content}</a>
@@ -340,10 +350,9 @@ function ToolSidebarEntry({ entry }: { entry: ToolHomeEntry }) {
   return (
     <NavLink className="surface-host-tool-sidebar__entry" to={entry.to}>
       {({ isActive }) => (
-        <span className="surface-host-tool-sidebar__entry-frame" data-active={isActive ? 'true' : 'false'}>
-          <EntryIcon size={15} />
-          <span>{entry.title}</span>
-        </span>
+        <AppSidebarNavItemFrame active={isActive}>
+          <AppSidebarNavItemContent icon={EntryIcon} label={entry.title} />
+        </AppSidebarNavItemFrame>
       )}
     </NavLink>
   )

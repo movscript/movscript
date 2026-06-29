@@ -85,6 +85,88 @@ func (h *ContentCandidateHandler) Generate(c *gin.Context) {
 	c.JSON(http.StatusCreated, result)
 }
 
+func (h *ContentCandidateHandler) Preflight(c *gin.Context) {
+	user := currentUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+
+	var body struct {
+		CandidateID      string                        `json:"candidate_id"`
+		ProjectUID       string                        `json:"project_uid"`
+		ProjectTitle     string                        `json:"project_title"`
+		ScopeKind        string                        `json:"scope_kind"`
+		ScopeID          string                        `json:"scope_id"`
+		OutputKind       string                        `json:"output_kind"`
+		ModelID          string                        `json:"model_id"`
+		JobType          string                        `json:"job_type"`
+		Title            string                        `json:"title"`
+		Prompt           string                        `json:"prompt"`
+		ExtraParams      string                        `json:"extra_params"`
+		AspectRatio      string                        `json:"aspect_ratio"`
+		Duration         int                           `json:"duration"`
+		InputResourceIDs []uint                        `json:"input_resource_ids"`
+		GenerationIntent *jobapp.GenerationIntentInput `json:"generation_intent"`
+		PromptSnapshot   json.RawMessage               `json:"prompt_snapshot"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusOK, generationPreflightBlocked("invalid_request", err.Error(), "body"))
+		return
+	}
+	scopeKind, scopeID, ok := contentCandidateProjectDataScope(c, body.ScopeKind)
+	if !ok {
+		return
+	}
+
+	result, err := h.service.Preflight(c.Request.Context(), appcontentcandidate.GenerateInput{
+		ProjectID:        parseID(c.Param("id")),
+		UserID:           user.ID,
+		OrgID:            currentOrgID(c),
+		ContentUnitID:    c.Param("contentUnitId"),
+		CandidateID:      body.CandidateID,
+		ProjectUID:       body.ProjectUID,
+		ProjectTitle:     body.ProjectTitle,
+		ScopeKind:        scopeKind,
+		ScopeID:          scopeID,
+		OutputKind:       body.OutputKind,
+		ModelID:          body.ModelID,
+		JobType:          body.JobType,
+		Title:            body.Title,
+		Prompt:           body.Prompt,
+		ExtraParams:      body.ExtraParams,
+		AspectRatio:      body.AspectRatio,
+		Duration:         body.Duration,
+		InputResourceIDs: body.InputResourceIDs,
+		GenerationIntent: body.GenerationIntent,
+		PromptSnapshot:   body.PromptSnapshot,
+	})
+	if err != nil {
+		c.JSON(http.StatusOK, generationPreflightBlockedFromError(err))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"status":             "ready",
+		"ready":              true,
+		"blockers":           []gin.H{},
+		"job_type":           result.JobType,
+		"output_type":        result.OutputType,
+		"model_id":           result.ModelID,
+		"runtime_model_id":   result.RuntimeModelID,
+		"catalog_entry_id":   result.CatalogEntryID,
+		"route_binding_id":   result.RouteBindingID,
+		"route_group":        result.RouteGroup,
+		"provider_id":        result.ProviderID,
+		"provider_kind":      result.ProviderKind,
+		"provider_model_id":  result.ProviderModelID,
+		"credential_id":      result.CredentialID,
+		"input_resource_ids": result.InputResourceIDs,
+		"image_count":        result.ImageCount,
+		"video_count":        result.VideoCount,
+		"estimate":           result.Estimate,
+	})
+}
+
 func contentCandidateProjectDataScope(c *gin.Context, rawKind string) (string, string, bool) {
 	user := currentUser(c)
 	if user == nil || user.ID == 0 {

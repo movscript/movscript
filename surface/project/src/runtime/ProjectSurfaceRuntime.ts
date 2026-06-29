@@ -132,6 +132,9 @@ export interface ProjectSurfaceWorkspaceMetadata {
 
 export interface ProjectServiceGateway {
   readModel(input?: Partial<ProjectSurfaceProjectRequest>): Promise<unknown>
+  homeReadModel?(input?: Partial<ProjectSurfaceProjectRequest>): Promise<unknown>
+  standardsReadModel?(input?: Partial<ProjectSurfaceProjectRequest>): Promise<unknown>
+  scriptsReadModel?(input?: Partial<ProjectSurfaceProjectRequest>): Promise<unknown>
   sourceSnapshot?(input?: Partial<ProjectSurfaceProjectRequest>): Promise<unknown>
   inspectSource?(input?: Partial<ProjectSurfaceProjectRequest>): Promise<unknown>
   overviewSource?(input?: Partial<ProjectSurfaceProjectRequest>): Promise<unknown>
@@ -141,6 +144,7 @@ export interface ProjectServiceGateway {
   readScriptSource?(input: ProjectSurfaceWorkspaceOperationInput): Promise<unknown>
   upsertScript?(input: ProjectSurfaceWorkspaceOperationInput): Promise<unknown>
   snapshotScriptVersionFromMarkdown?(input: ProjectSurfaceWorkspaceOperationInput): Promise<unknown>
+  /** Debug/compat gateway. Product surfaces should prefer page-level read-model gateways. */
   resourceView?(input: ProjectSurfaceResourceViewInput): Promise<unknown>
   candidateView?(input: ProjectSurfaceCandidateViewInput): Promise<unknown>
   interpret?(input?: Partial<ProjectSurfaceProjectRequest>): Promise<unknown>
@@ -165,6 +169,8 @@ export interface GenerationServiceGateway {
 export interface EditingServiceGateway {
   readProject?(input?: Record<string, unknown>): Promise<unknown>
   render?(input: unknown): Promise<unknown>
+  taskGet?(input: Record<string, unknown>): Promise<unknown>
+  taskLogs?(input: Record<string, unknown>): Promise<unknown>
   export?(input: unknown): Promise<unknown>
 }
 

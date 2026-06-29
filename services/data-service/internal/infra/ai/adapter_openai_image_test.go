@@ -41,15 +41,20 @@ func TestOpenAIImageEditCustomFieldSendsInputResourceBytes(t *testing.T) {
 		}, nil
 	})}
 
-	resp, err := adapter.ImageGenerate(context.Background(), ImageRequest{
+	ctx, _ := WithDebugRecorder(context.Background())
+	resp, err := adapter.ImageGenerate(ctx, ImageRequest{
 		Model:          "grok-imagine-image-edit",
 		Prompt:         "edit this",
 		ImageFieldName: "image[]",
 		CloudFileID:    "file-should-not-win",
 		InputImageDataList: []MediaData{{
-			Bytes:    []byte("fake image bytes"),
-			MimeType: "image/png",
+			Bytes:      []byte("fake image bytes"),
+			MimeType:   "image/png",
+			ResourceID: 9,
 		}},
+		ReferenceAssets: []ReferenceAsset{
+			{Role: "reference_image", MediaType: "image", ResourceID: 9},
+		},
 	})
 	if err != nil {
 		t.Fatalf("ImageGenerate() error = %v", err)
@@ -65,6 +70,11 @@ func TestOpenAIImageEditCustomFieldSendsInputResourceBytes(t *testing.T) {
 	}
 	if len(resp.URLs) != 1 || resp.URLs[0] != "data:image/png;base64,aGVsbG8=" {
 		t.Fatalf("URLs = %#v, want data image result", resp.URLs)
+	}
+	debugBody := debugRequestBodyMap(t, resp.Debug)
+	bindings := debugBody["reference_asset_bindings"].([]any)
+	if len(bindings) != 1 || bindings[0].(map[string]any)["provider_field"] != "image[]" {
+		t.Fatalf("debug reference_asset_bindings = %#v", bindings)
 	}
 }
 

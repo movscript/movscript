@@ -160,6 +160,11 @@ export function resolveDesktopLocalRuntimeDaemonEntrypoint(input: {
   const repoRoot = input.repoRoot ?? REPO_ROOT
   const resourcesPath = input.resourcesPath ?? defaultElectronResourcesPath()
   const candidates = [
+    resolve(repoRoot, 'apps/plugin/bin/movscript.mjs'),
+    resolve(repoRoot, 'plugins/movscript/bin/movscript.mjs'),
+    resourcesPath ? resolve(resourcesPath, 'provider-plugins/movscript/bin/movscript.mjs') : undefined,
+    resourcesPath ? resolve(resourcesPath, 'movscript-agent-plugin/bin/movscript.mjs') : undefined,
+    resourcesPath ? resolve(resourcesPath, 'plugins/movscript/bin/movscript.mjs') : undefined,
     resolve(repoRoot, 'apps/plugin/bin/movscript-agent-mcp.mjs'),
     resolve(repoRoot, 'plugins/movscript/bin/movscript-agent-mcp.mjs'),
     resourcesPath ? resolve(resourcesPath, 'provider-plugins/movscript/bin/movscript-agent-mcp.mjs') : undefined,

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AudioLines, FileText, Image as ImageIcon, Video } from 'lucide-react'
 import { Button } from '@movscript/ui/primitives'
@@ -18,6 +18,7 @@ import {
 interface UnifiedToolPageProps {
   initialOutputKind?: ToolOutputKind
   initialOperation?: ToolOperationId
+  resourcePane?: ReactNode
 }
 
 const outputKindIcons = {
@@ -37,6 +38,7 @@ const outputKindLabels: Record<ToolOutputKind, { key: string; fallback: string }
 export default function UnifiedToolPage({
   initialOutputKind,
   initialOperation,
+  resourcePane,
 }: UnifiedToolPageProps) {
   const { t } = useTranslation()
   const initial = useMemo(() => {
@@ -113,7 +115,7 @@ export default function UnifiedToolPage({
             : undefined}
           promptPlaceholder={t(operation.promptPlaceholderKey, { defaultValue: operation.promptPlaceholderDefault })}
           layout={operation.layout}
-          resourcePane={operation.useResourceWorkbench ? <ResourceLibraryView variant="pane" /> : undefined}
+          resourcePane={operation.useResourceWorkbench ? resourcePane ?? <ResourceLibraryView variant="pane" /> : undefined}
           showHistory
         />
       </div>
@@ -133,4 +135,3 @@ function inputSlotsForOperation(
     maxCount: slot.maxCount,
   }))
 }
-

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import type React from 'react'
 import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -38,8 +38,14 @@ import {
   generationExecutionJobTypeForIntent,
   generationModelAcceptsImageInput,
   generationModelAcceptsVideoInput,
+  generationDefaultOperationForOutputKind,
   generationParamDefaults,
+  evaluateGenerationReadiness,
+  generationBackendPreflightBlockerMessages,
+  generationBackendPreflightIsReady,
+  generationReadinessIsReady,
   resolveGenerationJobType,
+  type GenerationBackendPreflightResult,
   type GenerationIntentPayload,
 } from '@movscript/core/generation'
 import { ToolDialogHistorySection } from './ToolDialogHistorySection'
@@ -69,6 +75,12 @@ function buildGenerationJobTitle(jobType: string, label?: string): string {
   return `${labels[jobType] ?? '生成任务'}-${Math.floor(1000 + Math.random() * 9000)}`
 }
 
+function generationPreflightSignature(payload: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!payload) return null
+  const { prompt: _prompt, title: _title, ...rest } = payload
+  return rest
+}
+
 function generationIntentForTool(
   outputType: ToolDialogDef['outputType'],
   operation: string | undefined,
@@ -78,9 +90,10 @@ function generationIntentForTool(
   if (outputType !== 'image' && outputType !== 'video' && !operation) return undefined
   const refs = referenceAssetsForTool(attachments, inputSlots)
   if (outputType === 'image') {
+    const resolvedOperation = operation ?? generationDefaultOperationForOutputKind('image', refs) ?? 'text_to_image'
     return {
       capability: 'image_generation',
-      operation: operation ?? 'text_to_image',
+      operation: resolvedOperation,
       ...(refs.length > 0 ? { reference_assets: refs } : {}),
     }
   }
@@ -92,9 +105,10 @@ function generationIntentForTool(
     }
   }
   if (outputType !== 'video') return undefined
+  const resolvedOperation = operation ?? generationDefaultOperationForOutputKind('video', refs) ?? 'prompt_to_video'
   return {
     capability: 'video_generation',
-    operation: operation ?? 'prompt_to_video',
+    operation: resolvedOperation,
     ...(refs.length > 0 ? { reference_assets: refs } : {}),
   }
 }
@@ -392,30 +406,11 @@ export function ToolDialog({
   }
 
   async function generate() {
-    const submitPrompt = prompt.trim() || submitPromptFallback || toolName
-    if ((promptRequired && !prompt.trim()) || !selectedModel) return
-    const generationIntent = generationIntentForTool(outputType, modelOperation, attachments, inputSlots)
-    const effectiveJobType = generationIntent
-      ? generationExecutionJobTypeForIntent(generationIntent, outputType === 'image' ? 'image' : outputType === 'audio' ? 'audio' : 'video')
-      : jobType ?? resolveGenerationJobType({
-          outputType,
-          model: selectedModel,
-          attachments,
-        })
+    if (!canGenerate || !selectedModel || !generationJobPayload) return
 
     try {
       setGenerationDiagnostic(undefined)
-      const job = await api.post('/jobs', buildGenerationJobPayload({
-        modelId: publicModelId(selectedModel),
-        jobType: effectiveJobType,
-        title: buildGenerationJobTitle(effectiveJobType, toolName),
-        prompt: submitPrompt,
-        params: extraParams,
-        supportedParams: selectedModel.supported_params,
-        generationIntent,
-        inputResourceIds: attachments.map((a) => a.ID),
-        sourceKey: _nodeType,
-      })).then((r) => r.data as Job)
+      const job = await api.post('/jobs', generationJobPayload).then((r) => r.data as Job)
       setActiveJobId(job.ID)
       setHistoryPage(1)
       setPrompt('')
@@ -431,15 +426,92 @@ export function ToolDialog({
   // Check that all required input slots are filled.
   const requiredSlots = inputSlots?.filter((s) => s.required) ?? []
   const slotGroups = inputSlots ? slotGroupsFor(attachments) : []
-  const slotsAreFilled = requiredSlots.every((slot) =>
-    slotGroups.some((group) => group.slot.key === slot.key && group.indexes.length > 0)
-  )
-  // Fallback: if no model is selected yet but the tool demands media input, require at least one attachment.
-  const fallbackInputRequired = selectedModel == null && inputType !== 'none'
-  const canGenerate = !isRunning && (!promptRequired || !!prompt.trim()) && !!selectedModel &&
-    (requiredSlots.length > 0 ? slotsAreFilled : (!fallbackInputRequired || attachments.length > 0))
   const supportedParams = selectedModel?.supported_params ?? []
   const selectedResourceIds = attachments.map((a) => a.ID)
+  const currentGenerationIntent = generationIntentForTool(outputType, modelOperation, attachments, inputSlots)
+  const effectiveJobType = selectedModel
+    ? currentGenerationIntent
+      ? generationExecutionJobTypeForIntent(currentGenerationIntent, outputType === 'image' ? 'image' : outputType === 'audio' ? 'audio' : 'video')
+      : jobType ?? resolveGenerationJobType({
+          outputType,
+          model: selectedModel,
+          attachments,
+        })
+    : jobType ?? outputType
+  const submitPrompt = prompt.trim() || submitPromptFallback || toolName
+  const generationJobTitle = useMemo(() => buildGenerationJobTitle(effectiveJobType, toolName), [effectiveJobType, toolName])
+  const generationIntentLabel = currentGenerationIntent?.operation
+    ? t(`canvas.generationOperations.${currentGenerationIntent.operation}`, { defaultValue: currentGenerationIntent.operation })
+    : t('shared.generation.intentUnknown', { defaultValue: '待推导' })
+  const generationOutputLabel = t(`canvas.outputTypes.${outputType}`, { defaultValue: outputType })
+  const generationReadiness = evaluateGenerationReadiness({
+    isRunning,
+    prompt,
+    promptRequired,
+    modelId: selectedModel ? publicModelId(selectedModel) : '',
+    outputKind: outputType,
+    requireGenerationIntent: outputType === 'image' || outputType === 'video' || Boolean(modelOperation) || selectedResourceIds.length > 0,
+    generationIntent: currentGenerationIntent,
+    inputResourceIds: selectedResourceIds,
+    requiredInputs: requiredSlots.map((slot) => ({
+      key: slot.key,
+      label: slot.label,
+      required: true,
+      filled: slotGroups.some((group) => group.slot.key === slot.key && group.indexes.length > 0),
+    })),
+  })
+  const generationJobPayloadResult = (() => {
+    if (!selectedModel) return { payload: null as Record<string, unknown> | null, error: undefined as string | undefined }
+    try {
+      return {
+        payload: buildGenerationJobPayload({
+          modelId: publicModelId(selectedModel),
+          jobType: effectiveJobType,
+          title: generationJobTitle,
+          prompt: submitPrompt,
+          params: extraParams,
+          supportedParams: selectedModel.supported_params,
+          generationIntent: currentGenerationIntent,
+          inputResourceIds: selectedResourceIds,
+          sourceKey: _nodeType,
+        }),
+        error: undefined,
+      }
+    } catch (error) {
+      return {
+        payload: null,
+        error: error instanceof Error ? error.message : t('tools.errors.runFailed', { defaultValue: '生成参数无效' }),
+      }
+    }
+  })()
+  const generationJobPayload = generationJobPayloadResult.payload
+  const localReadinessWarnings = generationReadiness.blockers.map((blocker) => blocker.message)
+  const readinessWarnings = [
+    ...localReadinessWarnings,
+    ...(generationJobPayloadResult.error ? [generationJobPayloadResult.error] : []),
+  ]
+  const localCanGenerate = generationReadinessIsReady(generationReadiness) && attachmentMismatchWarnings.length === 0 && !generationJobPayloadResult.error
+  const generationPreflightKeyPayload = generationPreflightSignature(generationJobPayload)
+  const {
+    data: backendPreflight,
+    error: backendPreflightError,
+    isFetching: backendPreflightFetching,
+  } = useQuery<GenerationBackendPreflightResult>({
+    queryKey: ['generation-preflight', 'tool-dialog', _nodeType, generationPreflightKeyPayload],
+    enabled: localCanGenerate && Boolean(generationJobPayload),
+    queryFn: () => api.post('/jobs/preflight', generationJobPayload).then((r) => r.data as GenerationBackendPreflightResult),
+    retry: false,
+    staleTime: 5_000,
+  })
+  const backendPreflightWarnings = localCanGenerate
+    ? backendPreflightError
+      ? [toolResourceAccessDiagnosticMessage(backendPreflightError, t) ?? t('tools.errors.runFailed', { defaultValue: '后端预检失败' })]
+      : generationBackendPreflightBlockerMessages(backendPreflight)
+    : []
+  const preflightWarnings = localCanGenerate && backendPreflightFetching
+    ? [t('tools.generation.preflightPending', { defaultValue: '后端预检中…' })]
+    : backendPreflightWarnings
+  const canGenerate = localCanGenerate && Boolean(backendPreflight) && generationBackendPreflightIsReady(backendPreflight)
   const modelCapability = historyCapability
   const modelQueryCapabilityList = modelOperation && (outputType === 'image' || outputType === 'video' || isAudioGenerationOperation(modelOperation))
     ? [modelCapability]
@@ -508,7 +580,7 @@ export function ToolDialog({
       <ToolDialogPanel>
           <ToolDialogPanelHeader>
             <div className="min-w-0">
-              <p className="type-label font-medium text-foreground">{t('shared.modelSelector.label', { defaultValue: '模型' })}</p>
+              <p className="type-label font-medium text-foreground">{toolName}</p>
               <p className="type-tiny text-muted-foreground">{toolDescription}</p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -535,32 +607,8 @@ export function ToolDialog({
               >
                 <Bug size={14} />
               </Button>
-              <ModelSelector
-                capability={modelCapability}
-                queryCapabilities={modelQueryCapabilityList}
-                operation={modelOperation}
-                value={selectedModelId}
-                onChange={setSelectedModelId}
-                onModelChange={setSelectedModel}
-              />
             </div>
           </ToolDialogPanelHeader>
-          {attachmentMismatchWarnings.length > 0 && (
-            <div className="mb-3 space-y-1.5">
-              {attachmentMismatchWarnings.map((w, i) => (
-                <ToolDialogWarningCallout key={i} icon={AlertTriangle}>
-                  <span>{w}</span>
-                </ToolDialogWarningCallout>
-              ))}
-            </div>
-          )}
-          {generationDiagnostic ? (
-            <div className="mb-3">
-              <ToolDialogWarningCallout icon={AlertTriangle}>
-                <span>{generationDiagnostic}</span>
-              </ToolDialogWarningCallout>
-            </div>
-          ) : null}
           <GenInputCard
             prompt={prompt}
             onPromptChange={setPrompt}
@@ -579,6 +627,27 @@ export function ToolDialog({
             promptPlaceholder={promptPlaceholder}
             uploading={uploading}
             imageEditRequired={modelAcceptsImageInput}
+            referenceAssets={currentGenerationIntent?.reference_assets}
+            intentLabel={generationIntentLabel}
+            outputLabel={generationOutputLabel}
+            modelLabel={t('shared.modelSelector.label', { defaultValue: '模型' })}
+            modelControl={(
+              <ModelSelector
+                capability={modelCapability}
+                queryCapabilities={modelQueryCapabilityList}
+                operation={modelOperation}
+                referenceAssets={currentGenerationIntent?.reference_assets}
+                value={selectedModelId}
+                onChange={setSelectedModelId}
+                onModelChange={setSelectedModel}
+              />
+            )}
+            messages={[
+              ...attachmentMismatchWarnings,
+              ...readinessWarnings,
+              ...preflightWarnings,
+              ...(generationDiagnostic ? [generationDiagnostic] : []),
+            ]}
           />
       </ToolDialogPanel>
 

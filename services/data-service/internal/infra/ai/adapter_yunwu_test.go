@@ -36,7 +36,8 @@ func TestYunwuVideoStartUsesNativeCreateEndpoint(t *testing.T) {
 		}, nil
 	})}
 
-	resp, err := adapter.VideoStart(context.Background(), VideoRequest{
+	ctx, _ := WithDebugRecorder(context.Background())
+	resp, err := adapter.VideoStart(ctx, VideoRequest{
 		Model:          "grok-video-3",
 		Prompt:         "小猫在吃鱼",
 		AspectRatio:    "3:2",
@@ -45,7 +46,11 @@ func TestYunwuVideoStartUsesNativeCreateEndpoint(t *testing.T) {
 			Bytes:        []byte("fake image bytes"),
 			PresignedURL: "https://cdn.example.test/ref.png",
 			MimeType:     "image/png",
+			ResourceID:   42,
 		}},
+		ReferenceAssets: []ReferenceAsset{
+			{Role: "first_frame", MediaType: "image", ResourceID: 42},
+		},
 	})
 	if err != nil {
 		t.Fatalf("VideoStart() error = %v", err)
@@ -60,6 +65,14 @@ func TestYunwuVideoStartUsesNativeCreateEndpoint(t *testing.T) {
 	if gotBody["model"] != "grok-video-3" || gotBody["prompt"] != "小猫在吃鱼" ||
 		gotBody["aspect_ratio"] != "3:2" || gotBody["size"] != "720P" {
 		t.Fatalf("body = %#v", gotBody)
+	}
+	if _, ok := gotBody["reference_asset_bindings"]; ok {
+		t.Fatalf("request body sent debug-only bindings: %#v", gotBody["reference_asset_bindings"])
+	}
+	debugBody := debugRequestBodyMap(t, resp.Debug)
+	bindings := debugBody["reference_asset_bindings"].([]any)
+	if len(bindings) != 1 || bindings[0].(map[string]any)["provider_field"] != "images[]" {
+		t.Fatalf("debug reference_asset_bindings = %#v", bindings)
 	}
 }
 

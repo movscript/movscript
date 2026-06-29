@@ -168,6 +168,7 @@ func (d *dryRunProvider) buildImageRequest(req ImageRequest) DebugCallResult {
 		if req.Size != "" {
 			body["size"] = req.Size
 		}
+		attachReferenceAssetDebugBindings(body, req.ReferenceAssets, staticReferenceAssetProviderField("image"))
 		return DebugCallResult{
 			Success:  true,
 			ModelID:  req.Model,
@@ -203,6 +204,7 @@ func (d *dryRunProvider) buildImageRequest(req ImageRequest) DebugCallResult {
 			"instances":  []map[string]any{{"prompt": req.Prompt}},
 			"parameters": map[string]any{"sampleCount": 1, "aspectRatio": orDefault(req.AspectRatio, "1:1")},
 		}
+		attachReferenceAssetDebugBindings(body, req.ReferenceAssets, staticReferenceAssetProviderField("instances[].image"))
 		return DebugCallResult{
 			Success:        true,
 			ModelID:        req.Model,
@@ -219,6 +221,7 @@ func (d *dryRunProvider) buildImageRequest(req ImageRequest) DebugCallResult {
 			"size":   orDefault(req.Size, "1024x1024"),
 			"n":      1,
 		}
+		attachReferenceAssetDebugBindings(body, req.ReferenceAssets, staticReferenceAssetProviderField("image"))
 		return DebugCallResult{
 			Success:  true,
 			ModelID:  req.Model,
@@ -238,6 +241,7 @@ func (d *dryRunProvider) buildImageRequest(req ImageRequest) DebugCallResult {
 			"n":      1,
 			"size":   orDefault(req.Size, "1024x1024"),
 		}
+		attachReferenceAssetDebugBindings(body, req.ReferenceAssets, staticReferenceAssetProviderField("image"))
 		return DebugCallResult{
 			Success:  true,
 			ModelID:  req.Model,
@@ -279,6 +283,7 @@ func (d *dryRunProvider) buildVideoRequest(req VideoRequest) DebugCallResult {
 		if req.Image != "" {
 			body["image"] = req.Image
 		}
+		attachReferenceAssetDebugBindings(body, req.ReferenceAssets, staticReferenceAssetProviderField("image"))
 		return DebugCallResult{
 			Success:  true,
 			ModelID:  req.Model,
@@ -299,6 +304,7 @@ func (d *dryRunProvider) buildVideoRequest(req VideoRequest) DebugCallResult {
 			"instances":  []map[string]any{{"prompt": req.Prompt}},
 			"parameters": map[string]any{"aspectRatio": ar, "durationSeconds": dur, "sampleCount": 1},
 		}
+		attachReferenceAssetDebugBindings(body, req.ReferenceAssets, staticReferenceAssetProviderField("instances[].image"))
 		return DebugCallResult{
 			Success:        true,
 			ModelID:        req.Model,
@@ -316,6 +322,7 @@ func (d *dryRunProvider) buildVideoRequest(req VideoRequest) DebugCallResult {
 			"duration":     dur,
 			"aspect_ratio": ar,
 		}
+		attachReferenceAssetDebugBindings(body, req.ReferenceAssets, staticReferenceAssetProviderField("content[].image_url"))
 		return DebugCallResult{
 			Success:  true,
 			ModelID:  req.Model,
@@ -336,6 +343,7 @@ func (d *dryRunProvider) buildVideoRequest(req VideoRequest) DebugCallResult {
 			"aspect_ratio": ar,
 			"n":            1,
 		}
+		attachReferenceAssetDebugBindings(body, req.ReferenceAssets, staticReferenceAssetProviderField("input_reference[]"))
 		return DebugCallResult{
 			Success:  true,
 			ModelID:  req.Model,
@@ -356,6 +364,7 @@ func (d *dryRunProvider) buildVideoRequest(req VideoRequest) DebugCallResult {
 			"size":         orDefault(req.Size, "720P"),
 			"images":       []string{"https://example.test/reference.png"},
 		}
+		attachReferenceAssetDebugBindings(body, req.ReferenceAssets, staticReferenceAssetProviderField("images[]"))
 		return DebugCallResult{
 			Success:  true,
 			ModelID:  req.Model,

@@ -235,6 +235,72 @@ func TestEnqueueGenerationTTSCatalogRouteWithoutLegacyModelConfig(t *testing.T) 
 	}
 }
 
+func TestPreflightGenerationValidatesRouteWithoutCreatingJobOrReservation(t *testing.T) {
+	db := testutil.OpenSQLite(t, "job_preflight_tts_catalog_only.db",
+		&persistencemodel.Job{},
+		&persistencemodel.RawResource{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+		&persistencemodel.UsageReservation{},
+		&persistencemodel.UsageLog{},
+	)
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:         "voice-preflight",
+		DisplayName:           "Voice Preflight",
+		IsEnabled:             true,
+		Capabilities:          ai.CapabilityAudioTTS,
+		ModelCapabilitiesJSON: `{"audio_generation":{"operations":["tts"]}}`,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	binding := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:        entry.ID,
+		SourceType:            persistencemodel.ModelRouteSourceRelayGateway,
+		RouteGroup:            "default",
+		ProviderModelID:       "provider-voice-preflight",
+		IsEnabled:             true,
+		CapacityWeight:        1,
+		RouteCapabilitiesJSON: `{"audio_generation":{"operations":["tts"]}}`,
+	}
+	if err := db.Create(&binding).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+	service := NewService(db, ai.NewAIService(db, ai.NewRegistry(db, nil)))
+
+	result, err := service.PreflightGeneration(context.Background(), EnqueueInput{
+		UserID:  42,
+		ModelID: "voice-preflight",
+		JobType: ai.CapabilityAudioTTS,
+		Title:   "Narration preflight",
+		Prompt:  "hello",
+		GenerationIntent: &GenerationIntentInput{
+			Capability: ai.CapabilityFamilyAudioGeneration,
+			Operation:  ai.AudioOperationTTS,
+		},
+	})
+	if err != nil {
+		t.Fatalf("PreflightGeneration(TTS catalog route) error = %v", err)
+	}
+	if !result.Ready || result.JobType != ai.CapabilityAudioTTS || result.CatalogEntryID != entry.ID || result.RouteBindingID != binding.ID {
+		t.Fatalf("preflight result = %#v, want ready route metadata", result)
+	}
+	var jobCount int64
+	if err := db.Model(&persistencemodel.Job{}).Count(&jobCount).Error; err != nil {
+		t.Fatalf("count jobs: %v", err)
+	}
+	if jobCount != 0 {
+		t.Fatalf("preflight created %d jobs, want 0", jobCount)
+	}
+	var reservationCount int64
+	if err := db.Model(&persistencemodel.UsageReservation{}).Count(&reservationCount).Error; err != nil {
+		t.Fatalf("count reservations: %v", err)
+	}
+	if reservationCount != 0 {
+		t.Fatalf("preflight created %d reservations, want 0", reservationCount)
+	}
+}
+
 func TestEnqueueGenerationRejectsVisualJobWithoutIntent(t *testing.T) {
 	db := testutil.OpenSQLite(t, "job_enqueue_video_requires_intent.db",
 		&persistencemodel.Job{},
@@ -542,7 +608,11 @@ func TestValidateGenerationIntentRequiresStructuredResourceAssets(t *testing.T) 
 		},
 	}
 	inputResourceIDs := []uint{101, 102}
-	if err := validateGenerationIntentContract(base, inputResourceIDs); err != nil {
+	inputResources := []domainjob.InputResource{
+		{ID: 101, Type: "image"},
+		{ID: 102, Type: "image"},
+	}
+	if err := validateGenerationIntentContract(base, inputResourceIDs, inputResources); err != nil {
 		t.Fatalf("validateGenerationIntentContract(complete assets) error = %v", err)
 	}
 
@@ -572,6 +642,27 @@ func TestValidateGenerationIntentRequiresStructuredResourceAssets(t *testing.T) 
 			},
 			code: "missing_input_role",
 		},
+		{
+			name: "unknown resource id",
+			edit: func(input *EnqueueInput) {
+				input.GenerationIntent.ReferenceAssets[0].ResourceID = 999
+			},
+			code: "unknown_input_resource_id",
+		},
+		{
+			name: "duplicate resource id",
+			edit: func(input *EnqueueInput) {
+				input.GenerationIntent.ReferenceAssets[1].ResourceID = 101
+			},
+			code: "duplicate_input_resource_id",
+		},
+		{
+			name: "media type mismatch",
+			edit: func(input *EnqueueInput) {
+				input.GenerationIntent.ReferenceAssets[0].MediaType = "video"
+			},
+			code: "input_media_type_mismatch",
+		},
 	}
 
 	for _, tt := range cases {
@@ -582,7 +673,7 @@ func TestValidateGenerationIntentRequiresStructuredResourceAssets(t *testing.T) 
 			intent.ReferenceAssets = refs
 			input.GenerationIntent = &intent
 			tt.edit(&input)
-			err := validateGenerationIntentContract(input, inputResourceIDs)
+			err := validateGenerationIntentContract(input, inputResourceIDs, inputResources)
 			var validationErr *ai.ValidationError
 			if !errors.As(err, &validationErr) || validationErr.Code != tt.code {
 				t.Fatalf("validateGenerationIntentContract() error = %v, want %s", err, tt.code)

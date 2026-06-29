@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Activity, CircleDot, ClipboardList, Loader2, Sparkles } from 'lucide-react'
-import type { ContentSourceWorkspaceData } from '@movscript/core/content'
 
-import { loadContentSourceWorkspaceData, selectContentSourceWorkspaceCandidate } from '@movscript/project-surface/data'
+import { selectContentSourceWorkspaceCandidate } from '@movscript/project-surface/data'
 import { useAgentConversationRuntimeState } from '@/features/agent/state/agentConversationRuntimeStore'
 import { useAgentConversationThreadBinding } from '@/features/agent/state/agentConversationRegistryStore'
 import { useAgentPageTasks } from '@/features/agent/state/agentTaskQueueStore'
@@ -22,7 +21,7 @@ import {
   type AgentActivityAppEvent,
 } from '@/features/agent/application/agentActivityEvents'
 import {
-  sessionContentUnitsFromWorkspaceData,
+  sessionContentUnitsFromReadModel,
   type SessionCandidateView,
   type SessionContentUnitView,
 } from './AgentSessionOutputModel'
@@ -32,7 +31,14 @@ import {
   EmptySessionOutput,
   GenerationRecordRow,
 } from './AgentSessionOutputPaneParts'
+import {
+  getAPIBaseURL,
+  getRuntimeConfigSnapshot,
+  refreshRuntimeConfigSnapshot,
+} from '@/shared/infrastructure/config'
 import type { Project } from '@/types'
+
+const PROJECT_CONTENT_UNITS_READ_MODEL_ENDPOINT = '/v1/project/content-units/read-model'
 
 interface AgentSessionOutputPaneProps {
   conversationId: string
@@ -44,7 +50,8 @@ export function AgentSessionOutputPane({ conversationId, project = null }: Agent
   const projectDir = project?.workspace_path || project?.project_path
   const ownerContext = useMemo(() => ({
     ...(projectDir ? { projectDir } : {}),
-  }), [projectDir])
+    ...(project?.project_uid ? { projectUid: project.project_uid } : {}),
+  }), [project?.project_uid, projectDir])
   const pageTasksById = useAgentPageTasks()
   const threadBinding = useAgentConversationThreadBinding(conversationId)
   const runtimeState = useAgentConversationRuntimeState(conversationId)
@@ -75,14 +82,18 @@ export function AgentSessionOutputPane({ conversationId, project = null }: Agent
     providerThreadId: threadBinding?.providerThreadId,
     externalRuns: providerThreadRunsQuery.data?.runs,
   }), [conversationId, pageTasks, providerThreadRunsQuery.data?.runs, runtimeState, threadBinding?.providerThreadId])
-  const contentWorkspaceQuery = useQuery<ContentSourceWorkspaceData>({
-    queryKey: agentSessionOutputKeys.contentWorkspace(projectId),
-    queryFn: () => loadContentSourceWorkspaceData(projectId!, ownerContext),
-    enabled: projectId !== undefined,
+  const projectedContentUnitIds = projection.contentUnitIds
+  const contentUnitsQuery = useQuery({
+    queryKey: agentSessionOutputKeys.contentUnits(projectId, projectedContentUnitIds),
+    queryFn: () => loadAgentSessionOutputContentUnits({
+      projectId: projectId!,
+      projectDir: projectDir!,
+      projectUid: project?.project_uid,
+      contentUnitIds: projectedContentUnitIds,
+    }),
+    enabled: projectId !== undefined && Boolean(projectDir) && projectedContentUnitIds.length > 0,
   })
-  const contentUnits = useMemo(() => (
-    sessionContentUnitsFromWorkspaceData(contentWorkspaceQuery.data, new Set(projection.contentUnitIds))
-  ), [contentWorkspaceQuery.data, projection.contentUnitIds])
+  const contentUnits = contentUnitsQuery.data ?? []
   useEffect(() => {
     const filter = { conversationId, projectId }
     setActivityEvents(recentAgentActivityEvents({ ...filter, limit: 12 }))
@@ -189,13 +200,15 @@ export function AgentSessionOutputPane({ conversationId, project = null }: Agent
         <div className="agent-session-output__section-title">
           <CircleDot size={14} />
           <span>涉及的创作片段</span>
-          {contentWorkspaceQuery.isLoading ? <Loader2 className="agent-session-output__spin" size={13} /> : null}
+          {contentUnitsQuery.isLoading ? <Loader2 className="agent-session-output__spin" size={13} /> : null}
         </div>
         {!projectId ? (
           <EmptySessionOutput message="当前会话没有绑定项目，无法读取创作片段候选。" />
-        ) : contentWorkspaceQuery.isError ? (
-          <EmptySessionOutput message={contentWorkspaceQuery.error instanceof Error ? contentWorkspaceQuery.error.message : '读取创作片段失败。'} />
-        ) : contentWorkspaceQuery.isLoading ? (
+        ) : !projectDir ? (
+          <EmptySessionOutput message="当前项目没有本地工作区，无法读取创作片段候选。" />
+        ) : contentUnitsQuery.isError ? (
+          <EmptySessionOutput message={contentUnitsQuery.error instanceof Error ? contentUnitsQuery.error.message : '读取创作片段失败。'} />
+        ) : contentUnitsQuery.isLoading ? (
           <EmptySessionOutput message="正在读取创作片段候选..." />
         ) : contentUnits.length === 0 ? (
           <EmptySessionOutput message="当前会话暂未识别到关联创作片段。" />
@@ -216,8 +229,62 @@ export function AgentSessionOutputPane({ conversationId, project = null }: Agent
   )
 }
 
+async function loadAgentSessionOutputContentUnits(input: {
+  projectId: number
+  projectDir: string
+  projectUid?: string
+  contentUnitIds: string[]
+}): Promise<SessionContentUnitView[]> {
+  if (input.contentUnitIds.length === 0) return []
+  const runtimeConfig = await refreshRuntimeConfigSnapshot().catch(() => null)
+  const snapshot = runtimeConfig ?? getRuntimeConfigSnapshot()
+  const baseURL = agentOutputProjectServiceBaseURL(snapshot)
+  const response = await fetch(`${baseURL}${PROJECT_CONTENT_UNITS_READ_MODEL_ENDPOINT}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      projectId: input.projectId,
+      projectDir: input.projectDir,
+      contentUnitIds: input.contentUnitIds,
+      ...(input.projectUid ? { projectUid: input.projectUid } : {}),
+      ...agentOutputRuntimeEnvelope(snapshot),
+    }),
+  })
+  const payload = await response.json().catch(() => undefined)
+  if (!response.ok) {
+    const record = recordValue(payload) ?? {}
+    throw new Error(stringValue(record.message) ?? stringValue(record.error) ?? `读取创作片段失败：${response.status}`)
+  }
+  return sessionContentUnitsFromReadModel(payload)
+}
+
+function agentOutputProjectServiceBaseURL(runtimeConfig: unknown): string {
+  const record = recordValue(runtimeConfig) ?? {}
+  const baseURL = stringValue(record.gatewayBaseURL)
+    ?? stringValue(record.daemonGatewayBaseURL)
+    ?? stringValue(record.apiBaseURL)
+    ?? getAPIBaseURL()
+  return baseURL.replace(/\/+$/, '')
+}
+
+function agentOutputRuntimeEnvelope(runtimeConfig: unknown): Record<string, unknown> {
+  const record = recordValue(runtimeConfig) ?? {}
+  const movScriptHomeDir = stringValue(record.movScriptHomeDir ?? record.movscript_home_dir ?? record.workspaceDir ?? record.workspace_dir)
+  return movScriptHomeDir ? { movScriptHomeDir, workspaceDir: movScriptHomeDir } : {}
+}
+
 function positiveInteger(value: string | number | null | undefined): number | undefined {
   if (value === undefined || value === null || value === '') return undefined
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
+}
+
+function recordValue(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
+}
+
+function stringValue(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return undefined
 }

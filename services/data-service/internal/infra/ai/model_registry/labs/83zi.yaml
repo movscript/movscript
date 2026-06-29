@@ -1,0 +1,41 @@
+lab: 83zi
+templates:
+  - route_adapter_hint: vyro_seedance
+    capabilities:
+      - video
+      - video_i2v
+    display_name: 83zi Seedance 2.0 Fast
+    id: 83zi:vyro-seedance-2-fast
+    input:
+      accepts_image: true
+      max_images: -1
+    lab: 83zi
+    model_id: vyro-seedance-2-fast
+    order: 1
+    params:
+      - default: "5"
+        key: duration
+        label: 时长(秒)
+        options:
+          - "5"
+          - "10"
+        type: select
+      - default: "16:9"
+        key: aspect_ratio
+        label: 画面比例
+        options:
+          - "16:9"
+          - "9:16"
+          - "1:1"
+        type: select
+      - default: 720P
+        key: resolution
+        label: 清晰度
+        options:
+          - 720P
+          - 1080P
+        type: select
+    source:
+      status: unofficial
+      url: https://83zi.com/sd2/
+      verified_at: "2026-06-29"

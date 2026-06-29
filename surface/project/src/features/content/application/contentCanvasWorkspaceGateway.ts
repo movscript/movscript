@@ -1,5 +1,5 @@
 import type { ContentCandidateRecord, ContentSourceWorkspaceCandidateCreatePlan, ContentSourceWorkspaceData } from '@movscript/core/content'
-import type { GenerationIntentPayload } from '@movscript/core/generation'
+import type { GenerationBackendPreflightResult, GenerationIntentPayload } from '@movscript/core/generation'
 import type { ParamDef } from '@movscript/shared'
 import type { MovScriptWorkspaceService } from '@movscript/workspace'
 import type {
@@ -26,6 +26,7 @@ export type ContentCanvasWorkspaceService = Pick<
 
 export interface ContentCanvasWorkspaceGateway {
   service: ContentCanvasWorkspaceService
+  readContentCanvasReadModel?(projectId: number): Promise<unknown>
   loadContentSourceWorkspaceData(projectId: number): Promise<ContentSourceWorkspaceData>
   createSetting(input: MovScriptEngineSettingInput): Promise<{ path: string; record: Record<string, unknown> }>
   createSettingState(input: MovScriptEngineSettingStateInput): Promise<{ path: string; record: Record<string, unknown> }>
@@ -46,6 +47,7 @@ export interface ContentCanvasWorkspaceGateway {
   uploadResource(input: ContentCanvasResourceUploadInput): Promise<ContentCanvasUploadedResource>
   createContentUnitCandidate(input: ContentCanvasContentCandidateCreateInput): Promise<ContentCandidateRecord>
   previewContentUnitGenerationPrompt(input: ContentCanvasContentCandidateGenerateInput): Promise<ContentCanvasGenerationPromptPreview>
+  preflightContentUnitCandidate(input: ContentCanvasContentCandidateGenerateInput): Promise<GenerationBackendPreflightResult>
   generateContentUnitCandidate(input: ContentCanvasContentCandidateGenerateInput): Promise<ContentCandidateRecord>
   selectContentUnitCandidate(input: ContentCanvasContentCandidateSelectInput): Promise<void>
   decideContentUnitCandidate(input: ContentCanvasContentCandidateDecideInput): Promise<void>
@@ -127,6 +129,7 @@ export type ContentCanvasGenerationPromptPreview = {
   text: string
   compiledText?: string
   resourceIds: number[]
+  referenceAssets?: NonNullable<GenerationIntentPayload['reference_assets']>
   replacements: Array<Record<string, unknown>>
   blockers: Array<Record<string, unknown>>
 }

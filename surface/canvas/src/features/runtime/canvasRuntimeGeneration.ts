@@ -1,11 +1,12 @@
 import { canvasApi, canvasServicePaths } from '../application/canvasServiceApi'
 import { publicAgentBackendModelId as publicModelId } from '@movscript/core/agent'
-import type { CanvasNodeData, CanvasPortType, CanvasPortValue, Job, PublicModel } from '@movscript/shared'
+import { surfaceModelReferenceAssetsKey, type CanvasNodeData, type CanvasPortType, type CanvasPortValue, type Job, type PublicModel, type RawResource } from '@movscript/shared'
 import {
   buildGenerationJobPayload,
   generationExecutionJobTypeForIntent,
+  generationOperationAcceptsReferences,
   type GenerationIntentPayload,
-} from '@movscript/core/generation'
+} from '@movscript/resource-surface/data'
 
 export interface CanvasRuntimeTextRequest {
   modelId?: string
@@ -20,6 +21,7 @@ export interface CanvasRuntimeGenerationRequest {
   outputType: CanvasPortType
   prompt: string
   inputResourceIds: number[]
+  inputResources?: RawResource[]
   inputValues?: Record<string, CanvasPortValue[]>
   projectId?: number
 }
@@ -28,27 +30,42 @@ type ResolvedCanvasRuntimeModel = {
   modelId?: string
 }
 
-export async function resolveCanvasRuntimeModel(data: Partial<CanvasNodeData>, capability: string, operation?: string): Promise<ResolvedCanvasRuntimeModel> {
+export async function resolveCanvasRuntimeModel(
+  data: Partial<CanvasNodeData>,
+  capability: string,
+  operation?: string,
+  referenceAssets: NonNullable<GenerationIntentPayload['reference_assets']> = [],
+): Promise<ResolvedCanvasRuntimeModel> {
   if (data.modelId) {
-    const model = await findCanvasRuntimeModel(data, capability, operation)
+    const model = await findCanvasRuntimeModel(data, capability, operation, referenceAssets)
     if (model) return resolvedCanvasRuntimeModel(model)
     return {}
   }
-  const models = await canvasApi.get(canvasServicePaths.runtimeModels, { params: canvasRuntimeModelQuery(capability, operation) }).then((r) => r.data as PublicModel[])
+  const models = await canvasApi.get(canvasServicePaths.runtimeModels, { params: canvasRuntimeModelQuery(capability, operation, referenceAssets) }).then((r) => r.data as PublicModel[])
   const model = models.find((item) => item.is_default) ?? models[0]
   if (!model) return {}
   return resolvedCanvasRuntimeModel(model)
 }
 
-async function findCanvasRuntimeModel(data: Partial<CanvasNodeData>, capability: string, operation?: string): Promise<PublicModel | undefined> {
-  const models = await canvasApi.get(canvasServicePaths.runtimeModels, { params: canvasRuntimeModelQuery(capability, operation) }).then((r) => r.data as PublicModel[])
+async function findCanvasRuntimeModel(
+  data: Partial<CanvasNodeData>,
+  capability: string,
+  operation?: string,
+  referenceAssets: NonNullable<GenerationIntentPayload['reference_assets']> = [],
+): Promise<PublicModel | undefined> {
+  const models = await canvasApi.get(canvasServicePaths.runtimeModels, { params: canvasRuntimeModelQuery(capability, operation, referenceAssets) }).then((r) => r.data as PublicModel[])
   return models.find((model) => publicModelId(model) === data.modelId)
 }
 
-function canvasRuntimeModelQuery(capability: string, operation?: string): Record<string, string> {
+function canvasRuntimeModelQuery(
+  capability: string,
+  operation?: string,
+  referenceAssets: NonNullable<GenerationIntentPayload['reference_assets']> = [],
+): Record<string, string> {
   return {
     capability,
     ...(operation ? { operation } : {}),
+    ...(referenceAssets.length > 0 ? { reference_assets: surfaceModelReferenceAssetsKey(referenceAssets) } : {}),
   }
 }
 
@@ -71,7 +88,7 @@ export async function generateCanvasRuntimeText(input: CanvasRuntimeTextRequest)
 export async function generateCanvasRuntimeMedia(input: CanvasRuntimeGenerationRequest) {
   const sourceKey = runtimeSourceKey(input.nodeType, input.outputType)
   const generationIntent = canvasRuntimeGenerationIntent(input)
-  const model = await resolveCanvasRuntimeModel(input.data, generationIntent.capability, generationIntent.operation)
+  const model = await resolveCanvasRuntimeModel(input.data, generationIntent.capability, generationIntent.operation, generationIntent.reference_assets ?? [])
   const modelId = model.modelId
   if (!modelId) throw new Error('no_model_select')
 
@@ -124,7 +141,7 @@ function runtimeSourceKey(nodeType: string | undefined, outputType: CanvasPortTy
 function canvasRuntimeGenerationIntent(input: CanvasRuntimeGenerationRequest): GenerationIntentPayload {
   const operation = canvasRuntimeOperation(input)
   const capability = canvasRuntimeCapability(input.outputType)
-  const referenceAssets = canvasRuntimeReferenceAssets(input.inputValues)
+  const referenceAssets = canvasRuntimeReferenceAssets(input.inputValues, input.inputResourceIds, input.inputResources)
   validateCanvasRuntimeOperationInputs(operation, referenceAssets.reference_assets ?? [])
   return {
     capability,
@@ -169,8 +186,13 @@ function canvasRuntimeDefaultOperation(nodeType: string | undefined, outputType:
   }
 }
 
-function canvasRuntimeReferenceAssets(inputValues: Record<string, CanvasPortValue[]> | undefined): Pick<GenerationIntentPayload, 'reference_assets'> {
+function canvasRuntimeReferenceAssets(
+  inputValues: Record<string, CanvasPortValue[]> | undefined,
+  inputResourceIds: readonly number[] = [],
+  inputResources: readonly RawResource[] = [],
+): Pick<GenerationIntentPayload, 'reference_assets'> {
   const refs: NonNullable<GenerationIntentPayload['reference_assets']> = []
+  const seen = new Set<number>()
   for (const values of Object.values(inputValues ?? {})) {
     for (const value of values) {
       if (!value.resource_id) continue
@@ -183,7 +205,23 @@ function canvasRuntimeReferenceAssets(inputValues: Record<string, CanvasPortValu
         role: value.role || canvasRuntimeReferenceRole(value),
         media_type: mediaType,
       })
+      seen.add(value.resource_id)
     }
+  }
+  const resourcesById = new Map(inputResources.map((resource) => [resource.ID, resource]))
+  for (const resourceId of inputResourceIds) {
+    if (seen.has(resourceId)) continue
+    const resource = resourcesById.get(resourceId)
+    const mediaType = resource ? canvasRuntimeResourceMediaType(resource) : undefined
+    if (!mediaType) {
+      throw new Error('invalid_canvas_operation_inputs:resource_media_type_required')
+    }
+    refs.push({
+      resource_id: resourceId,
+      role: canvasRuntimeReferenceRole({ type: mediaType }),
+      media_type: mediaType,
+    })
+    seen.add(resourceId)
   }
   return refs.length > 0 ? { reference_assets: refs } : {}
 }
@@ -201,6 +239,9 @@ function validateCanvasRuntimeOperationInputs(
   if (operation === 'first_frame_to_video' && !roles.has('first_frame')) {
     throw new Error('invalid_canvas_operation_inputs:first_frame_to_video_requires_first_frame')
   }
+  if (!generationOperationAcceptsReferences(operation, referenceAssets)) {
+    throw new Error('invalid_canvas_operation_inputs:operation_reference_assets_mismatch')
+  }
 }
 
 function canvasRuntimeReferenceRole(value: CanvasPortValue): string {
@@ -212,6 +253,11 @@ function canvasRuntimeReferenceRole(value: CanvasPortValue): string {
 
 function canvasRuntimeMediaType(value: CanvasPortValue): 'image' | 'video' | 'audio' | undefined {
   if (value.type === 'image' || value.type === 'video' || value.type === 'audio') return value.type
+  return undefined
+}
+
+function canvasRuntimeResourceMediaType(resource: Pick<RawResource, 'type'>): 'image' | 'video' | 'audio' | undefined {
+  if (resource.type === 'image' || resource.type === 'video' || resource.type === 'audio') return resource.type
   return undefined
 }
 

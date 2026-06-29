@@ -8,6 +8,7 @@ import {
   canvasRouteSourceFromSearch,
   editingProjectPath,
   getAppRouteLayoutSpec,
+  getAppSharedSurfaceRoute,
   routeForWorkMode,
   workModeForRoute,
 } from './appRouteModel'
@@ -28,6 +29,16 @@ test('app route layout spec is derived from pathname instead of the saved work m
   assert.equal(getAppRouteLayoutSpec('/agent/settings').chrome, 'settings')
   assert.equal(getAppRouteLayoutSpec('/agents/mova').surface, 'settings')
   assert.equal(getAppRouteLayoutSpec('/agents/mova').chrome, 'settings')
+})
+
+test('desktop routes expose shared surface identities without changing desktop layout surfaces', () => {
+  assert.equal(getAppSharedSurfaceRoute('/project/home')?.routeId, 'project.overview')
+  assert.equal(getAppSharedSurfaceRoute('/project/home')?.area, 'project')
+  assert.equal(getAppSharedSurfaceRoute('/project/content/canvas')?.routeId, 'project.content.canvas')
+  assert.equal(getAppSharedSurfaceRoute('/project/content/canvas')?.area, 'workflow')
+  assert.equal(getAppSharedSurfaceRoute('/canvases/42')?.primaryNavKey, 'workflow')
+  assert.equal(getAppSharedSurfaceRoute('/editing/editing_project_42')?.area, 'editing')
+  assert.equal(getAppRouteLayoutSpec('/editing/editing_project_42').surface, 'tool')
 })
 
 test('work mode route helpers keep canvas as a temporary surface', () => {

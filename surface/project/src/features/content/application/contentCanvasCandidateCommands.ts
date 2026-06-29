@@ -13,8 +13,8 @@ export async function createCandidateFromContentUnit(
 ): Promise<ContentCanvasCommandResult> {
   assertContentUnitNode(contentUnitNode)
   const outputKind = contentUnitOutputKind(contentUnitNode)
-  if (outputKind !== 'image' && outputKind !== 'video' && outputKind !== 'audio') {
-    throw new Error(`当前真实生成候选只支持图像/视频/音频创作片段，${outputKind} 暂未接入生成接口`)
+  if (outputKind !== 'image' && outputKind !== 'video') {
+    throw new Error(`当前真实生成候选只支持图像/视频创作片段，${outputKind} 暂未接入生成接口`)
   }
   const candidateOrdinal = contentUnitNode.candidates.length + 1
   const candidateId = timestampId('canvas_candidate')

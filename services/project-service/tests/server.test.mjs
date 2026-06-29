@@ -8,6 +8,7 @@ import {
   PROJECT_SERVICE_CAPABILITIES,
   PROJECT_SERVICE_CANDIDATE_VIEW_ENDPOINT,
   PROJECT_SERVICE_CONTENT_CANVASES_LIST_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_CANVAS_READ_MODEL_ENDPOINT,
   PROJECT_SERVICE_CONTENT_CANVAS_DELETE_ENDPOINT,
   PROJECT_SERVICE_CONTENT_CANVAS_RENAME_ENDPOINT,
   PROJECT_SERVICE_CONTENT_CANVAS_RUN_ENDPOINT,
@@ -17,15 +18,18 @@ import {
   PROJECT_SERVICE_CONTENT_UNIT_CREATE_ENDPOINT,
   PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT,
   PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_SELECT_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_UNITS_READ_MODEL_ENDPOINT,
   PROJECT_SERVICE_TIMELINE_ASSEMBLY_CONTENT_UNIT_ENSURE_ENDPOINT,
   PROJECT_SERVICE_ENTITIES_QUERY_ENDPOINT,
   PROJECT_SERVICE_HIERARCHY_WRITE_ENDPOINT,
+  PROJECT_SERVICE_HOME_READ_MODEL_ENDPOINT,
   PROJECT_SERVICE_LIFECYCLE_COMMAND_ENDPOINT,
   PROJECT_SERVICE_LOCATOR_RESOLVE_ENDPOINT,
   PROJECT_SERVICE_NAME,
   PROJECT_SERVICE_PROMPT_CONTEXT_ENDPOINT,
   PROJECT_SERVICE_READ_MODEL_ENDPOINT,
   PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT,
+  PROJECT_SERVICE_SCRIPTS_READ_MODEL_ENDPOINT,
   PROJECT_SERVICE_SCRIPT_SOURCE_READ_ENDPOINT,
   PROJECT_SERVICE_SCRIPT_UPSERT_ENDPOINT,
   PROJECT_SERVICE_SCRIPT_VERSION_SNAPSHOT_ENDPOINT,
@@ -35,6 +39,7 @@ import {
   PROJECT_SERVICE_SOURCE_OVERVIEW_ENDPOINT,
   PROJECT_SERVICE_SOURCE_REGENERATION_PLAN_ENDPOINT,
   PROJECT_SERVICE_SOURCE_SNAPSHOT_ENDPOINT,
+  PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT,
   PROJECT_SERVICE_SETTING_CREATE_ENDPOINT,
   PROJECT_SERVICE_STANDARDS_UPSERT_ENDPOINT,
   PROJECT_SERVICE_WORKSPACE_CANDIDATE_APPEND_ENDPOINT,
@@ -197,6 +202,179 @@ test('project-service exposes a stable project read-model endpoint', async () =>
   assert.equal(assembly?.scope?.kind, 'beat')
   assert.equal(assembly?.scope?.id, 'a19d')
   assert.equal(readModel.projectReadModel.project_timeline_status.timeline_assembly_count, 1)
+})
+
+test('project-service exposes a lightweight project home read-model endpoint', async () => {
+  const projectDir = await createProjectSource()
+  const runtime = await startProjectService({ now: () => new Date('2026-06-07T00:00:00.000Z') })
+  tAfterClose(runtime)
+  test.after(async () => {
+    await rm(projectDir, { recursive: true, force: true })
+  })
+
+  const readModel = await postJSON(`${runtime.url}${PROJECT_SERVICE_HOME_READ_MODEL_ENDPOINT}`, { projectDir })
+
+  assert.equal(readModel.schema, 'movscript.project-home-read-model.v1')
+  assert.equal(readModel.projectDir, projectDir)
+  assert.equal(readModel.projectHomeReadModel.schema, 'movscript.project-home-read-model.v1')
+  assert.equal(readModel.projectHomeReadModel.projectDir, projectDir)
+  assert.equal(readModel.projectHomeReadModel.workspace.projectId, 'project_demo')
+  assert.equal(readModel.projectHomeReadModel.scripts.length, 1)
+  assert.equal(readModel.projectHomeReadModel.scripts[0].id, 'main')
+  assert.equal(Object.prototype.hasOwnProperty.call(readModel.projectHomeReadModel.scripts[0], 'content'), false)
+  assert.equal(readModel.projectHomeReadModel.settings.length, 1)
+  assert.equal(readModel.projectHomeReadModel.assets.length, 1)
+  assert.equal(readModel.projectHomeReadModel.productions.length, 1)
+  assert.equal(readModel.projectHomeReadModel.sceneMoments.length, 1)
+  assert.equal(readModel.projectHomeReadModel.contentUnits.length >= 1, true)
+  assert.deepEqual(readModel.projectHomeReadModel.counts, {
+    scripts: 1,
+    settings: 1,
+    assets: 1,
+    productions: 1,
+    sceneMoments: 1,
+    contentUnits: readModel.projectHomeReadModel.contentUnits.length,
+    library: 3,
+    pipeline: 2 + readModel.projectHomeReadModel.contentUnits.length,
+    total: 5 + readModel.projectHomeReadModel.contentUnits.length,
+  })
+})
+
+test('project-service exposes a lightweight project standards read-model endpoint', async () => {
+  const projectDir = await createProjectSource()
+  const runtime = await startProjectService({ now: () => new Date('2026-06-07T00:00:00.000Z') })
+  tAfterClose(runtime)
+  test.after(async () => {
+    await rm(projectDir, { recursive: true, force: true })
+  })
+
+  const readModel = await postJSON(`${runtime.url}${PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT}`, { projectDir })
+
+  assert.equal(readModel.schema, 'movscript.project-standards-read-model.v1')
+  assert.equal(readModel.projectDir, projectDir)
+  assert.equal(readModel.projectStandardsReadModel.schema, 'movscript.project-standards-read-model.v1')
+  assert.equal(readModel.projectStandardsReadModel.projectDir, projectDir)
+  assert.equal(readModel.projectStandardsReadModel.workspace.projectId, 'project_demo')
+  assert.equal(readModel.projectStandardsReadModel.project.title, 'Demo')
+  assert.equal(readModel.projectStandardsReadModel.settings.length, 1)
+  assert.equal(readModel.projectStandardsReadModel.assetSlots.length, 1)
+  assert.equal(readModel.projectStandardsReadModel.productions.length, 1)
+  assert.equal(readModel.projectStandardsReadModel.segments.length, 1)
+  assert.equal(readModel.projectStandardsReadModel.sceneMoments.length, 1)
+  assert.equal(readModel.projectStandardsReadModel.contentUnits.length >= 1, true)
+  assert.equal(readModel.projectStandardsReadModel.creativeRelationships.length, 0)
+  assert.equal(Object.prototype.hasOwnProperty.call(readModel.projectStandardsReadModel, 'scripts'), false)
+  assert.deepEqual(readModel.projectStandardsReadModel.counts, {
+    settings: 1,
+    assetSlots: 1,
+    productions: 1,
+    segments: 1,
+    sceneMoments: 1,
+    contentUnits: readModel.projectStandardsReadModel.contentUnits.length,
+    total: 5 + readModel.projectStandardsReadModel.contentUnits.length,
+  })
+})
+
+test('project-service exposes a lightweight project scripts read-model endpoint', async () => {
+  const projectDir = await createProjectSource()
+  const runtime = await startProjectService({ now: () => new Date('2026-06-07T00:00:00.000Z') })
+  tAfterClose(runtime)
+  test.after(async () => {
+    await rm(projectDir, { recursive: true, force: true })
+  })
+
+  const readModel = await postJSON(`${runtime.url}${PROJECT_SERVICE_SCRIPTS_READ_MODEL_ENDPOINT}`, { projectDir })
+
+  assert.equal(readModel.schema, 'movscript.project-scripts-read-model.v1')
+  assert.equal(readModel.projectDir, projectDir)
+  assert.equal(readModel.projectScriptsReadModel.schema, 'movscript.project-scripts-read-model.v1')
+  assert.equal(readModel.projectScriptsReadModel.projectDir, projectDir)
+  assert.equal(readModel.projectScriptsReadModel.workspace.projectId, 'project_demo')
+  assert.equal(readModel.projectScriptsReadModel.scripts.length, 1)
+  assert.equal(readModel.projectScriptsReadModel.scripts[0].id, 'main')
+  assert.equal(readModel.projectScriptsReadModel.scripts[0].source_loaded, false)
+  assert.equal(Object.prototype.hasOwnProperty.call(readModel.projectScriptsReadModel.scripts[0], 'source'), false)
+  assert.equal(Object.prototype.hasOwnProperty.call(readModel.projectScriptsReadModel.scripts[0], 'content'), false)
+  assert.equal(Object.prototype.hasOwnProperty.call(readModel.projectScriptsReadModel.scripts[0], 'raw_source'), false)
+  assert.equal(readModel.projectScriptsReadModel.counts.scripts, 1)
+
+  const source = await postJSON(`${runtime.url}${PROJECT_SERVICE_SCRIPT_SOURCE_READ_ENDPOINT}`, {
+    projectDir,
+    record: readModel.projectScriptsReadModel.scripts[0],
+  })
+  assert.equal(typeof source.result, 'string')
+  assert.equal(source.result.length > 0, true)
+})
+
+test('project-service exposes a project content canvas read-model endpoint', async () => {
+  const projectDir = await createProjectSource()
+  const runtime = await startProjectService({ now: () => new Date('2026-06-07T00:00:00.000Z') })
+  tAfterClose(runtime)
+  test.after(async () => {
+    await rm(projectDir, { recursive: true, force: true })
+  })
+
+  const readModel = await postJSON(`${runtime.url}${PROJECT_SERVICE_CONTENT_CANVAS_READ_MODEL_ENDPOINT}`, {
+    projectDir,
+    projectId: 7,
+  })
+
+  assert.equal(readModel.schema, 'movscript.project-content-canvas-read-model.v1')
+  assert.equal(readModel.projectDir, projectDir)
+  assert.equal(readModel.projectContentCanvasReadModel.schema, 'movscript.project-content-canvas-read-model.v1')
+  assert.equal(readModel.projectContentCanvasReadModel.projectId, 7)
+  assert.equal(readModel.projectContentCanvasReadModel.project.record.title, 'Demo')
+  assert.equal(readModel.projectContentCanvasReadModel.productions.length, 1)
+  assert.equal(readModel.projectContentCanvasReadModel.segments.length, 1)
+  assert.equal(readModel.projectContentCanvasReadModel.sceneMoments.length, 1)
+  assert.equal(readModel.projectContentCanvasReadModel.expressionUnits.length >= 1, true)
+  assert.equal(readModel.projectContentCanvasReadModel.contentUnits.length >= 1, true)
+  assert.equal(readModel.projectContentCanvasReadModel.settings.length, 1)
+  assert.equal(readModel.projectContentCanvasReadModel.assets.length, 1)
+  assert.equal(typeof readModel.projectContentCanvasReadModel.contentUnitCandidates, 'object')
+  assert.equal(typeof readModel.projectContentCanvasReadModel.editingProjectsByNodeId, 'object')
+  assert.equal(readModel.projectContentCanvasReadModel.domainGraph.nodes.length > 0, true)
+  assert.equal(readModel.projectContentCanvasReadModel.counts.productions, 1)
+  assert.equal(readModel.projectContentCanvasReadModel.counts.contentUnits, readModel.projectContentCanvasReadModel.contentUnits.length)
+})
+
+test('project-service emits structured performance logs for observed project endpoints', async () => {
+  const projectDir = await createProjectSource()
+  const logs = []
+  const runtime = await startProjectService({
+    now: () => new Date('2026-06-07T00:00:00.000Z'),
+    logger: (event) => logs.push(event),
+  })
+  tAfterClose(runtime)
+  test.after(async () => {
+    await rm(projectDir, { recursive: true, force: true })
+  })
+
+  const response = await fetch(`${runtime.url}${PROJECT_SERVICE_HOME_READ_MODEL_ENDPOINT}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-request-id': 'req_perf_home',
+    },
+    body: JSON.stringify({ projectDir }),
+  })
+  const readModel = await response.json()
+
+  assert.equal(response.status, 200)
+  assert.equal(response.headers.get('x-request-id'), 'req_perf_home')
+  assert.equal(readModel.projectHomeReadModel.schema, 'movscript.project-home-read-model.v1')
+  assert.equal(logs.length, 1)
+  assert.equal(logs[0].event, 'project_service.request')
+  assert.equal(logs[0].requestId, 'req_perf_home')
+  assert.equal(logs[0].endpoint, PROJECT_SERVICE_HOME_READ_MODEL_ENDPOINT)
+  assert.equal(logs[0].routeKind, 'read-model')
+  assert.equal(logs[0].statusCode, 200)
+  assert.equal(typeof logs[0].durationMs, 'number')
+  assert.equal(typeof logs[0].indexLoadMs, 'number')
+  assert.equal(typeof logs[0].deriveMs, 'number')
+  assert.equal(typeof logs[0].cacheHit, 'boolean')
+  assert.equal(typeof logs[0].engineCacheHit, 'boolean')
+  assert.equal(logs[0].responseBytes > 0, true)
 })
 
 test('project-service executes local project lifecycle commands', async () => {
@@ -378,6 +556,9 @@ test('project-service exposes project resource views through the shared workspac
   })
   assert.equal(settings.schema, 'movscript.project-resource-view.v1')
   assert.equal(settings.kind, 'settings')
+  assert.equal(settings.usage, 'debug_compat')
+  assert.equal(settings.viewMode, 'debug_compat')
+  assert.equal(settings.preferredEndpoint, PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT)
   assert.equal(settings.items.some(item => item.title === 'Service Hero'), true)
   assert.equal(settings.items.find(item => item.id === 'setting_hero')?.domainCategory, 'setting_namespace')
   assert.equal(settings.items.find(item => item.id === 'setting_hero')?.domainKind, 'character')
@@ -397,6 +578,7 @@ test('project-service exposes project resource views through the shared workspac
     kind: 'timeline-namespaces',
   })
   assert.equal(timelineNamespaces.kind, 'timeline-namespaces')
+  assert.equal(timelineNamespaces.preferredEndpoint, PROJECT_SERVICE_CONTENT_CANVAS_READ_MODEL_ENDPOINT)
   assert.equal(timelineNamespaces.items.find(item => item.id === 'pilot')?.kind, 'episode')
   assert.equal(timelineNamespaces.items.find(item => item.id === 'opening')?.kind, 'beat')
 
@@ -405,6 +587,7 @@ test('project-service exposes project resource views through the shared workspac
     kind: 'namespace-vocabulary',
   })
   assert.equal(namespaceVocabulary.kind, 'namespace-vocabulary')
+  assert.equal(namespaceVocabulary.preferredEndpoint, PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT)
   assert.deepEqual(namespaceVocabulary.items.find(item => item.id === 'timeline')?.timelineNamespaces, ['act', 'sequence', 'beat'])
   assert.deepEqual(namespaceVocabulary.items.find(item => item.id === 'setting')?.settingNamespaces, ['character', 'costume_state'])
 
@@ -470,6 +653,7 @@ test('project-service exposes project resource views through the shared workspac
     kind: 'scripts',
   })
   const script = scripts.items.find(item => item.id === 'script_main')
+  assert.equal(scripts.preferredEndpoint, PROJECT_SERVICE_SCRIPTS_READ_MODEL_ENDPOINT)
   assert.equal(script.title, 'Service Script')
   assert.equal(script.source, 'INT. SERVICE ROOM - NIGHT')
 
@@ -1123,6 +1307,21 @@ test('project-service executes typed content-unit candidate actions through scop
   assert.equal(contentWorkspace.result.contentUnitCandidates.k41m[0].selected, true)
   assert.equal(contentWorkspace.result.contentUnitCandidates.k41m[0].resourceId, 101)
 
+  const contentUnitsReadModel = await postJSON(`${runtime.url}${PROJECT_SERVICE_CONTENT_UNITS_READ_MODEL_ENDPOINT}`, {
+    projectDir,
+    contentUnitIds: ['k41m'],
+    decisionStore,
+  })
+  assert.equal(contentUnitsReadModel.schema, 'movscript.project-content-units-read-model.v1')
+  assert.equal(contentUnitsReadModel.projectContentUnitsReadModel.schema, 'movscript.project-content-units-read-model.v1')
+  assert.deepEqual(contentUnitsReadModel.projectContentUnitsReadModel.contentUnitIds, ['k41m'])
+  assert.equal(contentUnitsReadModel.projectContentUnitsReadModel.contentUnits.length, 1)
+  assert.equal(contentUnitsReadModel.projectContentUnitsReadModel.contentUnits[0].id, 'k41m')
+  assert.equal(contentUnitsReadModel.projectContentUnitsReadModel.contentUnits[0].selectionState, 'selected')
+  assert.equal(contentUnitsReadModel.projectContentUnitsReadModel.contentUnits[0].candidates[0].id, 'candidate_image_1')
+  assert.equal(contentUnitsReadModel.projectContentUnitsReadModel.contentUnits[0].candidates[0].selected, true)
+  assert.equal(contentUnitsReadModel.projectContentUnitsReadModel.contentUnits[0].candidates[0].resourceId, 101)
+
   const missingDecisionStore = await fetch(`${runtime.url}${PROJECT_SERVICE_CONTENT_CANDIDATE_CREATE_ENDPOINT}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -1160,6 +1359,22 @@ test('project-service exposes content-unit prompt context through the shared pro
   assert.equal(typeof promptContext.backendPrompt.ok, 'boolean')
   assert.equal(promptContext.backendPrompt.prompt.schema, 'movscript.backend_prompt.v1')
   assert.ok(Array.isArray(promptContext.backendPrompt.prompt.refs))
+
+  const batchPromptContext = await postJSON(`${runtime.url}${PROJECT_SERVICE_PROMPT_CONTEXT_ENDPOINT}`, {
+    projectDir,
+    contentUnitIds: ['k41m'],
+    include: ['backendPrompt'],
+    promptText: 'A custom draft prompt for the rainy call.',
+  })
+
+  assert.deepEqual(batchPromptContext.contentUnitIds, ['k41m'])
+  assert.equal(batchPromptContext.contentUnitId, 'k41m')
+  assert.equal(batchPromptContext.generationPrompt, undefined)
+  assert.equal(batchPromptContext.contexts.length, 1)
+  assert.equal(batchPromptContext.contexts[0].contentUnitId, 'k41m')
+  assert.equal(batchPromptContext.contexts[0].context.generationPrompt, undefined)
+  assert.equal(batchPromptContext.contexts[0].context.backendPrompt.prompt.schema, 'movscript.backend_prompt.v1')
+  assert.match(batchPromptContext.contexts[0].context.backendPrompt.prompt.text, /custom draft prompt/)
 
   const missingContentUnitId = await fetch(`${runtime.url}${PROJECT_SERVICE_PROMPT_CONTEXT_ENDPOINT}`, {
     method: 'POST',

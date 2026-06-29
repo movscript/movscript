@@ -16,6 +16,7 @@ const (
 	AdapterVolcen                   = "volcen" // Volcengine Ark: text (doubao), image (Seedream), video (Seedance)
 	AdapterGemini                   = "gemini" // Google Gemini API (text/image/video)
 	AdapterDashScope                = "dashscope"
+	AdapterVyroSeedance             = "vyro_seedance"
 	AdapterVidu                     = "vidu"
 	AdapterElevenLabs               = "elevenlabs"
 	AdapterMiniMax                  = "minimax"
@@ -438,6 +439,19 @@ func dashScopeVideoParams() []ParamDef {
 	}
 }
 
+func vyroSeedanceVideoParams() []ParamDef {
+	return []ParamDef{
+		{Key: "duration", Label: "时长(秒)", Type: "select",
+			Options: []string{"5", "10"}, Default: "5"},
+		{Key: "aspect_ratio", Label: "画面比例", Type: "select",
+			Options: []string{"16:9", "9:16", "1:1"}, Default: "16:9"},
+		{Key: "size", Label: "清晰度", Type: "select",
+			Options: []string{"720P", "1080P"}, Default: "720P"},
+		{Key: "resolution", Label: "分辨率", Type: "select",
+			Options: []string{"720p", "1080p"}, Default: "720p"},
+	}
+}
+
 func dashScopeTTSParams() []ParamDef {
 	return []ParamDef{
 		{Key: "voice", Label: "音色", Type: "string", Default: "Cherry"},
@@ -773,6 +787,20 @@ var AdapterDefs = []AdapterDef{
 		ParamSets: []AdapterParamSet{
 			{Capability: CapabilityVideo, Params: viduVideoParams()},
 			{Capability: CapabilityVideoI2V, Params: viduVideoParams()},
+		},
+	},
+	{
+		AdapterType:    AdapterVyroSeedance,
+		DisplayName:    "Vyro Seedance 中转",
+		Description:    "Vyro/83zi Seedance 2.0 Fast 视频任务接口：/v1/videos multipart + /v1/videos/{id} 查询。",
+		DefaultBaseURL: "http://115.190.186.95:3002/v1",
+		CredFields: []CredField{
+			{Key: "api_key", Label: "API Key", Required: true},
+			{Key: "base_url", Label: "Base URL（可选，用于 83zi 或同协议入口）", Required: false},
+		},
+		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityVideo, Params: vyroSeedanceVideoParams()},
+			{Capability: CapabilityVideoI2V, Params: vyroSeedanceVideoParams()},
 		},
 	},
 	{

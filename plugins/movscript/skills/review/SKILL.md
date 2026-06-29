@@ -3,7 +3,6 @@ name: review
 description: Explain MovScript pending changes, readiness, affected content units, stale or missing selections, and regeneration decisions without automatically editing or generating.
 toolGrants:
   - mcp__movscript__movscript_runtime_status
-  - mcp__movscript__system_focus_get
   - mcp__movscript__domain_overview
   - mcp__movscript__domain_query_entities
   - mcp__movscript__domain_query_production_context
@@ -41,7 +40,7 @@ Use this skill when a user asks what changed, whether the project is ready, what
 
 ## Workflow
 
-1. Resolve focus with `system_focus_get` when the selected project, timeline scope/assembly, content unit, or entity matters.
+1. Resolve the intended project and optional timeline scope/assembly/content-unit target from explicit user input, a passed locator, or Project Service context. Do not infer it from UI focus.
 2. Call `domain_overview`.
 3. If source has pending edits, call `domain_inspect` and explain changed files, changed entities, business changes, blocking issues, and `readyToInterpret`.
 4. If the user asks to validate/refresh diagnostics and `domain_inspect` has no blocking errors, run `domain_interpret`; describe it as diagnostic/artifact refresh, not a publish, approval, commit, checkpoint, or product-state transition.

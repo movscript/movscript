@@ -79,6 +79,7 @@ func (w *Worker) runImageEditJob(ctx context.Context, job *persistencemodel.Job,
 func (w *Worker) buildImageRequest(job *persistencemodel.Job, params generationParams, imageData []ai.MediaData, cloudFileID string) ai.ImageRequest {
 	return ai.ImageRequest{
 		Prompt:              job.Prompt,
+		Operation:           runnerGenerationOperationFromJob(job),
 		N:                   1,
 		Size:                params.String("size"),
 		Quality:             params.String("quality"),
@@ -94,5 +95,6 @@ func (w *Worker) buildImageRequest(job *persistencemodel.Job, params generationP
 		OptimizePromptMode:  params.String("optimize_prompt_mode"),
 		InputImageDataList:  imageData,
 		CloudFileID:         cloudFileID,
+		ReferenceAssets:     runnerReferenceAssetsFromJob(job),
 	}
 }

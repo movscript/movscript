@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
+import { sharedSurfaceRouteForPathname } from '@movscript/shared'
 import { APP_SIDEBAR_WIDTH_STORAGE_KEY } from '@movscript/ui/layout'
 import {
   AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH,
@@ -189,6 +190,40 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
     assert.ok(agentSettingsRoute.panes.some((pane) => pane.id === APP_SHELL_SETTINGS_SIDEBAR_PANE_ID))
     assert.ok(!agentSettingsRoute.panes.some((pane) => pane.id === APP_SHELL_AGENT_SIDEBAR_PANE_ID))
     assert.ok(!agentSettingsRoute.panes.some((pane) => pane.id === APP_SHELL_TOOL_SIDEBAR_PANE_ID))
+  }
+})
+
+test('desktop route layout registry stays compatible with shared surface route contracts', () => {
+  for (const pathname of [
+    '/project/home',
+    '/project/standards',
+    '/project/scripts/workbench',
+    '/project/content',
+    '/project/content/canvas',
+    '/project/content/preview',
+    '/project/settings/preview',
+    '/studio/proj_uid_7/edit-desk',
+    '/tools/ref-image-gen',
+    '/tools/audio-transcribe',
+    '/tools/private-assets',
+    '/canvases',
+    '/canvases/42',
+    '/editing',
+    '/editing/editing_project_123',
+    '/resources',
+    '/resources/external',
+    '/shot-library',
+    '/jobs',
+  ]) {
+    const route = routeLayoutSpecForPathname(pathname)
+    const sharedRoute = sharedSurfaceRouteForPathname(pathname, { host: 'desktop' })
+    assert.ok(sharedRoute, `${pathname} should have a shared surface route contract`)
+    assert.ok(
+      sharedRoute.routeId === route.routeId || sharedRoute.routeAliases?.includes(route.routeId),
+      `${pathname} should preserve route identity or alias from desktop route layout`,
+    )
+    assert.equal(sharedRoute.scrollMode, route.scrollMode, `${pathname} should keep desktop scroll behavior`)
+    assert.equal(sharedRoute.shellLayout, route.shellLayout, `${pathname} should keep desktop shell layout`)
   }
 })
 

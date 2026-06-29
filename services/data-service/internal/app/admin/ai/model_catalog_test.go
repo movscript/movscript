@@ -1024,6 +1024,42 @@ func TestModelCatalogRouteBindingPersistsEndpointAndCapabilities(t *testing.T) {
 	}
 }
 
+func TestModelCatalogRouteBindingAcceptsOperationSlotCapabilities(t *testing.T) {
+	service := newTestService(t)
+	ctx := context.Background()
+	capabilitiesJSON := `{"video_generation":{"operations":[{"id":"first_last_frame_to_video","input_slots":[{"id":"first_frame","required":true,"max":1,"roles":["first_frame"],"modalities":["image"]},{"id":"last_frame","required":true,"max":1,"roles":["last_frame"],"modalities":["image"]}]}],"reference_assets":{"min":2,"max":2,"roles":["first_frame","last_frame"],"modalities":["image"]}}}`
+
+	entry, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
+		PublicModelID:         "slot-video-public",
+		DisplayName:           "Slot Video Public",
+		Capabilities:          "video_i2v",
+		ModelCapabilitiesJSON: capabilitiesJSON,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelCatalogEntry() error = %v", err)
+	}
+
+	input := validTestModelRouteBindingInput(152, "slot-route")
+	input.RouteCapabilitiesJSON = capabilitiesJSON
+	binding, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), input)
+	if err != nil {
+		t.Fatalf("CreateModelRouteBinding() error = %v", err)
+	}
+	if binding.RouteCapabilitiesJSON != capabilitiesJSON {
+		t.Fatalf("route capabilities json = %q", binding.RouteCapabilitiesJSON)
+	}
+
+	listed, err := service.ListModelCatalogEntries(ctx)
+	if err != nil {
+		t.Fatalf("ListModelCatalogEntries() error = %v", err)
+	}
+	if len(listed) != 1 || listed[0].ModelCapabilitiesJSON != capabilitiesJSON ||
+		len(listed[0].RouteBindings) != 1 ||
+		listed[0].RouteBindings[0].RouteCapabilitiesJSON != capabilitiesJSON {
+		t.Fatalf("listed catalog with operation slots = %+v", listed)
+	}
+}
+
 func TestModelCatalogInfersRouteSourceFromProviderID(t *testing.T) {
 	service := newTestService(t)
 	ctx := context.Background()

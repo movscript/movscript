@@ -37,6 +37,10 @@
       "types": "./dist/surfaceHttpClient.d.ts",
       "import": "./dist/surfaceHttpClient.js"
     },
+    "./surface-route-layout": {
+      "types": "./dist/surfaceRouteLayout.d.ts",
+      "import": "./dist/surfaceRouteLayout.js"
+    },
     "./models": {
       "types": "./dist/surfaceModels.d.ts",
       "import": "./dist/surfaceModels.js"

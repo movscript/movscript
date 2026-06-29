@@ -1,5 +1,25 @@
 [
   {
+    "id": "83zi:vyro-seedance-2-fast",
+    "lab": "83zi",
+    "model_id": "vyro-seedance-2-fast",
+    "route_adapter_hint": "vyro_seedance",
+    "capabilities": [
+      "video",
+      "video_i2v"
+    ],
+    "param_keys": [
+      "duration",
+      "aspect_ratio",
+      "resolution"
+    ],
+    "source": {
+      "url": "https://83zi.com/sd2/",
+      "verified_at": "2026-06-29",
+      "status": "unofficial"
+    }
+  },
+  {
     "id": "elevenlabs:eleven-v3-tts",
     "lab": "elevenlabs",
     "model_id": "eleven_v3",

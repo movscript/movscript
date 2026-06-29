@@ -273,17 +273,17 @@ export function registerLangCommands(program: Command): void {
     .showHelpAfterError()
     .addHelpText('after', `
 Examples:
-  $ movcli project init --id demo --title "Demo Film"
-  $ movcli project demo create --cwd ./demo
-  $ movcli setting add hero --title "Hero"
-  $ movcli asset add --setting hero --slot portrait --prompt "cinematic portrait"
-  $ movcli language schemas
-  $ movcli language schema content_unit
-  $ movcli content-unit add --id cu_phone --type storyboard_ref --output-kind video --scene-moment phone_call --storyboard main
-  $ movcli overview
-  $ movcli inspect
-  $ movcli interpret
-  $ movcli regen plan
+  $ movscript project init --id demo --title "Demo Film"
+  $ movscript project demo create --cwd ./demo
+  $ movscript setting add hero --title "Hero"
+  $ movscript asset add --setting hero --slot portrait --prompt "cinematic portrait"
+  $ movscript language schemas
+  $ movscript language schema content_unit
+  $ movscript content-unit add --id cu_phone --type storyboard_ref --output-kind video --scene-moment phone_call --storyboard main
+  $ movscript overview
+  $ movscript inspect
+  $ movscript interpret
+  $ movscript regen plan
 `)
 
   program
@@ -2023,9 +2023,9 @@ async function createDemoProjectFromCliOptions(options: DemoCreateOptions, comma
     interpretation: summarizeDemoInterpretation(interpretation),
     next: [
       'cd <projectDir>',
-      'movcli review',
-      'movcli interpreter prompt cu_storyboard_ref',
-      'movcli interpret',
+      'movscript review',
+      'movscript interpreter prompt cu_storyboard_ref',
+      'movscript interpret',
     ],
   }, merged)
   if (isRecord(interpretation) && interpretation.status === 'failed') process.exitCode = 2

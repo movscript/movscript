@@ -3,7 +3,6 @@ name: domain
 description: "Work with MovScript creative project state using production-language first: project context, script, continuity references, scene beats, output tasks, generated options, adoption decisions, readiness checks, and impact review. Use when inspecting, changing, or reasoning about the underlying domain/source model through MCP tools."
 toolGrants:
   - mcp__movscript__movscript_runtime_status
-  - mcp__movscript__system_focus_get
   - mcp__movscript__domain_get_model
   - mcp__movscript__domain_overview
   - mcp__movscript__domain_query_entities
@@ -114,7 +113,7 @@ Open `references/domain-story.md` when the task depends on the production workfl
 
 ## Tool Map
 
-- Focus and overview: `system_focus_get`, `domain_overview`.
+- Project locator and overview: explicit `projectId` / Project Service locator, then `domain_overview`.
 - Model discovery: `domain_get_model`.
 - Query/read: `domain_query_entities`, `domain_query_settings`, `domain_query_assets`, `domain_query_production_context`, `domain_read_*`.
 - Project context: `domain_read_project_context_snapshot` for read-only context assembly; `domain_upsert_project_standards` only for explicit user-requested standard additions, removals, or edits.
@@ -128,7 +127,7 @@ Open `references/domain-story.md` when the task depends on the production workfl
 
 ## Edit Workflow
 
-1. Call `system_focus_get` when the request depends on the selected project, production, or entity.
+1. Resolve the intended project from explicit user input, a passed `projectId`/`project_id`, or a Project Service locator. Do not infer it from UI focus.
 2. For project-scoped planning, content-unit, generation, or style-sensitive work, call `domain_read_project_context_snapshot` before designing or changing source. Treat missing standards as context gaps to mention, not permission to edit.
 3. Query existing context with `domain_query_*` or read derived artifact context with `domain_read_*`.
 4. Call `domain_get_model` before changing a domain entity so editable paths, schema ids, and instructions come from MovScript.

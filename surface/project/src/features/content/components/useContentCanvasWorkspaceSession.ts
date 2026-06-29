@@ -73,6 +73,8 @@ export function useContentCanvasWorkspaceSession({
   const hasExplicitSessionSearch = useMemo(
     () => hasExplicitProjectEntrySearchParam(searchParams, [
       'canvasNode',
+      'canvasId',
+      'canvas',
       'node',
       'tab',
       'mode',

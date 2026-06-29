@@ -11,9 +11,9 @@ export type MovScriptResourceMentionPart =
   | { type: 'resource'; resourceId: number; token: string; key: string; mediaType?: string; role?: string }
 
 export const MOVSCRIPT_RESOURCE_MENTION_PATTERN = '@[resource:MEDIA_TYPE:ROLE:ID]'
-export const MOVSCRIPT_LEGACY_RESOURCE_MENTION_PATTERN = '[[resource::ID]]'
+export const MOVSCRIPT_LEGACY_RESOURCE_MENTION_PATTERN = '[[resource::ID]] or {{resource::ID}}'
 
-const RESOURCE_MENTION_RE = /@\[resource:([^\]\s]+)\]|\[\[resource::(\d+)\]\]/g
+const RESOURCE_MENTION_RE = /@\[resource:([^\]\s]+)\]|\[\[resource::(\d+)\]\]|\{\{\s*resource:{1,2}\s*([^}]+?)\s*\}\}/g
 const RESOURCE_MEDIA_TYPES = new Set(['image', 'video', 'audio', 'text', 'any'])
 
 export function formatResourceMention(resourceId: number, options: { mediaType?: string; role?: string } = {}): string {
@@ -31,7 +31,11 @@ export function parseResourceMentions(text: string | undefined | null): MovScrip
   for (const match of (text ?? '').matchAll(RESOURCE_MENTION_RE)) {
     const index = match.index
     if (index === undefined) continue
-    const parsed = match[1] ? parseResourceMentionPayload(match[1]) : { id: Number(match[2]) }
+    const parsed = match[1]
+      ? parseResourceMentionPayload(match[1])
+      : match[3]
+        ? parseLegacyResourceMentionPayload(match[3])
+        : { id: Number(match[2]) }
     const id = parsed.id
     if (!Number.isInteger(id) || id <= 0) continue
     mentions.push({
@@ -112,6 +116,28 @@ function parseResourceMentionPayload(payload: string): { id: number; mediaType?:
     } else {
       role = descriptors.join(':')
     }
+  }
+  return {
+    id,
+    ...(mediaType ? { mediaType } : {}),
+    ...(role ? { role } : {}),
+  }
+}
+
+function parseLegacyResourceMentionPayload(payload: string): { id: number; mediaType?: string; role?: string } {
+  const parts = payload.trim().split(/\s+/).filter(Boolean)
+  const id = Number(parts.shift())
+  if (!Number.isInteger(id) || id <= 0) return { id: 0 }
+  let mediaType = ''
+  let role = ''
+  for (const part of parts) {
+    const match = part.match(/^([a-zA-Z_][a-zA-Z0-9_-]*)=(.+)$/)
+    if (!match) continue
+    const key = normalizeMentionPart(match[1])
+    const value = normalizeMentionPart(match[2])
+    if (!value) continue
+    if (key === 'role') role = value
+    if (key === 'media' || key === 'media_type' || key === 'mediatype') mediaType = value
   }
   return {
     id,

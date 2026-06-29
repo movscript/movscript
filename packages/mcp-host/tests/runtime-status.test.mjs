@@ -5,10 +5,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
 
-import { handleMCPHostJSONRPC, runtimeStatus } from '../dist/stdio.js'
+import { handleMCPHostJSONRPC, listMCPHostTools, runtimeStatus } from '../dist/stdio.js'
 
 let server
 let baseURL
+let adminRequests = []
 
 before(async () => {
   server = createTestServer()
@@ -19,6 +20,107 @@ before(async () => {
 
 after(async () => {
   await new Promise((resolve) => server.close(resolve))
+})
+
+test('MCP host exposes runtime daemon bootstrap tools', () => {
+  const tools = new Set(listMCPHostTools().map((tool) => tool.name))
+  assert.equal(tools.has('runtime_daemon_ensure'), true)
+  assert.equal(tools.has('runtime_daemon_start'), true)
+  assert.equal(tools.has('runtime_daemon_status'), true)
+  assert.equal(tools.has('runtime_daemon_configure'), true)
+  assert.equal(tools.has('runtime_local_daemon_ensure'), true)
+  assert.equal(tools.has('runtime_local_daemon_start'), true)
+})
+
+test('MCP host exposes current admin tools without deferred cloud file or usage policy tools', () => {
+  const tools = new Set(listMCPHostTools().map((tool) => tool.name))
+  assert.equal(tools.has('admin_provider_list'), true)
+  assert.equal(tools.has('admin_provider_create'), true)
+  assert.equal(tools.has('admin_model_catalog_list'), true)
+  assert.equal(tools.has('admin_model_route_binding_create'), true)
+  assert.equal(tools.has('admin_model_route_diagnose'), true)
+  assert.equal(tools.has('admin_resource_access_settings_get'), true)
+  assert.equal(tools.has('admin_public_tunnel_config_update'), true)
+  assert.equal(tools.has('admin_generation_tools_settings_update'), true)
+  assert.equal(tools.has('admin_model_gateway_key_list'), true)
+  assert.equal(tools.has('admin_cloud_file_config_list'), false)
+  assert.equal(tools.has('admin_cloud_file_config_create'), false)
+  assert.equal(tools.has('admin_usage_policy_get'), false)
+  assert.equal(tools.has('admin_usage_policy_update'), false)
+})
+
+test('admin MCP tools bind to MovScript Home daemon gateway before calling fixed backend endpoints', async () => {
+  const previousHome = process.env.MOVSCRIPT_HOME
+  const previousDataServiceURL = process.env.MOVSCRIPT_DATA_SERVICE_URL
+  delete process.env.MOVSCRIPT_DATA_SERVICE_URL
+  adminRequests = []
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-home-'))
+  try {
+    mkdirSync(join(homeDir, 'runtime', 'endpoints'), { recursive: true })
+    writeFileSync(join(homeDir, 'runtime', 'endpoints', 'movscript.local-node.gateway.json'), JSON.stringify({
+      serviceName: 'movscript.local-node.gateway',
+      applicationId: 'movscript.local-node',
+      status: 'ready',
+      baseURL: `${baseURL}/gateway`,
+    }), 'utf8')
+    process.env.MOVSCRIPT_HOME = homeDir
+
+    const listResponse = await handleMCPHostJSONRPC({
+      jsonrpc: '2.0',
+      id: 'admin-providers',
+      method: 'tools/call',
+      params: {
+        name: 'admin_provider_list',
+        arguments: { homeDir },
+      },
+    })
+    assert.equal(listResponse?.error, undefined)
+    assert.equal(listResponse.result.items[0].provider_id, 'provider-main')
+
+    const tunnelResponse = await handleMCPHostJSONRPC({
+      jsonrpc: '2.0',
+      id: 'admin-tunnel',
+      method: 'tools/call',
+      params: {
+        name: 'admin_public_tunnel_config_update',
+        arguments: {
+          homeDir,
+          payload: {
+            default_profile_id: 'public-tunnel',
+            profiles: [{
+              id: 'public-tunnel',
+              mode: 'public_tunnel',
+              enabled: true,
+              public_base_url: 'https://example-tunnel.test',
+            }],
+          },
+        },
+      },
+    })
+    assert.equal(tunnelResponse?.error, undefined)
+    assert.equal(tunnelResponse.result.default_profile_id, 'public-tunnel')
+    assert.equal(tunnelResponse.result.profiles[0].public_base_url, 'https://example-tunnel.test')
+
+    const deleteResponse = await handleMCPHostJSONRPC({
+      jsonrpc: '2.0',
+      id: 'admin-gateway-delete',
+      method: 'tools/call',
+      params: {
+        name: 'admin_model_gateway_key_delete',
+        arguments: { homeDir, keyId: '9' },
+      },
+    })
+    assert.equal(deleteResponse?.error, undefined)
+    assert.equal(deleteResponse.result.status, 'deleted')
+    assert.deepEqual(adminRequests.map((request) => `${request.method} ${request.url}`), [
+      'GET /gateway/api/v1/admin/providers',
+      'PUT /gateway/api/v1/admin/settings/resource-access',
+      'DELETE /gateway/api/v1/model-gateway/api-keys/9',
+    ])
+  } finally {
+    restoreEnv('MOVSCRIPT_HOME', previousHome)
+    restoreEnv('MOVSCRIPT_DATA_SERVICE_URL', previousDataServiceURL)
+  }
 })
 
 test('runtimeStatus reads MovScript Home data-service endpoint before default local backend', async () => {
@@ -318,6 +420,29 @@ function createTestServer() {
         display_name: 'GPT Image 2',
         capabilities: ['image', 'image_edit'],
       }]))
+      return
+    }
+    if (req.url === '/gateway/api/v1/admin/providers' && req.method === 'GET') {
+      adminRequests.push({ method: req.method, url: req.url })
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ items: [{ provider_id: 'provider-main', display_name: 'Provider Main' }] }))
+      return
+    }
+    if (req.url === '/gateway/api/v1/admin/settings/resource-access' && req.method === 'PUT') {
+      adminRequests.push({ method: req.method, url: req.url })
+      let body = ''
+      req.setEncoding('utf8')
+      req.on('data', (chunk) => { body += chunk })
+      req.on('end', () => {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(body || '{}')
+      })
+      return
+    }
+    if (req.url === '/gateway/api/v1/model-gateway/api-keys/9' && req.method === 'DELETE') {
+      adminRequests.push({ method: req.method, url: req.url })
+      res.writeHead(204)
+      res.end()
       return
     }
     res.writeHead(404)

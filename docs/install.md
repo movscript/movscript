@@ -75,14 +75,16 @@ The installer attempts to stop an existing local-node before replacing the
 Useful daemon controls:
 
 ```bash
+~/.movscript/plugins/movscript/current/bin/movscript mcp stdio
 ~/.movscript/plugins/movscript/current/bin/movscript daemon status
 ~/.movscript/plugins/movscript/current/bin/movscript daemon stop
 ~/.movscript/plugins/movscript/current/bin/movscript daemon restart
 ```
 
 For Codex-installed development cache builds, run the same commands from the
-installed cache root's `bin/movscript`. The older
-`bin/movscript-agent-mcp local-node ...` form remains a compatibility alias.
+installed cache root's `bin/movscript`. `bin/movscript-agent-mcp` remains a
+compatibility shim for `bin/movscript mcp stdio`; the older
+`local-node ...` form remains a compatibility alias for `daemon ...`.
 Inside an agent session, the same controls are exposed as
 `runtime_local_daemon_status`, `runtime_local_daemon_stop`, and
 `runtime_local_daemon_restart`; the old `runtime_local_node_*` tools remain

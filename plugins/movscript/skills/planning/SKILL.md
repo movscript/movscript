@@ -3,7 +3,6 @@ name: planning
 description: "Plan MovScript production work in business terms: project context, production type or custom timeline vocabulary, script-derived beats, continuity references, scene beats, visual/audio materials, storyboard/keyframe evidence, and output tasks. Use only the needed internal source entities and domain tools for simple videos, reusable assets, custom structures, or larger productions."
 toolGrants:
   - mcp__movscript__movscript_runtime_status
-  - mcp__movscript__system_focus_get
   - mcp__movscript__domain_get_model
   - mcp__movscript__domain_overview
   - mcp__movscript__domain_query_entities
@@ -88,7 +87,7 @@ Use this skill when a user asks to plan or change MovScript creative work: proje
 
 ## Workflow
 
-1. Resolve focus with `system_focus_get` when the selected project, production, or entity matters.
+1. Resolve the intended project from explicit user input, a passed `projectId`/`project_id`, or a Project Service locator. Do not infer it from UI focus.
 2. Call `domain_read_project_context_snapshot`, then `domain_overview`, then query existing continuity references, scripts, output tasks, and production context.
 3. Open `references/video-production-paths.md`, then decide scope and granularity: simple one-off video or reusable project; known production type or custom timeline vocabulary; concept-driven, long-video, image-driven, or storyboard-driven path; one short direct `scene_moment`, one composed `scene_moment`, multiple scene moments, or a timeline namespace scope that needs `timeline_assembly_ref`.
 4. Open `references/entity-mapping.md` when mapping product language or legacy terms to current entities.

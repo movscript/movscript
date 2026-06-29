@@ -1,0 +1,154 @@
+.generation-call-composer {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  border: 1px solid color-mix(in srgb, var(--ms-color-border) 68%, transparent);
+  border-radius: var(--ms-radius-md);
+  background: var(--ms-color-surface);
+  padding: 10px;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--ms-color-foreground) 4%, transparent);
+}
+
+.generation-call-composer[data-compact="true"] {
+  gap: 8px;
+  padding: 8px;
+}
+
+.generation-call-composer__prompt,
+.generation-call-composer__config {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.generation-call-composer__config {
+  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 44%, transparent);
+  padding-top: 10px;
+}
+
+.generation-call-composer[data-compact="true"] .generation-call-composer__config {
+  padding-top: 8px;
+}
+
+.generation-call-composer__section-header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.generation-call-composer__section-action {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.generation-call-composer__meta-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(96px, 0.72fr) minmax(132px, 1fr) minmax(132px, 1.2fr);
+  gap: 8px;
+  align-items: end;
+}
+
+.generation-call-composer[data-compact="true"] .generation-call-composer__meta-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.generation-call-composer__field {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.generation-call-composer__field-label {
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.generation-call-composer__badge {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--ms-color-border) 74%, transparent);
+  border-radius: var(--ms-radius-sm);
+  background: color-mix(in srgb, var(--ms-color-muted) 22%, transparent);
+  color: var(--ms-color-foreground);
+  padding: 0 9px;
+  font-size: var(--ms-text-caption);
+  font-weight: 650;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.generation-call-composer__badge[data-tone="ready"] {
+  border-color: color-mix(in srgb, var(--ms-color-success, #16a34a) 38%, var(--ms-color-border));
+  background: color-mix(in srgb, var(--ms-color-success, #16a34a) 10%, transparent);
+  color: color-mix(in srgb, var(--ms-color-success, #16a34a) 72%, var(--ms-color-foreground));
+}
+
+.generation-call-composer__badge[data-tone="warning"] {
+  border-color: color-mix(in srgb, var(--ms-color-warning, #d97706) 40%, var(--ms-color-border));
+  background: color-mix(in srgb, var(--ms-color-warning, #d97706) 10%, transparent);
+  color: color-mix(in srgb, var(--ms-color-warning, #d97706) 72%, var(--ms-color-foreground));
+}
+
+.generation-call-composer__badge[data-tone="danger"] {
+  border-color: color-mix(in srgb, var(--ms-color-danger, #dc2626) 40%, var(--ms-color-border));
+  background: color-mix(in srgb, var(--ms-color-danger, #dc2626) 9%, transparent);
+  color: color-mix(in srgb, var(--ms-color-danger, #dc2626) 76%, var(--ms-color-foreground));
+}
+
+.generation-call-composer__messages {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: 1.35;
+}
+
+.generation-call-composer__messages[data-tone="warning"] {
+  color: color-mix(in srgb, var(--ms-color-warning, #d97706) 78%, var(--ms-color-foreground));
+}
+
+.generation-call-composer__messages[data-tone="danger"] {
+  color: color-mix(in srgb, var(--ms-color-danger, #dc2626) 78%, var(--ms-color-foreground));
+}
+
+.generation-call-composer__footer {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.generation-call-composer__footer > :first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.generation-call-composer__footer > :last-child {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 720px) {
+  .generation-call-composer__meta-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

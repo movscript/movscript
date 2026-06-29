@@ -34,16 +34,20 @@ export function ProjectResourceViewSurface({ kind }: ProjectResourceViewSurfaceP
   })
   const payload = recordValue(resourceViewQuery.data)
   const items = arrayValue(payload?.items)
+  const usage = stringValue(payload?.usage ?? payload?.viewMode ?? payload?.view_mode) ?? 'debug_compat'
+  const preferredEndpoint = stringValue(payload?.preferredEndpoint ?? payload?.preferred_endpoint)
   const title = projectResourceTitle(kind)
 
   return (
     <AgentSurfaceShell
-      title={title}
-      description="Project resource view backed by the active project runtime."
+      title={`${title} Debug View`}
+      description="Debug/compat project resource view backed by the active project runtime."
       ready={Boolean(runtime.project.projectId)}
       chips={[
         `project: ${runtime.project.projectId}`,
         `view: ${resourceViewKind}`,
+        `mode: ${usage}`,
+        ...(preferredEndpoint ? [`prefer: ${preferredEndpoint}`] : []),
         `items: ${items.length}`,
       ]}
     >

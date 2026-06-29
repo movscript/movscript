@@ -5,6 +5,7 @@ import { WorkbenchProjectBody, WorkbenchProjectShell } from '@movscript/ui/busin
 import { Badge, Button } from '@movscript/ui/primitives'
 import { arrayValue, recordValue, stringValue } from '../../data.js'
 import { useProjectSurfaceRuntime } from '../../runtime/index.js'
+import type { ProjectSurfaceRuntime } from '../../runtime/index.js'
 import { ScriptForm } from './ScriptForm.js'
 import {
   ScriptStageBadge,
@@ -46,47 +47,17 @@ export function ProjectScriptsSurface({ params }: ProjectScriptsSurfaceProps = {
   const [expandedVersionId, setExpandedVersionId] = useState<number | null>(null)
   const [versionEditorScrollTop, setVersionEditorScrollTop] = useState(0)
   const [workspace, setWorkspace] = useState<Partial<Script>>({})
+  const [workspaceDirty, setWorkspaceDirty] = useState(false)
   const [fileName, setFileName] = useState('')
   const [fileError, setFileError] = useState('')
 
   const scriptsQuery = useQuery({
-    queryKey: ['project-surface', 'scripts', runtime.project.projectId, runtime.project.projectDir ?? ''],
-    queryFn: async () => {
-      const resourceView = runtime.gateways.project.resourceView
-      if (!resourceView) throw new Error('Project runtime resource gateway is not available.')
-      const response = await resourceView({
-        projectId: runtime.project.projectId,
-        projectDir: runtime.project.projectDir,
-        projectUid: runtime.project.projectUid,
-        kind: 'scripts',
-      })
-      return arrayValue(recordValue(response)?.items).map((item, index) => scriptFromResource(item, index))
-    },
-    enabled: Boolean(runtime.gateways.project.resourceView && runtime.project.projectDir),
+    queryKey: ['project-surface', 'scripts-read-model', runtime.project.projectId, runtime.project.projectDir ?? ''],
+    queryFn: () => loadProjectScriptsReadModel(runtime),
+    enabled: Boolean((runtime.gateways.project.scriptsReadModel || runtime.gateways.project.resourceView) && runtime.project.projectDir),
   })
 
-  const versionsQuery = useQuery({
-    queryKey: ['project-surface', 'script-versions', runtime.project.projectId, runtime.project.projectDir ?? ''],
-    queryFn: async () => {
-      const resourceView = runtime.gateways.project.resourceView
-      if (!resourceView) throw new Error('Project runtime resource gateway is not available.')
-      try {
-        const response = await resourceView({
-          projectId: runtime.project.projectId,
-          projectDir: runtime.project.projectDir,
-          projectUid: runtime.project.projectUid,
-          kind: 'script-versions',
-        })
-        return arrayValue(recordValue(response)?.items).map((item, index) => scriptVersionFromResource(item, index))
-      } catch (error) {
-        if (errorMessage(error).includes('unsupported project resource kind')) return []
-        throw error
-      }
-    },
-    enabled: Boolean(runtime.gateways.project.resourceView && runtime.project.projectDir),
-  })
-
-  const scripts = scriptsQuery.data ?? []
+  const scripts = scriptsQuery.data?.scripts ?? []
 
   useEffect(() => {
     if (scripts.length === 0) return
@@ -97,7 +68,19 @@ export function ProjectScriptsSurface({ params }: ProjectScriptsSurfaceProps = {
   }, [requestedScriptId, scripts])
 
   const selected = selectedId ? scripts.find((script) => script.ID === selectedId) ?? null : null
-  const scriptVersions = versionsQuery.data ?? []
+  const selectedSourceQuery = useQuery({
+    queryKey: [
+      'project-surface',
+      'script-source',
+      runtime.project.projectId,
+      runtime.project.projectDir ?? '',
+      selected ? scriptStableKey(selected) : '',
+      selected ? scriptWorkspacePath(selected) ?? '' : '',
+    ],
+    queryFn: () => readSelectedScriptSource(runtime, selected),
+    enabled: Boolean(selected && runtime.project.projectDir),
+  })
+  const scriptVersions = scriptsQuery.data?.versions ?? []
   const versionsForSelected = useMemo(() => {
     if (!selected) return []
     return scriptVersions
@@ -121,11 +104,28 @@ export function ProjectScriptsSurface({ params }: ProjectScriptsSurfaceProps = {
 
   useEffect(() => {
     if (selected) {
-      setWorkspace({ ...selected })
+      const source = scriptInlineSourceText(selected)
+      setWorkspace({
+        ...selected,
+        ...(source !== undefined ? { content: source, raw_source: source } : {}),
+      })
+      setWorkspaceDirty(false)
       setFileName('')
       setFileError('')
     }
   }, [selected?.ID])
+
+  useEffect(() => {
+    if (!selected || selectedSourceQuery.data === undefined || workspaceDirty) return
+    setWorkspace((current) => {
+      if (scriptStableKey(current) !== scriptStableKey(selected)) return current
+      return {
+        ...current,
+        content: selectedSourceQuery.data,
+        raw_source: selectedSourceQuery.data,
+      }
+    })
+  }, [selected, selectedSourceQuery.data, workspaceDirty])
 
   useEffect(() => {
     setDetailTab('edit')
@@ -140,6 +140,7 @@ export function ProjectScriptsSurface({ params }: ProjectScriptsSurfaceProps = {
     },
     onSuccess: async (updated) => {
       setWorkspace((current) => ({ ...current, ...updated }))
+      setWorkspaceDirty(false)
       runtime.notifier.success('已保存')
       await invalidateScripts(queryClient, runtime.project.projectId, runtime.project.projectDir)
     },
@@ -168,11 +169,9 @@ export function ProjectScriptsSurface({ params }: ProjectScriptsSurfaceProps = {
     },
     onSuccess: async (saved) => {
       setWorkspace((current) => ({ ...current, ...saved }))
+      setWorkspaceDirty(false)
       runtime.notifier.success('版本已保存')
       await invalidateScripts(queryClient, runtime.project.projectId, runtime.project.projectDir)
-      await queryClient.invalidateQueries({
-        queryKey: ['project-surface', 'script-versions', runtime.project.projectId, runtime.project.projectDir ?? ''],
-      })
       setDetailTab('versions')
     },
     onError: (error) => runtime.notifier.error('保存版本失败', errorMessage(error)),
@@ -213,6 +212,7 @@ export function ProjectScriptsSurface({ params }: ProjectScriptsSurfaceProps = {
     try {
       const text = await file.text()
       setFileName(file.name)
+      setWorkspaceDirty(true)
       setWorkspace((current) => ({ ...current, raw_source: text, content: text }))
     } catch (error) {
       setFileError(errorMessage(error) || '读取文档失败')
@@ -280,12 +280,14 @@ export function ProjectScriptsSurface({ params }: ProjectScriptsSurfaceProps = {
                         导入文档
                       </Button>
                       {fileName && <ScriptEditorInlineMeta>{fileName}</ScriptEditorInlineMeta>}
+                      {selectedSourceQuery.isLoading && <ScriptEditorInlineMeta>正文读取中</ScriptEditorInlineMeta>}
                       {fileError && <ScriptEditorErrorText>{fileError}</ScriptEditorErrorText>}
+                      {selectedSourceQuery.error && <ScriptEditorErrorText>{errorMessage(selectedSourceQuery.error)}</ScriptEditorErrorText>}
                       <Button
                         size="sm"
                         className="gap-1.5"
                         onClick={() => updateScript.mutate(workspace)}
-                        disabled={updateScript.isPending}
+                        disabled={updateScript.isPending || selectedSourceQuery.isLoading}
                       >
                         <Save size={14} />
                         {updateScript.isPending ? '保存中' : '保存'}
@@ -309,7 +311,10 @@ export function ProjectScriptsSurface({ params }: ProjectScriptsSurfaceProps = {
                       <ScriptForm
                         script={selected}
                         workspace={workspace}
-                        onChange={setWorkspace}
+                        onChange={(next) => {
+                          setWorkspaceDirty(true)
+                          setWorkspace(next)
+                        }}
                         onCreateVersion={() => createVersion.mutate()}
                         isCreatingVersion={createVersion.isPending}
                         isCurrentVersionSaved={isCurrentVersionSaved}
@@ -348,6 +353,113 @@ export function ProjectScriptsSurface({ params }: ProjectScriptsSurfaceProps = {
 function selectedScriptIdFromSearchParams(searchParams: URLSearchParams | undefined): number | null {
   const value = searchParams?.get('script_id')
   return numberValue(value) ?? null
+}
+
+interface ProjectScriptsReadModelData {
+  scripts: Script[]
+  versions: ScriptVersion[]
+}
+
+async function loadProjectScriptsReadModel(runtime: ProjectSurfaceRuntime): Promise<ProjectScriptsReadModelData> {
+  const scriptsReadModel = runtime.gateways.project.scriptsReadModel
+  if (scriptsReadModel) {
+    const response = await scriptsReadModel({
+      projectId: runtime.project.projectId,
+      projectDir: runtime.project.projectDir,
+      projectUid: runtime.project.projectUid,
+    })
+    const payload = recordValue(response)
+    const model = recordValue(payload?.projectScriptsReadModel ?? response) ?? {}
+    return {
+      scripts: arrayValue(model.scripts).map((item, index) => scriptFromResource(item, index)),
+      versions: arrayValue(model.versions ?? model.scriptVersions ?? model.script_versions)
+        .map((item, index) => scriptVersionFromResource(item, index)),
+    }
+  }
+  return loadProjectScriptsResourceViewFallback(runtime)
+}
+
+async function loadProjectScriptsResourceViewFallback(runtime: ProjectSurfaceRuntime): Promise<ProjectScriptsReadModelData> {
+  const resourceView = runtime.gateways.project.resourceView
+  if (!resourceView) throw new Error('Project runtime scripts read-model gateway is not available.')
+  const scriptsResponse = await resourceView({
+    projectId: runtime.project.projectId,
+    projectDir: runtime.project.projectDir,
+    projectUid: runtime.project.projectUid,
+    kind: 'scripts',
+  })
+  const versions = await resourceView({
+    projectId: runtime.project.projectId,
+    projectDir: runtime.project.projectDir,
+    projectUid: runtime.project.projectUid,
+    kind: 'script-versions',
+  }).then((response) => arrayValue(recordValue(response)?.items).map((item, index) => scriptVersionFromResource(item, index)))
+    .catch((error) => {
+      if (errorMessage(error).includes('unsupported project resource kind')) return []
+      throw error
+    })
+  return {
+    scripts: arrayValue(recordValue(scriptsResponse)?.items).map((item, index) => scriptFromResource(item, index)),
+    versions,
+  }
+}
+
+async function readSelectedScriptSource(runtime: ProjectSurfaceRuntime, selected: Script | null): Promise<string> {
+  if (!selected) return ''
+  const inlineSource = scriptInlineSourceText(selected)
+  if (inlineSource !== undefined) return inlineSource
+  const readScriptSource = runtime.gateways.project.readScriptSource
+  if (!readScriptSource) throw new Error('Project script source gateway is not available.')
+  const response = await readScriptSource({
+    projectId: runtime.project.projectId,
+    projectDir: runtime.project.projectDir,
+    projectUid: runtime.project.projectUid,
+    input: {
+      record: scriptSourceReadRecord(selected),
+    },
+  })
+  return scriptSourceTextFromGatewayResult(response)
+}
+
+function scriptSourceReadRecord(script: Script): Record<string, unknown> {
+  return {
+    ...(script.record ?? {}),
+    id: script.id ?? script.ID,
+    ID: script.ID,
+    title: script.title,
+    source_ref: stringValue(script.record?.source_ref ?? script.record?.sourceRef) ?? 'script.md',
+    ...((script.record?.__workspace_path ?? script.record?.path) ? {
+      __workspace_path: script.record.__workspace_path ?? script.record.path,
+    } : {}),
+  }
+}
+
+function scriptSourceTextFromGatewayResult(response: unknown): string {
+  const record = recordValue(response)
+  return rawStringValue(record?.result ?? response) ?? ''
+}
+
+function scriptInlineSourceText(script: Partial<Script>): string | undefined {
+  const record = script.record ?? {}
+  const sourceLoaded = record.sourceLoaded === true
+    || record.source_loaded === true
+    || record.source !== undefined
+    || record.content !== undefined
+    || record.raw_source !== undefined
+  const source = rawStringValue(script.content ?? script.raw_source ?? record.content ?? record.raw_source ?? record.source)
+  if (!sourceLoaded && source === '') return undefined
+  return source
+}
+
+function scriptWorkspacePath(script: Partial<Script>): string | undefined {
+  return stringValue(script.record?.__workspace_path ?? script.record?.path)
+}
+
+function scriptStableKey(script: Partial<Script>): string {
+  return stringValue(script.id)
+    ?? stringValue(script.record?.id)
+    ?? stringValue(script.record?.__workspace_path)
+    ?? (numberValue(script.ID) !== undefined ? String(script.ID) : 'script')
 }
 
 function scriptFromResource(item: unknown, index: number): Script {
@@ -462,6 +574,12 @@ async function invalidateScripts(
   projectId: string | number,
   projectDir?: string,
 ) {
+  await queryClient.invalidateQueries({
+    queryKey: ['project-surface', 'scripts-read-model', projectId, projectDir ?? ''],
+  })
+  await queryClient.invalidateQueries({
+    queryKey: ['project-surface', 'script-source', projectId, projectDir ?? ''],
+  })
   await queryClient.invalidateQueries({
     queryKey: ['project-surface', 'scripts', projectId, projectDir ?? ''],
   })

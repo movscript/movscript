@@ -35,13 +35,21 @@ export type SurfaceModelListOptions = {
   referenceAssets?: SurfaceModelReferenceAssetIntent[]
 }
 
+export function surfaceModelReferenceAssetsKey(referenceAssets: readonly SurfaceModelReferenceAssetIntent[] | undefined | null): string {
+  if (!referenceAssets || referenceAssets.length === 0) return ''
+  return JSON.stringify(referenceAssets.map((asset) => ({
+    role: asset.role.trim(),
+    ...(asset.media_type?.trim() ? { media_type: asset.media_type.trim() } : {}),
+  })))
+}
+
 export async function listSurfaceModelsByCapability(capability: SurfaceModelCapability, options: SurfaceModelListOptions = {}): Promise<PublicModel[]> {
   const queryCapability = surfaceModelQueryCapability(capability)
   const params = new URLSearchParams()
   params.set('capability', queryCapability)
   if (options.operation?.trim()) params.set('operation', options.operation.trim())
   if (options.referenceAssets && options.referenceAssets.length > 0) {
-    params.set('reference_assets', JSON.stringify(options.referenceAssets))
+    params.set('reference_assets', surfaceModelReferenceAssetsKey(options.referenceAssets))
   }
   const response = await surfaceDataApi.get<PublicModel[]>(`/models?${params.toString()}`)
   return Array.isArray(response.data) ? response.data : []

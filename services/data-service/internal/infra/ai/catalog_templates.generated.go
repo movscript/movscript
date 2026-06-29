@@ -6,6 +6,18 @@ import "encoding/json"
 
 var catalogTemplateSources = []ModelDef{
 	{
+		ID:                "83zi:vyro-seedance-2-fast",
+		Lab:               "83zi",
+		ModelID:           "vyro-seedance-2-fast",
+		DisplayName:       "83zi Seedance 2.0 Fast",
+		Capabilities:      []string{"video", "video_i2v"},
+		AdapterType:       "vyro_seedance",
+		SourceStatus:      "unofficial",
+		AcceptsImageInput: true,
+		MaxInputImages:    -1,
+		SupportedParams:   mustGeneratedCatalogParamDefs("[{\"key\":\"duration\",\"label\":\"时长(秒)\",\"type\":\"select\",\"options\":[\"5\",\"10\"],\"default\":\"5\"},{\"key\":\"aspect_ratio\",\"label\":\"画面比例\",\"type\":\"select\",\"options\":[\"16:9\",\"9:16\",\"1:1\"],\"default\":\"16:9\"},{\"key\":\"resolution\",\"label\":\"清晰度\",\"type\":\"select\",\"options\":[\"720P\",\"1080P\"],\"default\":\"720P\"}]"),
+	},
+	{
 		ID:              "elevenlabs:eleven-v3-tts",
 		Lab:             "elevenlabs",
 		ModelID:         "eleven_v3",

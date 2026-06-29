@@ -89,7 +89,11 @@ test('generateCanvasRuntimeMedia submits explicit operation intent and typed ref
     assert.equal(job.output_resource_id, 88)
     assert.deepEqual(getRequests[0], {
       path: canvasServicePaths.runtimeModels,
-      params: { capability: 'video_generation', operation: 'first_last_frame_to_video' },
+      params: {
+        capability: 'video_generation',
+        operation: 'first_last_frame_to_video',
+        reference_assets: '[{"role":"first_frame","media_type":"image"},{"role":"last_frame","media_type":"image"}]',
+      },
     })
     assert.equal(postRequests[0]?.path, canvasServicePaths.runtimeMedia)
     assert.deepEqual(postRequests[0]?.body.generation_intent, {
@@ -149,7 +153,11 @@ test('generateCanvasRuntimeMedia submits multimodal reference-to-video assets', 
   const postRequests: Array<{ path: string; body: Record<string, unknown> }> = []
   canvasApi.get = (async (path: string, options?: { params?: Record<string, unknown> }) => {
     if (path === canvasServicePaths.runtimeModels) {
-      assert.deepEqual(options?.params, { capability: 'video_generation', operation: 'reference_to_video' })
+      assert.deepEqual(options?.params, {
+        capability: 'video_generation',
+        operation: 'reference_to_video',
+        reference_assets: '[{"role":"reference_image","media_type":"image"},{"role":"reference_video","media_type":"video"},{"role":"reference_audio","media_type":"audio"}]',
+      })
       return {
         data: [modelFixture({ id: 10, model_id: 'reference.video', is_default: true })],
       }

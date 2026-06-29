@@ -70,6 +70,125 @@ func (h *JobHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, h.buildJobResponses(c, []domainjob.Job{job})[0])
 }
 
+func (h *JobHandler) Preflight(c *gin.Context) {
+	user := currentUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+
+	var req struct {
+		ModelID              string                                 `json:"model_id"`
+		JobType              string                                 `json:"job_type"`
+		GenerationIntent     *jobapp.GenerationIntentInput          `json:"generation_intent"`
+		FeatureKey           string                                 `json:"feature_key"`
+		Title                string                                 `json:"title"`
+		Prompt               string                                 `json:"prompt"`
+		ExtraParams          string                                 `json:"extra_params"`
+		AspectRatio          string                                 `json:"aspect_ratio"`
+		Duration             int                                    `json:"duration"`
+		InputResourceID      *uint                                  `json:"input_resource_id"`
+		InputResourceIDs     []uint                                 `json:"input_resource_ids"`
+		ProjectID            *uint                                  `json:"project_id"`
+		ProjectUID           string                                 `json:"project_uid"`
+		ProjectTitle         string                                 `json:"project_title"`
+		ProjectDir           string                                 `json:"project_dir"`
+		ContentUnitCandidate *domainjob.ContentUnitCandidateBinding `json:"content_unit_candidate"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, generationPreflightBlocked("invalid_request", err.Error(), "body"))
+		return
+	}
+
+	result, err := h.service.PreflightGeneration(c.Request.Context(), jobapp.EnqueueInput{
+		UserID:               user.ID,
+		OrgID:                currentOrgID(c),
+		ModelID:              req.ModelID,
+		JobType:              req.JobType,
+		GenerationIntent:     req.GenerationIntent,
+		FeatureKey:           req.FeatureKey,
+		Title:                req.Title,
+		Prompt:               req.Prompt,
+		ExtraParams:          req.ExtraParams,
+		AspectRatio:          req.AspectRatio,
+		Duration:             req.Duration,
+		InputResourceID:      req.InputResourceID,
+		InputResourceIDs:     req.InputResourceIDs,
+		ProjectID:            req.ProjectID,
+		ProjectUID:           req.ProjectUID,
+		ProjectTitle:         req.ProjectTitle,
+		ProjectDir:           req.ProjectDir,
+		CreatedAt:            time.Now(),
+		ContentUnitCandidate: req.ContentUnitCandidate,
+	})
+	if err != nil {
+		c.JSON(http.StatusOK, generationPreflightBlockedFromError(err))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"status":             "ready",
+		"ready":              true,
+		"blockers":           []gin.H{},
+		"job_type":           result.JobType,
+		"output_type":        result.OutputType,
+		"model_id":           result.ModelID,
+		"runtime_model_id":   result.RuntimeModelID,
+		"catalog_entry_id":   result.CatalogEntryID,
+		"route_binding_id":   result.RouteBindingID,
+		"route_group":        result.RouteGroup,
+		"provider_id":        result.ProviderID,
+		"provider_kind":      result.ProviderKind,
+		"provider_model_id":  result.ProviderModelID,
+		"credential_id":      result.CredentialID,
+		"input_resource_ids": result.InputResourceIDs,
+		"image_count":        result.ImageCount,
+		"video_count":        result.VideoCount,
+		"estimate":           result.Estimate,
+	})
+}
+
+func generationPreflightBlockedFromError(err error) gin.H {
+	var validationErr *ai.ValidationError
+	if errors.As(err, &validationErr) {
+		body := generationPreflightBlocked(validationErr.Code, validationErr.Message, validationErr.Field)
+		blockers, _ := body["blockers"].([]gin.H)
+		if len(blockers) > 0 {
+			if len(validationErr.AllowedValues) > 0 {
+				blockers[0]["allowed_values"] = validationErr.AllowedValues
+			}
+			if len(validationErr.SuggestedFix) > 0 {
+				blockers[0]["suggested_fix"] = validationErr.SuggestedFix
+			}
+			if validationErr.RequiredMin != nil {
+				blockers[0]["required_min"] = *validationErr.RequiredMin
+			}
+			if validationErr.AllowedMax != nil {
+				blockers[0]["allowed_max"] = *validationErr.AllowedMax
+			}
+			if validationErr.ActualCount != nil {
+				blockers[0]["actual_count"] = *validationErr.ActualCount
+			}
+		}
+		return body
+	}
+	return generationPreflightBlocked("generation_preflight_blocked", err.Error(), "")
+}
+
+func generationPreflightBlocked(code string, message string, field string) gin.H {
+	blocker := gin.H{
+		"code":    code,
+		"message": message,
+	}
+	if field != "" {
+		blocker["field"] = field
+	}
+	return gin.H{
+		"status":   "blocked",
+		"ready":    false,
+		"blockers": []gin.H{blocker},
+	}
+}
+
 func (h *JobHandler) writeJobCreateError(c *gin.Context, err error) {
 	var validationErr *ai.ValidationError
 	switch {

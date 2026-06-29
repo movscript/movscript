@@ -268,6 +268,7 @@ type TokenUsage struct {
 
 type ImageRequest struct {
 	Model               string
+	Operation           string
 	Prompt              string
 	Size                string
 	N                   int
@@ -288,6 +289,7 @@ type ImageRequest struct {
 	InputImageDataList  []MediaData
 	ImageFieldName      string
 	CloudFileID         string
+	ReferenceAssets     []ReferenceAsset
 	EditOnly            bool
 }
 
@@ -298,6 +300,7 @@ type ImageResponse struct {
 
 type VideoRequest struct {
 	Model                 string
+	Operation             string
 	Prompt                string
 	Image                 string
 	InputImages           []string
@@ -329,6 +332,13 @@ type VideoRequest struct {
 	MovementAmplitude     string
 	OffPeak               *bool
 	Payload               string
+	ReferenceAssets       []ReferenceAsset
+}
+
+type ReferenceAsset struct {
+	Role       string `json:"role"`
+	MediaType  string `json:"media_type,omitempty"`
+	ResourceID uint   `json:"resource_id,omitempty"`
 }
 
 type MediaData struct {

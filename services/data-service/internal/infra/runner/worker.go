@@ -140,6 +140,7 @@ type runnerResolvedGenerationIntent struct {
 	Capability      string
 	Operation       string
 	ReferenceAssets []ai.RouteReferenceAssetIntent
+	RequestAssets   []ai.ReferenceAsset
 }
 
 func runnerGenerationIntentFromRequestContext(requestContext string) *runnerResolvedGenerationIntent {
@@ -148,8 +149,9 @@ func runnerGenerationIntentFromRequestContext(requestContext string) *runnerReso
 			Capability      string `json:"capability"`
 			Operation       string `json:"operation"`
 			ReferenceAssets []struct {
-				Role      string `json:"role"`
-				MediaType string `json:"media_type"`
+				Role       string `json:"role"`
+				MediaType  string `json:"media_type"`
+				ResourceID uint   `json:"resource_id"`
 			} `json:"reference_assets"`
 		} `json:"intent"`
 	}
@@ -165,12 +167,33 @@ func runnerGenerationIntentFromRequestContext(requestContext string) *runnerReso
 		Operation:  strings.TrimSpace(body.Intent.Operation),
 	}
 	for _, ref := range body.Intent.ReferenceAssets {
+		role := strings.TrimSpace(ref.Role)
+		mediaType := strings.TrimSpace(ref.MediaType)
 		out.ReferenceAssets = append(out.ReferenceAssets, ai.RouteReferenceAssetIntent{
-			Role:      strings.TrimSpace(ref.Role),
-			MediaType: strings.TrimSpace(ref.MediaType),
+			Role:      role,
+			MediaType: mediaType,
+		})
+		out.RequestAssets = append(out.RequestAssets, ai.ReferenceAsset{
+			Role:       role,
+			MediaType:  mediaType,
+			ResourceID: ref.ResourceID,
 		})
 	}
 	return out
+}
+
+func runnerGenerationOperationFromJob(job *persistencemodel.Job) string {
+	if intent := runnerGenerationIntentFromRequestContext(job.RequestContext); intent != nil {
+		return intent.Operation
+	}
+	return ""
+}
+
+func runnerReferenceAssetsFromJob(job *persistencemodel.Job) []ai.ReferenceAsset {
+	if intent := runnerGenerationIntentFromRequestContext(job.RequestContext); intent != nil {
+		return intent.RequestAssets
+	}
+	return nil
 }
 
 // cloudupService loads enabled cloud file configs from DB and builds a upload.Service.

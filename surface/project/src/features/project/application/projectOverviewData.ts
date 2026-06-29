@@ -10,6 +10,8 @@ import {
   type ContentSourceWorkspaceSnapshot,
 } from '@movscript/core/content'
 
+const PROJECT_HOME_READ_MODEL_ENDPOINT = '/v1/project/home/read-model'
+
 export type ProjectOverviewRecord = SemanticEntityRecord & {
   description?: string
   summary?: string
@@ -17,6 +19,7 @@ export type ProjectOverviewRecord = SemanticEntityRecord & {
 }
 
 export interface ProjectOverviewData {
+  scripts: ProjectOverviewRecord[]
   scriptVersions: ProjectOverviewRecord[]
   segments: ProjectOverviewRecord[]
   sceneMoments: ProjectOverviewRecord[]
@@ -34,6 +37,7 @@ export interface ProjectOverviewCandidateView extends Record<string, unknown> {
 }
 
 export const emptyProjectOverviewData: ProjectOverviewData = {
+  scripts: [],
   scriptVersions: [],
   segments: [],
   sceneMoments: [],
@@ -56,6 +60,12 @@ export interface ProjectOverviewLoadContext {
 }
 
 export interface ProjectOverviewProjectGateway {
+  homeReadModel?: (input: {
+    projectId?: string
+    projectDir?: string
+    projectUid?: string
+    input?: unknown
+  }) => Promise<unknown>
   resourceView?: (input: {
     projectId?: string
     projectDir?: string
@@ -76,6 +86,15 @@ export async function loadProjectOverviewData(
   projectId: number,
   context: ProjectOverviewLoadContext = {},
 ): Promise<ProjectOverviewData> {
+  const homeReadModelData = await safeProjectHomeReadModelData(projectId, context)
+  if (homeReadModelData) {
+    const candidateView = await safeProjectCandidateView(context, homeReadModelData.settings, homeReadModelData.contentUnits)
+    return {
+      ...homeReadModelData,
+      ...(candidateView ? { candidateView } : {}),
+    }
+  }
+
   const [
     scriptVersions,
     segments,
@@ -106,6 +125,7 @@ export async function loadProjectOverviewData(
   const candidateView = await safeProjectCandidateView(context, settings, resolvedContentUnits)
 
   return {
+    scripts: [],
     scriptVersions,
     segments,
     sceneMoments,
@@ -117,6 +137,68 @@ export async function loadProjectOverviewData(
     ...(candidateView ? { candidateView } : {}),
     ...(projectTimelineStatus ? { projectTimelineStatus } : {}),
   }
+}
+
+async function safeProjectHomeReadModelData(
+  projectId: number,
+  context: ProjectOverviewLoadContext,
+): Promise<ProjectOverviewData | undefined> {
+  if (!context.projectDir) return undefined
+  try {
+    const payload = context.projectGateway?.homeReadModel
+      ? await context.projectGateway.homeReadModel({
+        projectId: String(projectId),
+        projectDir: context.projectDir,
+        projectUid: context.projectUid,
+        input: projectOverviewScopePayload(context),
+      })
+      : await fetchProjectHomeReadModel(projectId, context)
+    const model = projectOverviewHomeReadModel(payload)
+    if (!model) return undefined
+    return {
+      scripts: projectOverviewRecordArray(model.scripts),
+      scriptVersions: [],
+      segments: [],
+      sceneMoments: projectOverviewRecordArray(model.sceneMoments ?? model.scene_moments),
+      productions: projectOverviewRecordArray(model.productions),
+      settings: projectOverviewRecordArray(model.settings),
+      assetSlots: projectOverviewRecordArray(model.assets ?? model.assetSlots ?? model.asset_slots),
+      contentUnits: projectOverviewRecordArray(model.contentUnits ?? model.content_units),
+      keyframes: [],
+    }
+  } catch (error) {
+    console.warn('[project-home] failed to load home read model', error)
+    return undefined
+  }
+}
+
+async function fetchProjectHomeReadModel(projectId: number, context: ProjectOverviewLoadContext): Promise<unknown> {
+  const baseURL = projectOverviewGatewayBaseURL(context)
+  if (!baseURL || !context.projectDir) return undefined
+  const response = await fetch(`${baseURL}${PROJECT_HOME_READ_MODEL_ENDPOINT}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      projectId,
+      projectDir: context.projectDir,
+      ...(context.projectUid ? { projectUid: context.projectUid } : {}),
+      ...projectOverviewScopePayload(context),
+    }),
+  })
+  if (!response.ok) {
+    console.warn('[project-home] failed to load home read model', {
+      status: response.status,
+      endpoint: PROJECT_HOME_READ_MODEL_ENDPOINT,
+    })
+    return undefined
+  }
+  return response.json().catch(() => undefined)
+}
+
+function projectOverviewHomeReadModel(payload: unknown): Record<string, unknown> | undefined {
+  const record = isRecord(payload) ? payload : undefined
+  const model = record && isRecord(record.projectHomeReadModel) ? record.projectHomeReadModel : record
+  return isRecord(model) && model.schema === 'movscript.project-home-read-model.v1' ? model : undefined
 }
 
 async function safeList(projectId: number, kind: SurfaceSemanticEntityKind): Promise<ProjectOverviewRecord[]> {

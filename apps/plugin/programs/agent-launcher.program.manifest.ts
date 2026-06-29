@@ -11,7 +11,8 @@ export const pluginAgentLauncherProgramManifest = {
   name: 'MovScript Agent Plugin Launcher',
   profiles: ['plugin', 'test'],
   entry: {
-    command: './bin/movscript-agent-mcp',
+    command: './bin/movscript',
+    args: ['mcp', 'stdio'],
   },
   transport: 'stdio',
   health: {

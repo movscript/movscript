@@ -6,10 +6,42 @@
 .content-canvas-prompt-editor__label {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
   color: var(--cc-muted);
   font-size: 11px;
   font-weight: 780;
+}
+
+.content-canvas-prompt-editor__label-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.content-canvas-prompt-editor__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.content-canvas-prompt-editor__actions button {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--cc-border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--cc-panel) 94%, transparent);
+  color: var(--cc-text);
+}
+
+.content-canvas-prompt-editor__actions button:hover {
+  border-color: color-mix(in srgb, var(--cc-accent) 50%, var(--cc-border));
+  background: var(--cc-accent-soft);
 }
 
 .content-canvas-shot-plan-editor {
@@ -141,6 +173,49 @@
   background: var(--cc-panel);
   box-shadow: 0 18px 42px color-mix(in srgb, #000 18%, transparent);
   padding: 5px;
+}
+
+.content-canvas-prompt-role-menu {
+  position: absolute;
+  z-index: 35;
+  display: grid;
+  width: min(240px, 100%);
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: var(--cc-panel);
+  box-shadow: 0 18px 42px color-mix(in srgb, #000 18%, transparent);
+  padding: 5px;
+}
+
+.content-canvas-prompt-role-menu button {
+  display: grid;
+  gap: 2px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cc-text);
+  padding: 7px 8px;
+  text-align: left;
+}
+
+.content-canvas-prompt-role-menu button:hover,
+.content-canvas-prompt-role-menu button[data-active="true"] {
+  background: var(--cc-accent-soft);
+}
+
+.content-canvas-prompt-role-menu button[data-active="true"] {
+  box-shadow: inset 3px 0 0 var(--cc-accent);
+}
+
+.content-canvas-prompt-role-menu span {
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.content-canvas-prompt-role-menu small {
+  color: var(--cc-muted);
+  font-size: 10px;
+  font-weight: 680;
 }
 
 .content-canvas-prompt-mention-menu button {

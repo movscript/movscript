@@ -76,6 +76,22 @@ test('content canvas project entry session restores from snapshot without explic
   })
 })
 
+test('content canvas project entry session does not treat canvas id as node focus', () => {
+  const state = resolveContentCanvasProjectEntrySessionState({
+    hasExplicitSearch: true,
+    searchParams: new URLSearchParams('canvasId=canvas%3Ahome'),
+    snapshot: snapshot({
+      activeKind: 'visual_style',
+      activeCanvasNodeId: 'scene_moment:old',
+      workspaceTab: 'canvas',
+      selectedNodeId: 'asset:old',
+      selectionKind: 'asset',
+    }),
+  })
+
+  assert.equal(state, null)
+})
+
 test('content canvas project entry session falls back to selected node for legacy links', () => {
   const state = resolveContentCanvasProjectEntrySessionState({
     hasExplicitSearch: true,

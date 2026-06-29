@@ -1,4 +1,5 @@
 import {
+  parseResourceMentions,
   resourceIdsFromMentions,
   stripResourceMentions,
 } from '@movscript/workspace'
@@ -8,7 +9,9 @@ import {
   type GenerationIntentPayload,
   type GenerationJobPayloadParamDef,
   type GenerationParamValue,
+  type GenerationReferenceAssetPayload,
 } from './jobPayload.js'
+import { completeGenerationReferenceAssets } from './promptComposer.js'
 
 export type ContentUnitGenerationOutputKind = 'image' | 'video'
 export type ContentUnitGenerationCandidateStatus =
@@ -80,6 +83,12 @@ export interface ContentUnitGenerationCandidateCreatePlan {
   }>
   promptSnapshot: Record<string, unknown>
   createdAt: string
+}
+
+type PromptReferenceAssetIntent = {
+  role?: string
+  media_type?: string
+  resource_id: number
 }
 
 export function buildContentUnitGenerationRequest(
@@ -286,6 +295,26 @@ export function compiledContentUnitGenerationPromptResourceIds(prompt: Record<st
   ])
 }
 
+export function compiledContentUnitGenerationPromptReferenceAssets(prompt: Record<string, unknown>): GenerationReferenceAssetPayload[] {
+  const declared = referenceAssetsFromValue(prompt.reference_assets ?? prompt.referenceAssets)
+  const mentioned = [
+    ...referenceAssetsFromMentions(stringField(prompt.text)),
+    ...referenceAssetsFromMentions(stringField(prompt.negative_text)),
+    ...referenceAssetsFromMentions(stringField(prompt.notes)),
+  ]
+  const all = [...declared, ...mentioned]
+  const seen = new Set<number>()
+  const deduped = all.filter((asset) => {
+    if (seen.has(asset.resource_id)) return false
+    seen.add(asset.resource_id)
+    return true
+  })
+  return completeGenerationReferenceAssets({
+    existing: deduped,
+    inputResourceIds: compiledContentUnitGenerationPromptResourceIds(prompt),
+  })
+}
+
 export function buildContentUnitGenerationPromptSnapshot(input: {
   contentUnitId: string | number
   outputKind: ContentUnitGenerationOutputKind
@@ -297,6 +326,7 @@ export function buildContentUnitGenerationPromptSnapshot(input: {
 }): Record<string, unknown> {
   const resourceIds = input.resourceIds ?? compiledContentUnitGenerationPromptResourceIds(input.compiledPrompt)
   const modelParams = nonEmptyRecord(input.modelParams)
+  const referenceAssets = compiledContentUnitGenerationPromptReferenceAssets(input.compiledPrompt)
   return {
     schema: 'movscript.content_unit_generation_prompt_snapshot.v1',
     content_unit_id: input.contentUnitId,
@@ -304,6 +334,7 @@ export function buildContentUnitGenerationPromptSnapshot(input: {
     model_id: input.modelId,
     compiled_prompt: input.compiledPrompt,
     resource_ids: resourceIds,
+    ...(referenceAssets.length > 0 ? { reference_assets: referenceAssets } : {}),
     ...(modelParams ? { model_params: modelParams } : {}),
     ...(Array.isArray(input.paramAudit) && input.paramAudit.length > 0 ? { param_audit: input.paramAudit } : {}),
   }
@@ -359,6 +390,31 @@ function contentUnitGenerationCandidateStatus(value: unknown): ContentUnitGenera
   if (value === 'canceled') return 'canceled'
   if (value === 'queued' || value === 'imported') return value
   return 'running'
+}
+
+function referenceAssetsFromValue(value: unknown): PromptReferenceAssetIntent[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item): PromptReferenceAssetIntent[] => {
+    const record = recordField(item)
+    if (!record) return []
+    const resourceId = numericId(record.resource_id ?? record.resourceId ?? record.id)
+    if (resourceId === undefined) return []
+    const role = stringField(record.role)
+    const mediaType = stringField(record.media_type ?? record.mediaType)
+    return [{
+      resource_id: resourceId,
+      ...(role ? { role } : {}),
+      ...(mediaType ? { media_type: mediaType } : {}),
+    }]
+  })
+}
+
+function referenceAssetsFromMentions(text: string | undefined): PromptReferenceAssetIntent[] {
+  return parseResourceMentions(text).map((mention) => ({
+    resource_id: mention.id,
+    ...(mention.role ? { role: mention.role } : {}),
+    ...(mention.mediaType ? { media_type: mention.mediaType } : {}),
+  }))
 }
 
 function positiveIntegerIds(values: unknown[]): number[] {

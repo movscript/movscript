@@ -124,6 +124,7 @@ function invalidateProjectWorkspaceUpdated(queryClient: QueryClient, payload: un
   void queryClient.invalidateQueries({ queryKey: movScriptWorkspaceKeys.filesScope })
   if (!projectId) return
   void queryClient.invalidateQueries({ queryKey: contentCanvasKeys.projectScope(projectId) })
+  void queryClient.invalidateQueries({ queryKey: agentSessionOutputKeys.contentUnits(projectId) })
   void queryClient.invalidateQueries({ queryKey: agentSessionOutputKeys.contentWorkspace(projectId) })
   void queryClient.invalidateQueries({ queryKey: agentBrowserKeys.navigationProject(projectId) })
   void queryClient.invalidateQueries({ queryKey: resourceCandidateKeys.targetsForProject(projectId) })

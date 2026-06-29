@@ -4,6 +4,13 @@ import { File, Image, Video } from 'lucide-react'
 import type { ContentCanvasCandidate, ContentCanvasNode } from '../domain/contentCanvasTypes'
 import { readResourceDragPayload, resourceDropAcceptsPayload } from '@movscript/resource-surface/resource-interaction'
 import { ResourceFileImage, ResourceFileVideo } from '@movscript/resource-surface/resource-media-components'
+import { formatResourceMention, parseResourceMentions } from '@movscript/workspace'
+import {
+  generationDefaultReferenceRoleForMediaType,
+  generationReferenceRoleLabel,
+  generationReferenceRoleOptionsForMediaType,
+  generationResourceReferenceLabel,
+} from '@movscript/core/generation'
 
 import { candidatesForNode, iconForContentNode } from './contentCanvasWorkspaceModel'
 import type { CandidateSelections } from './contentCanvasWorkspaceTypes'
@@ -17,6 +24,7 @@ export type PromptReferenceItem = {
   node?: ContentCanvasNode
   resourceId?: number
   mediaType?: 'image' | 'video' | 'audio' | 'file'
+  role?: string
   selectedResourceId?: number
   selectedMediaType?: 'image' | 'video' | 'audio' | 'file'
   previewResourceId?: number
@@ -28,6 +36,15 @@ export type PromptReferenceItem = {
 
 const PROMPT_REFERENCE_PATTERN = /\{\{\s*(asset|candidate|resource|keyframe|storyboard|scene_moment|expression_unit|content_unit):{1,2}\s*([^}]+?)\s*\}\}/g
 const PROMPT_REFERENCE_TRIGGER_RE = /(?:^|[\s(])@([^\s@\[{]*)$/u
+
+type PromptReferenceMatch = {
+  kind: PromptReferenceItem['kind']
+  token: string
+  raw: string
+  index: number
+  mediaType?: PromptReferenceItem['mediaType']
+  role?: string
+}
 
 export function PromptReferenceInlineEditor({
   prompt,
@@ -52,8 +69,11 @@ export function PromptReferenceInlineEditor({
   onBlur: (prompt: string) => void
   onSelectNode: (node: ContentCanvasNode) => void
 }) {
+  const shellRef = useRef<HTMLDivElement | null>(null)
   const editorRef = useRef<HTMLDivElement | null>(null)
   const [mentionRange, setMentionRange] = useState<PromptMentionRange | null>(null)
+  const [roleMenu, setRoleMenu] = useState<PromptReferenceRoleMenuState | null>(null)
+  const [dropRoleMenu, setDropRoleMenu] = useState<PromptReferenceDropRoleMenuState | null>(null)
   const mentionOptions = useMemo(
     () => promptMentionOptions(mentionNodes, ownerNode, candidateSelections, mentionRange?.query ?? ''),
     [candidateSelections, mentionNodes, mentionRange?.query, ownerNode],
@@ -63,9 +83,9 @@ export function PromptReferenceInlineEditor({
     () => promptReferenceSegments(prompt, nodes, ownerNode, candidateSelections),
     [candidateSelections, nodes, ownerNode, prompt],
   )
-  const referenceNodesByRaw = useMemo(() => {
-    const entries = segments.flatMap((part) => part.kind === 'reference' && part.reference.node
-      ? [[part.reference.raw, part.reference.node] as const]
+  const referencesByRaw = useMemo(() => {
+    const entries = segments.flatMap((part) => part.kind === 'reference'
+      ? [[part.reference.raw, part.reference] as const]
       : [])
     return new Map(entries)
   }, [segments])
@@ -80,6 +100,8 @@ export function PromptReferenceInlineEditor({
   const handleInput = useCallback((event: FormEvent<HTMLDivElement>) => {
     const state = readPromptEditorState(event.currentTarget)
     onChange(state.value)
+    setRoleMenu(null)
+    setDropRoleMenu(null)
     updatePromptMentionRange(state.textBeforeCaret, state.caret, setMentionRange)
   }, [onChange])
   const handlePaste = useCallback((event: ClipboardEvent<HTMLDivElement>) => {
@@ -87,6 +109,7 @@ export function PromptReferenceInlineEditor({
     const text = event.clipboardData.getData('text/plain')
     document.execCommand('insertText', false, text)
     setMentionRange(null)
+    setDropRoleMenu(null)
   }, [])
   const handleDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     if (!resourceDropAcceptsPayload(event.dataTransfer)) return
@@ -100,12 +123,36 @@ export function PromptReferenceInlineEditor({
     event.stopPropagation()
     const payload = readResourceDragPayload(event.dataTransfer)
     if (!payload) return
+    const mediaType = droppedResourceMediaType(payload.resource) ?? 'image'
+    const editorState = readPromptEditorState(event.currentTarget)
+    const roleOptions = promptReferenceRoleOptions(mediaType)
+    const shellRect = shellRef.current?.getBoundingClientRect()
+    if (roleOptions.length > 1) {
+      setMentionRange(null)
+      setRoleMenu(null)
+      setDropRoleMenu({
+        resourceId: payload.resourceId,
+        mediaType,
+        role: defaultReferenceRoleForMediaType(mediaType),
+        promptValue: editorState.value || prompt,
+        start: editorState.caret,
+        end: editorState.caret,
+        left: shellRect ? Math.max(0, Math.min(event.clientX - shellRect.left, shellRect.width - 220)) : 0,
+        top: shellRect ? event.clientY - shellRect.top + 8 : 0,
+      })
+      return
+    }
     insertPromptReferenceToken({
       editor: event.currentTarget,
-      token: promptResourceReferenceToken(payload.resourceId),
+      token: promptResourceReferenceToken(payload.resourceId, mediaType),
       prompt,
       onChange,
       setMentionRange,
+      insertAt: {
+        value: editorState.value || prompt,
+        start: editorState.caret,
+        end: editorState.caret,
+      },
     })
   }, [onChange, prompt])
   const handleMouseDown = useCallback((event: MouseEvent<HTMLDivElement>) => {
@@ -115,14 +162,37 @@ export function PromptReferenceInlineEditor({
     const raw = target?.dataset.promptReferenceRaw
     if (!raw) return
     event.preventDefault()
-    const referenceNode = referenceNodesByRaw.get(raw)
-    if (referenceNode) onSelectNode(referenceNode)
-  }, [onSelectNode, referenceNodesByRaw])
+    setDropRoleMenu(null)
+    const reference = referencesByRaw.get(raw)
+    if (reference) {
+      const shell = shellRef.current
+      const targetRect = target.getBoundingClientRect()
+      const shellRect = shell?.getBoundingClientRect()
+      const mediaType = reference.previewMediaType ?? reference.selectedMediaType ?? reference.mediaType ?? 'image'
+      setMentionRange(null)
+      setRoleMenu({
+        kind: reference.kind,
+        raw,
+        token: reference.token,
+        ...(reference.resourceId !== undefined ? { resourceId: reference.resourceId } : {}),
+        mediaType,
+        role: reference.role ?? defaultReferenceRoleForMediaType(mediaType),
+        left: shellRect ? Math.max(0, Math.min(targetRect.left - shellRect.left, shellRect.width - 220)) : 0,
+        top: shellRect ? targetRect.bottom - shellRect.top + 6 : 0,
+      })
+    }
+  }, [referencesByRaw])
   const handleBlur = useCallback((event: FocusEvent<HTMLDivElement>) => {
     setMentionRange(null)
+    setDropRoleMenu(null)
     onBlur(serializePromptEditor(event.currentTarget))
   }, [onBlur])
   const handleKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape' && dropRoleMenu) {
+      event.preventDefault()
+      setDropRoleMenu(null)
+      return
+    }
     if (event.key === 'Escape' && mentionRange) {
       event.preventDefault()
       setMentionRange(null)
@@ -143,10 +213,10 @@ export function PromptReferenceInlineEditor({
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
       event.currentTarget.blur()
     }
-  }, [mentionOptions, mentionRange, onChange, prompt])
+  }, [dropRoleMenu, mentionOptions, mentionRange, onChange, prompt])
 
   return (
-    <div className="content-canvas-prompt-inline-editor-shell">
+    <div className="content-canvas-prompt-inline-editor-shell" ref={shellRef}>
       <div
         ref={editorRef}
         className={['content-canvas-prompt-inline-editor', className].filter(Boolean).join(' ')}
@@ -179,6 +249,55 @@ export function PromptReferenceInlineEditor({
               range: mentionRange,
             })
           }}
+        />
+      ) : null}
+      {roleMenu ? (
+        <PromptReferenceRoleMenu
+          state={roleMenu}
+          onSelect={(role) => {
+            const nextPrompt = replacePromptReferenceRaw(
+              prompt,
+              roleMenu.raw,
+              roleMenu.kind === 'resource' && roleMenu.resourceId !== undefined
+                ? formatResourceMention(roleMenu.resourceId, {
+                  mediaType: roleMenu.mediaType,
+                  role,
+                })
+                : formatPromptReferenceToken(roleMenu.kind, roleMenu.token, {
+                  mediaType: roleMenu.mediaType,
+                  role,
+                }),
+            )
+            setRoleMenu(null)
+            onChange(nextPrompt)
+          }}
+          onClose={() => setRoleMenu(null)}
+        />
+      ) : null}
+      {dropRoleMenu ? (
+        <PromptReferenceDropRoleMenu
+          state={dropRoleMenu}
+          onSelect={(role) => {
+            const editor = editorRef.current
+            if (!editor) return
+            insertPromptReferenceToken({
+              editor,
+              token: formatResourceMention(dropRoleMenu.resourceId, {
+                mediaType: dropRoleMenu.mediaType,
+                role,
+              }),
+              prompt,
+              onChange,
+              setMentionRange,
+              insertAt: {
+                value: dropRoleMenu.promptValue,
+                start: dropRoleMenu.start,
+                end: dropRoleMenu.end,
+              },
+            })
+            setDropRoleMenu(null)
+          }}
+          onClose={() => setDropRoleMenu(null)}
         />
       ) : null}
     </div>
@@ -247,16 +366,11 @@ function promptReferenceItems(
 ): PromptReferenceItem[] {
   const output: PromptReferenceItem[] = []
   const seen = new Set<string>()
-  let match: RegExpExecArray | null
-  PROMPT_REFERENCE_PATTERN.lastIndex = 0
-  while ((match = PROMPT_REFERENCE_PATTERN.exec(prompt)) !== null) {
-    const kind = match[1] as PromptReferenceItem['kind'] | undefined
-    const token = match[2]?.trim()
-    if (!kind || !token) continue
-    const key = `${kind}:${token}`
+  for (const match of promptReferenceMatches(prompt)) {
+    const key = `${match.kind}:${match.token}:${match.mediaType ?? ''}:${match.role ?? ''}`
     if (seen.has(key)) continue
     seen.add(key)
-    output.push(resolvePromptReference(kind, token, match[0], nodes, ownerNode, candidateSelections))
+    output.push(resolvePromptReference(match, nodes, ownerNode, candidateSelections))
   }
   return output
 }
@@ -269,25 +383,76 @@ function promptReferenceSegments(
 ): Array<{ kind: 'text'; text: string } | { kind: 'reference'; reference: PromptReferenceItem }> {
   const segments: Array<{ kind: 'text'; text: string } | { kind: 'reference'; reference: PromptReferenceItem }> = []
   let lastIndex = 0
-  let match: RegExpExecArray | null
-  PROMPT_REFERENCE_PATTERN.lastIndex = 0
-  while ((match = PROMPT_REFERENCE_PATTERN.exec(prompt)) !== null) {
-    if (match.index > lastIndex) {
-      segments.push({ kind: 'text', text: prompt.slice(lastIndex, match.index) })
-    }
-    const kind = match[1] as PromptReferenceItem['kind'] | undefined
-    const token = match[2]?.trim()
-    if (kind && token) {
-      segments.push({
-        kind: 'reference',
-        reference: resolvePromptReference(kind, token, match[0], nodes, ownerNode, candidateSelections),
-      })
-    }
-    lastIndex = match.index + match[0].length
+  for (const match of promptReferenceMatches(prompt)) {
+    if (match.index > lastIndex) segments.push({ kind: 'text', text: prompt.slice(lastIndex, match.index) })
+    segments.push({
+      kind: 'reference',
+      reference: resolvePromptReference(match, nodes, ownerNode, candidateSelections),
+    })
+    lastIndex = match.index + match.raw.length
   }
   if (lastIndex < prompt.length) segments.push({ kind: 'text', text: prompt.slice(lastIndex) })
   if (!segments.length) segments.push({ kind: 'text', text: '' })
   return segments
+}
+
+function promptReferenceMatches(prompt: string): PromptReferenceMatch[] {
+  const matches: PromptReferenceMatch[] = []
+  for (const mention of parseResourceMentions(prompt)) {
+    matches.push({
+      kind: 'resource',
+      token: String(mention.id),
+      raw: mention.token,
+      index: mention.index,
+      ...(mention.mediaType ? { mediaType: promptReferenceMediaType(mention.mediaType) } : {}),
+      ...(mention.role ? { role: mention.role } : {}),
+    })
+  }
+  let match: RegExpExecArray | null
+  PROMPT_REFERENCE_PATTERN.lastIndex = 0
+  while ((match = PROMPT_REFERENCE_PATTERN.exec(prompt)) !== null) {
+    const kind = match[1] as PromptReferenceItem['kind'] | undefined
+    const payload = parsePromptReferencePayload(match[2])
+    if (!kind || !payload.token) continue
+    const index = match.index
+    const raw = match[0]
+    const overlapsResourceMention = matches.some((item) => index < item.index + item.raw.length && item.index < index + raw.length)
+    if (overlapsResourceMention) continue
+    matches.push({
+      kind,
+      token: payload.token,
+      raw,
+      index,
+      ...(payload.mediaType ? { mediaType: payload.mediaType } : {}),
+      ...(payload.role ? { role: payload.role } : {}),
+    })
+  }
+  return matches.sort((left, right) => left.index - right.index)
+}
+
+function parsePromptReferencePayload(value: string | undefined): { token: string; mediaType?: PromptReferenceItem['mediaType']; role?: string } {
+  const parts = String(value ?? '').trim().split(/\s+/).filter(Boolean)
+  const token = parts.shift() ?? ''
+  let mediaType: PromptReferenceItem['mediaType'] | undefined
+  let role = ''
+  for (const part of parts) {
+    const match = part.match(/^([a-zA-Z_][a-zA-Z0-9_-]*)=(.+)$/)
+    if (!match) continue
+    const key = normalizePromptReferenceMetadataPart(match[1])
+    const metadataValue = normalizePromptReferenceMetadataPart(match[2])
+    if (!metadataValue) continue
+    if (key === 'role') role = metadataValue
+    if (key === 'media' || key === 'media_type' || key === 'mediatype') mediaType = promptReferenceMediaType(metadataValue)
+  }
+  return {
+    token,
+    ...(mediaType ? { mediaType } : {}),
+    ...(role ? { role } : {}),
+  }
+}
+
+function normalizePromptReferenceMetadataPart(value: string | undefined): string {
+  return String(value ?? '').trim().toLowerCase().replace(/^['"]|['"]$/g, '').replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')
 }
 
 function promptReferenceEditorHtml(
@@ -301,6 +466,7 @@ function promptReferenceEditorHtml(
       ` data-prompt-reference-raw="${escapeAttribute(part.reference.raw)}"`,
       ` data-state="${escapeAttribute(part.reference.state)}"`,
       ` data-media-type="${escapeAttribute(part.reference.previewMediaType ?? part.reference.mediaType ?? 'file')}"`,
+      part.reference.role ? ` data-role="${escapeAttribute(part.reference.role)}"` : '',
       part.reference.missing ? ' data-missing="true"' : '',
       '>',
       promptReferenceInlineThumbHtml(part.reference),
@@ -362,12 +528,55 @@ type PromptMentionRange = {
   query: string
 }
 
-function promptResourceReferenceToken(resourceId: number): string {
-  return `{{resource::${String(resourceId)}}}`
+type PromptReferenceRoleMenuState = {
+  kind: PromptReferenceItem['kind']
+  raw: string
+  token: string
+  resourceId?: number
+  mediaType: PromptReferenceItem['mediaType']
+  role: string
+  left: number
+  top: number
+}
+
+type PromptReferenceDropRoleMenuState = {
+  resourceId: number
+  mediaType: PromptReferenceItem['mediaType']
+  role: string
+  left: number
+  top: number
+  promptValue: string
+  start: number
+  end: number
+}
+
+function promptResourceReferenceToken(resourceId: number, mediaType: PromptReferenceItem['mediaType'] = 'image'): string {
+  return formatResourceMention(resourceId, {
+    mediaType,
+    role: defaultReferenceRoleForMediaType(mediaType),
+  })
+}
+
+function replacePromptReferenceRaw(prompt: string, raw: string, nextRaw: string): string {
+  const index = prompt.indexOf(raw)
+  if (index < 0) return prompt
+  return `${prompt.slice(0, index)}${nextRaw}${prompt.slice(index + raw.length)}`
 }
 
 function promptReferenceTokenForNode(node: ContentCanvasNode): string {
   return `{{${promptReferenceKindForNode(node)}:${node.entityKey || node.id}}}`
+}
+
+function formatPromptReferenceToken(
+  kind: PromptReferenceItem['kind'],
+  token: string,
+  options: { mediaType?: PromptReferenceItem['mediaType']; role?: string } = {},
+): string {
+  const metadata = [
+    options.role ? `role=${normalizePromptReferenceMetadataPart(options.role)}` : '',
+    options.mediaType ? `media=${normalizePromptReferenceMetadataPart(options.mediaType)}` : '',
+  ].filter(Boolean).join(' ')
+  return `{{${kind}::${token}${metadata ? ` ${metadata}` : ''}}}`
 }
 
 function promptReferenceKindForNode(node: ContentCanvasNode): PromptReferenceItem['kind'] {
@@ -485,6 +694,7 @@ function insertPromptReferenceToken({
   onChange,
   setMentionRange,
   range,
+  insertAt,
 }: {
   editor: HTMLElement
   token: string
@@ -492,9 +702,10 @@ function insertPromptReferenceToken({
   onChange: (prompt: string) => void
   setMentionRange: (range: PromptMentionRange | null) => void
   range?: PromptMentionRange | null
+  insertAt?: { value: string; start: number; end: number }
 }) {
   const editorState = readPromptEditorState(editor)
-  const value = editorState.value || prompt
+  const value = insertAt?.value ?? (editorState.value || prompt)
   if (value.includes(token)) {
     setMentionRange(null)
     if (range) {
@@ -503,8 +714,8 @@ function insertPromptReferenceToken({
     }
     return
   }
-  const start = range?.start ?? editorState.caret
-  const end = range?.end ?? editorState.caret
+  const start = range?.start ?? insertAt?.start ?? editorState.caret
+  const end = range?.end ?? insertAt?.end ?? editorState.caret
   const prefix = value.slice(0, start).replace(/[ \t]*$/, '')
   const suffix = value.slice(end).replace(/^[ \t]*/, '')
   const separatorBefore = prefix && !prefix.endsWith('\n') ? ' ' : ''
@@ -539,7 +750,12 @@ function promptMentionOptions(
   const seen = new Set<string>()
   return nodes
     .filter((node) => !ownerKeys.has(node.id) && !ownerKeys.has(node.entityKey) && !ownerKeys.has(node.sourcePath))
-    .map((node) => resolvePromptReference(promptReferenceKindForNode(node), node.entityKey || node.id, promptReferenceTokenForNode(node), nodes, ownerNode, candidateSelections))
+    .map((node) => resolvePromptReference({
+      kind: promptReferenceKindForNode(node),
+      token: node.entityKey || node.id,
+      raw: promptReferenceTokenForNode(node),
+      index: -1,
+    }, nodes, ownerNode, candidateSelections))
     .filter((reference) => {
       const key = `${reference.kind}:${reference.token}`
       if (seen.has(key)) return false
@@ -585,28 +801,110 @@ function PromptMentionMenu({
   )
 }
 
+function PromptReferenceRoleMenu({
+  state,
+  onSelect,
+  onClose,
+}: {
+  state: PromptReferenceRoleMenuState
+  onSelect: (role: string) => void
+  onClose: () => void
+}) {
+  const options = promptReferenceRoleOptions(state.mediaType)
+  return (
+    <div
+      className="content-canvas-prompt-role-menu"
+      role="menu"
+      aria-label="引用角色"
+      style={{ left: state.left, top: state.top }}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={(event) => event.stopPropagation()}
+    >
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="menuitemradio"
+          aria-checked={option.value === state.role}
+          data-active={option.value === state.role ? 'true' : undefined}
+          onClick={() => onSelect(option.value)}
+        >
+          <span>{option.label}</span>
+          <small>{option.hint}</small>
+        </button>
+      ))}
+      <button type="button" role="menuitem" onClick={onClose}>
+        <span>关闭</span>
+        <small>不修改引用角色</small>
+      </button>
+    </div>
+  )
+}
+
+function PromptReferenceDropRoleMenu({
+  state,
+  onSelect,
+  onClose,
+}: {
+  state: PromptReferenceDropRoleMenuState
+  onSelect: (role: string) => void
+  onClose: () => void
+}) {
+  const options = promptReferenceRoleOptions(state.mediaType)
+  return (
+    <div
+      className="content-canvas-prompt-role-menu"
+      role="menu"
+      aria-label="选择引用角色"
+      style={{ left: state.left, top: state.top }}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={(event) => event.stopPropagation()}
+    >
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="menuitemradio"
+          aria-checked={option.value === state.role}
+          data-active={option.value === state.role ? 'true' : undefined}
+          onClick={() => onSelect(option.value)}
+        >
+          <span>{option.label}</span>
+          <small>{option.hint}</small>
+        </button>
+      ))}
+      <button type="button" role="menuitem" onClick={onClose}>
+        <span>取消插入</span>
+        <small>不把该资源加入提示词</small>
+      </button>
+    </div>
+  )
+}
+
 function resolvePromptReference(
-  kind: PromptReferenceItem['kind'],
-  token: string,
-  raw: string,
+  match: PromptReferenceMatch,
   nodes: ContentCanvasNode[],
   ownerNode: ContentCanvasNode | undefined,
   candidateSelections: CandidateSelections,
 ): PromptReferenceItem {
+  const { kind, token, raw } = match
   if (kind === 'resource') {
     const resourceId = numberValue(token)
+    const mediaType = match.mediaType ?? 'image'
+    const role = match.role ?? defaultReferenceRoleForMediaType(mediaType)
     return {
       kind,
       token,
       raw,
       title: resourceId !== undefined ? `Resource ${resourceId}` : token,
-      label: resourceId !== undefined ? '资源引用' : '资源引用缺失',
+      label: resourceId !== undefined ? resourceReferenceLabel(role) : '资源引用缺失',
       resourceId,
+      role,
       selectedResourceId: resourceId,
-      mediaType: 'image',
-      selectedMediaType: 'image',
+      mediaType,
+      selectedMediaType: mediaType,
       previewResourceId: resourceId,
-      previewMediaType: 'image',
+      previewMediaType: mediaType,
       state: resourceId !== undefined ? 'selected' : 'missing',
       actionLabel: resourceId !== undefined ? '已选择资源' : '资源缺失',
       missing: resourceId === undefined,
@@ -642,12 +940,13 @@ function resolvePromptReference(
     const selectedCandidate = explicitSelectedCandidateForNode(node, candidateSelections)
     const firstPreviewCandidate = candidates.find((candidate) => candidate.resourceId !== undefined) ?? candidates[0]
     const fallbackResourceId = numberValue(node.record.resource_id ?? node.record.resourceId)
-    const fallbackMediaType = mediaTypeForReference(stringValue(node.record.resource_kind ?? node.record.resourceKind), stringValue(node.record.artifact_ref ?? node.record.artifactRef))
+    const fallbackMediaType = match.mediaType
+      ?? mediaTypeForReference(stringValue(node.record.resource_kind ?? node.record.resourceKind), stringValue(node.record.artifact_ref ?? node.record.artifactRef))
     const nodeMediaType = mediaTypeForReference(
       stringValue(node.generationTask?.outputKind ?? node.record.output_kind ?? node.record.outputKind ?? node.record.content_unit_type ?? node.record.contentUnitType),
       stringValue(node.record.artifact_ref ?? node.record.artifactRef),
     )
-    const selectedMediaType = mediaTypeForReference(selectedCandidate?.resourceKind, selectedCandidate?.artifactRef) ?? fallbackMediaType ?? nodeMediaType
+    const selectedMediaType = match.mediaType ?? mediaTypeForReference(selectedCandidate?.resourceKind, selectedCandidate?.artifactRef) ?? fallbackMediaType ?? nodeMediaType
     const selectedResourceId = selectedCandidate?.resourceId ?? fallbackResourceId
     const pendingMediaType = mediaTypeForReference(firstPreviewCandidate?.resourceKind, firstPreviewCandidate?.artifactRef) ?? nodeMediaType
     const previewResourceId = selectedResourceId ?? (selectedCandidate ? undefined : firstPreviewCandidate?.resourceId)
@@ -664,9 +963,10 @@ function resolvePromptReference(
       token,
       raw,
       title: node.title,
-      label: promptReferenceStateLabel(kind, state),
+      label: match.role ? `${promptReferenceStateLabel(kind, state)} · ${promptReferenceRoleShortLabel(match.role)}` : promptReferenceStateLabel(kind, state),
       node,
       resourceId: fallbackResourceId,
+      role: match.role,
       selectedResourceId,
       mediaType: fallbackMediaType,
       selectedMediaType,
@@ -749,6 +1049,37 @@ function mediaTypeForReference(resourceKind: string | undefined, artifactRef: st
   if (value.includes('audio') || /\.(mp3|wav|m4a|aac|ogg)(\?|#|$)/.test(value)) return 'audio'
   if (value.includes('image') || /\.(png|jpe?g|webp|gif|avif)(\?|#|$)/.test(value)) return 'image'
   return 'file'
+}
+
+function promptReferenceMediaType(value: string | undefined): PromptReferenceItem['mediaType'] | undefined {
+  if (value === 'image' || value === 'video' || value === 'audio') return value
+  if (value === 'file' || value === 'text') return 'file'
+  return undefined
+}
+
+function droppedResourceMediaType(resource: unknown): PromptReferenceItem['mediaType'] | undefined {
+  if (!resource || typeof resource !== 'object' || Array.isArray(resource)) return undefined
+  const record = resource as Record<string, unknown>
+  return mediaTypeForReference(
+    stringValue(record.type ?? record.resource_kind ?? record.resourceKind ?? record.mime_type ?? record.mimeType),
+    stringValue(record.name ?? record.filename ?? record.artifact_ref ?? record.artifactRef ?? record.url),
+  )
+}
+
+function defaultReferenceRoleForMediaType(mediaType: PromptReferenceItem['mediaType'] | undefined): string {
+  return generationDefaultReferenceRoleForMediaType(mediaType) ?? 'reference_image'
+}
+
+function promptReferenceRoleOptions(mediaType: PromptReferenceItem['mediaType'] | undefined): Array<{ value: string; label: string; hint: string }> {
+  return generationReferenceRoleOptionsForMediaType(mediaType)
+}
+
+function resourceReferenceLabel(role: string | undefined): string {
+  return generationResourceReferenceLabel(role)
+}
+
+function promptReferenceRoleShortLabel(role: string): string {
+  return generationReferenceRoleLabel(role)
 }
 
 function numberValue(value: unknown): number | undefined {

@@ -55,7 +55,10 @@ export function invalidateAgentSessionOutputMutationEvent(
 ): Promise<unknown> | unknown {
   switch (event.type) {
     case 'AgentSessionOutputContentWorkspaceChanged':
-      return queryClient.invalidateQueries({ queryKey: agentSessionOutputKeys.contentWorkspace(event.projectId) })
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: agentSessionOutputKeys.contentUnits(event.projectId) }),
+        queryClient.invalidateQueries({ queryKey: agentSessionOutputKeys.contentWorkspace(event.projectId) }),
+      ])
   }
 }
 

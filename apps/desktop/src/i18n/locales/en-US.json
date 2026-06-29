@@ -1084,6 +1084,16 @@
         "videoI2V": "Reference Video",
         "videoV2V": "Video Transfer"
       },
+      "operations": {
+        "text_to_image": "Text to Image",
+        "image_to_image": "Image to Image",
+        "image_edit": "Image Edit",
+        "prompt_to_video": "Prompt to Video",
+        "image_to_video": "Image to Video",
+        "first_frame_to_video": "First Frame to Video",
+        "first_last_frame_to_video": "First/Last Frame to Video",
+        "reference_to_video": "Reference to Video"
+      },
       "status": {
         "pending": "Queued",
         "running": "Generating",

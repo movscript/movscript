@@ -64,11 +64,15 @@ function createLocalProjectContentAPI(options: LocalProjectContentAPIOptions): S
     })
   }
   const promptContext = async (input: ProjectInput, field: 'generationPrompt' | 'backendPrompt') => {
+    const record = recordValue(input)
     const response = await projectCommand({
       localEndpoint: '/v1/project/prompt/context',
       body: {
         projectDir: projectDirFromInput(input, options),
-        contentUnitId: recordValue(input).contentUnitId ?? recordValue(input).content_unit_id,
+        contentUnitId: record.contentUnitId ?? record.content_unit_id,
+        include: [field],
+        ...(record.promptText !== undefined ? { promptText: record.promptText } : {}),
+        ...(record.prompt_text !== undefined ? { prompt_text: record.prompt_text } : {}),
         ...localDecisionBody(input, options),
       },
     })
@@ -87,6 +91,16 @@ function createLocalProjectContentAPI(options: LocalProjectContentAPIOptions): S
       return isRecord(result) && isRecord(result.prompt)
         ? result as { ok?: boolean; prompt?: Record<string, unknown>; blockers?: unknown[] }
         : { ok: true, prompt: result as Record<string, unknown> }
+    },
+    readMovScriptEngineContentCanvasReadModel: async (input) => {
+      const response = await projectCommand({
+        localEndpoint: '/v1/project/content-canvas/read-model',
+        body: {
+          ...projectEnvelope(input),
+          projectDir: projectDirFromInput(input, options),
+        },
+      })
+      return recordValue(response).projectContentCanvasReadModel ?? response
     },
     loadMovScriptEngineContentWorkspaceSnapshot: (input) => projectSourceOperation('/v1/project/content-workspace/snapshot', projectEnvelope(input), false),
     loadMovScriptEngineContentWorkspace: (input) => projectSourceOperation('/v1/project/content-workspace/read', projectEnvelope(input), false),

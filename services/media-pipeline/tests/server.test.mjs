@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -401,6 +402,103 @@ test('headless media-pipeline runtime runs minimal local timeline render and HLS
   assert.match(master, /#EXT-X-STREAM-INF:BANDWIDTH=2628000,RESOLUTION=1280x720\n720p\.m3u8/)
 })
 
+test('headless media-pipeline runtime downloads resource_id timeline sources before render', async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'movscript-headless-resource-download-'))
+  const fakeFFmpeg = join(tempDir, 'ffmpeg')
+  const resourceCacheDir = join(tempDir, 'resource-cache')
+  const requests = []
+  writeFileSync(fakeFFmpeg, [
+    '#!/bin/sh',
+    'if [ "$1" = "-version" ]; then',
+    '  echo "ffmpeg version fake-headless-resource-download"',
+    '  exit 0',
+    'fi',
+    'last=""',
+    'for arg in "$@"; do last="$arg"; done',
+    'mkdir -p "$(dirname "$last")"',
+    'printf "fake downloaded output" > "$last"',
+    'exit 0',
+    '',
+  ].join('\n'), 'utf8')
+  chmodSync(fakeFFmpeg, 0o755)
+
+  const resourceServer = await startTestResourceServer((request, response) => {
+    requests.push(request.url)
+    if (request.url === '/api/v1/resources/701/file') {
+      response.writeHead(200, {
+        'content-type': 'video/mp4',
+        'content-length': String(Buffer.byteLength('downloaded resource source')),
+      })
+      response.end('downloaded resource source')
+      return
+    }
+    response.writeHead(404, { 'content-type': 'application/json' })
+    response.end(JSON.stringify({ error: 'not_found' }))
+  })
+
+  const runtime = await startMediaPipelineService({
+    runtimePort: createHeadlessMediaPipelineRuntimePort({
+      env: {
+        MOVSCRIPT_FFMPEG_PATH: fakeFFmpeg,
+        MOVSCRIPT_MEDIA_PIPELINE_WORK_DIR: join(tempDir, 'tasks'),
+      },
+    }),
+  })
+  tAfterClose(runtime)
+
+  try {
+    const render = await postJSON(`${runtime.url}${MEDIA_PIPELINE_TASK_CREATE_ENDPOINT}`, {
+      request: {
+        projectId: 'project-1',
+        taskType: 'timeline_render',
+        resourceDownload: {
+          baseUrl: resourceServer.url,
+          cacheDir: resourceCacheDir,
+          extension: 'mp4',
+        },
+        timeline: {
+          version: 1,
+          id: 'timeline-resource-download',
+          fps: 30,
+          width: 1280,
+          height: 720,
+          background: '#000000',
+          tracks: [{
+            id: 'track-video',
+            type: 'video',
+            zIndex: 0,
+            clips: [{
+              id: 'clip-video',
+              assetType: 'video',
+              timelineStartMs: 0,
+              durationMs: 1000,
+              asset: {
+                id: 'asset-video-resource-701',
+                sourceKind: 'raw_resource',
+                assetType: 'video',
+                resourceId: 701,
+              },
+            }],
+          }],
+        },
+        output: {
+          format: 'mp4',
+          filename: 'resource-download.mp4',
+        },
+      },
+    })
+    const renderedTask = await waitForTask(runtime.url, render.task.taskId, 'succeeded')
+    assert.equal(renderedTask.taskType, 'timeline_render')
+    assert.equal(renderedTask.sourceResourceId, 701)
+    assert.equal(renderedTask.sourceDownloaded, true)
+    assert.deepEqual(requests, ['/api/v1/resources/701/file'])
+    assert.equal(readFileSync(join(resourceCacheDir, 'resource-701.mp4'), 'utf8'), 'downloaded resource source')
+    assert.equal(readFileSync(renderedTask.outputPath, 'utf8'), 'fake downloaded output')
+  } finally {
+    await resourceServer.close()
+  }
+})
+
 test('headless media-pipeline runtime records failed tasks when ffmpeg is unavailable', async () => {
   const runtime = await startMediaPipelineService({
     runtimePort: createHeadlessMediaPipelineRuntimePort({
@@ -535,6 +633,27 @@ async function waitForTask(baseUrl, taskId, status) {
 function tAfterClose(runtime) {
   test.after(async () => {
     await runtime.close()
+  })
+}
+
+function startTestResourceServer(handler) {
+  return new Promise((resolveServer, rejectServer) => {
+    const server = createServer(handler)
+    server.once('error', rejectServer)
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address()
+      if (!address || typeof address === 'string') {
+        server.close()
+        rejectServer(new Error('test resource server did not expose a tcp address'))
+        return
+      }
+      resolveServer({
+        url: `http://127.0.0.1:${address.port}`,
+        close: () => new Promise((resolveClose, rejectClose) => {
+          server.close((error) => error ? rejectClose(error) : resolveClose())
+        }),
+      })
+    })
   })
 }
 

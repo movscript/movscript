@@ -3845,6 +3845,7 @@ function providerAssetSettingsFromProviderState(provider: AIProvider): ProviderA
 }
 
 function ProviderRuntimeStateSummary({ provider }: { provider: AIProvider }) {
+  const { t } = useTranslation()
   const assetState = parseJSONRecord(provider.asset_library_state_json)
   const trustState = parseJSONRecord(provider.trusted_resource_state_json)
   const assetSupported = assetState.supports_asset_library === true
@@ -3859,22 +3860,22 @@ function ProviderRuntimeStateSummary({ provider }: { provider: AIProvider }) {
   const gatewayReady = assetSettings.gateway_base_url_set === true && assetSettings.gateway_token_set === true
   const configItems = provider.provider_kind === 'yunwu_gateway'
     ? [
-      { label: '资源公网访问', ok: assetSettings.public_base_url_set === true },
-      { label: '访问签名', ok: assetSettings.signing_secret_set === true },
-      { label: 'Gateway token', ok: gatewayReady },
+      { label: t('admin.settings.providerRuntime.publicResourceAccess'), ok: assetSettings.public_base_url_set === true },
+      { label: t('admin.settings.providerRuntime.signedAccess'), ok: assetSettings.signing_secret_set === true },
+      { label: t('admin.settings.providerRuntime.gatewayToken'), ok: gatewayReady },
     ]
     : [
-      { label: '资源公网访问', ok: assetSettings.public_base_url_set === true },
-      { label: '访问签名', ok: assetSettings.signing_secret_set === true },
-      { label: 'Ark AK/SK', ok: arkKeyReady },
-      { label: 'global group', ok: globalGroup.configured === true },
+      { label: t('admin.settings.providerRuntime.publicResourceAccess'), ok: assetSettings.public_base_url_set === true },
+      { label: t('admin.settings.providerRuntime.signedAccess'), ok: assetSettings.signing_secret_set === true },
+      { label: t('admin.settings.providerRuntime.arkCredentials'), ok: arkKeyReady },
+      { label: t('admin.settings.providerRuntime.globalGroup'), ok: globalGroup.configured === true },
     ]
   return (
     <div className="grid gap-2 md:grid-cols-2">
       <ProviderRuntimeStatePane
         icon={<CloudUpload size={14} />}
-        title="素材库"
-        badge={assetSupported ? 'asset:// ready' : 'unsupported'}
+        title={t('admin.settings.providerRuntime.assetLibrary')}
+        badge={assetSupported ? t('admin.settings.providerRuntime.assetReady') : t('admin.settings.providerRuntime.unsupported')}
         badgeIntent={assetSupported ? 'success' : 'neutral'}
       >
         {assetSupported ? (
@@ -3896,19 +3897,21 @@ function ProviderRuntimeStateSummary({ provider }: { provider: AIProvider }) {
             )}
           </>
         ) : (
-          <p className="text-[11px] leading-relaxed text-muted-foreground">该 Provider 未声明素材库能力。RawResource 不会被映射为 asset://。</p>
+          <p className="text-[11px] leading-relaxed text-muted-foreground">{t('admin.settings.providerRuntime.assetUnsupportedHint')}</p>
         )}
       </ProviderRuntimeStatePane>
       <ProviderRuntimeStatePane
         icon={<Sparkles size={14} />}
-        title="原始产物信任"
-        badge={trustSupported ? 'same provider' : 'unsupported'}
+        title={t('admin.settings.providerRuntime.originalArtifactTrust')}
+        badge={trustSupported ? t('admin.settings.providerRuntime.sameProvider') : t('admin.settings.providerRuntime.unsupported')}
         badgeIntent={trustSupported ? 'success' : 'neutral'}
       >
         {trustSupported ? (
           <>
             <p className="truncate text-[11px] text-muted-foreground">
-              {trustState.requires_original_artifact === true ? '仅模型原始产物' : '允许派生产物'} · {String(trustState.scope || 'provider scope')}
+              {trustState.requires_original_artifact === true
+                ? t('admin.settings.providerRuntime.originalOnly')
+                : t('admin.settings.providerRuntime.derivedAllowed')} · {String(trustState.scope || t('admin.settings.providerRuntime.providerScope'))}
             </p>
             <div className="mt-1.5 flex flex-wrap gap-1">
               {(trustFamilies.length > 0 ? trustFamilies : ['model declared']).map((family) => (
@@ -3920,7 +3923,7 @@ function ProviderRuntimeStateSummary({ provider }: { provider: AIProvider }) {
             )}
           </>
         ) : (
-          <p className="text-[11px] leading-relaxed text-muted-foreground">该 Provider 不提供跨 RawResource 的原始产物信任。</p>
+          <p className="text-[11px] leading-relaxed text-muted-foreground">{t('admin.settings.providerRuntime.trustUnsupportedHint')}</p>
         )}
       </ProviderRuntimeStatePane>
     </div>
@@ -6353,11 +6356,15 @@ function missingCloudConfigFields(fields: CloudConfigField[], values: Record<str
 }
 
 const RESOURCE_ACCESS_MODE_LABELS: Record<ResourceAccessMode, string> = {
-  public_tunnel: '公网隧道',
-  public_backend: '公网后端',
-  object_relay: '对象中转',
+  public_tunnel: 'Public tunnel',
+  public_backend: 'Public backend',
+  object_relay: 'Object relay',
   provider_files: 'Provider Files',
   provider_asset_uri: 'Provider Asset URI',
+}
+
+function resourceAccessModeLabel(mode: ResourceAccessMode, t: (key: string, options?: Record<string, unknown>) => string) {
+  return t(`admin.resourceAccess.modes.${mode}`, { defaultValue: RESOURCE_ACCESS_MODE_LABELS[mode] ?? mode })
 }
 
 function sanitizeResourceAccessProfile(profile: ResourceAccessProfile): ResourceAccessProfile {
@@ -6427,7 +6434,7 @@ function ResourceAccessSettingsPanel() {
       const profile = {
         ...emptyResourceAccessProfile(),
         id: `resource-access-${current.profiles.length + 1}`,
-        name: RESOURCE_ACCESS_MODE_LABELS[mode],
+        name: resourceAccessModeLabel(mode, t),
         mode,
       }
       return {
@@ -6478,7 +6485,9 @@ function ResourceAccessSettingsPanel() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge intent={enabledPublicProfiles.length > 0 ? 'success' : 'warning'} className="text-[11px]">
-            {enabledPublicProfiles.length > 0 ? 'public access ready' : 'public access missing'}
+            {enabledPublicProfiles.length > 0
+              ? t('admin.resourceAccess.status.publicReady', { defaultValue: 'Public access ready' })
+              : t('admin.resourceAccess.status.publicMissing', { defaultValue: 'Public access missing' })}
           </StatusBadge>
           <Button type="button" size="sm" onClick={() => addProfile('public_tunnel')}>
             {t('admin.resourceAccess.addProfile', { defaultValue: 'Add profile' })}
@@ -6505,9 +6514,15 @@ function ResourceAccessSettingsPanel() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium text-foreground">{profile.name || profile.id || t('admin.resourceAccess.unnamed', { defaultValue: '未命名访问方式' })}</span>
                     <StatusBadge intent={profile.enabled ? 'success' : 'neutral'} className="text-[11px]">
-                      {profile.enabled ? 'enabled' : 'disabled'}
+                      {profile.enabled
+                        ? t('admin.resourceAccess.status.enabled', { defaultValue: 'Enabled' })
+                        : t('admin.resourceAccess.status.disabled', { defaultValue: 'Disabled' })}
                     </StatusBadge>
-                    {form.default_profile_id === profile.id && <StatusBadge intent="info" className="text-[11px]">default</StatusBadge>}
+                    {form.default_profile_id === profile.id && (
+                      <StatusBadge intent="info" className="text-[11px]">
+                        {t('admin.resourceAccess.status.default', { defaultValue: 'Default' })}
+                      </StatusBadge>
+                    )}
                   </div>
                   <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">{profile.public_base_url || profile.mode}</p>
                 </div>
@@ -6536,8 +6551,8 @@ function ResourceAccessSettingsPanel() {
                     onChange={(event) => patchProfile(index, { mode: event.target.value as ResourceAccessMode })}
                     className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground"
                   >
-                    {Object.entries(RESOURCE_ACCESS_MODE_LABELS).map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
+                    {Object.keys(RESOURCE_ACCESS_MODE_LABELS).map((value) => (
+                      <option key={value} value={value}>{resourceAccessModeLabel(value as ResourceAccessMode, t)}</option>
                     ))}
                   </select>
                 </label>
@@ -6545,7 +6560,7 @@ function ResourceAccessSettingsPanel() {
                   label={t('admin.resourceAccess.fields.publicBaseUrl', { defaultValue: 'Public Base URL' })}
                   value={profile.public_base_url ?? ''}
                   onChange={(value) => patchProfile(index, { public_base_url: value })}
-                  placeholder={needsPublicBaseURL ? 'https://your-tunnel.example.com' : 'optional'}
+                  placeholder={needsPublicBaseURL ? 'https://your-tunnel.example.com' : t('admin.resourceAccess.optional', { defaultValue: 'Optional' })}
                 />
                 <ProviderAssetSettingsField
                   label={t('admin.resourceAccess.fields.internalBaseUrl', { defaultValue: 'Internal Base URL' })}
@@ -6647,7 +6662,9 @@ function ResourceAccessSettingsPanel() {
               </StatusBadge>
               {checkResult.status_code ? <span>HTTP {checkResult.status_code}</span> : null}
               {checkResult.content_type ? <span>{checkResult.content_type}</span> : null}
-              {checkResult.content_length !== undefined ? <span>{checkResult.content_length} bytes</span> : null}
+              {checkResult.content_length !== undefined ? (
+                <span>{t('admin.resourceAccess.check.bytes', { defaultValue: '{{count}} bytes', count: checkResult.content_length })}</span>
+              ) : null}
             </div>
             <p className="break-all font-mono text-muted-foreground">{checkResult.url}</p>
             {checkResult.error ? <p className="text-destructive">{checkResult.error}</p> : null}

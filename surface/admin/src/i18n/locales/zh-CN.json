@@ -2964,6 +2964,23 @@
       "arkAccessKeyId": "Access Key ID",
       "arkSecretAccessKey": "Secret Access Key",
       "providerAssetSecretKeySet": "已保存，留空则不修改",
+      "providerRuntime": {
+        "publicResourceAccess": "资源公网访问",
+        "signedAccess": "访问签名",
+        "gatewayToken": "Gateway token",
+        "arkCredentials": "Ark AK/SK",
+        "globalGroup": "global group",
+        "assetLibrary": "素材库",
+        "assetReady": "asset:// 就绪",
+        "unsupported": "不支持",
+        "assetUnsupportedHint": "该 Provider 未声明素材库能力。RawResource 不会被映射为 asset://。",
+        "originalArtifactTrust": "原始产物信任",
+        "sameProvider": "同 Provider",
+        "originalOnly": "仅模型原始产物",
+        "derivedAllowed": "允许派生产物",
+        "providerScope": "Provider 范围",
+        "trustUnsupportedHint": "该 Provider 不提供跨 RawResource 的原始产物信任。"
+      },
       "smtp": "邮箱验证码 SMTP",
       "enableEmail": "启用邮箱验证码发送",
       "enableEmailHint": "用于注册邮箱验证码，登录邮箱验证码也会复用此配置。",
@@ -2978,6 +2995,51 @@
       "useTLS": "TLS 直连",
       "registrationRequiresEmail": "启用邮箱发送时必须补全 SMTP Host、端口和发件邮箱；开放注册还必须启用邮箱验证码。",
       "saved": "已保存"
+    },
+    "resourceAccess": {
+      "title": "资源公网访问",
+      "description": "统一配置 RawResource 如何被上游模型访问；Provider 页面只保留账号和素材库私有能力。",
+      "addProfile": "添加访问方式",
+      "empty": "暂无资源公网访问配置。添加 ngrok、Cloudflare Tunnel 或公网后端地址后，需要 public URL 的模型路由才能消费本地资源。",
+      "unnamed": "未命名访问方式",
+      "optional": "可选",
+      "defaultSummary": "默认：{{id}}",
+      "noDefault": "未选择默认访问方式",
+      "modes": {
+        "public_tunnel": "公网隧道",
+        "public_backend": "公网后端",
+        "object_relay": "对象中转",
+        "provider_files": "Provider Files",
+        "provider_asset_uri": "Provider Asset URI"
+      },
+      "status": {
+        "publicReady": "公网访问已就绪",
+        "publicMissing": "缺少公网访问",
+        "enabled": "已启用",
+        "disabled": "已停用",
+        "default": "默认"
+      },
+      "fields": {
+        "id": "Profile ID",
+        "name": "名称",
+        "mode": "模式",
+        "publicBaseUrl": "公网 Base URL",
+        "internalBaseUrl": "内网 Base URL",
+        "expiresSeconds": "过期秒数",
+        "healthPath": "健康检查路径",
+        "signingSecret": "签名密钥",
+        "enabled": "启用",
+        "signingEnabled": "签名 URL",
+        "defaultProfile": "默认访问方式"
+      },
+      "check": {
+        "resourceId": "RawResource ID",
+        "running": "测试中…",
+        "run": "测试公网 URL",
+        "reachable": "可访问",
+        "unreachable": "不可访问",
+        "bytes": "{{count}} bytes"
+      }
     },
     "debug": {
       "copy": "复制",

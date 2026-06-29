@@ -99,6 +99,7 @@ export default function ContentCanvasWorkspacePage({
           nodes={workspaceNodes}
           onAddNodeToCanvas={controller.addNodeToCreativeCanvas}
           onCandidateCreate={controller.createCandidateForNode}
+          onCandidatePreflight={controller.preflightCandidateForNode}
           onCandidatePromptPreview={controller.previewCandidatePromptForNode}
           onCandidateResourceSelect={controller.createResourceCandidateForNode}
           onCandidateRemove={controller.removeCandidate}
@@ -140,6 +141,7 @@ export default function ContentCanvasWorkspacePage({
           promptReferenceNodes={viewModel.scenePromptReferenceNodes}
           selection={viewModel.inspectorSelection}
           onCandidateCreate={controller.createCandidateForNode}
+          onCandidatePreflight={controller.preflightCandidateForNode}
           onCandidatePromptPreview={controller.previewCandidatePromptForNode}
           onCandidateResourceSelect={controller.createResourceCandidateForNode}
           onCandidateSelect={controller.selectCandidate}

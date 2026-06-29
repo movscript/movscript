@@ -75,7 +75,7 @@ export async function ensureLocalRuntimeDaemon(options: EnsureLocalRuntimeDaemon
       await stopAvailableLocalRuntimeDaemon(options.homeDir, stopTimeoutMs)
     }
 
-    const child = spawn(process.execPath, [options.entrypoint, ...(options.runArgs ?? ['__movscript_local_node', 'run'])], {
+    const child = spawn(process.execPath, [options.entrypoint, ...(options.runArgs ?? ['daemon', 'run'])], {
       cwd: options.cwd,
       env: {
         ...process.env,

@@ -146,6 +146,44 @@ func (s *Service) Generate(ctx context.Context, input GenerateInput) (GenerateRe
 	}, nil
 }
 
+func (s *Service) Preflight(ctx context.Context, input GenerateInput) (jobapp.GenerationPreflightResult, error) {
+	normalized, err := normalizeGenerateInput(input)
+	if err != nil {
+		return jobapp.GenerationPreflightResult{}, err
+	}
+	projectID := normalized.ProjectID
+	binding := domainjob.ContentUnitCandidateBinding{
+		ProjectID:      projectID,
+		ProjectUID:     normalized.ProjectUID,
+		ProjectTitle:   normalized.ProjectTitle,
+		ScopeKind:      normalized.ScopeKind,
+		ScopeID:        normalized.ScopeID,
+		ContentUnitID:  normalized.ContentUnitID,
+		TargetKind:     TargetKindContentUnit,
+		TargetRef:      contentUnitTargetRef(normalized.ContentUnitID),
+		CandidateID:    normalized.CandidateID,
+		OutputKind:     normalized.OutputKind,
+		PromptSnapshot: normalized.PromptSnapshot,
+	}
+	return s.jobs.PreflightGeneration(ctx, jobapp.EnqueueInput{
+		UserID:               normalized.UserID,
+		OrgID:                normalized.OrgID,
+		ModelID:              normalized.ModelID,
+		JobType:              normalized.JobType,
+		FeatureKey:           contentUnitGenerationFeatureKey(normalized.OutputKind),
+		Title:                normalized.Title,
+		Prompt:               normalized.Prompt,
+		ExtraParams:          normalized.ExtraParams,
+		AspectRatio:          normalized.AspectRatio,
+		Duration:             normalized.Duration,
+		InputResourceIDs:     normalized.InputResourceIDs,
+		GenerationIntent:     normalized.GenerationIntent,
+		ProjectID:            &projectID,
+		CreatedAt:            normalized.CreatedAt,
+		ContentUnitCandidate: &binding,
+	})
+}
+
 type CandidateBuildInput struct {
 	ContentUnitID  string
 	CandidateID    string
