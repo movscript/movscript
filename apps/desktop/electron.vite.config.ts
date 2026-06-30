@@ -102,6 +102,7 @@ const packageSharedAlias = {
 const packageNodeAlias = {
   '@movscript/engine/node': resolve('../../packages/engine/src/node.ts'),
   '@movscript/interpreter/node': resolve('../../packages/interpreter/src/node.ts'),
+  '@movscript/local-daemon/mcp': resolve('../../packages/local-daemon/src/mcp.ts'),
   '@movscript/mcp-host/http': resolve('../../packages/mcp-host/src/http.ts'),
   '@movscript/mcp-host/stdio': resolve('../../packages/mcp-host/src/stdio.ts'),
   '@movscript/mcp-host': resolve('../../packages/mcp-host/src/index.ts'),

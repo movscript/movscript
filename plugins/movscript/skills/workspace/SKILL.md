@@ -19,6 +19,14 @@ In MovScript, the project Git repository is the project workspace. Editable busi
 
 Project/source tools now depend on runtime-discovered Project Service and Data Service capabilities. If a legacy workspace task fails because a service endpoint is missing, call `movscript_runtime_status`, classify local daemon, cloud/external data plane, or basic/diagnostic mode, and report the missing runtime mode or service instead of assuming Desktop is required.
 
+## Production Contract
+
+- Production step: compatibility source inspection/review; prefer `domain` for new project content changes.
+- Systems/config: Project Service/Data Service own source/read models and backend decisions; runtime/daemon supplies endpoints; `.interpret/**` is diagnostic output only.
+- Blockers: missing project locator, unavailable Project/Data service, schema/reference issues, or user request that should use domain/planning/generation/timeline instead.
+- Human review: do not treat `domain_interpret` as publish/approval/commit; require explicit user intent for source writes or candidate/selection decisions.
+- Output: report source model/path, inspect issues, interpret readiness, affected outputs, blockers, and the preferred modern domain tool next step.
+
 ## Workflow
 
 1. Use `domain_overview` to orient on current source, backend decisions, and diagnostics.

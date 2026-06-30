@@ -47,11 +47,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@movscript/cli-commands": "workspace:*",
     "@movscript/core": "workspace:*",
+    "@movscript/local-daemon": "workspace:*",
     "@movscript/local-runtime": "workspace:*",
-    "@movscript/runtime-contracts": "workspace:*",
-    "@movscript/workspace": "workspace:*"
+    "@movscript/runtime-contracts": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "22.19.17",

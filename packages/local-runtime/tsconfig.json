@@ -4,6 +4,7 @@
     "outDir": "dist",
     "baseUrl": ".",
     "paths": {
+      "@movscript/app-runner": ["../app-runner/src/index.ts"],
       "@movscript/runtime-contracts": ["../runtime-contracts/src/index.ts"]
     },
     "types": ["node"]

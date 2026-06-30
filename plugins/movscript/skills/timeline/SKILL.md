@@ -28,6 +28,14 @@ toolGrants:
 
 Use this skill for the second production step: planning timeline. Content planning decides what should exist; generation creates candidates; timeline compile decides how selected content becomes an executable cut or composition.
 
+## Production Contract
+
+- Production step: planning timeline and compiling TimelineAssembly into CompileManifest/backend handoff before render/export.
+- Systems/config: Project Service supplies selected materials and timeline/read models; timeline command runner compiles manifests; backend selection targets MediaEditingProject, Remotion, HyperFrames, or External NLE; runtime/daemon advertises editing/media readiness.
+- Blockers: missing upstream selections, invalid TimelineAssembly, backend capability mismatch, unsupported External NLE adapter, runtime lock mismatch, or missing renderer/media pipeline.
+- Human review: confirm backend choice when multiple viable paths exist or editability/runtime/handoff format changes; conformance `ready` is not final cut approval.
+- Output: report target scope, selected backend, CompileManifest/conformance status, blockers/warnings, generated backend project state, and next render/export/review action.
+
 ## Boundary
 
 - `TimelineAssembly` is the edit intent IR: selected materials, order, rhythm, layers, subtitles, audio, transitions, and review points.

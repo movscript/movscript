@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
 
+import { updateMCPContextSnapshot as updateHostMCPContextSnapshot } from '../dist/index.js'
 import { handleMCPHostJSONRPC, listMCPHostTools, runtimeStatus } from '../dist/stdio.js'
 
 let server
@@ -12,6 +13,10 @@ let baseURL
 let adminRequests = []
 let systemRequests = []
 let mcpProxyRequests = []
+let projectRequests = []
+let contextRequests = []
+let editingRequests = []
+let mediaPipelineRequests = []
 
 function handleLocalMCPHostJSONRPC(request) {
   return handleMCPHostJSONRPC(request, { proxyToDaemon: false })
@@ -29,13 +34,16 @@ after(async () => {
 })
 
 test('MCP host exposes runtime daemon bootstrap tools', () => {
-  const tools = new Set(listMCPHostTools().map((tool) => tool.name))
+  const toolsList = listMCPHostTools()
+  const tools = new Set(toolsList.map((tool) => tool.name))
   assert.equal(tools.has('runtime_daemon_ensure'), true)
   assert.equal(tools.has('runtime_daemon_start'), true)
   assert.equal(tools.has('runtime_daemon_status'), true)
   assert.equal(tools.has('runtime_daemon_configure'), true)
   assert.equal(tools.has('runtime_local_daemon_ensure'), true)
   assert.equal(tools.has('runtime_local_daemon_start'), true)
+  const ensureTool = toolsList.find((tool) => tool.name === 'runtime_daemon_ensure')
+  assert.equal(ensureTool?.outputSchema?.properties?.schema?.const, 'movscript.command_result.v1')
 })
 
 test('MCP host exposes current admin tools without deferred cloud file or usage policy tools', () => {
@@ -63,7 +71,36 @@ test('MCP host exposes TimelineAssembly compile tools above editing backend tool
   assert.equal(tools.has('timeline_compile_manifest_create'), true)
   assert.equal(tools.has('timeline_backend_project_create'), true)
   assert.equal(tools.has('timeline_backend_conformance_report'), true)
+  assert.equal(tools.has('editing_runtime_capabilities_get'), true)
+  assert.equal(tools.has('editing_timeline_validate'), true)
+  assert.equal(tools.has('editing_timeline_apply_commands'), true)
+  assert.equal(tools.has('editing_timeline_add_track'), true)
+  assert.equal(tools.has('editing_timeline_remove_track'), true)
+  assert.equal(tools.has('editing_timeline_add_clip'), true)
+  assert.equal(tools.has('editing_timeline_update_clip'), true)
+  assert.equal(tools.has('editing_timeline_split_clip'), true)
+  assert.equal(tools.has('editing_timeline_move_clip'), true)
+  assert.equal(tools.has('editing_timeline_delete_clip'), true)
+  assert.equal(tools.has('editing_video_compose'), true)
+  assert.equal(tools.has('editing_task_render_create'), true)
+  assert.equal(tools.has('editing_task_hls_create'), true)
+  assert.equal(tools.has('editing_task_transcode_create'), true)
+  assert.equal(tools.has('editing_task_reframe_create'), true)
+  assert.equal(tools.has('editing_task_get'), true)
+  assert.equal(tools.has('editing_task_cancel'), true)
+  assert.equal(tools.has('editing_task_logs_get'), true)
+  assert.equal(tools.has('editing_export_import_resource'), true)
+  assert.equal(tools.has('editing_export_save_local'), true)
+  assert.equal(tools.has('editing_export_publish_hls'), true)
+  assert.equal(tools.has('editing_export_create_candidate'), true)
+  assert.equal(tools.has('editing_project_create'), true)
+  assert.equal(tools.has('editing_project_create_from_edit_plan'), true)
   assert.equal(tools.has('editing_project_create_from_edit_decisions'), true)
+  assert.equal(tools.has('editing_project_get'), true)
+  assert.equal(tools.has('editing_project_save'), true)
+  assert.equal(tools.has('editing_project_update_settings'), true)
+  assert.equal(tools.has('editing_project_add_asset'), true)
+  assert.equal(tools.has('editing_project_remove_asset'), true)
 })
 
 test('stdio MCP host exposes only runtime bootstrap tools when daemon MCP is unavailable', async () => {
@@ -153,10 +190,296 @@ test('stdio MCP host proxies business tools to daemon MCP endpoint when availabl
     })
     assert.equal(runtimeResponse?.error, undefined)
     assert.equal(runtimeResponse.result.status, 'not_running')
+    assert.equal(runtimeResponse.result.contract.family, 'runtime')
+    assert.deepEqual(runtimeResponse.result.debug.cli_argv, ['movscript', 'daemon', 'status', '--json', '--home-dir', homeDir])
     assert.deepEqual(mcpProxyRequests.map((request) => request.method), ['tools/list', 'tools/call'])
   } finally {
     restoreEnv('MOVSCRIPT_HOME', previousHome)
     restoreEnv('MOVSCRIPT_DAEMON_MCP_ENDPOINT', previousDaemonMCP)
+  }
+})
+
+test('MCP host context updates prefer daemon context sessions when gateway is registered', async () => {
+  const previousHome = process.env.MOVSCRIPT_HOME
+  contextRequests = []
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-daemon-context-home-'))
+  try {
+    mkdirSync(join(homeDir, 'runtime', 'endpoints'), { recursive: true })
+    writeFileSync(join(homeDir, 'runtime', 'endpoints', 'movscript.local-node.gateway.json'), JSON.stringify({
+      serviceName: 'movscript.local-node.gateway',
+      applicationId: 'movscript.local-node',
+      status: 'ready',
+      baseURL: `${baseURL}/gateway`,
+    }), 'utf8')
+    process.env.MOVSCRIPT_HOME = homeDir
+
+    await updateHostMCPContextSnapshot({
+      route: { pathname: '/projects/42', search: '?workspaceId=secret&tab=overview', hash: '#top' },
+      project: { id: 42, name: 'Daemon Context Project', projectDir: '/tmp/movscript-project-42' },
+      productionId: 'prod-42',
+      user: { id: 7, username: 'operator', systemRole: 'admin' },
+      selection: { entityKind: 'timeline_assembly', entityId: 9, label: 'Cut v1' },
+      updatedAt: '2026-06-30T00:00:00.000Z',
+    })
+
+    assert.equal(contextRequests.length, 1)
+    assert.equal(contextRequests[0].url, '/gateway/v1/context/sessions')
+    assert.equal(contextRequests[0].body.sessionId, 'desktop-current')
+    assert.equal(contextRequests[0].body.projectId, 42)
+    assert.equal(contextRequests[0].body.projectDir, '/tmp/movscript-project-42')
+    assert.equal(contextRequests[0].body.mcpContext.route.pathname, '/projects/42')
+    assert.equal(contextRequests[0].body.mcpContext.selection.entityKind, 'timeline_assembly')
+  } finally {
+    restoreEnv('MOVSCRIPT_HOME', previousHome)
+  }
+})
+
+test('context MCP tool runs through shared command runner with CLI debug metadata', async () => {
+  try {
+    await updateHostMCPContextSnapshot({
+      route: { pathname: '/projects/77', search: '?workspaceId=secret&tab=timeline', hash: '#cut' },
+      project: { id: 77, name: 'Context Runner Project' },
+      productionId: 'prod-77',
+      user: { id: 8, username: 'reviewer', systemRole: 'admin' },
+      selection: { entityKind: 'content_unit', entityId: 'cu-1', label: 'Intro' },
+      updatedAt: '2026-06-30T00:00:00.000Z',
+    })
+
+    const response = await handleLocalMCPHostJSONRPC({
+      jsonrpc: '2.0',
+      id: 'context-current',
+      method: 'tools/call',
+      params: {
+        name: 'context_current_get',
+        arguments: {},
+      },
+    })
+
+    assert.equal(response?.error, undefined)
+    assert.equal(response.result.schema, 'movscript.mcp.context-current.v1')
+    assert.equal(response.result.context.route.pathname, '/projects/77')
+    assert.equal(response.result.context.route.search, '?tab=timeline')
+    assert.equal(response.result.context.project.name, 'Context Runner Project')
+    assert.equal(response.result.context.selection.label, 'Intro')
+    assert.equal(response.result.contract.family, 'context')
+    assert.deepEqual(response.result.debug.cli_argv, ['movscript', 'context', 'current', 'get', '--json'])
+  } finally {
+    await updateHostMCPContextSnapshot({
+      route: { pathname: '/', search: '', hash: '' },
+      project: null,
+      productionId: null,
+      user: null,
+      selection: null,
+      updatedAt: new Date(0).toISOString(),
+    })
+  }
+})
+
+test('editing MCP tools run through shared command runner with CLI debug metadata', async () => {
+  const response = await handleLocalMCPHostJSONRPC({
+    jsonrpc: '2.0',
+    id: 'editing-capabilities',
+    method: 'tools/call',
+    params: {
+      name: 'editing_runtime_capabilities_get',
+      arguments: {},
+    },
+  })
+
+  assert.equal(response?.error, undefined)
+  assert.equal(response.result.status, 'unsupported_runtime')
+  assert.equal(response.result.code, 'ELECTRON_EDITING_RUNTIME_REQUIRED')
+  assert.equal(response.result.contract.family, 'editing')
+  assert.deepEqual(response.result.debug.cli_argv, ['movscript', 'editing', 'runtime', 'capabilities', 'get', '--json'])
+})
+
+test('editing project creation MCP tool is backed by the shared CLI runner and stays project-only', async () => {
+  editingRequests = []
+  const editDecisions = sampleEditDecisions()
+  const assetManifest = sampleAssetManifest()
+  const response = await handleLocalMCPHostJSONRPC({
+    jsonrpc: '2.0',
+    id: 'editing-create-from-decisions',
+    method: 'tools/call',
+    params: {
+      name: 'editing_project_create_from_edit_decisions',
+      arguments: {
+        server: baseURL,
+        projectId: 'project_mcp_editing',
+        title: 'MCP Compose Project',
+        editDecisions,
+        assetManifest,
+      },
+    },
+  })
+
+  assert.equal(response?.error, undefined)
+  assert.equal(response.result.status, 'saved')
+  assert.equal(response.result.editing_project.source.kind, 'edit_decisions')
+  assert.equal(response.result.editing_project.projectId, 'project_mcp_editing')
+  assert.equal(response.result.candidate_created, undefined)
+  assert.equal(response.result.contract.family, 'editing')
+  assert.deepEqual(response.result.debug.cli_argv, [
+    'movscript',
+    'editing',
+    'project',
+    'create-from-edit-decisions',
+    '--json',
+    '--server',
+    baseURL,
+    '--project-id',
+    'project_mcp_editing',
+    '--title',
+    'MCP Compose Project',
+    '--edit-decisions',
+    '<json>',
+    '--asset-manifest',
+    '<json>',
+  ])
+  assert.deepEqual(editingRequests.map((request) => request.body.command), [
+    'createProjectFromEditDecisions',
+    'saveProject',
+  ])
+  assert.deepEqual(editingRequests[0].body.input.editDecisions, editDecisions)
+  assert.deepEqual(editingRequests[0].body.input.assetManifest, assetManifest)
+})
+
+test('editing timeline mutation MCP tool is backed by the shared CLI runner and stays project-only', async () => {
+  editingRequests = []
+  const editingProject = sampleEditingProject()
+  const clip = { id: 'clip_mcp_intro', assetId: 'clip_intro', assetType: 'video', timelineStartMs: 0, durationMs: 3000 }
+  const response = await handleLocalMCPHostJSONRPC({
+    jsonrpc: '2.0',
+    id: 'editing-add-clip',
+    method: 'tools/call',
+    params: {
+      name: 'editing_timeline_add_clip',
+      arguments: {
+        server: baseURL,
+        editingProject,
+        trackId: 'track_primary_video',
+        clip,
+      },
+    },
+  })
+
+  assert.equal(response?.error, undefined)
+  assert.equal(response.result.status, 'updated')
+  assert.equal(response.result.clip.id, 'clip_mcp_intro')
+  assert.equal(response.result.candidate_created, undefined)
+  assert.equal(response.result.contract.family, 'editing')
+  assert.deepEqual(response.result.debug.cli_argv, [
+    'movscript',
+    'editing',
+    'timeline',
+    'add-clip',
+    '--json',
+    '--server',
+    baseURL,
+    '--editing-project',
+    '<json>',
+    '--track-id',
+    'track_primary_video',
+    '--clip',
+    '<json>',
+  ])
+  assert.deepEqual(editingRequests.map((request) => request.body.command), ['addClip'])
+  assert.deepEqual(editingRequests[0].body.input.clip, clip)
+})
+
+test('editing task MCP tool is backed by the shared CLI runner and stays candidate-free', async () => {
+  editingRequests = []
+  mediaPipelineRequests = []
+  const previousMediaPipelineURL = process.env.MOVSCRIPT_MEDIA_PIPELINE_URL
+  try {
+    process.env.MOVSCRIPT_MEDIA_PIPELINE_URL = baseURL
+    const response = await handleLocalMCPHostJSONRPC({
+      jsonrpc: '2.0',
+      id: 'editing-task-get',
+      method: 'tools/call',
+      params: {
+        name: 'editing_task_get',
+        arguments: {
+          server: baseURL,
+          projectId: 'project_mcp_editing',
+          taskId: 'task_mcp_render',
+        },
+      },
+    })
+
+    assert.equal(response?.error, undefined)
+    assert.equal(response.result.status, 'ok')
+    assert.equal(response.result.task.taskId, 'task_mcp_render')
+    assert.equal(response.result.task.status, 'running')
+    assert.equal(response.result.candidate_created, undefined)
+    assert.equal(response.result.contract.family, 'editing')
+    assert.deepEqual(response.result.debug.cli_argv, [
+      'movscript',
+      'editing',
+      'task',
+      'get',
+      '--json',
+      '--server',
+      baseURL,
+      '--project-id',
+      'project_mcp_editing',
+      '--task-id',
+      'task_mcp_render',
+    ])
+    assert.deepEqual(editingRequests.map((request) => request.body.action), ['getTask'])
+    assert.deepEqual(mediaPipelineRequests.map((request) => request.body.action), ['getTask'])
+  } finally {
+    restoreEnv('MOVSCRIPT_MEDIA_PIPELINE_URL', previousMediaPipelineURL)
+  }
+})
+
+test('editing task create MCP tool is backed by the shared CLI runner and stays candidate-free', async () => {
+  editingRequests = []
+  mediaPipelineRequests = []
+  const previousMediaPipelineURL = process.env.MOVSCRIPT_MEDIA_PIPELINE_URL
+  const editingProject = sampleEditingProject()
+  const output = { filename: 'mcp-preview.mp4', importToResource: false }
+  try {
+    process.env.MOVSCRIPT_MEDIA_PIPELINE_URL = baseURL
+    const response = await handleLocalMCPHostJSONRPC({
+      jsonrpc: '2.0',
+      id: 'editing-render-create',
+      method: 'tools/call',
+      params: {
+        name: 'editing_task_render_create',
+        arguments: {
+          server: baseURL,
+          editingProject,
+          output,
+        },
+      },
+    })
+
+    assert.equal(response?.error, undefined)
+    assert.equal(response.result.status, 'ok')
+    assert.equal(response.result.task.taskType, 'timeline_render')
+    assert.equal(response.result.task.status, 'queued')
+    assert.equal(response.result.candidate_created, undefined)
+    assert.equal(response.result.contract.family, 'editing')
+    assert.deepEqual(response.result.debug.cli_argv, [
+      'movscript',
+      'editing',
+      'task',
+      'render',
+      'create',
+      '--json',
+      '--server',
+      baseURL,
+      '--editing-project',
+      '<json>',
+      '--output',
+      '<json>',
+    ])
+    assert.deepEqual(editingRequests.map((request) => request.body.taskType), ['timeline_render'])
+    assert.deepEqual(mediaPipelineRequests.map((request) => request.body.request.taskType), ['timeline_render'])
+    assert.equal(mediaPipelineRequests[0].body.request.projectId, 'project_mcp_editing')
+  } finally {
+    restoreEnv('MOVSCRIPT_MEDIA_PIPELINE_URL', previousMediaPipelineURL)
   }
 })
 
@@ -323,6 +646,182 @@ test('system MCP tools run through shared command runner with CLI debug metadata
   ])
 })
 
+test('timeline MCP tools run through shared command runner with CLI debug metadata', async () => {
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-timeline-mcp-home-'))
+
+  const capabilityResponse = await handleLocalMCPHostJSONRPC({
+    jsonrpc: '2.0',
+    id: 'timeline-capabilities',
+    method: 'tools/call',
+    params: {
+      name: 'timeline_backend_capability_list',
+      arguments: { homeDir },
+    },
+  })
+  assert.equal(capabilityResponse?.error, undefined)
+  assert.deepEqual(capabilityResponse.result.backends.map((backend) => backend.execution_project), [
+    'MediaEditingProject',
+    'RemotionCompositionProject',
+    'HyperFramesCompositionProject',
+    'ExternalNleProject',
+  ])
+  assert.deepEqual(capabilityResponse.result.debug.cli_argv, [
+    'movscript',
+    'timeline',
+    'backend',
+    'capability',
+    'list',
+    '--json',
+    '--home-dir',
+    homeDir,
+  ])
+
+  const compileResponse = await handleLocalMCPHostJSONRPC({
+    jsonrpc: '2.0',
+    id: 'timeline-compile',
+    method: 'tools/call',
+    params: {
+      name: 'timeline_compile_manifest_create',
+      arguments: {
+        homeDir,
+        backend: 'media_editing_project',
+        timelineAssembly: sampleTimelineAssembly(),
+        editDecisions: sampleEditDecisions(),
+        assetManifest: sampleAssetManifest(),
+        width: 1280,
+        height: 720,
+        fps: 24,
+      },
+    },
+  })
+  assert.equal(compileResponse?.error, undefined)
+  assert.equal(compileResponse.result.status, 'ready')
+  assert.equal(compileResponse.result.compile_manifest.backend.target, 'media_editing_project')
+  assert.deepEqual(compileResponse.result.compile_manifest.inputs.selected_resource_ids, [701, 702])
+  assert.deepEqual(compileResponse.result.debug.cli_argv, [
+    'movscript',
+    'timeline',
+    'compile',
+    'manifest',
+    'create',
+    '--json',
+    '--home-dir',
+    homeDir,
+    '--backend',
+    'media_editing_project',
+    '--width',
+    '1280',
+    '--height',
+    '720',
+    '--fps',
+    '24',
+    '--timeline-assembly',
+    '<json>',
+    '--edit-decisions',
+    '<json>',
+    '--asset-manifest',
+    '<json>',
+  ])
+})
+
+test('workspace/domain MCP tools run through shared command runner with CLI debug metadata', async () => {
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-mcp-project-'))
+  const modelResponse = await handleLocalMCPHostJSONRPC({
+    jsonrpc: '2.0',
+    id: 'domain-get-model',
+    method: 'tools/call',
+    params: {
+      name: 'domain_get_model',
+      arguments: { entityKind: 'project', entityId: 'project_01' },
+    },
+  })
+  assert.equal(modelResponse?.error, undefined)
+  assert.equal(modelResponse.result.workspaceKind, 'project_workspace')
+  assert.equal(modelResponse.result.entityKind, 'project')
+  assert.equal(modelResponse.result.entityId, 'project_01')
+  assert.deepEqual(modelResponse.result.debug.cli_argv, [
+    'movscript',
+    'workspace',
+    'get-model',
+    'project',
+    '--json',
+    '--entity-id',
+    'project_01',
+  ])
+
+  projectRequests = []
+  const inspectResponse = await handleLocalMCPHostJSONRPC({
+    jsonrpc: '2.0',
+    id: 'domain-inspect',
+    method: 'tools/call',
+    params: {
+      name: 'domain_inspect',
+      arguments: {
+        backendBaseURL: baseURL,
+        projectDir,
+        projectUid: 'prj_mcp_workspace',
+      },
+    },
+  })
+  assert.equal(inspectResponse?.error, undefined)
+  assert.equal(inspectResponse.result.schema, 'movscript.workspace-inspection.v1')
+  assert.equal(inspectResponse.result.readyToInterpret, false)
+  assert.deepEqual(inspectResponse.result.debug.cli_argv, [
+    'movscript',
+    'workspace',
+    'review',
+    '--json',
+    '--server',
+    baseURL,
+    '--project-dir',
+    projectDir,
+    '--project-uid',
+    'prj_mcp_workspace',
+  ])
+  assert.equal(inspectResponse.result.debug.project_service_endpoint, baseURL)
+  assert.deepEqual(projectRequests.map((request) => request.url), ['/v1/project/source/inspect'])
+
+  projectRequests = []
+  const interpretResponse = await handleLocalMCPHostJSONRPC({
+    jsonrpc: '2.0',
+    id: 'domain-interpret',
+    method: 'tools/call',
+    params: {
+      name: 'domain_interpret',
+      arguments: {
+        backendBaseURL: baseURL,
+        projectDir,
+        projectUid: 'prj_mcp_workspace',
+      },
+    },
+  })
+  assert.equal(interpretResponse?.error, undefined)
+  assert.equal(interpretResponse.result.schema, 'movscript.workspace-interpret-result.v1')
+  assert.equal(interpretResponse.result.status, 'refreshed')
+  assert.equal(interpretResponse.result.manifest.output.editorStatePath, '.interpret/current/editor-state.json')
+  assert.deepEqual(interpretResponse.result.debug.cli_argv, [
+    'movscript',
+    'workspace',
+    'interpret',
+    '--json',
+    '--server',
+    baseURL,
+    '--project-dir',
+    projectDir,
+    '--project-uid',
+    'prj_mcp_workspace',
+  ])
+  assert.equal(interpretResponse.result.debug.project_service_endpoint, baseURL)
+  assert.deepEqual(projectRequests.map((request) => request.url), [
+    '/v1/project/locator/resolve',
+    '/api/v1/projects/ensure',
+    '/api/v1/project-data/spaces',
+    '/v1/project/source/interpret',
+  ])
+  assert.equal(projectRequests[0]?.body.projectUid, 'prj_mcp_workspace')
+  assert.equal(projectRequests[1]?.body.project_uid, 'prj_mcp_workspace')
+})
+
 test('generation MCP tools run through shared command runner with CLI debug metadata', async () => {
   const previousHome = process.env.MOVSCRIPT_HOME
   const previousDataServiceURL = process.env.MOVSCRIPT_DATA_SERVICE_URL
@@ -463,8 +962,8 @@ test('generation MCP tools run through shared command runner with CLI debug meta
     assert.equal(jobCreateRequest?.body.feature_key, 'electron.generation.music')
     assert.deepEqual(JSON.parse(jobCreateRequest?.body.extra_params), { style: 'minimal strings' })
     assert.deepEqual(systemRequests.map((request) => `${request.method} ${request.url}`), [
-      'GET /gateway/api/v1/models?capability=audio_music',
-      'GET /gateway/api/v1/models?capability=audio_generation&operation=music',
+      'GET /gateway/api/v1/models?capability=audio_music&target_output=audio&resolve_intent=true',
+      'GET /gateway/api/v1/models?capability=audio_generation&operation=music&target_output=audio&resolve_intent=true',
       'POST /gateway/api/v1/jobs',
       'GET /gateway/api/v1/jobs/701',
       'GET /gateway/api/v1/jobs/701',
@@ -1161,8 +1660,23 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+function readRequestJSON(req, callback) {
+  let body = ''
+  req.setEncoding('utf8')
+  req.on('data', (chunk) => { body += chunk })
+  req.on('end', () => {
+    callback(body ? JSON.parse(body) : {})
+  })
+}
+
+function writeJSON(res, payload, statusCode = 200) {
+  res.writeHead(statusCode, { 'Content-Type': 'application/json' })
+  res.end(JSON.stringify(payload))
+}
+
 function createTestServer() {
   return createServer((req, res) => {
+    const requestURL = new URL(req.url ?? '/', 'http://127.0.0.1')
     if (req.url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ status: 'ok' }))
@@ -1212,12 +1726,205 @@ function createTestServer() {
       })
       return
     }
+    if (req.url === '/gateway/v1/context/sessions' && req.method === 'POST') {
+      readRequestJSON(req, (body) => {
+        contextRequests.push({ method: req.method, url: req.url, body })
+        writeJSON(res, {
+          schema: 'movscript.context-envelope.v1',
+          contextId: `${body.sessionId ?? 'desktop-current'}:1`,
+          revision: 1,
+          issuedAt: '2026-06-30T00:00:00.000Z',
+          runtime: { owner: 'local-node', appId: 'movscript.local-node', gatewayPrefix: '/v1' },
+          principal: { userId: '7', kind: 'cloud-user' },
+          dataConnection: { kind: 'local', authMode: 'local-owner', status: 'connected', displayName: 'Local Data Plane' },
+        }, 201)
+      })
+      return
+    }
     if (req.url === '/mcp') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ jsonrpc: '2.0', id: 'runtime-status-desktop-probe', result: {} }))
       return
     }
-    if (req.url === '/api/v1/models?capability=image') {
+    if (req.method === 'POST' && req.url === '/v1/project/source/inspect') {
+      readRequestJSON(req, (body) => {
+        projectRequests.push({ method: req.method, url: req.url, body })
+        writeJSON(res, {
+          inspection: {
+            schema: 'movscript.workspace-inspection.v1',
+            operation: 'inspect',
+            readyToInterpret: false,
+            issues: [{
+              path: 'project.json',
+              severity: 'error',
+              message: 'missing schema field',
+            }],
+            summary: { errors: 1, warnings: 0 },
+          },
+        })
+      })
+      return
+    }
+    if (req.method === 'POST' && req.url === '/v1/project/locator/resolve') {
+      readRequestJSON(req, (body) => {
+        projectRequests.push({ method: req.method, url: req.url, body })
+        writeJSON(res, {
+          locator: {
+            workspaceDir: body.workspaceDir,
+            projectDir: body.projectDir,
+            projectUid: body.projectUid,
+            projectTitle: 'MCP Workspace Project',
+          },
+        })
+      })
+      return
+    }
+    if (req.method === 'POST' && req.url === '/api/v1/projects/ensure') {
+      readRequestJSON(req, (body) => {
+        projectRequests.push({ method: req.method, url: req.url, body })
+        writeJSON(res, {
+          project: {
+            project_uid: body.project_uid,
+            name: body.name,
+          },
+        })
+      })
+      return
+    }
+    if (req.method === 'POST' && req.url === '/api/v1/project-data/spaces') {
+      readRequestJSON(req, (body) => {
+        projectRequests.push({ method: req.method, url: req.url, body })
+        writeJSON(res, {
+          data_space: {
+            project_uid: body.project_uid,
+            title: body.title,
+          },
+        })
+      })
+      return
+    }
+    if (req.method === 'POST' && req.url === '/v1/project/source/interpret') {
+      readRequestJSON(req, (body) => {
+        projectRequests.push({ method: req.method, url: req.url, body })
+        writeJSON(res, {
+          interpretation: {
+            schema: 'movscript.workspace-interpret-result.v1',
+            operation: 'interpret',
+            status: 'refreshed',
+            review: {
+              schema: 'movscript.workspace-inspection.v1',
+              readyToInterpret: true,
+            },
+            manifest: {
+              output: {
+                editorStatePath: '.interpret/current/editor-state.json',
+              },
+            },
+          },
+        })
+      })
+      return
+    }
+    if (req.method === 'POST' && req.url === '/v1/editing/project/command') {
+      readRequestJSON(req, (body) => {
+        editingRequests.push({ method: req.method, url: req.url, body })
+        if (body.command === 'createProjectFromEditDecisions') {
+          writeJSON(res, {
+            schema: 'movscript.editing-project-command-result.v1',
+            command: body.command,
+            result: {
+              status: 'ok',
+              editing_project: sampleCreatedEditingProject(body.input ?? {}),
+            },
+          })
+          return
+        }
+        if (body.command === 'saveProject') {
+          const editingProject = body.input?.editingProject
+          writeJSON(res, {
+            schema: 'movscript.editing-project-command-result.v1',
+            command: body.command,
+            result: {
+              status: 'saved',
+              editingProject,
+              editing_project: editingProject,
+            },
+          })
+          return
+        }
+        if (body.command === 'addClip') {
+          writeJSON(res, {
+            schema: 'movscript.editing-project-command-result.v1',
+            command: body.command,
+            result: {
+              status: 'updated',
+              clip: body.input?.clip,
+            },
+          })
+          return
+        }
+        writeJSON(res, {
+          schema: 'movscript.editing-project-command-result.v1',
+          command: body.command,
+          result: {
+            valid: true,
+            diagnostics: [],
+          },
+        })
+      })
+      return
+    }
+    if (req.method === 'POST' && req.url === '/v1/editing/task/action') {
+      readRequestJSON(req, (body) => {
+        editingRequests.push({ method: req.method, url: req.url, body })
+        writeJSON(res, {
+          schema: 'movscript.editing-task-action.v1',
+          action: body.action,
+          request: {
+            action: body.action,
+            taskId: body.input?.taskId ?? body.input?.task_id,
+            options: {
+              projectId: body.input?.projectId ?? body.input?.project_id,
+            },
+          },
+        })
+      })
+      return
+    }
+    if (req.method === 'POST' && req.url === '/v1/editing/task/request') {
+      readRequestJSON(req, (body) => {
+        editingRequests.push({ method: req.method, url: req.url, body })
+        writeJSON(res, {
+          schema: 'movscript.editing-task-request.v1',
+          taskType: body.taskType,
+          request: sampleMediaPipelineTaskRequest(body.taskType, body.input ?? {}),
+        })
+      })
+      return
+    }
+    if (req.method === 'POST' && req.url === '/v1/media-pipeline/task/create') {
+      readRequestJSON(req, (body) => {
+        mediaPipelineRequests.push({ method: req.method, url: req.url, body })
+        const request = body.request ?? {}
+        writeJSON(res, {
+          schema: 'movscript.media-pipeline-task-create.v1',
+          task: sampleMediaPipelineTask(`task_${request.taskType}`, request.projectId, 'queued', request.taskType),
+        })
+      })
+      return
+    }
+    if (req.method === 'POST' && req.url === '/v1/media-pipeline/task/action') {
+      readRequestJSON(req, (body) => {
+        mediaPipelineRequests.push({ method: req.method, url: req.url, body })
+        writeJSON(res, {
+          schema: 'movscript.media-pipeline-task-action.v1',
+          action: body.action,
+          task: sampleMediaPipelineTask(body.taskId, body.options?.projectId, body.action === 'cancelTask' ? 'canceled' : 'running'),
+        })
+      })
+      return
+    }
+    if (req.method === 'GET' && requestURL.pathname === '/api/v1/models' && requestURL.searchParams.get('capability') === 'image') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify([{
         id: 1,
@@ -1227,7 +1934,9 @@ function createTestServer() {
       }]))
       return
     }
-    if (req.url === '/gateway/api/v1/models?capability=audio_music' && req.method === 'GET') {
+    if (req.method === 'GET'
+      && requestURL.pathname === '/gateway/api/v1/models'
+      && requestURL.searchParams.get('capability') === 'audio_music') {
       systemRequests.push({ method: req.method, url: req.url })
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify([{
@@ -1241,7 +1950,10 @@ function createTestServer() {
       }]))
       return
     }
-    if (req.url === '/gateway/api/v1/models?capability=audio_generation&operation=music' && req.method === 'GET') {
+    if (req.method === 'GET'
+      && requestURL.pathname === '/gateway/api/v1/models'
+      && requestURL.searchParams.get('capability') === 'audio_generation'
+      && requestURL.searchParams.get('operation') === 'music') {
       systemRequests.push({ method: req.method, url: req.url })
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify([{
@@ -1465,4 +2177,138 @@ function createTestServer() {
     res.writeHead(404)
     res.end()
   })
+}
+
+function sampleTimelineAssembly() {
+  return {
+    schema: 'movscript.timeline_assembly.v1',
+    id: 'assembly_mcp_host',
+    target_ref: 'timeline_assembly:production:pilot',
+    scope_kind: 'production',
+    scope_ref: 'pilot',
+    tracks: [{ id: 'video_main', kind: 'video' }],
+    clips: [{
+      id: 'clip_intro',
+      track_id: 'video_main',
+      kind: 'visual',
+      source: { resource_id: 701 },
+    }],
+  }
+}
+
+function sampleEditDecisions() {
+  return {
+    version: 1,
+    render_runtime: 'ffmpeg',
+    cuts: [{
+      id: 'cut_intro',
+      source: 'clip_intro',
+      in_seconds: 0,
+      out_seconds: 3,
+    }],
+    audio: {
+      music: {
+        asset_id: 'music_bed',
+        volume: 0.4,
+      },
+    },
+  }
+}
+
+function sampleAssetManifest() {
+  return {
+    assets: [
+      { id: 'clip_intro', type: 'video', resource_id: 701, label: 'Intro' },
+      { id: 'music_bed', type: 'audio', resource_id: 702, label: 'Music' },
+    ],
+  }
+}
+
+function sampleEditingProject() {
+  return {
+    version: 1,
+    id: 'edit_project_mcp_host',
+    projectId: 'project_mcp_editing',
+    title: 'MCP Editing Project',
+    settings: {
+      width: 1280,
+      height: 720,
+      fps: 24,
+      background: '#000000',
+    },
+    assets: {
+      version: 1,
+      assets: [],
+    },
+    timeline: {
+      version: 1,
+      durationMs: 0,
+      tracks: [],
+    },
+  }
+}
+
+function sampleCreatedEditingProject(input) {
+  return {
+    version: 1,
+    id: 'edit_project_mcp_host',
+    projectId: input.projectId ?? input.project_id ?? 'project_mcp_editing',
+    title: input.title ?? 'MCP Compose Project',
+    source: {
+      kind: 'edit_decisions',
+      editDecisionCount: input.editDecisions?.cuts?.length ?? input.edit_decisions?.cuts?.length ?? 0,
+    },
+    settings: {
+      width: input.width ?? 1280,
+      height: input.height ?? 720,
+      fps: input.fps ?? 24,
+      background: input.background ?? '#000000',
+    },
+    assets: {
+      version: 1,
+      assets: input.assetManifest?.assets ?? input.asset_manifest?.assets ?? [],
+    },
+    timeline: {
+      version: 1,
+      durationMs: 3000,
+      tracks: [{
+        id: 'track_primary_video',
+        type: 'video',
+        clips: [{
+          id: 'clip_intro',
+          assetId: 'clip_intro',
+          timelineStartMs: 0,
+          durationMs: 3000,
+        }],
+      }],
+    },
+  }
+}
+
+function sampleMediaPipelineTaskRequest(taskType, input) {
+  const editingProject = input.editingProject ?? input.editing_project
+  const projectId = input.projectId ?? input.project_id ?? editingProject?.projectId ?? 'project_mcp_editing'
+  return {
+    projectId,
+    taskType,
+    ...(editingProject ? { editingProject, timeline: editingProject.timeline } : {}),
+    ...(input.source ? { source: input.source } : {}),
+    output: {
+      format: taskType === 'timeline_hls' ? 'hls' : 'mp4',
+      ...(input.output ?? {}),
+    },
+  }
+}
+
+function sampleMediaPipelineTask(taskId, projectId, status, taskType = 'timeline_render') {
+  return {
+    taskId,
+    projectId,
+    taskType,
+    status,
+    progressPercent: status === 'canceled' ? 100 : 55,
+    currentStep: status,
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+  }
 }

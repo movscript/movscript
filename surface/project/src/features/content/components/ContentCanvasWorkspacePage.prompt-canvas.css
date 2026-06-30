@@ -537,7 +537,7 @@
 }
 
 .content-prompt-flow-node {
-  --content-prompt-flow-node-collapsed-width: 360px;
+  --content-prompt-flow-node-collapsed-width: 430px;
   --content-prompt-flow-node-expanded-width: 680px;
   --content-prompt-flow-node-preview-width: var(--content-prompt-flow-node-collapsed-width);
   display: grid;
@@ -554,23 +554,21 @@
 }
 
 .content-prompt-flow-node[data-weight="normal"] {
-  --content-prompt-flow-node-collapsed-width: 340px;
+  --content-prompt-flow-node-collapsed-width: 430px;
 }
 
 .content-prompt-flow-node[data-expanded="true"] {
-  --content-prompt-flow-node-preview-width: 430px;
   transform: translateX(calc((var(--content-prompt-flow-node-collapsed-width) - var(--content-prompt-flow-node-expanded-width)) / 2));
   width: var(--content-prompt-flow-node-expanded-width);
 }
 
 .content-prompt-flow-node[data-weight="compact"] {
-  --content-prompt-flow-node-collapsed-width: 260px;
+  --content-prompt-flow-node-collapsed-width: 390px;
   gap: 7px;
 }
 
 .content-prompt-flow-node[data-weight="compact"][data-expanded="true"] {
   --content-prompt-flow-node-expanded-width: 620px;
-  --content-prompt-flow-node-preview-width: 390px;
 }
 
 .content-prompt-flow-node__preview-card,
@@ -586,6 +584,7 @@
 }
 
 .content-prompt-flow-node__preview-card {
+  position: relative;
   gap: 9px;
   padding: 12px;
   justify-self: center;
@@ -600,6 +599,27 @@
 
 .content-prompt-flow-node[data-weight="compact"][data-expanded="true"] .content-prompt-flow-node__preview-card {
   width: var(--content-prompt-flow-node-preview-width);
+}
+
+.content-prompt-flow-node__preview-card .content-prompt-flow-node__handle.react-flow__handle {
+  top: 50%;
+  z-index: 2;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--cc-panel);
+  background: color-mix(in srgb, var(--cc-accent) 72%, var(--cc-text));
+}
+
+.content-prompt-flow-node__preview-card .content-prompt-flow-node__handle--target.react-flow__handle {
+  right: auto;
+  left: 0;
+  transform: translate(-50%, -50%);
+}
+
+.content-prompt-flow-node__preview-card .content-prompt-flow-node__handle--source.react-flow__handle {
+  right: 0;
+  left: auto;
+  transform: translate(50%, -50%);
 }
 
 .content-prompt-flow-node__prompt-panel {
@@ -1015,84 +1035,60 @@
 }
 
 .content-prompt-flow-node__generation-grid {
-  display: grid;
-  grid-template-columns: minmax(92px, 0.75fr) minmax(82px, 0.55fr) minmax(132px, 1.15fr);
-  gap: 8px;
-  min-width: 0;
-}
-
-.content-prompt-flow-node__generation-references {
   display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0;
   min-width: 0;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.content-prompt-flow-node__generation-reference {
-  display: inline-grid;
-  grid-template-columns: minmax(0, 1fr) 30px;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  max-width: 150px;
-  min-height: 36px;
   border: 1px solid color-mix(in srgb, var(--cc-success) 38%, var(--cc-border));
   border-radius: 7px;
-  background: color-mix(in srgb, var(--cc-success) 8%, transparent);
-  padding: 3px 6px 3px 3px;
-}
-
-.content-prompt-flow-node__generation-reference img,
-.content-prompt-flow-node__generation-reference video,
-.content-prompt-flow-node__generation-reference-fallback {
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--cc-accent) 10%, transparent);
-  object-fit: cover;
   overflow: hidden;
-}
-
-.content-prompt-flow-node__generation-reference-fallback {
-  display: grid;
-  place-items: center;
-  color: var(--cc-accent);
-}
-
-.content-prompt-flow-node__generation-reference-fallback small {
-  display: none;
-}
-
-.content-prompt-flow-node__generation-reference > span:last-child {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-}
-
-.content-prompt-flow-node__generation-reference b,
-.content-prompt-flow-node__generation-reference small {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.content-prompt-flow-node__generation-reference b {
-  color: var(--cc-text);
-  font-size: 10px;
-  font-weight: 820;
-}
-
-.content-prompt-flow-node__generation-reference small {
-  color: var(--cc-muted);
-  font-size: 10px;
-  font-weight: 720;
+  background: color-mix(in srgb, var(--cc-panel) 92%, var(--cc-success) 4%);
 }
 
 .content-prompt-flow-node__generation label {
   display: grid;
   gap: 4px;
   min-width: 0;
+}
+
+.content-prompt-flow-node__generation-grid .generation-call-composer__field {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 44px;
+  align-items: center;
+  gap: 7px;
+  border-right: 1px solid color-mix(in srgb, var(--cc-border) 82%, transparent);
+  padding: 6px 8px;
+}
+
+.content-prompt-flow-node__generation-grid .generation-call-composer__field:last-child {
+  border-right: 0;
+}
+
+.content-prompt-flow-node__generation-field .generation-call-composer__field-label {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.content-prompt-flow-node__generation-field:first-child {
+  flex: 0 1 210px;
+  min-width: 148px;
+}
+
+.content-prompt-flow-node__generation-field--output {
+  min-width: 68px;
+}
+
+.content-prompt-flow-node__generation-field--model {
+  flex: 1 1 176px;
+  min-width: 168px;
+}
+
+.content-prompt-flow-node__generation-field--model .generation-model-selector,
+.content-prompt-flow-node__generation-field--model .generation-model-selector__trigger {
+  width: 100%;
 }
 
 .content-prompt-flow-node__generation label > span,
@@ -1109,17 +1105,26 @@
 }
 
 .content-prompt-flow-node__generation-params {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 7px;
   min-width: 0;
+  border: 1px solid var(--cc-border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--cc-panel) 94%, var(--cc-muted) 6%);
+  padding: 6px;
 }
 
 .content-prompt-flow-node__generation-params .generation-input-param {
-  display: grid;
-  align-items: start;
-  gap: 4px;
+  min-height: 38px;
+  align-items: center;
+  gap: 5px;
   min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--cc-border) 82%, transparent);
+  border-radius: 7px;
+  background: var(--cc-panel);
+  padding: 5px 7px;
 }
 
 .content-prompt-flow-node__generation-params .generation-input-param__label {

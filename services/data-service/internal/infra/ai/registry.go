@@ -121,6 +121,8 @@ func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelD
 		return NewStabilityAdapter(apiKey, baseURL), nil
 	case AdapterYunwuUnifiedVideo:
 		return NewYunwuUnifiedVideoAdapter(apiKey, baseURL), nil
+	case AdapterDoubao2API:
+		return NewDoubao2APIAdapter(apiKey, baseURL), nil
 	default:
 		return NewOpenAIAdapter(baseURL, apiKey), nil
 	}

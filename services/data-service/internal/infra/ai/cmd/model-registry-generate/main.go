@@ -460,6 +460,8 @@ func adapterSupportsRuntimeCapability(adapterType, capability string) bool {
 		return capability == infraai.CapabilityText || capability == infraai.CapabilityAudioMusic
 	case infraai.AdapterStability:
 		return capability == infraai.CapabilityAudioMusic || capability == infraai.CapabilityAudioSFX
+	case infraai.AdapterDoubao2API:
+		return capability == infraai.CapabilityImage || capability == infraai.CapabilityVideo
 	case infraai.AdapterLocal:
 		switch capability {
 		case infraai.CapabilityText, infraai.CapabilityReasoning,

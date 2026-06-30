@@ -17,7 +17,8 @@ test('project home exposes multiple content canvas documents instead of a single
   assert.match(source, /kind: 'production'/)
   assert.match(source, /productionId: production\.id/)
   assert.match(source, /productionTitle: production\.title/)
-  assert.match(source, /canvasId=\$\{encodeURIComponent\(canvasId\)\}/)
+  assert.match(source, /surfaceRoutePath\('project\.contentCanvas', \{[\s\S]*projectId,[\s\S]*canvasId/)
+  assert.doesNotMatch(source, /\`\$\{base\}\?canvasId=\$\{encodeURIComponent\(canvasId\)\}\`/)
   assert.doesNotMatch(source, /ProjectOverviewWorkbenchCard/)
 })
 

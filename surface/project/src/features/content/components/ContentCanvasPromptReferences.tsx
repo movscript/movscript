@@ -3,6 +3,7 @@ import { File, Image, Video } from 'lucide-react'
 
 import type { ContentCanvasCandidate, ContentCanvasNode } from '../domain/contentCanvasTypes'
 import { readResourceDragPayload, resourceDropAcceptsPayload } from '@movscript/resource-surface/resource-interaction'
+import { resolveResourceFileImageUrl, resolveResourceFileUrl } from '@movscript/resource-surface/resource-media'
 import { ResourceFileImage, ResourceFileVideo } from '@movscript/resource-surface/resource-media-components'
 import { formatResourceMention, parseResourceMentions } from '@movscript/workspace'
 import {
@@ -73,6 +74,7 @@ export function PromptReferenceInlineEditor({
 }) {
   const shellRef = useRef<HTMLDivElement | null>(null)
   const editorRef = useRef<HTMLDivElement | null>(null)
+  const lastEditorValueRef = useRef(prompt)
   const [mentionRange, setMentionRange] = useState<PromptMentionRange | null>(null)
   const [roleMenu, setRoleMenu] = useState<PromptReferenceRoleMenuState | null>(null)
   const [dropRoleMenu, setDropRoleMenu] = useState<PromptReferenceDropRoleMenuState | null>(null)
@@ -95,12 +97,18 @@ export function PromptReferenceInlineEditor({
   useLayoutEffect(() => {
     const editor = editorRef.current
     if (!editor) return
-    if (document.activeElement === editor) return
-    if (serializePromptEditor(editor) === prompt) return
+    const currentValue = serializePromptEditor(editor)
+    if (currentValue === prompt) {
+      lastEditorValueRef.current = prompt
+      return
+    }
+    if (document.activeElement === editor && lastEditorValueRef.current === prompt) return
     editor.innerHTML = html
+    lastEditorValueRef.current = prompt
   }, [html, prompt])
   const handleInput = useCallback((event: FormEvent<HTMLDivElement>) => {
     const state = readPromptEditorState(event.currentTarget)
+    lastEditorValueRef.current = state.value
     onChange(state.value)
     setRoleMenu(null)
     setDropRoleMenu(null)
@@ -499,6 +507,18 @@ function promptReferenceEditorHtml(
 }
 
 function promptReferenceInlineThumbHtml(reference: PromptReferenceItem): string {
+  if (reference.previewResourceId !== undefined && reference.previewMediaType === 'image') {
+    const src = resolveResourceFileImageUrl(reference.previewResourceId)
+    if (src) {
+      return `<img class="content-canvas-prompt-inline-reference__thumb" src="${escapeAttribute(src)}" alt="${escapeAttribute(reference.title)}" loading="lazy" />`
+    }
+  }
+  if (reference.previewResourceId !== undefined && reference.previewMediaType === 'video') {
+    const src = resolveResourceFileUrl(reference.previewResourceId)
+    if (src) {
+      return `<video class="content-canvas-prompt-inline-reference__thumb" src="${escapeAttribute(src)}" muted playsinline preload="metadata"></video>`
+    }
+  }
   return [
     `<span class="content-canvas-prompt-reference-strip__fallback content-canvas-prompt-inline-reference__thumb" data-media-type="${escapeAttribute(reference.previewMediaType ?? reference.mediaType ?? 'file')}">`,
     escapeHtml(generationReferenceMediaTypeShortLabel(reference.previewMediaType ?? reference.mediaType ?? 'file')),

@@ -43,6 +43,14 @@ toolGrants:
 
 Use this skill only for explicit system management tasks. Admin config is outside the normal creative flow of planning content, planning timeline, generation, and export.
 
+## Production Contract
+
+- Production step: cross-cutting admin setup and diagnostics before generation/export, not creative production itself.
+- Systems/config: Data Service/Admin Service own providers, credentials, model catalog, route bindings, gateway keys, ResourceAccessProfile, public tunnel, and public backend config; runtime/daemon owns service readiness.
+- Blockers: missing daemon/data plane/admin permission, absent provider credentials, invalid route binding, unreachable public URL, or unsafe/destructive payload.
+- Human review: require explicit confirmation for credential writes, route/gateway/public URL writes, deletes, and any config that changes spend, routing, or external exposure.
+- Output: report sanitized config state, `debug.cli_argv` when present, diagnostics run, remaining blockers, and the next validation command.
+
 ## Boundary
 
 - Admin owns provider accounts, credentials, model catalog, route bindings, model gateway keys, generation tool server settings, and ResourceAccessProfile/public tunnel/public backend configuration.

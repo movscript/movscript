@@ -3423,6 +3423,28 @@ var catalogTemplateSources = []ModelDef{
 		SourceStatus:         "observed",
 		AllowModelIDOverride: true,
 	},
+	{
+		ID:              "doubao2api:doubao-image",
+		Lab:             "doubao2api",
+		ModelID:         "doubao-image",
+		DisplayName:     "doubao2api 图片生成",
+		Capabilities:    []string{"image"},
+		AdapterType:     "",
+		SourceStatus:    "unofficial",
+		SupportedParams: mustGeneratedCatalogParamDefs("[{\"key\":\"aspect_ratio\",\"label\":\"画面比例\",\"type\":\"select\",\"options\":[\"1:1\",\"16:9\",\"9:16\",\"4:3\",\"3:4\"],\"default\":\"1:1\"}]"),
+	},
+	{
+		ID:              "doubao2api:doubao-video",
+		Lab:             "doubao2api",
+		ModelID:         "doubao-video",
+		DisplayName:     "doubao2api 视频生成",
+		Capabilities:    []string{"video"},
+		AdapterType:     "",
+		SourceStatus:    "unofficial",
+		DefaultDurSec:   5,
+		MaxDurSec:       5,
+		SupportedParams: mustGeneratedCatalogParamDefs("[{\"key\":\"duration\",\"label\":\"时长(秒)\",\"type\":\"select\",\"options\":[\"5\"],\"default\":\"5\"},{\"key\":\"aspect_ratio\",\"label\":\"画面比例\",\"type\":\"select\",\"options\":[\"16:9\",\"9:16\",\"1:1\"],\"default\":\"16:9\"}]"),
+	},
 }
 
 func mustGeneratedCatalogParamDefs(raw string) []ParamDef {

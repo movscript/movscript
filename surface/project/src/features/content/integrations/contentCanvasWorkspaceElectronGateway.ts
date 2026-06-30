@@ -50,11 +50,19 @@ export function createElectronContentCanvasWorkspaceGateway(
   }
   const service = createSurfaceWorkspaceDomainService(projectContext)
   const contentCanvasReadModel = readSurfaceHostApi()?.readMovScriptEngineContentCanvasReadModel
+  const syncContentWorkspace = readSurfaceHostApi()?.syncMovScriptEngineContentWorkspace
   const promptCache = createContentCanvasPromptCache()
   return {
     service,
     ...(contentCanvasReadModel ? {
       readContentCanvasReadModel: (inputProjectId: number) => contentCanvasReadModel({
+        ...currentSurfaceWorkspaceOwnerContext(),
+        ...(projectDir ? { projectDir } : {}),
+        projectId: inputProjectId,
+      }),
+    } : {}),
+    ...(syncContentWorkspace ? {
+      syncContentWorkspace: (inputProjectId: number) => syncContentWorkspace({
         ...currentSurfaceWorkspaceOwnerContext(),
         ...(projectDir ? { projectDir } : {}),
         projectId: inputProjectId,

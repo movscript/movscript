@@ -146,10 +146,9 @@ function projectEntryDeckEntry(input: {
     snapshots: input.snapshots,
   })
   const active = input.activeEntryId === input.id
-  const requiresFocusedSession = input.definition.id === 'content_preview' || input.definition.id === 'setting_preview'
   return {
     id: input.id,
-    open: active ? true : snapshot ? snapshot.open : requiresFocusedSession ? false : undefined,
+    open: active ? true : snapshot ? snapshot.open : undefined,
     archived: false,
     createdAt: input.createdAt,
     updatedAt: projectEntrySnapshotUpdatedAt(snapshot),
@@ -164,7 +163,9 @@ function projectEntryDeckTab(input: {
   entry: ReturnType<typeof projectEntryDeckEntry>
 }): ProjectEntryDeckTab {
   const { definition, entry } = input
-  const instanceTitle = contentCanvasProjectEntryTitle(entry.snapshot, entry.id)
+  const instanceTitle = definition.id === 'content_canvas'
+    ? contentCanvasProjectEntryTitle(entry.snapshot, entry.id)
+    : undefined
   return {
     id: entry.id,
     active: input.activeEntryId === entry.id,

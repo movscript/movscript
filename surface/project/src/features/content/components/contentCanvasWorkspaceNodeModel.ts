@@ -141,7 +141,7 @@ export function mediaKindForNode(node: ContentCanvasNode | undefined): NodeMedia
   if (node.kind === 'storyboard') return 'board'
   if (node.kind === 'keyframe') return 'keyframe'
   if (node.kind === 'audio_cue') return 'audio'
-  const value = `${node.kind} ${node.subtitle} ${stringField(
+  const value = `${node.kind} ${node.subtitle} ${node.generationTask?.outputKind ?? ''} ${node.generationTask?.contentUnitType ?? ''} ${stringField(
     node.record,
     'media_kind',
     'mediaKind',
@@ -196,11 +196,35 @@ export function appendContentNodeReferenceToPrompt(
   return [prompt.trim(), token].filter(Boolean).join('\n')
 }
 
-function promptReferenceKindForNode(node: ContentCanvasNode): 'asset' | 'candidate' | 'resource' | 'keyframe' | 'storyboard' {
+export function upsertContentNodeReferenceInPrompt(
+  prompt: string,
+  node: ContentCanvasNode,
+  options: { role?: string; mediaType?: string } = {},
+) {
+  const kind = promptReferenceKindForNode(node)
+  const token = node.entityKey || node.id
+  const existingReferencePattern = new RegExp(
+    String.raw`\{\{\s*${escapePromptReferenceRegExp(kind)}(?:::|:)\s*${escapePromptReferenceRegExp(token)}(?:\s+[^}]*)?\}\}`,
+    'g',
+  )
+  const promptWithoutExistingReference = prompt
+    .replace(existingReferencePattern, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+  return appendContentNodeReferenceToPrompt(promptWithoutExistingReference, node, options)
+}
+
+type ContentPromptReferenceKind = 'asset' | 'candidate' | 'resource' | 'keyframe' | 'storyboard' | 'scene_moment' | 'expression_unit' | 'content_unit'
+
+function promptReferenceKindForNode(node: ContentCanvasNode): ContentPromptReferenceKind {
   if (node.kind === 'keyframe') return 'keyframe'
   if (node.kind === 'storyboard') return 'storyboard'
   if (node.kind === 'candidate') return 'candidate'
   if (node.kind === 'resource') return 'resource'
+  if (node.kind === 'scene_moment') return 'scene_moment'
+  if (node.kind === 'expression_unit') return 'expression_unit'
+  if (node.kind === 'content_unit') return 'content_unit'
   return 'asset'
 }
 
@@ -218,6 +242,10 @@ function formatContentNodeReferenceToken(
 
 function normalizePromptReferenceMetadataValue(value: string): string {
   return value.trim().toLowerCase().replace(/^['"]|['"]$/g, '').replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')
+}
+
+function escapePromptReferenceRegExp(value: string): string {
+  return value.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
 }
 
 export function uniqueContentNodes(nodes: ContentCanvasNode[]) {

@@ -9,7 +9,7 @@ export interface ContentCanvasDocumentNodeInputsWithReferencesInput {
 }
 
 const AUTO_REFERENCE_NODE_LIMIT = 48
-const PROMPT_REFERENCE_PATTERN = /\{\{\s*([a-zA-Z_]+)\s*:+\s*([^}\s]+)\s*\}\}/g
+const PROMPT_REFERENCE_PATTERN = /\{\{\s*([a-zA-Z_]+)\s*:+\s*([^}\s]+)(?:\s+[^}]*)?\}\}/g
 
 export function contentCanvasDocumentNodeInputsWithReferences({
   existingNodeIds,

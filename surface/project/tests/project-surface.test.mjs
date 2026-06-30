@@ -143,7 +143,12 @@ test('project edit desk exposes a draggable timeline assembly workbench', () => 
   assert.match(source, /buildTimelineAssemblySourceNamespace/)
   assert.match(source, /ContentUnitIntentPanel/)
   assert.match(source, /ContentUnitIntentCard/)
+  assert.match(source, /ContentUnitPreviewStrip/)
   assert.match(source, /contentUnitIntentSummary/)
+  assert.match(source, /candidatePreviewsFromRecord/)
+  assert.match(source, /selectedPreviewFromAsset/)
+  assert.match(source, /filterEditDeskAssetsForSourceNamespace/)
+  assert.match(source, /editDeskAssetScopeMatch/)
   assert.match(source, /assetStatusOrder/)
   assert.match(source, /FinishingBackendPicker/)
   assert.match(source, /selectedBackends/)
@@ -173,6 +178,10 @@ test('project edit desk exposes a draggable timeline assembly workbench', () => 
   assert.match(source, /type="checkbox"/)
   assert.match(source, /FINISHING_BACKEND_LABELS/)
   assert.match(source, /selected_output/)
+  assert.match(source, /selectedClipId: active\?\.id/)
+  assert.match(source, /edit-desk-preview__candidate-grid/)
+  assert.match(source, /edit-desk-preview__black/)
+  assert.doesNotMatch(source, /<strong>\{asset\.semanticRef/)
   assert.match(source, /mediaLocalPathFromRecord/)
   assert.match(source, /local_path/)
   assert.match(source, /CompileManifest/)
@@ -201,6 +210,10 @@ test('project edit desk exposes a draggable timeline assembly workbench', () => 
   assert.match(css, /\.edit-desk-left-rail/)
   assert.match(css, /\.edit-desk-content-unit-list/)
   assert.match(css, /\.edit-desk-content-unit-list__items/)
+  assert.match(css, /\.edit-desk-content-unit-previews/)
+  assert.match(css, /\.edit-desk-preview-tile/)
+  assert.match(css, /\.edit-desk-preview__candidate-grid/)
+  assert.match(css, /\.edit-desk-preview__black/)
   assert.match(css, /\.edit-desk-editor-picker/)
   assert.match(css, /\.edit-desk-editor-checkbox/)
   assert.match(css, /\.edit-desk-inspector-section/)
@@ -260,6 +273,302 @@ test('project edit desk reads timeline namespace and ContentUnit output refs fro
   assert.equal(debugView.assetManifest[0].targetEntityRef, 'productions/ep01_rebirth_refusal/segments/opening/scene_moments/refusal/expression_units/opening_shot')
   assert.equal(debugView.assetManifest[0].resourceId, '812')
   assert.equal(assembly.clips[0].intentRef.contentUnitId, 'cu_refusal_opening_shot')
+})
+
+test('project edit desk scopes assembly clips to the focused timeline target', () => {
+  const debugView = buildWorkflowArtifactDebugView({
+    readModel: {
+      projectReadModel: {
+        schema: 'movscript.project-read-model.v1',
+        projectTimelineStatus: {
+          timeline_namespaces: [{
+            id: 'pilot',
+            kind: 'production',
+            title: 'Pilot',
+            path: 'timeline/pilot',
+          }, {
+            id: 'other',
+            kind: 'production',
+            title: 'Other',
+            path: 'timeline/other',
+          }],
+        },
+        contentUnits: [{
+          id: 'cu_pilot',
+          title: 'Pilot shot',
+          output_kind: 'video',
+          target_ref: 'timeline_assembly:production:pilot',
+          selected_output: { candidate_id: 'cand_pilot', resource_id: 11 },
+        }, {
+          id: 'cu_other',
+          title: 'Other shot',
+          output_kind: 'video',
+          target_ref: 'timeline_assembly:production:other',
+          selected_output: { candidate_id: 'cand_other', resource_id: 12 },
+        }],
+      },
+    },
+  })
+
+  const assembly = buildTimelineAssemblyState({
+    debugView,
+    productionId: 'pilot',
+    targetRef: 'timeline_assembly:production:pilot',
+    focusLabel: 'production: pilot',
+  })
+
+  assert.equal(debugView.requiredAssets.length, 2)
+  assert.equal(assembly.clips.length, 1)
+  assert.equal(assembly.clips[0].source.contentUnitId, 'cu_pilot')
+})
+
+test('project edit desk keeps production path scoped content units visible', () => {
+  const debugView = buildWorkflowArtifactDebugView({
+    readModel: {
+      projectReadModel: {
+        schema: 'movscript.project-read-model.v1',
+        domainGraph: {
+          nodes: [{
+            category: 'timeline_namespace',
+            kind: 'production',
+            id: 'pilot',
+            title: 'Pilot',
+            path: 'productions/pilot/production.json',
+            metadata: { entityKind: 'production' },
+          }, {
+            category: 'timeline_namespace',
+            kind: 'production',
+            id: 'other',
+            title: 'Other',
+            path: 'productions/other/production.json',
+            metadata: { entityKind: 'production' },
+          }],
+        },
+        contentUnits: [{
+          id: 'cu_pilot_path',
+          title: 'Pilot path shot',
+          output_kind: 'video',
+          production_ref: 'productions/pilot',
+          selected_output: { candidate_id: 'cand_pilot_path', resource_id: 21 },
+        }, {
+          id: 'cu_other_path',
+          title: 'Other path shot',
+          output_kind: 'video',
+          production_ref: 'productions/other',
+          selected_output: { candidate_id: 'cand_other_path', resource_id: 22 },
+        }],
+      },
+    },
+  })
+
+  const assembly = buildTimelineAssemblyState({
+    debugView,
+    productionId: 'pilot',
+    targetRef: 'timeline_assembly:production:pilot',
+    focusLabel: 'production: pilot',
+  })
+
+  assert.equal(debugView.requiredAssets.length, 2)
+  assert.equal(assembly.clips.length, 1)
+  assert.equal(assembly.clips[0].source.contentUnitId, 'cu_pilot_path')
+})
+
+test('project edit desk scopes production container content units to their parent production', () => {
+  const debugView = buildWorkflowArtifactDebugView({
+    readModel: {
+      projectReadModel: {
+        schema: 'movscript.project-read-model.v1',
+        projectTimelineStatus: {
+          timeline_namespaces: [{
+            id: 'pilot',
+            kind: 'production',
+            title: 'Pilot',
+            path: 'timeline/pilot',
+          }, {
+            id: 'other',
+            kind: 'production',
+            title: 'Other',
+            path: 'timeline/other',
+          }],
+        },
+        productions: [{
+          id: 'pilot',
+          title: 'Pilot',
+          content_units: [{
+            id: 'cu_pilot_container',
+            title: 'Pilot container shot',
+            output_kind: 'video',
+            selected_output: { candidate_id: 'cand_pilot_container', resource_id: 31 },
+          }],
+        }, {
+          id: 'other',
+          title: 'Other',
+          content_units: [{
+            id: 'cu_other_container',
+            title: 'Other container shot',
+            output_kind: 'video',
+            selected_output: { candidate_id: 'cand_other_container', resource_id: 32 },
+          }],
+        }],
+      },
+    },
+  })
+
+  const assembly = buildTimelineAssemblyState({
+    debugView,
+    productionId: 'pilot',
+    targetRef: 'timeline_assembly:production:pilot',
+    focusLabel: 'production: pilot',
+  })
+
+  assert.equal(debugView.requiredAssets.length, 2)
+  assert.equal(assembly.clips.length, 1)
+  assert.equal(assembly.clips[0].source.contentUnitId, 'cu_pilot_container')
+})
+
+test('project edit desk falls back to unscoped content units instead of showing an empty desk', () => {
+  const debugView = buildWorkflowArtifactDebugView({
+    readModel: {
+      projectReadModel: {
+        schema: 'movscript.project-read-model.v1',
+        projectTimelineStatus: {
+          timeline_namespaces: [{
+            id: 'pilot',
+            kind: 'production',
+            title: 'Pilot',
+            path: 'timeline/pilot',
+          }],
+        },
+        contentUnits: [{
+          id: 'cu_unscoped',
+          title: 'Unscoped candidate shot',
+          output_kind: 'video',
+          content_unit_ref: 'content_units/cu_unscoped',
+          selected_output: { candidate_id: 'cand_unscoped', resource_id: 41 },
+        }],
+      },
+    },
+  })
+
+  const assembly = buildTimelineAssemblyState({
+    debugView,
+    productionId: 'pilot',
+    targetRef: 'timeline_assembly:production:pilot',
+    focusLabel: 'production: pilot',
+  })
+
+  assert.equal(debugView.requiredAssets.length, 1)
+  assert.equal(assembly.clips.length, 1)
+  assert.equal(assembly.clips[0].source.contentUnitId, 'cu_unscoped')
+})
+
+test('project edit desk keeps candidate previews separate from selected preview', () => {
+  const debugView = buildWorkflowArtifactDebugView({
+    readModel: {
+      projectReadModel: {
+        schema: 'movscript.project-read-model.v1',
+        projectTimelineStatus: {
+          timeline_namespaces: [{
+            id: 'pilot',
+            kind: 'production',
+            title: 'Pilot',
+            path: 'timeline/pilot',
+          }],
+        },
+        contentUnits: [{
+          id: 'cu_candidate_only',
+          title: 'Candidate only shot',
+          output_kind: 'video',
+          target_ref: 'timeline_assembly:production:pilot',
+          candidate_count: 2,
+          candidates: [{
+            id: 'cand_a',
+            preview_url: 'https://example.test/a.jpg',
+            resource_id: 101,
+          }, {
+            id: 'cand_b',
+            preview_url: 'https://example.test/b.jpg',
+            resource_id: 102,
+          }],
+        }],
+      },
+    },
+  })
+
+  const assembly = buildTimelineAssemblyState({
+    debugView,
+    productionId: 'pilot',
+    targetRef: 'timeline_assembly:production:pilot',
+    focusLabel: 'production: pilot',
+  })
+
+  assert.equal(assembly.clips.length, 1)
+  assert.equal(assembly.clips[0].source.status, 'needs_selection')
+  assert.equal(assembly.clips[0].source.mediaUrl, undefined)
+  assert.deepEqual(
+    assembly.clips[0].source.candidatePreviews?.map((preview) => [preview.candidateId, preview.mediaUrl, preview.selected]),
+    [
+      ['cand_a', 'https://example.test/a.jpg', false],
+      ['cand_b', 'https://example.test/b.jpg', false],
+    ],
+  )
+})
+
+test('project edit desk derives ContentUnits from timeline summaries and candidate maps', () => {
+  const debugView = buildWorkflowArtifactDebugView({
+    readModel: {
+      projectReadModel: {
+        schema: 'movscript.project-read-model.v1',
+        projectTimelineStatus: {
+          timeline_namespaces: [{
+            id: 'pilot',
+            kind: 'production',
+            title: 'Pilot',
+            path: 'productions/pilot/production.json',
+          }],
+          timeline_assemblies: [{
+            content_unit_id: 'cu_pilot_assembly',
+            title: 'Pilot assembly',
+            content_unit_type: 'timeline_assembly_ref',
+            output_kind: 'video',
+            target_kind: 'timeline_assembly',
+            target_ref: 'timeline_assembly:production:pilot',
+            candidate_count: 2,
+          }],
+        },
+        contentUnitCandidates: {
+          cu_pilot_assembly: [{
+            id: 'cand_selected',
+            title: 'Selected take',
+            resourceId: 101,
+            selected: true,
+            outputs: [{ kind: 'video', resource_id: 101, preview_url: 'https://example.test/selected.mp4' }],
+          }, {
+            id: 'cand_alt',
+            title: 'Alt take',
+            resourceId: 102,
+            outputs: [{ kind: 'video', resource_id: 102, preview_url: 'https://example.test/alt.mp4' }],
+          }],
+        },
+      },
+    },
+  })
+  const assembly = buildTimelineAssemblyState({
+    debugView,
+    productionId: 'pilot',
+    targetRef: 'timeline_assembly:production:pilot',
+    focusLabel: 'production: pilot',
+  })
+
+  assert.equal(debugView.requiredAssets.length, 1)
+  assert.equal(debugView.requiredAssets[0].contentUnitId, 'cu_pilot_assembly')
+  assert.equal(debugView.requiredAssets[0].candidateCount, 2)
+  assert.equal(debugView.requiredAssets[0].selectedCandidate, 'cand_selected')
+  assert.equal(debugView.requiredAssets[0].selectedResource, '101')
+  assert.equal(debugView.assetManifest[0].status, 'selected')
+  assert.equal(assembly.clips.length, 1)
+  assert.equal(assembly.clips[0].source.contentUnitId, 'cu_pilot_assembly')
+  assert.equal(assembly.clips[0].source.selectedPreview?.mediaUrl, 'https://example.test/selected.mp4')
 })
 
 test('project edit desk keeps ContentUnits visible before candidate output exists', () => {

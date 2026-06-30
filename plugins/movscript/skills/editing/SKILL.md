@@ -61,6 +61,14 @@ Use the `timeline` skill first when the task is choosing a backend, compiling Ti
 
 Open `references/ai-clip-editing-rhythm.md` when assembling AI-generated clips, choosing a cut rhythm, trimming unstable generated clip starts/ends, matching color/style across generated candidates, planning transitions, or building a social/ad/trailer/music-video timeline.
 
+## Production Contract
+
+- Production step: export/render and track-based editing after content and timeline intent are ready.
+- Systems/config: Editing Service owns MediaEditingProject/timeline business state; Media Pipeline owns render/transcode/HLS/reframe execution; Project/Data services provide selected source resources; runtime/daemon advertises service and FFmpeg readiness.
+- Blockers: no explicit project/timeline target, unselected upstream materials, invalid timeline, missing Editing Service/Media Pipeline/FFmpeg, unsupported Remotion/HyperFrames/External NLE path, or absent artifact paths.
+- Human review: final cut approval, render/export acceptance, candidate creation/adoption, and destructive timeline changes are separate decisions.
+- Output: report editing project id/revision, validation status, render/export task or artifact status, remaining blockers, review URL, and the next user decision.
+
 ## Agent Surface URLs
 
 - When a timeline, preview, candidate, generation job, resource, or project-status MCP result includes `surface.kind: "browser_url"` and `surface.url`, include that URL in the user-facing response and tell the user to open it for the next editing/review step.

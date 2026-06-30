@@ -2,11 +2,21 @@ import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import {
+  createScenarioApplicationRunner,
+  type ProgramAdapter,
+} from '@movscript/app-runner'
+import {
   findRuntimeApp,
   findRuntimeEndpoint,
   pidIsAlive,
   readRuntimeHomeSnapshot,
+  resolveMovScriptHomeDir,
+  writeRuntimeAppRecord,
+  type ApplicationManifest,
+  type ApplicationOwnerKind,
   type RuntimeAppRecord,
+  type RuntimeHomeSnapshot,
+  type ScenarioPolicyManifest,
 } from '@movscript/runtime-contracts'
 
 export const LOCAL_RUNTIME_DAEMON_APP_ID = 'movscript.local-node'
@@ -31,6 +41,36 @@ export interface LocalRuntimeIdentity {
   runtimeRoot?: string
 }
 
+export type LocalRuntimeDataPlane = 'local' | 'cloud' | 'external'
+
+export type PersistentLocalRuntimeDaemonAction = { type: 'shutdown' | 'restart'; reason: string }
+
+export interface PersistentLocalRuntimeDaemonState {
+  homeDir: string
+  startedAt: Date
+  lastActivityAt: Date
+  idleTimeoutMs: number | null
+  dataPlane: LocalRuntimeDataPlane
+  dataServiceURL?: string
+  identity: LocalRuntimeIdentity
+  pluginIdentity: LocalRuntimeIdentity
+  restartCount: number
+  requestAction: (action: PersistentLocalRuntimeDaemonAction) => void
+  snapshot: () => RuntimeHomeSnapshot
+}
+
+export interface RunPersistentLocalRuntimeDaemonOptions {
+  homeDir?: string
+  env?: NodeJS.ProcessEnv
+  identity?: LocalRuntimeIdentity
+  application: ApplicationManifest
+  owner?: ApplicationOwnerKind
+  scenarioForDataPlane: (dataPlane: LocalRuntimeDataPlane) => ScenarioPolicyManifest
+  createProgramAdapters: (state: PersistentLocalRuntimeDaemonState) => ProgramAdapter[]
+  debugEnvName?: string
+  logPrefix?: string
+}
+
 export interface EnsureLocalRuntimeDaemonOptions {
   homeDir: string
   entrypoint: string
@@ -46,6 +86,92 @@ export interface EnsureLocalRuntimeDaemonOptions {
 export type LocalRuntimeProbe = Record<string, unknown> & {
   available: boolean
   endpoint?: string
+}
+
+export async function runPersistentLocalRuntimeDaemon(options: RunPersistentLocalRuntimeDaemonOptions): Promise<void> {
+  const env = options.env ?? process.env
+  const homeDir = options.homeDir ?? resolveMovScriptHomeDir({ env })
+  const idleTimeoutMs = parseLocalRuntimeDaemonIdleTimeout(env.MOVSCRIPT_LOCAL_DAEMON_IDLE_TIMEOUT ?? env.MOVSCRIPT_LOCAL_NODE_IDLE_TIMEOUT)
+  const identity = options.identity ?? {}
+  let shouldExit = false
+  let restartCount = 0
+
+  while (!shouldExit) {
+    const dataPlane = resolveLocalRuntimeDaemonDataPlane(env)
+    const dataServiceURL = configuredDataServiceURLForLocalRuntimeDataPlane(dataPlane, env)
+    const startupPolicy = options.scenarioForDataPlane(dataPlane)
+    let resolveAction!: (action: PersistentLocalRuntimeDaemonAction) => void
+    const actionPromise = new Promise<PersistentLocalRuntimeDaemonAction>((resolveActionPromise) => {
+      resolveAction = resolveActionPromise
+    })
+    const state: PersistentLocalRuntimeDaemonState = {
+      homeDir,
+      startedAt: new Date(),
+      lastActivityAt: new Date(),
+      idleTimeoutMs,
+      dataPlane,
+      ...(dataServiceURL ? { dataServiceURL } : {}),
+      identity,
+      pluginIdentity: identity,
+      restartCount,
+      requestAction: (action) => resolveAction(action),
+      snapshot: () => readRuntimeHomeSnapshot(homeDir),
+    }
+    const runner = createScenarioApplicationRunner({
+      homeDir,
+      application: options.application,
+      scenario: startupPolicy,
+      programs: options.createProgramAdapters(state),
+      log: (message, metadata) => {
+        if (env[options.debugEnvName ?? 'MOVSCRIPT_LOCAL_NODE_DEBUG'] === '1') {
+          process.stderr.write(`[${options.logPrefix ?? 'movscript-local-node'}] ${message} ${metadata ? JSON.stringify(metadata) : ''}\n`)
+        }
+      },
+    })
+    await runner.start()
+    writeRuntimeAppRecord(homeDir, {
+      applicationId: options.application.applicationId,
+      owner: options.owner ?? options.application.owner,
+      profile: startupPolicy.scenarioId,
+      pid: process.pid,
+      status: 'ready',
+      ready: true,
+      metadata: {
+        ...identity,
+        dataPlane,
+        ...(dataServiceURL ? { dataServiceURL } : {}),
+        idleTimeoutMs,
+        restartCount,
+      },
+    })
+    const signalAction = installLocalRuntimeDaemonSignalHandlers(resolveAction)
+    const idleAction = startLocalRuntimeDaemonIdleWatcher(state)
+    const action = await actionPromise
+    idleAction()
+    signalAction()
+    await runner.shutdown()
+    writeRuntimeAppRecord(homeDir, {
+      applicationId: options.application.applicationId,
+      owner: options.owner ?? options.application.owner,
+      profile: startupPolicy.scenarioId,
+      pid: process.pid,
+      status: action.type === 'restart' ? 'starting' : 'stopped',
+      ready: action.type === 'restart',
+      metadata: {
+        ...identity,
+        dataPlane,
+        ...(dataServiceURL ? { dataServiceURL } : {}),
+        reason: action.reason,
+        idleTimeoutMs,
+        restartCount,
+      },
+    })
+    if (action.type === 'restart') {
+      restartCount += 1
+      continue
+    }
+    shouldExit = true
+  }
 }
 
 export async function ensureLocalRuntimeDaemon(options: EnsureLocalRuntimeDaemonOptions): Promise<Record<string, unknown>> {
@@ -153,6 +279,36 @@ export async function localRuntimeControlRequest(
 
 export function localRuntimeServicesReady(status: Record<string, unknown>): boolean {
   return missingLocalRuntimeServices(status).length === 0
+}
+
+export function parseLocalRuntimeDaemonIdleTimeout(value: string | undefined): number | null {
+  const raw = value?.trim().toLowerCase()
+  if (!raw) return null
+  if (raw === 'never' || raw === '0' || raw === 'off') return null
+  const match = raw.match(/^(\d+(?:\.\d+)?)(ms|s|m|h)?$/)
+  if (!match) throw new Error(`invalid local daemon idle timeout: ${value}`)
+  const amount = Number(match[1])
+  const unit = match[2] ?? 'ms'
+  const factor = unit === 'h' ? 60 * 60 * 1000 : unit === 'm' ? 60 * 1000 : unit === 's' ? 1000 : 1
+  return Math.max(1000, Math.floor(amount * factor))
+}
+
+export function resolveLocalRuntimeDaemonDataPlane(env: NodeJS.ProcessEnv = process.env): LocalRuntimeDataPlane {
+  const explicit = (env.MOVSCRIPT_LOCAL_DAEMON_DATA_PLANE ?? env.MOVSCRIPT_LOCAL_NODE_DATA_PLANE ?? '').trim().toLowerCase()
+  if (explicit === 'local' || explicit === 'cloud' || explicit === 'external') return explicit
+  const mode = (env.MOVSCRIPT_PLUGIN_MODE ?? env.MOVSCRIPT_PLUGIN_SCENARIO ?? '').trim().toLowerCase()
+  if (mode === 'cloud' || mode === 'plugin-cloud') return 'cloud'
+  const dataServiceURL = env.MOVSCRIPT_DATA_SERVICE_URL?.trim()
+  if (dataServiceURL && !isLocalHTTPURL(dataServiceURL)) return 'external'
+  return 'local'
+}
+
+export function configuredDataServiceURLForLocalRuntimeDataPlane(
+  dataPlane: LocalRuntimeDataPlane,
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  const dataServiceURL = env.MOVSCRIPT_DATA_SERVICE_URL?.trim()
+  return dataPlane === 'local' ? undefined : dataServiceURL || undefined
 }
 
 function missingLocalRuntimeServices(status: Record<string, unknown>): string[] {
@@ -269,6 +425,38 @@ function requestedLocalRuntimeDataPlane(env: NodeJS.ProcessEnv | undefined): 'lo
   const explicit = (env?.MOVSCRIPT_LOCAL_DAEMON_DATA_PLANE ?? env?.MOVSCRIPT_LOCAL_NODE_DATA_PLANE ?? '').trim().toLowerCase()
   if (explicit === 'local' || explicit === 'cloud' || explicit === 'external') return explicit
   return undefined
+}
+
+function installLocalRuntimeDaemonSignalHandlers(requestAction: (action: PersistentLocalRuntimeDaemonAction) => void): () => void {
+  const handleSignal = (signal: NodeJS.Signals) => {
+    requestAction({ type: 'shutdown', reason: signal.toLowerCase() })
+  }
+  process.once('SIGTERM', handleSignal)
+  process.once('SIGINT', handleSignal)
+  return () => {
+    process.off('SIGTERM', handleSignal)
+    process.off('SIGINT', handleSignal)
+  }
+}
+
+function startLocalRuntimeDaemonIdleWatcher(state: PersistentLocalRuntimeDaemonState): () => void {
+  if (state.idleTimeoutMs === null) return () => undefined
+  const intervalMs = Math.max(5000, Math.min(60000, Math.floor(state.idleTimeoutMs / 4)))
+  const interval = setInterval(() => {
+    if (Date.now() - state.lastActivityAt.getTime() >= state.idleTimeoutMs!) {
+      state.requestAction({ type: 'shutdown', reason: 'idle_timeout' })
+    }
+  }, intervalMs)
+  return () => clearInterval(interval)
+}
+
+function isLocalHTTPURL(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return ['localhost', '127.0.0.1', '::1'].includes(url.hostname)
+  } catch {
+    return false
+  }
 }
 
 function normalizeDataServiceURL(value: unknown): string | undefined {

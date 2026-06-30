@@ -39,9 +39,11 @@ Human / CI / Debug shell
 
 其中 `thin MCP adapter` 只处理协议适配、bootstrap 和兼容，不直接拥有 Project Service、Timeline/Compile、backend adapter、Media Pipeline 等业务 sidecar。
 
-## CLI-first System Contract
+## CLI-first Product Contract
 
-新增一条横切原则：凡是稳定的 `system_*` MCP 能力，必须先有等价 CLI 命令。MCP 位于 CLI 的外层，而不是和 CLI 并行实现一套逻辑。
+新增一条横切原则：CLI 是独立产品入口，不是前端或 MCP 的调试脚本。即使没有 Desktop / Project Surface 前端，`movscript` CLI 也必须能独立完成 runtime 启动诊断、系统配置、项目 source 检查、生成准备、资源管理、TimelineAssembly 编译、backend 选择和导出诊断。MCP 位于 CLI / daemon 能力的外层，而不是和 CLI 并行实现另一套逻辑。
+
+凡是稳定的 `system_*`、`admin_*` 或 `timeline_*` MCP 能力，必须先有等价 CLI 命令或共享 command runner。没有 CLI/shared runner 的 MCP-only 工具只能标记为临时 fallback，不能成为成熟产品能力。
 
 成熟产品形态中只应该有一个主入口：
 
@@ -54,14 +56,16 @@ bin/movscript
       -> runtime ...      # runtime 诊断入口
       -> admin ...        # 系统管理入口
       -> system ...       # 系统能力入口
+      -> timeline ...     # TimelineAssembly / CompileManifest / backend selection
+      -> workspace ...    # 无前端项目 source review/interpret
 ```
 
-`bin/movcli` 只是历史 CLI 名称，应该转发到同一个 `movscript.mjs`。`bin/movscript-agent-mcp` 只是历史 MCP 名称，应该转发到 `bin/movscript mcp stdio`。旧的 `local-node` / `__movscript_local_node` 只作为 daemon 命名迁移期 alias，不再出现在新文档、manifest 或示例命令的主路径中。
+`bin/movcli` 只是历史 CLI 名称，应该转发到同一个 `movscript.mjs`。`bin/movscript-agent-mcp` 只是历史 MCP 名称，应该转发到 `bin/movscript mcp stdio`。Agent Plugin 的 `bin/movscript` 是产品入口包装层：它优先处理 `mcp stdio`、`daemon run` 和 daemon lifecycle/control 命令，普通 CLI 命令再动态嵌入 `@movscript/cli` 的 command runner。独立 `@movscript/cli` 的顶层 `movscript daemon run` 也必须能直接启动同一个 daemon service plane，不能要求先存在前端或插件包装层。旧的 `local-node` / `__movscript_local_node` 只作为 daemon 命名迁移期 alias，不再出现在新文档、manifest 或示例命令的主路径中。
 
 目标链路：
 
 ```text
-system_* MCP tool
+system_* / admin_* / timeline_* MCP tool
   -> MCP argument/schema adapter
   -> movscript command runner
       -> daemon/runtime gateway
@@ -69,13 +73,15 @@ system_* MCP tool
   -> structured JSON result
 
 movscript system ... --json
+movscript admin ... --json
+movscript timeline ... --json
   -> same command runner
   -> same structured JSON result
 ```
 
 这样形成一个可调试性不变量：
 
-> 如果某个 `system_*` MCP 可用，则对应 `movscript system ... --json` 必须可用；如果 CLI 不可用，MCP 不应绕过 CLI 直接成功。
+> 如果某个稳定 MCP 能力可用，则对应 `movscript ... --json` 必须可用；如果 CLI/shared runner 不可用，MCP 不应绕过 CLI 产品合约直接成功。
 
 ### 设计规则
 
@@ -89,6 +95,7 @@ movscript system ... --json
 8. MCP schema 不再手写复制 CLI schema；长期应从 command manifest 生成或至少由 parity test 校验。
 9. system CLI 命令不写 project/domain 语义 source，除 project bootstrap 和 RawResource 登记外不制造 candidate/selection。
 10. CLI 命令失败时必须返回稳定 exit code 和 JSON error code；MCP 将其映射为 MCP error，但保留 debug metadata。
+11. 无前端模式下，CLI 可以返回 review URL 或 blocker，但不能把“需要人工审核”伪装成已完成；人工审核完成仍必须通过用户动作或 decision/selection 命令证明。
 
 ### 第一批 CLI 命令族
 
@@ -105,6 +112,8 @@ movscript runtime descriptor get --json
 movscript runtime preflight check --json
 movscript runtime status --json
 movscript runtime configure --backend-base-url http://127.0.0.1:8766 --json
+movscript daemon discover/status/ensure/start/stop/restart/configure --json
+movscript context current get --json
 
 movscript system model list --capability image_generation --operation text_to_image --json
 movscript system generation prepare --capability audio_music --json
@@ -127,6 +136,41 @@ movscript system external-resource search --query "city street" --json
 movscript system shot library query --query "slow push in" --json
 movscript system shot group create/get/add-shots --json
 movscript system video shot-cuts analyze --resource-id 2 --json
+
+movscript editing runtime capabilities get --json
+movscript editing timeline validate --editing-project '{"version":1,"id":"edit","projectId":"project"}' --json
+movscript editing project create --project-id project --title "Draft Cut" --json
+movscript editing project create-from-edit-plan --edit-plan '{"tracks":[]}' --json
+movscript editing project create-from-edit-decisions --edit-decisions '{"cuts":[]}' --asset-manifest '{"assets":[]}' --json
+movscript editing project get --project-id project --editing-project-id edit --json
+movscript editing project save --editing-project '{"version":1,"id":"edit","projectId":"project","settings":{},"assets":{"assets":[]},"timeline":{"version":1,"tracks":[]}}' --json
+movscript editing project update-settings --editing-project '{"version":1,"id":"edit","projectId":"project","settings":{},"assets":{"assets":[]},"timeline":{"version":1,"tracks":[]}}' --title "Draft Cut v2" --json
+movscript editing project add-asset --editing-project '{"version":1,"id":"edit","projectId":"project","settings":{},"assets":{"assets":[]},"timeline":{"version":1,"tracks":[]}}' --asset '{"id":"clip","type":"video"}' --json
+movscript editing project remove-asset --editing-project '{"version":1,"id":"edit","projectId":"project","settings":{},"assets":{"assets":[]},"timeline":{"version":1,"tracks":[]}}' --asset-id clip --json
+movscript editing timeline add-track --editing-project '{"version":1,"id":"edit","projectId":"project","settings":{},"assets":{"assets":[]},"timeline":{"version":1,"tracks":[]}}' --track-id video_main --track-type video --json
+movscript editing timeline add-clip --editing-project '{"version":1,"id":"edit","projectId":"project","settings":{},"assets":{"assets":[]},"timeline":{"version":1,"tracks":[]}}' --track-id video_main --clip '{"id":"clip","assetId":"asset","timelineStartMs":0,"durationMs":3000}' --json
+movscript editing timeline update-clip --editing-project '{"version":1,"id":"edit","projectId":"project","settings":{},"assets":{"assets":[]},"timeline":{"version":1,"tracks":[]}}' --clip-id clip --patch '{"durationMs":2500}' --json
+movscript editing timeline split-clip --editing-project '{"version":1,"id":"edit","projectId":"project","settings":{},"assets":{"assets":[]},"timeline":{"version":1,"tracks":[]}}' --clip-id clip --split-time-ms 1200 --json
+movscript editing timeline move-clip --editing-project '{"version":1,"id":"edit","projectId":"project","settings":{},"assets":{"assets":[]},"timeline":{"version":1,"tracks":[]}}' --clip-id clip --timeline-start-ms 500 --json
+movscript editing timeline delete-clip --editing-project '{"version":1,"id":"edit","projectId":"project","settings":{},"assets":{"assets":[]},"timeline":{"version":1,"tracks":[]}}' --clip-id clip --json
+movscript editing timeline remove-track --editing-project '{"version":1,"id":"edit","projectId":"project","settings":{},"assets":{"assets":[]},"timeline":{"version":1,"tracks":[]}}' --track-id video_main --json
+movscript editing timeline apply-commands --editing-project '{"version":1,"id":"edit","projectId":"project","settings":{},"assets":{"assets":[]},"timeline":{"version":1,"tracks":[]}}' --commands '[{"type":"move_clip","clipId":"clip","timelineStartMs":500}]' --json
+movscript editing task get --project-id project --task-id task --json
+movscript editing task cancel --project-id project --task-id task --json
+movscript editing task logs get --project-id project --task-id task --json
+
+movscript timeline backend capability list --json
+movscript timeline assembly get --timeline-assembly '{"id":"assembly"}' --json
+movscript timeline assembly validate --edit-decisions '{"cuts":[]}' --json
+movscript timeline compile manifest create --backend media_editing_project --edit-decisions '{"cuts":[]}' --json
+movscript timeline backend select --preferred-backend remotion --json
+movscript timeline backend project create --backend hyperframes --edit-decisions '{"cuts":[]}' --json
+movscript timeline assembly compile --backend media_editing_project --edit-decisions '{"cuts":[]}' --json
+movscript timeline backend conformance report --backend external_nle --edit-decisions '{"cuts":[]}' --json
+
+movscript workspace get-model project --json
+movscript workspace review --workspace ./my-project --json
+movscript workspace interpret --workspace ./my-project --json
 ```
 
 Admin 能力第二批迁移，但仍遵守同一原则：
@@ -151,9 +195,13 @@ movscript admin resource-access check-test --resource-id 880 --profile-id public
 
 1. `packages/cli-contracts` 或 `apps/cli/src/commands/registry.ts`: command manifest、输入输出 schema、exit code、MCP mapping。
 2. `apps/cli/src/commands/system/*.ts`: command runner handler，可被 CLI 和 MCP in-process 调用。
-3. `packages/mcp-host`: MCP adapter，把 MCP arguments 转成 command runner input，并把结果包装成 MCP result。
+3. `packages/local-daemon/src/mcp.ts`: daemon MCP executor，把 MCP arguments 转成 command runner input，并把结果包装成 MCP result；`packages/mcp-host` 只保留 stdio/http 协议桥接和 bootstrap fallback。
 
-Runtime bootstrap 是唯一允许短期例外的层：daemon 未启动时还没有 daemon MCP endpoint，因此 `movscript runtime daemon ensure/start/status` 和 stdio MCP fallback 可以暂时复用同一组 runtime helper。这个例外不能扩散到稳定 `system_*` / `admin_*`：后续必须把 runtime/system/admin runner 从 `mcp-host` 抽到共享 command runner 层，CLI 和 MCP 分别只做协议适配。
+Runtime bootstrap 是唯一允许短期例外的层：daemon 未启动时还没有 daemon MCP endpoint，因此 `movscript runtime daemon ensure/start/status` 和 stdio MCP fallback 可以复用同一组 shared runtime command runner。当前这组能力已经收敛到 `packages/cli-commands` 的 `runtimeCommandSpecs` / `runMovScriptRuntimeCommand`；CLI 直接调用 shared runner，daemon MCP executor 也调用同一 runner，MCP host 只作为外层协议适配器代理 daemon 或委托 daemon executor 做 bootstrap fallback。这个例外不能扩散到稳定业务工具：`system_*` / `admin_*` / `timeline_*` / `workspace` 都必须继续走共享 command runner 或 daemon gateway，不能在 `mcp-host` 内重新形成 direct-core fallback。
+
+当 Agent Plugin 需要透传普通 CLI 命令时，应动态导入 `@movscript/cli`，并设置嵌入标记避免 CLI 模块按 `process.argv` 自启动。这样插件 `.mjs` 脚本和 CLI 不需要维护两套业务命令，但 daemon/plugin 包装层仍能在 MCP/daemon 命令上保持产品入口语义。
+
+`daemon run` 的持久进程生命周期不应留在 Agent Plugin 入口内。当前已把 signal handling、idle timeout、data-plane 解析、restart loop 和 runtime app record 写入抽到 `@movscript/local-runtime` 的 `runPersistentLocalRuntimeDaemon`；local-node service adapters、gateway routes、daemon MCP HTTP endpoint、runtime descriptor/configure、static surface/data-service path resolver 已抽到 `@movscript/local-daemon`。Agent Plugin 和独立 CLI 都只传入 entrypoint/repoRoot/bundleRoot/identity 等包装层上下文，并调用同一个 `runLocalDaemonServicePlane`。
 
 可选调试模式：
 
@@ -162,7 +210,7 @@ Runtime bootstrap 是唯一允许短期例外的层：daemon 未启动时还没�
 
 ### CLI/MCP Parity 验收
 
-每个迁移完成的 `system_*` 工具必须有三类测试：
+每个迁移完成的稳定 MCP 工具必须有三类测试：
 
 1. CLI 单测：`movscript system ... --json` 可独立运行并返回稳定 JSON。
 2. MCP adapter 单测：`system_*` MCP 调 command runner，输出与 CLI JSON 结构一致。
@@ -244,8 +292,8 @@ Runtime 类目的最小能力：
 
 - daemon 已经拥有业务服务生命周期，并已在本机 gateway 暴露 canonical `/v1/mcp` 和 `/v1/mcp/health`。
 - stdio/http MCP host 在 daemon ready 后已经降级为 bridge/proxy；daemon 未 ready 时只保留 runtime bootstrap fallback，不再把稳定业务工具作为 fallback 执行面。
-- MCP tool registry/executor 仍复用 `packages/mcp-host` 与 `@movscript/core/mcp/node` 的实现，下一步需要继续上移到 daemon/runtime service plane。
-- `runtime_local_daemon_*` 已经表达了正确方向，`runtime_local_node_*` 是兼容别名。
+- MCP tool registry/executor 已上移到 `packages/local-daemon/src/mcp.ts`；daemon `/v1/mcp` 直接执行 daemon-owned MCP executor，stdio/http host 只做 provider-facing 协议适配和 bootstrap fallback。
+- `runtime_daemon_*` 是 canonical daemon 控制工具族，`runtime_local_daemon_*` 和 `runtime_local_node_*` 只作为兼容别名。
 
 ### 目标形态
 
@@ -308,17 +356,23 @@ GET  /v1/mcp/health
 
 - `movscript_runtime_status`
 - `movscript_runtime_configure`
-- `runtime_local_daemon_status`
-- `runtime_local_daemon_stop`
-- `runtime_local_daemon_restart`
+- `runtime_daemon_discover`
+- `runtime_daemon_ensure`
+- `runtime_daemon_start`
+- `runtime_daemon_status`
+- `runtime_daemon_stop`
+- `runtime_daemon_restart`
+- `runtime_daemon_configure`
+- `runtime_descriptor_get`
+- `runtime_preflight_check`
 
-过渡期需补齐：
+兼容别名：
 
 - `runtime_local_daemon_ensure`
 - `runtime_local_daemon_start`
-
-兼容：
-
+- `runtime_local_daemon_status`
+- `runtime_local_daemon_stop`
+- `runtime_local_daemon_restart`
 - `runtime_local_node_status`
 - `runtime_local_node_stop`
 - `runtime_local_node_restart`
@@ -372,9 +426,10 @@ Runtime 工具边界：
 - 已落地：`packages/core/tests/mcp.test.mjs` 断言 `system_focus_get` 和 `movscript_focus_get` 不在 tool list，旧调用返回 unknown tool。
 - 已落地：创作 Skill 已改成显式解析 project locator，不从 UI focus 推断项目。
 - 已落地：新增 `context_current_get` 作为新的 read-only UI/session hint 工具，返回 route、selected project、production、user 和 selection；写操作仍必须显式传 project locator。
+- 已落地：`context_current_get` 已进入 `packages/cli-commands` 的 `contextCommandSpecs`，可通过 `movscript context current get --json` 独立复现；daemon MCP executor 调用同一 runner 并返回 `contract` / `debug.cli_argv`，不再依赖 legacy direct-core fallback。
 - 已落地：删除 `packages/core/src/mcp/tools/focus/definitions.ts` 和 `packages/core/src/mcp/node/tools/focus/actions.ts` 的 `movscript_focus_get` 工具本体，不再保留迁移期 alias。
 - 已落地：agent chat / Desktop 展示测试中的 context fixture 已迁到 `context_current_get`。
-- 待落地：`packages/mcp-host/src/http.ts`、`packages/mcp-host/src/index.ts`、`apps/desktop/electron/ipc/mcpIpc.ts` 的 context snapshot 写入迁到 daemon context/session API，避免 stdio/http host 进程内存成为事实源。
+- 已落地：`packages/mcp-host/src/http.ts`、`packages/mcp-host/src/index.ts`、`apps/desktop/electron/ipc/mcpIpc.ts` 的 context snapshot 写入已变为 daemon-first：Desktop 仍调用 `@movscript/mcp-host` 的兼容 wrapper，但 wrapper 会先 POST daemon `/v1/context/sessions`，再把 snapshot 镜像到本地内存用于兼容诊断；daemon context/session 是事实入口。
 - `apps/plugin/bin/*`、`plugins/movscript/bin/*`、`apps/desktop/out/*`: 由构建流程重新生成，不手改 bundle。
 
 ### Generation
@@ -409,6 +464,17 @@ Runtime 工具边界：
 4. Media Pipeline 拥有 render/transcode/HLS/reframe 等执行任务，或作为不同 backend 的统一 render/result registry。
 5. `editing_export_create_candidate` 和未来各 backend 的 candidate 写回都是显式动作；普通 render/export 不自动成为项目稳定选择。
 6. 后端执行层不回写 Production 语义 source，只能通过显式 candidate/decision 进入项目稳定状态。
+
+迁移状态：
+
+- 已落地：`editing_runtime_capabilities_get` 进入 `packages/cli-commands` 的 `editingCommandSpecs`，可通过 `movscript editing runtime capabilities get --json` 独立诊断 backend/mediaPipeline runtime 能力。
+- 已落地：`editing_timeline_validate` 进入同一 command manifest，CLI 可通过 `movscript editing timeline validate --editing-project '<json>' --json` 调 Editing Service 校验 MediaEditingProject；daemon MCP executor 调用同一 runner 并返回 `contract` / `debug.cli_argv`。
+- 已落地：`editing_timeline_apply_commands`、`editing_timeline_add_track`、`editing_timeline_remove_track`、`editing_timeline_add_clip`、`editing_timeline_update_clip`、`editing_timeline_split_clip`、`editing_timeline_move_clip`、`editing_timeline_delete_clip` 已进入同一 command manifest，CLI 可独立完成 MediaEditingProject timeline mutation；这些命令只修改 editing project，不触发 render/export/candidate。
+- 已落地：`editing_task_get`、`editing_task_cancel`、`editing_task_logs_get` 已进入同一 command manifest，CLI 可通过 Editing Service 路由查询/取消 Media Pipeline task 和读取日志；这些命令不做 export/import，也不写 candidate。
+- 已落地：`editing_video_compose`、`editing_task_render_create`、`editing_task_hls_create`、`editing_task_transcode_create`、`editing_task_reframe_create` 已进入同一 command manifest，CLI 可通过 Editing Service 规范化 task request，再交给 Media Pipeline 创建执行任务；这些命令只创建 render/transcode/HLS/reframe task，不做 export/import，也不写 candidate。
+- 已落地：`editing_project_create`、`editing_project_create_from_edit_plan`、`editing_project_get`、`editing_project_save`、`editing_project_update_settings`、`editing_project_add_asset`、`editing_project_remove_asset` 已进入同一 command manifest，CLI 可独立完成 MediaEditingProject 基础生命周期和 asset registry 管理。
+- 已落地：`editing_project_create_from_edit_decisions` 进入同一 command manifest，CLI 可通过 `movscript editing project create-from-edit-decisions --edit-decisions '<json>' --asset-manifest '<json>' --json` 创建并保存 `MediaEditingProject`；该入口只生成 editing project 数据，不触发 render/export，也不创建或采纳 candidate。
+- 未完成：export import/save/publish 和 explicit candidate write 仍需逐步 CLI 化，并且必须继续保持“render/export 不自动采纳”的 gate。
 
 ### Timeline / Compile
 
@@ -716,7 +782,7 @@ Skill grants 应遵守：
 - 把 `daemon` 作为正式术语，`local-node` 只作为实现名或兼容别名。
 - 把 runtime 定义为独立 MCP/Skill 类目，并明确 daemon discover/ensure/start/status/stop/restart/configure 是最小能力。
 - 把 Skill 总纲固化为模板：制作步骤、系统架构、配置入口、卡点、人工审核、输出格式。
-- 更新 Skill grants，优先使用 `runtime_local_daemon_*`。
+- 更新 Skill grants，优先使用 `runtime_daemon_*`，旧 `runtime_local_daemon_*` 只作为兼容别名。
 - 输出 MCP tool family 对照表和 owner 表。
 - 保持旧工具名不破坏，但新文档不再推荐旧命名。
 - 删除 `system_focus_get`，并列出 Skill grants、README、router、tool registry 和测试迁移清单。
@@ -728,9 +794,9 @@ Skill grants 应遵守：
   - 已落地：local daemon gateway 处理 `POST /v1/mcp` JSON-RPC、兼容 `POST /mcp`，并暴露 `GET /v1/mcp/health`。
   - 已落地：`/v1/runtime/descriptor` 显式返回 `gateway.mcpEndpoint` 和 `gateway.mcpHealthEndpoint`。
 - daemon 启动时注册 MCP tool registry。
-  - 部分落地：daemon gateway 复用 `packages/mcp-host` 的 tool registry/executor，业务工具可经 `/v1/mcp` 调用；registry 仍需要从 `packages/mcp-host` 继续上移到 daemon/runtime service plane。
+  - 已落地：daemon gateway 调用 `packages/local-daemon/src/mcp.ts` 的 `handleDaemonMCPJSONRPC` / `listDaemonMCPTools`，业务工具可经 `/v1/mcp` 调用；`packages/mcp-host` 不再拥有 tool registry/executor。
 - daemon 执行 project/domain/generation/resource/timeline/backend 工具。
-  - 部分落地：system/admin/generation/resource/artifact/shot 已通过 CLI-first command runner；domain/editing/timeline/backend 仍需继续服务化。
+  - 部分落地：context、system/admin/generation/resource/artifact/shot 已通过 CLI-first command runner；timeline 第一批 no-persist 编译/backend 选择能力也已通过 CLI-first runner；domain/editing、Timeline Service 持久化和 backend 真实执行仍需继续服务化。
 - stdio MCP host 改为 bridge/proxy：`tools/list`、`tools/call` 转发 daemon。
   - 已落地：stdio/http host 在 daemon ready 后优先 proxy 到 `gateway.mcpEndpoint`；daemon 未 ready 时 `tools/list` 只暴露 runtime bootstrap/control fallback，业务工具调用返回 daemon unavailable 诊断。
 - stdio host 只保留 daemon bootstrap/control 的最小 fallback。
@@ -738,12 +804,16 @@ Skill grants 应遵守：
 ### Phase 3: CLI-first System MCP
 
 - 新建 command manifest，定义 `command_id`、CLI argv、MCP tool name、输入/输出 schema、owner service、权限、exit code 和示例。
-  - 已落地：`packages/cli-commands` 作为 admin/system shared command runner，CLI 和 MCP host in-process 复用同一套 spec。
+  - 已落地：`packages/cli-commands` 作为 runtime/context/admin/system/timeline/workspace shared command runner，CLI 和 daemon MCP executor in-process 复用同一套 spec。
+  - 已落地：`packages/cli-commands` 的每个稳定 command spec 已包含 `family`、`ownerService`、`requiredRuntime`、`permissions`、`outputSchema`、`examples` 和 `stability`，命令执行结果也返回 `contract` 摘要，MCP adapter 可复用同一 output schema。
+  - 已落地：`runtimeCommandSpecs` 覆盖 `movscript_runtime_status`、`runtime_daemon_*`、`runtime_descriptor_get`、`runtime_preflight_check` 及 `runtime_local_daemon_*` / `runtime_local_node_*` 兼容别名；`movscript runtime ... --json` 与顶层 `movscript daemon ... --json` 都返回统一 `movscript.command_result.v1`。
   - 已落地：core backend runtime endpoint/auth/workspace state 使用进程级 singleton，避免 CLI bundle 中 `backend/node` 与 `mcp/node` 两个入口读到不同 runtime endpoint。
 - 为 runtime/system 第一批能力补 `movscript ... --json`：
   - 已落地：`movscript runtime daemon *`
+  - 已落地：`movscript daemon discover/ensure/start/status/stop/restart/configure` 顶层产品入口，复用 runtime daemon command implementation。
   - 已落地：`movscript runtime descriptor get`
   - 已落地：`movscript runtime preflight check`
+  - 已落地：`movscript context current get`
   - 已落地：`movscript system model list`
   - 已落地：`movscript system generation capability list`
   - 已落地：`movscript system generation prepare/submit/job get/job get-batch/result register`
@@ -758,6 +828,8 @@ Skill grants 应遵守：
   - 已落地：`movscript system shot group create/get/add-shots`
   - 已落地：`movscript system video shot-cuts analyze`
 - 已迁移 MCP adapter：
+  - runtime bootstrap/control：`movscript_runtime_status`、`movscript_runtime_configure`、`runtime_daemon_discover/ensure/start/status/stop/restart/configure`、`runtime_descriptor_get`、`runtime_preflight_check` 及 runtime local daemon/local node 兼容名
+  - context/session：`context_current_get`
   - model/capability：`system_model_list`、`generation_model_list`、`movscript_model_list`、`generation_capability_list`
   - generation：`generation_prepare`、`generation_submit`、`generation_job_get`、`generation_job_get_batch`、`generation_result_register`
   - project bootstrap：`system_project_create/init/open/fetch`、`movscript_project_create/init/open/fetch`
@@ -766,7 +838,7 @@ Skill grants 应遵守：
   - resource media/upload：`system_resource_image_read/annotate/transform_to_resource`、`system_resource_video_extract_frames/probe/extract_frame_to_resource/extract_frames_to_resources/trim_to_resource/compose_to_resource/concat_to_resource/contact_sheet_to_resource/extract_audio_to_resource`、`system_resource_upload/upload_batch` 及对应 `movscript_resource_*` 兼容名
   - external resource：`system_external_resource_source_list/search`、`movscript_external_resource_source_list/search`
   - shot reference：`system_shot_library_query`、`movscript_shot_library_query`、`system_shot_group_create/get/add_shots`、`movscript_shot_group_create/get/add_shots`、`system_video_shot_cuts_analyze`、`movscript_video_shot_cuts_analyze`
-- 稳定 system/admin/generation 工具不再保留 direct-core fallback；后续新增稳定工具必须先补 CLI/shared runner。
+- 稳定 context/system/admin/generation/editing 迁移工具不再保留 direct-core fallback；后续新增稳定工具必须先补 CLI/shared runner。
 - 每个迁移工具必须提供 CLI 单测、MCP adapter 单测和 CLI/MCP parity test。
 - MCP response 返回可脱敏的 `debug.cli_argv`，让用户能复制到终端复现。
 - 仍存在的 legacy/direct-core fallback 只允许用于尚未纳入稳定 command manifest 的非 system/admin/generation 工具；fallback 必须在文档和测试里标记，不能成为新工具默认路径。
@@ -777,6 +849,7 @@ Skill grants 应遵守：
 - Generation 工具全部经 Data Service model gateway/job APIs。
 - Resource/media 工具全部经 Data Service/Media Pipeline。
 - Backend execution 工具按选择的后端进入 Editing Service、Remotion、HyperFrames 或 External NLE adapter；最终 render/result 进入 Media Pipeline 或 Artifact/Resource Service。
+  - 已落地：editing backend 第一批命令 `movscript editing runtime capabilities get --json`、`movscript editing timeline validate --json`、`movscript editing project create/get/save/update-settings/add-asset/remove-asset ... --json`、`movscript editing project create-from-edit-plan --json`、`movscript editing project create-from-edit-decisions --json`、`movscript editing timeline add-track/add-clip/update-clip/split-clip/move-clip/delete-clip/remove-track/apply-commands ... --json`、`movscript editing task get/cancel/logs get ... --json`、`movscript editing task render/hls/transcode/reframe create ... --json`、`movscript editing video compose ... --json` 已通过 shared command runner 和 daemon MCP executor；这些 project/timeline/task observe-control/task-create 命令只保存、读取、修改 MediaEditingProject，或查询/取消/创建已有 Media Pipeline task，不自动 export/import/candidate。
 - 移除依赖 stdio 进程内存、cwd 或 Desktop window 的业务推断。
 
 ### Phase 5: Admin 能力隔离
@@ -804,7 +877,16 @@ Skill grants 应遵守：
 - 已落地：backend capability/selection contract 让 Agent 可以在 `MediaEditingProject`、Remotion、HyperFrames、External NLE 之间选择。
 - 已落地：`MediaEditingProject`、`RemotionCompositionProject`、`HyperFramesCompositionProject`、`ExternalNleProject` 成为同级 backend execution project；External NLE 当前返回未实现 conformance blocker，不静默 fallback。
 - 已落地：每次 compile 输出 conformance report；unsupported backend 或 runtime lock mismatch 返回 blocker/degradation。
-- 待落地：Project-backed `timeline_assembly_get`、Timeline Service、External NLE 真实 XML/EDL/OTIO/FCPXML adapter、timeline CLI command runner、backend project 持久化/导出 API。
+- 已落地：`movscript timeline ... --json` 通过共享 command runner 执行第一批 no-persist `timeline_*` 能力，daemon MCP executor 的 `timeline_*` 调用也走同一 runner 并返回 `debug.cli_argv`。
+- 待落地：Project-backed `timeline_assembly_get`、Timeline Service、External NLE 真实 XML/EDL/OTIO/FCPXML adapter、backend project 持久化/导出 API。
+
+### Phase 6.5: Workspace 无前端项目检查入口
+
+- 已落地：`movscript workspace get-model/review/interpret --json` 返回统一 `movscript.command_result.v1` 包装，保留原始 workspace/interpreter 数据在 `data`，并提供 `debug.cli_argv`。
+- 已落地：`workspace.get_model`、`workspace.review`、`workspace.interpret` 进入 `packages/cli-commands` shared command manifest；CLI workspace 命令和 MCP `domain_get_model` / `domain_inspect` / `domain_interpret` 均调用同一 runner。
+- 已落地：workspace CLI 支持 `--server` / `--project-uid`，无前端模式下可显式绑定 daemon gateway / Project Service，并在 debug 中暴露 `project_service_endpoint`。
+- 已落地：daemon MCP executor 对 `domain_get_model`、`domain_inspect`、`domain_interpret` 返回 `debug.cli_argv`，可复现为对应 `movscript workspace ... --json`。
+- 已落地：CLI `workspace review` 覆盖 blocker diagnostics JSON + exit code 2；CLI/MCP `workspace interpret` 覆盖 project uid 绑定、backend ensure、Project Service interpret 调用链。
 
 ### Phase 7: 兼容清理
 
@@ -813,6 +895,16 @@ Skill grants 应遵守：
 - 保留一段时间的 MCP alias，最终按版本迁移策略下线。
 - 删除已完成 CLI 化工具的 direct-core MCP fallback。
 - 按 Skill 总纲重写 `runtime/project/planning/domain/generation/review/editing/admin/timeline` 文档，删除只列工具、不解释流程边界的旧写法。
+  - 已落地：`@movscript/cli` package 暴露 `movscript` bin，`movcli` 保留为历史 shim；顶层 `daemon` 已作为正式 CLI 命令族。
+  - 已落地：Agent Plugin `bin/movscript` 统一承载 `mcp stdio`、`daemon run`、`daemon discover/ensure/start/status/stop/restart/configure`，`bin/movcli` 和 `bin/movscript-agent-mcp` 均转发到同一 `movscript.mjs`。
+  - 已落地：插件入口不再静态导入 CLI；普通命令通过嵌入模式动态调用 `@movscript/cli`，避免 bundle 中 CLI 和插件入口重复解析同一个 argv。
+  - 已落地：把 full-local `daemon run` 的持久进程 lifecycle loop 抽到 `@movscript/local-runtime` 共享 runner，插件入口复用该 runner，不再自己管理 signal、idle timeout、restart loop 和 app record 写入。
+  - 已落地：新增 `@movscript/local-daemon` 作为共享 daemon service plane，承载 local-node control/gateway、Project/Editing/Canvas/Media/Surface adapters、daemon MCP HTTP endpoint、runtime descriptor/configure、static surface 和 Data Service path resolver。
+  - 已落地：Agent Plugin 的 `daemon run` 与独立 CLI 的 `movscript daemon run` 均调用 `runLocalDaemonServicePlane`；plugin 入口只保留 MCP stdio session、legacy wrapper、embedded service re-entry 和 daemon lifecycle/control CLI 包装。
+  - 已落地：runtime bootstrap/control 命令已纳入同一显式 command contract；`@movscript/cli` runtime 命令直接调用 `runMovScriptRuntimeCommand`，daemon MCP executor 也通过同一 runner 返回 `contract` 和 `debug.cli_argv`。
+  - 已落地：MCP registry/executor 已上移到 `packages/local-daemon/src/mcp.ts`；`@movscript/local-daemon` 暴露 `./mcp` 子路径，daemon `/v1/mcp` 直接调用 `handleDaemonMCPJSONRPC` / `listDaemonMCPTools`，不再反向依赖 `@movscript/mcp-host`。
+  - 已落地：`mcp-host` 已降级为 stdio/http 协议适配器：负责 daemon MCP endpoint 发现/proxy、daemon 未启动时的 runtime bootstrap tools/list fallback，以及对旧 `callMCPHostTool/listMCPHostTools/readMCPHostResource` API 的兼容委托；它不再直接调用 command runner 或 core `callTool`。
+  - 下一步：逐步减少 `packages/local-daemon/src/mcp.ts` 中未纳入 command manifest 的 legacy direct-core fallback，并把同构 cloud runtime gateway 的 MCP executor 与本机 daemon MCP executor 对齐。
 
 ## 验收标准
 
@@ -834,7 +926,7 @@ Skill grants 应遵守：
 14. render/export 不自动写 candidate/selection，除非调用显式 candidate/decision 工具。
 15. Timeline compile 遇到 backend 不支持能力时返回 blocker/conformance report，而不是静默改写意图。
 16. 同一个 `TimelineAssembly` 可以根据 backend capability 生成不同的 `CompileManifest` / backend project artifact，例如 `MediaEditingProject`、`RemotionCompositionProject`、`HyperFramesCompositionProject` 或 `ExternalNleProject`。
-17. `system_focus_get` 不再出现在 Skill grants、稳定 System tool list 或 router dispatch；旧调用返回 unknown tool / tool not found。
+17. `system_focus_get` 不再出现在 Skill grants、稳定 System tool list 或 router dispatch；旧调用返回 unknown tool / tool not found；稳定 UI/session hint 只能通过 `context_current_get` / `movscript context current get --json`。
 18. 配置 public tunnel 或 public backend 后，MCP/CLI 可通过 admin/resource-access 诊断验证某个 RawResource 能生成外部可达 URL；RawResource 主记录不保存隧道 URL 或临时签名 URL。
 19. 每个稳定 `SKILL.md` 都能说明自己属于规划内容、规划 timeline、生成、导出或 runtime/admin/review 横切能力，并列出依赖系统、配置入口、hard blockers、review gates、人工审核方式和下一步输出格式。
 
@@ -860,7 +952,9 @@ Skill grants 应遵守：
 
 - `apps/plugin/src/agent-mcp.ts`: Agent Plugin entrypoint、daemon CLI、local daemon gateway/control。
 - `packages/local-runtime/src/index.ts`: daemon ensure/probe/stop/restart 和 readiness 判断。
-- `packages/mcp-host/src/stdio.ts`: 当前 stdio MCP host、runtime host tools、core tool dispatch。
+- `packages/cli-commands/src/index.ts`: runtime/context/admin/system/editing/timeline/workspace command manifest、shared runner、CLI/MCP contract metadata。
+- `packages/local-daemon/src/mcp.ts`: daemon-owned MCP registry/executor，负责 command manifest 生成的 tool schema、CLI command runner 调用、daemon `/v1/mcp` 的本地 JSON-RPC 执行，以及尚未 CLI 化工具的 legacy direct-core fallback。
+- `packages/mcp-host/src/stdio.ts`: stdio MCP host 兼容壳，负责 daemon proxy、runtime bootstrap protocol fallback 和旧 API 委托；不再拥有业务 tool registry/executor。
 - `packages/mcp-host/src/http.ts`: HTTP MCP host compatibility。
 - `packages/core/src/mcp/node/server/toolRegistry.ts`: 当前 core MCP tool registry。
 - `packages/core/src/mcp/tools/*/definitions.ts`: tool family definitions。

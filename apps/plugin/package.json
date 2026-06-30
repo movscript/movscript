@@ -27,6 +27,7 @@
   "dependencies": {
     "@movscript/app-runner": "workspace:*",
     "@movscript/cli": "workspace:*",
+    "@movscript/local-daemon": "workspace:*",
     "@movscript/local-runtime": "workspace:*",
     "@movscript/media-pipeline": "workspace:*",
     "@movscript/mcp-host": "workspace:*",

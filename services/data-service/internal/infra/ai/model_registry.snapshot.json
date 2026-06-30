@@ -5050,5 +5050,38 @@
       "verified_at": "2026-06-26",
       "status": "observed"
     }
+  },
+  {
+    "id": "doubao2api:doubao-image",
+    "lab": "doubao2api",
+    "model_id": "doubao-image",
+    "capabilities": [
+      "image"
+    ],
+    "param_keys": [
+      "aspect_ratio"
+    ],
+    "source": {
+      "url": "https://github.com/wangchuxiaoji-oss/doubao2api",
+      "verified_at": "2026-06-30",
+      "status": "unofficial"
+    }
+  },
+  {
+    "id": "doubao2api:doubao-video",
+    "lab": "doubao2api",
+    "model_id": "doubao-video",
+    "capabilities": [
+      "video"
+    ],
+    "param_keys": [
+      "duration",
+      "aspect_ratio"
+    ],
+    "source": {
+      "url": "https://github.com/wangchuxiaoji-oss/doubao2api",
+      "verified_at": "2026-06-30",
+      "status": "unofficial"
+    }
   }
 ]

@@ -27,7 +27,13 @@ bin/movscript daemon start
 bin/movscript daemon status
 bin/movscript daemon stop
 bin/movscript admin provider list
+bin/movscript system generation prepare --capability image_generation --json
+bin/movscript timeline backend capability list --json
+bin/movscript timeline compile manifest create --backend media_editing_project --edit-decisions '{"cuts":[]}' --json
+bin/movscript workspace get-model project --json
 ```
+
+This CLI is a product surface, not only an MCP launch script. In no-frontend or CI sessions, `bin/movscript ... --json` should be enough to start/inspect the daemon, configure admin systems, use system generation/resource tools, compile TimelineAssembly intent, select a backend, and return structured diagnostics. The MCP host wraps the same command runners and includes `debug.cli_argv` so agent calls can be reproduced from a terminal.
 
 Use `bin/movscript daemon start --data-plane cloud --data-service-url <url>` when the daemon should start local Project, Editing, Canvas, Surface, and Media services while reusing a cloud Data Service instead of launching the local Data Service. The daemon gateway exposes the canonical MCP HTTP endpoint at `/v1/mcp` plus `/v1/mcp/health`; `/mcp` is kept only as a compatibility path. The plugin also ships `bin/movcli` as a compatibility command name for the legacy CLI surface; it is backed by the same plugin bundle. `bin/movscript-agent-mcp` is now only a compatibility shim for `bin/movscript mcp stdio`, and the older `local-node` / `__movscript_local_node` commands are compatibility aliases for `daemon`.
 

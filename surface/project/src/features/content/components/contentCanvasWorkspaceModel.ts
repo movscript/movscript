@@ -38,6 +38,7 @@ export {
   selectedCandidateForNode,
   settingKindFromNode,
   stringField,
+  upsertContentNodeReferenceInPrompt,
   uniqueContentNodes,
   type NodeMediaKind,
 } from './contentCanvasWorkspaceNodeModel'

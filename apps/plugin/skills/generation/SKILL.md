@@ -64,6 +64,14 @@ toolGrants:
 
 Use this skill when a user asks to generate or prepare creative outputs through MovScript, including images, videos, voiceover, music, sound effects, subtitles, reference images, storyboard panels, keyframes, or scene-beat videos. Think in production terms first: what output is being made, what references it depends on, whether existing generated options need adoption, and what review boundary protects downstream work. Use internal content-unit/candidate/selection names only for tools and precise diagnostics. If runtime ownership, provider gateway, or model capability availability is unclear, use the `runtime` skill first.
 
+## Production Contract
+
+- Production step: generation, producing RawResources and candidates/options after planning and upstream selection gates are clear.
+- Systems/config: Data Service/model gateway owns provider/model/job execution; Project Service owns prompt/candidate context; Resource service owns RawResource persistence; admin config owns routes/credentials/public access; runtime/daemon supplies endpoints.
+- Blockers: missing model capability/route/key, unavailable Data/Project service, no public/reference URL when provider requires it, stale or unselected upstream candidate, unsafe provider trust path, or missing prompt compilation.
+- Human review: generated output is only an option; stable downstream use requires adoption/selection or an explicit user request for an unstable draft.
+- Output: report capability/model, compiled prompt/ref readiness, job/candidate/resource ids, blockers/warnings, review URL, and the adoption/selection gate.
+
 ## Generation Posture
 
 - Use user-facing language in replies: output task, generated option, adopted result, reference image, scene beat, visual/audio material, readiness, and impact review.
@@ -164,7 +172,7 @@ Use this skill when a user asks to generate or prepare creative outputs through 
 
 ## Notes
 
-- MovScript MCP host must be running for tool calls to execute. It may connect to cloud/external services or attach to the local runtime daemon; if tools report missing runtime, call `movscript_runtime_status` and explain the missing Data/Project/Editing/Media/gateway capability instead of telling the user Desktop or cloud is mandatory.
+- MovScript MCP calls execute through the daemon MCP endpoint or a cloud/external runtime gateway; the provider-facing stdio adapter is only a protocol bridge. If tools report missing runtime, call `movscript_runtime_status` and explain the missing Data/Project/Editing/Media/gateway capability instead of telling the user Desktop or cloud is mandatory.
 - Pass `projectId` for generation and candidate/domain writes. MCP must not infer project.
 - Prefer `model_id` values returned by `system_model_list`; do not invent provider-specific model identifiers.
 - Keep generation prompts grounded in project context, resource-library records, and shot-library references when available.

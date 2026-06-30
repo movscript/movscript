@@ -38,6 +38,14 @@ toolGrants:
 
 Use this skill when a user asks to plan or change MovScript creative work: project standards, reusable characters/props/places/voices, story structure, scene beats, visual/audio/text materials, storyboard/keyframe references, or outputs to generate. Think like a production assistant first, then map the plan to MovScript internal entity names only when calling tools or editing source. If runtime ownership or service availability is unclear, use the `runtime` skill first.
 
+## Production Contract
+
+- Production step: planning content, including project context, continuity references, scene beats, expression materials, and output tasks before generation.
+- Systems/config: Project Service/Data Service own source and project context; runtime/daemon supplies service readiness; admin/model config is only diagnosed, not changed, unless the user asks for admin work.
+- Blockers: missing project locator, absent project standards when they matter, unclear scope/granularity, missing continuity reference, Project/Data service unavailable, or upstream plan not reviewable.
+- Human review: require user confirmation before broad project standards changes, durable project/source writes beyond the requested scope, or moving from plan to generation with unresolved assumptions.
+- Output: report planned scope, created/updated source entities, readiness class (`缺规划`, `可补图`, `缺选择`, `可生成`), review URL, and next step.
+
 ## Planning Posture
 
 - Start from the user's production goal and structure: quick draft, reusable reference, one scene beat, multiple beats, short-form video, film, episode, lesson, custom timeline, or finished production.

@@ -25,6 +25,9 @@ importers:
       '@movscript/language':
         specifier: workspace:*
         version: link:../../packages/language
+      '@movscript/local-daemon':
+        specifier: workspace:*
+        version: link:../../packages/local-daemon
       '@movscript/mcp-host':
         specifier: workspace:*
         version: link:../../packages/mcp-host
@@ -297,6 +300,9 @@ importers:
       '@movscript/cli':
         specifier: workspace:*
         version: link:../cli
+      '@movscript/local-daemon':
+        specifier: workspace:*
+        version: link:../../packages/local-daemon
       '@movscript/local-runtime':
         specifier: workspace:*
         version: link:../../packages/local-runtime
@@ -376,6 +382,9 @@ importers:
       '@movscript/core':
         specifier: workspace:*
         version: link:../core
+      '@movscript/local-runtime':
+        specifier: workspace:*
+        version: link:../local-runtime
       '@movscript/runtime-contracts':
         specifier: workspace:*
         version: link:../runtime-contracts
@@ -557,8 +566,39 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  packages/local-daemon:
+    dependencies:
+      '@movscript/app-runner':
+        specifier: workspace:*
+        version: link:../app-runner
+      '@movscript/cli-commands':
+        specifier: workspace:*
+        version: link:../cli-commands
+      '@movscript/core':
+        specifier: workspace:*
+        version: link:../core
+      '@movscript/local-runtime':
+        specifier: workspace:*
+        version: link:../local-runtime
+      '@movscript/runtime-contracts':
+        specifier: workspace:*
+        version: link:../runtime-contracts
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/local-runtime:
     dependencies:
+      '@movscript/app-runner':
+        specifier: workspace:*
+        version: link:../app-runner
       '@movscript/runtime-contracts':
         specifier: workspace:*
         version: link:../runtime-contracts
@@ -585,21 +625,18 @@ importers:
 
   packages/mcp-host:
     dependencies:
-      '@movscript/cli-commands':
-        specifier: workspace:*
-        version: link:../cli-commands
       '@movscript/core':
         specifier: workspace:*
         version: link:../core
+      '@movscript/local-daemon':
+        specifier: workspace:*
+        version: link:../local-daemon
       '@movscript/local-runtime':
         specifier: workspace:*
         version: link:../local-runtime
       '@movscript/runtime-contracts':
         specifier: workspace:*
         version: link:../runtime-contracts
-      '@movscript/workspace':
-        specifier: workspace:*
-        version: link:../workspace
     devDependencies:
       '@types/node':
         specifier: 22.19.17

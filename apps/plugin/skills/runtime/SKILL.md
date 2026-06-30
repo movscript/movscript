@@ -11,6 +11,14 @@ Use this skill when a task depends on MovScript runtime availability, plugin sta
 
 The first decision is runtime ownership: the per-user MovScript local runtime daemon owns local execution services. Desktop, Agent Plugin, CLI, and MCP sessions attach to it. The data plane may be local Data Service, cloud Data Service, or an external/local endpoint.
 
+## Production Contract
+
+- Production step: cross-cutting runtime prerequisite before project, planning, generation, timeline, editing, export, or admin work.
+- Systems/config: local runtime daemon owns local Project/Editing/Canvas/Surface/Media services and optional local Data Service; cloud/external data planes may replace local Data Service; Desktop and MCP sessions attach rather than owning sidecars.
+- Blockers: daemon not running, data-plane endpoint/auth missing, service endpoint absent, sqlite/path/port conflict, provider route/key missing, Local Surface Host unavailable, or FFmpeg/media pipeline degraded.
+- Human review: ask before stop/restart/configure changes that interrupt work or change data plane; do not ask users to start Desktop when daemon can satisfy the workflow.
+- Output: classify runtime owner/data plane, list service readiness, give surface/MCP endpoint, name blockers, and suggest the exact daemon/admin/preflight next step.
+
 ## Startup Modes
 
 Explicit user or environment policy wins:

@@ -9,21 +9,23 @@
     "dist"
   ],
   "main": "./dist/index.cjs",
-  "types": "./dist/index.d.cts",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.cts",
-      "import": "./dist/index.cjs",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     }
   },
   "bin": {
-    "movcli": "./bin/movcli"
+    "movcli": "./bin/movcli",
+    "movscript": "./bin/movscript"
   },
   "scripts": {
     "build": "tsup",
     "dev": "tsx src/index.ts",
-    "test": "node --test tests/*.test.mjs",
+    "test": "pnpm --filter @movscript/cli... --if-present build && node --test tests/*.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -31,6 +33,7 @@
     "@movscript/interpreter": "workspace:*",
     "@movscript/core": "workspace:*",
     "@movscript/engine": "workspace:*",
+    "@movscript/local-daemon": "workspace:*",
     "@movscript/mcp-host": "workspace:*",
     "@movscript/workspace": "workspace:*",
     "commander": "^12.0.0",

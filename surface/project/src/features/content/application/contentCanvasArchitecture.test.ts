@@ -924,9 +924,25 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(promptCanvasPanelSource, /<ContentCanvasPromptEditor/)
   assert.match(promptCanvasPanelSource, /onChange=\{\(prompt\) => data\.onPromptDraftChange/)
   assert.match(promptCanvasPanelSource, /onBlur=\{\(prompt\) => data\.onPromptCommit/)
-  assert.doesNotMatch(promptCanvasPanelSource, /appendContentNodeReferenceToPrompt\(currentPrompt, sourceNode\)[\s\S]{0,180}onPromptCommit/)
-  assert.doesNotMatch(promptCanvasPanelSource, /appendContentNodeReferenceToPrompt\(currentPrompt, source\)[\s\S]{0,180}onPromptCommit/)
+  assert.match(promptCanvasPanelSource, /commitPromptFromNode\(target, nextPrompt\)/)
+  assert.match(promptCanvasPanelSource, /commitPromptFromNode\(targetNode, nextPrompt\)/)
+  assert.match(workspaceNodeModelSource, /export function upsertContentNodeReferenceInPrompt/)
+  assert.match(promptCanvasPanelSource, /upsertContentNodeReferenceInPrompt\(currentPrompt, sourceNode/)
+  assert.match(promptCanvasPanelSource, /appendReferenceToPromptTargetWithRole\(targetNode, sourceNode, defaultRole, mediaType\)/)
+  assert.match(promptCanvasPanelSource, /appendPromptReferencePreviewEdge/)
+  assert.match(promptCanvasPanelSource, /edges=\{displayedFlowEdges\}/)
   assert.match(promptCanvasPanelSource, /editablePromptNodeIds\.has\(target\.id\)/)
+  assert.match(promptCanvasPanelSource, /editablePromptNodeIds\.has\(source\.id\)/)
+  assert.match(promptCanvasPanelSource, /const focusedEditable = focusedNodeId === source\.id && sourceEditable/)
+  assert.match(promptCanvasPanelSource, /const promptTarget = focusedEditable \?\? \(targetEditable \? target : sourceEditable \? source : null\)/)
+  assert.match(promptCanvasPanelSource, /const referenceSource = promptTarget\?\.id === source\.id \? target : source/)
+  assert.match(promptCanvasPanelSource, /onSelectNode\(selectionKindForPromptNode\(promptTarget\), promptTarget\.id\)/)
+  assert.match(promptCanvasPanelSource, /appendReferenceToPromptTarget\([\s\S]*promptTarget,[\s\S]*referenceSource\.id,[\s\S]*promptReferenceMenuPointForNode\(promptTarget\.id\)/)
+  assert.match(promptCanvasPanelSource, /promptReferenceMediaTypeForContentNode\(sourceNode, candidateSelections\)/)
+  assert.match(promptCanvasPanelSource, /generationDefaultReferenceRoleForMediaType\(mediaType\)/)
+  assert.match(promptReferencesSource, /lastEditorValueRef/)
+  assert.match(promptReferencesSource, /document\.activeElement === editor && lastEditorValueRef\.current === prompt/)
+  assert.match(workspaceNodeModelSource, /node\.generationTask\?\.outputKind/)
   assert.match(promptCanvasPanelSource, /buildCreativeCanvasGraph/)
   assert.match(promptCanvasPanelSource, /buildCreativeCanvasGraph\(\{ nodes, edges \}, \{ nodeIds: canvasNodeIds \}\)/)
   assert.match(promptCanvasPanelSource, /layoutCreativeCanvas/)
@@ -1369,6 +1385,7 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(gatewaySource, /createContentUnit/)
   assert.match(gatewaySource, /ensureContentUnitForEntity/)
   assert.match(gatewaySource, /decideContentUnitCandidate/)
+  assert.match(gatewaySource, /syncContentWorkspace\?\(projectId: number\)/)
   assert.doesNotMatch(electronGatewaySource, /createShot/)
   assert.match(electronGatewaySource, /createKeyframe/)
   assert.match(electronGatewaySource, /createStoryboard/)
@@ -1376,10 +1393,12 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(electronGatewaySource, /ensureContentUnitForEntity/)
   assert.match(electronGatewaySource, /ensureMovScriptEngineTimelineAssemblyContentUnit/)
   assert.match(electronGatewaySource, /decideMovScriptEngineContentUnitCandidate/)
+  assert.match(electronGatewaySource, /syncMovScriptEngineContentWorkspace/)
   assert.match(electronGatewaySource, /input\.targetKind === 'timeline_assembly'/)
   assert.doesNotMatch(electronGatewaySource, /shots: \[\{/)
   assert.match(commandsSource, /ContentCanvasWorkspaceGateway/)
   assert.match(commandsSource, /from '.\/contentCanvasCreateNodeCommands'/)
+  assert.match(commandsSource, /gateway\.syncContentWorkspace\?\.\(projectId\)/)
   assert.doesNotMatch(commandsSource, /connectContentUnitRelationFromCanvas/)
   assert.doesNotMatch(commandsSource, /function patchContentUnitRelation/)
   assert.match(commandsSource, /defaultContentUnitDraftForNode/)
@@ -6763,7 +6782,7 @@ test('content canvas snapshot derives raw resource prompt dependencies', () => {
         title: 'Scene render',
         content_unit_type: 'scene_moment_ref',
         scene_moment_ref: 'scene',
-        edit_prompt: { text: 'Use {{resource::42}} and @[resource:99] as references.' },
+        edit_prompt: { text: 'Use {{resource::42 role=reference_image media=image}} and @[resource:99] as references.' },
       }),
     ],
     keyframes: [],
@@ -6801,8 +6820,8 @@ test('content canvas snapshot derives asset prompt dependencies into creative sc
         content_unit_type: 'scene_moment_ref',
         scene_moment_ref: 'scene',
         edit_prompt: {
-          text: 'Keep continuity with {{asset::phone}}.',
-          negative_text: 'Do not change {{asset:watch}}.',
+          text: 'Keep continuity with {{asset::phone role=reference_image media=image}}.',
+          negative_text: 'Do not change {{asset:watch role=negative_reference media=image}}.',
         },
       }),
     ],
@@ -6823,6 +6842,47 @@ test('content canvas snapshot derives asset prompt dependencies into creative sc
   assert.deepEqual(creativeGraph.edges.map((edge) => [edge.source, edge.target]).filter(([, target]) => target === 'scene_moment:scene'), [
     ['asset:phone', 'scene_moment:scene'],
     ['asset:watch', 'scene_moment:scene'],
+  ])
+})
+
+test('content canvas snapshot derives typed visual prompt metadata dependencies into creative scene edges', () => {
+  const graph = buildContentCanvasWorkspaceSnapshot({
+    projectId: 7,
+    project: null,
+    productions: [],
+    segments: [],
+    sceneMoments: [entityFixture('scene_moment', 'scene', 'productions/prod/segments/seg/scene_moments/scene/scene_moment.json', { id: 'scene', title: 'Scene' })],
+    expressionUnits: [],
+    storyboards: [
+      entityFixture('storyboard', 'board', 'productions/prod/segments/seg/scene_moments/scene/storyboards/board/storyboard.json', { id: 'board', title: 'Board' }),
+    ],
+    contentUnits: [
+      entityFixture('content_unit', 'cu_scene', 'content_units/cu_scene/content_unit.json', {
+        id: 'cu_scene',
+        title: 'Scene render',
+        content_unit_type: 'scene_moment_ref',
+        scene_moment_ref: 'scene',
+        edit_prompt: {
+          text: 'Use {{keyframe::opening role=first_frame media=image}} and {{storyboard::board role=reference_image media=image}}.',
+        },
+      }),
+    ],
+    keyframes: [
+      entityFixture('keyframe', 'opening', 'productions/prod/segments/seg/scene_moments/scene/keyframes/opening/keyframe.json', { id: 'opening', title: 'Opening' }),
+    ],
+    settings: [],
+    settingStates: [],
+    assets: [],
+    audioCues: [],
+    contentUnitCandidates: {},
+  })
+  const creativeGraph = buildCreativeCanvasGraph(graph)
+
+  assert.ok(graph.edges.find((edge) => edge.source === 'content_unit:cu_scene' && edge.target === 'keyframe:opening' && edge.relation === 'content_unit_keyframe'))
+  assert.ok(graph.edges.find((edge) => edge.source === 'content_unit:cu_scene' && edge.target === 'storyboard:board' && edge.relation === 'content_unit_storyboard'))
+  assert.deepEqual(creativeGraph.edges.map((edge) => [edge.source, edge.target]).filter(([, target]) => target === 'scene_moment:scene'), [
+    ['keyframe:opening', 'scene_moment:scene'],
+    ['storyboard:board', 'scene_moment:scene'],
   ])
 })
 

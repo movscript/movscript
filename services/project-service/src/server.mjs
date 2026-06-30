@@ -2021,10 +2021,13 @@ async function readProjectReadModel(context, now) {
       }))
       : undefined,
   ])
+  const contentData = buildContentSourceWorkspaceData(contentSnapshot)
+  const contentUnitSummaries = contentSourceWorkspaceContentUnitStatusSummaries(contentSnapshot)
+  const contentUnitCandidates = contentCanvasCandidatesFromContentWorkspace(contentData)
   const projectTimelineStatus = await observeProjectServicePhase(
     context.requestScope,
     'deriveMs',
-    async () => buildContentSourceWorkspaceProjectTimelineStatus(contentSnapshot),
+    async () => buildContentSourceWorkspaceProjectTimelineStatus(contentSnapshot, contentUnitSummaries),
   )
   return {
     schema: 'movscript.project-read-model.v1',
@@ -2034,6 +2037,10 @@ async function readProjectReadModel(context, now) {
     productionSummary: overview.production,
     contentSummary: overview.content,
     contentUnits: sortProjectCanvasEntities(contentSnapshot.contentUnits),
+    contentUnitSummaries,
+    content_unit_summaries: contentUnitSummaries,
+    contentUnitCandidates,
+    content_unit_candidates: contentUnitCandidates,
     readiness: overview.readiness,
     projectTimelineStatus,
     project_timeline_status: projectTimelineStatus,

@@ -7,6 +7,8 @@ import type {
   ContentCanvasProjectData,
 } from './contentCanvasTypes'
 
+const PROMPT_ENTITY_REFERENCE_PATTERN = /\{\{\s*([a-zA-Z_]+)(?:::|:)\s*([^}\s]+)(?:\s+[^}]*)?\}\}/gi
+
 export function appendContentCanvasReferenceEdges({
   data,
   edges,
@@ -58,7 +60,11 @@ function appendSingleContentUnitReferences({
   source: ContentCanvasNode
 }) {
   appendContentUnitReferenceSet({
-    refs: compactStrings(contentUnit.record.scene_moment_ref, contentUnit.record.scene_moment_refs),
+    refs: compactUniqueStrings(
+      contentUnit.record.scene_moment_ref,
+      contentUnit.record.scene_moment_refs,
+      contentUnitPromptEntityRefsForRecord(contentUnit.record, 'scene_moment'),
+    ),
     targetKind: 'scene_moment',
     collectionSegment: 'scene_moments',
     edgeId: (target) => `${target.id}->${source.id}:scene-moment-ref`,
@@ -84,7 +90,11 @@ function appendSingleContentUnitReferences({
     nodeByPath,
   })
   appendContentUnitReferenceSet({
-    refs: compactStrings(contentUnit.record.keyframe_ref, contentUnit.record.keyframe_refs),
+    refs: compactUniqueStrings(
+      contentUnit.record.keyframe_ref,
+      contentUnit.record.keyframe_refs,
+      contentUnitPromptEntityRefsForRecord(contentUnit.record, 'keyframe'),
+    ),
     targetKind: 'keyframe',
     collectionSegment: 'keyframes',
     edgeId: (target) => `${source.id}->${target.id}:keyframe-ref`,
@@ -97,7 +107,11 @@ function appendSingleContentUnitReferences({
     nodeByPath,
   })
   appendContentUnitReferenceSet({
-    refs: compactStrings(contentUnit.record.storyboard_ref, contentUnit.record.storyboard_refs),
+    refs: compactUniqueStrings(
+      contentUnit.record.storyboard_ref,
+      contentUnit.record.storyboard_refs,
+      contentUnitPromptEntityRefsForRecord(contentUnit.record, 'storyboard'),
+    ),
     targetKind: 'storyboard',
     collectionSegment: 'storyboards',
     edgeId: (target) => `${source.id}->${target.id}:storyboard-ref`,
@@ -110,7 +124,11 @@ function appendSingleContentUnitReferences({
     nodeByPath,
   })
   appendContentUnitReferenceSet({
-    refs: compactStrings(contentUnit.record.audio_cue_ref, contentUnit.record.audio_cue_refs),
+    refs: compactUniqueStrings(
+      contentUnit.record.audio_cue_ref,
+      contentUnit.record.audio_cue_refs,
+      contentUnitPromptEntityRefsForRecord(contentUnit.record, 'audio_cue'),
+    ),
     targetKind: 'audio_cue',
     collectionSegment: 'audio_cues',
     edgeId: (target) => `${source.id}->${target.id}:audio-cue-ref`,
@@ -135,7 +153,13 @@ function appendSingleContentUnitReferences({
     nodeByEntityKindAndKey,
     nodeByPath,
   })
-  for (const expressionRef of compactStrings(contentUnit.record.expression_unit_ref, contentUnit.record.expression_unit_refs, contentUnit.record.expression_ref, contentUnit.record.expression_refs)) {
+  for (const expressionRef of compactUniqueStrings(
+    contentUnit.record.expression_unit_ref,
+    contentUnit.record.expression_unit_refs,
+    contentUnit.record.expression_ref,
+    contentUnit.record.expression_refs,
+    contentUnitPromptEntityRefsForRecord(contentUnit.record, 'expression_unit'),
+  )) {
     const target = referencedNodeFor('expression_unit', expressionRef, nodeByEntityKindAndKey, nodeByPath, 'expression_units')
     if (target) {
       edges.push({
@@ -324,6 +348,10 @@ function compactStrings(...values: unknown[]): string[] {
   })
 }
 
+function compactUniqueStrings(...values: unknown[]): string[] {
+  return [...new Set(compactStrings(...values))]
+}
+
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
@@ -406,19 +434,16 @@ function promptTextFields(prompt: unknown): string[] {
 }
 
 function assetRefsFromPrompt(text: string): string[] {
-  const refs = new Set<string>()
-  const pattern = /\{\{\s*asset(?:::|:)\s*([^}\s]+)\s*\}\}/gi
-  for (const match of text.matchAll(pattern)) {
-    const ref = normalizePromptEntityRef(match[1] ?? '', 'asset')
-    if (ref) refs.add(ref)
-  }
-  return [...refs]
+  return promptEntityRefsFromText(text, 'asset')
 }
 
 function resourceRefsFromPrompt(text: string): string[] {
   const refs = new Set<string>()
+  for (const ref of promptEntityRefsFromText(text, 'resource')) {
+    const normalized = normalizeResourceRef(ref)
+    if (normalized) refs.add(normalized)
+  }
   const patterns = [
-    /\{\{\s*resource(?:::|:)\s*([^}\s]+)\s*\}\}/gi,
     /\[\[\s*resource(?:::|:)\s*([^\]\s]+)\s*\]\]/gi,
     /@\[resource:\s*([^\]\s]+)\s*\]/gi,
   ]
@@ -431,6 +456,25 @@ function resourceRefsFromPrompt(text: string): string[] {
   return [...refs]
 }
 
+function contentUnitPromptEntityRefsForRecord(record: Record<string, unknown>, kind: ContentCanvasNodeKind): string[] {
+  const refs = new Set<string>()
+  const prompt = record.edit_prompt ?? record.prompt
+  for (const text of promptTextFields(prompt)) {
+    for (const ref of promptEntityRefsFromText(text, kind)) refs.add(ref)
+  }
+  return [...refs]
+}
+
+function promptEntityRefsFromText(text: string, kind: string): string[] {
+  const refs = new Set<string>()
+  for (const match of text.matchAll(PROMPT_ENTITY_REFERENCE_PATTERN)) {
+    if ((match[1] ?? '').trim().toLowerCase() !== kind) continue
+    const ref = normalizePromptEntityRef(match[2] ?? '', kind)
+    if (ref) refs.add(ref)
+  }
+  return [...refs]
+}
+
 function normalizeResourceRef(ref: string): string {
   const normalized = normalizeRawResourceRef(ref)
   if (normalized) return normalized.resourceId
@@ -438,7 +482,7 @@ function normalizeResourceRef(ref: string): string {
   return /^(?:https?:|data:|blob:|\/)/i.test(fallback) ? '' : fallback
 }
 
-function normalizePromptEntityRef(ref: string, kind: 'asset' | 'resource'): string {
+function normalizePromptEntityRef(ref: string, kind: string): string {
   return ref.trim().replace(new RegExp(`^${kind}(?:::|:)`, 'i'), '')
 }
 

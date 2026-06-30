@@ -290,6 +290,23 @@ providers:
     is_builtin: true
     is_enabled: true
     version: builtin.v1
+  - provider_type: doubao2api
+    profile: local
+    provider_kind: doubao2api_local
+    provider_category: local_endpoint
+    display_name: doubao2api 本地服务
+    description: Local doubao2api reverse-engineered Doubao web service boundary for image and video generation. Requires a logged-in local doubao2api service.
+    default_adapter_type: doubao2api
+    default_base_url_prefix: http://127.0.0.1:9090/v1
+    capabilities:
+      local_endpoint: true
+      aggregates_upstream_models: false
+      file_upload: false
+      asset_library: false
+      generated_artifact_trust: false
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
   - provider_type: relay_gateway
     profile: gateway
     provider_kind: relay_gateway

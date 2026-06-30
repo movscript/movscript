@@ -2,10 +2,13 @@ import { Command } from 'commander'
 import { basename } from 'node:path'
 import { registerAdminCommands } from './commands/admin.js'
 import { registerAuthCommands } from './commands/auth.js'
+import { registerContextCommands } from './commands/context.js'
+import { registerEditingCommands } from './commands/editing.js'
 import { registerLangCommands } from './commands/lang.js'
 import { registerMCPCommands } from './commands/mcp.js'
-import { registerRuntimeCommands } from './commands/runtime.js'
+import { registerDaemonCommands, registerRuntimeCommands } from './commands/runtime.js'
 import { registerSystemCommands } from './commands/system.js'
+import { registerTimelineCommands } from './commands/timeline.js'
 import { registerWorkspaceCommands } from './commands/workspace.js'
 
 export function createMovcliProgram(name = 'movscript'): Command {
@@ -20,10 +23,14 @@ export function createMovcliProgram(name = 'movscript'): Command {
     .option('--workspace <dir>', 'MovScript workspace root directory')
 
   registerAuthCommands(program)
+  registerDaemonCommands(program)
   registerRuntimeCommands(program)
   registerMCPCommands(program)
+  registerContextCommands(program)
   registerAdminCommands(program)
   registerSystemCommands(program)
+  registerEditingCommands(program)
+  registerTimelineCommands(program)
   registerLangCommands(program)
   registerWorkspaceCommands(program)
   configureCommandHelp(program)
@@ -73,10 +80,11 @@ function configureCommandHelp(command: Command): void {
 }
 
 function isDirectMovcliInvocation(): boolean {
+  if (process.env.MOVSCRIPT_CLI_EMBEDDED === '1') return false
   const invoked = process.argv[1]
   if (!invoked) return false
   const invokedName = basename(invoked)
-  if (invokedName === 'movcli' || invokedName === 'movcli.cmd' || invokedName === 'movcli.mjs') return true
+  if (['movcli', 'movcli.cmd', 'movcli.mjs', 'movscript', 'movscript.cmd', 'movscript.mjs'].includes(invokedName)) return true
   return invokedName === 'index.cjs' || invokedName === 'index.js' || invokedName === 'index.ts'
 }
 

@@ -7,10 +7,13 @@ import test from 'node:test'
 
 import {
   ensureLocalRuntimeDaemon,
+  configuredDataServiceURLForLocalRuntimeDataPlane,
   localRuntimeMatchesRequestedDataServiceURL,
   localRuntimeMatchesRequestedDataPlane,
   localRuntimeServicesReady,
+  parseLocalRuntimeDaemonIdleTimeout,
   probeLocalRuntimeDaemon,
+  resolveLocalRuntimeDaemonDataPlane,
   stopLocalRuntimeDaemon,
 } from '../dist/index.js'
 
@@ -78,6 +81,22 @@ test('local runtime request matching includes requested data-plane', () => {
     { dataPlane: 'cloud' },
     {},
   ), true)
+})
+
+test('local runtime daemon runner helpers parse runtime ownership settings', () => {
+  assert.equal(parseLocalRuntimeDaemonIdleTimeout(undefined), null)
+  assert.equal(parseLocalRuntimeDaemonIdleTimeout('never'), null)
+  assert.equal(parseLocalRuntimeDaemonIdleTimeout('2s'), 2000)
+  assert.equal(parseLocalRuntimeDaemonIdleTimeout('1m'), 60_000)
+  assert.throws(() => parseLocalRuntimeDaemonIdleTimeout('soon'), /invalid local daemon idle timeout/)
+
+  assert.equal(resolveLocalRuntimeDaemonDataPlane({ MOVSCRIPT_LOCAL_DAEMON_DATA_PLANE: 'cloud' }), 'cloud')
+  assert.equal(resolveLocalRuntimeDaemonDataPlane({ MOVSCRIPT_PLUGIN_MODE: 'cloud' }), 'cloud')
+  assert.equal(resolveLocalRuntimeDaemonDataPlane({ MOVSCRIPT_DATA_SERVICE_URL: 'https://data.example.test' }), 'external')
+  assert.equal(resolveLocalRuntimeDaemonDataPlane({ MOVSCRIPT_DATA_SERVICE_URL: 'http://127.0.0.1:8766' }), 'local')
+
+  assert.equal(configuredDataServiceURLForLocalRuntimeDataPlane('local', { MOVSCRIPT_DATA_SERVICE_URL: 'https://data.example.test' }), undefined)
+  assert.equal(configuredDataServiceURLForLocalRuntimeDataPlane('external', { MOVSCRIPT_DATA_SERVICE_URL: 'https://data.example.test' }), 'https://data.example.test')
 })
 
 test('local runtime request matching includes requested Data Service URL', () => {

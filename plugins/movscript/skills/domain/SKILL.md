@@ -69,6 +69,14 @@ The `domain_*` MCP tools are the internal editing and diagnostic surface for tha
 
 Open `references/domain-story.md` when the task depends on the production workflow behind scene structure, output tasks, generated options, adopted choices, stale state, or impact review. Open `references/entity-glossary.md` only when mapping user/product terms to source entity names.
 
+## Production Contract
+
+- Production step: project content/source state behind content planning, generation readiness, timeline inputs, and review.
+- Systems/config: Project Service and Data Service expose source, read models, generated options, decisions, and context; runtime/daemon supplies the service endpoints; admin config is out of scope unless explicitly requested.
+- Blockers: missing project locator, Project Service/Data Service unavailable, schema/reference errors, stale or unselected upstream candidates, or attempted writes to debug/runtime files.
+- Human review: prompt edits, candidate adoption/rejection/defer, stale-impact acceptance, and destructive source deletes require explicit user action or an explicit domain decision tool call.
+- Output: describe business changes, readiness, selected/adopted state, affected downstream work, surface URL actions, and exact next tool or user review gate.
+
 ## Language Posture
 
 - Use business language in reasoning and user-facing responses. Say "情节点", "镜头素材", "参考图", "产出任务", "候选结果", "采纳", and "影响复查" before internal words such as entity, content unit, candidate, selection, interpret, or stale.
@@ -85,7 +93,7 @@ Open `references/domain-story.md` when the task depends on the production workfl
 
 ## Core Concepts
 
-- MovScript MCP host may run as a cloud/external entrypoint, a local daemon-attached session, or a diagnostic/basic session. Domain tools should see project/source/candidate state through Project Service and Data Service capabilities. If a tool reports a missing service endpoint, call `movscript_runtime_status`, classify the runtime owner/data plane, and report the missing capability; do not assume Desktop is required.
+- MovScript MCP access is a thin adapter over the daemon MCP endpoint or a cloud/external runtime gateway. Domain tools should see project/source/candidate state through Project Service and Data Service capabilities. If a tool reports a missing service endpoint, call `movscript_runtime_status`, classify the runtime owner/data plane, and report the missing capability; do not assume Desktop is required.
 - MCP does not infer project from session, cwd, route, or focus. Every project-scoped domain call must include the intended `projectId`/`project_id`.
 - User and organization identity are handled by MovScript app/frontend state and the MCP service. Do not pass `userId`, `user_id`, `orgId`, or `org_id` to MCP tools.
 - `source`: Editable creative project source. It may be incomplete while the user or agent is editing.

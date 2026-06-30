@@ -1,0 +1,53 @@
+lab: doubao2api
+templates:
+  - order: 133
+    id: doubao2api:doubao-image
+    lab: doubao2api
+    model_id: doubao-image
+    display_name: doubao2api 图片生成
+    capabilities:
+      - image
+    params:
+      - key: aspect_ratio
+        label: 画面比例
+        type: select
+        options:
+          - "1:1"
+          - "16:9"
+          - "9:16"
+          - "4:3"
+          - "3:4"
+        default: "1:1"
+    source:
+      url: https://github.com/wangchuxiaoji-oss/doubao2api
+      verified_at: "2026-06-30"
+      status: unofficial
+  - order: 134
+    id: doubao2api:doubao-video
+    lab: doubao2api
+    model_id: doubao-video
+    display_name: doubao2api 视频生成
+    capabilities:
+      - video
+    params:
+      - key: duration
+        label: 时长(秒)
+        type: select
+        options:
+          - "5"
+        default: "5"
+      - key: aspect_ratio
+        label: 画面比例
+        type: select
+        options:
+          - "16:9"
+          - "9:16"
+          - "1:1"
+        default: "16:9"
+    source:
+      url: https://github.com/wangchuxiaoji-oss/doubao2api
+      verified_at: "2026-06-30"
+      status: unofficial
+    video:
+      default_duration_sec: 5
+      max_duration_sec: 5

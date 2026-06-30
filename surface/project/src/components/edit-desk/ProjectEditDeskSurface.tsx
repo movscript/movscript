@@ -118,6 +118,7 @@ export interface WorkflowArtifactDebugView {
 
 type AssemblyTrackKind = 'video' | 'audio' | 'subtitle' | 'effect' | 'marker'
 type AssemblyClipKind = 'visual' | 'voice' | 'music' | 'sfx' | 'subtitle' | 'effect'
+type EditDeskAssetScopeMatch = 'match' | 'mismatch' | 'unknown'
 type CopyStatus = 'idle' | 'copied' | 'failed'
 type ComposeStatus = 'idle' | 'running' | 'succeeded' | 'blocked' | 'error'
 type AssemblyValidationSeverity = 'error' | 'warning' | 'info'
@@ -376,9 +377,11 @@ export interface EditDeskHandoffBundle {
 
 interface EditDeskAssetItem extends WorkflowAssetManifestRow {
   blockers: string[]
+  candidatePreviews: EditDeskMediaPreview[]
   mediaUrl?: string
   localPath?: string
   sceneId?: string
+  selectedPreview?: EditDeskMediaPreview
   expressionUnitId?: string
   targetRef?: string
 }
@@ -402,6 +405,15 @@ interface EditDeskDraftPersistenceState {
   version?: string
   updatedAt?: string
   lastSavedHash?: string
+}
+
+interface EditDeskMediaPreview {
+  id: string
+  title: string
+  candidateId?: string
+  mediaUrl?: string
+  resourceId?: string
+  selected: boolean
 }
 
 const FINISHING_BACKEND_LABELS: Record<EditDeskFinishingBackend, string> = {
@@ -440,6 +452,8 @@ interface AssemblyClip {
     resourceId?: string
     mediaUrl?: string
     localPath?: string
+    candidatePreviews?: EditDeskMediaPreview[]
+    selectedPreview?: EditDeskMediaPreview
   }
   binding: {
     sceneId?: string
@@ -689,7 +703,7 @@ function ProjectEditDeskWorkbench({
   draftPersistence: EditDeskDraftPersistenceState
   setDraftPersistence: Dispatch<SetStateAction<EditDeskDraftPersistenceState>>
 }) {
-  const assets = useMemo(() => editDeskAssetItems(debugView), [debugView])
+  const assets = useMemo(() => editDeskAssetItems(debugView, assembly.sourceNamespace), [assembly.sourceNamespace, debugView])
   const selectedClip = assembly.clips.find((clip) => clip.id === assembly.selectedClipId)
   const activeClip = selectedClip ?? clipAtPlayhead(assembly)
   const displayTitle = assemblyDisplayTitle(assembly, debugView, focusLabel)
@@ -724,7 +738,14 @@ function ProjectEditDeskWorkbench({
   }
 
   const movePlayhead = (playheadMs: number) => {
-    updateAssembly((current) => nextAssembly(current, { playheadMs: clampTimelineMs(playheadMs) }))
+    updateAssembly((current) => {
+      const nextPlayheadMs = clampTimelineMs(playheadMs)
+      const active = clipAtPlayhead({ ...current, playheadMs: nextPlayheadMs })
+      return nextAssembly(current, {
+        playheadMs: nextPlayheadMs,
+        selectedClipId: active?.id,
+      })
+    })
   }
 
   const handleTimelineDrop = (trackId: string, startMs: number, payload: EditDeskDragPayload) => {
@@ -923,7 +944,7 @@ function ContentUnitIntentPanel({
     <section className="edit-desk-panel edit-desk-content-unit-list" aria-label="ContentUnit 列表">
       <header className="edit-desk-panel__header">
         <div>
-          <span>ContentUnit</span>
+          <span>内容单元</span>
           <strong>影视意图与素材输出</strong>
         </div>
         <small>拖入时间线</small>
@@ -956,31 +977,74 @@ function ContentUnitIntentCard({
 }) {
   return (
     <article
+      aria-label={`${asset.title} ${contentUnitIntentSummary(asset, sourceNamespace)}`}
       className="edit-desk-asset-card"
       data-status={asset.status}
       draggable
       onDragStart={(event) => writeDragPayload(event, { kind: 'asset', id: asset.id })}
     >
       <div className="edit-desk-asset-card__main">
-        <strong>{asset.semanticRef ?? asset.contentUnitRef ?? asset.title}</strong>
-        <span>{contentUnitIntentSummary(asset, sourceNamespace)}</span>
+        <strong>{asset.title}</strong>
       </div>
-      {asset.targetEntityRef ? <p className="edit-desk-asset-card__intent">目标 {asset.targetEntityRef}</p> : null}
-      {asset.targetRef && asset.targetRef !== asset.targetEntityRef ? <p className="edit-desk-asset-card__intent">时间线 {asset.targetRef}</p> : null}
-      {asset.title && asset.title !== asset.semanticRef ? <p className="edit-desk-asset-card__title">{asset.title}</p> : null}
-      <div className="edit-desk-chip-row">
-        <StatusPill status={asset.status} />
-        <span className="edit-desk-chip">{asset.type}</span>
-        {asset.contentUnitId ? <span className="edit-desk-chip">CU {asset.contentUnitId}</span> : null}
-        {asset.candidateId ? <span className="edit-desk-chip">candidate {asset.candidateId}</span> : null}
-        {asset.resourceId ? <span className="edit-desk-chip">resource {asset.resourceId}</span> : null}
-      </div>
+      <ContentUnitPreviewStrip asset={asset} />
       {asset.blockers.length > 0 ? <p>{asset.blockers.join(' · ')}</p> : null}
       <div className="edit-desk-card-actions">
         {asset.resourceId ? <AgentSurfaceLink href={withParams(`/agent/resources/${asset.resourceId}`, params, { projectId })}>资源</AgentSurfaceLink> : null}
         {asset.contentUnitId ? <AgentSurfaceLink href={withParams('/agent/content/candidates', params, { projectId, contentUnitId: asset.contentUnitId, candidateId: asset.candidateId, resourceId: asset.resourceId })}>候选</AgentSurfaceLink> : null}
       </div>
     </article>
+  )
+}
+
+function ContentUnitPreviewStrip({ asset }: { asset: EditDeskAssetItem }) {
+  const selected = asset.selectedPreview
+  const candidates = asset.candidatePreviews.filter((candidate) => !candidate.selected)
+  return (
+    <div className="edit-desk-content-unit-previews">
+      <div className="edit-desk-preview-group">
+        <span>选择</span>
+        {selected ? (
+          <EditDeskPreviewTile item={selected} variant="selected" />
+        ) : (
+          <div className="edit-desk-preview-tile" data-empty="true">
+            <small>未选择</small>
+          </div>
+        )}
+      </div>
+      <div className="edit-desk-preview-group">
+        <span>候选</span>
+        {candidates.length > 0 ? (
+          <div className="edit-desk-preview-strip" aria-label={`${asset.title} 候选预览`}>
+            {candidates.slice(0, 4).map((candidate) => (
+              <EditDeskPreviewTile key={candidate.id} item={candidate} />
+            ))}
+          </div>
+        ) : (
+          <div className="edit-desk-preview-tile" data-empty="true">
+            <small>无候选</small>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function EditDeskPreviewTile({
+  item,
+  variant,
+}: {
+  item: EditDeskMediaPreview
+  variant?: 'selected'
+}) {
+  const isVideo = looksLikeVideo(item.mediaUrl, '')
+  return (
+    <div className="edit-desk-preview-tile" data-selected={variant === 'selected' ? 'true' : undefined}>
+      {item.mediaUrl ? (
+        isVideo ? <video src={item.mediaUrl} muted playsInline /> : <img src={item.mediaUrl} alt={item.title} />
+      ) : (
+        <small>{item.resourceId ? `resource ${item.resourceId}` : item.candidateId ?? item.title}</small>
+      )}
+    </div>
   )
 }
 
@@ -994,6 +1058,7 @@ function ProgramPreview({
   const mediaUrl = activeClip?.source.mediaUrl
   const isVideo = activeClip ? activeClip.kind === 'visual' && looksLikeVideo(mediaUrl, activeClip.source.type) : false
   const isImage = activeClip ? activeClip.kind === 'visual' && mediaUrl && !isVideo : false
+  const candidatePreviews = activeClip?.source.candidatePreviews?.filter((item) => !item.selected) ?? []
 
   return (
     <section className="edit-desk-panel edit-desk-preview" aria-label="节目预览">
@@ -1009,12 +1074,14 @@ function ProgramPreview({
           <video src={mediaUrl} controls />
         ) : isImage && mediaUrl ? (
           <img src={mediaUrl} alt={activeClip?.title ?? 'preview'} />
-        ) : (
-          <div className="edit-desk-preview__placeholder">
-            <span>{activeClip ? clipKindLabel(activeClip.kind) : 'TimelineAssembly'}</span>
-            <strong>{activeClip?.title ?? '把素材拖到时间线开始编排'}</strong>
-            <p>{activeClip?.source.resourceId ? `resource ${activeClip.source.resourceId}` : '这里是影视意图到剪辑交接前的组装预览。'}</p>
+        ) : activeClip && candidatePreviews.length > 0 ? (
+          <div className="edit-desk-preview__candidate-grid" aria-label={`${activeClip.title} 候选预览`}>
+            {candidatePreviews.map((candidate) => (
+              <EditDeskPreviewTile key={candidate.id} item={candidate} />
+            ))}
           </div>
+        ) : (
+          <div className="edit-desk-preview__black" aria-label={activeClip ? '当前内容单元没有候选预览' : '未选择时间线内容单元'} />
         )}
       </div>
     </section>
@@ -1533,13 +1600,13 @@ export function buildTimelineAssemblyState({
   targetRef: string
   focusLabel: string
 }): TimelineAssemblyState {
-  const assets = editDeskAssetItems(debugView)
   const sourceNamespace = buildTimelineAssemblySourceNamespace({
     debugView,
     productionId,
     targetRef,
     focusLabel,
   })
+  const assets = editDeskAssetItems(debugView, sourceNamespace)
   const preferredAssets = assets.filter((asset) => asset.status === 'selected')
   const timelineAssets = preferredAssets.length > 0 ? preferredAssets : assets
   let visualCursor = 0
@@ -1801,6 +1868,10 @@ function restoreAssemblyClip(value: unknown): AssemblyClip | undefined {
       resourceId: stringValue(source.resourceId ?? source.resource_id),
       mediaUrl: stringValue(source.mediaUrl ?? source.media_url),
       localPath: stringValue(source.localPath ?? source.local_path),
+      candidatePreviews: arrayValue(source.candidatePreviews ?? source.candidate_previews)
+        .map((item) => restoreEditDeskMediaPreview(recordValue(item)))
+        .filter(isEditDeskMediaPreview),
+      selectedPreview: restoreEditDeskMediaPreview(recordValue(source.selectedPreview ?? source.selected_preview)),
     },
     binding: {
       sceneId: stringValue(binding.sceneId ?? binding.scene_id),
@@ -1861,6 +1932,22 @@ function restoreClipCrop(value: Record<string, unknown> | undefined): TimelineAs
   return { x, y, width, height }
 }
 
+function restoreEditDeskMediaPreview(value: Record<string, unknown> | undefined): EditDeskMediaPreview | undefined {
+  if (!value) return undefined
+  const id = stringValue(value.id)
+    ?? stringValue(value.candidateId ?? value.candidate_id)
+    ?? stringValue(value.resourceId ?? value.resource_id)
+  if (!id) return undefined
+  return {
+    id,
+    title: stringValue(value.title ?? value.name) ?? id,
+    candidateId: stringValue(value.candidateId ?? value.candidate_id),
+    mediaUrl: stringValue(value.mediaUrl ?? value.media_url),
+    resourceId: stringValue(value.resourceId ?? value.resource_id),
+    selected: value.selected === true,
+  }
+}
+
 function isAssemblyTrack(value: AssemblyTrack | undefined): value is AssemblyTrack {
   return Boolean(value)
 }
@@ -1872,6 +1959,10 @@ function isAssemblyClip(value: AssemblyClip | undefined): value is AssemblyClip 
 function isTimelineAssemblySourceNamespaceNode(
   value: TimelineAssemblySourceNamespaceNode | undefined,
 ): value is TimelineAssemblySourceNamespaceNode {
+  return Boolean(value)
+}
+
+function isEditDeskMediaPreview(value: EditDeskMediaPreview | undefined): value is EditDeskMediaPreview {
   return Boolean(value)
 }
 
@@ -1928,14 +2019,42 @@ function sourceNamespaceRoot(
 
 function scopeFromTargetRef(input: { productionId?: string; targetRef?: string }): { scopeKind?: string; scopeRef?: string } {
   if (input.productionId) return { scopeKind: 'production', scopeRef: input.productionId }
-  const match = input.targetRef?.match(/^timeline_assembly:([^:]+):(.+)$/)
-  if (!match) return {}
-  const scopeKind = match[1]
-  const scopeRef = match[2]
+  const ref = input.targetRef?.trim()
+  if (!ref) return {}
+  const timelineMatch = ref.match(/^timeline_assembly[:/]([^:/]+)[:/](.+)$/)
+  if (timelineMatch) {
+    return {
+      ...(timelineMatch[1] ? { scopeKind: normalizeScopeKind(timelineMatch[1]) } : {}),
+      ...(timelineMatch[2] ? { scopeRef: timelineMatch[2] } : {}),
+    }
+  }
+  const productionPathMatch = ref.match(/(?:^|[/\\])productions[/\\]([^/\\:]+)/i)
+  if (productionPathMatch?.[1]) return { scopeKind: 'production', scopeRef: productionPathMatch[1] }
+  const timelinePathMatch = ref.match(/(?:^|[/\\])timeline[/\\]([^/\\:]+)/i)
+  if (timelinePathMatch?.[1]) return { scopeKind: 'production', scopeRef: timelinePathMatch[1] }
+  const directMatch = ref.match(/^(production|productions|segment|segments|scene_moment|scene_moments|scence_moment|scence_moments|expression_unit|expression_units|asset|assets|keyframe|keyframes|storyboard|storyboards|audio_cue|audio_cues)[:/](.+)$/i)
+  const directKind = directMatch?.[1]
+  const directRef = directMatch?.[2]
+  if (!directKind || !directRef) return {}
+  const scopeKind = normalizeScopeKind(directKind)
+  const scopeRef = directRef
   return {
     ...(scopeKind ? { scopeKind } : {}),
     ...(scopeRef ? { scopeRef } : {}),
   }
+}
+
+function normalizeScopeKind(value: string): string {
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'productions') return 'production'
+  if (normalized === 'segments') return 'segment'
+  if (normalized === 'scene_moments' || normalized === 'scence_moment' || normalized === 'scence_moments') return 'scene_moment'
+  if (normalized === 'expression_units') return 'expression_unit'
+  if (normalized === 'assets') return 'asset'
+  if (normalized === 'keyframes') return 'keyframe'
+  if (normalized === 'storyboards') return 'storyboard'
+  if (normalized === 'audio_cues') return 'audio_cue'
+  return normalized
 }
 
 function assemblyDisplayTitle(
@@ -1964,19 +2083,168 @@ function productionTitleFromReadModel(debugView: WorkflowArtifactDebugView, prod
   return production ? stringValue(production.title ?? production.name) : undefined
 }
 
-function editDeskAssetItems(debugView: WorkflowArtifactDebugView): EditDeskAssetItem[] {
-  return debugView.assetManifest.map((asset) => {
+function editDeskAssetItems(
+  debugView: WorkflowArtifactDebugView,
+  sourceNamespace?: TimelineAssemblySourceNamespace,
+): EditDeskAssetItem[] {
+  const items = debugView.assetManifest.map((asset) => {
     const requiredAsset = debugView.requiredAssets.find((row) => row.contentUnitId === asset.contentUnitId || row.id === asset.contentUnitId)
+    const candidatePreviews = candidatePreviewsFromRecord(asset.raw, asset.candidateId)
+    const selectedPreview = selectedPreviewFromAsset(asset, candidatePreviews)
     return {
       ...asset,
       blockers: requiredAsset?.blockers ?? [],
+      candidatePreviews,
       mediaUrl: mediaUrlFromRecord(asset.raw),
       localPath: mediaLocalPathFromRecord(asset.raw),
       sceneId: requiredAsset?.sceneId,
+      selectedPreview,
       expressionUnitId: requiredAsset?.expressionUnitId,
       targetRef: requiredAsset?.targetRef,
     }
   })
+  return sourceNamespace ? filterEditDeskAssetsForSourceNamespace(items, sourceNamespace) : items
+}
+
+function requiredAssetsForSourceNamespace(
+  debugView: WorkflowArtifactDebugView,
+  sourceNamespace: TimelineAssemblySourceNamespace,
+): WorkflowRequiredAssetRow[] {
+  return filterEditDeskAssetsForSourceNamespace(debugView.requiredAssets, sourceNamespace)
+}
+
+function filterEditDeskAssetsForSourceNamespace<T extends Pick<EditDeskAssetItem, 'targetEntityRef' | 'targetRef' | 'contentUnitRef' | 'sceneId' | 'expressionUnitId' | 'raw'>>(
+  assets: T[],
+  sourceNamespace: TimelineAssemblySourceNamespace,
+): T[] {
+  const scoped = assets.map((asset) => ({
+    asset,
+    scopeMatch: editDeskAssetScopeMatch(asset, sourceNamespace),
+  }))
+  const matches = scoped.filter((entry) => entry.scopeMatch === 'match').map((entry) => entry.asset)
+  if (matches.length > 0) return matches
+  const unknown = scoped.filter((entry) => entry.scopeMatch === 'unknown').map((entry) => entry.asset)
+  return unknown.length > 0 ? unknown : []
+}
+
+function editDeskAssetScopeMatch(
+  asset: Pick<EditDeskAssetItem, 'targetEntityRef' | 'targetRef' | 'contentUnitRef' | 'sceneId' | 'expressionUnitId' | 'raw'>,
+  sourceNamespace: TimelineAssemblySourceNamespace,
+): EditDeskAssetScopeMatch {
+  const sourceScope = sourceNamespaceScope(sourceNamespace)
+  if (!sourceScope.scopeRef) return 'match'
+  const scopedRefs: string[] = []
+
+  const raw = asset.raw
+  const rawScopeKind = stringValue(raw.scopeKind ?? raw.scope_kind)
+  const rawScopeRef = stringValue(raw.scopeRef ?? raw.scope_ref)
+  if (rawScopeKind && rawScopeRef) {
+    if (normalizeScopeKind(rawScopeKind) === sourceScope.scopeKind && sameLooseId(rawScopeRef, sourceScope.scopeRef)) return 'match'
+    return 'mismatch'
+  }
+  const rawProductionId = stringValue(raw.production_id ?? raw.productionId)
+  if (rawProductionId) {
+    if (sourceScope.scopeKind === 'production' && sameLooseId(rawProductionId, sourceScope.scopeRef)) return 'match'
+    return 'mismatch'
+  }
+  if (asset.targetRef) scopedRefs.push(asset.targetRef)
+
+  const refs = [
+    asset.targetEntityRef,
+    asset.sceneId,
+    asset.expressionUnitId,
+    stringValue(raw.target_path ?? raw.targetPath),
+    stringValue(raw.target_ref ?? raw.targetRef),
+    stringValue(raw.production_ref ?? raw.productionRef),
+    stringValue(raw.segment_ref ?? raw.segmentRef),
+    stringValue(raw.scene_moment_ref ?? raw.sceneMomentRef ?? raw.scence_moment_ref ?? raw.scenceMomentRef),
+    stringValue(raw.expression_unit_ref ?? raw.expressionUnitRef),
+  ].filter(isString)
+  scopedRefs.push(...refs)
+
+  let sawMismatch = false
+  for (const ref of scopedRefs) {
+    const scopeMatch = refScopeMatch(ref, sourceNamespace, sourceScope)
+    if (scopeMatch === 'match') return 'match'
+    if (scopeMatch === 'mismatch') sawMismatch = true
+  }
+  if (sawMismatch) return 'mismatch'
+
+  const unscopedRefs = [
+    asset.contentUnitRef,
+    stringValue(raw.path),
+    stringValue(raw.__workspace_path),
+  ].filter(isString)
+  if (unscopedRefs.some((ref) => refMatchesSourceNamespace(ref, sourceNamespace, sourceScope))) return 'match'
+  return 'unknown'
+}
+
+function sourceNamespaceScope(sourceNamespace: TimelineAssemblySourceNamespace): { scopeKind?: string; scopeRef?: string } {
+  const fromTarget = scopeFromTargetRef({ targetRef: sourceNamespace.targetRef })
+  return {
+    scopeKind: sourceNamespace.scopeKind ?? fromTarget.scopeKind,
+    scopeRef: sourceNamespace.scopeRef ?? fromTarget.scopeRef,
+  }
+}
+
+function timelineTargetRefMatchesSourceNamespace(targetRef: string, sourceNamespace: TimelineAssemblySourceNamespace): boolean {
+  if (targetRef === sourceNamespace.targetRef) return true
+  const sourceScope = sourceNamespaceScope(sourceNamespace)
+  const targetScope = scopeFromTargetRef({ targetRef })
+  return Boolean(
+    sourceScope.scopeKind
+      && sourceScope.scopeRef
+      && targetScope.scopeKind === sourceScope.scopeKind
+      && sameLooseId(targetScope.scopeRef, sourceScope.scopeRef),
+  )
+}
+
+function refScopeMatch(
+  ref: string,
+  sourceNamespace: TimelineAssemblySourceNamespace,
+  sourceScope: { scopeKind?: string; scopeRef?: string },
+): EditDeskAssetScopeMatch {
+  if (refMatchesSourceNamespace(ref, sourceNamespace, sourceScope)) return 'match'
+  const refScope = scopeFromTargetRef({ targetRef: ref })
+  if (refScope.scopeKind && refScope.scopeRef && sourceScope.scopeKind && sourceScope.scopeRef) {
+    return refScope.scopeKind === sourceScope.scopeKind && sameLooseId(refScope.scopeRef, sourceScope.scopeRef)
+      ? 'match'
+      : 'mismatch'
+  }
+  return 'unknown'
+}
+
+function refMatchesSourceNamespace(
+  ref: string,
+  sourceNamespace: TimelineAssemblySourceNamespace,
+  sourceScope: { scopeKind?: string; scopeRef?: string },
+): boolean {
+  if (timelineTargetRefMatchesSourceNamespace(ref, sourceNamespace)) return true
+  const rootPath = sourceNamespace.root?.path
+  if (rootPath && refPathStartsWith(ref, rootPath)) return true
+  for (const node of sourceNamespace.nodes) {
+    if (sourceScope.scopeRef && sameLooseId(node.id, sourceScope.scopeRef)) {
+      if (node.path && refPathStartsWith(ref, node.path)) return true
+      if (refHasPathToken(ref, sourceScope.scopeRef)) return true
+    }
+  }
+  return sourceScope.scopeRef ? refHasPathToken(ref, sourceScope.scopeRef) : false
+}
+
+function refPathStartsWith(ref: string, scopePath: string): boolean {
+  const normalizedRef = normalizeRefPath(ref)
+  const normalizedScopePath = normalizeRefPath(scopePath)
+  return normalizedRef === normalizedScopePath || normalizedRef.startsWith(`${normalizedScopePath}/`)
+}
+
+function refHasPathToken(ref: string, token: string): boolean {
+  const normalizedToken = token.trim()
+  if (!normalizedToken) return false
+  return normalizeRefPath(ref).split(/[/:\\]+/).some((part) => sameLooseId(part, normalizedToken))
+}
+
+function normalizeRefPath(value: string): string {
+  return value.trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
 }
 
 function intentRefFromAsset(
@@ -2047,8 +2315,10 @@ function clipFromAsset(
       contentUnitId: asset.contentUnitId,
       candidateId: asset.candidateId,
       resourceId: asset.resourceId,
-      mediaUrl: asset.mediaUrl,
+      mediaUrl: asset.status === 'selected' ? asset.selectedPreview?.mediaUrl ?? asset.mediaUrl : undefined,
       localPath: asset.localPath,
+      candidatePreviews: asset.candidatePreviews,
+      selectedPreview: asset.selectedPreview,
     },
     binding: {
       sceneId: asset.sceneId,
@@ -2110,6 +2380,8 @@ export function buildEditDecisionHandoff(
   const validation = assemblyValidation(assembly, debugView)
   const scope = scopeFromAssembly(assembly)
   const assemblyExport = timelineAssemblyExport(assembly)
+  const scopedRequiredAssets = requiredAssetsForSourceNamespace(debugView, assembly.sourceNamespace)
+  const scopedAssetManifest = editDeskAssetItems(debugView, assembly.sourceNamespace)
   const finishingCompileInput = {
     timelineAssembly: assemblyExport,
     assetManifest,
@@ -2183,8 +2455,8 @@ export function buildEditDecisionHandoff(
     duration_ms: assemblyDurationMs(assembly),
     source_artifacts: {
       timeline_namespace_count: debugView.timelineNamespaces.length,
-      required_assets_count: debugView.requiredAssets.length,
-      asset_manifest_count: debugView.assetManifest.length,
+      required_assets_count: scopedRequiredAssets.length,
+      asset_manifest_count: scopedAssetManifest.length,
       openmontage_edit_decisions_count: debugView.editDecisions.length,
     },
     source_namespace: assembly.sourceNamespace,
@@ -2970,7 +3242,8 @@ function timelineAssemblyCoverage(
   assembly: TimelineAssemblyState,
   debugView: WorkflowArtifactDebugView,
 ): TimelineAssemblyCoverageMap {
-  const items = debugView.requiredAssets.map((asset): TimelineAssemblyCoverageItem => {
+  const requiredAssets = requiredAssetsForSourceNamespace(debugView, assembly.sourceNamespace)
+  const items = requiredAssets.map((asset): TimelineAssemblyCoverageItem => {
     const clips = assembly.clips.filter((clip) => clipMatchesRequiredAsset(clip, asset))
     const selectedClipCount = clips.filter((clip) => clip.source.status === 'selected').length
     const status: TimelineAssemblyCoverageStatus = clips.length === 0
@@ -3454,6 +3727,116 @@ function mediaLocalPathFromRecord(row: Record<string, unknown>): string | undefi
     .find((value) => Boolean(value))
 }
 
+function candidatePreviewsFromRecord(row: Record<string, unknown>, selectedCandidateId: string | undefined): EditDeskMediaPreview[] {
+  const candidates = [
+    ...arrayValue(row.candidates),
+    ...arrayValue(row.candidateItems),
+    ...arrayValue(row.candidate_items),
+    ...arrayValue(row.outputs),
+    ...arrayValue(row.content_outputs),
+    ...arrayValue(row.contentOutputs),
+  ].map(recordValue).filter(isRecord)
+
+  const selection = selectedOutputRecord(row) ?? recordValue(row.selection)
+  const previews = candidates
+    .map((candidate, index) => mediaPreviewFromCandidateRecord(candidate, index, selectedCandidateId))
+    .filter(isEditDeskMediaPreview)
+  const selectedPreview = mediaPreviewFromSelectionRecord(selection, selectedCandidateId)
+  return uniqueMediaPreviews(selectedPreview ? [selectedPreview, ...previews] : previews)
+}
+
+function selectedPreviewFromAsset(
+  asset: WorkflowAssetManifestRow,
+  previews: EditDeskMediaPreview[],
+): EditDeskMediaPreview | undefined {
+  if (asset.status !== 'selected') return undefined
+  const selected = previews.find((preview) => preview.selected)
+    ?? previews.find((preview) => asset.candidateId && preview.candidateId === asset.candidateId)
+    ?? previews.find((preview) => asset.resourceId && preview.resourceId === asset.resourceId)
+  if (selected) return { ...selected, selected: true }
+  const fallback = mediaPreviewFromSelectionRecord(selectedOutputRecord(asset.raw) ?? recordValue(asset.raw.selection), asset.candidateId)
+  if (fallback) return fallback
+  const mediaUrl = mediaUrlFromRecord(asset.raw)
+  if (!asset.resourceId && !mediaUrl) return undefined
+  return {
+    id: asset.candidateId ?? asset.resourceId ?? asset.id,
+    title: asset.title,
+    candidateId: asset.candidateId,
+    mediaUrl,
+    resourceId: asset.resourceId,
+    selected: true,
+  }
+}
+
+function mediaPreviewFromSelectionRecord(
+  selection: Record<string, unknown> | undefined,
+  selectedCandidateId: string | undefined,
+): EditDeskMediaPreview | undefined {
+  if (!selection) return undefined
+  return mediaPreviewFromCandidateRecord({
+    ...selection,
+    selected: true,
+    candidate_id: selection.candidate_id ?? selection.candidateId ?? selectedCandidateId,
+  }, 0, selectedCandidateId)
+}
+
+function mediaPreviewFromCandidateRecord(
+  candidate: Record<string, unknown>,
+  index: number,
+  selectedCandidateId: string | undefined,
+): EditDeskMediaPreview | undefined {
+  const output = arrayValue(candidate.outputs ?? candidate.content_outputs ?? candidate.contentOutputs)
+    .map(recordValue)
+    .filter(isRecord)[0]
+  const resource = recordValue(candidate.resource)
+    ?? recordValue(candidate.selected_resource)
+    ?? recordValue(candidate.selectedResource)
+    ?? recordValue(output?.resource)
+  const candidateId = stringValue(
+    candidate.candidate_id
+      ?? candidate.candidateId
+      ?? candidate.id
+      ?? recordValue(candidate.candidate)?.id,
+  )
+  const resourceId = stringValue(
+    candidate.resource_id
+      ?? candidate.resourceId
+      ?? output?.resource_id
+      ?? output?.resourceId
+      ?? resource?.id,
+  )
+  const mediaSource = {
+    ...candidate,
+    ...(output ?? {}),
+    ...(resource ? { resource } : {}),
+  }
+  const mediaUrl = mediaUrlFromRecord(mediaSource)
+  const id = candidateId ?? resourceId ?? mediaUrl ?? `candidate-${index + 1}`
+  const selected = candidate.selected === true
+    || stringValue(candidate.status) === 'selected'
+    || stringValue(candidate.decision) === 'adopt'
+    || stringValue(candidate.decision_status ?? candidate.decisionStatus) === 'adopted'
+    || (candidateId !== undefined && selectedCandidateId !== undefined && candidateId === selectedCandidateId)
+  return {
+    id,
+    title: stringValue(candidate.title ?? candidate.name) ?? candidateId ?? resourceId ?? `候选 ${index + 1}`,
+    candidateId,
+    mediaUrl,
+    resourceId,
+    selected,
+  }
+}
+
+function uniqueMediaPreviews(previews: EditDeskMediaPreview[]): EditDeskMediaPreview[] {
+  const byId = new Map<string, EditDeskMediaPreview>()
+  for (const preview of previews) {
+    const key = [preview.candidateId, preview.resourceId, preview.mediaUrl, preview.id].filter(Boolean).join(':')
+    const existing = byId.get(key)
+    byId.set(key, existing ? { ...existing, ...preview, selected: existing.selected || preview.selected } : preview)
+  }
+  return [...byId.values()]
+}
+
 function normalizeLocalMediaPath(value: string | undefined): string | undefined {
   if (!value) return undefined
   if (/^file:\/\//i.test(value)) {
@@ -3485,7 +3868,7 @@ export function buildWorkflowArtifactDebugView({
   readModel?: unknown
   snapshot?: AgentSurfaceSnapshot
 }): WorkflowArtifactDebugView {
-  const readModelRecord = recordValue(recordValue(readModel)?.projectReadModel ?? readModel) ?? {}
+  const readModelRecord = projectReadModelPayload(readModel)
   const summary = recordValue(snapshot?.data?.status_summary)
   const timelineStatus = projectTimelineStatus(readModelRecord, summary)
   const timelineNamespaces = timelineNamespaceRows(readModelRecord, summary, timelineStatus)
@@ -3532,6 +3915,15 @@ export function buildWorkflowArtifactDebugView({
       read_model: readModelRecord,
     },
   }
+}
+
+function projectReadModelPayload(readModel: unknown): Record<string, unknown> {
+  const record = recordValue(readModel)
+  return recordValue(record?.projectReadModel)
+    ?? recordValue(record?.projectContentCanvasReadModel)
+    ?? recordValue(record?.projectHomeReadModel)
+    ?? record
+    ?? {}
 }
 
 function timelineNamespaceRows(
@@ -3640,7 +4032,11 @@ function contentUnitRows(readModel: Record<string, unknown>, summary: Record<str
     ?? recordValue(overview?.content)
   const candidateView = recordValue(readModel.candidateView ?? readModel.candidate_view)
   const timelineStatus = projectTimelineStatus(readModel, summary)
-  const firstProduction = recordValue(arrayValue(summary?.productions)[0])
+  const productionContentRows = contentUnitRowsFromProductionContainers([
+    ...arrayValue(readModel.productions),
+    ...arrayValue(recordValue(readModel.overview)?.productions),
+    ...arrayValue(summary?.productions),
+  ])
   const candidates = [
     readModel.contentUnits,
     readModel.content_units,
@@ -3657,22 +4053,68 @@ function contentUnitRows(readModel: Record<string, unknown>, summary: Record<str
     contentSummary?.outputs,
     contentSummary?.contentUnitOutputs,
     contentSummary?.content_unit_outputs,
+    readModel.contentUnitSummaries,
+    readModel.content_unit_summaries,
+    content?.contentUnitSummaries,
+    content?.content_unit_summaries,
+    contentSummary?.contentUnitSummaries,
+    contentSummary?.content_unit_summaries,
     readiness?.contentUnits,
     readiness?.content_units,
     readiness?.contentUnitOutputs,
     readiness?.content_unit_outputs,
-    firstProduction?.content_units,
-    firstProduction?.contentUnits,
-    firstProduction?.content_unit_outputs,
-    firstProduction?.contentUnitOutputs,
+    timelineStatus?.timeline_assemblies,
+    timelineStatus?.timelineAssemblies,
+    timelineStatus?.content_units,
+    timelineStatus?.contentUnits,
     candidateView?.contentUnits,
     candidateView?.content_units,
   ]
-  const rows = candidates
+  const candidateMaps = [
+    readModel.contentUnitCandidates,
+    readModel.content_unit_candidates,
+    content?.contentUnitCandidates,
+    content?.content_unit_candidates,
+    contentSummary?.contentUnitCandidates,
+    contentSummary?.content_unit_candidates,
+    readiness?.contentUnitCandidates,
+    readiness?.content_unit_candidates,
+    candidateView?.contentUnitCandidates,
+    candidateView?.content_unit_candidates,
+  ]
+  const contentRows = candidates
     .flatMap((candidate) => arrayValue(candidate).map(recordValue).filter(isRecord))
+    .concat(productionContentRows)
     .map(normalizeContentUnitRow)
-    .filter(contentUnitRowHasIdentity)
-  return uniqueByKey(rows, contentUnitRowKey)
+  const rows = [
+    ...contentRows,
+    ...contentUnitRowsFromCandidateMaps(candidateMaps),
+  ].filter(contentUnitRowHasIdentity)
+  return mergeContentUnitRows(rows)
+}
+
+function contentUnitRowsFromProductionContainers(productions: unknown[]): Record<string, unknown>[] {
+  return productions
+    .map(recordValue)
+    .filter(isRecord)
+    .flatMap((production) => {
+      const productionId = stringValue(production.id ?? production.production_id ?? production.productionId)
+      const productionRef = stringValue(production.production_ref ?? production.productionRef ?? production.ref)
+        ?? (productionId ? `productions/${productionId}` : undefined)
+      const rows = [
+        ...arrayValue(production.content_units),
+        ...arrayValue(production.contentUnits),
+        ...arrayValue(production.content_unit_outputs),
+        ...arrayValue(production.contentUnitOutputs),
+      ].map(recordValue).filter(isRecord)
+      return rows.map((row) => {
+        if (!productionRef || contentUnitTargetEntityRef(row)) return row
+        return {
+          ...row,
+          production_ref: productionRef,
+        }
+      })
+    })
 }
 
 function normalizeContentUnitRow(row: Record<string, unknown>): Record<string, unknown> {
@@ -3683,6 +4125,158 @@ function normalizeContentUnitRow(row: Record<string, unknown>): Record<string, u
     ...(contentUnit ?? {}),
     ...row,
   }
+}
+
+function contentUnitRowsFromCandidateMaps(candidateMaps: unknown[]): Record<string, unknown>[] {
+  return candidateMaps.flatMap((candidateMap) => {
+    const record = recordValue(candidateMap)
+    if (record) {
+      return Object.entries(record).flatMap(([contentUnitId, value]) => {
+        const row = recordValue(value)
+        const candidates = contentUnitCandidateRecords(value)
+        const resolvedContentUnitId = stringValue(row?.content_unit_id ?? row?.contentUnitId ?? row?.id) ?? contentUnitId
+        return contentUnitRowFromCandidateRecords(resolvedContentUnitId, candidates, row)
+      })
+    }
+    return arrayValue(candidateMap)
+      .map(recordValue)
+      .filter(isRecord)
+      .flatMap((row) => {
+        const contentUnitId = stringValue(row.content_unit_id ?? row.contentUnitId ?? row.id)
+        if (!contentUnitId) return []
+        return contentUnitRowFromCandidateRecords(contentUnitId, contentUnitCandidateRecords(row), row)
+      })
+  })
+}
+
+function contentUnitRowFromCandidateRecords(
+  contentUnitId: string,
+  candidates: Record<string, unknown>[],
+  row: Record<string, unknown> | undefined,
+): Record<string, unknown>[] {
+  const selectedCandidate = candidates.find(candidateRecordIsSelected)
+  const candidateIds = uniqueStrings(candidates.map(candidateRecordId).filter(isString))
+  return [compactRecord({
+    ...(row ?? {}),
+    id: stringValue(row?.id) ?? contentUnitId,
+    content_unit_id: contentUnitId,
+    contentUnitId,
+    content_unit_ref: stringValue(row?.content_unit_ref ?? row?.contentUnitRef) ?? `content_units/${contentUnitId}`,
+    candidate_count: numberValue(row?.candidate_count ?? row?.candidateCount) ?? candidates.length,
+    candidate_ids: candidateIds.length > 0 ? candidateIds : undefined,
+    candidates: candidates.length > 0 ? candidates : undefined,
+    selected_candidate: stringValue(row?.selected_candidate ?? row?.selectedCandidate ?? row?.selected_candidate_id ?? row?.selectedCandidateId)
+      ?? candidateRecordId(selectedCandidate),
+    selected_resource: stringValue(row?.selected_resource ?? row?.selectedResource ?? row?.selected_resource_id ?? row?.selectedResourceId)
+      ?? candidateRecordResourceId(selectedCandidate),
+  })]
+}
+
+function mergeContentUnitRows(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+  const byKey = new Map<string, Record<string, unknown>>()
+  for (const row of rows) {
+    const key = contentUnitRowKey(row)
+    if (!key) continue
+    const previous = byKey.get(key)
+    byKey.set(key, previous ? mergeContentUnitRow(previous, row) : row)
+  }
+  return [...byKey.values()]
+}
+
+function mergeContentUnitRow(left: Record<string, unknown>, right: Record<string, unknown>): Record<string, unknown> {
+  const candidates = uniqueCandidateRecords([
+    ...contentUnitCandidateRecords(left),
+    ...contentUnitCandidateRecords(right),
+  ])
+  const selectedCandidate = candidates.find(candidateRecordIsSelected)
+  const candidateIds = uniqueStrings([
+    ...arrayValue(left.candidate_ids ?? left.candidateIds).map((candidate) => stringValue(recordValue(candidate)?.id ?? recordValue(candidate)?.candidate_id ?? candidate)).filter(isString),
+    ...arrayValue(right.candidate_ids ?? right.candidateIds).map((candidate) => stringValue(recordValue(candidate)?.id ?? recordValue(candidate)?.candidate_id ?? candidate)).filter(isString),
+    ...candidates.map(candidateRecordId).filter(isString),
+  ])
+  const candidateCount = Math.max(
+    numberValue(left.candidate_count ?? left.candidateCount) ?? 0,
+    numberValue(right.candidate_count ?? right.candidateCount) ?? 0,
+    candidates.length,
+  )
+  return compactRecord({
+    ...left,
+    ...right,
+    candidate_count: candidateCount,
+    candidate_ids: candidateIds.length > 0 ? candidateIds : undefined,
+    candidates: candidates.length > 0 ? candidates : undefined,
+    selected_candidate: stringValue(right.selected_candidate ?? right.selectedCandidate ?? right.selected_candidate_id ?? right.selectedCandidateId)
+      ?? stringValue(left.selected_candidate ?? left.selectedCandidate ?? left.selected_candidate_id ?? left.selectedCandidateId)
+      ?? candidateRecordId(selectedCandidate),
+    selected_resource: stringValue(right.selected_resource ?? right.selectedResource ?? right.selected_resource_id ?? right.selectedResourceId)
+      ?? stringValue(left.selected_resource ?? left.selectedResource ?? left.selected_resource_id ?? left.selectedResourceId)
+      ?? candidateRecordResourceId(selectedCandidate),
+  })
+}
+
+function contentUnitCandidateRecords(value: unknown): Record<string, unknown>[] {
+  const direct = arrayValue(value).map(recordValue).filter(isRecord)
+  if (direct.length > 0) return direct
+  const row = recordValue(value)
+  if (!row) return []
+  return [
+    ...arrayValue(row.candidates),
+    ...arrayValue(row.candidateItems),
+    ...arrayValue(row.candidate_items),
+    ...arrayValue(row.candidate_records),
+    ...arrayValue(row.candidateRecords),
+    ...arrayValue(row.outputs),
+    ...arrayValue(row.content_outputs),
+    ...arrayValue(row.contentOutputs),
+    ...arrayValue(row.items),
+    ...arrayValue(row.records),
+  ].map(recordValue).filter(isRecord)
+}
+
+function uniqueCandidateRecords(candidates: Record<string, unknown>[]): Record<string, unknown>[] {
+  const byKey = new Map<string, Record<string, unknown>>()
+  for (const candidate of candidates) {
+    const key = [
+      candidateRecordId(candidate),
+      candidateRecordResourceId(candidate),
+      stringValue(candidate.artifactRef ?? candidate.artifact_ref),
+      stringValue(candidate.inputHash ?? candidate.input_hash),
+      stringValue(candidate.source ?? candidate.model),
+    ].filter(Boolean).join(':') || String(byKey.size)
+    const previous = byKey.get(key)
+    byKey.set(key, previous ? { ...previous, ...candidate } : candidate)
+  }
+  return [...byKey.values()]
+}
+
+function candidateRecordIsSelected(candidate: Record<string, unknown> | undefined): boolean {
+  if (!candidate) return false
+  return candidate.selected === true
+    || stringValue(candidate.status) === 'selected'
+    || stringValue(candidate.decision) === 'adopt'
+    || stringValue(candidate.decision_status ?? candidate.decisionStatus) === 'adopted'
+}
+
+function candidateRecordId(candidate: Record<string, unknown> | undefined): string | undefined {
+  return stringValue(candidate?.candidate_id ?? candidate?.candidateId ?? candidate?.id ?? recordValue(candidate?.candidate)?.id)
+}
+
+function candidateRecordResourceId(candidate: Record<string, unknown> | undefined): string | undefined {
+  if (!candidate) return undefined
+  const output = arrayValue(candidate.outputs ?? candidate.content_outputs ?? candidate.contentOutputs)
+    .map(recordValue)
+    .filter(isRecord)[0]
+  const resource = recordValue(candidate.resource)
+    ?? recordValue(candidate.selected_resource)
+    ?? recordValue(candidate.selectedResource)
+    ?? recordValue(output?.resource)
+  return stringValue(
+    candidate.resource_id
+      ?? candidate.resourceId
+      ?? output?.resource_id
+      ?? output?.resourceId
+      ?? resource?.id,
+  )
 }
 
 function contentUnitRowHasIdentity(row: Record<string, unknown>): boolean {

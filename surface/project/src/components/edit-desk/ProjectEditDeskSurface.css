@@ -212,6 +212,69 @@
   font-weight: 650;
 }
 
+.edit-desk-content-unit-previews {
+  display: grid;
+  grid-template-columns: minmax(74px, 0.65fr) minmax(0, 1fr);
+  gap: 7px;
+  min-width: 0;
+}
+
+.edit-desk-preview-group {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+}
+
+.edit-desk-preview-group > span {
+  color: var(--ms-color-muted-foreground);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.edit-desk-preview-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  min-width: 0;
+}
+
+.edit-desk-preview-tile {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--ms-color-border);
+  border-radius: 6px;
+  background: #050505;
+}
+
+.edit-desk-preview-tile[data-selected="true"] {
+  border-color: color-mix(in srgb, var(--ms-color-success) 55%, var(--ms-color-border));
+}
+
+.edit-desk-preview-tile[data-empty="true"] {
+  border-style: dashed;
+}
+
+.edit-desk-preview-tile img,
+.edit-desk-preview-tile video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.edit-desk-preview-tile small {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--ms-color-muted-foreground);
+  font-size: 10px;
+  line-height: 1.25;
+  padding: 4px;
+  text-align: center;
+}
+
 .edit-desk-asset-card__main span,
 .edit-desk-asset-card p,
 .edit-desk-empty {
@@ -313,6 +376,30 @@
   color: var(--ms-color-muted-foreground);
   font-size: 13px;
   line-height: 1.45;
+}
+
+.edit-desk-preview__black {
+  width: 100%;
+  height: 100%;
+  min-height: 230px;
+  background: #000;
+}
+
+.edit-desk-preview__candidate-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  min-height: 230px;
+  align-content: center;
+  background: #000;
+  padding: 10px;
+}
+
+.edit-desk-preview__candidate-grid .edit-desk-preview-tile img,
+.edit-desk-preview__candidate-grid .edit-desk-preview-tile video {
+  object-fit: cover;
 }
 
 .edit-desk-inspector__body,

@@ -15,6 +15,14 @@ toolGrants:
 
 Use this skill when a user asks the provider to inspect the current MovScript project, create a project, or work with project/script context. If runtime ownership or service availability is unclear, use the `runtime` skill first.
 
+## Production Contract
+
+- Production step: project initialization, project context resolution, and script/source orientation before planning or review.
+- Systems/config: Project Service/Data Service own durable projects, source, read models, and context; runtime/daemon owns endpoint readiness; UI context is only a hint.
+- Blockers: missing explicit project locator, Project Service unavailable, ambiguous current UI context, or vague project creation intent.
+- Human review: create a project only after explicit user request/confirmation; do not use UI focus as implicit permission for project-scoped writes.
+- Output: report resolved project id/path/title, source/read-model entrypoints, surface URL when available, blockers, and next planning/review action.
+
 ## Concepts
 
 - The selected project workspace is a project Git repository.

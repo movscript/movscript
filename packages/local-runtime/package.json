@@ -24,6 +24,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@movscript/app-runner": "workspace:*",
     "@movscript/runtime-contracts": "workspace:*"
   },
   "devDependencies": {

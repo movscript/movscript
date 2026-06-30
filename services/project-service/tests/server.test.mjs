@@ -196,6 +196,8 @@ test('project-service exposes a stable project read-model endpoint', async () =>
   assert.equal(readModel.projectReadModel.inspection.schema, 'movscript.workspace-inspection.v1')
   assert.equal(readModel.projectReadModel.sourceSummary.documentCount >= 2, true)
   assert.equal(readModel.projectReadModel.contentUnits.length >= 1, true)
+  assert.equal(Array.isArray(readModel.projectReadModel.contentUnitSummaries), true)
+  assert.equal(typeof readModel.projectReadModel.contentUnitCandidates, 'object')
   assert.equal(readModel.projectReadModel.contentUnits.find(item => item.record.id === 'cu_opening_assembly')?.record.target_ref, 'timeline_assembly:segment:a19d')
   assert.equal(readModel.projectReadModel.projectTimelineStatus.schema, 'movscript.project_timeline_status.v1')
   assert.deepEqual(readModel.projectReadModel.projectTimelineStatus.namespace_vocabulary.timeline_namespaces, ['act', 'sequence', 'beat', 'episode'])

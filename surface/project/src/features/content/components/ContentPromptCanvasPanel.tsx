@@ -27,8 +27,6 @@ import {
   generationBackendPreflightBlockerMessages,
   generationBackendPreflightIsReady,
   generationParamDefaults,
-  generationParamRequiresValueSatisfied,
-  generationReferenceMediaTypeShortLabel,
   generationReferenceAssetsFromPromptText,
   generationReferenceRoleLabel,
   generationReferenceRoleOptionsForMediaType,
@@ -37,7 +35,6 @@ import {
   type GenerationBackendPreflightResult,
   type GenerationIntentPayload,
 } from '@movscript/core/generation'
-import { publicAgentBackendModelLabel as publicModelLabel } from '@movscript/core/agent'
 import { allocateMovScriptEntityId } from '@movscript/domain'
 import { readResourceDragPayload, resourceDropAcceptsPayload } from '@movscript/resource-surface/resource-interaction'
 import { ResourceFileImage, ResourceFileVideo } from '@movscript/resource-surface/resource-media-components'
@@ -65,7 +62,6 @@ import {
   GenerationCallMessages,
   GenerationCallMetaRow,
   GenerationCallPromptBlock,
-  GenerationParamPreview,
   GenerationReferenceRoleMenu,
 } from '@movscript/ui/business/generation'
 
@@ -123,6 +119,7 @@ import {
   mediaKindLabel,
   nodeCandidateBadge,
   promptFromContentNode,
+  upsertContentNodeReferenceInPrompt,
 } from './contentCanvasWorkspaceModel'
 import {
   expressionUnitKindShortLabel,
@@ -410,6 +407,7 @@ export function ContentPromptCanvasPanel({
   const suppressNextNodeClickRef = useRef(false)
   const panelRef = useRef<HTMLElement | null>(null)
   const flowNodeSemanticSyncKeyRef = useRef<string | null>(null)
+  const [localPromptReferenceEdges, setLocalPromptReferenceEdges] = useState<Edge[]>([])
   useEffect(() => () => {
     if (focusFrameRef.current !== null) window.cancelAnimationFrame(focusFrameRef.current)
   }, [])
@@ -419,6 +417,10 @@ export function ContentPromptCanvasPanel({
   )
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes])
   const canvasNodeIdSet = useMemo(() => new Set(canvasNodeIds), [canvasNodeIds])
+  const visibleCreativeNodeIdSet = useMemo(
+    () => new Set(creativeGraph.nodes.map((node) => node.id)),
+    [creativeGraph.nodes],
+  )
   const nodeLibraryNodes = useMemo(
     () => contentCanvasNodeLibraryNodes(nodes, nodeLibraryQuery, activeCanvasScope),
     [activeCanvasScope, nodeLibraryQuery, nodes],
@@ -466,6 +468,10 @@ export function ContentPromptCanvasPanel({
   const commitPromptFromNode = useCallback((node: ContentCanvasNode, prompt: string) => {
     onPromptCommit(node, prompt)
   }, [onPromptCommit])
+  const appendLocalPromptReferenceEdge = useCallback((sourceNode: ContentCanvasNode, targetNode: ContentCanvasNode) => {
+    if (!visibleCreativeNodeIdSet.has(sourceNode.id) || !visibleCreativeNodeIdSet.has(targetNode.id)) return
+    setLocalPromptReferenceEdges((current) => appendPromptReferencePreviewEdge(current, sourceNode, targetNode))
+  }, [visibleCreativeNodeIdSet])
   const activePromptReferenceTargetId = useMemo(() => {
     if (!focusedNodeId) return null
     const target = creativeGraph.nodes.find((node) => node.id === focusedNodeId)
@@ -502,7 +508,9 @@ export function ContentPromptCanvasPanel({
     const currentPrompt = promptByNodeId[target.id] ?? ''
     const nextPrompt = appendContentNodeReferenceToPrompt(currentPrompt, sourceNode)
     updatePromptDraft(target, nextPrompt)
-  }, [activePromptReferenceTargetId, nodeById, promptByNodeId, updatePromptDraft])
+    commitPromptFromNode(target, nextPrompt)
+    appendLocalPromptReferenceEdge(sourceNode, target)
+  }, [activePromptReferenceTargetId, appendLocalPromptReferenceEdge, commitPromptFromNode, nodeById, promptByNodeId, updatePromptDraft])
   const appendReferenceToPromptTargetWithRole = useCallback((
     targetNode: ContentCanvasNode,
     sourceNode: ContentCanvasNode,
@@ -510,18 +518,24 @@ export function ContentPromptCanvasPanel({
     mediaType?: PromptReferenceMediaType,
   ) => {
     const currentPrompt = promptByNodeId[targetNode.id] ?? ''
-    const nextPrompt = appendContentNodeReferenceToPrompt(currentPrompt, sourceNode, {
+    const nextPrompt = upsertContentNodeReferenceInPrompt(currentPrompt, sourceNode, {
       ...(role ? { role } : {}),
       ...(mediaType ? { mediaType } : {}),
     })
     updatePromptDraft(targetNode, nextPrompt)
-  }, [promptByNodeId, updatePromptDraft])
+    commitPromptFromNode(targetNode, nextPrompt)
+    appendLocalPromptReferenceEdge(sourceNode, targetNode)
+  }, [appendLocalPromptReferenceEdge, commitPromptFromNode, promptByNodeId, updatePromptDraft])
   const appendReferenceToPromptTarget = useCallback((targetNode: ContentCanvasNode, sourceNodeId: string, point?: { x: number; y: number }) => {
     if (targetNode.id === sourceNodeId) return
     const sourceNode = nodeById.get(sourceNodeId)
     if (!sourceNode) return
     const mediaType = promptReferenceMediaTypeForContentNode(sourceNode, candidateSelections)
     const roleOptions = mediaType ? generationReferenceRoleOptionsForMediaType(mediaType) : []
+    const defaultRole = mediaType
+      ? generationDefaultReferenceRoleForMediaType(mediaType) ?? roleOptions[0]?.value
+      : undefined
+    appendReferenceToPromptTargetWithRole(targetNode, sourceNode, defaultRole, mediaType)
     if (point && mediaType && roleOptions.length > 1) {
       const menuPoint = contentPromptReferenceRoleMenuPoint(point)
       setReferenceRoleMenu({
@@ -530,11 +544,9 @@ export function ContentPromptCanvasPanel({
         targetNodeId: targetNode.id,
         sourceNodeId: sourceNode.id,
         mediaType,
-        role: generationDefaultReferenceRoleForMediaType(mediaType) ?? roleOptions[0]?.value ?? 'reference_image',
+        role: defaultRole ?? 'reference_image',
       })
-      return
     }
-    appendReferenceToPromptTargetWithRole(targetNode, sourceNode)
   }, [appendReferenceToPromptTargetWithRole, candidateSelections, nodeById])
   const initialFlowNodes = useMemo<Node<CreativeFlowNodeData>[]>(() => creativeGraph.nodes.map((item) => {
     const candidatePreviews = candidatePreviewsForNode(item.source, candidateSelections)
@@ -587,6 +599,10 @@ export function ContentPromptCanvasPanel({
   })), [creativeGraph.edges])
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(initialFlowNodes)
   const [flowEdges, setFlowEdges] = useEdgesState(initialFlowEdges)
+  const displayedFlowEdges = useMemo(
+    () => mergePromptReferencePreviewEdges(flowEdges, localPromptReferenceEdges, visibleCreativeNodeIdSet),
+    [flowEdges, localPromptReferenceEdges, visibleCreativeNodeIdSet],
+  )
   const flowNodeSemanticSyncKey = useMemo(
     () => `${activeCanvasDocument?.id ?? 'free'}:${initialFlowNodes.map((node) => node.id).join('|')}`,
     [activeCanvasDocument?.id, initialFlowNodes],
@@ -685,6 +701,8 @@ export function ContentPromptCanvasPanel({
 
   useEffect(() => {
     setFlowEdges(initialFlowEdges)
+    setLocalPromptReferenceEdges((currentEdges) =>
+      currentEdges.filter((edge) => !flowEdgeListHasSourceTargetPair(initialFlowEdges, edge.source, edge.target)))
   }, [initialFlowEdges, setFlowEdges])
 
   useEffect(() => {
@@ -712,15 +730,46 @@ export function ContentPromptCanvasPanel({
     () => new Set(creativeGraph.nodes.filter((node) => isCreativePromptEditableNode(node)).map((node) => node.id)),
     [creativeGraph.nodes],
   )
+  const promptReferenceMenuPointForNode = useCallback((nodeId: string): { x: number; y: number } => {
+    const nodeElement = Array
+      .from(panelRef.current?.querySelectorAll<HTMLElement>('.react-flow__node') ?? [])
+      .find((element) => element.getAttribute('data-id') === nodeId)
+    if (nodeElement) {
+      const rect = nodeElement.getBoundingClientRect()
+      return {
+        x: Math.round(rect.left + rect.width / 2),
+        y: Math.round(rect.top + Math.min(56, Math.max(32, rect.height * 0.32))),
+      }
+    }
+    const bounds = panelRef.current?.getBoundingClientRect()
+    return {
+      x: Math.round(bounds ? bounds.left + bounds.width / 2 : window.innerWidth / 2),
+      y: Math.round(bounds ? bounds.top + bounds.height / 2 : window.innerHeight / 2),
+    }
+  }, [])
   const handleConnect = useCallback((connection: Connection) => {
     const source = connection.source ? nodeById.get(connection.source) : undefined
     const target = connection.target ? nodeById.get(connection.target) : undefined
     if (!source || !target || source.id === target.id) return
-    if (!editablePromptNodeIds.has(target.id)) return
-    const currentPrompt = promptByNodeId[target.id] ?? ''
-    const nextPrompt = appendContentNodeReferenceToPrompt(currentPrompt, source)
-    updatePromptDraft(target, nextPrompt)
-  }, [editablePromptNodeIds, nodeById, promptByNodeId, updatePromptDraft])
+    const targetEditable = editablePromptNodeIds.has(target.id)
+    const sourceEditable = editablePromptNodeIds.has(source.id)
+    const focusedEditable = focusedNodeId === source.id && sourceEditable
+      ? source
+      : focusedNodeId === target.id && targetEditable
+        ? target
+        : null
+    const promptTarget = focusedEditable ?? (targetEditable ? target : sourceEditable ? source : null)
+    const referenceSource = promptTarget?.id === source.id ? target : source
+    if (!promptTarget || !referenceSource) return
+    setContextMenu(null)
+    setQuickAddMenu(null)
+    onSelectNode(selectionKindForPromptNode(promptTarget), promptTarget.id)
+    appendReferenceToPromptTarget(
+      promptTarget,
+      referenceSource.id,
+      promptReferenceMenuPointForNode(promptTarget.id),
+    )
+  }, [appendReferenceToPromptTarget, editablePromptNodeIds, focusedNodeId, nodeById, onSelectNode, promptReferenceMenuPointForNode])
 
   const positionForContextChildCreate = useCallback((node: ContentCanvasNode): ContentCanvasNodePosition => {
     const flowNode = flowNodes.find((item) => item.id === node.id)
@@ -1154,7 +1203,7 @@ export function ContentPromptCanvasPanel({
       ) : null}
       <ReactFlow
         nodes={flowNodes}
-        edges={flowEdges}
+        edges={displayedFlowEdges}
         nodeTypes={nodeTypes}
         onConnect={handleConnect}
         onInit={setFlowInstance}
@@ -1591,8 +1640,9 @@ function ContentPromptFlowNode({ data }: NodeProps<Node<CreativeFlowNodeData>>) 
         data.onReferenceDrop(node, sourceNodeId, { x: event.clientX, y: event.clientY })
       }}
     >
-      <Handle type="target" position={Position.Left} />
       <section className="content-prompt-flow-node__preview-card">
+        <Handle className="content-prompt-flow-node__handle content-prompt-flow-node__handle--target" type="target" position={Position.Left} />
+        <Handle className="content-prompt-flow-node__handle content-prompt-flow-node__handle--source" type="source" position={Position.Right} />
         <div className="content-prompt-flow-node__header">
           <span className="content-prompt-flow-node__icon">
             <Icon size={15} aria-hidden="true" />
@@ -1729,7 +1779,6 @@ function ContentPromptFlowNode({ data }: NodeProps<Node<CreativeFlowNodeData>>) 
           </GenerationCallComposerRoot>
         </section>
       ) : null}
-      <Handle type="source" position={Position.Right} />
     </article>
   )
 }
@@ -2556,37 +2605,6 @@ function ContentPromptFlowNodeGenerationPanel({
     : backendPreflightMessages
   const generationMessages = [...readinessMessages, ...preflightMessages]
   const canSubmit = localCanSubmit && Boolean(backendPreflight) && generationBackendPreflightIsReady(backendPreflight)
-  const visibleParamPreviewItems = supportedParams
-    .filter((param) => generationParamRequiresValueSatisfied(param, params))
-    .slice(0, 6)
-    .map((param) => ({
-      label: param.label || param.key,
-      value: String(params[param.key] ?? param.default ?? '默认'),
-    }))
-  const visibleParamPreviewCount = supportedParams.filter((param) => generationParamRequiresValueSatisfied(param, params)).length
-  const parameterPreviewItems = [
-    {
-      label: '品类',
-      value: operationOptions.find((option) => option.value === operation)?.label ?? operation,
-      tone: localCanSubmit ? 'ready' as const : 'warning' as const,
-    },
-    {
-      label: '输出',
-      value: mediaKindLabel(mediaKind),
-    },
-    ...(selectedModel ? [{
-      label: '模型',
-      value: publicModelLabel(selectedModel),
-    }] : selectedModelId ? [{
-      label: '模型',
-      value: selectedModelId,
-    }] : []),
-    ...visibleParamPreviewItems,
-    ...(visibleParamPreviewCount > 6 ? [{
-      label: '更多',
-      value: `+${visibleParamPreviewCount - 6}`,
-    }] : []),
-  ]
 
   useEffect(() => {
     if (!selectedModel) {
@@ -2682,9 +2700,8 @@ function ContentPromptFlowNodeGenerationPanel({
         </span>
       )}
     >
-      <ContentPromptGenerationReferenceSummary references={promptReferenceAssets} />
       <GenerationCallMetaRow className="content-prompt-flow-node__generation-grid">
-        <GenerationCallField label="品类">
+        <GenerationCallField className="content-prompt-flow-node__generation-field" label="品类">
           <Select
             value={operation}
             onValueChange={(nextOperation) => {
@@ -2706,12 +2723,12 @@ function ContentPromptFlowNodeGenerationPanel({
             </SelectContent>
           </Select>
         </GenerationCallField>
-        <GenerationCallField label="输出">
+        <GenerationCallField className="content-prompt-flow-node__generation-field content-prompt-flow-node__generation-field--output" label="输出">
           <GenerationCallBadge>
             {mediaKindLabel(mediaKind)}
           </GenerationCallBadge>
         </GenerationCallField>
-        <GenerationCallField label="模型">
+        <GenerationCallField className="content-prompt-flow-node__generation-field content-prompt-flow-node__generation-field--model" label="模型">
           <ContentCanvasModelSelector
             capability={capability}
             operation={operationExplicit ? operation : ''}
@@ -2737,7 +2754,6 @@ function ContentPromptFlowNodeGenerationPanel({
           {selectedModel ? '当前模型没有可配置参数' : '选择模型后显示参数'}
         </small>
       )}
-      <GenerationParamPreview items={parameterPreviewItems} />
       <GenerationCallFooter className="content-prompt-flow-node__generation-footer">
         <GenerationCallMessages
           className="content-prompt-flow-node__generation-messages"
@@ -2750,59 +2766,6 @@ function ContentPromptFlowNodeGenerationPanel({
       </GenerationCallFooter>
     </GenerationCallConfigBlock>
   )
-}
-
-function ContentPromptGenerationReferenceSummary({
-  references,
-}: {
-  references: NonNullable<GenerationIntentPayload['reference_assets']>
-}) {
-  if (!references.length) return null
-  return (
-    <div className="content-prompt-flow-node__generation-references" aria-label="提示词引用">
-      {references.map((reference, index) => (
-        <span
-          key={`${reference.resource_id}:${reference.role}:${index}`}
-          className="content-prompt-flow-node__generation-reference"
-          data-role={reference.role}
-          data-media-type={reference.media_type}
-        >
-          <span>
-            <b>{generationReferenceRoleLabel(reference.role) || '参考'}</b>
-            <small>{contentPromptGenerationReferenceMediaLabel(reference.media_type)}</small>
-          </span>
-          <ContentPromptGenerationReferenceThumb reference={reference} />
-        </span>
-      ))}
-    </div>
-  )
-}
-
-function ContentPromptGenerationReferenceThumb({
-  reference,
-}: {
-  reference: NonNullable<GenerationIntentPayload['reference_assets']>[number]
-}) {
-  if (reference.media_type === 'image') {
-    return <ResourceFileImage resourceId={reference.resource_id} alt={`Resource ${String(reference.resource_id)}`} loading="lazy" thumbnailMaxSize={72} />
-  }
-  if (reference.media_type === 'video') {
-    return <ResourceFileVideo resourceId={reference.resource_id} muted playsInline preload="metadata" />
-  }
-  const Icon = reference.media_type === 'audio' ? Music : FileText
-  return (
-    <span className="content-prompt-flow-node__generation-reference-fallback">
-      <Icon size={13} aria-hidden="true" />
-      <small>{generationReferenceMediaTypeShortLabel(reference.media_type ?? 'file')}</small>
-    </span>
-  )
-}
-
-function contentPromptGenerationReferenceMediaLabel(mediaType: string | undefined): string {
-  if (mediaType === 'image') return '图片'
-  if (mediaType === 'video') return '视频'
-  if (mediaType === 'audio') return '音频'
-  return '文件'
 }
 
 function contentPromptGenerationNodeKey(node: ContentCanvasNode): string {
@@ -3854,6 +3817,46 @@ function creativeCanvasNodeRoleForLibrary(node: ContentCanvasNode): CreativeCanv
   return 'creative'
 }
 
+function appendPromptReferencePreviewEdge(
+  currentEdges: Edge[],
+  sourceNode: ContentCanvasNode,
+  targetNode: ContentCanvasNode,
+): Edge[] {
+  if (flowEdgeListHasSourceTargetPair(currentEdges, sourceNode.id, targetNode.id)) return currentEdges
+  return [...currentEdges, promptReferencePreviewEdge(sourceNode.id, targetNode.id)]
+}
+
+function mergePromptReferencePreviewEdges(
+  flowEdges: Edge[],
+  previewEdges: Edge[],
+  visibleNodeIds: Set<string>,
+): Edge[] {
+  if (!previewEdges.length) return flowEdges
+  const nextEdges = [...flowEdges]
+  for (const edge of previewEdges) {
+    if (!visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) continue
+    if (flowEdgeListHasSourceTargetPair(nextEdges, edge.source, edge.target)) continue
+    nextEdges.push(edge)
+  }
+  return nextEdges
+}
+
+function flowEdgeListHasSourceTargetPair(edges: Edge[], source: string, target: string): boolean {
+  return edges.some((edge) => edge.source === source && edge.target === target)
+}
+
+function promptReferencePreviewEdge(source: string, target: string): Edge {
+  return {
+    id: `prompt-reference-preview:${source}->${target}`,
+    source,
+    target,
+    label: '引用中',
+    markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
+    style: { strokeWidth: 1.6, strokeDasharray: '5 5' },
+    data: { kind: 'prompt_reference_preview', relation: 'prompt_ref' },
+  }
+}
+
 function edgeLabel(edge: ContentCanvasEdge): string | undefined {
   if (edge.kind === 'sequence') return '顺序'
   return edge.label
@@ -3900,9 +3903,9 @@ function creativeCanvasMeasuredNodeSizes(nodes: Node<CreativeFlowNodeData>[]): R
 }
 
 function creativeCanvasNodeViewportSize(node: CreativeCanvasNode): { width: number; height: number } {
-  if (node.weight === 'compact') return { width: 260, height: 180 }
-  if (node.weight === 'normal') return { width: 340, height: 280 }
-  return { width: 360, height: 300 }
+  if (node.weight === 'compact') return { width: 390, height: 180 }
+  if (node.weight === 'normal') return { width: 430, height: 280 }
+  return { width: 430, height: 300 }
 }
 
 function creativeCanvasContentNodeViewportSize(node: ContentCanvasNode): { width: number; height: number } {

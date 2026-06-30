@@ -48,6 +48,8 @@ test('plugin full-local means ensure daemon then run a basic MCP session', () =>
 
 test('local-runtime requires one daemon-owned local service set', () => {
   const source = read('packages/local-runtime/src/index.ts')
+  const localDaemonSource = read('packages/local-daemon/src/index.ts')
+  const pluginSource = read('apps/plugin/src/agent-mcp.ts')
 
   for (const serviceName of [
     'movscript.local-node.control',
@@ -63,10 +65,17 @@ test('local-runtime requires one daemon-owned local service set', () => {
 
   assert.match(source, /const LOCAL_DATA_SERVICE = 'movscript\.data\.service'/)
   assert.match(source, /dataPlane === 'local'/)
+  assert.match(source, /export async function runPersistentLocalRuntimeDaemon/)
+  assert.match(source, /createScenarioApplicationRunner/)
+  assert.match(source, /writeRuntimeAppRecord/)
+  assert.match(localDaemonSource, /runPersistentLocalRuntimeDaemon\({/)
+  assert.match(localDaemonSource, /export async function runLocalDaemonServicePlane/)
+  assert.match(pluginSource, /runLocalDaemonServicePlane\({/)
+  assert.doesNotMatch(pluginSource, /async function runPersistentLocalNode\(\): Promise<void> \{[\s\S]*createScenarioApplicationRunner/)
 })
 
 test('runtime status prefers daemon ownership and treats desktop ownership as legacy', () => {
-  const source = read('packages/mcp-host/src/stdio.ts')
+  const source = read('packages/cli-commands/src/index.ts')
   const localDaemonIndex = source.indexOf("kind: 'local_daemon'")
   const desktopLegacyIndex = source.indexOf("kind: 'desktop_legacy_owner'")
 

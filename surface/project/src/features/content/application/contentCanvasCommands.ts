@@ -379,6 +379,7 @@ export async function updateContentUnitPromptFromCanvas(
     targetPath: contentUnitNode.sourcePath,
     editPrompt: { text: promptText },
   })
+  await syncContentCanvasWorkspaceAfterContentUnitPromptUpdate(projectId, gateway)
   return {
     changedNodeIds: [contentUnitNode.id],
     affectedNodeIds: [contentUnitNode.id],
@@ -393,7 +394,6 @@ export async function updateContentUnitStructuredPromptFromCanvas(
   structured: Record<string, unknown>,
   gateway: ContentCanvasWorkspaceGateway,
 ): Promise<ContentCanvasCommandResult> {
-  void projectId
   assertNodeKind(contentUnitNode, 'content_unit', '创作片段')
   if (!contentUnitNode.sourcePath) {
     throw new Error('创作片段节点缺少 workspace 路径，无法写入')
@@ -410,12 +410,20 @@ export async function updateContentUnitStructuredPromptFromCanvas(
       structured,
     },
   })
+  await syncContentCanvasWorkspaceAfterContentUnitPromptUpdate(projectId, gateway)
   return {
     changedNodeIds: [contentUnitNode.id],
     affectedNodeIds: [contentUnitNode.id],
     focusNodeId: contentUnitNode.id,
     message: '已保存创作片段镜头计划',
   }
+}
+
+async function syncContentCanvasWorkspaceAfterContentUnitPromptUpdate(
+  projectId: number,
+  gateway: ContentCanvasWorkspaceGateway,
+): Promise<void> {
+  await gateway.syncContentWorkspace?.(projectId)
 }
 
 export async function updateExpressionUnitFromCanvas(

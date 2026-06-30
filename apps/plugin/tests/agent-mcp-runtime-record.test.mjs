@@ -58,7 +58,7 @@ test('plugin-full-local startup policy attaches to daemon instead of owning busi
 })
 
 test('local gateway proxies the Project Service namespace through daemon gateway', () => {
-  const source = readFileSync(resolve(import.meta.dirname, '..', 'src', 'agent-mcp.ts'), 'utf8')
+  const source = readFileSync(resolve(import.meta.dirname, '..', '..', '..', 'packages', 'local-daemon', 'src', 'index.ts'), 'utf8')
   const bundle = readFileSync(resolve(import.meta.dirname, '..', 'bin', 'movscript.mjs'), 'utf8')
 
   assert.match(source, /const LOCAL_PROJECT_SERVICE_PROXY_PREFIX = '\/v1\/project'/)
@@ -334,7 +334,7 @@ test('movscript mcp stdio defaults to persistent full-local local-node without D
   assert.equal(daemonMcpInitialize.ok, true)
   assert.equal(daemonMcpInitialize.headers.get('access-control-allow-origin'), devOrigin)
   const daemonMcpInitializePayload = await daemonMcpInitialize.json()
-  assert.equal(daemonMcpInitializePayload.result.serverInfo.name, 'movscript-mcp-host')
+  assert.equal(daemonMcpInitializePayload.result.serverInfo.name, 'movscript-daemon-mcp')
 
   const legacyDaemonMcpPing = await fetch(`${localNode.gatewayEndpoint.url}/mcp`, {
     method: 'POST',
@@ -354,6 +354,44 @@ test('movscript mcp stdio defaults to persistent full-local local-node without D
   const daemonMcpToolsPayload = await daemonMcpTools.json()
   assert.equal(daemonMcpToolsPayload.result.tools.some((tool) => tool.name === 'domain_inspect'), true)
   assert.equal(daemonMcpToolsPayload.result.tools.some((tool) => tool.name === 'runtime_daemon_ensure'), true)
+
+  const daemonContextUpdate = await fetch(`${localNode.gatewayEndpoint.url}/v1/context/sessions`, {
+    method: 'POST',
+    headers: { origin: devOrigin, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      sessionId: 'desktop-current',
+      projectId: 42,
+      projectTitle: 'Daemon Context Project',
+      mcpContext: {
+        route: { pathname: '/projects/42', search: '?workspaceId=secret&tab=timeline', hash: '#edit' },
+        project: { id: 42, name: 'Daemon Context Project' },
+        productionId: 'prod-context',
+        user: { id: 1, username: 'local-owner', systemRole: 'admin' },
+        selection: { entityKind: 'timeline_assembly', entityId: 5, label: 'Cut v1' },
+        updatedAt: '2026-06-30T00:00:00.000Z',
+      },
+    }),
+  })
+  assert.equal(daemonContextUpdate.status, 201)
+  assert.equal(daemonContextUpdate.headers.get('access-control-allow-origin'), devOrigin)
+
+  const daemonContextCurrent = await fetch(`${localNode.gatewayEndpoint.url}/v1/mcp`, {
+    method: 'POST',
+    headers: { origin: devOrigin, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 'daemon-context-current',
+      method: 'tools/call',
+      params: { name: 'context_current_get', arguments: {} },
+    }),
+  })
+  assert.equal(daemonContextCurrent.ok, true)
+  const daemonContextCurrentPayload = await daemonContextCurrent.json()
+  const daemonContextCurrentData = toolData(daemonContextCurrentPayload)
+  assert.equal(daemonContextCurrentData.context.route.pathname, '/projects/42')
+  assert.equal(daemonContextCurrentData.context.route.search, '?tab=timeline')
+  assert.equal(daemonContextCurrentData.context.project.name, 'Daemon Context Project')
+  assert.equal(daemonContextCurrentData.context.selection.label, 'Cut v1')
 
   const missingEditingMedia = await fetch(`${localNode.gatewayEndpoint.url}/local-api/editing/media-file?path=missing.mp4`, {
     headers: { origin: devOrigin },
@@ -408,6 +446,40 @@ test('plugin command line starts daemon with cloud data plane without local Data
   const stop = await runMovScriptCommand(homeDir, ['daemon', 'stop'])
   assert.equal(stop.exitCode, 0, stop.stderr)
   assert.match(stop.stdout, /stopping|not_running/)
+})
+
+test('plugin daemon CLI supports discover and configure product aliases', async () => {
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-plugin-cli-home-'))
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-plugin-cli-project-'))
+
+  const discover = await runMovScriptCommand(homeDir, ['daemon', 'discover', '--json'])
+  assert.equal(discover.exitCode, 0, discover.stderr)
+  const discoverPayload = JSON.parse(discover.stdout)
+  assert.equal(discoverPayload.schema, 'movscript.runtime_daemon_discovery.v1')
+  assert.equal(discoverPayload.status, 'not_running')
+  assert.equal(discoverPayload.homeDir, homeDir)
+  assert.equal(discoverPayload.daemon.available, false)
+  assert.equal(discoverPayload.recommendedNextTool, 'runtime_daemon_ensure')
+
+  const configure = await runMovScriptCommand(homeDir, [
+    'daemon',
+    'configure',
+    '--backend-mode',
+    'local',
+    '--backend-base-url',
+    'http://127.0.0.1:4567/',
+    '--project-dir',
+    projectDir,
+    '--json',
+  ])
+  assert.equal(configure.exitCode, 0, configure.stderr)
+  const configurePayload = JSON.parse(configure.stdout)
+  assert.equal(configurePayload.status, 'configured')
+  assert.equal(configurePayload.backendMode, 'local')
+  assert.equal(configurePayload.backendBaseURL, 'http://127.0.0.1:4567')
+  assert.equal(configurePayload.projectDir, projectDir)
+  assert.equal(configurePayload.tokenConfigured, false)
+  assert.equal(configurePayload.tokenCleared, false)
 })
 
 async function runAgentMCP(homeDir, options = {}) {
@@ -652,6 +724,7 @@ function toolData(response) {
   assert.equal(response?.error, undefined, response?.error?.message)
   if (response?.result?.data !== undefined) return response.result.data
   if (response?.result?.status !== undefined) return response.result
+  if (response?.result?.schema !== undefined) return response.result
   const text = response?.result?.content?.[0]?.text
   assert.equal(typeof text, 'string')
   return JSON.parse(text)

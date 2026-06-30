@@ -2,10 +2,11 @@ import { defineConfig } from 'tsup'
 
 export default defineConfig({
   entry: ['src/index.ts'],
-  format: ['cjs'],
+  format: ['esm', 'cjs'],
   target: 'node20',
-  noExternal: [/^@movscript\//, 'commander'],
-  outExtension: () => ({ js: '.cjs' }),
+  noExternal: [/^@movscript\//],
+  external: ['commander'],
+  outExtension: ({ format }) => ({ js: format === 'cjs' ? '.cjs' : '.js' }),
   banner: { js: '#!/usr/bin/env node' },
   dts: true,
   clean: true,

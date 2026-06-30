@@ -24,6 +24,13 @@ Use `pnpm run release:dry-run -- --platform=darwin --arch=arm64` to exercise
 the unsigned package path locally. Set `MOVSCRIPT_RELEASE_SIGNING_MODE=signed`
 or pass `--signed` only when Developer ID / notarization credentials are ready.
 
+Use `pnpm run package:mac:dmg` for the local macOS DMG builder. It verifies the
+package resource contract, app signature, DMG checksum, and mounted app contents,
+but skips the packaged Electron smoke test by default because directly launching
+the packaged app is flaky on local macOS hosts. Pass `--smoke` or set
+`MOVSCRIPT_PACKAGE_MAC_DMG_SMOKE=1` when you explicitly want that runnable smoke
+check.
+
 Use `pnpm run check` before opening a PR. It is the shared workspace gate:
 generated path contracts, workspace package contracts, plugin distribution
 sync, runtime registry, script and architecture boundary tests, workspace

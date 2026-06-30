@@ -27,6 +27,7 @@ export type ContentCanvasWorkspaceService = Pick<
 export interface ContentCanvasWorkspaceGateway {
   service: ContentCanvasWorkspaceService
   readContentCanvasReadModel?(projectId: number): Promise<unknown>
+  syncContentWorkspace?(projectId: number): Promise<unknown>
   loadContentSourceWorkspaceData(projectId: number): Promise<ContentSourceWorkspaceData>
   createSetting(input: MovScriptEngineSettingInput): Promise<{ path: string; record: Record<string, unknown> }>
   createSettingState(input: MovScriptEngineSettingStateInput): Promise<{ path: string; record: Record<string, unknown> }>

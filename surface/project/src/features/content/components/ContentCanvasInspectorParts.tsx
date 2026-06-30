@@ -5,8 +5,6 @@ import {
   evaluateGenerationReadiness,
   generationBackendPreflightBlockerMessages,
   generationBackendPreflightIsReady,
-  generationParamRequiresValueSatisfied,
-  generationReferenceMediaTypeShortLabel,
   generationReferenceAssetsFromPromptText,
   generationReferenceRoleLabel,
   generationReadinessBlockerMessages,
@@ -15,7 +13,6 @@ import {
   type GenerationBackendPreflightResult,
   type GenerationIntentPayload,
 } from '@movscript/core/generation'
-import { publicAgentBackendModelLabel as publicModelLabel } from '@movscript/core/agent'
 import { suggestMovScriptEntityId } from '@movscript/domain'
 import { parseResourceMentions } from '@movscript/workspace'
 
@@ -30,7 +27,6 @@ import {
   GenerationCallMessages,
   GenerationCallMetaRow,
   GenerationCallPromptBlock,
-  GenerationParamPreview,
 } from '@movscript/ui/business/generation'
 import {
   CONTENT_CANVAS_EXPRESSION_UNIT_KIND_OPTIONS,
@@ -837,37 +833,6 @@ export function GenerationCandidateDialog({
     promptBlockers: compiledPromptBlockers,
   })
   const localCanSubmit = generationReadinessIsReady(generationReadiness)
-  const visibleParamPreviewItems = supportedParams
-    .filter((param) => generationParamRequiresValueSatisfied(param, params))
-    .slice(0, 6)
-    .map((param) => ({
-      label: param.label || param.key,
-      value: String(params[param.key] ?? param.default ?? '默认'),
-    }))
-  const visibleParamPreviewCount = supportedParams.filter((param) => generationParamRequiresValueSatisfied(param, params)).length
-  const parameterPreviewItems = [
-    {
-      label: '品类',
-      value: operationOptions.find((option) => option.value === operation)?.label ?? operation,
-      tone: localCanSubmit ? 'ready' as const : 'warning' as const,
-    },
-    {
-      label: '输出',
-      value: mediaKindLabel(mediaKind),
-    },
-    ...(selectedModel ? [{
-      label: '模型',
-      value: publicModelLabel(selectedModel),
-    }] : selectedModelId ? [{
-      label: '模型',
-      value: selectedModelId,
-    }] : []),
-    ...visibleParamPreviewItems,
-    ...(visibleParamPreviewCount > 6 ? [{
-      label: '更多',
-      value: `+${visibleParamPreviewCount - 6}`,
-    }] : []),
-  ]
   const readinessMessages = generationReadinessBlockerMessages(generationReadiness)
   const backendPreflightMessages = localCanSubmit
     ? generationBackendPreflightBlockerMessages(backendPreflight)
@@ -1022,7 +987,6 @@ export function GenerationCandidateDialog({
               ) : (
                 <CompiledPromptPreview preview={compiledPromptPreview} fallbackText={compiledPrompt} />
               )}
-              <GenerationReferenceAssetSummary references={compiledPromptReferenceAssets} />
               {compiledPromptBlockers.length ? (
                 <div className="content-canvas-generation-candidate-prompt__blockers">
                   {compiledPromptBlockers.map((blocker, index) => (
@@ -1033,8 +997,8 @@ export function GenerationCandidateDialog({
             </section>
           </GenerationCallPromptBlock>
           <GenerationCallConfigBlock label="模型与参数">
-            <GenerationCallMetaRow>
-              <GenerationCallField label="品类">
+            <GenerationCallMetaRow className="content-canvas-generation-candidate-meta-row">
+              <GenerationCallField className="content-canvas-generation-candidate-meta-field" label="品类">
                 <select
                   className="content-canvas-generation-candidate-select"
                   value={operation}
@@ -1053,12 +1017,12 @@ export function GenerationCandidateDialog({
                   )}
                 </select>
               </GenerationCallField>
-              <GenerationCallField label="输出">
+              <GenerationCallField className="content-canvas-generation-candidate-meta-field content-canvas-generation-candidate-meta-field--output" label="输出">
                 <GenerationCallBadge>
                   {mediaKindLabel(mediaKind)}
                 </GenerationCallBadge>
               </GenerationCallField>
-              <GenerationCallField label="模型">
+              <GenerationCallField className="content-canvas-generation-candidate-meta-field content-canvas-generation-candidate-meta-field--model" label="模型">
                 <ContentCanvasModelSelector
                   capability={capability ?? mediaKind}
                   operation={operationExplicit ? operation : ''}
@@ -1085,7 +1049,6 @@ export function GenerationCandidateDialog({
                 {selectedModel ? '当前模型没有可配置参数' : '选择模型后显示参数'}
               </div>
             )}
-            <GenerationParamPreview items={parameterPreviewItems} />
             <GenerationCallFooter className="content-canvas-generation-candidate-dialog__footer">
               <span />
               <span className="content-canvas-generation-candidate-dialog__actions">
@@ -1139,16 +1102,33 @@ function CompiledPromptPreview({
           data-media-type={part.mediaType ?? 'file'}
           title={`Resource ${String(part.resourceId)}`}
         >
-          <span className="content-canvas-generation-candidate-resource-token__type">
-            {generationReferenceMediaTypeLabel(part.mediaType)}
-          </span>
+          <CompiledPromptResourceThumb resourceId={part.resourceId} mediaType={part.mediaType} />
           <b>{generationReferenceRoleLabel(part.role) || '参考'}</b>
-          <small>{`Resource ${String(part.resourceId)}`}</small>
         </span>
       ) : (
         <span key={`text:${index}`}>{part.text}</span>
       ))}
     </div>
+  )
+}
+
+function CompiledPromptResourceThumb({
+  resourceId,
+  mediaType,
+}: {
+  resourceId: number
+  mediaType?: string
+}) {
+  if (mediaType === 'image') {
+    return <ResourceFileImage resourceId={resourceId} alt="" loading="lazy" thumbnailMaxSize={48} />
+  }
+  if (mediaType === 'video') {
+    return <ResourceFileVideo resourceId={resourceId} muted playsInline preload="metadata" />
+  }
+  return (
+    <span className="content-canvas-generation-candidate-resource-token__type">
+      {generationReferenceMediaTypeLabel(mediaType)}
+    </span>
   )
 }
 
@@ -1167,57 +1147,6 @@ function compiledPromptParts(text: string): Array<{ kind: 'text'; text: string }
   }
   if (lastIndex < text.length) parts.push({ kind: 'text', text: text.slice(lastIndex) })
   return parts
-}
-
-function GenerationReferenceAssetSummary({
-  references,
-}: {
-  references: NonNullable<GenerationIntentPayload['reference_assets']>
-}) {
-  if (!references.length) return null
-  return (
-    <div className="content-canvas-generation-candidate-reference-summary" aria-label="提示词引用">
-      {references.map((reference, index) => (
-        <span
-          key={`${reference.resource_id}:${reference.role}:${index}`}
-          className="content-canvas-generation-candidate-reference-summary__item"
-          data-role={reference.role}
-          data-media-type={reference.media_type}
-        >
-          <span>
-            <b>{generationReferenceRoleLabel(reference.role) || '参考'}</b>
-            <small>{generationReferenceMediaTypeLabel(reference.media_type)}</small>
-          </span>
-          <GenerationReferenceAssetThumb reference={reference} />
-        </span>
-      ))}
-    </div>
-  )
-}
-
-function GenerationReferenceAssetThumb({
-  reference,
-}: {
-  reference: NonNullable<GenerationIntentPayload['reference_assets']>[number]
-}) {
-  if (reference.media_type === 'image') {
-    return <ResourceFileImage resourceId={reference.resource_id} alt={`Resource ${String(reference.resource_id)}`} loading="lazy" thumbnailMaxSize={96} />
-  }
-  if (reference.media_type === 'video') {
-    return <ResourceFileVideo resourceId={reference.resource_id} muted playsInline preload="metadata" />
-  }
-  if (reference.media_type === 'audio') {
-    return (
-      <span className="content-canvas-generation-candidate-reference-summary__fallback">
-        <FileAudio size={14} aria-hidden="true" />
-      </span>
-    )
-  }
-  return (
-    <span className="content-canvas-generation-candidate-reference-summary__fallback">
-      {generationReferenceMediaTypeShortLabel(reference.media_type ?? 'file')}
-    </span>
-  )
 }
 
 function generationReferenceMediaTypeLabel(mediaType: string | undefined): string {

@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@movscript/core": "workspace:*",
+    "@movscript/local-runtime": "workspace:*",
     "@movscript/runtime-contracts": "workspace:*"
   },
   "devDependencies": {

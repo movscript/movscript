@@ -115,7 +115,7 @@ test('admin resource-access check-test calls backend through shared command JSON
 
 function runMovscript(args, options = {}) {
   return new Promise((resolveResult, reject) => {
-    const child = spawn('pnpm', ['exec', 'tsx', 'src/index.ts', '--', ...args], {
+    const child = spawn(process.execPath, ['dist/index.cjs', '--', ...args], {
       cwd: cliDir,
       stdio: ['ignore', 'pipe', 'pipe'],
     })

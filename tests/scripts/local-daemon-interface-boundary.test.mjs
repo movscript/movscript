@@ -91,7 +91,7 @@ test('local daemon interface plan keeps the acceptance gates explicit', () => {
 })
 
 test('daemon gateway and local surface project paths prefer canonical /v1 routes', () => {
-  const pluginGateway = read('apps/plugin/src/agent-mcp.ts')
+  const pluginGateway = read('packages/local-daemon/src/index.ts')
   const localProjectRuntime = read('services/local-surface-host/src/project/localProjectSurfaceRuntime.ts')
   const localContentApi = read('services/local-surface-host/src/adapters/localContentSurfaceHostApi.ts')
   const localProjectHostApi = read('services/local-surface-host/src/host-runtime/infrastructure/api/localSurfaceHostApi.ts')
@@ -334,8 +334,12 @@ test('AppSettings exposes daemon gateway instead of legacy local API base URL', 
 })
 
 test('system context is issued by daemon and consumed by project surfaces', () => {
-  const pluginGateway = read('apps/plugin/src/agent-mcp.ts')
+  const pluginGateway = read('packages/local-daemon/src/index.ts')
   const sharedContext = read('packages/shared/src/systemContext.ts')
+  const skillMcpPlan = read('docs/skill-mcp-daemon-refactor-target.zh-CN.md')
+  const mcpHostHttp = read('packages/mcp-host/src/http.ts')
+  const mcpHostIndex = read('packages/mcp-host/src/index.ts')
+  const desktopMcpIpc = read('apps/desktop/electron/ipc/mcpIpc.ts')
   const projectSurfaceRuntime = read('surface/project/src/runtime/ProjectSurfaceRuntime.ts')
   const desktopProjectRuntime = read('apps/desktop/src/features/app-shell/application/desktopProjectSurfaceRuntime.tsx')
   const localProjectHostRoute = read('services/local-surface-host/src/project/LocalProjectSurfaceHostRoute.tsx')
@@ -363,11 +367,25 @@ test('system context is issued by daemon and consumed by project surfaces', () =
   assert.match(pluginGateway, /DAEMON_CONTEXT_SESSIONS_ENDPOINT = ['"`]\/v1\/context\/sessions['"`]/, 'daemon gateway must expose workspace context sessions')
   assert.match(pluginGateway, /schema: 'movscript\.context-envelope\.v1'/, 'daemon context responses must be explicit envelopes')
   assert.match(pluginGateway, /daemonContextSessions = new Map/, 'daemon must maintain session-scoped context instead of one global project')
+  assert.match(pluginGateway, /syncMCPContextSnapshotFromDaemonInput/, 'daemon context session writes must sync MCP context from daemon input')
+  assert.match(pluginGateway, /mcpContextUpdateFromRecord/, 'daemon context session writes must parse MCP context payloads')
 
   assert.match(sharedContext, /export interface MovScriptContextEnvelope/, 'shared contract must define the daemon context envelope')
   assert.match(sharedContext, /sessionId: string/, 'context session must include sessionId')
   assert.match(sharedContext, /revision: number/, 'context envelope must include revision')
   assert.match(sharedContext, /projectCwd\?: string/, 'project cwd must live inside workspace session context')
+
+  assert.match(mcpHostHttp, /function daemonContextSessionsEndpoint/, 'MCP host context updates must discover daemon context sessions')
+  assert.match(mcpHostHttp, /\/v1\/context\/sessions/, 'MCP host context updates must target daemon context sessions')
+  assert.ok(
+    mcpHostHttp.indexOf('await postMCPContextSnapshotToDaemon(next)') >= 0
+      && mcpHostHttp.indexOf('await postMCPContextSnapshotToDaemon(next)') < mcpHostHttp.indexOf('updateLocalMCPContextSnapshot(next)'),
+    'MCP host context updates must post to daemon before local compatibility mirroring',
+  )
+  assert.match(mcpHostIndex, /updateMCPContextSnapshot,[\s\S]*from '\.\/http\.js'/, 'public MCP host context export must come from the daemon-first HTTP wrapper')
+  assert.match(desktopMcpIpc, /from '@movscript\/mcp-host'/, 'Desktop context IPC must update through MCP host wrapper')
+  assert.doesNotMatch(desktopMcpIpc, /@movscript\/core\/mcp\/node/, 'Desktop context IPC must not write core MCP memory directly')
+  assert.doesNotMatch(skillMcpPlan, /待落地：`packages\/mcp-host\/src\/http\.ts`[\s\S]*context snapshot 写入迁到 daemon context\/session API/, 'skill/MCP plan must not mark daemon context snapshot migration as pending')
 
   assert.match(projectSurfaceRuntime, /context\?: MovScriptContextEnvelope/, 'Project Surface runtime must accept daemon context')
   assert.match(projectSurfaceRuntime, /projectSurfaceProjectFromContext/, 'Project Surface runtime must derive project context from daemon envelope')
@@ -609,7 +627,7 @@ test('project standards and scripts stay behind typed Project Service APIs', () 
   const projectTypes = read('packages/project/src/index.ts')
   const projectService = read('services/project-service/src/server.mjs')
   const projectServiceTests = read('services/project-service/tests/server.test.mjs')
-  const pluginGateway = read('apps/plugin/src/agent-mcp.ts')
+  const pluginGateway = read('packages/local-daemon/src/index.ts')
   const desktopPreloadSource = read('apps/desktop/electron/preload/api/movscriptEngine.ts')
   const desktopProjectRuntime = read('apps/desktop/src/features/app-shell/application/desktopProjectSurfaceRuntime.tsx')
   const localProjectRuntime = read('services/local-surface-host/src/project/localProjectSurfaceRuntime.ts')
@@ -682,7 +700,7 @@ test('project source write operations prefer typed Project Service APIs over com
   const projectTypes = read('packages/project/src/index.ts')
   const projectService = read('services/project-service/src/server.mjs')
   const projectServiceTests = read('services/project-service/tests/server.test.mjs')
-  const pluginGateway = read('apps/plugin/src/agent-mcp.ts')
+  const pluginGateway = read('packages/local-daemon/src/index.ts')
   const desktopPreloadSource = read('apps/desktop/electron/preload/api/movscriptEngine.ts')
   const localContentApi = read('services/local-surface-host/src/adapters/localContentSurfaceHostApi.ts')
   const domainRuntime = read('packages/core/src/mcp/node/tools/domain/runtime.ts')
@@ -767,7 +785,7 @@ test('project source read and prompt operations prefer typed Project Service API
   const projectTypes = read('packages/project/src/index.ts')
   const projectService = read('services/project-service/src/server.mjs')
   const projectServiceTests = read('services/project-service/tests/server.test.mjs')
-  const pluginGateway = read('apps/plugin/src/agent-mcp.ts')
+  const pluginGateway = read('packages/local-daemon/src/index.ts')
   const desktopPreloadSource = read('apps/desktop/electron/preload/api/movscriptEngine.ts')
   const localContentApi = read('services/local-surface-host/src/adapters/localContentSurfaceHostApi.ts')
 
@@ -804,7 +822,7 @@ test('content candidate actions prefer typed Project Service APIs over command s
   const projectTypes = read('packages/project/src/index.ts')
   const projectService = read('services/project-service/src/server.mjs')
   const projectServiceTests = read('services/project-service/tests/server.test.mjs')
-  const pluginGateway = read('apps/plugin/src/agent-mcp.ts')
+  const pluginGateway = read('packages/local-daemon/src/index.ts')
   const desktopPreloadSource = read('apps/desktop/electron/preload/api/movscriptEngine.ts')
   const localContentApi = read('services/local-surface-host/src/adapters/localContentSurfaceHostApi.ts')
   const domainRuntime = read('packages/core/src/mcp/node/tools/domain/runtime.ts')

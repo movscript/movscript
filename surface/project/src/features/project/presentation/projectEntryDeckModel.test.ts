@@ -28,10 +28,47 @@ test('project entry deck defaults to product entry order', () => {
   assert.deepEqual(deck.tabs.map((tab) => tab.id), [
     'orchestration_production',
     'content_canvas',
+    'content_preview',
+    'setting_preview',
     'project_standards',
   ])
-  assert.deepEqual([...deck.hiddenEntryIds], ['content_preview', 'setting_preview'])
+  assert.deepEqual([...deck.hiddenEntryIds], [])
   assert.equal(deck.orderIndex.get('orchestration_production'), 0)
+})
+
+test('project entry deck keeps non-canvas entry labels canonical when canvas context exists', () => {
+  const snapshots = {
+    [projectEntrySessionKey(7, 'content_preview')]: snapshot({
+      projectId: 7,
+      projectEntryId: 'content_preview',
+      route: '/project/content/preview',
+      search: 'canvasId=canvas%3Aone',
+      filters: {
+        canvasId: 'canvas:one',
+        canvasTitle: '第一张画布',
+        workspaceTab: 'preview',
+      },
+    }),
+    [projectEntrySessionKey(7, 'setting_preview')]: snapshot({
+      projectId: 7,
+      projectEntryId: 'setting_preview',
+      route: '/project/settings/preview',
+      search: 'canvasId=canvas%3Aone',
+      filters: {
+        canvasId: 'canvas:one',
+        canvasTitle: '第一张画布',
+        workspaceTab: 'preview',
+      },
+    }),
+  }
+
+  const deck = buildProjectEntryDeck({
+    projectId: 7,
+    snapshots,
+  })
+
+  assert.equal(deck.tabs.find((tab) => tab.id === 'content_preview')?.shortTitle, '预览')
+  assert.equal(deck.tabs.find((tab) => tab.id === 'setting_preview')?.shortTitle, '设定')
 })
 
 test('project entry deck opens separate tabs for content canvas instances', () => {
@@ -107,20 +144,20 @@ test('project entry deck uses snapshot deck order and keeps active hidden entry 
     projectId: 7,
     snapshots,
   })
-  assert.deepEqual(inactiveDeck.tabs.map((tab) => tab.id), ['content_preview', 'project_standards', 'content_canvas'])
-  assert.deepEqual([...inactiveDeck.hiddenEntryIds], ['orchestration_production', 'setting_preview'])
+  assert.deepEqual(inactiveDeck.tabs.map((tab) => tab.id), ['content_preview', 'project_standards', 'content_canvas', 'setting_preview'])
+  assert.deepEqual([...inactiveDeck.hiddenEntryIds], ['orchestration_production'])
 
   const activeDeck = buildProjectEntryDeck({
     activeEntryId: 'orchestration_production',
     projectId: 7,
     snapshots,
   })
-  assert.deepEqual(activeDeck.tabs.map((tab) => tab.id), ['content_preview', 'project_standards', 'orchestration_production', 'content_canvas'])
+  assert.deepEqual(activeDeck.tabs.map((tab) => tab.id), ['content_preview', 'project_standards', 'orchestration_production', 'content_canvas', 'setting_preview'])
   assert.equal(activeDeck.tabs[2]?.active, true)
   assert.equal(activeDeck.tabs[2]?.restoredRoute, '/project/scripts/workbench')
   assert.equal(activeDeck.tabs[2]?.restoredSearch, 'productionId=3')
   assert.equal(activeDeck.hiddenEntryIds.has('orchestration_production'), false)
-  assert.equal(activeDeck.hiddenEntryIds.has('setting_preview'), true)
+  assert.equal(activeDeck.hiddenEntryIds.has('setting_preview'), false)
 })
 
 test('project entry deck restores legacy script workbench snapshots for orchestration entry', () => {
@@ -145,7 +182,7 @@ test('project entry deck restores legacy script workbench snapshots for orchestr
   assert.equal(scriptTab?.snapshot?.projectEntryId, 'scripts')
 })
 
-test('project entry deck opens setting preview only after it has focused session state', () => {
+test('project entry deck keeps setting preview visible and restores focused session state', () => {
   const snapshots = {
     [projectEntrySessionKey(7, 'setting_preview')]: snapshot({
       projectId: 7,
@@ -169,7 +206,7 @@ test('project entry deck opens setting preview only after it has focused session
   const settingPreviewTab = deck.tabs.find((tab) => tab.id === 'setting_preview')
   assert.equal(settingPreviewTab?.restoredRoute, '/project/settings/preview')
   assert.equal(settingPreviewTab?.restoredSearch, 'setting_id=hero')
-  assert.equal(deck.hiddenEntryIds.has('content_preview'), true)
+  assert.equal(deck.hiddenEntryIds.has('content_preview'), false)
 })
 
 test('project entry deck reorder updates are expressed as project entry snapshots', () => {
@@ -185,5 +222,7 @@ test('project entry deck reorder updates are expressed as project entry snapshot
     { projectEntryId: 'project_standards', deckOrder: 0 },
     { projectEntryId: 'orchestration_production', deckOrder: 1 },
     { projectEntryId: 'content_canvas', deckOrder: 2 },
+    { projectEntryId: 'content_preview', deckOrder: 3 },
+    { projectEntryId: 'setting_preview', deckOrder: 4 },
   ])
 })

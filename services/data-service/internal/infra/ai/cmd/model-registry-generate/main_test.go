@@ -99,3 +99,25 @@ func TestValidateRuntimeCapabilityCoverageUsesRouteTemplateAdapter(t *testing.T)
 		t.Fatalf("validateRuntimeCapabilityCoverage() error = %v, want route adapter to cover video capability", err)
 	}
 }
+
+func TestValidateRuntimeCapabilityCoverageAllowsDoubao2APIMedia(t *testing.T) {
+	err := validateRuntimeCapabilityCoverage([]templateSource{
+		{
+			ID:           "doubao2api:doubao-image",
+			Lab:          "doubao2api",
+			Capabilities: []string{"image"},
+			Source:       sourceEvidence{Status: "unofficial"},
+		},
+		{
+			ID:           "doubao2api:doubao-video",
+			Lab:          "doubao2api",
+			Capabilities: []string{"video"},
+			Source:       sourceEvidence{Status: "unofficial"},
+		},
+	}, []comboRuleSource{
+		{Lab: "doubao2api", AdapterType: "doubao2api"},
+	})
+	if err != nil {
+		t.Fatalf("validateRuntimeCapabilityCoverage() error = %v, want doubao2api image/video accepted", err)
+	}
+}

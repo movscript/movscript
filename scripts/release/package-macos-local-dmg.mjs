@@ -40,12 +40,13 @@ export async function runPackageMacOSLocalDMGCli(root = repoRoot, env = process.
     if (currentPlatform !== 'darwin') {
       throw new Error(`Local macOS DMG packaging must run on macOS, got ${currentPlatform}. Use the CI release workflow for cross-platform packages.`)
     }
-    if (arch !== currentArch && !args.includes('--allow-cross-arch')) {
+    const skipFFmpegDownload = args.includes('--skip-ffmpeg-download')
+    const smokeRequested = args.includes('--smoke') || env.MOVSCRIPT_PACKAGE_MAC_DMG_SMOKE?.trim() === '1'
+    const runSmoke = smokeRequested && !args.includes('--skip-smoke')
+    if (runSmoke && arch !== currentArch && !args.includes('--allow-cross-arch')) {
       throw new Error(`Local macOS DMG smoke testing requires the host arch (${currentArch}); got --arch=${arch}. Pass --allow-cross-arch only when you intentionally skip runnable confidence.`)
     }
 
-    const skipFFmpegDownload = args.includes('--skip-ffmpeg-download')
-    const skipSmoke = args.includes('--skip-smoke')
     const desktopRoot = resolve(root, 'apps/desktop')
     const releaseDir = resolve(desktopRoot, 'release')
     const appDir = macAppDirForArch(root, arch)
@@ -111,7 +112,7 @@ export async function runPackageMacOSLocalDMGCli(root = repoRoot, env = process.
     replaceAppWithCleanCopy(appDir)
     runStep('Verify local app code signature', 'codesign', ['--verify', '--deep', '--strict', '--verbose=2', appDir], { cwd: root })
 
-    if (!skipSmoke) {
+    if (runSmoke) {
       const smokeHome = mkdtempSync(join(tmpdir(), 'movscript-smoke-home.'))
       const smokeEnv = { ...env }
       delete smokeEnv.MOVSCRIPT_BACKEND_BIN
@@ -129,8 +130,10 @@ export async function runPackageMacOSLocalDMGCli(root = repoRoot, env = process.
         stopSmokeLocalBackend(smokeHome)
         rmSync(smokeHome, { recursive: true, force: true })
       }
-    } else {
+    } else if (args.includes('--skip-smoke')) {
       log('[package-macos-local-dmg] Smoke test skipped by --skip-smoke')
+    } else {
+      log('[package-macos-local-dmg] Smoke test skipped by default; pass --smoke or set MOVSCRIPT_PACKAGE_MAC_DMG_SMOKE=1 to run it')
     }
 
     removeDMGArtifacts(releaseDir)

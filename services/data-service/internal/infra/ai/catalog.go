@@ -24,6 +24,7 @@ const (
 	AdapterMureka                   = "mureka"
 	AdapterStability                = "stability"
 	AdapterYunwuLegacy              = "yunwu"
+	AdapterDoubao2API               = "doubao2api"
 	AdapterLocal                    = "local"
 )
 
@@ -312,6 +313,22 @@ func klingVideoParams() []ParamDef {
 	return []ParamDef{
 		{Key: "duration", Label: "时长(秒)", Type: "select",
 			Options: []string{"5", "10"}, Default: "5"},
+		{Key: "aspect_ratio", Label: "画面比例", Type: "select",
+			Options: []string{"16:9", "9:16", "1:1"}, Default: "16:9"},
+	}
+}
+
+func doubao2APIImageParams() []ParamDef {
+	return []ParamDef{
+		{Key: "aspect_ratio", Label: "画面比例", Type: "select",
+			Options: []string{"1:1", "16:9", "9:16", "4:3", "3:4"}, Default: "1:1"},
+	}
+}
+
+func doubao2APIVideoParams() []ParamDef {
+	return []ParamDef{
+		{Key: "duration", Label: "时长(秒)", Type: "select",
+			Options: []string{"5"}, Default: "5"},
 		{Key: "aspect_ratio", Label: "画面比例", Type: "select",
 			Options: []string{"16:9", "9:16", "1:1"}, Default: "16:9"},
 	}
@@ -687,6 +704,20 @@ var AdapterDefs = []AdapterDef{
 		ParamSets: []AdapterParamSet{
 			{Capability: CapabilityVideo, Params: yunwuVideoParams()},
 			{Capability: CapabilityVideoI2V, Params: yunwuVideoParams()},
+		},
+	},
+	{
+		AdapterType:    AdapterDoubao2API,
+		DisplayName:    "doubao2api 本地服务",
+		Description:    "本地 doubao2api 逆向服务，支持豆包图片和视频生成；需要本地服务已登录",
+		DefaultBaseURL: "http://127.0.0.1:9090/v1",
+		CredFields: []CredField{
+			{Key: "api_key", Label: "API Key（可选，若 DOUBAO_API_KEY 已设置则填写）", Required: false},
+			{Key: "base_url", Label: "Base URL（默认 http://127.0.0.1:9090/v1）", Required: false},
+		},
+		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityImage, Params: doubao2APIImageParams()},
+			{Capability: CapabilityVideo, Params: doubao2APIVideoParams()},
 		},
 	},
 	{

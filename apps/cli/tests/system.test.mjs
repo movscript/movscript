@@ -104,7 +104,7 @@ test('system generation prepare calls backend through shared command JSON', asyn
   ])
   assert.deepEqual(generationRequests, [{
     method: 'GET',
-    url: '/api/v1/models?capability=audio_music',
+    url: '/api/v1/models?capability=audio_music&target_output=audio&resolve_intent=true',
   }])
 })
 
@@ -338,7 +338,7 @@ test('system shot group create calls backend through shared command JSON', async
 })
 
 function runMovscript(args, options = {}) {
-  const child = spawnSync('pnpm', ['exec', 'tsx', 'src/index.ts', '--', ...args], {
+  const child = spawnSync(process.execPath, ['dist/index.cjs', '--', ...args], {
     cwd: cliDir,
     encoding: 'utf8',
   })
@@ -354,7 +354,7 @@ function runMovscript(args, options = {}) {
 
 function runMovscriptAsync(args, options = {}) {
   return new Promise((resolveResult, reject) => {
-    const child = spawn('pnpm', ['exec', 'tsx', 'src/index.ts', '--', ...args], {
+    const child = spawn(process.execPath, ['dist/index.cjs', '--', ...args], {
       cwd: cliDir,
       stdio: ['ignore', 'pipe', 'pipe'],
     })
@@ -392,6 +392,7 @@ function runMovscriptAsync(args, options = {}) {
 
 function createTestServer() {
   return createServer((req, res) => {
+    const requestURL = new URL(req.url ?? '/', 'http://127.0.0.1')
     if (req.url === '/api/v1/projects' && req.method === 'POST') {
       let body = ''
       req.setEncoding('utf8')
@@ -408,7 +409,9 @@ function createTestServer() {
       })
       return
     }
-    if (req.url === '/api/v1/models?capability=audio_music' && req.method === 'GET') {
+    if (req.method === 'GET'
+      && requestURL.pathname === '/api/v1/models'
+      && requestURL.searchParams.get('capability') === 'audio_music') {
       generationRequests.push({ method: req.method, url: req.url })
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify([{

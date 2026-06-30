@@ -1,0 +1,45 @@
+{
+  "name": "@movscript/local-daemon",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MovScript local daemon service plane and gateway adapters.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./mcp": {
+      "types": "./dist/mcp.d.ts",
+      "import": "./dist/mcp.js",
+      "require": "./dist/mcp.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@movscript/app-runner": "workspace:*",
+    "@movscript/cli-commands": "workspace:*",
+    "@movscript/core": "workspace:*",
+    "@movscript/local-runtime": "workspace:*",
+    "@movscript/runtime-contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.17",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

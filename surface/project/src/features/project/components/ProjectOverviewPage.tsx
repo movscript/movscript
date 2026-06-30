@@ -226,8 +226,10 @@ export default function ProjectOverviewPage() {
   ), [canvasDocumentsState?.documents])
   const canvasRoute = useCallback((canvasId?: string) => {
     if (!projectId) return '#'
-    const base = surfaceRoutePath('project.contentCanvas', { projectId })
-    return canvasId ? `${base}?canvasId=${encodeURIComponent(canvasId)}` : base
+    return surfaceRoutePath('project.contentCanvas', {
+      projectId,
+      ...(canvasId ? { canvasId } : {}),
+    })
   }, [projectId])
   const productionPreviewRoute = useCallback((production: ProjectHomeProductionSummary) => (
     projectId ? projectHomeProductionPreviewPath(projectId, production) : '#'

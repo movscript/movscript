@@ -77,6 +77,9 @@ rules:
   - provider_type: mureka
     profile: official
     lab: mureka
+  - provider_type: doubao2api
+    profile: local
+    lab: doubao2api
   - provider_type: local
     profile: audio
     lab: open-source-audio

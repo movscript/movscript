@@ -1,5 +1,8 @@
 import type { Command } from 'commander'
-import { callMCPHostTool } from '@movscript/mcp-host'
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { runMovScriptRuntimeCommand } from '@movscript/cli-commands'
+import { runLocalDaemonServicePlane } from '@movscript/local-daemon'
 
 type RuntimeCommandOptions = {
   homeDir?: string
@@ -18,6 +21,12 @@ type DaemonStartOptions = RuntimeCommandOptions & {
   startupTimeoutMs?: string
   stopTimeoutMs?: string
   forceRestart?: boolean
+}
+
+type DaemonRunOptions = RuntimeCommandOptions & {
+  dataPlane?: string
+  dataServiceUrl?: string
+  idleTimeout?: string
 }
 
 type ConfirmedRuntimeOptions = RuntimeCommandOptions & {
@@ -59,65 +68,89 @@ export function registerRuntimeCommands(program: Command): void {
     .command('daemon')
     .description('Discover and control the local MovScript daemon')
 
+  registerDaemonSubcommands(daemon)
+  registerRuntimeDescriptorCommands(runtime)
+  registerRuntimePreflightCommands(runtime)
+}
+
+export function registerDaemonCommands(program: Command): void {
+  const daemon = program
+    .command('daemon')
+    .description('Discover and control the local MovScript daemon')
+  registerDaemonSubcommands(daemon, { includeRunCommand: true })
+}
+
+function registerDaemonSubcommands(daemon: Command, options: { includeRunCommand?: boolean } = {}): void {
+  if (options.includeRunCommand) {
+    addDaemonRunOptions(daemon
+      .command('run')
+      .description('Run the local daemon process entrypoint'))
+      .action(async (runtimeOptions: DaemonRunOptions) => {
+        await runStandaloneDaemon(runtimeOptions)
+      })
+  }
+
   addRuntimeContextOptions(daemon
     .command('discover')
     .description('Read daemon endpoints from MovScript Home without starting anything'))
-    .action(async (options: RuntimeCommandOptions, command: Command) => {
-      await runRuntimeTool('runtime_daemon_discover', () => runtimeContextArgs(options, command), options, command)
+    .action(async (runtimeOptions: RuntimeCommandOptions, command: Command) => {
+      await runRuntimeTool('runtime_daemon_discover', () => runtimeContextArgs(runtimeOptions, command), runtimeOptions, command)
     })
 
   addDaemonStartOptions(daemon
     .command('ensure')
     .description('Start the local daemon if needed, otherwise reuse the current one'))
-    .action(async (options: DaemonStartOptions, command: Command) => {
-      await runRuntimeTool('runtime_daemon_ensure', () => daemonStartArgs(options, command), options, command)
+    .action(async (runtimeOptions: DaemonStartOptions, command: Command) => {
+      await runRuntimeTool('runtime_daemon_ensure', () => daemonStartArgs(runtimeOptions, command), runtimeOptions, command)
     })
 
   addDaemonStartOptions(daemon
     .command('start')
     .description('Explicitly start the local daemon if it is not ready'))
-    .action(async (options: DaemonStartOptions, command: Command) => {
-      await runRuntimeTool('runtime_daemon_start', () => daemonStartArgs(options, command), options, command)
+    .action(async (runtimeOptions: DaemonStartOptions, command: Command) => {
+      await runRuntimeTool('runtime_daemon_start', () => daemonStartArgs(runtimeOptions, command), runtimeOptions, command)
     })
 
   addRuntimeContextOptions(daemon
     .command('status')
     .description('Call the local daemon control endpoint status API'))
-    .action(async (options: RuntimeCommandOptions, command: Command) => {
-      await runRuntimeTool('runtime_daemon_status', () => runtimeContextArgs(options, command), options, command)
+    .action(async (runtimeOptions: RuntimeCommandOptions, command: Command) => {
+      await runRuntimeTool('runtime_daemon_status', () => runtimeContextArgs(runtimeOptions, command), runtimeOptions, command)
     })
 
   addConfirmedRuntimeOptions(daemon
     .command('stop')
     .description('Stop the local daemon; requires --yes'))
-    .action(async (options: ConfirmedRuntimeOptions, command: Command) => {
-      if (!options.yes) {
-        printError('runtime_daemon_stop requires --yes', options)
+    .action(async (runtimeOptions: ConfirmedRuntimeOptions, command: Command) => {
+      if (!runtimeOptions.yes) {
+        printError('runtime_daemon_stop requires --yes', runtimeOptions)
         process.exitCode = 1
         return
       }
-      await runRuntimeTool('runtime_daemon_stop', () => runtimeContextArgs(options, command), options, command)
+      await runRuntimeTool('runtime_daemon_stop', () => runtimeContextArgs(runtimeOptions, command), runtimeOptions, command)
     })
 
   addConfirmedRuntimeOptions(daemon
     .command('restart')
     .description('Restart the local daemon; requires --yes'))
-    .action(async (options: ConfirmedRuntimeOptions, command: Command) => {
-      if (!options.yes) {
-        printError('runtime_daemon_restart requires --yes', options)
+    .action(async (runtimeOptions: ConfirmedRuntimeOptions, command: Command) => {
+      if (!runtimeOptions.yes) {
+        printError('runtime_daemon_restart requires --yes', runtimeOptions)
         process.exitCode = 1
         return
       }
-      await runRuntimeTool('runtime_daemon_restart', () => runtimeContextArgs(options, command), options, command)
+      await runRuntimeTool('runtime_daemon_restart', () => runtimeContextArgs(runtimeOptions, command), runtimeOptions, command)
     })
 
   addRuntimeConfigureOptions(daemon
     .command('configure')
     .description('Alias for runtime configure, kept near daemon control commands'))
-    .action(async (options: RuntimeConfigureOptions, command: Command) => {
-      await runRuntimeTool('runtime_daemon_configure', () => runtimeConfigureArgs(options, command), options, command)
+    .action(async (runtimeOptions: RuntimeConfigureOptions, command: Command) => {
+      await runRuntimeTool('runtime_daemon_configure', () => runtimeConfigureArgs(runtimeOptions, command), runtimeOptions, command)
     })
+}
 
+function registerRuntimeDescriptorCommands(runtime: Command): void {
   const descriptor = runtime
     .command('descriptor')
     .description('Read runtime descriptor contracts')
@@ -128,7 +161,9 @@ export function registerRuntimeCommands(program: Command): void {
     .action(async (options: RuntimeCommandOptions, command: Command) => {
       await runRuntimeTool('runtime_descriptor_get', () => runtimeContextArgs(options, command), options, command)
     })
+}
 
+function registerRuntimePreflightCommands(runtime: Command): void {
   const preflight = runtime
     .command('preflight')
     .description('Validate runtime prerequisites for project and production work')
@@ -143,7 +178,8 @@ export function registerRuntimeCommands(program: Command): void {
         ...runtimeContextArgs(options, command),
         requireProject: options.requireProject !== false,
       }), options, command)
-      if (isRecord(result) && result.ready === false && process.exitCode === undefined) {
+      const data = isRecord(result) ? result.data : undefined
+      if (isRecord(data) && data.ready === false && process.exitCode === undefined) {
         process.exitCode = 2
       }
     })
@@ -170,6 +206,13 @@ function addDaemonStartOptions(command: Command): Command {
     .option('--force-restart', 'Stop and restart an existing daemon before waiting for readiness')
 }
 
+function addDaemonRunOptions(command: Command): Command {
+  return addRuntimeContextOptions(command)
+    .option('--data-plane <local|cloud|external>', 'Runtime data plane for daemon bootstrap')
+    .option('--data-service-url <url>', 'External/cloud Data Service URL for daemon bootstrap')
+    .option('--idle-timeout <duration>', 'Daemon idle timeout passed to the local runtime')
+}
+
 function addConfirmedRuntimeOptions(command: Command): Command {
   return addRuntimeContextOptions(command)
     .option('--yes', 'Confirm the daemon control action')
@@ -192,12 +235,10 @@ async function runRuntimeTool(
 ): Promise<unknown> {
   try {
     const args = typeof argsInput === 'function' ? argsInput() : argsInput
-    const result = await callMCPHostTool({
-      name,
-      arguments: args,
-    } as Parameters<typeof callMCPHostTool>[0])
+    const result = await runMovScriptRuntimeCommand(name, args)
     printResult(result, options, command)
-    if (isRecord(result) && result.status === 'error' && process.exitCode === undefined) {
+    const data = isRecord(result) ? result.data : undefined
+    if (isRecord(data) && data.status === 'error' && process.exitCode === undefined) {
       process.exitCode = 1
     }
     return result
@@ -241,6 +282,64 @@ function runtimeConfigureArgs(options: RuntimeConfigureOptions, command: Command
     remember: options.remember === true ? true : undefined,
     clearToken: options.clearToken === true ? true : undefined,
   })
+}
+
+async function runStandaloneDaemon(options: DaemonRunOptions): Promise<void> {
+  await runLocalDaemonServicePlane({
+    homeDir: options.homeDir,
+    env: daemonRunEnvFromOptions(options),
+    identity: currentCLIRuntimeIdentity(),
+    owner: 'cli',
+    repoRoot: resolveCLIRepoRoot(),
+    runCwd: resolveCLIRepoRoot(),
+    hasBundledRuntime: false,
+  })
+}
+
+function daemonRunEnvFromOptions(options: DaemonRunOptions): NodeJS.ProcessEnv | undefined {
+  const env: NodeJS.ProcessEnv = {}
+  if (options.dataPlane) env.MOVSCRIPT_LOCAL_DAEMON_DATA_PLANE = options.dataPlane
+  if (options.dataServiceUrl) env.MOVSCRIPT_DATA_SERVICE_URL = options.dataServiceUrl
+  if (options.idleTimeout) {
+    env.MOVSCRIPT_LOCAL_DAEMON_IDLE_TIMEOUT = options.idleTimeout
+    env.MOVSCRIPT_LOCAL_NODE_IDLE_TIMEOUT = options.idleTimeout
+  }
+  return Object.keys(env).length > 0 ? env : undefined
+}
+
+function currentCLIRuntimeIdentity(): { runtimeVersion: string; runtimeRoot: string } {
+  const runtimeRoot = resolveCLIRepoRoot()
+  return {
+    runtimeVersion: readPackageVersion(resolve(runtimeRoot, 'apps/cli/package.json'))
+      ?? readPackageVersion(resolve(process.cwd(), 'package.json'))
+      ?? 'unknown',
+    runtimeRoot,
+  }
+}
+
+function resolveCLIRepoRoot(): string {
+  const invokedPath = process.argv[1] ? resolve(process.argv[1]) : undefined
+  const invokedDir = invokedPath ? dirname(invokedPath) : undefined
+  for (const candidate of [
+    process.env.MOVSCRIPT_REPO_ROOT ? resolve(process.env.MOVSCRIPT_REPO_ROOT) : undefined,
+    process.cwd(),
+    resolve(process.cwd(), '../..'),
+    invokedDir ? resolve(invokedDir, '../../..') : undefined,
+    invokedDir ? resolve(invokedDir, '../../../..') : undefined,
+  ]) {
+    if (!candidate) continue
+    if (existsSync(resolve(candidate, 'pnpm-workspace.yaml'))) return candidate
+  }
+  return process.cwd()
+}
+
+function readPackageVersion(packagePath: string): string | undefined {
+  try {
+    const manifest = JSON.parse(readFileSync(packagePath, 'utf8')) as Record<string, unknown>
+    return typeof manifest.version === 'string' && manifest.version.trim() ? manifest.version : undefined
+  } catch {
+    return undefined
+  }
 }
 
 function commandGlobalOptions(command: Command): { workspace?: string } {

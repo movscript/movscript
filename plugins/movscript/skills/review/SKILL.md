@@ -22,6 +22,14 @@ toolGrants:
 
 Use this skill when a user asks what changed, whether the project is ready, what is stale, why a content unit changed, or which downstream outputs need attention. If runtime ownership or service availability is unclear, use the `runtime` skill first.
 
+## Production Contract
+
+- Production step: review gate across content planning, generation candidates, timeline readiness, and export impact.
+- Systems/config: Project Service/Data Service expose source changes, diagnostics, candidate decisions, selection validity, and regeneration plans; runtime/daemon supplies service readiness.
+- Blockers: missing project locator, diagnostic errors, stale/unselected upstream choices, missing content-unit artifacts, or unavailable Project/Data/Editing/Media services.
+- Human review: do not select candidates, accept stale impact, regenerate, or edit source unless the user explicitly asks; browser URLs are review entrypoints, not completed approvals.
+- Output: report changed source, blocking issues, readiness, stale/affected outputs, missing adoptions/selections, review URL, and concrete decision options.
+
 ## Rules
 
 - Start with `domain_overview` for interpret status and next actions.
