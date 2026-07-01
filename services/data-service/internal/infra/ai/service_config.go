@@ -38,27 +38,25 @@ type ModelRouteRequest struct {
 }
 
 type ModelRoute struct {
-	ModelID               string
-	RuntimeModelID        uint
-	CatalogEntryID        uint
-	RouteBindingID        uint
-	CredentialID          uint
-	SourceType            string
-	RouteGroup            string
-	ProviderID            string
-	ProviderKind          string
-	AdapterKey            string
-	AdapterType           string
-	ProviderModelID       string
-	Capability            string
-	APIKind               string
-	Operation             string
-	EndpointBaseURL       string
-	EndpointPathPrefix    string
-	EndpointMode          string
-	OperationProfile      string
-	RouteCapabilitiesJSON string
-	SelectionReason       string
+	ModelID            string
+	RuntimeModelID     uint
+	CatalogEntryID     uint
+	RouteBindingID     uint
+	CredentialID       uint
+	SourceType         string
+	RouteGroup         string
+	ProviderID         string
+	ProviderKind       string
+	AdapterKey         string
+	AdapterType        string
+	ProviderModelID    string
+	Capability         string
+	APIKind            string
+	Operation          string
+	EndpointBaseURL    string
+	EndpointPathPrefix string
+	EndpointMode       string
+	SelectionReason    string
 }
 
 type ModelRoutePlan struct {
@@ -215,10 +213,7 @@ func (s *AIService) ResolveTextModelRoute(modelID string) (ModelRoute, error) {
 
 func (s *AIService) ResolveGenerationModelRoute(modelID string, outputType string) (ModelRoute, error) {
 	switch outputType {
-	case CapabilityImage, CapabilityImageEdit, CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V,
-		CapabilityAudioTTS, CapabilityAudioSTT, CapabilityAudioMusic, CapabilityAudioSFX,
-		CapabilityAudioTranslate, CapabilityAudioChat, CapabilityVoiceClone, CapabilityVoiceDesign,
-		CapabilitySubAlign, CapabilitySubTranslate:
+	case CapabilityFamilyImageGeneration, CapabilityFamilyVideoGeneration, CapabilityFamilyAudioGeneration:
 		return s.ResolveModelRoute(ModelRouteRequest{ModelID: modelID, Capability: outputType})
 	default:
 		return ModelRoute{}, fmt.Errorf("unsupported runtime output type %q", outputType)
@@ -357,7 +352,7 @@ func runtimeCatalogRouteHealthSnapshot(db *gorm.DB) ([]RuntimeProviderHealth, bo
 		AcceptsImage      bool
 		MaxInputImages    int
 		MaxInputVideos    int
-		ImageEditField    string
+		InputImageField   string
 		SupportedParams   string
 		ProviderName      string
 		AdapterType       string
@@ -385,7 +380,7 @@ func runtimeCatalogRouteHealthSnapshot(db *gorm.DB) ([]RuntimeProviderHealth, bo
 			ai_model_catalog_entries.accepts_image AS accepts_image,
 			ai_model_catalog_entries.max_input_images AS max_input_images,
 			ai_model_catalog_entries.max_input_videos AS max_input_videos,
-			ai_model_catalog_entries.image_edit_field AS image_edit_field,
+			ai_model_catalog_entries.input_image_field AS input_image_field,
 			ai_model_catalog_entries.supported_params AS supported_params,
 			COALESCE(ai_credentials.display_name, ai_model_route_bindings.route_group) AS provider_name,
 			COALESCE(NULLIF(ai_model_route_bindings.adapter_type, ''), ai_credentials.adapter_type, ai_model_route_bindings.source_type) AS adapter_type,

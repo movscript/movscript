@@ -3,6 +3,8 @@ export type EditingMediaPipelineTaskType =
   | 'timeline_hls'
   | 'media_transcode'
   | 'media_reframe'
+  | 'backend_project_render'
+  | 'backend_project_preview'
 
 export type EditingMediaPipelineTaskStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled'
 
@@ -25,6 +27,8 @@ export interface EditingMediaPipelineAssetDescriptor {
 export interface EditingMediaPipelineOutputSpec {
   format: 'mp4' | 'hls'
   filename?: string
+  outputPath?: string
+  output_path?: string
   importToResource?: boolean
   import_to_resource?: boolean
   folderId?: string | number
@@ -71,6 +75,19 @@ export interface EditingMediaPipelineTranscodeSpec {
 export interface EditingMediaPipelineTaskRequest {
   projectId: string
   taskType: EditingMediaPipelineTaskType
+  backend?: string
+  backendProject?: Record<string, unknown>
+  backend_project?: Record<string, unknown>
+  projectDirectory?: string
+  project_directory?: string
+  renderCommand?: string | string[]
+  render_command?: string | string[]
+  previewCommand?: string | string[]
+  preview_command?: string | string[]
+  previewUrl?: string
+  preview_url?: string
+  command?: string
+  args?: string[]
   editingProject?: Record<string, unknown>
   timeline?: Record<string, unknown>
   source?: EditingMediaPipelineAssetDescriptor | Record<string, unknown>
@@ -82,7 +99,7 @@ export interface EditingMediaPipelineTaskRequest {
   resource_cache?: Record<string, unknown>
   resourceDownload?: Record<string, unknown>
   resource_download?: Record<string, unknown>
-  output: EditingMediaPipelineOutputSpec
+  output?: EditingMediaPipelineOutputSpec
 }
 
 export interface EditingMediaPipelineTaskState {
@@ -94,6 +111,12 @@ export interface EditingMediaPipelineTaskState {
   currentStep?: string
   outputPath?: string
   outputName?: string
+  backend?: string
+  projectDirectory?: string
+  project_directory?: string
+  previewUrl?: string
+  preview_url?: string
+  surface?: Record<string, unknown>
   hlsManifestPath?: string
   hls_manifest_path?: string
   hlsManifestUrl?: string

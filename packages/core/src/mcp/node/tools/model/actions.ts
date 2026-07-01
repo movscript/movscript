@@ -19,7 +19,12 @@ export async function listModels(args: Record<string, unknown>): Promise<unknown
     || (operation === undefined && Boolean(referenceAssets?.length))
   const providerVariants = args.provider_variants === true || args.include_provider_variants === true
 
-  const defaultCapabilities = ['text_generation', 'image_generation', 'video_generation', 'audio_generation', 'text', 'image', 'image_edit', 'video', 'video_i2v', 'video_v2v', 'audio_tts', 'audio_transcribe', 'audio_translate', 'audio_music', 'audio_sfx', 'audio_chat', 'voice_clone', 'voice_design', 'subtitle_align', 'subtitle_translate']
+  const defaultCapabilities = [
+    'text_generation',
+    'image_generation',
+    'video_generation',
+    'audio_generation',
+  ]
   if (rawCapability && !capability) {
     return {
       count: 0,
@@ -106,33 +111,18 @@ function modelTargetOutputArg(args: Record<string, unknown>, capability: string 
     ?? getOptionalString(args, 'output_kind')
     ?? getOptionalString(args, 'outputKind')
   if (explicit) return explicit
-  return outputKindForCapabilityOrOperation(capability, operation)
+  return undefined
 }
 
 function outputKindForCapabilityOrOperation(capability: string | undefined, operation: string | undefined): string | undefined {
   const normalized = capability?.trim().toLowerCase().replace(/-/g, '_')
   switch (normalized) {
-    case 'image':
     case 'image_generation':
-    case 'image_edit':
       return 'image'
-    case 'video':
     case 'video_generation':
-    case 'video_i2v':
-    case 'video_v2v':
       return 'video'
-    case 'audio':
     case 'audio_generation':
-    case 'audio_tts':
-    case 'audio_transcribe':
-    case 'audio_translate':
-    case 'audio_music':
-    case 'audio_sfx':
-    case 'audio_chat':
-    case 'voice_clone':
-    case 'voice_design':
       return 'audio'
-    case 'text':
     case 'text_generation':
       return 'text'
     default:
@@ -144,26 +134,33 @@ function capabilityForModelOperation(operation: string | undefined): string | un
   const normalized = operation?.trim().toLowerCase().replace(/-/g, '_')
   switch (normalized) {
     case 'text_to_image':
-    case 'image_to_image':
+    case 'reference_to_image':
+    case 'edit_image':
+    case 'inpaint':
+    case 'outpaint':
+    case 'variation':
+    case 'upscale_image':
       return 'image_generation'
     case 'prompt_to_video':
-    case 'text_to_video':
     case 'image_to_video':
     case 'first_frame_to_video':
     case 'first_last_frame_to_video':
     case 'reference_to_video':
-    case 'video_to_video':
+    case 'edit_video':
+    case 'extend_video':
+    case 'upscale_video':
       return 'video_generation'
-    case 'tts':
-    case 'stt':
+    case 'text_to_speech':
+    case 'speech_to_text':
     case 'speech_translate':
-    case 'audio_chat':
+    case 'speech_to_speech':
     case 'voice_clone':
     case 'voice_design':
     case 'dubbing':
-    case 'music':
-    case 'sfx':
-    case 'speech_enhancement':
+    case 'music_generation':
+    case 'sound_effect_generation':
+    case 'voice_isolation':
+    case 'forced_alignment':
       return 'audio_generation'
     default:
       return undefined

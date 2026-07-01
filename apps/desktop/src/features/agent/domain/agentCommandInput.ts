@@ -145,9 +145,6 @@ function inferEntityType(pathname?: string, productionId?: number, projectId?: n
 }
 
 function pageEntityFromDomainFocus(focus: MovScriptNormalizedFocus | undefined): { entityType: string; entityId?: string | number } | undefined {
-  if (focus?.target?.targetKind === 'timeline_assembly') {
-    return { entityType: 'timeline_assembly', entityId: focus.target.targetRef }
-  }
   if (focus?.target?.targetKind) {
     return { entityType: focus.target.targetKind, entityId: focus.target.targetRef }
   }

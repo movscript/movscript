@@ -21,7 +21,7 @@ type AIModelCatalogEntry struct {
 	AcceptsImage          bool                  `gorm:"default:false" json:"accepts_image"`
 	MaxInputImages        int                   `gorm:"default:0" json:"max_input_images"`
 	MaxInputVideos        int                   `gorm:"default:0" json:"max_input_videos"`
-	ImageEditField        string                `gorm:"default:''" json:"image_edit_field"`
+	InputImageField       string                `gorm:"column:input_image_field;default:''" json:"input_image_field"`
 	SupportedParams       string                `gorm:"type:text" json:"supported_params"`
 	ParamLimitsJSON       string                `gorm:"type:text;default:''" json:"param_limits_json,omitempty"`
 	ModelCapabilitiesJSON string                `gorm:"type:text;default:''" json:"model_capabilities_json,omitempty"`
@@ -33,24 +33,22 @@ type AIModelCatalogEntry struct {
 // at a relay gateway group.
 type AIModelRouteBinding struct {
 	gorm.Model
-	CatalogEntryID        uint                 `gorm:"not null;index" json:"catalog_entry_id"`
-	CatalogEntry          *AIModelCatalogEntry `gorm:"foreignKey:CatalogEntryID" json:"-"`
-	ComboTemplateKey      string               `gorm:"default:'';index" json:"combo_template_key,omitempty"`
-	TemplateVersion       string               `gorm:"default:''" json:"template_version,omitempty"`
-	SourceType            string               `gorm:"not null;index" json:"source_type"`
-	RouteGroup            string               `gorm:"default:'';index" json:"route_group"`
-	ProviderID            string               `gorm:"default:'';index" json:"provider_id,omitempty"`
-	AdapterType           string               `gorm:"default:'';index" json:"adapter_type,omitempty"`
-	ProviderModelID       string               `gorm:"default:'';index" json:"provider_model_id"`
-	APIKinds              string               `gorm:"default:''" json:"api_kinds,omitempty"`
-	EndpointBaseURL       string               `gorm:"default:''" json:"endpoint_base_url,omitempty"`
-	EndpointPathPrefix    string               `gorm:"default:''" json:"endpoint_path_prefix,omitempty"`
-	EndpointMode          string               `gorm:"default:'inherit'" json:"endpoint_mode,omitempty"`
-	OperationProfile      string               `gorm:"default:'';index" json:"operation_profile,omitempty"`
-	RouteCapabilitiesJSON string               `gorm:"type:text;default:''" json:"route_capabilities_json,omitempty"`
-	CredentialID          *uint                `gorm:"index" json:"-"`
-	IsEnabled             bool                 `gorm:"default:true;index" json:"is_enabled"`
-	Priority              int                  `gorm:"default:0" json:"priority"`
-	CapacityWeight        int                  `gorm:"default:1" json:"capacity_weight"`
-	MaxConcurrency        int                  `gorm:"default:0" json:"max_concurrency"`
+	CatalogEntryID     uint                 `gorm:"not null;index" json:"catalog_entry_id"`
+	CatalogEntry       *AIModelCatalogEntry `gorm:"foreignKey:CatalogEntryID" json:"-"`
+	ComboTemplateKey   string               `gorm:"default:'';index" json:"combo_template_key,omitempty"`
+	TemplateVersion    string               `gorm:"default:''" json:"template_version,omitempty"`
+	SourceType         string               `gorm:"not null;index" json:"source_type"`
+	RouteGroup         string               `gorm:"default:'';index" json:"route_group"`
+	ProviderID         string               `gorm:"default:'';index" json:"provider_id,omitempty"`
+	AdapterType        string               `gorm:"default:'';index" json:"adapter_type,omitempty"`
+	ProviderModelID    string               `gorm:"default:'';index" json:"provider_model_id"`
+	APIKinds           string               `gorm:"default:''" json:"api_kinds,omitempty"`
+	EndpointBaseURL    string               `gorm:"default:''" json:"endpoint_base_url,omitempty"`
+	EndpointPathPrefix string               `gorm:"default:''" json:"endpoint_path_prefix,omitempty"`
+	EndpointMode       string               `gorm:"default:'inherit'" json:"endpoint_mode,omitempty"`
+	CredentialID       *uint                `gorm:"index" json:"-"`
+	IsEnabled          bool                 `gorm:"default:true;index" json:"is_enabled"`
+	Priority           int                  `gorm:"default:0" json:"priority"`
+	CapacityWeight     int                  `gorm:"default:1" json:"capacity_weight"`
+	MaxConcurrency     int                  `gorm:"default:0" json:"max_concurrency"`
 }

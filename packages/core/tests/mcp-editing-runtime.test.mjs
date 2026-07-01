@@ -121,11 +121,13 @@ test('MCP editing export discovery keeps RawResource and HLS publishing paths di
   ]) {
     const tool = toolsByName.get(name)
     assert.ok(tool, `${name} should be registered`)
-    assert.ok(tool.inputSchema?.properties?.projectId, `${name} should expose projectId for task workspace placement`)
-    assert.ok(tool.inputSchema?.properties?.project_id, `${name} should expose project_id for task workspace placement`)
+    assert.ok(tool.inputSchema?.properties?.mediaProjectId, `${name} should expose mediaProjectId for task workspace placement`)
+    assert.ok(tool.inputSchema?.properties?.media_project_id, `${name} should expose media_project_id for task workspace placement`)
+    assert.ok(tool.inputSchema?.properties?.projectId, `${name} should keep projectId as a deprecated mediaProjectId alias`)
+    assert.ok(tool.inputSchema?.properties?.project_id, `${name} should keep project_id as a deprecated mediaProjectId alias`)
   }
-  assert.match(String(toolsByName.get('editing_task_transcode_create')?.description), /projectId/)
-  assert.match(String(toolsByName.get('editing_task_reframe_create')?.description), /projectId/)
+  assert.match(String(toolsByName.get('editing_task_transcode_create')?.description), /mediaProjectId/)
+  assert.match(String(toolsByName.get('editing_task_reframe_create')?.description), /mediaProjectId/)
   for (const name of [
     'editing_task_get',
     'editing_task_cancel',
@@ -136,9 +138,11 @@ test('MCP editing export discovery keeps RawResource and HLS publishing paths di
   ]) {
     const tool = toolsByName.get(name)
     assert.ok(tool, `${name} should be registered`)
-    assert.ok(tool.inputSchema?.properties?.projectId, `${name} should expose projectId for task workspace recovery`)
-    assert.ok(tool.inputSchema?.properties?.project_id, `${name} should expose project_id for task workspace recovery`)
-    assert.match(String(tool.description), /projectId/)
+    assert.ok(tool.inputSchema?.properties?.mediaProjectId, `${name} should expose mediaProjectId for task workspace recovery`)
+    assert.ok(tool.inputSchema?.properties?.media_project_id, `${name} should expose media_project_id for task workspace recovery`)
+    assert.ok(tool.inputSchema?.properties?.projectId, `${name} should keep projectId as a deprecated mediaProjectId alias`)
+    assert.ok(tool.inputSchema?.properties?.project_id, `${name} should keep project_id as a deprecated mediaProjectId alias`)
+    assert.match(String(tool.description), /mediaProjectId/)
   }
 
   assert.match(String(toolsByName.get('editing_export_import_resource')?.description), /HLS manifests must use editing_export_publish_hls/)
@@ -150,9 +154,11 @@ test('MCP editing export discovery keeps RawResource and HLS publishing paths di
   assert.ok(toolsByName.get('editing_export_save_local')?.inputSchema?.properties?.save_directory)
   assert.ok(toolsByName.get('editing_export_save_local')?.inputSchema?.properties?.hlsDirectory)
   assert.ok(toolsByName.get('editing_export_save_local')?.inputSchema?.properties?.segmentPaths)
-  assert.match(String(toolsByName.get('editing_export_create_candidate')?.description), /RawResource-backed/)
-  assert.match(String(toolsByName.get('editing_export_create_candidate')?.description), /future domain candidate schema extension/)
-  assert.equal(toolsByName.get('editing_export_create_candidate')?.inputSchema?.properties?.streamId?.description.includes('Known unsupported HLS MediaStreamArtifact ID'), true)
+  assert.match(String(toolsByName.get('editing_export_create_candidate')?.description), /RawResource outputs use resourceId/)
+  assert.match(String(toolsByName.get('editing_export_create_candidate')?.description), /HLS MediaStreamArtifact outputs use streamId/)
+  assert.equal(toolsByName.get('editing_export_create_candidate')?.inputSchema?.properties?.streamId?.description.includes('hls_stream candidate'), true)
+  assert.ok(toolsByName.get('editing_export_create_candidate')?.inputSchema?.properties?.projectDir)
+  assert.ok(toolsByName.get('editing_export_create_candidate')?.inputSchema?.properties?.projectServiceURL)
   assert.ok(toolsByName.get('editing_project_save')?.inputSchema?.properties?.expectedRevision)
   assert.ok(toolsByName.get('editing_project_save')?.inputSchema?.properties?.expected_revision)
   assert.match(String(toolsByName.get('editing_project_save')?.description), /optimistic locking/)
@@ -371,28 +377,6 @@ test('MCP editing task tools delegate to the registered Electron editing runtime
     assert.match(createdProject.projectPath, new RegExp(`editing-service/projects/${createdProject.editing_project.id}\\.json$`))
     assert.equal(capturedProjectSaves.length, 0)
 
-    const createdFromEditPlan = await callTool('editing_project_create_from_edit_plan', {
-      projectId: 'project-1',
-      title: 'Runtime edit plan cut',
-      editPlan: {
-        schema: 'movscript.edit_plan.v1',
-        productionId: 'pilot',
-        productionPath: 'productions/pilot',
-        sceneMomentId: 'rain_call',
-        sceneMomentPath: 'productions/pilot/scene_moments/rain_call',
-        target_ref: 'productions/pilot/scene_moments/rain_call',
-        status: 'ready_to_compose',
-        tracks: [],
-        compose_inputs: [],
-      },
-    })
-    assert.equal(createdFromEditPlan.status, 'ok')
-    assert.equal(createdFromEditPlan.editing_project.title, 'Runtime edit plan cut')
-    assert.match(createdFromEditPlan.projectPath, new RegExp(`editing-service/projects/${createdFromEditPlan.editing_project.id}\\.json$`))
-    assert.equal(createdFromEditPlan.editing_project.source.kind, 'movscript_edit_plan')
-    assert.equal(createdFromEditPlan.editing_project.projectId, 'project-1')
-    assert.equal(capturedProjectSaves.length, 0)
-
     const loadedProject = await callTool('editing_project_get', {
       projectId: 'project-1',
       editingProjectId: 'edit_project_1',
@@ -458,7 +442,7 @@ test('MCP editing task tools delegate to the registered Electron editing runtime
       output: { filename: 'transcoded.mp4' },
     })
     assert.equal(missingTranscodeProject?.result, undefined)
-    assert.match(missingTranscodeProject?.error?.message ?? '', /projectId is required/)
+    assert.match(missingTranscodeProject?.error?.message ?? '', /mediaProjectId is required/)
 
     const missingReframeProject = await callToolResponse('editing_task_reframe_create', {
       source: {
@@ -472,7 +456,7 @@ test('MCP editing task tools delegate to the registered Electron editing runtime
       output: { filename: 'vertical.mp4' },
     })
     assert.equal(missingReframeProject?.result, undefined)
-    assert.match(missingReframeProject?.error?.message ?? '', /projectId is required/)
+    assert.match(missingReframeProject?.error?.message ?? '', /mediaProjectId is required/)
     assert.equal(capturedRequests.length, 2)
 
     const transcodeCreated = await callTool('editing_task_transcode_create', {
@@ -662,11 +646,11 @@ test('MCP editing task tools delegate to the registered Electron editing runtime
 
     const missingHlsPublish = await callTool('editing_export_publish_hls', {
       taskId: 'missing_hls_task',
-      projectId: 'project-1',
+      mediaProjectId: 'project-1',
     })
     assert.equal(missingHlsPublish.status, 'not_found')
     assert.equal(missingHlsPublish.task_id, 'missing_hls_task')
-    assert.match(missingHlsPublish.message, /projectId/)
+    assert.match(missingHlsPublish.message, /mediaProjectId/)
     assert.deepEqual(capturedTaskLookups.at(-1), { taskId: 'missing_hls_task', options: { projectId: 'project-1' } })
 
     const pendingHlsPublish = await callTool('editing_export_publish_hls', {

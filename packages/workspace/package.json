@@ -53,7 +53,8 @@
   "dependencies": {
     "@movscript/decision": "workspace:*",
     "@movscript/domain": "workspace:*",
-    "@movscript/language": "workspace:*"
+    "@movscript/language": "workspace:*",
+    "@movscript/runtime-contracts": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "22.19.17",

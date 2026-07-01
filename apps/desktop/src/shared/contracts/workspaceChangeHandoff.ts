@@ -114,7 +114,7 @@ export function buildWorkspaceBusinessReviewPath(input: {
     const focus = movScriptDomainFocusFromRecord(
       target,
       (entityType === 'production' || entityType === 'segment') && legacyScopeRef !== undefined
-        ? { scopeKind: entityType, scopeRef: legacyScopeRef, targetKind: 'timeline_assembly' }
+        ? { scopeKind: entityType, scopeRef: legacyScopeRef }
         : {},
     )
     return withRouteParams('/project/content/preview', {

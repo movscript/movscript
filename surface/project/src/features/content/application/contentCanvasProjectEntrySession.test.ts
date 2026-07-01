@@ -126,28 +126,13 @@ test('content canvas project entry session can focus preview on a production nam
 test('content canvas project entry session derives production focus from normalized scope refs', () => {
   const state = resolveContentCanvasProjectEntrySessionState({
     hasExplicitSearch: true,
-    searchParams: new URLSearchParams('tab=preview&scopeKind=episode&scopeRef=episode_01&targetKind=timeline_assembly&targetRef=timeline_assembly%3Aepisode%3Aepisode_01'),
+    searchParams: new URLSearchParams('tab=preview&scopeKind=episode&scopeRef=episode_01'),
     snapshot: null,
   })
 
   assert.deepEqual(state, {
     activeCanvasNodeId: 'production:episode_01',
     selectedNodeId: 'production:episode_01',
-    selectionKind: 'other',
-    workspaceTab: 'preview',
-  })
-})
-
-test('content canvas project entry session derives production focus from timeline assembly ref aliases', () => {
-  const state = resolveContentCanvasProjectEntrySessionState({
-    hasExplicitSearch: true,
-    searchParams: new URLSearchParams('timeline_assembly_ref=timeline_assembly%3Afilm%3Ashort_film'),
-    snapshot: null,
-  })
-
-  assert.deepEqual(state, {
-    activeCanvasNodeId: 'production:short_film',
-    selectedNodeId: 'production:short_film',
     selectionKind: 'other',
     workspaceTab: 'preview',
   })

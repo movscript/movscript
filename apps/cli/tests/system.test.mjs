@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -14,6 +14,8 @@ let projectRequests = []
 let shotRequests = []
 let generationRequests = []
 let artifactRequests = []
+let mediaPipelineRequests = []
+let mediaPipelineResults = new Map()
 
 before(async () => {
   server = createTestServer()
@@ -70,6 +72,35 @@ test('system model list exposes stable empty result for unknown capability', () 
   ])
 })
 
+test('production workflow returns CLI-only production gates through the product CLI', () => {
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-system-production-workflow-'))
+  const result = runMovscript(['production', 'workflow', '--home-dir', homeDir, '--json'])
+
+  assert.equal(result.status, 0)
+  assert.equal(result.json.commandId, 'system.production.workflow')
+  assert.equal(result.json.mcpToolName, 'system_production_workflow')
+  assert.equal(result.json.data.schema, 'movscript.production_workflow.v1')
+  assert.equal(result.json.data.mode, 'cli_only')
+  assert.deepEqual(result.json.data.stages.map((stage) => stage.stage_id), [
+    'plan_content',
+    'production_editing',
+    'generate',
+    'export',
+  ])
+  assert.ok(result.json.data.stages[0].primary_cli.some((argv) => argv.join(' ') === 'movscript workspace review --json'))
+  assert.ok(result.json.data.stages[2].mcp_tools.includes('generation_submit'))
+  assert.ok(result.json.data.stages[2].does_not.includes('Does not automatically adopt or select candidates.'))
+  assert.ok(result.json.data.stages[3].mcp_tools.includes('system_artifact_upload_export'))
+  assert.deepEqual(result.json.debug.cli_argv, [
+    'movscript',
+    'production',
+    'workflow',
+    '--json',
+    '--home-dir',
+    homeDir,
+  ])
+})
+
 test('system generation prepare calls backend through shared command JSON', async () => {
   generationRequests = []
   const result = await runMovscriptAsync([
@@ -79,7 +110,9 @@ test('system generation prepare calls backend through shared command JSON', asyn
     '--server',
     baseURL,
     '--capability',
-    'audio_music',
+    'audio_generation',
+    '--operation',
+    'music_generation',
     '--json',
   ])
 
@@ -87,7 +120,7 @@ test('system generation prepare calls backend through shared command JSON', asyn
   assert.equal(result.json.commandId, 'system.generation.prepare')
   assert.equal(result.json.mcpToolName, 'generation_prepare')
   assert.equal(result.json.data.status, 'ready')
-  assert.equal(result.json.data.capability, 'audio_music')
+  assert.equal(result.json.data.capability, 'audio_generation')
   assert.equal(result.json.data.scope, 'free')
   assert.equal(result.json.data.count, 1)
   assert.equal(result.json.data.models[0].model_id, 'audio:music')
@@ -100,17 +133,18 @@ test('system generation prepare calls backend through shared command JSON', asyn
     '--server',
     baseURL,
     '--capability',
-    'audio_music',
+    'audio_generation',
+    '--operation',
+    'music_generation',
   ])
   assert.deepEqual(generationRequests, [{
     method: 'GET',
-    url: '/api/v1/models?capability=audio_music&target_output=audio&resolve_intent=true',
+    url: '/api/v1/models?capability=audio_generation&operation=music_generation&target_output=audio&resolve_intent=true',
   }])
 })
 
-test('system resource library open returns shared command JSON', () => {
+test('resource library open is a top-level product CLI backed by shared command JSON', () => {
   const result = runMovscript([
-    'system',
     'resource',
     'library',
     'open',
@@ -129,7 +163,6 @@ test('system resource library open returns shared command JSON', () => {
   assert.equal(result.json.data.mcp_api_base_url, 'http://127.0.0.1:8765/agent-api/v1')
   assert.deepEqual(result.json.debug.cli_argv, [
     'movscript',
-    'system',
     'resource',
     'library',
     'open',
@@ -141,10 +174,9 @@ test('system resource library open returns shared command JSON', () => {
   ])
 })
 
-test('system artifact get-stream calls backend through shared command JSON', async () => {
+test('artifact get-stream is a top-level product CLI backed by shared command JSON', async () => {
   artifactRequests = []
   const result = await runMovscriptAsync([
-    'system',
     'artifact',
     'get-stream',
     '--server',
@@ -162,7 +194,6 @@ test('system artifact get-stream calls backend through shared command JSON', asy
   assert.equal(result.json.data.manifest_url, 'https://cdn.example/stream.m3u8')
   assert.deepEqual(result.json.debug.cli_argv, [
     'movscript',
-    'system',
     'artifact',
     'get-stream',
     '--json',
@@ -177,10 +208,124 @@ test('system artifact get-stream calls backend through shared command JSON', asy
   }])
 })
 
-test('system project create calls backend through shared command JSON', async () => {
+test('artifact upload-export resolves resultId through Media Pipeline before upload', async () => {
+  artifactRequests = []
+  mediaPipelineRequests = []
+  mediaPipelineResults = new Map()
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-system-artifact-result-'))
+  const outputPath = join(dir, 'result-export.mp4')
+  writeFileSync(outputPath, 'result export bytes')
+  mediaPipelineResults.set('result_cli_export_1', {
+    resultId: 'result_cli_export_1',
+    result_id: 'result_cli_export_1',
+    projectId: 'project_cli_system',
+    project_id: 'project_cli_system',
+    taskId: 'task_cli_export',
+    task_id: 'task_cli_export',
+    backend: 'media_editing_project',
+    kind: 'mp4',
+    outputPath,
+    output_path: outputPath,
+  })
+
+  const result = await runMovscriptAsync([
+    'artifact',
+    'upload-export',
+    '--server',
+    baseURL,
+    '--media-pipeline-service-url',
+    baseURL,
+    '--result-id',
+    'result_cli_export_1',
+    '--json',
+  ])
+
+  assert.equal(result.status, 0)
+  assert.equal(result.json.commandId, 'system.artifact.upload_export')
+  assert.equal(result.json.mcpToolName, 'system_artifact_upload_export')
+  assert.equal(result.json.data.status, 'ok')
+  assert.equal(result.json.data.resource_id, 88)
+  assert.equal(result.json.data.output_path, outputPath)
+  assert.equal(result.json.data.result_id, 'result_cli_export_1')
+  assert.deepEqual(result.json.debug.cli_argv, [
+    'movscript',
+    'artifact',
+    'upload-export',
+    '--json',
+    '--server',
+    baseURL,
+    '--media-pipeline-service-url',
+    baseURL,
+    '--result-id',
+    'result_cli_export_1',
+  ])
+  assert.deepEqual(mediaPipelineRequests, [{
+    method: 'POST',
+    url: '/v1/media-pipeline/results/get',
+    body: { resultId: 'result_cli_export_1' },
+  }])
+  assert.deepEqual(artifactRequests, [{
+    method: 'POST',
+    url: '/api/v1/resources/upload',
+  }])
+})
+
+test('artifact upload-hls-stream resolves resultId through Media Pipeline before upload', async () => {
+  artifactRequests = []
+  mediaPipelineRequests = []
+  mediaPipelineResults = new Map()
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-system-artifact-hls-result-'))
+  const manifestPath = join(dir, 'index.m3u8')
+  const segmentPath = join(dir, 'segment-00000.ts')
+  writeFileSync(manifestPath, '#EXTM3U\n#EXTINF:1,\nsegment-00000.ts\n')
+  writeFileSync(segmentPath, 'hls segment')
+  mediaPipelineResults.set('result_cli_hls_1', {
+    resultId: 'result_cli_hls_1',
+    result_id: 'result_cli_hls_1',
+    projectId: 'project_cli_system',
+    project_id: 'project_cli_system',
+    taskId: 'task_cli_hls',
+    task_id: 'task_cli_hls',
+    backend: 'media_editing_project',
+    kind: 'hls',
+    hlsManifestPath: manifestPath,
+    hls_manifest_path: manifestPath,
+    hlsSegmentPaths: [segmentPath],
+    hls_segment_paths: [segmentPath],
+  })
+
+  const result = await runMovscriptAsync([
+    'artifact',
+    'upload-hls-stream',
+    '--server',
+    baseURL,
+    '--media-pipeline-service-url',
+    baseURL,
+    '--result-id',
+    'result_cli_hls_1',
+    '--json',
+  ])
+
+  assert.equal(result.status, 0)
+  assert.equal(result.json.commandId, 'system.artifact.upload_hls_stream')
+  assert.equal(result.json.mcpToolName, 'system_artifact_upload_hls_stream')
+  assert.equal(result.json.data.status, 'ok')
+  assert.equal(result.json.data.stream_id, 89)
+  assert.equal(result.json.data.result_id, 'result_cli_hls_1')
+  assert.deepEqual(mediaPipelineRequests, [{
+    method: 'POST',
+    url: '/v1/media-pipeline/results/get',
+    body: { resultId: 'result_cli_hls_1' },
+  }])
+  assert.deepEqual(artifactRequests, [{
+    method: 'POST',
+    url: '/api/v1/media/streams/uploads',
+  }])
+})
+
+test('project create is a top-level product CLI backed by the shared system command JSON', async () => {
   projectRequests = []
   const result = await runMovscriptAsync([
-    'system',
     'project',
     'create',
     '--server',
@@ -202,7 +347,6 @@ test('system project create calls backend through shared command JSON', async ()
   assert.equal(result.json.data.project.name, 'Launch Film')
   assert.deepEqual(result.json.debug.cli_argv, [
     'movscript',
-    'system',
     'project',
     'create',
     '--json',
@@ -226,14 +370,13 @@ test('system project create calls backend through shared command JSON', async ()
   }])
 })
 
-test('system resource image annotate returns local artifact JSON', () => {
+test('resource image annotate returns local artifact JSON through the product CLI', () => {
   const outputDir = mkdtempSync(join(tmpdir(), 'movscript-annotate-'))
   const outputPath = join(outputDir, 'annotated.svg')
   const sourceSVG = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#ffffff"/></svg>'
   const dataUrl = `data:image/svg+xml;base64,${Buffer.from(sourceSVG).toString('base64')}`
   const annotations = JSON.stringify([{ type: 'rect', x: 20, y: 24, width: 120, height: 64, color: '#ef4444' }])
   const result = runMovscript([
-    'system',
     'resource',
     'image',
     'annotate',
@@ -262,7 +405,6 @@ test('system resource image annotate returns local artifact JSON', () => {
   assert.match(readFileSync(outputPath, 'utf8'), /CLI Annotation/)
   assert.deepEqual(result.json.debug.cli_argv, [
     'movscript',
-    'system',
     'resource',
     'image',
     'annotate',
@@ -282,10 +424,9 @@ test('system resource image annotate returns local artifact JSON', () => {
   ])
 })
 
-test('system shot group create calls backend through shared command JSON', async () => {
+test('shot group create is a top-level product CLI backed by shared command JSON', async () => {
   shotRequests = []
   const result = await runMovscriptAsync([
-    'system',
     'shot',
     'group',
     'create',
@@ -309,7 +450,6 @@ test('system shot group create calls backend through shared command JSON', async
   assert.equal(result.json.data.group_id, 3)
   assert.deepEqual(result.json.debug.cli_argv, [
     'movscript',
-    'system',
     'shot',
     'group',
     'create',
@@ -411,14 +551,15 @@ function createTestServer() {
     }
     if (req.method === 'GET'
       && requestURL.pathname === '/api/v1/models'
-      && requestURL.searchParams.get('capability') === 'audio_music') {
+      && requestURL.searchParams.get('capability') === 'audio_generation'
+      && requestURL.searchParams.get('operation') === 'music_generation') {
       generationRequests.push({ method: req.method, url: req.url })
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify([{
         id: 51,
         model_id: 'audio:music',
         display_name: 'Music Model',
-        capabilities: ['audio_music'],
+        capabilities: ['audio_generation'],
       }]))
       return
     }
@@ -432,6 +573,50 @@ function createTestServer() {
         },
         manifest_url: 'https://cdn.example/stream.m3u8',
       }))
+      return
+    }
+    if (req.url === '/api/v1/resources/upload' && req.method === 'POST') {
+      artifactRequests.push({ method: req.method, url: req.url })
+      req.resume()
+      req.on('end', () => {
+        res.writeHead(201, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({
+          ID: 88,
+          name: 'result-export.mp4',
+          mime_type: 'video/mp4',
+        }))
+      })
+      return
+    }
+    if (req.url === '/api/v1/media/streams/uploads' && req.method === 'POST') {
+      artifactRequests.push({ method: req.method, url: req.url })
+      req.resume()
+      req.on('end', () => {
+        res.writeHead(201, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({
+          stream_id: 89,
+          manifest_url: '/api/v1/media/streams/89/manifest.m3u8',
+          segment_base_url: '/api/v1/media/streams/89/segments/',
+          stream: { ID: 89, title: 'CLI HLS' },
+        }))
+      })
+      return
+    }
+    if (req.url === '/v1/media-pipeline/results/get' && req.method === 'POST') {
+      let body = ''
+      req.setEncoding('utf8')
+      req.on('data', (chunk) => { body += chunk })
+      req.on('end', () => {
+        const parsed = JSON.parse(body || '{}')
+        mediaPipelineRequests.push({ method: req.method, url: req.url, body: parsed })
+        const result = mediaPipelineResults.get(parsed.resultId ?? parsed.result_id) ?? null
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({
+          schema: 'movscript.media-pipeline-result-get.v1',
+          status: result ? 'found' : 'not_found',
+          result,
+        }))
+      })
       return
     }
     if (req.url === '/api/v1/shot-reference-groups' && req.method === 'POST') {

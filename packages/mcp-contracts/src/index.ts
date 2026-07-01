@@ -7,7 +7,16 @@ export interface MCPContextSnapshot {
     hash: string
   }
   project: {
-    id: number
+    id?: string | number
+    backendProjectId?: number
+    backend_project_id?: number
+    uid?: string
+    projectUid?: string
+    project_uid?: string
+    projectKey?: string
+    project_key?: string
+    routeProjectKey?: string
+    route_project_key?: string
     name: string
     description?: string
     projectDir?: string

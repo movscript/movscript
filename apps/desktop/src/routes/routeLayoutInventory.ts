@@ -65,11 +65,6 @@ const dragSurfacesByRouteId: Record<string, LayoutInventoryDragSurface[]> = {
   ],
   'tools.image': [toolResourceDragSurface],
   'tools.video': [toolResourceDragSurface],
-  'tools.refImageGen': [toolResourceDragSurface],
-  'tools.refVideoGen': [toolResourceDragSurface],
-  'tools.motionImitation': [toolResourceDragSurface],
-  'tools.styleTransfer': [toolResourceDragSurface],
-  'tools.multiAngle': [toolResourceDragSurface],
 }
 
 export const routeLayoutInventory: readonly LayoutInventoryItem[] = registeredRouteLayoutSpecs.map((spec) => ({

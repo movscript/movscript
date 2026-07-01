@@ -19,7 +19,7 @@ export function inferGenerationCallProfile(
     labels: generationCallLabels(output, references),
     reference_roles: roleSet,
     reference_media_types: mediaTypeSet,
-    preferred_operations: preferredLegacyOperations(output, references),
+    preferred_operations: preferredOperations(output, references),
   }
 }
 
@@ -43,7 +43,7 @@ function generationCallLabels(output: string, refs: readonly GenerationResolverR
     const labels: string[] = []
     if (hasFirst && hasLast) labels.push('首尾帧生视频')
     else if (hasFirst) labels.push('首帧生视频')
-    if (hasVideo) labels.push('视频参考生视频')
+    if (hasVideo) labels.push('参考视频生成')
     if (hasOrdinaryImage) labels.push('参考图生视频')
     if ((hasVideo || hasAudio) && (hasFirst || hasLast || hasOrdinaryImage)) labels.push('全能参考生视频')
     if (labels.length === 0) labels.push('参考生视频')
@@ -57,11 +57,13 @@ function generationCallLabels(output: string, refs: readonly GenerationResolverR
   return [output]
 }
 
-function preferredLegacyOperations(output: string, refs: readonly GenerationResolverReference[]): string[] {
+function preferredOperations(output: string, refs: readonly GenerationResolverReference[]): string[] {
   if (output === 'image') {
     if (refs.length === 0) return ['text_to_image']
-    if (refs.some((ref) => ref.role === 'style_reference')) return ['style_transfer', 'reference_to_image', 'image_to_image']
-    return ['reference_to_image', 'image_to_image', 'image_edit']
+    if (refs.some((ref) => ref.role === 'target_image' || ref.role === 'mask')) {
+      return ['edit_image', 'inpaint', 'outpaint', 'upscale_image', 'variation']
+    }
+    return ['reference_to_image', 'edit_image', 'variation']
   }
   if (output === 'video') {
     if (refs.length === 0) return ['prompt_to_video']
@@ -73,16 +75,18 @@ function preferredLegacyOperations(output: string, refs: readonly GenerationReso
     const operations: string[] = []
     if (hasFirst && hasLast) operations.push('first_last_frame_to_video')
     if (hasFirst) operations.push('first_frame_to_video')
-    if (hasVideo && !hasImage && !hasAudio) operations.push('video_to_video')
+    if (hasVideo && !hasImage && !hasAudio) operations.push('edit_video')
     if (hasImage && !hasVideo && !hasAudio) operations.push('image_to_video')
     operations.push('reference_to_video')
-    if (hasVideo) operations.push('video_to_video')
+    if (hasVideo) operations.push('edit_video', 'extend_video')
     if (hasImage) operations.push('image_to_video')
     return unique(operations)
   }
   if (output === 'audio') {
-    if (refs.some((ref) => ref.media_type === 'audio')) return ['audio_chat', 'voice_clone', 'stt', 'speech_translate']
-    return ['tts', 'music', 'sfx', 'voice_design']
+    if (refs.some((ref) => ref.media_type === 'audio')) {
+      return ['speech_to_speech', 'speech_to_text', 'speech_translate', 'voice_clone', 'voice_isolation']
+    }
+    return ['text_to_speech', 'music_generation', 'sound_effect_generation', 'voice_design']
   }
   return []
 }

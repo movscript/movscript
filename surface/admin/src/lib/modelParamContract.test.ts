@@ -595,11 +595,11 @@ test('adapterParamsForCapabilities deduplicates params across selected capabilit
     supports_files_api: false,
     param_sets: [
       { capability: 'image', params: [{ key: 'size', label: 'Size', type: 'select', options: ['1024x1024'] }] },
-      { capability: 'image_edit', params: [{ key: 'image_size', label: 'Image Size', type: 'select', options: ['1024x1024'] }] },
+      { capability: 'image_generation', params: [{ key: 'image_size', label: 'Image Size', type: 'select', options: ['1024x1024'] }] },
     ],
   } as AdapterDef
 
-  const params = adapterParamsForCapabilities(adapter, ['image', 'image_edit'])
+  const params = adapterParamsForCapabilities(adapter, ['image_generation'])
 
   assert.deepEqual(params.map((param) => param.key), ['image_size'])
 })

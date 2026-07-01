@@ -23,6 +23,7 @@
       "@movscript/language/domain": ["../language/src/domain/index.ts"],
       "@movscript/prompt": ["../prompt/src/index.ts"],
       "@movscript/project": ["../project/src/index.ts"],
+      "@movscript/runtime-contracts": ["../runtime-contracts/src/index.ts"],
       "@movscript/workspace": ["../workspace/src/index.ts"],
       "@movscript/workspace/indexer": ["../workspace/src/indexer/index.ts"],
       "@movscript/workspace/layout": ["../workspace/src/layout/index.ts"],

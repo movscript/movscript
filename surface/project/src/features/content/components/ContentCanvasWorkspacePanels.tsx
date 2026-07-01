@@ -143,6 +143,7 @@ export function InspectorPanel({
   draftAssetPrompts,
   draftExpressionPrompts,
   namespaceVocabulary,
+  nodes,
   paneLayout,
   promptReferenceNodes,
   selection,
@@ -159,8 +160,10 @@ export function InspectorPanel({
   onCreateStoryboard,
   onExpressionPromptChange,
   onExpressionUnitSave,
+  onGenerationReferenceAppend,
   onPromptChange,
   onPromptCommit,
+  onReferencePoolCommit,
   onStructuredPromptCommit,
   onSelectNode,
 }: {
@@ -170,6 +173,7 @@ export function InspectorPanel({
   draftAssetPrompts: Record<string, string>
   draftExpressionPrompts: Record<string, string>
   namespaceVocabulary: ContentCanvasNamespaceVocabularyOptions
+  nodes: ContentCanvasNode[]
   paneLayout: ReturnType<typeof useContentCanvasPaneLayout>
   promptReferenceNodes: ContentCanvasNode[]
   selection: InspectorSelection
@@ -186,8 +190,10 @@ export function InspectorPanel({
   onCreateStoryboard: (owner: ContentCanvasNode, input: ContentCanvasCreateNodeInput, position?: ContentCanvasNodePosition) => void
   onExpressionPromptChange: (nodeId: string, prompt: string) => void
   onExpressionUnitSave: (node: ContentCanvasNode, input: ContentCanvasExpressionUnitEditorInput) => void
+  onGenerationReferenceAppend: (targetNode: ContentCanvasNode | undefined, sourceNode: ContentCanvasNode | undefined, options?: { role?: string; mediaType?: string }) => void
   onPromptChange: (assetId: string, prompt: string) => void
   onPromptCommit: (node: ContentCanvasNode | undefined, prompt: string) => void
+  onReferencePoolCommit: (node: ContentCanvasNode | undefined, prompt: string, generationReferences: Array<Record<string, unknown>>) => void
   onStructuredPromptCommit: (node: ContentCanvasNode | undefined, structured: Record<string, unknown>) => void
   onSelectNode: (kind: InspectorSelection['kind'], nodeId: string) => void
 }) {
@@ -205,7 +211,7 @@ export function InspectorPanel({
         assetPrompts={draftAssetPrompts}
         expressionPrompts={draftExpressionPrompts}
         candidateSelections={candidateSelections}
-        nodes={promptReferenceNodes}
+        nodes={nodes}
         promptReferenceNodes={promptReferenceNodes}
         onCreateAsset={onCreateAsset}
         onCreateExpressionUnit={onCreateExpressionUnit}
@@ -214,9 +220,11 @@ export function InspectorPanel({
         onCreateStoryboard={onCreateStoryboard}
         onPromptChange={onPromptChange}
         onPromptCommit={onPromptCommit}
+        onReferencePoolCommit={onReferencePoolCommit}
         onStructuredPromptCommit={onStructuredPromptCommit}
         onExpressionPromptChange={onExpressionPromptChange}
         onExpressionUnitSave={onExpressionUnitSave}
+        onGenerationReferenceAppend={onGenerationReferenceAppend}
         onCandidateCreate={onCandidateCreate}
         onCandidatePreflight={onCandidatePreflight}
         onCandidatePromptPreview={onCandidatePromptPreview}

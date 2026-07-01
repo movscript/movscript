@@ -71,7 +71,7 @@ test('electron renderer smoke reaches project standards overview', async ({}, te
 
     await expect(page.getByRole('heading', { name: '项目规范' })).toBeVisible()
     await expect(page.getByRole('heading', { name: '规范工作板' })).toBeVisible()
-    await expect(page.getByText('0 个待审阅工作区')).toBeVisible()
+    await expect(page.getByRole('heading', { name: '基础规范' })).toBeVisible()
   } finally {
     await app.close()
   }

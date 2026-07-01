@@ -85,6 +85,7 @@ export default function ContentCanvasWorkspacePage({
           activeCanvasDocument={controller.activeCreativeCanvasDocument}
           candidateSelections={controller.candidateSelections}
           canvasDocuments={controller.creativeCanvasDocuments}
+          canvasGroups={controller.creativeCanvasGroups}
           canvasNodeIds={controller.creativeCanvasNodeIds}
           draftAssetPrompts={controller.draftAssetPrompts}
           draftExpressionPrompts={controller.draftExpressionPrompts}
@@ -109,17 +110,21 @@ export default function ContentCanvasWorkspacePage({
           onCanvasDeselect={controller.clearCanvasSelection}
           onClearManualPositions={controller.clearCreativeCanvasManualPositions}
           onClearManualPositionsForNodes={controller.clearCreativeCanvasManualPositionsForNodes}
-          onCreateAssembly={controller.createTimelineAssemblyForNamespace}
           onCreateChild={controller.openCreativeCanvasCreateChild}
           onCreateCanvas={controller.createFreeCreativeCanvasDocument}
+          onCreateGroup={controller.createCreativeCanvasGroup}
           onCreateNode={controller.createCreativeCanvasNode}
           onDeleteNode={controller.deleteCreativeCanvasNode}
           onExpressionPromptChange={controller.changeExpressionPromptDraft}
+          onGenerationReferenceAppend={controller.appendGenerationReferenceDraft}
           onNodePositionsCommit={controller.commitCreativeCanvasNodePositions}
           onViewportCommit={controller.commitCreativeCanvasViewport}
           onPromptChange={controller.changeAssetPromptDraft}
           onPromptCommit={controller.commitPromptDraft}
+          onReferencePoolCommit={controller.commitPromptReferencePoolDraft}
           onRemoveNodeFromCanvas={controller.removeNodeFromCreativeCanvas}
+          onRemoveGroupsFromCanvas={controller.removeGroupsFromCreativeCanvas}
+          onRemoveNodesFromCanvas={controller.removeNodesFromCreativeCanvas}
           onStructuredPromptCommit={controller.commitStructuredPromptDraft}
           onResourceOpen={controller.openResourceNode}
           onRenameCanvas={controller.renameFreeCreativeCanvasDocument}
@@ -136,6 +141,7 @@ export default function ContentCanvasWorkspacePage({
           draftExpressionPrompts={controller.draftExpressionPrompts}
           createSelection={controller.createSelection}
           namespaceVocabulary={controller.namespaceVocabulary}
+          nodes={workspaceNodes}
           paneLayout={paneLayout}
           promptReferenceNodes={viewModel.scenePromptReferenceNodes}
           selection={viewModel.inspectorSelection}
@@ -152,8 +158,10 @@ export default function ContentCanvasWorkspacePage({
           onCreateStoryboard={controller.createStoryboardForOwner}
           onExpressionPromptChange={controller.changeExpressionPromptDraft}
           onExpressionUnitSave={controller.saveExpressionUnit}
+          onGenerationReferenceAppend={controller.appendGenerationReferenceDraft}
           onPromptChange={controller.changeAssetPromptDraft}
           onPromptCommit={controller.commitPromptDraft}
+          onReferencePoolCommit={controller.commitPromptReferencePoolDraft}
           onStructuredPromptCommit={controller.commitStructuredPromptDraft}
           onSelectNode={controller.selectNode}
         />

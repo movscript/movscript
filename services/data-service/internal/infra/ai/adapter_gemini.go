@@ -964,7 +964,7 @@ func parseGoogleSpeechRecognizeResponse(data []byte, language string) (media.Tim
 		}
 	}
 	return media.TimingMetadata{
-		Source:     media.TimingSourceSTT,
+		Source:     media.TimingSourceSpeechToText,
 		Provider:   "google_speech",
 		Language:   language,
 		DurationMs: durationMs,

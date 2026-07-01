@@ -23,25 +23,25 @@ export function resolveMovScriptCliBinDir(input: MovScriptCliPathInput = {}): st
   const exists = input.exists ?? existsSync
   const platform = input.platform ?? process.platform
   const workspace = resolveWorkspaceMovScriptCliBinDir(input)
-  if (input.workspaceDir?.trim() && workspace && movcliBinExists(workspace, exists, platform)) return workspace
+  if (input.workspaceDir?.trim() && workspace && movscriptCliBinExists(workspace, exists, platform)) return workspace
 
   const override = env.MOVSCRIPT_CLI_BIN_DIR?.trim()
   const overrideDir = override ? resolveForPlatform(override, platform) : undefined
-  if (overrideDir && movcliBinExists(overrideDir, exists, platform)) return overrideDir
+  if (overrideDir && movscriptCliBinExists(overrideDir, exists, platform)) return overrideDir
 
-  if (workspace && movcliBinExists(workspace, exists, platform)) return workspace
+  if (workspace && movscriptCliBinExists(workspace, exists, platform)) return workspace
 
   const packagedPlugin = resolvePackagedMovScriptPluginDir(input)
-  if (packagedPlugin && movcliPluginPackageExists(packagedPlugin, exists)) return joinForPlatform(platform, packagedPlugin, 'bin')
+  if (packagedPlugin && movscriptCliPluginPackageExists(packagedPlugin, exists)) return joinForPlatform(platform, packagedPlugin, 'bin')
 
-  const packaged = resolvePackagedLegacyMovcliBinDir(input)
-  if (packaged && movcliBuiltPackageExists(dirname(packaged), exists)) return packaged
+  const packaged = resolvePackagedMovScriptCliPackageBinDir(input)
+  if (packaged && movscriptCliBuiltPackageExists(dirname(packaged), exists)) return packaged
 
   const repo = resolveMovScriptRepoRoot(input)
   const devPlugin = resolveForPlatform(joinForPlatform(platform, repo, 'apps/plugin'), platform)
-  if (movcliPluginPackageExists(devPlugin, exists)) return joinForPlatform(platform, devPlugin, 'bin')
+  if (movscriptCliPluginPackageExists(devPlugin, exists)) return joinForPlatform(platform, devPlugin, 'bin')
   const dev = resolveForPlatform(joinForPlatform(platform, repo, 'apps/cli/bin'), platform)
-  return movcliBuiltPackageExists(dirname(dev), exists) ? dev : undefined
+  return movscriptCliBuiltPackageExists(dirname(dev), exists) ? dev : undefined
 }
 
 export function ensureWorkspaceMovScriptCliBin(input: MovScriptCliPathInput = {}): string | undefined {
@@ -49,13 +49,13 @@ export function ensureWorkspaceMovScriptCliBin(input: MovScriptCliPathInput = {}
   const workspace = resolveWorkspaceMovScriptCliBinDir(input)
   if (!workspace) return undefined
 
-  const source = workspaceMovScriptCliSourceCandidates(input).find((candidate) => movcliPackageSourceExists(candidate, existsSync))
+  const source = workspaceMovScriptCliSourceCandidates(input).find((candidate) => movscriptCliPackageSourceExists(candidate, existsSync))
   if (!source) {
-    return movcliBinExists(workspace, input.exists ?? existsSync, platform) ? workspace : undefined
+    return movscriptCliBinExists(workspace, input.exists ?? existsSync, platform) ? workspace : undefined
   }
 
   mkdirSync(workspace, { recursive: true })
-  writeWorkspaceMovcliShim(workspace, source, platform)
+  writeWorkspaceMovScriptCliShim(workspace, source, platform)
   return workspace
 }
 
@@ -124,8 +124,8 @@ function resolveMovScriptRepoRoot(input: MovScriptCliPathInput): string {
     resolve(dirname(currentDir), '../../..'),
   ]
   return candidates.find((candidate) => (
-    movcliPluginPackageExists(join(candidate, 'apps/plugin'), input.exists ?? existsSync)
-    || movcliSourceBinExists(join(candidate, 'apps/cli/bin'), input.exists ?? existsSync)
+    movscriptCliPluginPackageExists(join(candidate, 'apps/plugin'), input.exists ?? existsSync)
+    || movscriptCliSourceBinExists(join(candidate, 'apps/cli/bin'), input.exists ?? existsSync)
   ))
     ?? candidates[0]!
 }
@@ -139,11 +139,11 @@ function resolveWorkspaceMovScriptCliBinDir(input: MovScriptCliPathInput): strin
   return workspaceDir ? resolveMovScriptWorkspaceRootPaths(workspaceDir).binDir : undefined
 }
 
-function resolvePackagedLegacyMovcliBinDir(input: MovScriptCliPathInput): string | undefined {
-  if (input.resourcesPath) return resolve(input.resourcesPath, 'movcli/bin')
+function resolvePackagedMovScriptCliPackageBinDir(input: MovScriptCliPathInput): string | undefined {
+  if (input.resourcesPath) return resolve(input.resourcesPath, 'movscript-cli/bin')
   const packaged = input.isPackaged ?? isElectronPackaged()
   if (!packaged || !process.resourcesPath) return undefined
-  return resolve(process.resourcesPath, 'movcli/bin')
+  return resolve(process.resourcesPath, 'movscript-cli/bin')
 }
 
 function resolvePackagedMovScriptPluginDir(input: MovScriptCliPathInput): string | undefined {
@@ -153,29 +153,29 @@ function resolvePackagedMovScriptPluginDir(input: MovScriptCliPathInput): string
   return resolve(process.resourcesPath, 'provider-plugins/movscript')
 }
 
-function movcliCommandName(platform: NodeJS.Platform): string {
-  return platform === 'win32' ? 'movcli.cmd' : 'movcli'
+function movscriptCliCommandName(platform: NodeJS.Platform): string {
+  return platform === 'win32' ? 'movscript.cmd' : 'movscript'
 }
 
-function movcliBinExists(binDir: string, exists: (path: string) => boolean, platform: NodeJS.Platform): boolean {
-  return exists(joinForPlatform(platform, binDir, movcliCommandName(platform)))
+function movscriptCliBinExists(binDir: string, exists: (path: string) => boolean, platform: NodeJS.Platform): boolean {
+  return exists(joinForPlatform(platform, binDir, movscriptCliCommandName(platform)))
 }
 
-function movcliSourceBinExists(binDir: string, exists: (path: string) => boolean): boolean {
-  return exists(join(binDir, 'movcli'))
+function movscriptCliSourceBinExists(binDir: string, exists: (path: string) => boolean): boolean {
+  return exists(join(binDir, 'movscript'))
 }
 
-function movcliBuiltPackageExists(packageDir: string, exists: (path: string) => boolean): boolean {
-  return movcliSourceBinExists(join(packageDir, 'bin'), exists) && exists(join(packageDir, 'dist/index.cjs'))
+function movscriptCliBuiltPackageExists(packageDir: string, exists: (path: string) => boolean): boolean {
+  return movscriptCliSourceBinExists(join(packageDir, 'bin'), exists) && exists(join(packageDir, 'dist/index.cjs'))
 }
 
-type MovcliPackageSource = {
+type MovScriptCliPackageSource = {
   kind: 'plugin' | 'legacy'
   packageDir: string
 }
 
-function movcliPluginPackageExists(packageDir: string, exists: (path: string) => boolean): boolean {
-  return exists(join(packageDir, 'bin', 'movcli')) && Boolean(movscriptPluginEntrypoint(packageDir, exists))
+function movscriptCliPluginPackageExists(packageDir: string, exists: (path: string) => boolean): boolean {
+  return exists(join(packageDir, 'bin', 'movscript')) && Boolean(movscriptPluginEntrypoint(packageDir, exists))
 }
 
 function movscriptPluginEntrypoint(packageDir: string, exists: (path: string) => boolean): string | undefined {
@@ -186,44 +186,44 @@ function movscriptPluginEntrypoint(packageDir: string, exists: (path: string) =>
   return undefined
 }
 
-function movcliPackageSourceExists(source: MovcliPackageSource, exists: (path: string) => boolean): boolean {
+function movscriptCliPackageSourceExists(source: MovScriptCliPackageSource, exists: (path: string) => boolean): boolean {
   return source.kind === 'plugin'
-    ? movcliPluginPackageExists(source.packageDir, exists)
-    : movcliBuiltPackageExists(source.packageDir, exists)
+    ? movscriptCliPluginPackageExists(source.packageDir, exists)
+    : movscriptCliBuiltPackageExists(source.packageDir, exists)
 }
 
-function workspaceMovScriptCliSourceCandidates(input: MovScriptCliPathInput): MovcliPackageSource[] {
+function workspaceMovScriptCliSourceCandidates(input: MovScriptCliPathInput): MovScriptCliPackageSource[] {
   const repo = repoMovScriptCliPackageDir(input)
   return [
     pluginSource(resolvePackagedMovScriptPluginDir(input)),
-    legacySource(resolvePackagedLegacyMovcliBinDir(input)),
+    legacySource(resolvePackagedMovScriptCliPackageBinDir(input)),
     pluginSource(resolve(resolveMovScriptRepoRoot(input), 'apps/plugin')),
     legacySource(resolve(repo, '..', 'cli')),
-  ].filter((candidate): candidate is MovcliPackageSource => Boolean(candidate))
+  ].filter((candidate): candidate is MovScriptCliPackageSource => Boolean(candidate))
 }
 
-function pluginSource(packageDir: string | undefined): MovcliPackageSource | undefined {
+function pluginSource(packageDir: string | undefined): MovScriptCliPackageSource | undefined {
   return packageDir ? { kind: 'plugin', packageDir } : undefined
 }
 
-function legacySource(binDir: string | undefined): MovcliPackageSource | undefined {
+function legacySource(binDir: string | undefined): MovScriptCliPackageSource | undefined {
   return binDir ? { kind: 'legacy', packageDir: dirname(binDir) } : undefined
 }
 
-function writeWorkspaceMovcliShim(binDir: string, source: MovcliPackageSource, platform: NodeJS.Platform): void {
-  writeFileSync(join(binDir, 'movcli.mjs'), source.kind === 'plugin'
-    ? workspacePluginMovcliEntry(source.packageDir)
-    : workspaceLegacyMovcliEntry(source.packageDir), 'utf8')
+function writeWorkspaceMovScriptCliShim(binDir: string, source: MovScriptCliPackageSource, platform: NodeJS.Platform): void {
+  writeFileSync(join(binDir, 'movscript.mjs'), source.kind === 'plugin'
+    ? workspacePluginMovScriptCliEntry(source.packageDir)
+    : workspaceLegacyMovScriptCliEntry(source.packageDir), 'utf8')
   if (platform === 'win32') {
-    writeFileSync(join(binDir, 'movcli.cmd'), workspaceMovcliCmd(), 'utf8')
+    writeFileSync(join(binDir, 'movscript.cmd'), workspaceMovScriptCliCmd(), 'utf8')
     return
   }
-  writeFileSync(join(binDir, 'movcli'), workspaceMovcliShell(), 'utf8')
-  chmodSync(join(binDir, 'movcli'), 0o755)
-  chmodSync(join(binDir, 'movcli.mjs'), 0o755)
+  writeFileSync(join(binDir, 'movscript'), workspaceMovScriptCliShell(), 'utf8')
+  chmodSync(join(binDir, 'movscript'), 0o755)
+  chmodSync(join(binDir, 'movscript.mjs'), 0o755)
 }
 
-function workspaceLegacyMovcliEntry(packageDir: string): string {
+function workspaceLegacyMovScriptCliEntry(packageDir: string): string {
   const distEntry = resolve(packageDir, 'dist/index.cjs')
   return `#!/usr/bin/env node
 
@@ -233,7 +233,7 @@ import { pathToFileURL } from 'node:url'
 const builtEntry = ${JSON.stringify(distEntry)}
 
 if (!existsSync(builtEntry)) {
-  console.error('movcli has not been built into the bundled MovScript CLI package.')
+  console.error('movscript has not been built into the bundled MovScript CLI package.')
   process.exit(1)
 }
 
@@ -241,7 +241,7 @@ await import(pathToFileURL(builtEntry).href)
 `
 }
 
-function workspacePluginMovcliEntry(packageDir: string): string {
+function workspacePluginMovScriptCliEntry(packageDir: string): string {
   const modernEntry = resolve(packageDir, 'bin/movscript.mjs')
   const legacyEntry = resolve(packageDir, 'bin/movscript-agent-mcp.mjs')
   return `#!/usr/bin/env node
@@ -258,29 +258,29 @@ if (!pluginEntry) {
   process.exit(1)
 }
 
-process.argv = [process.argv[0] ?? 'node', pluginEntry, '__movscript_movcli', ...process.argv.slice(2)]
+process.argv = [process.argv[0] ?? 'node', pluginEntry, ...process.argv.slice(2)]
 await import(pathToFileURL(pluginEntry).href)
 `
 }
 
-function workspaceMovcliShell(): string {
+function workspaceMovScriptCliShell(): string {
   return `#!/bin/sh
 set -eu
 script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
 if [ -n "\${MOVSCRIPT_NODE_BIN:-}" ]; then
-  exec "$MOVSCRIPT_NODE_BIN" "$script_dir/movcli.mjs" "$@"
+  exec "$MOVSCRIPT_NODE_BIN" "$script_dir/movscript.mjs" "$@"
 fi
 if [ -n "\${MOVSCRIPT_ELECTRON_BIN:-}" ]; then
-  ELECTRON_RUN_AS_NODE=1 exec "$MOVSCRIPT_ELECTRON_BIN" "$script_dir/movcli.mjs" "$@"
+  ELECTRON_RUN_AS_NODE=1 exec "$MOVSCRIPT_ELECTRON_BIN" "$script_dir/movscript.mjs" "$@"
 fi
-exec node "$script_dir/movcli.mjs" "$@"
+exec node "$script_dir/movscript.mjs" "$@"
 `
 }
 
-function workspaceMovcliCmd(): string {
+function workspaceMovScriptCliCmd(): string {
   return `@echo off
 setlocal
-set "ENTRY=%~dp0movcli.mjs"
+set "ENTRY=%~dp0movscript.mjs"
 if defined MOVSCRIPT_NODE_BIN (
   "%MOVSCRIPT_NODE_BIN%" "%ENTRY%" %*
   exit /b %ERRORLEVEL%

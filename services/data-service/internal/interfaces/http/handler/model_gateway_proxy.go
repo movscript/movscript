@@ -106,19 +106,19 @@ func openAIProxyCapabilitiesForPath(path string) []string {
 	path = "/" + strings.TrimLeft(path, "/")
 	switch {
 	case strings.HasPrefix(path, "/chat/completions"), strings.HasPrefix(path, "/responses"):
-		return []string{ai.CapabilityText, ai.CapabilityReasoning}
+		return []string{ai.CapabilityFamilyTextGeneration, ai.CapabilityReasoning}
 	case strings.HasPrefix(path, "/images/edits"), strings.HasPrefix(path, "/images/variations"):
-		return []string{ai.CapabilityImageEdit}
+		return []string{ai.CapabilityFamilyImageGeneration}
 	case strings.HasPrefix(path, "/images/generations"):
-		return []string{ai.CapabilityImage}
+		return []string{ai.CapabilityFamilyImageGeneration}
 	case strings.HasPrefix(path, "/audio/speech"):
-		return []string{ai.CapabilityAudioTTS}
+		return []string{ai.CapabilityFamilyAudioGeneration}
 	case strings.HasPrefix(path, "/audio/transcriptions"), strings.HasPrefix(path, "/audio/translations"):
-		return []string{ai.CapabilityAudioSTT}
+		return []string{ai.CapabilityFamilyAudioGeneration}
 	case strings.HasPrefix(path, "/videos"):
-		return []string{ai.CapabilityVideo, ai.CapabilityVideoI2V, ai.CapabilityVideoV2V}
+		return []string{ai.CapabilityFamilyVideoGeneration}
 	default:
-		return []string{ai.CapabilityText, ai.CapabilityReasoning}
+		return []string{ai.CapabilityFamilyTextGeneration, ai.CapabilityReasoning}
 	}
 }
 

@@ -1,118 +1,116 @@
+---
 lab: stability-audio
 templates:
-    - order: 1
-      id: stability:stable-audio-3
-      lab: stability-audio
-      model_id: stable-audio-3
-      display_name: Stable Audio 3
-      route_adapter_hint: stability
-      capabilities:
-        - audio_music
-        - audio_sfx
-      params:
-        - key: duration
-          label: 时长(秒)
-          type: select
-          options:
-            - "5"
-            - "10"
-            - "30"
-            - "60"
-            - "120"
-          default: "30"
-        - key: output_format
-          label: 音频格式
-          type: select
-          options:
-            - wav
-            - mp3
-          default: wav
-        - key: negative_prompt
-          label: 负向提示词
-          type: string
-          default: ""
-      source:
-        url: https://platform.stability.ai/docs/api-reference#tag/Stable-Audio/paths/~1v2beta~1audio~1stable-audio~1text-to-audio/post
-        verified_at: "2026-06-25"
-        status: verified
-    - order: 2
-      id: stability:stable-audio-2-5
-      lab: stability-audio
-      model_id: stable-audio-2.5
-      display_name: Stable Audio 2.5
-      route_adapter_hint: stability
-      capabilities:
-        - audio_music
-        - audio_sfx
-      params:
-        - key: duration
-          label: 时长(秒)
-          type: select
-          options:
-            - "5"
-            - "10"
-            - "30"
-            - "60"
-            - "120"
-            - "180"
-          default: "30"
-        - key: output_format
-          label: 音频格式
-          type: select
-          options:
-            - mp3
-            - wav
-          default: mp3
-        - key: steps
-          label: 推理步数
-          type: number
-          default: 8
-          min: 1
-          max: 100
-          step: 1
-        - key: cfg_scale
-          label: 提示词强度
-          type: number
-          default: 1
-          min: 0
-          max: 20
-          step: 0.1
-      source:
-        url: https://platform.stability.ai/docs/api-reference#tag/Stable-Audio-2/paths/~1v2beta~1audio~1stable-audio-2~1text-to-audio/post
-        verified_at: "2026-06-25"
-        status: verified
-    - order: 3
-      id: stability:stable-audio-2
-      lab: stability-audio
-      model_id: stable-audio-2
-      display_name: Stable Audio 2
-      route_adapter_hint: stability
-      capabilities:
-        - audio_music
-        - audio_sfx
-      params:
-        - key: duration
-          label: 时长(秒)
-          type: select
-          options:
-            - "5"
-            - "10"
-            - "30"
-            - "60"
-            - "120"
-          default: "30"
-        - key: output_format
-          label: 音频格式
-          type: select
-          options:
-            - wav
-            - mp3
-          default: wav
-        - key: negative_prompt
-          label: 负向提示词
-          type: string
-          default: ""
-      source:
-        url: https://platform.stability.ai/docs/api-reference#tag/Stable-Audio-2/paths/~1v2beta~1audio~1stable-audio-2~1text-to-audio/post
-        verified_at: "2026-06-25"
-        status: verified
+- order: 1
+  id: stability:stable-audio-3
+  lab: stability-audio
+  model_id: stable-audio-3
+  display_name: Stable Audio 3
+  route_adapter_hint: stability
+  capabilities:
+  - audio_generation
+  params:
+  - key: duration
+    label: 时长(秒)
+    type: select
+    options:
+    - '5'
+    - '10'
+    - '30'
+    - '60'
+    - '120'
+    default: '30'
+  - key: output_format
+    label: 音频格式
+    type: select
+    options:
+    - wav
+    - mp3
+    default: wav
+  - key: negative_prompt
+    label: 负向提示词
+    type: string
+    default: ''
+  source:
+    url: https://platform.stability.ai/docs/api-reference#tag/Stable-Audio/paths/~1v2beta~1audio~1stable-audio~1text-to-audio/post
+    verified_at: '2026-06-25'
+    status: verified
+- order: 2
+  id: stability:stable-audio-2-5
+  lab: stability-audio
+  model_id: stable-audio-2.5
+  display_name: Stable Audio 2.5
+  route_adapter_hint: stability
+  capabilities:
+  - audio_generation
+  params:
+  - key: duration
+    label: 时长(秒)
+    type: select
+    options:
+    - '5'
+    - '10'
+    - '30'
+    - '60'
+    - '120'
+    - '180'
+    default: '30'
+  - key: output_format
+    label: 音频格式
+    type: select
+    options:
+    - mp3
+    - wav
+    default: mp3
+  - key: steps
+    label: 推理步数
+    type: number
+    default: 8
+    min: 1
+    max: 100
+    step: 1
+  - key: cfg_scale
+    label: 提示词强度
+    type: number
+    default: 1
+    min: 0
+    max: 20
+    step: 0.1
+  source:
+    url: https://platform.stability.ai/docs/api-reference#tag/Stable-Audio-2/paths/~1v2beta~1audio~1stable-audio-2~1text-to-audio/post
+    verified_at: '2026-06-25'
+    status: verified
+- order: 3
+  id: stability:stable-audio-2
+  lab: stability-audio
+  model_id: stable-audio-2
+  display_name: Stable Audio 2
+  route_adapter_hint: stability
+  capabilities:
+  - audio_generation
+  params:
+  - key: duration
+    label: 时长(秒)
+    type: select
+    options:
+    - '5'
+    - '10'
+    - '30'
+    - '60'
+    - '120'
+    default: '30'
+  - key: output_format
+    label: 音频格式
+    type: select
+    options:
+    - wav
+    - mp3
+    default: wav
+  - key: negative_prompt
+    label: 负向提示词
+    type: string
+    default: ''
+  source:
+    url: https://platform.stability.ai/docs/api-reference#tag/Stable-Audio-2/paths/~1v2beta~1audio~1stable-audio-2~1text-to-audio/post
+    verified_at: '2026-06-25'
+    status: verified

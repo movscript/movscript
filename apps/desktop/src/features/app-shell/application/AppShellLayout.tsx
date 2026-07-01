@@ -149,8 +149,6 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
   }, [projectAgentPane.show, runOrPromptAgentAvailability])
   const appShellHeaders = createAppShellLayoutHeaders({
     pathname,
-    search,
-    routeLayout,
     currentProject,
     accountSettingsActiveTab,
     agentSettingsActive,

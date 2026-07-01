@@ -3,7 +3,6 @@ export {
   createMediaEditingProjectService,
   clipFitsTrackType,
   createMediaEditingProjectFromProductionTimelineClips,
-  createMediaEditingProjectFromTimelineAssemblyClips,
   mediaTimelineIsValid,
   MediaEditingProjectService,
   normalizeMediaClipVolumePercent,
@@ -24,7 +23,6 @@ export {
   type MediaEditingProjectSourceKind,
   type MediaProductionTimelineClip,
   type MediaProductionTimelineProjectOptions,
-  type MediaTimelineAssemblyProjectOptions,
   type MediaTimelineCommand,
   type MediaTimelineCommandType,
   type MediaTimelineDiagnostic,
@@ -37,27 +35,6 @@ export {
   type TextSpec,
   type TransitionSpec,
 } from './media-project.js'
-
-export {
-  compileTimelineAssemblyToFinishingProject,
-  compileTimelineAssemblyToMediaEditingProject,
-  createTimelineAssemblyCompileManifest,
-  type TimelineAssemblyCompileBackend,
-  type TimelineAssemblyCompileDiagnostic,
-  type TimelineAssemblyCompileManifest,
-  type TimelineAssemblyCompileManifestInput,
-  type TimelineAssemblyCompileRenderSettings,
-  type TimelineAssemblyCompileSeverity,
-  type TimelineAssemblyCompileStatus,
-  type TimelineAssemblyFinishingBackend,
-  type TimelineAssemblyFinishingCompileInput,
-  type TimelineAssemblyFinishingCompileResult,
-  type TimelineAssemblyFinishingProject,
-  type TimelineAssemblyFinishingProjectAdapter,
-  type TimelineAssemblyFinishingProjectFile,
-  type TimelineAssemblyMediaEditingCompileInput,
-  type TimelineAssemblyMediaEditingCompileResult,
-} from './compile-manifest.js'
 
 export {
   createMediaEditingProjectFromEditDecisions,

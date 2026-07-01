@@ -51,14 +51,14 @@ test('probeLocalBackendStatus returns actionable error when local HTTP health is
   })
 })
 
-test('getLocalDaemonGatewayBaseURL prefers daemon gateway settings over legacy API URL fields', () => {
+test('getLocalDaemonGatewayBaseURL uses the runtime-owned local gateway over legacy settings fields', () => {
   assert.equal(
     getLocalDaemonGatewayBaseURL({
       dataConnection: { kind: 'local', url: 'http://data-plane.example:8766/' },
       daemonGatewayBaseURL: 'http://daemon.example:8766/',
       apiBaseURL: 'http://legacy.example:8766/',
     }),
-    'http://daemon.example:8766',
+    'http://localhost:8766',
   )
 })
 
@@ -125,6 +125,16 @@ test('waitForLocalBackendReady trusts daemon-owned Electron status over the lega
         getRuntimeConfig: async () => ({
           movScriptHomeDir: '/tmp/movscript-home',
           workspaceDir: '/tmp/movscript-home',
+          runtimeConnection: {
+            schema: 'movscript.runtime-connection.v1',
+            mode: 'local',
+            gatewayBaseURL: runtimeBaseURL,
+            apiV1BaseURL: `${runtimeBaseURL}/api/v1`,
+            authMode: 'local-owner',
+            displayName: 'Local daemon gateway',
+            status: 'connected',
+            source: 'daemon',
+          },
           runtime: {
             schema: 'movscript.runtime-descriptor.v1',
             runtime: {

@@ -32,7 +32,7 @@ import {
   inspectorKindForNode,
 } from './ContentCanvasInspectorParts'
 import { settingTypeLabel } from './contentCanvasWorkspaceDisplayModel'
-import { appendContentNodeReferenceToPrompt, iconForContentNode, isExpressionPromptNode, promptFromContentNode } from './contentCanvasWorkspaceModel'
+import { iconForContentNode, isExpressionPromptNode, promptFromContentNode } from './contentCanvasWorkspaceModel'
 
 export function NodeInspector({
   selection,
@@ -45,6 +45,7 @@ export function NodeInspector({
   promptReferenceNodes,
   onPromptChange,
   onPromptCommit,
+  onReferencePoolCommit,
   onStructuredPromptCommit,
   onCreateAsset,
   onCreateExpressionUnit,
@@ -53,6 +54,7 @@ export function NodeInspector({
   onCreateStoryboard,
   onExpressionPromptChange,
   onExpressionUnitSave,
+  onGenerationReferenceAppend,
   onCandidateCreate,
   onCandidatePreflight,
   onCandidatePromptPreview,
@@ -71,6 +73,7 @@ export function NodeInspector({
   promptReferenceNodes: ContentCanvasNode[]
   onPromptChange: (assetId: string, prompt: string) => void
   onPromptCommit: (node: ContentCanvasNode | undefined, prompt: string) => void
+  onReferencePoolCommit: (node: ContentCanvasNode | undefined, prompt: string, generationReferences: Array<Record<string, unknown>>) => void
   onStructuredPromptCommit: (node: ContentCanvasNode | undefined, structured: Record<string, unknown>) => void
   onCreateAsset: (state: ContentCanvasNode, input: ContentCanvasCreateNodeInput, position?: ContentCanvasNodePosition) => void
   onCreateExpressionUnit: (scene: ContentCanvasNode, input: ContentCanvasCreateNodeInput, position?: ContentCanvasNodePosition) => void
@@ -79,6 +82,7 @@ export function NodeInspector({
   onCreateStoryboard: (owner: ContentCanvasNode, input: ContentCanvasCreateNodeInput, position?: ContentCanvasNodePosition) => void
   onExpressionPromptChange: (nodeId: string, prompt: string) => void
   onExpressionUnitSave: (node: ContentCanvasNode, input: ContentCanvasExpressionUnitEditorInput) => void
+  onGenerationReferenceAppend: (targetNode: ContentCanvasNode | undefined, sourceNode: ContentCanvasNode | undefined, options?: { role?: string; mediaType?: string }) => void
   onCandidateCreate: (node: ContentCanvasNode | undefined, options?: ContentCanvasCandidateGenerationOptions) => void
   onCandidatePreflight: (node: ContentCanvasNode | undefined, options?: Partial<ContentCanvasCandidateGenerationOptions>) => Promise<GenerationBackendPreflightResult>
   onCandidatePromptPreview: (node: ContentCanvasNode | undefined) => Promise<ContentCanvasCandidatePromptPreview>
@@ -193,7 +197,7 @@ export function NodeInspector({
     const draftKey = contentUnitInspectorNode?.id ?? ''
     return (
       <ContentUnitInspector
-        node={contentUnitInspectorNode}
+        node={contentUnitGenerationTarget.node}
         title={inspectorTitleForSelection(selection)}
         Icon={inspectorIconForSelection(selection)}
         prompt={prompt}
@@ -209,16 +213,9 @@ export function NodeInspector({
           }
         }}
         onPromptCommit={(nextPrompt) => onPromptCommit(contentUnitInspectorNode, nextPrompt)}
+        onReferencePoolCommit={(nextPrompt, generationReferences) => onReferencePoolCommit(contentUnitInspectorNode, nextPrompt, generationReferences)}
         onStructuredPromptCommit={(structured) => onStructuredPromptCommit(contentUnitInspectorNode, structured)}
-        onReferenceAppend={(referenceNode) => {
-          const nextPrompt = appendContentNodeReferenceToPrompt(prompt, referenceNode)
-          if (!contentUnitInspectorNode) return
-          if (contentUnitInspectorNode.kind === 'asset') {
-            onPromptChange(draftKey, nextPrompt)
-          } else {
-            onExpressionPromptChange(draftKey, nextPrompt)
-          }
-        }}
+        onReferenceAppend={(referenceNode) => onGenerationReferenceAppend(contentUnitInspectorNode, referenceNode)}
         onSelectNode={onSelectNode}
         onCandidateCreate={onCandidateCreate}
         onCandidatePreflight={onCandidatePreflight}
@@ -510,6 +507,7 @@ function ContentUnitInspector({
   candidateSelections,
   onPromptChange,
   onPromptCommit,
+  onReferencePoolCommit,
   onStructuredPromptCommit,
   onReferenceAppend,
   onSelectNode,
@@ -529,6 +527,7 @@ function ContentUnitInspector({
   candidateSelections: CandidateSelections
   onPromptChange: (prompt: string) => void
   onPromptCommit: (prompt: string) => void
+  onReferencePoolCommit: (prompt: string, generationReferences: Array<Record<string, unknown>>) => void
   onStructuredPromptCommit: (structured: Record<string, unknown>) => void
   onReferenceAppend: (node: ContentCanvasNode) => void
   onSelectNode: (kind: InspectorSelection['kind'], nodeId: string) => void
@@ -553,6 +552,7 @@ function ContentUnitInspector({
           value={prompt}
           onChange={onPromptChange}
           onBlur={onPromptCommit}
+          onReferencePoolCommit={onReferencePoolCommit}
           onStructuredCommit={onStructuredPromptCommit}
           onSelectNode={(referenceNode) => onSelectNode(inspectorKindForNode(referenceNode), referenceNode.id)}
         />

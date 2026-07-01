@@ -41,6 +41,14 @@ type RuntimeConfigureOptions = RuntimeCommandOptions & {
   clearToken?: boolean
 }
 
+type RuntimeGatewayOptions = RuntimeCommandOptions & {
+  gatewayBaseUrl?: string
+  gatewayKind?: string
+  dataPlane?: string
+  instanceId?: string
+  healthUrl?: string
+}
+
 type PreflightOptions = RuntimeCommandOptions & {
   requireProject?: boolean
 }
@@ -69,6 +77,7 @@ export function registerRuntimeCommands(program: Command): void {
     .description('Discover and control the local MovScript daemon')
 
   registerDaemonSubcommands(daemon)
+  registerRuntimeGatewayCommands(runtime)
   registerRuntimeDescriptorCommands(runtime)
   registerRuntimePreflightCommands(runtime)
 }
@@ -78,6 +87,24 @@ export function registerDaemonCommands(program: Command): void {
     .command('daemon')
     .description('Discover and control the local MovScript daemon')
   registerDaemonSubcommands(daemon, { includeRunCommand: true })
+}
+
+export function registerDoctorCommand(program: Command): void {
+  addRuntimeContextOptions(program
+    .command('doctor')
+    .description('Run a no-frontend MovScript runtime doctor'))
+    .option('--require-project', 'Block when the selected project source is missing', true)
+    .option('--no-require-project', 'Treat missing project source as a warning')
+    .action(async (options: PreflightOptions, command: Command) => {
+      const result = await runRuntimeTool('runtime_doctor', () => ({
+        ...runtimeContextArgs(options, command),
+        requireProject: options.requireProject !== false,
+      }), options, command)
+      const data = isRecord(result) ? result.data : undefined
+      if (isRecord(data) && data.ready === false && process.exitCode === undefined) {
+        process.exitCode = 2
+      }
+    })
 }
 
 function registerDaemonSubcommands(daemon: Command, options: { includeRunCommand?: boolean } = {}): void {
@@ -150,6 +177,26 @@ function registerDaemonSubcommands(daemon: Command, options: { includeRunCommand
     })
 }
 
+function registerRuntimeGatewayCommands(runtime: Command): void {
+  const gateway = runtime
+    .command('gateway')
+    .description('Configure and inspect daemon/cloud/external runtime gateway endpoints')
+
+  addRuntimeGatewayConfigureOptions(gateway
+    .command('configure')
+    .description('Register a runtime gateway endpoint in MovScript Home'))
+    .action(async (runtimeOptions: RuntimeGatewayOptions, command: Command) => {
+      await runRuntimeTool('runtime_gateway_configure', () => runtimeGatewayArgs(runtimeOptions, command), runtimeOptions, command)
+    })
+
+  addRuntimeContextOptions(gateway
+    .command('status')
+    .description('Read configured daemon/cloud/external runtime gateway endpoint records'))
+    .action(async (runtimeOptions: RuntimeCommandOptions, command: Command) => {
+      await runRuntimeTool('runtime_gateway_status', () => runtimeContextArgs(runtimeOptions, command), runtimeOptions, command)
+    })
+}
+
 function registerRuntimeDescriptorCommands(runtime: Command): void {
   const descriptor = runtime
     .command('descriptor')
@@ -183,6 +230,15 @@ function registerRuntimePreflightCommands(runtime: Command): void {
         process.exitCode = 2
       }
     })
+}
+
+function addRuntimeGatewayConfigureOptions(command: Command): Command {
+  return addRuntimeContextOptions(command)
+    .option('--gateway-base-url <url>', 'Runtime gateway base URL; MCP is derived as /v1/mcp')
+    .option('--gateway-kind <runtime|cloud|external>', 'Runtime gateway record kind')
+    .option('--data-plane <cloud|external>', 'Alias for --gateway-kind for cloud/external runtime gateways')
+    .option('--instance-id <id>', 'Optional runtime endpoint instance id')
+    .option('--health-url <url>', 'Optional runtime gateway health URL')
 }
 
 function addRuntimeContextOptions(command: Command): Command {
@@ -270,6 +326,17 @@ function daemonStartArgs(options: DaemonStartOptions, command: Command): Record<
     startupTimeoutMs: numberOption(options.startupTimeoutMs),
     stopTimeoutMs: numberOption(options.stopTimeoutMs),
     forceRestart: options.forceRestart === true ? true : undefined,
+  })
+}
+
+function runtimeGatewayArgs(options: RuntimeGatewayOptions, command: Command): Record<string, unknown> {
+  return compactRecord({
+    ...runtimeContextArgs(options, command),
+    gatewayBaseURL: options.gatewayBaseUrl,
+    gatewayKind: options.gatewayKind,
+    dataPlane: options.dataPlane,
+    instanceId: options.instanceId,
+    healthURL: options.healthUrl,
   })
 }
 

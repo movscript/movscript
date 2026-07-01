@@ -27,8 +27,6 @@ test('shared surface route definitions keep canonical route ids unique', () => {
 test('shared surface route aliases map desktop and local paths to the same mental model', () => {
   assert.equal(sharedSurfaceRouteForRouteId('project.home')?.routeId, 'project.overview')
   assert.equal(sharedSurfaceRouteForRouteId('studio.contentCanvas')?.routeId, 'project.content.canvas')
-  assert.equal(sharedSurfaceRouteForRouteId('tools.refImageGen')?.routeId, 'tools.image')
-  assert.equal(sharedSurfaceRouteForRouteId('tools.audioTranscribe')?.routeId, 'tools.audio')
   assert.equal(sharedSurfaceRouteForRouteId('tools.privateAssets')?.routeId, 'tools.provider')
 
   assert.equal(sharedSurfaceAreaForPathname('/project/content/canvas', { host: 'desktop' }), 'workflow')
@@ -39,9 +37,10 @@ test('shared surface route aliases map desktop and local paths to the same menta
 
   assert.equal(sharedSurfaceAreaForPathname('/editing', { host: 'desktop' }), 'editing')
   assert.equal(sharedSurfaceAreaForPathname('/editing/demo-edit', { host: 'local-web' }), 'editing')
-  assert.equal(sharedSurfacePrimaryNavKeyForPathname('/studio/demo/edit-desk', { host: 'local-web' }), 'editing')
 
-  assert.equal(sharedSurfaceAreaForPathname('/tools/ref-image-gen', { host: 'local-web' }), 'tool')
+  assert.equal(sharedSurfaceAreaForPathname('/tools/image', { host: 'local-web' }), 'tool')
+  assert.equal(sharedSurfaceAreaForPathname('/tools/video', { host: 'local-web' }), 'tool')
+  assert.equal(sharedSurfaceAreaForPathname('/tools/audio', { host: 'local-web' }), 'tool')
   assert.equal(sharedSurfacePrimaryNavKeyForPathname('/resources', { host: 'desktop' }), 'tool')
   assert.equal(sharedSurfacePrimaryNavKeyForPathname('/resources/external', { host: 'local-web' }), 'tool')
 })

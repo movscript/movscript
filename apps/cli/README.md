@@ -1,6 +1,6 @@
-# movcli
+# movscript
 
-`movcli` is the MovScript command-line tool.
+`movscript` is the MovScript command-line tool.
 
 ## Development
 
@@ -19,31 +19,23 @@ pnpm --filter @movscript/cli build
 
 ## Install
 
-For a local user-wide install from this package:
+For local repository usage:
 
 ```bash
 pnpm --filter @movscript/cli build
-apps/cli/bin/install-movcli
-movcli --help
-```
-
-The installer writes a small wrapper to `~/.local/bin/movcli` by default. Use
-`--bin-dir <dir>` to install somewhere else, for example:
-
-```bash
-apps/cli/bin/install-movcli --bin-dir /usr/local/bin --force
+apps/cli/bin/movscript --help
 ```
 
 When MovScript Desktop is packaged, the app bundles this CLI under its resources
-directory. Desktop-managed command environments prepend the bundled `movcli`
+directory. Desktop-managed command environments prepend the bundled `movscript`
 directory to `PATH`, so internal terminals and provider sessions can run
-`movcli` without requiring a separate global install.
+`movscript` without requiring a separate global install.
 
 ## Global Options
 
 ```text
 --server <url>        Movscript backend URL, default http://localhost:8766
---token <token>       API token, or set MOVCLI_TOKEN
+--token <token>       API token, or set MOVSCRIPT_DATA_SERVICE_TOKEN
 --workspace <dir>     MovScript workspace root directory
 ```
 
@@ -73,9 +65,9 @@ pnpm --filter @movscript/cli dev -- --workspace /path/to/workspace whoami
 Every command group and leaf command exposes local help:
 
 ```bash
-movcli auth --help
-movcli auth status --help
-movcli project demo --help
+movscript auth --help
+movscript auth status --help
+movscript project demo --help
 ```
 
 ## Workspace Commands
@@ -95,10 +87,10 @@ pnpm --filter @movscript/cli dev -- workspace interpret --workspace /path/to/pro
 
 ## Language Commands
 
-The language/workspace command surface from the old `movscript-lang` CLI now lives in `movcli`.
+The language/workspace command surface from the old `movscript-lang` CLI now lives in `movscript`.
 
 ```bash
-pnpm --filter @movscript/cli dev -- project init --id demo --title "Demo Film"
+pnpm --filter @movscript/cli dev -- project init --local-project-id demo --title "Demo Film"
 pnpm --filter @movscript/cli dev -- project demo create --cwd ./demo
 pnpm --filter @movscript/cli dev -- setting add hero --title "Hero"
 pnpm --filter @movscript/cli dev -- asset add --setting hero --slot portrait --prompt "cinematic portrait"
@@ -106,18 +98,18 @@ pnpm --filter @movscript/cli dev -- language schemas
 pnpm --filter @movscript/cli dev -- language schema content_unit
 ```
 
-Planning and generated candidate commands are available as top-level `movcli` commands:
+Planning and generated candidate commands are available as top-level `movscript` commands:
 
 ```bash
 pnpm --filter @movscript/cli dev -- production add --id p1 --title "Demo Production"
 pnpm --filter @movscript/cli dev -- segment add --production p1 --id opening --title "Opening" --order 1
 pnpm --filter @movscript/cli dev -- scene-moment add --production p1 --segment opening --id phone_call --title "Phone call"
 pnpm --filter @movscript/cli dev -- content-unit add --id opening_shot --title "Opening shot" --type storyboard_ref --output-kind video --scene-moment phone_call --storyboard main
-pnpm --filter @movscript/cli dev -- content-unit add --id episode_01_cut --title "Episode 01 cut" --timeline-assembly episode_01 --scope-kind episode --prompt "Assemble episode 01 from selected scene moments."
+pnpm --filter @movscript/cli dev -- production editing workspace create --production-id p1 --kind remotion --title "Episode 01 Remotion cut"
 pnpm --filter @movscript/cli dev -- candidate add content_units/opening_shot/content_unit.json --resource-id resource_manual_1
 ```
 
-`production add` and `segment add` are compatibility conveniences for the legacy timeline projection. For namespace-scope video assembly, prefer `timeline_assembly_ref` content units through `--timeline-assembly` / `--scope-kind`; do not create custom `episode_ref` or `beat_ref` content-unit types.
+Production-level editing is handled by production editing workspaces. Create a `system_editing` or `remotion` workspace for cuts and renders, then explicitly import or adopt outputs when the workflow calls for it.
 
 Interpreter shortcuts are also top-level commands:
 

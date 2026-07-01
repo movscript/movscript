@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -43,26 +41,24 @@ func TestPreviewCatalogEntryContractReturnsResolvedBackendContract(t *testing.T)
 	service := newTestService(t)
 	preview, err := service.PreviewCatalogEntryContract(PreviewCatalogEntryContractInput{
 		AdapterType:           "volcen",
-		CustomCapabilities:    "video",
-		CustomSupportedParams: `{"allow":["duration","resolution"],"override":{"duration":{"type":"select","options":["5"],"default":"5"}}}`,
+		CustomCapabilities:    "video_generation",
+		CustomSupportedParams: `{"version":2,"common":{"allow":["duration","resolution"],"override":{"duration":{"key":"duration","type":"select","options":["5"],"default":"5"}}}}`,
 	})
 	if err != nil {
 		t.Fatalf("preview contract: %v", err)
 	}
-	if len(preview.Capabilities) != 1 || preview.Capabilities[0] != "video" {
+	if len(preview.Capabilities) != 1 || preview.Capabilities[0] != "video_generation" {
 		t.Fatalf("unexpected capabilities: %#v", preview.Capabilities)
 	}
-	if len(preview.SupportedParams) != 2 {
-		t.Fatalf("expected two supported params, got %#v", preview.SupportedParams)
+	if preview.AgentContract.ContractVersion != 2 {
+		t.Fatalf("expected agent contract v2, got %#v", preview.AgentContract)
 	}
-	if preview.ParamsSchema["additionalProperties"] != false {
-		t.Fatalf("expected closed params schema, got %#v", preview.ParamsSchema)
+	keys := preview.AgentContract.SupportedParamKeysByOperation[ai.VideoOperationPromptToVideo]
+	if !stringSlicesEqual(keys, []string{"duration", "resolution"}) {
+		t.Fatalf("unexpected agent supported keys for prompt_to_video: %#v", keys)
 	}
-	if preview.AgentContract.ContractVersion != 1 {
-		t.Fatalf("expected agent contract v1, got %#v", preview.AgentContract)
-	}
-	if len(preview.AgentContract.SupportedParamKeys) != 2 || preview.AgentContract.SupportedParamKeys[0] != "duration" || preview.AgentContract.SupportedParamKeys[1] != "resolution" {
-		t.Fatalf("unexpected agent supported keys: %#v", preview.AgentContract.SupportedParamKeys)
+	if preview.AgentContract.ParamsSchemaByOperation[ai.VideoOperationPromptToVideo]["additionalProperties"] != false {
+		t.Fatalf("expected closed params schema by operation, got %#v", preview.AgentContract.ParamsSchemaByOperation[ai.VideoOperationPromptToVideo])
 	}
 }
 
@@ -70,11 +66,11 @@ func TestPreviewCatalogEntryContractUsesInputLimits(t *testing.T) {
 	service := newTestService(t)
 	preview, err := service.PreviewCatalogEntryContract(PreviewCatalogEntryContractInput{
 		AdapterType:           ai.AdapterVolcen,
-		CustomCapabilities:    strings.Join([]string{ai.CapabilityVideoI2V, ai.CapabilityVideoV2V}, ","),
+		CustomCapabilities:    strings.Join([]string{ai.CapabilityFamilyVideoGeneration, ai.CapabilityFamilyVideoGeneration}, ","),
 		CustomAcceptsImage:    true,
 		CustomMaxInputImages:  4,
 		CustomMaxInputVideos:  2,
-		CustomSupportedParams: `{"allow":["duration"],"override":{"duration":{"type":"select","options":["5"],"default":"5"}}}`,
+		CustomSupportedParams: `{"version":2,"common":{"allow":["duration"],"override":{"duration":{"key":"duration","type":"select","options":["5"],"default":"5"}}}}`,
 	})
 	if err != nil {
 		t.Fatalf("preview contract: %v", err)
@@ -91,15 +87,15 @@ func TestPreviewCatalogEntryContractAllowsUnlimitedInputLimit(t *testing.T) {
 	service := newTestService(t)
 	preview, err := service.PreviewCatalogEntryContract(PreviewCatalogEntryContractInput{
 		AdapterType:           ai.AdapterVolcen,
-		CustomCapabilities:    ai.CapabilityVideoI2V,
+		CustomCapabilities:    ai.CapabilityFamilyVideoGeneration,
 		CustomAcceptsImage:    true,
 		CustomMaxInputImages:  -1,
-		CustomSupportedParams: `{"allow":["duration"],"override":{"duration":{"type":"select","options":["5"],"default":"5"}}}`,
+		CustomSupportedParams: `{"version":2,"common":{"allow":["duration"],"override":{"duration":{"key":"duration","type":"select","options":["5"],"default":"5"}}}}`,
 	})
 	if err != nil {
 		t.Fatalf("preview contract: %v", err)
 	}
-	if preview.AgentContract.InputRequirements.Image.Min != 1 || preview.AgentContract.InputRequirements.Image.Max != -1 {
+	if preview.AgentContract.InputRequirements.Image.Min != 0 || preview.AgentContract.InputRequirements.Image.Max != -1 {
 		t.Fatalf("unexpected unlimited image input requirements: %#v", preview.AgentContract.InputRequirements.Image)
 	}
 }
@@ -108,9 +104,9 @@ func TestPreviewCatalogEntryContractRejectsInvalidInputLimit(t *testing.T) {
 	service := newTestService(t)
 	_, err := service.PreviewCatalogEntryContract(PreviewCatalogEntryContractInput{
 		AdapterType:           ai.AdapterVolcen,
-		CustomCapabilities:    ai.CapabilityVideoI2V,
+		CustomCapabilities:    ai.CapabilityFamilyVideoGeneration,
 		CustomMaxInputImages:  -2,
-		CustomSupportedParams: `{"allow":["duration"],"override":{"duration":{"type":"select","options":["5"],"default":"5"}}}`,
+		CustomSupportedParams: `{"version":2,"common":{"allow":["duration"],"override":{"duration":{"key":"duration","type":"select","options":["5"],"default":"5"}}}}`,
 	})
 	if !errors.Is(err, ErrInvalidModelCatalog) {
 		t.Fatalf("expected ErrInvalidModelCatalog, got %v", err)
@@ -128,37 +124,31 @@ func TestCatalogEntrySupportedParamsRoundTripThroughPreviewAndRuntime(t *testing
 		capabilities    []string
 		acceptsImage    bool
 		maxInputImages  int
-		maxInputVideos  int
-		imageEditField  string
-		supportedParams string
-		wantKeys        []string
-	}{
+			maxInputVideos  int
+			inputImageField string
+			supportedParams string
+			operation       string
+			wantKeys        []string
+		}{
 		{
-			name:           "image-edit",
-			adapter:        ai.AdapterOpenAICompat,
-			capabilities:   []string{ai.CapabilityImageEdit},
-			acceptsImage:   true,
-			maxInputImages: 2,
-			imageEditField: "image",
-			supportedParams: `[
-				{"key":"quality","label":"Quality","type":"select","options":["standard","hd"],"default":"standard"},
-				{"key":"background","label":"Background","type":"select","options":["transparent","opaque"],"default":"opaque"}
-			]`,
+			name:            "edit-image",
+			adapter:         ai.AdapterOpenAICompat,
+			capabilities:    []string{ai.CapabilityFamilyImageGeneration},
+			acceptsImage:    true,
+			maxInputImages:  2,
+			inputImageField: "image",
+			supportedParams: `{"version":2,"common":{"allow":["quality","background"],"override":{"quality":{"key":"quality","label":"Quality","type":"select","options":["standard","hd"],"default":"standard"}},"add":[{"key":"background","label":"Background","type":"select","options":["transparent","opaque"],"default":"opaque"}]}}`,
+			operation:       ai.ImageOperationTextToImage,
 			wantKeys: []string{"background", "quality"},
 		},
 		{
-			name:           "video-i2v-conditional",
+			name:           "video-generation-conditional",
 			adapter:        ai.AdapterVolcen,
-			capabilities:   []string{ai.CapabilityVideoI2V},
+			capabilities:   []string{ai.CapabilityFamilyVideoGeneration},
 			acceptsImage:   true,
 			maxInputImages: 4,
-			supportedParams: `[
-				{"key":"duration","label":"Duration","type":"select","options":["5","10"],"default":"5"},
-				{"key":"workspace","label":"Workspace","type":"boolean"},
-				{"key":"resolution","label":"Resolution","type":"select","options":["480p","720p"],"default":"480p","conditional_enum":[{"when_param":"workspace","when_value":true,"options":["480p"]}]},
-				{"key":"return_last_frame","label":"Return Last Frame","type":"boolean","default":false,"conditional_const":[{"when_param":"workspace","when_value":true,"value":false}]},
-				{"key":"service_tier","label":"Service Tier","type":"select","options":["standard","fast"],"default":"standard"}
-			]`,
+			supportedParams: `{"version":2,"common":{"allow":["duration","workspace","resolution","return_last_frame","service_tier"],"override":{"duration":{"key":"duration","label":"Duration","type":"select","options":["5","10"],"default":"5"},"workspace":{"key":"workspace","label":"Workspace","type":"boolean"},"resolution":{"key":"resolution","label":"Resolution","type":"select","options":["480p","720p"],"default":"480p","conditional_enum":[{"when_param":"workspace","when_value":true,"options":["480p"]}]},"return_last_frame":{"key":"return_last_frame","label":"Return Last Frame","type":"boolean","default":false,"conditional_const":[{"when_param":"workspace","when_value":true,"value":false}]},"service_tier":{"key":"service_tier","label":"Service Tier","type":"select","options":["standard","fast"],"default":"standard"}}}}`,
+			operation:       ai.VideoOperationPromptToVideo,
 			wantKeys: []string{"duration", "resolution", "return_last_frame", "service_tier", "workspace"},
 		},
 	}
@@ -186,19 +176,16 @@ func TestCatalogEntrySupportedParamsRoundTripThroughPreviewAndRuntime(t *testing
 				tt.acceptsImage,
 				tt.maxInputImages,
 				tt.maxInputVideos,
-				tt.imageEditField,
+				tt.inputImageField,
 				tt.supportedParams,
 			)
 
-			if !runtime.SupportedParamsExplicit {
-				t.Fatal("expected saved catalog params to be treated as explicit model contract")
+			assertParamDefsJSONEqual(t, preview.SupportedParamsByOperation[tt.operation], runtime.SupportedParamsByOperation[tt.operation])
+			if !stringSlicesEqual(preview.AgentContract.SupportedParamKeysByOperation[tt.operation], paramKeys(runtime.SupportedParamsByOperation[tt.operation])) {
+				t.Fatalf("agent supported keys do not match runtime params: got %#v runtime %#v", preview.AgentContract.SupportedParamKeysByOperation[tt.operation], paramKeys(runtime.SupportedParamsByOperation[tt.operation]))
 			}
-			assertParamDefsJSONEqual(t, preview.SupportedParams, runtime.SupportedParams)
-			if !stringSlicesEqual(preview.AgentContract.SupportedParamKeys, paramKeys(runtime.SupportedParams)) {
-				t.Fatalf("agent supported keys do not match runtime params: got %#v runtime %#v", preview.AgentContract.SupportedParamKeys, paramKeys(runtime.SupportedParams))
-			}
-			if !stringSlicesEqual(preview.AgentContract.SupportedParamKeys, tt.wantKeys) {
-				t.Fatalf("agent supported keys = %#v, want %#v", preview.AgentContract.SupportedParamKeys, tt.wantKeys)
+			if !stringSlicesEqual(preview.AgentContract.SupportedParamKeysByOperation[tt.operation], tt.wantKeys) {
+				t.Fatalf("agent supported keys = %#v, want %#v", preview.AgentContract.SupportedParamKeysByOperation[tt.operation], tt.wantKeys)
 			}
 			if preview.AgentContract.InputRequirements.Image.Min != expectedImageInputMin(runtime) || preview.AgentContract.InputRequirements.Image.Max != runtime.MaxInputImages {
 				t.Fatalf("agent image input requirements do not match runtime: got %#v runtime max=%d", preview.AgentContract.InputRequirements.Image, runtime.MaxInputImages)
@@ -206,66 +193,42 @@ func TestCatalogEntrySupportedParamsRoundTripThroughPreviewAndRuntime(t *testing
 			if preview.AgentContract.InputRequirements.Video.Min != expectedVideoInputMin(runtime) || preview.AgentContract.InputRequirements.Video.Max != runtime.MaxInputVideos {
 				t.Fatalf("agent video input requirements do not match runtime: got %#v runtime max=%d", preview.AgentContract.InputRequirements.Video, runtime.MaxInputVideos)
 			}
-			if preview.AgentContract.ContractVersion != 1 {
-				t.Fatalf("expected agent contract v1, got %#v", preview.AgentContract)
+			if preview.AgentContract.ContractVersion != 2 {
+				t.Fatalf("expected agent contract v2, got %#v", preview.AgentContract)
 			}
 		})
 	}
 
 	preview, err := service.PreviewCatalogEntryContract(PreviewCatalogEntryContractInput{
 		AdapterType:          ai.AdapterVolcen,
-		CustomCapabilities:   ai.CapabilityVideoI2V,
+		CustomCapabilities:   ai.CapabilityFamilyVideoGeneration,
 		CustomAcceptsImage:   true,
 		CustomMaxInputImages: 4,
-		CustomSupportedParams: `[
-			{"key":"duration","label":"Duration","type":"select","options":["5","10"],"default":"5"},
-			{"key":"workspace","label":"Workspace","type":"boolean"},
-			{"key":"resolution","label":"Resolution","type":"select","options":["480p","720p"],"default":"480p","conditional_enum":[{"when_param":"workspace","when_value":true,"options":["480p"]}]},
-			{"key":"return_last_frame","label":"Return Last Frame","type":"boolean","default":false,"conditional_const":[{"when_param":"workspace","when_value":true,"value":false}]},
-			{"key":"service_tier","label":"Service Tier","type":"select","options":["standard","fast"],"default":"standard"}
-		]`,
+		CustomSupportedParams: `{"version":2,"common":{"allow":["duration","workspace","resolution","return_last_frame","service_tier"],"override":{"duration":{"key":"duration","label":"Duration","type":"select","options":["5","10"],"default":"5"},"workspace":{"key":"workspace","label":"Workspace","type":"boolean"},"resolution":{"key":"resolution","label":"Resolution","type":"select","options":["480p","720p"],"default":"480p","conditional_enum":[{"when_param":"workspace","when_value":true,"options":["480p"]}]},"return_last_frame":{"key":"return_last_frame","label":"Return Last Frame","type":"boolean","default":false,"conditional_const":[{"when_param":"workspace","when_value":true,"value":false}]},"service_tier":{"key":"service_tier","label":"Service Tier","type":"select","options":["standard","fast"],"default":"standard"}}}}`,
 	})
 	if err != nil {
 		t.Fatalf("preview conditional catalog contract: %v", err)
 	}
 	for _, key := range []string{"duration", "resolution", "workspace", "return_last_frame", "service_tier"} {
-		if agentContractParam(preview.AgentContract, key) == nil {
-			t.Fatalf("expected agent contract to include %s, got %#v", key, preview.AgentContract.SupportedParamKeys)
+		if agentContractParam(preview.AgentContract, ai.VideoOperationPromptToVideo, key) == nil {
+			t.Fatalf("expected agent contract to include %s, got %#v", key, preview.AgentContract.SupportedParamKeysByOperation[ai.VideoOperationPromptToVideo])
 		}
 	}
-	resolution := agentContractParam(preview.AgentContract, "resolution")
+	resolution := agentContractParam(preview.AgentContract, ai.VideoOperationPromptToVideo, "resolution")
 	if resolution == nil || len(resolution.ConditionalEnum) != 1 || resolution.ConditionalEnum[0].WhenParam != "workspace" {
 		t.Fatalf("expected workspace resolution rule after round trip, got %#v", resolution)
 	}
-	returnLastFrame := agentContractParam(preview.AgentContract, "return_last_frame")
+	returnLastFrame := agentContractParam(preview.AgentContract, ai.VideoOperationPromptToVideo, "return_last_frame")
 	if returnLastFrame == nil || len(returnLastFrame.ConditionalConst) != 1 || returnLastFrame.ConditionalConst[0].Value != false {
 		t.Fatalf("expected return_last_frame workspace rule after round trip, got %#v", returnLastFrame)
 	}
 }
 
 func expectedImageInputMin(def *ai.ModelDef) int {
-	imageRequired := len(def.Capabilities) > 0
-	for _, capability := range def.Capabilities {
-		if capability != ai.CapabilityImageEdit && capability != ai.CapabilityVideoI2V {
-			imageRequired = false
-		}
-	}
-	if imageRequired {
-		return 1
-	}
 	return 0
 }
 
 func expectedVideoInputMin(def *ai.ModelDef) int {
-	videoRequired := len(def.Capabilities) > 0
-	for _, capability := range def.Capabilities {
-		if capability != ai.CapabilityVideoV2V {
-			videoRequired = false
-		}
-	}
-	if videoRequired {
-		return 1
-	}
 	return 0
 }
 
@@ -280,36 +243,18 @@ func containsString(values []string, target string) bool {
 
 func TestPreviewCatalogEntryContractReturnsAgentCompactRules(t *testing.T) {
 	service := newTestService(t)
-	expectedContract := loadAgentCompactContractFixture(t)
 	preview, err := service.PreviewCatalogEntryContract(PreviewCatalogEntryContractInput{
 		AdapterType:          "volcen",
-		CustomCapabilities:   ai.CapabilityVideoI2V,
+		CustomCapabilities:   ai.CapabilityFamilyVideoGeneration,
 		CustomAcceptsImage:   true,
 		CustomMaxInputImages: 4,
-		CustomSupportedParams: `[
-			{"key":"workspace","label":"Workspace","type":"boolean"},
-			{"key":"resolution","label":"Resolution","type":"select","options":["480p","720p"],"default":"480p","json_schema":{"enum":["360p","480p"]},"conditional_enum":[{"when_param":"workspace","when_value":true,"options":["480p"]}]},
-			{"key":"frames","label":"Frames","type":"number","min":0,"max":0,"step":4,"json_schema":{"description":"Frame count must match 25 + 4n.","enum":[29,33,37]},"conflicts_with":["resolution"]},
-			{"key":"return_last_frame","label":"Return Last Frame","type":"boolean","default":false,"conditional_const":[{"when_param":"workspace","when_value":true,"value":false}]},
-			{"key":"sequential_image_generation","label":"Sequential","type":"select","options":["disabled","auto"]},
-			{"key":"image_count","label":"Image Count","type":"number","default":1,"min":1,"max":15,"requires_value":[{"param":"sequential_image_generation","value":"auto"}]}
-		]`,
+		CustomSupportedParams: `{"version":2,"common":{"allow":["workspace","resolution","frames","return_last_frame","sequential_image_generation","image_count"],"override":{"workspace":{"key":"workspace","label":"Workspace","type":"boolean"},"resolution":{"key":"resolution","label":"Resolution","type":"select","options":["480p","720p"],"default":"480p","json_schema":{"enum":["360p","480p"]},"conditional_enum":[{"when_param":"workspace","when_value":true,"options":["480p"]}]},"frames":{"key":"frames","label":"Frames","type":"number","min":0,"max":0,"step":4,"json_schema":{"description":"Frame count must match 25 + 4n.","enum":[29,33,37]},"conflicts_with":["resolution"]},"return_last_frame":{"key":"return_last_frame","label":"Return Last Frame","type":"boolean","default":false,"conditional_const":[{"when_param":"workspace","when_value":true,"value":false}]},"sequential_image_generation":{"key":"sequential_image_generation","label":"Sequential","type":"select","options":["disabled","auto"]},"image_count":{"key":"image_count","label":"Image Count","type":"number","default":1,"min":1,"max":15,"requires_value":[{"param":"sequential_image_generation","value":"auto"}]}}}}`,
 	})
 	if err != nil {
 		t.Fatalf("preview contract: %v", err)
 	}
-	assertAgentCompactContractMatchesFixture(t, preview.AgentContract, expectedContract)
-	var frames *AgentContractParam
-	var resolution *AgentContractParam
-	for i := range preview.AgentContract.SupportedParams {
-		param := &preview.AgentContract.SupportedParams[i]
-		if param.Key == "frames" {
-			frames = param
-		}
-		if param.Key == "resolution" {
-			resolution = param
-		}
-	}
+	frames := agentContractParam(preview.AgentContract, ai.VideoOperationPromptToVideo, "frames")
+	resolution := agentContractParam(preview.AgentContract, ai.VideoOperationPromptToVideo, "resolution")
 	if frames == nil || frames.Min == nil || frames.Max == nil || *frames.Min != 0 || *frames.Max != 0 {
 		t.Fatalf("expected explicit zero bounds in agent contract, got %#v", frames)
 	}
@@ -322,7 +267,7 @@ func TestPreviewCatalogEntryContractReturnsAgentCompactRules(t *testing.T) {
 	if len(frames.ConflictsWith) != 1 || frames.ConflictsWith[0] != "resolution" {
 		t.Fatalf("expected compact conflict rule, got %#v", frames)
 	}
-	if imageCount := agentContractParam(preview.AgentContract, "image_count"); imageCount == nil || imageCount.Default != float64(1) {
+	if imageCount := agentContractParam(preview.AgentContract, ai.VideoOperationPromptToVideo, "image_count"); imageCount == nil || imageCount.Default != float64(1) {
 		t.Fatalf("expected compact default value, got %#v", imageCount)
 	}
 	if resolution == nil || len(resolution.ConditionalEnum) != 1 || resolution.ConditionalEnum[0].WhenParam != "workspace" || len(resolution.ConditionalEnum[0].Options) != 1 || resolution.ConditionalEnum[0].Options[0] != "480p" {
@@ -334,25 +279,34 @@ func TestPreviewCatalogEntryContractReturnsAgentCompactRules(t *testing.T) {
 }
 
 func TestBuildAgentContractKeepsNativeNumericSchemaEnum(t *testing.T) {
-	contract := buildAgentContract([]string{ai.CapabilityVideo}, false, 0, 0, []ai.ParamDef{
-		{
-			Key:        "frames",
-			Label:      "Frames",
-			Type:       "number",
-			JSONSchema: map[string]any{"minimum": 29, "maximum": int64(289), "multipleOf": json.Number("4"), "enum": []int{29, 33, 37}},
+	contract := buildAgentContract(
+		[]string{ai.CapabilityFamilyVideoGeneration},
+		false,
+		0,
+		0,
+		map[string][]ai.ParamDef{
+			ai.VideoOperationPromptToVideo: {{
+				Key:        "frames",
+				Label:      "Frames",
+				Type:       "number",
+				JSONSchema: map[string]any{"minimum": 29, "maximum": int64(289), "multipleOf": json.Number("4"), "enum": []int{29, 33, 37}},
+			}},
 		},
-	}, map[string]any{
-		"properties": map[string]any{
-			"frames": map[string]any{
-				"minimum":    29,
-				"maximum":    int64(289),
-				"multipleOf": json.Number("4"),
-				"enum":       []int{29, 33, 37},
+		map[string]map[string]any{
+			ai.VideoOperationPromptToVideo: {
+				"properties": map[string]any{
+					"frames": map[string]any{
+						"minimum":    29,
+						"maximum":    int64(289),
+						"multipleOf": json.Number("4"),
+						"enum":       []int{29, 33, 37},
+					},
+				},
 			},
 		},
-	})
+	)
 
-	frames := agentContractParam(contract, "frames")
+	frames := agentContractParam(contract, ai.VideoOperationPromptToVideo, "frames")
 	if frames == nil || len(frames.Enum) != 3 || frames.Enum[0] != 29 || frames.Enum[2] != 37 {
 		t.Fatalf("expected native []int schema enum in compact contract, got %#v", frames)
 	}
@@ -361,49 +315,14 @@ func TestBuildAgentContractKeepsNativeNumericSchemaEnum(t *testing.T) {
 	}
 }
 
-func agentContractParam(contract AgentContract, key string) *AgentContractParam {
-	for i := range contract.SupportedParams {
-		if contract.SupportedParams[i].Key == key {
-			return &contract.SupportedParams[i]
+func agentContractParam(contract AgentContract, operation, key string) *AgentContractParam {
+	params := contract.SupportedParamsByOperation[operation]
+	for i := range params {
+		if params[i].Key == key {
+			return &params[i]
 		}
 	}
 	return nil
-}
-
-func loadAgentCompactContractFixture(t *testing.T) AgentContract {
-	t.Helper()
-	raw, err := os.ReadFile(filepath.Join("testdata", "agent-compact-contract-v1.fixture.json"))
-	if err != nil {
-		t.Fatalf("read compact contract fixture: %v", err)
-	}
-	var contract AgentContract
-	if err := json.Unmarshal(raw, &contract); err != nil {
-		t.Fatalf("decode compact contract fixture: %v", err)
-	}
-	return contract
-}
-
-func assertAgentCompactContractMatchesFixture(t *testing.T, got AgentContract, want AgentContract) {
-	t.Helper()
-	if got.ContractVersion != want.ContractVersion {
-		t.Fatalf("unexpected contract version: got %d want %d", got.ContractVersion, want.ContractVersion)
-	}
-	if got.InputRequirements != want.InputRequirements {
-		t.Fatalf("unexpected input requirements: got %#v want %#v", got.InputRequirements, want.InputRequirements)
-	}
-	if !stringSlicesEqual(got.SupportedParamKeys, want.SupportedParamKeys) {
-		t.Fatalf("unexpected supported keys: got %#v want %#v", got.SupportedParamKeys, want.SupportedParamKeys)
-	}
-	if len(got.SupportedParams) != len(want.SupportedParams) {
-		t.Fatalf("unexpected supported params length: got %#v want %#v", got.SupportedParams, want.SupportedParams)
-	}
-	for i := range got.SupportedParams {
-		gotJSON, _ := json.Marshal(got.SupportedParams[i])
-		wantJSON, _ := json.Marshal(want.SupportedParams[i])
-		if string(gotJSON) != string(wantJSON) {
-			t.Fatalf("unexpected compact param %d:\ngot  %s\nwant %s", i, gotJSON, wantJSON)
-		}
-	}
 }
 
 func assertParamDefsJSONEqual(t *testing.T, got, want []ai.ParamDef) {
@@ -448,7 +367,7 @@ func TestPreviewCatalogEntryContractRejectsInvalidContract(t *testing.T) {
 	service := newTestService(t)
 	_, err := service.PreviewCatalogEntryContract(PreviewCatalogEntryContractInput{
 		AdapterType:           "volcen",
-		CustomCapabilities:    "video",
+		CustomCapabilities:    "video_generation",
 		CustomSupportedParams: `[{"key":"duration","type":"select"}]`,
 	})
 	if !errors.Is(err, ErrInvalidModelCatalog) {

@@ -12,7 +12,6 @@ import {
   createChildContentCanvasNode,
   createRootContentCanvasNode,
   createContentUnitFromSceneMoment,
-  createTimelineAssemblyFromNamespace,
   createCandidateFromContentUnit,
   createCandidateFromResourceForContentUnit,
   removeContentUnitCandidateFromCanvas,
@@ -75,21 +74,25 @@ import {
   activeContentCanvasDocument,
   addContentCanvasDocumentNodes,
   CONTENT_CANVAS_PROJECT_DOCUMENT_SCHEMA,
+  contentCanvasDocumentGroups,
   contentCanvasDocumentNodeIds,
   contentCanvasDocumentPositions,
   contentCanvasDocumentFromProjectDocument,
   contentCanvasDocumentsHaveUnsavedProjectChanges,
   contentCanvasDocumentsStateFromProjectCanvases,
   contentCanvasDocumentScope,
+  createContentCanvasDocumentGroup,
   contentCanvasProjectDocumentFromDocument,
   createContentCanvasDocument,
   ensureContentCanvasDocumentsState,
   readContentCanvasDocumentsState,
   renameContentCanvasDocument,
+  removeContentCanvasDocumentGroups,
   removeContentCanvasDocumentNodes,
   removeContentCanvasDocumentNodesEverywhere,
   saveContentCanvasDocumentsToProject,
   selectContentCanvasDocument,
+  updateContentCanvasDocumentNodePositions,
   updateContentCanvasDocumentViewport,
 } from './contentCanvasDocuments'
 import {
@@ -130,7 +133,6 @@ import {
 } from '../components/ContentCanvasPresentationModel'
 import {
   candidateDecisionForNode,
-  appendContentNodeReferenceToPrompt,
   contentCanvasStructureTree,
   contentCanvasWorkspaceIndex,
   candidatesForNode,
@@ -142,6 +144,7 @@ import {
   sceneSettingGroupFromNode,
   sceneTimelineItemsFromGraph,
   timelineItemsFromMediaEditingProject,
+  upsertContentNodeGenerationReference,
 } from '../components/contentCanvasWorkspaceModel'
 import {
   contentCanvasFirstSegmentIdForProduction,
@@ -632,9 +635,8 @@ test('content canvas project loader maps workspace editing timelines to scene, p
         status: 'ready_to_compose',
         mediaEditingProject: productionEditingProject,
       }, {
-        targetKind: 'timeline_assembly',
-        targetId: 'timeline_assembly:beat:intro',
-        targetRef: 'timeline_assembly:beat:intro',
+        targetKind: 'production',
+        targetId: 'intro',
         targetPath: segment.path,
         scopeKind: 'beat',
         scopeRef: 'intro',
@@ -651,7 +653,6 @@ test('content canvas project loader maps workspace editing timelines to scene, p
   assert.equal(project.editingProjectsByNodeId?.['scene_moment:rain_call'], editingProject)
   assert.equal(project.editingProjectsByNodeId?.pilot, productionEditingProject)
   assert.equal(project.editingProjectsByNodeId?.['production:pilot'], productionEditingProject)
-  assert.equal(project.editingProjectsByNodeId?.['timeline_assembly:beat:intro'], assemblyEditingProject)
   assert.equal(project.editingProjectsByNodeId?.['beat:intro'], assemblyEditingProject)
   assert.equal(project.editingProjectsByNodeId?.['segment:intro'], assemblyEditingProject)
   assert.equal(project.contentUnitCandidates.cu_rain_call[0].id, 'cand_scene')
@@ -916,7 +917,7 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(promptCanvasPanelSource, /content-prompt-flow-node__preview-card/)
   assert.match(promptCanvasPanelSource, /content-prompt-flow-node__prompt-panel/)
   assert.doesNotMatch(promptCanvasPanelSource, /GenerationCandidateDialog/)
-  assert.match(promptCanvasPanelSource, /appendContentNodeReferenceToPrompt/)
+  assert.match(promptCanvasPanelSource, /onGenerationReferenceAppend\(target, sourceNode\)/)
   assert.match(promptCanvasPanelSource, /expressionUnitKindShortLabel/)
   assert.match(promptCanvasPanelSource, /data-expression-kind/)
   assert.match(promptCanvasPanelSource, /function creativeFlowNodeDisplay/)
@@ -926,8 +927,9 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(promptCanvasPanelSource, /onBlur=\{\(prompt\) => data\.onPromptCommit/)
   assert.match(promptCanvasPanelSource, /commitPromptFromNode\(target, nextPrompt\)/)
   assert.match(promptCanvasPanelSource, /commitPromptFromNode\(targetNode, nextPrompt\)/)
-  assert.match(workspaceNodeModelSource, /export function upsertContentNodeReferenceInPrompt/)
-  assert.match(promptCanvasPanelSource, /upsertContentNodeReferenceInPrompt\(currentPrompt, sourceNode/)
+  assert.match(workspaceNodeModelSource, /export function upsertContentNodeGenerationReference/)
+  assert.match(promptCanvasPanelSource, /onGenerationReferenceAppend\(targetNode, sourceNode/)
+  assert.doesNotMatch(promptCanvasPanelSource, /upsertContentNodeReferenceInPrompt/)
   assert.match(promptCanvasPanelSource, /appendReferenceToPromptTargetWithRole\(targetNode, sourceNode, defaultRole, mediaType\)/)
   assert.match(promptCanvasPanelSource, /appendPromptReferencePreviewEdge/)
   assert.match(promptCanvasPanelSource, /edges=\{displayedFlowEdges\}/)
@@ -1043,7 +1045,9 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(promptCanvasPanelSource.match(/type CreativeFlowNodeData = \{[\s\S]*?\n\}/)?.[0] ?? '', /candidateSelections/)
   assert.doesNotMatch(promptCanvasPanelSource, /PromptReferenceInlineEditor/)
   assert.match(promptEditorSource, /PromptReferenceInlineEditor/)
-  assert.match(promptEditorSource, /PromptReferenceStrip/)
+  assert.match(promptEditorSource, /PromptReferencePoolStrip/)
+  assert.doesNotMatch(promptEditorSource, /PromptReferenceStrip/)
+  assert.match(promptEditorSource, /promptReferenceItemsFromGenerationReferences/)
   assert.match(promptEditorSource, /className="nodrag"/)
   assert.match(promptEditorSource, /const \[promptDraft, setPromptDraft\] = useState\(value\)/)
   assert.match(promptEditorSource, /const commitPromptDraft = useCallback/)
@@ -1248,6 +1252,9 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(promptReferencesSource, /export function PromptReferenceInlineEditor/)
   assert.match(promptReferencesSource, /contentEditable/)
   assert.match(promptReferencesSource, /export function PromptReferenceStrip/)
+  assert.match(promptReferencesSource, /export function PromptReferencePoolStrip/)
+  assert.match(promptReferencesSource, /export function promptReferenceItemsFromGenerationReferences/)
+  assert.match(promptReferencesSource, /filterPromptMentionOptions\(referenceItems/)
   assert.match(promptReferencesSource, /parseResourceMentions\(prompt\)/)
   assert.match(promptReferencesSource, /formatResourceMention\(resourceId/)
   assert.match(promptReferencesSource, /defaultReferenceRoleForMediaType/)
@@ -1391,10 +1398,10 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(electronGatewaySource, /createStoryboard/)
   assert.match(electronGatewaySource, /createMovScriptEngineContentUnit/)
   assert.match(electronGatewaySource, /ensureContentUnitForEntity/)
-  assert.match(electronGatewaySource, /ensureMovScriptEngineTimelineAssemblyContentUnit/)
   assert.match(electronGatewaySource, /decideMovScriptEngineContentUnitCandidate/)
   assert.match(electronGatewaySource, /syncMovScriptEngineContentWorkspace/)
-  assert.match(electronGatewaySource, /input\.targetKind === 'timeline_assembly'/)
+  assert.doesNotMatch(electronGatewaySource, /ensureMovScriptEngineTimelineAssemblyContentUnit/)
+  assert.doesNotMatch(electronGatewaySource, /input\.targetKind === 'timeline_assembly'/)
   assert.doesNotMatch(electronGatewaySource, /shots: \[\{/)
   assert.match(commandsSource, /ContentCanvasWorkspaceGateway/)
   assert.match(commandsSource, /from '.\/contentCanvasCreateNodeCommands'/)
@@ -2102,6 +2109,62 @@ test('content canvas documents store project-scoped node refs and layout', () =>
 
     selectContentCanvasDocument(91, firstCanvasId)
     assert.equal(readContentCanvasDocumentsState(91)?.activeCanvasId, firstCanvasId)
+  } finally {
+    restoreWindow()
+  }
+})
+
+test('content canvas documents persist prompt canvas groups and prune deleted members', () => {
+  const restoreWindow = installLocalStorageFixture()
+  try {
+    const initial = ensureContentCanvasDocumentsState(93)
+    const canvasId = initial?.activeCanvasId ?? ''
+    assert.ok(canvasId)
+    addContentCanvasDocumentNodes(93, canvasId, [
+      { nodeId: 'scene_moment:opening', kind: 'scene_moment', position: { x: 10, y: 20 } },
+      { nodeId: 'asset:hero', kind: 'asset', position: { x: 420, y: 40 } },
+      { nodeId: 'keyframe:hero', kind: 'keyframe', position: { x: 820, y: 80 } },
+    ])
+    createContentCanvasDocumentGroup(93, canvasId, {
+      memberNodeIds: ['scene_moment:opening', 'asset:hero', 'asset:hero'],
+      position: { x: -40, y: -20 },
+      size: { width: 600, height: 360 },
+    })
+    const grouped = activeContentCanvasDocument(readContentCanvasDocumentsState(93))
+    const group = contentCanvasDocumentGroups(grouped)[0]
+    assert.ok(group)
+    assert.deepEqual(group.memberNodeIds, ['scene_moment:opening', 'asset:hero'])
+    assert.deepEqual(contentCanvasDocumentPositions(grouped)[group.id], { x: -40, y: -20 })
+
+    updateContentCanvasDocumentNodePositions(93, canvasId, { [group.id]: { x: 12, y: 24 } })
+    const movedGroupDocument = activeContentCanvasDocument(readContentCanvasDocumentsState(93))
+    assert.deepEqual(contentCanvasDocumentNodeIds(movedGroupDocument).sort(), ['asset:hero', 'keyframe:hero', 'scene_moment:opening'])
+    assert.deepEqual(contentCanvasDocumentPositions(movedGroupDocument)[group.id], { x: 12, y: 24 })
+
+    const projectDocument = contentCanvasProjectDocumentFromDocument(movedGroupDocument!)
+    assert.deepEqual(projectDocument.groups?.map((item) => ({
+      id: item.id,
+      memberNodeIds: item.member_node_ids,
+    })), [{
+      id: group.id,
+      memberNodeIds: ['scene_moment:opening', 'asset:hero'],
+    }])
+    assert.deepEqual(
+      contentCanvasDocumentGroups(contentCanvasDocumentFromProjectDocument(projectDocument))[0]?.memberNodeIds,
+      ['scene_moment:opening', 'asset:hero'],
+    )
+
+    removeContentCanvasDocumentGroups(93, canvasId, [group.id])
+    assert.deepEqual(contentCanvasDocumentGroups(activeContentCanvasDocument(readContentCanvasDocumentsState(93))), [])
+
+    createContentCanvasDocumentGroup(93, canvasId, {
+      memberNodeIds: ['asset:hero', 'keyframe:hero'],
+      position: { x: 300, y: -20 },
+      size: { width: 620, height: 360 },
+    })
+    assert.equal(contentCanvasDocumentGroups(activeContentCanvasDocument(readContentCanvasDocumentsState(93))).length, 1)
+    removeContentCanvasDocumentNodes(93, canvasId, ['asset:hero'])
+    assert.deepEqual(contentCanvasDocumentGroups(activeContentCanvasDocument(readContentCanvasDocumentsState(93))), [])
   } finally {
     restoreWindow()
   }
@@ -4552,59 +4615,6 @@ test('content canvas scene moment generation command ensures a scene_moment_ref 
   })
 })
 
-test('content canvas timeline namespace assembly creates a timeline_assembly_ref content unit', async () => {
-  const calls: Array<{ kind: string; payload: unknown }> = []
-  const gateway = {
-    ensureContentUnitForEntity: async (payload: unknown) => {
-      calls.push({ kind: 'ensureContentUnitForEntity', payload })
-      return {
-        path: 'content_units/cu_assembly_episode_pilot/content_unit.json',
-        record: { id: 'cu_assembly_episode_pilot' },
-      }
-    },
-  } as never
-  const episode = nodeFixture({
-    id: 'production:pilot',
-    entityKey: 'pilot',
-    kind: 'production',
-    title: 'Pilot',
-    sourcePath: 'timeline/pilot/production.json',
-    domainCategory: 'timeline_namespace',
-    domainKind: 'episode',
-    record: { production_type: 'episode' },
-    position: { x: 0, y: 0 },
-  })
-
-  const result = await createTimelineAssemblyFromNamespace(7, episode, gateway)
-
-  assert.equal(result.message, '已确保剪辑聚合创作片段')
-  assert.deepEqual(result.changedNodeIds, ['content_unit:cu_assembly_episode_pilot'])
-  assert.equal(result.focusNodeId, 'content_unit:cu_assembly_episode_pilot')
-  assert.deepEqual(result.nodePositions, { 'content_unit:cu_assembly_episode_pilot': { x: 360, y: 0 } })
-  assert.deepEqual(calls[0], {
-    kind: 'ensureContentUnitForEntity',
-    payload: {
-      targetKind: 'timeline_assembly',
-      scopeKind: 'episode',
-      scopeRef: 'pilot',
-      id: 'cu_assembly_episode_pilot',
-      title: 'Pilot 剪辑聚合',
-      contentUnitType: 'timeline_assembly_ref',
-      outputKind: 'video',
-      description: '从时间线范围「Pilot」创建剪辑聚合。',
-      prompt: '汇总时间线范围「Pilot」下已确认的情节与素材，生成可审阅的剪辑聚合视频。',
-      modelIntent: {
-        source: 'content_canvas',
-        namespace_node_id: 'production:pilot',
-        namespace_node_kind: 'episode',
-        namespace_node_path: 'timeline/pilot/production.json',
-        scope_kind: 'episode',
-        scope_ref: 'pilot',
-      },
-    },
-  })
-})
-
 test('content canvas expression unit creation also ensures an expression_unit_ref content unit', async () => {
   const calls: Array<{ kind: string; payload: unknown }> = []
   const gateway = {
@@ -6218,13 +6228,30 @@ test('content canvas prompt references exclude the current owner from scoped can
     'candidate:cu_phone:cand_a',
     'resource:42',
   ])
-  assert.equal(
-    appendContentNodeReferenceToPrompt('', viewModel.scenePromptReferenceNodes[1]!),
-    '{{candidate:cand_a}}',
+  assert.deepEqual(
+    upsertContentNodeGenerationReference([], viewModel.scenePromptReferenceNodes[1]!),
+    [{
+      id: 'candidate:cand_a',
+      kind: 'candidate',
+      ref: 'cand_a',
+      media_type: 'image',
+      role: 'reference_image',
+      label: 'Candidate A',
+      source: 'content_canvas',
+    }],
   )
-  assert.equal(
-    appendContentNodeReferenceToPrompt('', viewModel.scenePromptReferenceNodes[2]!),
-    '{{resource:42}}',
+  assert.deepEqual(
+    upsertContentNodeGenerationReference([], viewModel.scenePromptReferenceNodes[2]!),
+    [{
+      id: 'resource:42',
+      kind: 'resource',
+      ref: 42,
+      resource_id: 42,
+      media_type: 'image',
+      role: 'reference_image',
+      label: 'Resource 42',
+      source: 'content_canvas',
+    }],
   )
 })
 
@@ -7104,7 +7131,6 @@ test('creative canvas actions expose scene keyframe and storyboard creation comm
   assert.equal(creativeCanvasActionsForNode(resource).some((action) => action.kind === 'delete_node'), false)
   assert.deepEqual(creativeCanvasActionsForNode(episodeNamespace).map(actionSummary), [
     'create_child:segment:添加子层级',
-    'create_assembly',
     'remove_from_canvas',
     'delete_node',
   ])

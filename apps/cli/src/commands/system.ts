@@ -10,6 +10,7 @@ interface SystemCliOptions {
   workspace?: string
   projectDir?: string
   server?: string
+  mediaPipelineServiceUrl?: string
   token?: string
   capability?: string
   operation?: string
@@ -37,6 +38,8 @@ interface SystemCliOptions {
   jobId?: string
   jobIds?: string
   taskId?: string
+  resultId?: string
+  result?: string
   streamId?: string
   verbosity?: string
   overwrite?: boolean
@@ -164,6 +167,64 @@ export function registerSystemCommands(program: Command): void {
   }
 }
 
+export function registerProjectCommands(program: Command): void {
+  registerSystemProductRootCommands(
+    program,
+    'project',
+    'Initialize, open, and manage MovScript projects through the shared CLI/MCP command runner',
+  )
+}
+
+export function registerProductionCommands(program: Command): void {
+  registerSystemProductRootCommands(
+    program,
+    'production',
+    'Manage MovScript productions and inspect production workflow contracts',
+  )
+}
+
+export function registerResourceCommands(program: Command): void {
+  registerSystemProductRootCommands(program, 'resource', 'Manage MovScript RawResources and local media transforms')
+}
+
+export function registerArtifactCommands(program: Command): void {
+  registerSystemProductRootCommands(program, 'artifact', 'Upload, publish, and inspect MovScript artifacts')
+}
+
+export function registerExternalResourceCommands(program: Command): void {
+  registerSystemProductRootCommands(program, 'external-resource', 'Search configured external media resource providers')
+}
+
+export function registerShotCommands(program: Command): void {
+  registerSystemProductRootCommands(program, 'shot', 'Manage reusable shot reference groups and shot library queries')
+}
+
+export function registerVideoCommands(program: Command): void {
+  registerSystemProductRootCommands(program, 'video', 'Inspect and derive video analysis artifacts')
+}
+
+function registerSystemProductRootCommands(program: Command, rootName: string, description: string): void {
+  const root = ensureRootCommand(program, rootName, description)
+
+  for (const spec of systemCommandSpecs.filter((candidate) => candidate.cliPath[0] === rootName)) {
+    const productPath = spec.productCliPath?.[0] === rootName
+      ? spec.productCliPath.slice(1)
+      : spec.cliPath.slice(1)
+    const command = ensureCommandPath(root, productPath)
+    command.description(spec.description)
+    addSystemOptions(command)
+    command.action(async (options: SystemCliOptions, command: Command) => {
+      await runSystemCommand(spec, options, command)
+    })
+  }
+}
+
+function ensureRootCommand(program: Command, name: string, description: string): Command {
+  const existing = program.commands.find((candidate) => candidate.name() === name)
+  if (existing) return existing
+  return program.command(name).description(description)
+}
+
 function ensureCommandPath(root: Command, path: string[]): Command {
   let current = root
   for (const segment of path) {
@@ -180,6 +241,7 @@ function addSystemOptions(command: Command): void {
     .option('--workspace <dir>', 'Workspace root directory used for backend auth lookup')
     .option('--project-dir <dir>', 'MovScript project directory used for backend auth lookup')
     .option('--server <url>', 'Backend or daemon gateway base URL')
+    .option('--media-pipeline-service-url <url>', 'Explicit Media Pipeline Service base URL')
     .option('--token <token>', 'Backend bearer token')
     .option('--capability <name>', 'Generation capability such as image_generation or video_generation')
     .option('--operation <name>', 'Model or generation operation such as text_to_image')
@@ -207,6 +269,8 @@ function addSystemOptions(command: Command): void {
     .option('--job-id <id>', 'Generation job id where supported')
     .option('--job-ids <json>', 'JSON array of generation job ids')
     .option('--task-id <id>', 'Runtime or artifact task id where supported')
+    .option('--result-id <id>', 'Media Pipeline result registry id where supported')
+    .option('--result <json>', 'Media Pipeline result registry JSON object where supported')
     .option('--stream-id <id>', 'Media stream artifact id where supported')
     .option('--verbosity <mode>', 'Generation job verbosity, summary or debug')
     .option('--overwrite', 'Overwrite existing local project metadata where supported')
@@ -342,6 +406,7 @@ function systemArgs(options: SystemCliOptions, command: Command): Record<string,
     workspaceDir: options.workspace ?? global.workspace,
     projectDir: options.projectDir,
     backendBaseURL: options.server ?? global.server,
+    mediaPipelineServiceURL: options.mediaPipelineServiceUrl,
     token: options.token ?? global.token,
     capability: options.capability,
     operation: options.operation,
@@ -369,6 +434,8 @@ function systemArgs(options: SystemCliOptions, command: Command): Record<string,
     job_id: numericArg(options.jobId, '--job-id'),
     job_ids: jsonArg(options.jobIds, '--job-ids'),
     task_id: options.taskId,
+    result_id: options.resultId,
+    result: jsonArg(options.result, '--result'),
     stream_id: options.streamId,
     verbosity: options.verbosity,
     overwrite: options.overwrite === true ? true : undefined,

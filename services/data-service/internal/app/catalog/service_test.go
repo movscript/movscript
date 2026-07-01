@@ -30,11 +30,13 @@ func TestServiceListByCapabilityUsesGatewayModelCatalogContract(t *testing.T) {
 			Priority:           10,
 			CapacityWeight:     3,
 			MaxConcurrency:     4,
-			SupportedParams:    []map[string]any{{"key": "temperature", "type": "number"}},
+			SupportedParamsByOperation: map[string][]map[string]any{
+				"chat": {{"key": "temperature", "type": "number"}},
+			},
 			InputRequirements: providercontract.AIModelInputRequirements{
 				Image: providercontract.AIModelInputRequirement{Min: 0, Max: 1},
 			},
-			ParamsSchema: map[string]any{"type": "object"},
+			ParamsSchemaByOperation: map[string]map[string]any{"chat": {"type": "object"}},
 		}},
 	}
 	service := NewService(fake)
@@ -62,7 +64,7 @@ func TestServiceListByCapabilityUsesGatewayModelCatalogContract(t *testing.T) {
 	if model.ID != 42 || model.CatalogEntryID != 42 || model.ModelID != "gpt-5.2" || model.LogicalModelID != "" {
 		t.Fatalf("model = %#v, want public catalog model fields without provider override", model)
 	}
-	if len(model.SupportedParams) != 1 || model.InputRequirements.Image.Max != 1 || model.ParamsSchema["type"] != "object" {
+	if len(model.SupportedParamsByOperation["chat"]) != 1 || model.InputRequirements.Image.Max != 1 || model.ParamsSchemaByOperation["chat"]["type"] != "object" {
 		t.Fatalf("model contract fields = %#v, want params/input/schema preserved", model)
 	}
 	if model.InferredOperation != "prompt_to_video" || len(model.ResolverOperations) != 1 || model.ResolverOperations[0] != "prompt_to_video" {
@@ -131,7 +133,7 @@ func TestServiceListByCapabilityReflectsCatalogChangesImmediately(t *testing.T) 
 	cache := cache.NewMemory()
 	service := NewService(fake, cache)
 
-	models, err := service.ListByCapability(context.Background(), "image")
+	models, err := service.ListByCapability(context.Background(), "image_generation")
 	if err != nil {
 		t.Fatalf("ListByCapability() error = %v", err)
 	}
@@ -142,9 +144,9 @@ func TestServiceListByCapabilityReflectsCatalogChangesImmediately(t *testing.T) 
 	fake.models = []providercontract.AIModelDescriptor{{
 		ModelID:      "gpt-image-2",
 		DisplayName:  "GPT Image 2",
-		Capabilities: []string{"image", "image_edit"},
+		Capabilities: []string{"image_generation"},
 	}}
-	models, err = service.ListByCapability(context.Background(), "image")
+	models, err = service.ListByCapability(context.Background(), "image_generation")
 	if err != nil {
 		t.Fatalf("ListByCapability() error = %v", err)
 	}

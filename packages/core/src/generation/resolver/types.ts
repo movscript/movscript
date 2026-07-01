@@ -57,6 +57,7 @@ export interface GenerationResolverModelLike {
   logical_model_id?: string
   capabilities?: readonly string[]
   supported_params?: GenerationParamDef[]
+  supported_params_by_operation?: Record<string, GenerationParamDef[]>
   is_default?: boolean
   accepts_image_input?: boolean | null
   input_requirements?: {
@@ -96,7 +97,7 @@ export interface GenerationResolvedModel<Model extends GenerationResolverModelLi
   reasons: string[]
   supported_params?: GenerationParamDef[]
   profile: GenerationModelResolverProfile
-  legacy_operation?: string
+  selected_operation?: string
 }
 
 export interface GenerationBlockedModel<Model extends GenerationResolverModelLike = GenerationResolverModelLike> {

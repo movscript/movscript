@@ -21,14 +21,18 @@ test('local project inspection treats a missing directory as a clean create targ
     assert.equal(inspection.canCreateClean, true)
     assert.deepEqual(inspection.impacts, [])
 
-    const created = await createLocalMovScriptProject({ projectDir, title: 'New Project' })
+    const created = await createLocalMovScriptProject({ projectDir, title: 'New Project', localProjectId: 'new_project' })
     assert.equal(created.projectDir, projectDir)
+    assert.equal(created.localProjectId, 'new_project')
+    assert.equal(created.local_project_id, 'new_project')
+    assert.equal(created.projectId, 'new_project')
     assert.equal(created.project.name, 'New Project')
     assert.equal(created.project.ID, 0)
     assert.ok(created.projectUid)
 
     const opened = await openLocalMovScriptProject({ projectDir })
     assert.equal(opened.project.ID, 0)
+    assert.equal(opened.localProjectId, 'new_project')
 
     const bound = await bindLocalMovScriptProject({
       projectDir,

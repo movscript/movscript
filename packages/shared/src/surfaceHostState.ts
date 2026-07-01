@@ -26,7 +26,7 @@ export interface SurfaceHostStateActions {
   setCurrentProject?(project: Project | null): void
   setWorkMode?(workMode: NonNullable<AppSettings['workMode']>): void
   openProjectWindow?(input: SurfaceOpenProjectWindowInput): Promise<void>
-  openAdminConsole?(baseURL?: string, path?: string): Promise<void>
+  openAdminConsole?(path?: string): Promise<void>
   removeLocalProjectRecent?(projectDir: string): void
 }
 
@@ -86,10 +86,10 @@ export async function openSurfaceProjectWindow(input: SurfaceOpenProjectWindowIn
   await openProjectWindow(input)
 }
 
-export async function openSurfaceAdminConsole(baseURL?: string, path = ''): Promise<void> {
+export async function openSurfaceAdminConsole(path = ''): Promise<void> {
   const openAdminConsole = hostStateClient?.actions?.openAdminConsole
   if (!openAdminConsole) throw new Error('Surface host state cannot open the admin console.')
-  await openAdminConsole(baseURL, path)
+  await openAdminConsole(path)
 }
 
 export function removeSurfaceLocalProjectRecent(projectDir: string): void {

@@ -20,9 +20,9 @@ func TestMergeIDsDeduplicatesAndPreservesOrder(t *testing.T) {
 	}
 }
 
-func TestBuildListSpecExpandsImageType(t *testing.T) {
+func TestBuildListSpecKeepsExactJobType(t *testing.T) {
 	spec := BuildListSpec(ListFilter{JobType: "image"})
-	if len(spec.JobTypes) != 2 || spec.JobTypes[0] != "image" || spec.JobTypes[1] != "image_edit" {
+	if len(spec.JobTypes) != 1 || spec.JobTypes[0] != "image" {
 		t.Fatalf("job types = %#v", spec.JobTypes)
 	}
 	spec = BuildListSpec(ListFilter{JobType: "image", ExactType: true})
@@ -35,7 +35,7 @@ func TestNewQueuedJobAppliesDomainDefaults(t *testing.T) {
 	job := NewQueuedJob(NewQueuedJobSpec{
 		UserID:         1,
 		RuntimeModelID: 2,
-		JobType:        CapabilityImage,
+		JobType:        JobTypeImage,
 		Title:          "参考生图-1234",
 		Prompt:         "draw",
 	})
@@ -140,7 +140,7 @@ func TestBuildContextSnapshotIncludesModelAndResources(t *testing.T) {
 		Credential:     CredentialInput{DisplayName: "OpenAI"},
 		Prompt:         "draw",
 		ExtraParams:    `{"n":1}`,
-		JobType:        CapabilityImage,
+		JobType:        JobTypeImage,
 		InputResources: []InputResource{{Name: "ref.png", Type: "image"}},
 		CreatedAt:      time.Unix(10, 0).UTC(),
 	})
@@ -148,13 +148,13 @@ func TestBuildContextSnapshotIncludesModelAndResources(t *testing.T) {
 	if err := json.Unmarshal([]byte(raw), &snapshot); err != nil {
 		t.Fatal(err)
 	}
-	if snapshot["job_type"] != CapabilityImage || snapshot["prompt"] != "draw" {
+	if snapshot["job_type"] != JobTypeImage || snapshot["prompt"] != "draw" {
 		t.Fatalf("unexpected snapshot: %s", raw)
 	}
 }
 
 func TestCostRequestBuildsVideoRequestFromParams(t *testing.T) {
-	kind, _, videoReq, err := CostRequest(1, CapabilityVideo, 0, `{"duration":5,"ratio":"16:9"}`, "")
+	kind, _, videoReq, err := CostRequest(1, JobTypeVideo, 0, `{"duration":5,"ratio":"16:9"}`, "")
 	if err != nil {
 		t.Fatal(err)
 	}

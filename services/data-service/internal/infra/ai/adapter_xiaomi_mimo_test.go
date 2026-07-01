@@ -11,7 +11,7 @@ import (
 	"github.com/movscript/movscript/internal/domain/media"
 )
 
-func TestXiaomiMimoChatAudioUsesOfficialDataURIShape(t *testing.T) {
+func TestXiaomiMimoGenerateSpeechToSpeechUsesOfficialDataURIShape(t *testing.T) {
 	var gotBody map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/chat/completions" {
@@ -33,7 +33,7 @@ func TestXiaomiMimoChatAudioUsesOfficialDataURIShape(t *testing.T) {
 	defer server.Close()
 
 	adapter := NewXiaomiMimoAdapter("mimo-key", server.URL+"/v1")
-	resp, err := adapter.ChatAudio(context.Background(), media.AudioChatRequest{
+	resp, err := adapter.GenerateSpeechToSpeech(context.Background(), media.SpeechToSpeechRequest{
 		Model:    "mimo-v2.5",
 		Prompt:   "总结音频",
 		Audio:    []byte("wavdata"),
@@ -44,7 +44,7 @@ func TestXiaomiMimoChatAudioUsesOfficialDataURIShape(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("ChatAudio error: %v", err)
+		t.Fatalf("GenerateSpeechToSpeech error: %v", err)
 	}
 	if resp.Text != "收到这段录音了。" {
 		t.Fatalf("text = %q", resp.Text)

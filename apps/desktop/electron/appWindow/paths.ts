@@ -23,6 +23,12 @@ export function resolveTrayIconPath(): string {
   return resolveDevAssetPath('trayTemplate.png')
 }
 
+export function resolveNativeTrayHelperPath(): string {
+  const packagedHelper = join(process.resourcesPath || '', 'native', 'movscript-native-tray')
+  if (app.isPackaged && existsSync(packagedHelper)) return packagedHelper
+  return resolveDevDesktopPath('native/movscript-native-tray')
+}
+
 export function resolveRendererHTMLPath(): string {
   return join(currentDir, '../renderer/index.html')
 }
@@ -32,6 +38,15 @@ function resolveDevAssetPath(name: string): string {
     join(process.cwd(), '../../assets', name),
     join(process.cwd(), 'assets', name),
     join(currentDir, '../../../../assets', name),
+  ]
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0]
+}
+
+function resolveDevDesktopPath(name: string): string {
+  const candidates = [
+    join(process.cwd(), name),
+    join(process.cwd(), 'apps/desktop', name),
+    join(currentDir, '../../', name),
   ]
   return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0]
 }

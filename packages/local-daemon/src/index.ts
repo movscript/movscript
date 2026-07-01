@@ -27,6 +27,7 @@ import {
   MOVSCRIPT_PROGRAM_MANIFEST_SCHEMA,
   MOVSCRIPT_APPLICATION_MANIFEST_SCHEMA,
   MOVSCRIPT_SCENARIO_POLICY_SCHEMA,
+  findRuntimeApp,
   findRuntimeEndpoint,
   pidIsAlive,
   readRuntimeHomeSnapshot,
@@ -74,6 +75,7 @@ const LOCAL_PROJECT_SERVICE_PROXY_ROUTES = new Map<string, string>([
   ['/v1/project/source/overview', '/v1/project/source/overview'],
   ['/v1/project/source/interpret', '/v1/project/source/interpret'],
   ['/v1/project/source/regeneration-plan', '/v1/project/source/regeneration-plan'],
+  ['/v1/project/source/production-work-plan', '/v1/project/source/production-work-plan'],
   ['/v1/project/source/command', '/v1/project/source/command'],
   ['/v1/project/entities/query', '/v1/project/entities/query'],
   ['/v1/project/settings/query', '/v1/project/settings/query'],
@@ -89,11 +91,16 @@ const LOCAL_PROJECT_SERVICE_PROXY_ROUTES = new Map<string, string>([
   ['/v1/project/settings/states/create', '/v1/project/settings/states/create'],
   ['/v1/project/assets/upsert', '/v1/project/assets/upsert'],
   ['/v1/project/assets/create', '/v1/project/assets/create'],
+  ['/v1/project/assets/provider-certification/patch', '/v1/project/assets/provider-certification/patch'],
   ['/v1/project/productions/snapshot/save', '/v1/project/productions/snapshot/save'],
   ['/v1/project/content-units/upsert', '/v1/project/content-units/upsert'],
   ['/v1/project/content-units/create', '/v1/project/content-units/create'],
   ['/v1/project/content-units/ensure', '/v1/project/content-units/ensure'],
-  ['/v1/project/timeline-assemblies/content-unit/ensure', '/v1/project/timeline-assemblies/content-unit/ensure'],
+  ['/v1/project/productions/editing-resources/refresh', '/v1/project/productions/editing-resources/refresh'],
+  ['/v1/project/productions/editing-workspaces/list', '/v1/project/productions/editing-workspaces/list'],
+  ['/v1/project/productions/editing-workspaces/create', '/v1/project/productions/editing-workspaces/create'],
+  ['/v1/project/productions/editing-workspaces/open', '/v1/project/productions/editing-workspaces/open'],
+  ['/v1/project/productions/editing-workspaces/delete', '/v1/project/productions/editing-workspaces/delete'],
   ['/v1/project/content-units/edit-prompt/update', '/v1/project/content-units/edit-prompt/update'],
   ['/v1/project/productions/create', '/v1/project/productions/create'],
   ['/v1/project/segments/create', '/v1/project/segments/create'],
@@ -135,6 +142,7 @@ const LOCAL_PROJECT_SERVICE_PROXY_ROUTES = new Map<string, string>([
   ['/local-api/project/source/overview', '/v1/project/source/overview'],
   ['/local-api/project/source/interpret', '/v1/project/source/interpret'],
   ['/local-api/project/source/regeneration-plan', '/v1/project/source/regeneration-plan'],
+  ['/local-api/project/source/production-work-plan', '/v1/project/source/production-work-plan'],
   ['/local-api/project/source/command', '/v1/project/source/command'],
   ['/local-api/project/entities/query', '/v1/project/entities/query'],
   ['/local-api/project/settings/query', '/v1/project/settings/query'],
@@ -150,11 +158,16 @@ const LOCAL_PROJECT_SERVICE_PROXY_ROUTES = new Map<string, string>([
   ['/local-api/project/settings/states/create', '/v1/project/settings/states/create'],
   ['/local-api/project/assets/upsert', '/v1/project/assets/upsert'],
   ['/local-api/project/assets/create', '/v1/project/assets/create'],
+  ['/local-api/project/assets/provider-certification/patch', '/v1/project/assets/provider-certification/patch'],
   ['/local-api/project/productions/snapshot/save', '/v1/project/productions/snapshot/save'],
   ['/local-api/project/content-units/upsert', '/v1/project/content-units/upsert'],
   ['/local-api/project/content-units/create', '/v1/project/content-units/create'],
   ['/local-api/project/content-units/ensure', '/v1/project/content-units/ensure'],
-  ['/local-api/project/timeline-assemblies/content-unit/ensure', '/v1/project/timeline-assemblies/content-unit/ensure'],
+  ['/local-api/project/productions/editing-resources/refresh', '/v1/project/productions/editing-resources/refresh'],
+  ['/local-api/project/productions/editing-workspaces/list', '/v1/project/productions/editing-workspaces/list'],
+  ['/local-api/project/productions/editing-workspaces/create', '/v1/project/productions/editing-workspaces/create'],
+  ['/local-api/project/productions/editing-workspaces/open', '/v1/project/productions/editing-workspaces/open'],
+  ['/local-api/project/productions/editing-workspaces/delete', '/v1/project/productions/editing-workspaces/delete'],
   ['/local-api/project/content-units/edit-prompt/update', '/v1/project/content-units/edit-prompt/update'],
   ['/local-api/project/productions/create', '/v1/project/productions/create'],
   ['/local-api/project/segments/create', '/v1/project/segments/create'],
@@ -298,6 +311,7 @@ interface DaemonRuntimeDescriptor {
     owner: 'movscript.local-node'
     appId: 'movscript.local-node'
     name: 'MovScript Local Node Daemon'
+    identity?: LocalRuntimeIdentity
   }
   gateway: {
     baseURL: string
@@ -308,6 +322,7 @@ interface DaemonRuntimeDescriptor {
   dataConnection: DaemonContextEnvelope['dataConnection']
   capabilities: {
     project: boolean
+    timeline: boolean
     canvas: boolean
     resources: boolean
     editing: boolean
@@ -320,6 +335,8 @@ interface DaemonWorkspaceSessionContext {
   windowId?: string
   project?: {
     id: string
+    key?: string
+    backendProjectId?: number
     uid?: string
     slug?: string
     title?: string
@@ -340,6 +357,9 @@ interface DaemonContextSessionInput {
   sessionId?: string
   windowId?: string
   projectId?: string | number
+  backendProjectId?: number
+  projectKey?: string
+  routeProjectKey?: string
   projectUid?: string
   projectSlug?: string
   projectTitle?: string
@@ -1084,7 +1104,7 @@ async function handleDaemonRuntimeRequest(
     })
     return
   }
-  const descriptor = issueDaemonRuntimeDescriptor(homeDir, request)
+  const descriptor = issueDaemonRuntimeDescriptor(homeDir, request, localNodeState)
   if (url.pathname === DAEMON_RUNTIME_DIAGNOSTICS_ENDPOINT) {
     if (!daemonRuntimeDiagnosticsEnabled()) {
       writeLocalSurfaceJSON(response, 404, {
@@ -1256,13 +1276,19 @@ function redactedEndpoint(endpoint: { serviceName?: string; applicationId?: stri
   }
 }
 
-function issueDaemonRuntimeDescriptor(homeDir: string, request?: IncomingMessage): DaemonRuntimeDescriptor {
+function issueDaemonRuntimeDescriptor(
+  homeDir: string,
+  request?: IncomingMessage,
+  localNodeState?: LocalNodeControlState,
+): DaemonRuntimeDescriptor {
+  const identity = daemonRuntimeIdentity(homeDir, localNodeState)
   return {
     schema: 'movscript.runtime-descriptor.v1',
     runtime: {
       owner: 'movscript.local-node',
       appId: 'movscript.local-node',
       name: 'MovScript Local Node Daemon',
+      ...(identity ? { identity } : {}),
     },
     gateway: {
       baseURL: daemonGatewayBaseURL(homeDir, request),
@@ -1273,12 +1299,38 @@ function issueDaemonRuntimeDescriptor(homeDir: string, request?: IncomingMessage
     dataConnection: daemonDataConnectionContext(homeDir),
     capabilities: {
       project: true,
+      timeline: true,
       canvas: true,
       resources: true,
       editing: true,
       media: true,
     },
   }
+}
+
+function daemonRuntimeIdentity(
+  homeDir: string,
+  localNodeState?: LocalNodeControlState,
+): LocalRuntimeIdentity | undefined {
+  return normalizedRuntimeIdentity(localNodeState?.identity)
+    ?? normalizedRuntimeIdentity(localRuntimeAppMetadata(homeDir))
+}
+
+function localRuntimeAppMetadata(homeDir: string): Record<string, unknown> | undefined {
+  const app = findRuntimeApp(readRuntimeHomeSnapshot(homeDir), LOCAL_NODE_APP_ID)
+  const metadata = app?.raw.metadata
+  return metadata && typeof metadata === 'object' ? metadata as Record<string, unknown> : undefined
+}
+
+function normalizedRuntimeIdentity(input: Record<string, unknown> | LocalRuntimeIdentity | undefined): LocalRuntimeIdentity | undefined {
+  if (!input) return undefined
+  const identity: LocalRuntimeIdentity = {
+    ...(trimmedString(input.pluginVersion) ? { pluginVersion: trimmedString(input.pluginVersion) } : {}),
+    ...(trimmedString(input.pluginRoot) ? { pluginRoot: trimmedString(input.pluginRoot) } : {}),
+    ...(trimmedString(input.runtimeVersion) ? { runtimeVersion: trimmedString(input.runtimeVersion) } : {}),
+    ...(trimmedString(input.runtimeRoot) ? { runtimeRoot: trimmedString(input.runtimeRoot) } : {}),
+  }
+  return Object.keys(identity).length > 0 ? identity : undefined
 }
 
 function daemonGatewayBaseURL(homeDir: string, request?: IncomingMessage): string {
@@ -1469,6 +1521,9 @@ async function readDaemonContextSessionInput(request: IncomingMessage): Promise<
     sessionId: trimmedString(record.sessionId),
     windowId: trimmedString(record.windowId),
     projectId: contextStringOrNumber(record.projectId ?? record.project_id),
+    backendProjectId: numberValue(record.backendProjectId ?? record.backend_project_id),
+    projectKey: trimmedString(record.projectKey ?? record.project_key),
+    routeProjectKey: trimmedString(record.routeProjectKey ?? record.route_project_key),
     projectUid: trimmedString(record.projectUid ?? record.project_uid),
     projectSlug: trimmedString(record.projectSlug ?? record.project_slug),
     projectTitle: trimmedString(record.projectTitle ?? record.title ?? record.project_name),
@@ -1532,19 +1587,37 @@ function mcpContextRoute(route: Record<string, unknown> | undefined): MCPContext
 function mcpContextProject(value: unknown): MCPContextSnapshot['project'] {
   const project = recordFromUnknown(value)
   if (!project) return null
-  const id = numberValue(project.id ?? project.ID)
-  const name = trimmedString(project.name)
-  if (id === undefined || !name) return null
+  const id = contextStringOrNumber(project.id ?? project.ID)
+  const backendProjectId = numberValue(project.backendProjectId ?? project.backend_project_id)
+    ?? (typeof id === 'number' ? id : undefined)
+  const projectUid = trimmedString(project.projectUid ?? project.project_uid ?? project.uid)
+  const projectKey = trimmedString(project.projectKey ?? project.project_key ?? project.routeProjectKey ?? project.route_project_key)
+    ?? (typeof id === 'string' ? id : undefined)
+    ?? projectUid
+    ?? (backendProjectId !== undefined ? String(backendProjectId) : undefined)
+  const projectDir = trimmedString(project.projectDir)
+  const projectPath = trimmedString(project.projectPath)
+  const workspacePath = trimmedString(project.workspacePath)
+  const project_path = trimmedString(project.project_path)
+  const workspace_path = trimmedString(project.workspace_path)
+  const name = trimmedString(project.name ?? project.title ?? project.projectTitle ?? project.project_name)
+    ?? projectKey
+    ?? projectUid
+    ?? (backendProjectId !== undefined ? `project-${backendProjectId}` : undefined)
+  if (!name && !projectDir && !projectPath && !workspacePath && !project_path && !workspace_path) return null
   const totalEpisodes = numberValue(project.totalEpisodes ?? project.total_episodes)
   return {
-    id,
-    name,
+    ...(id !== undefined ? { id } : {}),
+    ...(backendProjectId !== undefined ? { backendProjectId, backend_project_id: backendProjectId } : {}),
+    ...(projectUid ? { uid: projectUid, projectUid, project_uid: projectUid } : {}),
+    ...(projectKey ? { projectKey, project_key: projectKey } : {}),
+    name: name ?? 'Current project',
     ...(trimmedString(project.description) ? { description: trimmedString(project.description) } : {}),
-    ...(trimmedString(project.projectDir) ? { projectDir: trimmedString(project.projectDir) } : {}),
-    ...(trimmedString(project.projectPath) ? { projectPath: trimmedString(project.projectPath) } : {}),
-    ...(trimmedString(project.workspacePath) ? { workspacePath: trimmedString(project.workspacePath) } : {}),
-    ...(trimmedString(project.project_path) ? { project_path: trimmedString(project.project_path) } : {}),
-    ...(trimmedString(project.workspace_path) ? { workspace_path: trimmedString(project.workspace_path) } : {}),
+    ...(projectDir ? { projectDir } : {}),
+    ...(projectPath ? { projectPath } : {}),
+    ...(workspacePath ? { workspacePath } : {}),
+    ...(project_path ? { project_path } : {}),
+    ...(workspace_path ? { workspace_path } : {}),
     ...(totalEpisodes !== undefined ? { totalEpisodes } : {}),
   }
 }
@@ -1601,6 +1674,9 @@ function contextSessionInputFromSearch(params: URLSearchParams): DaemonContextSe
     sessionId: trimmedString(params.get('sessionId') ?? params.get('session_id')),
     windowId: trimmedString(params.get('windowId') ?? params.get('window_id')),
     projectId: contextStringOrNumber(params.get('projectId') ?? params.get('project_id')),
+    backendProjectId: numberValue(params.get('backendProjectId') ?? params.get('backend_project_id')),
+    projectKey: trimmedString(params.get('projectKey') ?? params.get('project_key')),
+    routeProjectKey: trimmedString(params.get('routeProjectKey') ?? params.get('route_project_key')),
     projectUid: trimmedString(params.get('projectUid') ?? params.get('project_uid')),
     projectSlug: trimmedString(params.get('projectSlug') ?? params.get('project_slug')),
     projectTitle: trimmedString(params.get('projectTitle') ?? params.get('projectName') ?? params.get('project_name')),
@@ -1645,13 +1721,21 @@ function issueDaemonWorkspaceSession(
   const explicitLocalFileAccess = input.capabilities?.localFileAccess
   const localFileAccess = explicitLocalFileAccess ?? previous?.capabilities.localFileAccess ?? Boolean(projectDir)
   const projectCwd = localFileAccess && projectDir ? resolve(projectDir) : undefined
-  const projectId = contextString(input.projectId)
+  const backendProjectId = input.backendProjectId
+    ?? numberValue(input.projectId)
+    ?? previous?.project?.backendProjectId
+  const projectKey = trimmedString(input.projectKey)
+    ?? trimmedString(input.routeProjectKey)
+    ?? trimmedString(input.projectUid)
+    ?? contextString(input.projectId)
+    ?? previous?.project?.key
     ?? previous?.project?.id
     ?? (projectCwd ? `local:${stableContextId(projectCwd)}` : undefined)
   const hasSessionInput = Boolean(
     input.sessionId
       || input.windowId
-      || projectId
+      || backendProjectId
+      || projectKey
       || projectCwd
       || input.projectUid
       || input.projectTitle
@@ -1668,9 +1752,11 @@ function issueDaemonWorkspaceSession(
   return {
     sessionId,
     ...(trimmedString(input.windowId) ?? previous?.windowId ? { windowId: trimmedString(input.windowId) ?? previous?.windowId } : {}),
-    ...(projectId ? {
+    ...(projectKey ? {
       project: {
-        id: projectId,
+        id: projectKey,
+        key: projectKey,
+        ...(backendProjectId !== undefined ? { backendProjectId } : {}),
         ...(trimmedString(input.projectUid) ?? previous?.project?.uid ? { uid: trimmedString(input.projectUid) ?? previous?.project?.uid } : {}),
         ...(trimmedString(input.projectSlug) ?? previous?.project?.slug ? { slug: trimmedString(input.projectSlug) ?? previous?.project?.slug } : {}),
         ...(trimmedString(input.projectTitle) ?? previous?.project?.title ? { title: trimmedString(input.projectTitle) ?? previous?.project?.title } : {}),
@@ -2117,9 +2203,9 @@ async function readRequestBuffer(request: IncomingMessage): Promise<Buffer> {
   return Buffer.concat(chunks)
 }
 
-function bufferToFetchBody(buffer: Buffer): Uint8Array<ArrayBuffer> {
-  const body = new Uint8Array(buffer.byteLength)
-  body.set(buffer)
+function bufferToFetchBody(buffer: Buffer): ArrayBuffer {
+  const body = new ArrayBuffer(buffer.byteLength)
+  new Uint8Array(body).set(buffer)
   return body
 }
 

@@ -3,15 +3,25 @@ import { basename } from 'node:path'
 import { registerAdminCommands } from './commands/admin.js'
 import { registerAuthCommands } from './commands/auth.js'
 import { registerContextCommands } from './commands/context.js'
+import { registerDomainCommands } from './commands/domain.js'
 import { registerEditingCommands } from './commands/editing.js'
 import { registerLangCommands } from './commands/lang.js'
 import { registerMCPCommands } from './commands/mcp.js'
-import { registerDaemonCommands, registerRuntimeCommands } from './commands/runtime.js'
-import { registerSystemCommands } from './commands/system.js'
-import { registerTimelineCommands } from './commands/timeline.js'
+import { registerProductionEditingCommands } from './commands/production-editing.js'
+import { registerDaemonCommands, registerDoctorCommand, registerRuntimeCommands } from './commands/runtime.js'
+import {
+  registerArtifactCommands,
+  registerExternalResourceCommands,
+  registerProductionCommands,
+  registerProjectCommands,
+  registerResourceCommands,
+  registerShotCommands,
+  registerSystemCommands,
+  registerVideoCommands,
+} from './commands/system.js'
 import { registerWorkspaceCommands } from './commands/workspace.js'
 
-export function createMovcliProgram(name = 'movscript'): Command {
+export function createMovScriptCliProgram(name = 'movscript'): Command {
   const program = new Command()
 
   program
@@ -23,23 +33,32 @@ export function createMovcliProgram(name = 'movscript'): Command {
     .option('--workspace <dir>', 'MovScript workspace root directory')
 
   registerAuthCommands(program)
+  registerDoctorCommand(program)
   registerDaemonCommands(program)
   registerRuntimeCommands(program)
   registerMCPCommands(program)
   registerContextCommands(program)
   registerAdminCommands(program)
+  registerProjectCommands(program)
+  registerProductionCommands(program)
+  registerResourceCommands(program)
+  registerArtifactCommands(program)
+  registerExternalResourceCommands(program)
+  registerShotCommands(program)
+  registerVideoCommands(program)
   registerSystemCommands(program)
+  registerProductionEditingCommands(program)
+  registerDomainCommands(program)
   registerEditingCommands(program)
-  registerTimelineCommands(program)
   registerLangCommands(program)
   registerWorkspaceCommands(program)
   configureCommandHelp(program)
   return program
 }
 
-export async function runMovcli(argv: string[] = process.argv): Promise<void> {
-  argv = normalizeMovcliArgv(argv)
-  const program = createMovcliProgram(programNameFromArgv(argv))
+export async function runMovScriptCli(argv: string[] = process.argv): Promise<void> {
+  argv = normalizeMovScriptCliArgv(argv)
+  const program = createMovScriptCliProgram('movscript')
   if (argv.length <= 2) {
     program.outputHelp()
     return
@@ -48,21 +67,14 @@ export async function runMovcli(argv: string[] = process.argv): Promise<void> {
 }
 
 export async function main(): Promise<void> {
-  await runMovcli(process.argv)
+  await runMovScriptCli(process.argv)
 }
 
-export function normalizeMovcliArgv(argv: string[]): string[] {
+export function normalizeMovScriptCliArgv(argv: string[]): string[] {
   const maybeShimPath = argv[2]
   if (maybeShimPath === '--') return [argv[0]!, argv[1]!, ...argv.slice(3)]
-  if (!maybeShimPath || !['movcli.mjs', 'movscript.mjs'].includes(basename(maybeShimPath))) return argv
+  if (!maybeShimPath || basename(maybeShimPath) !== 'movscript.mjs') return argv
   return [argv[0]!, argv[1]!, ...argv.slice(3)]
-}
-
-function programNameFromArgv(argv: string[]): string {
-  const invoked = argv[1]
-  if (!invoked) return 'movscript'
-  const name = basename(invoked)
-  return name.startsWith('movcli') ? 'movcli' : 'movscript'
 }
 
 function configureCommandHelp(command: Command): void {
@@ -79,16 +91,16 @@ function configureCommandHelp(command: Command): void {
   }
 }
 
-function isDirectMovcliInvocation(): boolean {
+function isDirectMovScriptCliInvocation(): boolean {
   if (process.env.MOVSCRIPT_CLI_EMBEDDED === '1') return false
   const invoked = process.argv[1]
   if (!invoked) return false
   const invokedName = basename(invoked)
-  if (['movcli', 'movcli.cmd', 'movcli.mjs', 'movscript', 'movscript.cmd', 'movscript.mjs'].includes(invokedName)) return true
+  if (['movscript', 'movscript.cmd', 'movscript.mjs'].includes(invokedName)) return true
   return invokedName === 'index.cjs' || invokedName === 'index.js' || invokedName === 'index.ts'
 }
 
-if (isDirectMovcliInvocation()) {
+if (isDirectMovScriptCliInvocation()) {
   main().catch((error) => {
     console.error(error instanceof Error ? error.message : String(error))
     process.exit(1)

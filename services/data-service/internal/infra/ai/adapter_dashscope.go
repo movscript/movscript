@@ -149,17 +149,17 @@ func (a *DashScopeAdapter) Synthesize(ctx context.Context, req media.TTSRequest)
 	return a.synthesizeQwenTTS(ctx, req, model, text)
 }
 
-func (a *DashScopeAdapter) ChatAudio(ctx context.Context, req media.AudioChatRequest) (media.AudioChatResponse, error) {
+func (a *DashScopeAdapter) GenerateSpeechToSpeech(ctx context.Context, req media.SpeechToSpeechRequest) (media.SpeechToSpeechResponse, error) {
 	if strings.TrimSpace(a.APIKey) == "" {
-		return media.AudioChatResponse{}, fmt.Errorf("dashscope api_key is required")
+		return media.SpeechToSpeechResponse{}, fmt.Errorf("dashscope api_key is required")
 	}
 	if len(req.Audio) == 0 {
-		return media.AudioChatResponse{}, fmt.Errorf("audio is required")
+		return media.SpeechToSpeechResponse{}, fmt.Errorf("audio is required")
 	}
 	model := firstNonEmptyAI(strings.TrimSpace(req.Model), "qwen3-omni-flash-realtime")
 	endpoint, err := dashScopeRealtimeURL(a.BaseURL, req.Params, model)
 	if err != nil {
-		return media.AudioChatResponse{}, err
+		return media.SpeechToSpeechResponse{}, err
 	}
 	headers := http.Header{}
 	headers.Set("Authorization", "Bearer "+a.APIKey)
@@ -180,7 +180,7 @@ func (a *DashScopeAdapter) ChatAudio(ctx context.Context, req media.AudioChatReq
 			status = resp.StatusCode
 		}
 		recordDebug(ctx, DebugCallResult{Success: false, ModelID: model, Endpoint: endpoint, Method: "WEBSOCKET", RequestHeaders: debugHeaders, ResponseStatus: status, LatencyMs: latency, Error: err.Error()})
-		return media.AudioChatResponse{}, err
+		return media.SpeechToSpeechResponse{}, err
 	}
 	defer conn.Close()
 
@@ -203,32 +203,32 @@ func (a *DashScopeAdapter) ChatAudio(ctx context.Context, req media.AudioChatReq
 		session["search_options"] = rawOptions
 	}
 	if err := dashScopeWriteRealtimeEvent(conn, "session.update", map[string]any{"session": session}); err != nil {
-		return media.AudioChatResponse{}, err
+		return media.SpeechToSpeechResponse{}, err
 	}
 	if err := dashScopeWriteRealtimeEvent(conn, "input_audio_buffer.append", map[string]any{"audio": base64.StdEncoding.EncodeToString(req.Audio)}); err != nil {
-		return media.AudioChatResponse{}, err
+		return media.SpeechToSpeechResponse{}, err
 	}
 	if err := dashScopeWriteRealtimeEvent(conn, "input_audio_buffer.commit", nil); err != nil {
-		return media.AudioChatResponse{}, err
+		return media.SpeechToSpeechResponse{}, err
 	}
 	if err := dashScopeWriteRealtimeEvent(conn, "response.create", nil); err != nil {
-		return media.AudioChatResponse{}, err
+		return media.SpeechToSpeechResponse{}, err
 	}
 
-	audio, text, providerRef, err := dashScopeReadRealtimeAudioChat(ctx, conn)
+	audio, text, providerRef, err := dashScopeReadRealtimeSpeechToSpeech(ctx, conn)
 	if err != nil {
 		recordDebug(ctx, DebugCallResult{Success: false, ModelID: model, Endpoint: endpoint, Method: "WEBSOCKET", RequestHeaders: debugHeaders, LatencyMs: time.Since(start).Milliseconds(), Error: err.Error()})
-		return media.AudioChatResponse{}, err
+		return media.SpeechToSpeechResponse{}, err
 	}
 	if len(audio) == 0 && strings.TrimSpace(text) == "" {
-		return media.AudioChatResponse{}, fmt.Errorf("dashscope omni realtime returned empty response")
+		return media.SpeechToSpeechResponse{}, fmt.Errorf("dashscope omni realtime returned empty response")
 	}
 	durationMs := 0
 	if outputFormat == "pcm" && outputSampleRate > 0 {
 		durationMs = len(audio) * 1000 / (outputSampleRate * 2)
 	}
 	recordDebug(ctx, DebugCallResult{Success: true, ModelID: model, Endpoint: endpoint, Method: "WEBSOCKET", RequestHeaders: debugHeaders, RequestBody: mustJSON(map[string]any{"session": session, "audio_bytes": len(req.Audio)}), LatencyMs: time.Since(start).Milliseconds()})
-	return media.AudioChatResponse{
+	return media.SpeechToSpeechResponse{
 		Audio:       audio,
 		Text:        text,
 		MimeType:    mimeTypeForDashScopeRealtimeAudioFormat(outputFormat),
@@ -975,7 +975,7 @@ func dashScopeRealtimeAudioFormat(req media.TTSRequest) string {
 	}
 }
 
-func dashScopeOmniInputAudioFormat(req media.AudioChatRequest) string {
+func dashScopeOmniInputAudioFormat(req media.SpeechToSpeechRequest) string {
 	value := strings.TrimSpace(firstNonEmptyAI(req.AudioFormat, stringParam(req.Params, "input_audio_format", "")))
 	if value == "" {
 		value = "pcm"
@@ -988,7 +988,7 @@ func dashScopeOmniInputAudioFormat(req media.AudioChatRequest) string {
 	}
 }
 
-func dashScopeOmniOutputAudioFormat(req media.AudioChatRequest) string {
+func dashScopeOmniOutputAudioFormat(req media.SpeechToSpeechRequest) string {
 	value := strings.TrimSpace(firstNonEmptyAI(stringParam(req.Params, "output_audio_format", ""), stringParam(req.Params, "response_format", "")))
 	if value == "" {
 		value = "pcm"
@@ -1058,7 +1058,7 @@ func dashScopeWriteRealtimeEvent(conn *websocket.Conn, eventType string, payload
 	return conn.WriteJSON(body)
 }
 
-func dashScopeReadRealtimeAudioChat(ctx context.Context, conn *websocket.Conn) ([]byte, string, string, error) {
+func dashScopeReadRealtimeSpeechToSpeech(ctx context.Context, conn *websocket.Conn) ([]byte, string, string, error) {
 	var audio bytes.Buffer
 	var text strings.Builder
 	providerRef := ""

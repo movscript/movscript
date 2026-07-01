@@ -91,10 +91,7 @@ import {
 } from './repository/index.js'
 import { deriveMovScriptWorkspaceDomainIndex } from './indexer/index.js'
 import {
-  deriveMovScriptWorkspaceTimelineAssemblyPreviewTimeline,
   deriveMovScriptWorkspacePreviewTimelines,
-  type MovScriptWorkspaceTimelineAssemblyPreviewTimelineArtifact,
-  type MovScriptWorkspaceTimelineAssemblyPreviewTimelineScope,
   type MovScriptWorkspacePreviewTimelineArtifact,
 } from './previewTimeline.js'
 import {
@@ -110,7 +107,10 @@ export interface MovScriptWorkspaceServiceOptions {
 }
 
 export interface MovScriptWorkspaceInitializeInput {
+  localProjectId?: string
+  local_project_id?: string
   projectId?: string
+  project_id?: string
   projectUid?: string
   title?: string
   language?: string
@@ -126,6 +126,7 @@ export interface MovScriptWorkspaceInitializeFileResult {
 }
 
 export interface MovScriptWorkspaceInitializeResult {
+  localProjectId: string
   projectId: string
   projectUid: string
   files: MovScriptWorkspaceInitializeFileResult[]
@@ -178,9 +179,6 @@ export interface MovScriptWorkspaceService {
   queryProductionContext(query?: MovScriptWorkspaceProductionContextQuery): Promise<Record<string, MovScriptWorkspaceIndexedEntity[]>>
   readEditorState(): Promise<Record<string, unknown> | undefined>
   readPreviewTimeline(productionId: string | number): Promise<MovScriptWorkspacePreviewTimelineArtifact | undefined>
-  readTimelineAssemblyPreviewTimeline(
-    scope: MovScriptWorkspaceTimelineAssemblyPreviewTimelineScope,
-  ): Promise<MovScriptWorkspaceTimelineAssemblyPreviewTimelineArtifact | undefined>
   readSceneMomentEditPlan(sceneMomentId: string | number): Promise<Record<string, unknown> | undefined>
   readContentUnitRuntimePanel(contentUnitId: string | number): Promise<Record<string, unknown> | undefined>
   readContentUnitGenerationPrompt(contentUnitId: string | number): Promise<Record<string, unknown> | undefined>
@@ -296,7 +294,12 @@ export function createMovScriptWorkspaceService(
       const createdAt = now.toISOString()
       const existingWorkspace = await readJSONArtifact(options.fileRepository, 'workspace.json')
       const title = stringField(input.title) ?? 'MovScript Project'
-      const projectId = stringField(input.projectId) ?? stringField(existingWorkspace?.project_id) ?? safeProjectSlug(title)
+      const projectId = stringField(input.localProjectId)
+        ?? stringField(input.local_project_id)
+        ?? stringField(input.projectId)
+        ?? stringField(input.project_id)
+        ?? stringField(existingWorkspace?.project_id)
+        ?? safeProjectSlug(title)
       const projectUid = stringField(input.projectUid)
         ?? stringField(existingWorkspace?.project_uid)
         ?? stringField(existingWorkspace?.projectUid)
@@ -343,7 +346,7 @@ export function createMovScriptWorkspaceService(
         standards: standardsRecord,
       })
       invalidateIndexCache()
-      return { projectId, projectUid, files, standardSkillFiles }
+      return { localProjectId: projectId, projectId, projectUid, files, standardSkillFiles }
     },
     getModel: getMovScriptWorkspaceModel,
     loadIndex,
@@ -365,9 +368,6 @@ export function createMovScriptWorkspaceService(
     async readPreviewTimeline(productionId) {
       const timelines = deriveMovScriptWorkspacePreviewTimelines(await loadIndex())
       return timelines.find((timeline) => samePreviewTimelineProduction(timeline.productionId, productionId))
-    },
-    async readTimelineAssemblyPreviewTimeline(scope) {
-      return deriveMovScriptWorkspaceTimelineAssemblyPreviewTimeline(await loadIndex(), scope)
     },
     async readSceneMomentEditPlan(sceneMomentId) {
       const sceneMoment = queryMovScriptWorkspaceEntities(await loadIndex(), { entityKind: 'scene_moment' })

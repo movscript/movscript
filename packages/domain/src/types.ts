@@ -14,9 +14,8 @@ export type MovScriptSystemPrimitiveKind =
   | 'keyframe'
   | 'audio_cue'
   | 'asset'
-  | 'timeline_assembly'
 
-export type MovScriptWorkTargetCategory = 'system_primitive' | 'timeline_assembly' | 'content_unit'
+export type MovScriptWorkTargetCategory = 'system_primitive' | 'content_unit'
 
 export type MovScriptDomainRelationKind =
   | 'parent'
@@ -80,7 +79,7 @@ export interface MovScriptWorkTarget {
   targetRef?: string
 }
 
-export interface MovScriptTimelineAssemblyScope {
+export interface MovScriptTimelineNamespaceScope {
   category: 'timeline_namespace'
   kind: string
   ref: string
@@ -89,12 +88,12 @@ export interface MovScriptTimelineAssemblyScope {
 
 export interface MovScriptContentUnitTargetAdapter {
   contentUnitType: string
-  targetCategory: MovScriptWorkTargetCategory
+  targetCategory?: MovScriptWorkTargetCategory
   targetKind: string
   outputKind?: MovScriptContentUnitOutputKind
   primaryRefKind?: MovScriptContentUnitPromptRefKind
   primaryRefField?: string
-  legacyNamespaceKind?: 'production' | 'segment'
+  namespaceScopeKind?: 'production' | 'segment'
 }
 
 export interface MovScriptNormalizedContentUnitTarget {
@@ -104,8 +103,8 @@ export interface MovScriptNormalizedContentUnitTarget {
   primaryRefKind?: MovScriptContentUnitPromptRefKind
   primaryRefField?: string
   primaryRefs: string[]
-  scope?: MovScriptTimelineAssemblyScope
-  legacyAlias?: {
+  scope?: MovScriptTimelineNamespaceScope
+  namespaceAlias?: {
     contentUnitType: 'production_ref' | 'segment_ref'
     namespaceKind: 'production' | 'segment'
   }
@@ -130,7 +129,7 @@ export type MovScriptNormalizedNamespaceVocabulary = MovScriptNamespaceVocabular
 export interface MovScriptNormalizedFocus {
   projectId?: string
   target?: MovScriptWorkTarget
-  scope?: MovScriptTimelineAssemblyScope
+  scope?: MovScriptTimelineNamespaceScope
   entity?: MovScriptDomainRef
   diagnostics: MovScriptDomainDiagnostic[]
 }

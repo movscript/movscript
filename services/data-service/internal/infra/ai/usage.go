@@ -66,7 +66,7 @@ func (s *AIService) EstimateTextRouteCost(ctx context.Context, userID uint, rout
 func (s *AIService) EstimateImageRouteCost(ctx context.Context, userID uint, route ModelRoute, req ImageRequest) (UsageEstimate, error) {
 	_ = userID
 	var lastUnsupportedErr error
-	for _, capability := range []string{CapabilityImage, CapabilityImageEdit} {
+	for _, capability := range []string{CapabilityFamilyImageGeneration} {
 		definition, handled, err := s.catalogRouteDefinition(ctx, route, capability)
 		if err != nil {
 			if isRouteCapabilityUnsupportedError(err) {
@@ -92,7 +92,7 @@ func (s *AIService) EstimateImageRouteCost(ctx context.Context, userID uint, rou
 func (s *AIService) EstimateVideoRouteCost(ctx context.Context, userID uint, route ModelRoute, req VideoRequest) (UsageEstimate, error) {
 	_ = userID
 	var lastUnsupportedErr error
-	for _, capability := range []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V} {
+	for _, capability := range []string{CapabilityFamilyVideoGeneration} {
 		definition, handled, err := s.catalogRouteDefinition(ctx, route, capability)
 		if err != nil {
 			if isRouteCapabilityUnsupportedError(err) {
@@ -124,12 +124,12 @@ func isRouteCapabilityUnsupportedError(err error) bool {
 
 func (s *AIService) EstimateAudioTTSRouteCost(ctx context.Context, userID uint, route ModelRoute) (UsageEstimate, error) {
 	_ = userID
-	definition, handled, err := s.catalogRouteDefinition(ctx, route, CapabilityAudioTTS)
+	definition, handled, err := s.catalogRouteDefinition(ctx, route, CapabilityFamilyAudioGeneration)
 	if err != nil {
 		return UsageEstimate{}, err
 	}
 	if handled {
-		return estimateUsage(definition.model.usageProfile(), definition.def, CapabilityAudioTTS, 0, 0, 0, 1), nil
+		return estimateUsage(definition.model.usageProfile(), definition.def, CapabilityFamilyAudioGeneration, 0, 0, 0, 1), nil
 	}
 	return UsageEstimate{}, fmt.Errorf("catalog route is required for text-to-speech usage estimate")
 }

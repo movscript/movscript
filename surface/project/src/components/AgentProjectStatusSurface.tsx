@@ -74,7 +74,7 @@ export function AgentProjectStatusSurface({
             <AgentSurfaceKeyValues items={[
               ['Project', projectId ?? ''],
               ['Focus', focusLabel],
-              ['Assembly target', domainFocus.target?.targetRef ?? ''],
+              ['Preview target', domainFocus.target?.targetRef ?? ''],
               ['Status schema', stringValue(timelineStatus?.schema ?? summary?.preferred_schema ?? summary?.preferredSchema ?? summary?.schema) ?? ''],
               ['Legacy production', legacyProductionId ?? ''],
               ['Generated', snapshot?.generated_at ?? ''],
@@ -83,7 +83,6 @@ export function AgentProjectStatusSurface({
           <AgentSurfacePanel title="Readiness">
             <AgentSurfaceKeyValues items={[
               ['Timeline namespaces', timelineNamespaces.length || productions.length],
-              ['Timeline assemblies', timelineAssemblies.length],
               ['Content units', contentUnits.length],
               ['Ready to generate', readyToGenerate.length],
               ['Needs selection', needsSelection.length],

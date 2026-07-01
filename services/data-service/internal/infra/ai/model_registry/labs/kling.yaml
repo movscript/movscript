@@ -1,129 +1,130 @@
+---
 lab: kling
 templates:
-    - route_adapter_hint: kling
-      capabilities:
-        - video
-      display_name: 可灵 v1 标准 (文生视频)
-      id: kling:v1-standard-t2v
-      lab: kling
-      model_id: kling-v1
-      order: 47
-      params:
-        - default: "5"
-          key: duration
-          label: 时长(秒)
-          options:
-            - "5"
-            - "10"
-          type: select
-        - default: "16:9"
-          key: aspect_ratio
-          label: 画面比例
-          options:
-            - "16:9"
-            - "9:16"
-            - "1:1"
-          type: select
-      source:
-        status: verified
-        url: https://kling.ai/document-api/apiReference/model/textToVideo
-        verified_at: "2026-06-25"
-      video:
-        default_duration_sec: 5
-        max_duration_sec: 10
-    - route_adapter_hint: kling
-      capabilities:
-        - video
-      display_name: 可灵 v1.6 标准 (文生视频)
-      id: kling:v1-6-standard-t2v
-      lab: kling
-      model_id: kling-v1-6
-      order: 48
-      params:
-        - default: "5"
-          key: duration
-          label: 时长(秒)
-          options:
-            - "5"
-            - "10"
-          type: select
-        - default: "16:9"
-          key: aspect_ratio
-          label: 画面比例
-          options:
-            - "16:9"
-            - "9:16"
-            - "1:1"
-          type: select
-      source:
-        status: verified
-        url: https://kling.ai/document-api/apiReference/model/textToVideo
-        verified_at: "2026-06-25"
-      video:
-        default_duration_sec: 5
-        max_duration_sec: 10
-    - route_adapter_hint: kling
-      capabilities:
-        - video
-      display_name: 可灵 v2 Master (文生视频)
-      id: kling:v2-standard-t2v
-      lab: kling
-      model_id: kling-v2-master
-      order: 49
-      params:
-        - default: "5"
-          key: duration
-          label: 时长(秒)
-          options:
-            - "5"
-            - "10"
-          type: select
-        - default: "16:9"
-          key: aspect_ratio
-          label: 画面比例
-          options:
-            - "16:9"
-            - "9:16"
-            - "1:1"
-          type: select
-      source:
-        status: verified
-        url: https://kling.ai/document-api/apiReference/model/textToVideo
-        verified_at: "2026-06-25"
-      video:
-        default_duration_sec: 5
-        max_duration_sec: 10
-    - route_adapter_hint: kling
-      capabilities:
-        - video_i2v
-      display_name: 可灵 v1.5 (图生视频)
-      id: kling:v1-5-standard-i2v
-      input:
-        accepts_image: true
-        max_images: 1
-      lab: kling
-      model_id: kling-v1-5
-      order: 50
-      params:
-        - default: "5"
-          key: duration
-          label: 时长(秒)
-          options:
-            - "5"
-            - "10"
-          type: select
-        - default: "16:9"
-          key: aspect_ratio
-          label: 画面比例
-          options:
-            - "16:9"
-            - "9:16"
-            - "1:1"
-          type: select
-      source:
-        status: verified
-        url: https://kling.ai/document-api/apiReference/model/textToVideo
-        verified_at: "2026-06-25"
-      video:
-        default_duration_sec: 5
-        max_duration_sec: 10
+- route_adapter_hint: kling
+  capabilities:
+  - video_generation
+  display_name: 可灵 v1 标准 (文生视频)
+  id: kling:v1-standard-t2v
+  lab: kling
+  model_id: kling-v1
+  order: 47
+  params:
+  - default: '5'
+    key: duration
+    label: 时长(秒)
+    options:
+    - '5'
+    - '10'
+    type: select
+  - default: '16:9'
+    key: aspect_ratio
+    label: 画面比例
+    options:
+    - '16:9'
+    - '9:16'
+    - '1:1'
+    type: select
+  source:
+    status: verified
+    url: https://kling.ai/document-api/apiReference/model/textToVideo
+    verified_at: '2026-06-25'
+  video:
+    default_duration_sec: 5
+    max_duration_sec: 10
+- route_adapter_hint: kling
+  capabilities:
+  - video_generation
+  display_name: 可灵 v1.6 标准 (文生视频)
+  id: kling:v1-6-standard-t2v
+  lab: kling
+  model_id: kling-v1-6
+  order: 48
+  params:
+  - default: '5'
+    key: duration
+    label: 时长(秒)
+    options:
+    - '5'
+    - '10'
+    type: select
+  - default: '16:9'
+    key: aspect_ratio
+    label: 画面比例
+    options:
+    - '16:9'
+    - '9:16'
+    - '1:1'
+    type: select
+  source:
+    status: verified
+    url: https://kling.ai/document-api/apiReference/model/textToVideo
+    verified_at: '2026-06-25'
+  video:
+    default_duration_sec: 5
+    max_duration_sec: 10
+- route_adapter_hint: kling
+  capabilities:
+  - video_generation
+  display_name: 可灵 v2 Master (文生视频)
+  id: kling:v2-standard-t2v
+  lab: kling
+  model_id: kling-v2-master
+  order: 49
+  params:
+  - default: '5'
+    key: duration
+    label: 时长(秒)
+    options:
+    - '5'
+    - '10'
+    type: select
+  - default: '16:9'
+    key: aspect_ratio
+    label: 画面比例
+    options:
+    - '16:9'
+    - '9:16'
+    - '1:1'
+    type: select
+  source:
+    status: verified
+    url: https://kling.ai/document-api/apiReference/model/textToVideo
+    verified_at: '2026-06-25'
+  video:
+    default_duration_sec: 5
+    max_duration_sec: 10
+- route_adapter_hint: kling
+  capabilities:
+  - video_generation
+  display_name: 可灵 v1.5 (图生视频)
+  id: kling:v1-5-standard-i2v
+  input:
+    accepts_image: true
+    max_images: 1
+  lab: kling
+  model_id: kling-v1-5
+  order: 50
+  params:
+  - default: '5'
+    key: duration
+    label: 时长(秒)
+    options:
+    - '5'
+    - '10'
+    type: select
+  - default: '16:9'
+    key: aspect_ratio
+    label: 画面比例
+    options:
+    - '16:9'
+    - '9:16'
+    - '1:1'
+    type: select
+  source:
+    status: verified
+    url: https://kling.ai/document-api/apiReference/model/textToVideo
+    verified_at: '2026-06-25'
+  video:
+    default_duration_sec: 5
+    max_duration_sec: 10

@@ -116,8 +116,9 @@ function matchGenerationModel<Model extends GenerationResolverModelLike>(
   const levels = slotMatches.map((match) => match?.level).filter((level): level is GenerationResolverMatchLevel => Boolean(level))
   const level = worstLevel(levels)
   const reasons = generationModelMatchReasons(profile, references)
-  const legacyOperation = profile.preferred_operations.find((operation) => declaredOperations.length === 0 || declaredOperations.includes(operation))
+  const selectedOperation = profile.preferred_operations.find((operation) => declaredOperations.length === 0 || declaredOperations.includes(operation))
     ?? declaredOperations[0]
+  const operationParams = selectedOperation ? model.supported_params_by_operation?.[selectedOperation] : undefined
   return {
     model,
     model_id: modelId,
@@ -125,9 +126,9 @@ function matchGenerationModel<Model extends GenerationResolverModelLike>(
     level,
     score: scoreModel(model, level, reasons, references),
     reasons,
-    supported_params: model.supported_params,
+    supported_params: operationParams,
     profile: modelProfile,
-    ...(legacyOperation ? { legacy_operation: legacyOperation } : {}),
+    ...(selectedOperation ? { selected_operation: selectedOperation } : {}),
   }
 }
 

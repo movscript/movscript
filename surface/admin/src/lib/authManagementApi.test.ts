@@ -1,10 +1,19 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import test from 'node:test'
 import {
   mapOrgMembers,
   mapOrgPage,
   mapUserPage,
 } from './authManagementApi'
+
+test('auth management api derives its base URL from the admin runtime config', () => {
+  const source = readFileSync(resolve(import.meta.dirname, 'authManagementApi.ts'), 'utf8')
+
+  assert.match(source, /getAPIBaseURL/)
+  assert.doesNotMatch(source, /baseURL:\s*['"]\/api\/admin\/auth['"]/)
+})
 
 test('auth management api maps auth-service user pages into admin-web user view models', () => {
   const page = mapUserPage({

@@ -26,20 +26,20 @@ test('single node runtime collects connected upstream resource inputs from unsav
     },
     {
       id: 'gen',
-      type: 'ref_image_gen',
+      type: 'reference_to_image',
       position: { x: 200, y: 0 },
       data: { source: 'ai', prompt: 'make a poster' },
     },
   ]
   const edges = [
-    { id: 'e1', source: 'ref-image', target: 'gen', sourceHandle: 'out:image', targetHandle: 'in:reference' },
+    { id: 'e1', source: 'ref-image', target: 'gen', sourceHandle: 'out:image', targetHandle: 'in:references' },
   ]
 
   const inputs = collectCanvasNodeInputs({ nodeId: 'gen', nodes, edges })
 
   assert.deepEqual(inputResourceIdsFromValues(inputs.values), [42])
-  assert.equal(inputs.values.reference[0].type, 'image')
-  assert.equal(inputs.values.reference[0].resource_id, 42)
+  assert.equal(inputs.values.references[0].type, 'image')
+  assert.equal(inputs.values.references[0].resource_id, 42)
 })
 
 test('connected resource inputs inherit target port media type and role', () => {
@@ -56,7 +56,7 @@ test('connected resource inputs inherit target port media type and role', () => 
     },
     {
       id: 'video-gen',
-      type: 'ref_video_gen',
+      type: 'reference_to_video',
       position: { x: 200, y: 0 },
       data: {
         source: 'ai',
@@ -80,7 +80,7 @@ test('single node runtime order includes upstream generated dependencies before 
   const nodes = [
     { id: 'prompt', type: 'text', position: { x: 0, y: 0 }, data: { source: 'manual', textContent: 'cyberpunk alley' } },
     { id: 'image-a', type: 'image', position: { x: 200, y: 0 }, data: { source: 'ai', prompt: 'base' } },
-    { id: 'image-b', type: 'ref_image_gen', position: { x: 400, y: 0 }, data: { source: 'ai', prompt: 'variant' } },
+    { id: 'image-b', type: 'reference_to_image', position: { x: 400, y: 0 }, data: { source: 'ai', prompt: 'variant' } },
   ]
   const edges = [
     { id: 'e1', source: 'prompt', target: 'image-a', sourceHandle: 'out:text', targetHandle: 'in:prompt' },
@@ -99,10 +99,10 @@ test('runtime prompt combines node prompt and connected upstream text', () => {
   assert.equal(prompt, 'polish this\n\nrough workspace')
 })
 
-test('runtime resource ids keep inline prompt mentions before other canvas inputs', () => {
+test('runtime resource ids only order prompt mentions that are already in canvas inputs', () => {
   const node = {
     id: 'gen',
-    type: 'ref_image_gen',
+    type: 'reference_to_image',
     position: { x: 0, y: 0 },
     data: {
       source: 'ai',
@@ -117,7 +117,7 @@ test('runtime resource ids keep inline prompt mentions before other canvas input
       { type: 'image', resource_id: 42 },
       { type: 'image', resource_id: 77 },
     ],
-  }), [55, 42, 99, 77])
+  }), [42, 99, 77])
 })
 
 test('runtime resource ids ignore disabled plugin generated resources', () => {
@@ -133,7 +133,7 @@ test('runtime resource ids ignore disabled plugin generated resources', () => {
     },
     {
       id: 'gen',
-      type: 'ref_image_gen',
+      type: 'reference_to_image',
       position: { x: 200, y: 0 },
       data: { source: 'ai', prompt: 'make a variant' },
     },

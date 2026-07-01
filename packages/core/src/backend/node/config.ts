@@ -182,7 +182,7 @@ export function resolveMovScriptBackendSession(input: MovScriptBackendSessionInp
   const realm = normalizeRealm(input.realm) ?? config.realm
   const paths = resolveMovScriptBackendPaths(root.workspaceDir, realm)
   const auth = readMovScriptBackendAuth(paths.workspaceDir, realm)
-  const token = stringField(input.token) ?? stringField(process.env.MOVCLI_TOKEN) ?? auth?.token
+  const token = stringField(input.token) ?? stringField(process.env.MOVSCRIPT_DATA_SERVICE_TOKEN) ?? auth?.token
   const userId = idField(input.userId)
     ?? idField(auth?.user?.id)
     ?? idField(config.activeUserId)

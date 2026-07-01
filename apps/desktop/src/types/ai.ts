@@ -100,9 +100,9 @@ export interface PublicModel {
   short_name?: string
   logical_model_id?: string
   provider_variant_count?: number
-  capabilities: string[]       // e.g. ["text"], ["image"], ["video"], ["image_edit"]
+  capabilities: string[]       // e.g. ["text_generation"], ["image_generation"], ["video_generation"], ["audio_generation"]
   supported_api_kinds?: ProviderModelAPIKind[]
-  accepts_image_input: boolean // true for image_edit and i2v models
+  accepts_image_input: boolean // true when a generation route accepts image references
   is_default?: boolean         // true when admin-pinned as the default for this capability
   supported_params?: ParamDef[]
   input_requirements?: ModelInputRequirements

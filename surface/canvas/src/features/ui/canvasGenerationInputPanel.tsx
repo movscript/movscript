@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { formatResourceMention, parseResourceMentions } from '@movscript/workspace'
 import {
   generationDefaultReferenceRoleForMediaType,
@@ -105,10 +105,11 @@ export function CanvasGenerationInputPanel({
   const syncedPromptRef = useRef<string | null>(null)
   const renderedResourceKeyRef = useRef<string>('')
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+  const [mentionMenuStyle, setMentionMenuStyle] = useState<CSSProperties | undefined>(undefined)
   const [roleMenu, setRoleMenu] = useState<CanvasRoleMenuState | null>(null)
   const attachments = useMemo(
     () => selectedInputResources(data),
-    [data.availableResources, data.inputResourceIds, data.prompt, data.referenceResources],
+    [data.availableResources, data.inputResourceIds, data.referenceResources, data.runtimeInputValues],
   )
   const explicitResourceIds = new Set(data.inputResourceIds ?? [])
   const mentionResources = attachments
@@ -173,6 +174,24 @@ export function CanvasGenerationInputPanel({
     () => attachments.map((resource) => `${resource.ID}:${resource.type}:${resource.name}:${resource.url}:${resource.direct_url ?? ''}`).join('|'),
     [attachments],
   )
+  const mentionMenuPortalContainer = typeof document === 'undefined' ? null : document.body
+
+  useLayoutEffect(() => {
+    if (mentionQuery === null) {
+      setMentionMenuStyle(undefined)
+      return
+    }
+    const update = () => {
+      setMentionMenuStyle(canvasMentionMenuStyleFromAnchor(shellRef.current?.getBoundingClientRect()))
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [mentionItems.length, mentionQuery])
 
   function editorText() {
     return editorRef.current ? serializeCanvasPrompt(editorRef.current) : ''
@@ -362,6 +381,8 @@ export function CanvasGenerationInputPanel({
         mentionOpen={mentionQuery !== null}
         mentionItems={mentionItems}
         mentionEmptyLabel={attachments.length === 0 ? t('shared.genInput.addResourcesFirst') : t('shared.genInput.noMatchedResources')}
+        mentionMenuPortalContainer={mentionMenuPortalContainer}
+        mentionMenuStyle={mentionMenuStyle}
         attachmentItems={attachmentItems}
         attachmentEmptyLabel={t('shared.genInput.selectOrUploadHint', { defaultValue: 'Select or upload resources' })}
       />
@@ -375,4 +396,28 @@ export function CanvasGenerationInputPanel({
       ) : null}
     </div>
   )
+}
+
+function canvasMentionMenuStyleFromAnchor(rect: DOMRect | undefined): CSSProperties | undefined {
+  if (!rect || typeof window === 'undefined') return undefined
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+  const gutter = 8
+  const width = Math.min(Math.max(rect.width, 220), Math.max(220, viewportWidth - gutter * 2))
+  const left = Math.max(gutter, Math.min(rect.left, viewportWidth - width - gutter))
+  const spaceAbove = Math.max(0, rect.top - gutter)
+  const spaceBelow = Math.max(0, viewportHeight - rect.bottom - gutter)
+  const placeAbove = spaceAbove >= 96 || spaceAbove >= spaceBelow
+  const maxHeight = Math.max(72, Math.min(240, (placeAbove ? spaceAbove : spaceBelow) - 6))
+  return {
+    position: 'fixed',
+    zIndex: 1200,
+    left,
+    right: 'auto',
+    width,
+    maxHeight,
+    ...(placeAbove
+      ? { top: 'auto', bottom: Math.max(gutter, viewportHeight - rect.top + 6) }
+      : { top: Math.min(viewportHeight - gutter - 72, rect.bottom + 6), bottom: 'auto' }),
+  }
 }

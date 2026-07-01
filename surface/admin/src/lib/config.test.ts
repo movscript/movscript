@@ -50,12 +50,12 @@ test('getAPIBaseURL falls back to electron launch context before stored settings
   }
 })
 
-test('getAPIBaseURL falls back to stored settings and then local backend', () => {
+test('getAPIBaseURL ignores stored settings in Electron admin and then falls back to local backend', () => {
   let restore = withWindow('movscript-admin://app/models', {
     [APP_SETTINGS_STORAGE_KEY]: JSON.stringify({ state: { settings: { apiBaseURL: 'https://stored.example.com/api/v1' } } }),
   })
   try {
-    assert.equal(getAPIBaseURL(), 'https://stored.example.com')
+    assert.equal(getAPIBaseURL(), 'http://localhost:8766')
   } finally {
     restore()
   }
@@ -63,6 +63,17 @@ test('getAPIBaseURL falls back to stored settings and then local backend', () =>
   restore = withWindow('movscript-admin://app/models')
   try {
     assert.equal(getAPIBaseURL(), 'http://localhost:8766')
+  } finally {
+    restore()
+  }
+})
+
+test('getAPIBaseURL can still use stored settings for standalone admin deployments', () => {
+  const restore = withWindow('https://console.example.com/models', {
+    [APP_SETTINGS_STORAGE_KEY]: JSON.stringify({ state: { settings: { apiBaseURL: 'https://stored.example.com/api/v1' } } }),
+  })
+  try {
+    assert.equal(getAPIBaseURL(), 'https://stored.example.com')
   } finally {
     restore()
   }

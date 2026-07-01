@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Blocks, Clapperboard, FilePlus2, FileText, FolderKanban, GitBranch, ImageOff, MonitorPlay, Plus, Scissors, Settings } from 'lucide-react'
+import { Blocks, Clapperboard, FilePlus2, FileText, FolderKanban, GitBranch, ImageOff, MonitorPlay, Plus, RefreshCw, Scissors, Settings, Trash2 } from 'lucide-react'
 import { AppContentLayout } from '@movscript/ui/layout'
 import { AppPager } from '@movscript/ui/business/app'
 import {
@@ -24,7 +24,6 @@ import { toast } from '@movscript/ui/toast'
 import { resolveResourceFileUrl } from '@movscript/resource-surface/resource-media'
 import {
   readSurfaceHostApi,
-  routePathWithParams,
   surfaceRoutePath,
   surfaceWorkspaceOwnerContext,
   type Script,
@@ -52,7 +51,6 @@ import {
   ProjectPageActionButton,
   ProjectPageEmptyState,
 } from './ProjectPageUi'
-import { projectSurfacePath } from '../../../domain'
 import {
   createWorkspaceScript,
 } from '../../scripts/application/scriptWorkspaceRepository'
@@ -82,6 +80,7 @@ import {
   type ContentCanvasTimelineProfileId,
 } from '../../content/domain/contentCanvasTimelineProfiles'
 import { useOptionalProjectSurfaceRuntime } from '../../../runtime/ProjectSurfaceProvider'
+import type { ProjectServiceGateway } from '../../../runtime'
 
 const PROJECT_HOME_CARD_PAGE_SIZE = 3
 const PROJECT_HOME_CANVAS_PAGE_SIZE = 8
@@ -200,6 +199,7 @@ export default function ProjectOverviewPage() {
   const productions = useMemo(() => projectHomeProductionSummaries(data), [data])
   const settings = useMemo(() => projectHomeSettingSummaries(data), [data])
   const [productionDialogOpen, setProductionDialogOpen] = useState(false)
+  const [editingWorkspaceProduction, setEditingWorkspaceProduction] = useState<ProjectHomeProductionSummary | null>(null)
   const scripts = useMemo(() => (
     projectHomeScripts(data.scripts, projectId).slice().sort((left, right) => (
       (left.order || 0) - (right.order || 0) || left.ID - right.ID
@@ -234,11 +234,6 @@ export default function ProjectOverviewPage() {
   const productionPreviewRoute = useCallback((production: ProjectHomeProductionSummary) => (
     projectId ? projectHomeProductionPreviewPath(projectId, production) : '#'
   ), [projectId])
-  const productionEditDeskRoute = useCallback((production: ProjectHomeProductionSummary) => {
-    const params = projectHomeProductionEditDeskParams(production)
-    if (projectSurfaceRuntime) return projectSurfaceRuntime.navigator.href('editDesk', params)
-    return projectId ? projectHomeProductionEditDeskPath(projectId, production) : '#'
-  }, [projectId, projectSurfaceRuntime])
   const settingPreviewRoute = useCallback((setting: ProjectHomeSettingSummary) => (
     projectId ? projectHomeSettingPreviewPath(projectId, setting) : '#'
   ), [projectId])
@@ -365,10 +360,10 @@ export default function ProjectOverviewPage() {
             <ProjectOverviewProductionList
               productions={productions}
               productionPreviewRoute={productionPreviewRoute}
-              productionEditDeskRoute={productionEditDeskRoute}
               isCreating={createProduction.isPending}
               onCreateCanvas={createCanvasForProduction}
               onCreateClick={() => setProductionDialogOpen(true)}
+              onOpenEditingWorkspaces={setEditingWorkspaceProduction}
             />
 
             <ProjectOverviewSettingPreviewList
@@ -402,6 +397,18 @@ export default function ProjectOverviewPage() {
         isBusy={createProduction.isPending}
         onOpenChange={setProductionDialogOpen}
         onSubmit={(input) => createProduction.mutate(input)}
+      />
+      <ProjectOverviewProductionEditingDialog
+        open={editingWorkspaceProduction !== null}
+        production={editingWorkspaceProduction}
+        projectId={projectId}
+        projectDir={projectDir}
+        projectUid={projectUid}
+        projectGateway={projectSurfaceRuntime?.gateways.project}
+        onOpenChange={(open) => {
+          if (!open) setEditingWorkspaceProduction(null)
+        }}
+        onNavigate={navigate}
       />
     </AppContentLayout>
   )
@@ -756,17 +763,17 @@ function ProjectOverviewScriptList({
 function ProjectOverviewProductionList({
   productions,
   productionPreviewRoute,
-  productionEditDeskRoute,
   isCreating,
   onCreateCanvas,
   onCreateClick,
+  onOpenEditingWorkspaces,
 }: {
   productions: ProjectHomeProductionSummary[]
   productionPreviewRoute: (production: ProjectHomeProductionSummary) => string
-  productionEditDeskRoute: (production: ProjectHomeProductionSummary) => string
   isCreating: boolean
   onCreateCanvas: (production: ProjectHomeProductionSummary) => void
   onCreateClick: () => void
+  onOpenEditingWorkspaces: (production: ProjectHomeProductionSummary) => void
 }) {
   const listView = useProjectHomeCardList(productions, {
     pageSize: PROJECT_HOME_CARD_PAGE_SIZE,
@@ -832,11 +839,9 @@ function ProjectOverviewProductionList({
               预览
             </Link>
           </Button>
-          <Button asChild type="button" size="sm" variant="outline" className="gap-2">
-            <Link to={productionEditDeskRoute(production)}>
-              <Scissors size={14} />
-              剪辑台
-            </Link>
+          <Button type="button" size="sm" variant="outline" className="gap-2" onClick={() => onOpenEditingWorkspaces(production)}>
+            <Scissors size={14} />
+            剪辑台
           </Button>
           <Button type="button" size="sm" variant="outline" className="gap-2" onClick={() => onCreateCanvas(production)}>
             <GitBranch size={14} />
@@ -1060,6 +1065,301 @@ function ProjectOverviewProductionDialog({
   )
 }
 
+function ProjectOverviewProductionEditingDialog({
+  open,
+  production,
+  projectId,
+  projectDir,
+  projectUid,
+  projectGateway,
+  onOpenChange,
+  onNavigate,
+}: {
+  open: boolean
+  production: ProjectHomeProductionSummary | null
+  projectId?: number
+  projectDir?: string
+  projectUid?: string
+  projectGateway?: ProjectServiceGateway
+  onOpenChange: (open: boolean) => void
+  onNavigate: (to: string) => void
+}) {
+  const queryClient = useQueryClient()
+  const [query, setQuery] = useState('')
+  const [kind, setKind] = useState(PROJECT_HOME_FILTER_ALL)
+  const [page, setPage] = useState(1)
+  const pageSize = 5
+  const productionId = production?.id
+  const canUseGateway = Boolean(projectGateway && productionId)
+  const queryKey = [
+    'project-overview',
+    'production-editing-workspaces',
+    projectId ?? 'projectless',
+    projectDir ?? 'dirless',
+    projectUid ?? 'uidless',
+    productionId ?? 'productionless',
+    query,
+    kind,
+    page,
+    pageSize,
+  ]
+  const workspaceList = useQuery({
+    queryKey,
+    enabled: open && canUseGateway,
+    queryFn: async () => {
+      if (!projectGateway?.listProductionEditingWorkspaces || !productionId) {
+        throw new Error('当前运行通道还没有接入 production 剪辑台列表。')
+      }
+      return projectGateway.listProductionEditingWorkspaces({
+        ...(projectId ? { projectId: String(projectId) } : {}),
+        projectDir,
+        projectUid,
+        input: {
+          productionId,
+          query,
+          page,
+          pageSize,
+          ...(kind === PROJECT_HOME_FILTER_ALL ? {} : { kind }),
+        },
+      })
+    },
+  })
+  const listRecord = recordValue(workspaceList.data)
+  const workspaces = Array.isArray(listRecord.workspaces) ? listRecord.workspaces.filter(isRecord) : []
+  const pagination = recordValue(listRecord.pagination)
+  const hasNextPage = Boolean(pagination.hasNextPage ?? pagination.has_next_page)
+  const total = numberValue(pagination.total) ?? workspaces.length
+  const invalidateWorkspaces = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: queryKey.slice(0, 6) })
+  }, [queryClient, queryKey])
+
+  useEffect(() => {
+    if (!open) {
+      setQuery('')
+      setKind(PROJECT_HOME_FILTER_ALL)
+      setPage(1)
+    }
+  }, [open])
+
+  const refreshResources = useMutation({
+    mutationFn: async () => {
+      if (!projectGateway?.refreshProductionEditingResources || !productionId) {
+        throw new Error('当前运行通道还没有接入 production 资源刷新。')
+      }
+      return projectGateway.refreshProductionEditingResources({
+        ...(projectId ? { projectId: String(projectId) } : {}),
+        projectDir,
+        projectUid,
+        input: { productionId },
+      })
+    },
+    onSuccess: () => {
+      toast.success('剪辑资源已刷新')
+      invalidateWorkspaces()
+    },
+    onError: (error) => {
+      toast.error('刷新失败', error instanceof Error ? error.message : String(error))
+    },
+  })
+  const createWorkspace = useMutation({
+    mutationFn: async (workspaceKind: 'system_editing' | 'remotion') => {
+      if (!projectGateway?.createProductionEditingWorkspace || !production) {
+        throw new Error('当前运行通道还没有接入 production 剪辑台创建。')
+      }
+      return projectGateway.createProductionEditingWorkspace({
+        ...(projectId ? { projectId: String(projectId) } : {}),
+        projectDir,
+        projectUid,
+        input: {
+          projectId: projectId ? String(projectId) : undefined,
+          productionId: production.id,
+          kind: workspaceKind,
+          title: workspaceKind === 'remotion' ? `${production.title} Remotion` : `${production.title} 粗剪`,
+        },
+      })
+    },
+    onSuccess: () => {
+      toast.success('剪辑台已创建')
+      invalidateWorkspaces()
+    },
+    onError: (error) => {
+      toast.error('创建失败', error instanceof Error ? error.message : String(error))
+    },
+  })
+  const openWorkspace = useMutation({
+    mutationFn: async (workspace: Record<string, unknown>) => {
+      if (!projectGateway?.openProductionEditingWorkspace || !productionId) {
+        throw new Error('当前运行通道还没有接入 production 剪辑台打开。')
+      }
+      const workspaceId = stringValue(workspace.workspaceId ?? workspace.workspace_id)
+      if (!workspaceId) throw new Error('剪辑台缺少 workspaceId。')
+      return projectGateway.openProductionEditingWorkspace({
+        ...(projectId ? { projectId: String(projectId) } : {}),
+        projectDir,
+        projectUid,
+        input: {
+          productionId,
+          workspaceId,
+        },
+      })
+    },
+    onSuccess: (result) => {
+      const record = recordValue(result)
+      const route = stringValue(recordValue(record.open_action).route)
+      if (route) {
+        onOpenChange(false)
+        onNavigate(route)
+        return
+      }
+      toast.success('剪辑台已打开')
+      invalidateWorkspaces()
+    },
+    onError: (error) => {
+      toast.error('打开失败', error instanceof Error ? error.message : String(error))
+    },
+  })
+  const deleteWorkspace = useMutation({
+    mutationFn: async (workspace: Record<string, unknown>) => {
+      if (!projectGateway?.deleteProductionEditingWorkspace || !productionId) {
+        throw new Error('当前运行通道还没有接入 production 剪辑台删除。')
+      }
+      const workspaceId = stringValue(workspace.workspaceId ?? workspace.workspace_id)
+      if (!workspaceId) throw new Error('剪辑台缺少 workspaceId。')
+      return projectGateway.deleteProductionEditingWorkspace({
+        ...(projectId ? { projectId: String(projectId) } : {}),
+        projectDir,
+        projectUid,
+        input: {
+          productionId,
+          workspaceId,
+        },
+      })
+    },
+    onSuccess: () => {
+      toast.success('剪辑台已删除')
+      invalidateWorkspaces()
+    },
+    onError: (error) => {
+      toast.error('删除失败', error instanceof Error ? error.message : String(error))
+    },
+  })
+  const busy = refreshResources.isPending || createWorkspace.isPending || openWorkspace.isPending || deleteWorkspace.isPending
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>{production ? `${production.title} 剪辑台` : '剪辑台'}</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4">
+          <div className="flex flex-wrap items-end gap-2">
+            <Label className="grid min-w-48 flex-1 gap-2" htmlFor="project-home-production-editing-search">
+              <span>搜索</span>
+              <Input
+                id="project-home-production-editing-search"
+                value={query}
+                placeholder="标题或 workspace ID"
+                onChange={(event) => {
+                  setQuery(event.target.value)
+                  setPage(1)
+                }}
+              />
+            </Label>
+            <div className="grid gap-2">
+              <Label htmlFor="project-home-production-editing-kind">类型</Label>
+              <Select
+                value={kind}
+                onValueChange={(value) => {
+                  setKind(value)
+                  setPage(1)
+                }}
+              >
+                <SelectTrigger id="project-home-production-editing-kind" className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={PROJECT_HOME_FILTER_ALL}>全部</SelectItem>
+                  <SelectItem value="system_editing">系统剪辑</SelectItem>
+                  <SelectItem value="remotion">Remotion</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button type="button" variant="outline" className="gap-2" disabled={!canUseGateway || busy} onClick={() => refreshResources.mutate()}>
+              <RefreshCw size={14} />
+              刷新资源
+            </Button>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" className="gap-2" disabled={!canUseGateway || busy} onClick={() => createWorkspace.mutate('system_editing')}>
+              <Plus size={14} />
+              新建系统剪辑
+            </Button>
+            <Button type="button" variant="outline" className="gap-2" disabled={!canUseGateway || busy} onClick={() => createWorkspace.mutate('remotion')}>
+              <Plus size={14} />
+              新建 Remotion
+            </Button>
+          </div>
+
+          <div className="grid gap-2">
+            {workspaceList.isLoading ? (
+              <div className="rounded-md border px-3 py-4 type-caption text-muted-foreground">正在读取剪辑台...</div>
+            ) : workspaces.length === 0 ? (
+              <div className="rounded-md border px-3 py-4 type-caption text-muted-foreground">还没有剪辑台。</div>
+            ) : workspaces.map((workspace) => {
+              const workspaceId = stringValue(workspace.workspaceId ?? workspace.workspace_id) ?? 'workspace'
+              return (
+                <div key={workspaceId} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-md border px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="truncate type-label">{stringValue(workspace.title) ?? workspaceId}</div>
+                    <div className="truncate type-caption text-muted-foreground">
+                      {projectHomeProductionEditingKindLabel(workspace.kind)} / {workspaceId}
+                      {workspace.stale ? ' / stale' : ''}
+                    </div>
+                  </div>
+                  <Button type="button" size="sm" className="gap-2" disabled={busy} onClick={() => openWorkspace.mutate(workspace)}>
+                    <MonitorPlay size={14} />
+                    打开
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="gap-2"
+                    disabled={busy}
+                    onClick={() => {
+                      if (typeof window !== 'undefined' && !window.confirm(`删除剪辑台 ${stringValue(workspace.title) ?? workspaceId}？`)) return
+                      deleteWorkspace.mutate(workspace)
+                    }}
+                  >
+                    <Trash2 size={14} />
+                    删除
+                  </Button>
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <span className="type-caption text-muted-foreground">共 {total} 个</span>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" variant="outline" disabled={page <= 1 || workspaceList.isFetching} onClick={() => setPage((value) => Math.max(1, value - 1))}>
+                上一页
+              </Button>
+              <Button type="button" size="sm" variant="outline" disabled={!hasNextPage || workspaceList.isFetching} onClick={() => setPage((value) => value + 1)}>
+                下一页
+              </Button>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>关闭</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function ProjectOverviewCanvasList({
   canvases,
   canvasRoute,
@@ -1192,6 +1492,13 @@ function projectHomeProductionSearchText(production: ProjectHomeProductionSummar
     production.previewPath,
     production.source,
   )
+}
+
+function projectHomeProductionEditingKindLabel(value: unknown): string {
+  const kind = stringValue(value)
+  if (kind === 'system_editing') return '系统剪辑'
+  if (kind === 'remotion') return 'Remotion'
+  return kind ?? '剪辑台'
 }
 
 function projectHomeProductionFilterValue(production: ProjectHomeProductionSummary): string {
@@ -1739,7 +2046,6 @@ function isRootProductionTimelineNamespace(record: Record<string, unknown>): boo
 }
 
 function projectHomeProductionPreviewPath(projectId: number, production: ProjectHomeProductionSummary): string {
-  const targetRef = `timeline_assembly:production:${production.id}`
   const previewNodeId = `production:${production.id}`
   return surfaceRoutePath('project.contentPreview', {
     projectId,
@@ -1750,31 +2056,10 @@ function projectHomeProductionPreviewPath(projectId: number, production: Project
     productionId: production.id,
     scopeKind: 'production',
     scopeRef: production.id,
-    targetCategory: 'timeline_assembly',
-    targetKind: 'timeline_assembly',
-    targetRef,
-    timeline_assembly_ref: targetRef,
+    targetCategory: 'production',
+    targetKind: 'production',
+    targetRef: production.id,
   })
-}
-
-function projectHomeProductionEditDeskParams(production: ProjectHomeProductionSummary) {
-  const targetRef = `timeline_assembly:production:${production.id}`
-  return {
-    productionId: production.id,
-    scopeKind: 'production',
-    scopeRef: production.id,
-    targetCategory: 'timeline_assembly',
-    targetKind: 'timeline_assembly',
-    targetRef,
-    timeline_assembly_ref: targetRef,
-  }
-}
-
-function projectHomeProductionEditDeskPath(projectId: number, production: ProjectHomeProductionSummary): string {
-  return routePathWithParams(
-    projectSurfacePath('editDesk', projectId),
-    projectHomeProductionEditDeskParams(production),
-  )
 }
 
 function projectHomeSettingPreviewPath(projectId: number, setting: ProjectHomeSettingSummary): string {

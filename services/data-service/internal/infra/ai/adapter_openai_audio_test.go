@@ -95,7 +95,7 @@ func TestOpenAIAdapterTranscribeUsesAudioTranscriptionsEndpoint(t *testing.T) {
 	}
 }
 
-func TestOpenAIAdapterTranslateAudioUsesAudioTranslationsEndpoint(t *testing.T) {
+func TestOpenAIAdapterTranslateSpeechUsesAudioTranslationsEndpoint(t *testing.T) {
 	var gotModel string
 	var gotFileCount int
 	server := testutil.NewHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -116,14 +116,14 @@ func TestOpenAIAdapterTranslateAudioUsesAudioTranslationsEndpoint(t *testing.T) 
 	defer server.Close()
 
 	adapter := NewOpenAIAdapter(server.URL+"/v1", "test-key")
-	resp, err := adapter.TranslateAudio(context.Background(), media.AudioTranslateRequest{
+	resp, err := adapter.TranslateSpeech(context.Background(), media.SpeechTranslateRequest{
 		Model:          "whisper-test",
 		TargetLanguage: "en",
 		MimeType:       "audio/wav",
 		Audio:          []byte("wav-bytes"),
 	})
 	if err != nil {
-		t.Fatalf("TranslateAudio() error = %v", err)
+		t.Fatalf("TranslateSpeech() error = %v", err)
 	}
 	if gotModel != "whisper-test" || gotFileCount != 1 {
 		t.Fatalf("multipart fields model=%q files=%d", gotModel, gotFileCount)
@@ -136,7 +136,7 @@ func TestOpenAIAdapterTranslateAudioUsesAudioTranslationsEndpoint(t *testing.T) 
 	}
 }
 
-func TestOpenAIAdapterChatAudioUsesChatCompletionsAudioShape(t *testing.T) {
+func TestOpenAIAdapterGenerateSpeechToSpeechUsesChatCompletionsAudioShape(t *testing.T) {
 	var gotBody map[string]any
 	server := testutil.NewHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/chat/completions" {
@@ -155,7 +155,7 @@ func TestOpenAIAdapterChatAudioUsesChatCompletionsAudioShape(t *testing.T) {
 	defer server.Close()
 
 	adapter := NewOpenAIAdapter(server.URL+"/v1", "test-key")
-	resp, err := adapter.ChatAudio(context.Background(), media.AudioChatRequest{
+	resp, err := adapter.GenerateSpeechToSpeech(context.Background(), media.SpeechToSpeechRequest{
 		Model:       "gpt-4o-mini-audio-preview",
 		Prompt:      "reply briefly",
 		Audio:       []byte("wav-input"),
@@ -165,10 +165,10 @@ func TestOpenAIAdapterChatAudioUsesChatCompletionsAudioShape(t *testing.T) {
 		Params:      map[string]any{"temperature": 0.2},
 	})
 	if err != nil {
-		t.Fatalf("ChatAudio() error = %v", err)
+		t.Fatalf("GenerateSpeechToSpeech() error = %v", err)
 	}
 	if string(resp.Audio) != "wav-response" || resp.Text != "spoken reply" || resp.MimeType != "audio/wav" || resp.ProviderRef != "audio_123" {
-		t.Fatalf("response = %#v, want decoded audio chat response", resp)
+		t.Fatalf("response = %#v, want decoded speech-to-speech response", resp)
 	}
 	if gotBody["model"] != "gpt-4o-mini-audio-preview" {
 		t.Fatalf("model = %#v", gotBody["model"])

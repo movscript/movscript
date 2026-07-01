@@ -26,11 +26,9 @@ test('desktop runtime preparation defaults to daemon CLI without materializing m
     const cliBinDir = join(cliPackageDir, 'bin')
     mkdirSync(cliBinDir, { recursive: true })
     writeFileSync(join(cliBinDir, 'movscript'), '#!/bin/sh\nexec node "$0.mjs" "$@"\n')
-    writeFileSync(join(cliBinDir, 'movcli'), '#!/bin/sh\nexec node "$0.mjs" "$@"\n')
     writeFileSync(join(cliBinDir, 'movscript.mjs'), 'export {}\n')
     if (process.platform !== 'win32') {
       chmodSync(join(cliBinDir, 'movscript'), 0o755)
-      chmodSync(join(cliBinDir, 'movcli'), 0o755)
     }
 
     const prepared = prepareDesktopRuntimeDependencies({
@@ -43,7 +41,7 @@ test('desktop runtime preparation defaults to daemon CLI without materializing m
     assert.equal(prepared.movscriptServerPath, undefined)
     assert.equal(process.env.MOVSCRIPT_BACKEND_BIN, undefined)
     assert.equal(existsSync(join(workspaceDir, 'bin', serverBinary)), false)
-    assert.equal(existsSync(join(workspaceDir, 'bin', 'movcli')), true)
+    assert.equal(existsSync(join(workspaceDir, 'bin', 'movscript')), true)
   } finally {
     restoreEnv('MOVSCRIPT_BACKEND_BIN', previousBackendBin)
     restoreEnv('MOVSCRIPT_CLI_BIN_DIR', previousCliBinDir)
@@ -53,7 +51,7 @@ test('desktop runtime preparation defaults to daemon CLI without materializing m
   }
 })
 
-test('desktop runtime preparation materializes movscript-server and movcli into workspace bin', () => {
+test('desktop runtime preparation materializes movscript-server and movscript CLI into workspace bin', () => {
   const root = mkdtempSync(join(tmpdir(), 'movscript-desktop-runtime-'))
   const previousBackendBin = process.env.MOVSCRIPT_BACKEND_BIN
   const previousCliBinDir = process.env.MOVSCRIPT_CLI_BIN_DIR
@@ -78,25 +76,25 @@ test('desktop runtime preparation materializes movscript-server and movcli into 
     const serverBinary = process.platform === 'win32' ? 'movscript-server.exe' : 'movscript-server'
     const sourceServer = join(serverSourceDir, serverBinary)
     writeFileSync(sourceServer, 'fake movscript server')
-    writeFileSync(join(cliBinDir, 'movcli'), '#!/bin/sh\nexec node "$0.mjs" "$@"\n')
+    writeFileSync(join(cliBinDir, 'movscript'), '#!/bin/sh\nexec node "$0.mjs" "$@"\n')
     writeFileSync(join(cliBinDir, 'movscript.mjs'), 'export {}\n')
     if (process.platform !== 'win32') {
       chmodSync(sourceServer, 0o755)
-      chmodSync(join(cliBinDir, 'movcli'), 0o755)
+      chmodSync(join(cliBinDir, 'movscript'), 0o755)
     }
 
     const prepared = prepareDesktopRuntimeDependencies({
       workspaceDir,
       resourcesPath,
       requireMovScriptServer: true,
-      requireMovcli: true,
+      requireMovScriptCli: true,
     })
 
     const expectedBinDir = join(workspaceDir, 'bin')
     const expectedServer = join(expectedBinDir, serverBinary)
     assert.equal(prepared.preflight.ok, true)
     assert.equal(prepared.movscriptServerPath, expectedServer)
-    assert.equal(prepared.movcliBinDir, expectedBinDir)
+    assert.equal(prepared.movscriptCliBinDir, expectedBinDir)
     assert.equal(process.env.MOVSCRIPT_BACKEND_BIN, expectedServer)
     assert.equal(process.env.MOVSCRIPT_CLI_BIN_DIR, expectedBinDir)
     assert.equal(process.env.MOVSCRIPT_HOME, workspaceDir)
@@ -104,9 +102,11 @@ test('desktop runtime preparation materializes movscript-server and movcli into 
     assert.equal(prepared.preflight.checks.some((check) => check.id === 'runtime.git' && check.status === 'ok'), true)
     assert.equal(readFileSync(expectedServer, 'utf8'), 'fake movscript server')
     assert.equal(existsSync(join(workspaceDir, 'config.toml')), true)
-    assert.equal(existsSync(join(expectedBinDir, 'movcli')), true)
-    assert.equal(existsSync(join(expectedBinDir, 'movcli.mjs')), true)
-    assert.match(readFileSync(join(expectedBinDir, 'movcli.mjs'), 'utf8'), /__movscript_movcli/)
+    assert.equal(existsSync(join(expectedBinDir, 'movscript')), true)
+    assert.equal(existsSync(join(expectedBinDir, 'movscript.mjs')), true)
+    const shim = readFileSync(join(expectedBinDir, 'movscript.mjs'), 'utf8')
+    assert.match(shim, /pluginEntry, \.\.\.process\.argv\.slice\(2\)/)
+    assert.doesNotMatch(shim, /movcli/)
   } finally {
     restoreEnv('MOVSCRIPT_BACKEND_BIN', previousBackendBin)
     restoreEnv('MOVSCRIPT_CLI_BIN_DIR', previousCliBinDir)
@@ -141,7 +141,7 @@ test('desktop runtime preparation materializes movscript-server from MOVSCRIPT_B
     const prepared = prepareDesktopRuntimeDependencies({
       workspaceDir,
       requireMovScriptServer: true,
-      requireMovcli: false,
+      requireMovScriptCli: false,
     })
 
     const expectedServer = join(workspaceDir, 'bin', serverBinary)
@@ -168,7 +168,7 @@ test('desktop runtime preflight requires git for local backend git-http storage'
     const prepared = prepareDesktopRuntimeDependencies({
       workspaceDir,
       requireMovScriptServer: false,
-      requireMovcli: false,
+      requireMovScriptCli: false,
       requireGit: true,
     })
 

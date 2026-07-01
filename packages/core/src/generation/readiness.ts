@@ -270,10 +270,12 @@ export function generationBackendPreflightBlockerMessage(blocker: GenerationBack
 
 export function generationOperationReferenceRequirements(operation: string | undefined): GenerationReferenceRequirement[] {
   switch (operation?.trim()) {
-    case 'image_to_image':
-    case 'image_edit':
     case 'reference_to_image':
-    case 'style_transfer':
+    case 'edit_image':
+    case 'inpaint':
+    case 'outpaint':
+    case 'variation':
+    case 'upscale_image':
     case 'image_to_video':
       return [{ id: `${operation}:image`, label: '参考图', mediaTypes: ['image'] }]
     case 'first_frame_to_video':
@@ -283,17 +285,24 @@ export function generationOperationReferenceRequirements(operation: string | und
         { id: 'first_frame', label: '首帧图', roles: ['first_frame'], mediaTypes: ['image'] },
         { id: 'last_frame', label: '尾帧图', roles: ['last_frame'], mediaTypes: ['image'] },
       ]
-    case 'video_to_video':
-      return [{ id: 'video_to_video:video', label: '参考视频', mediaTypes: ['video'] }]
     case 'reference_to_video':
-      return [{ id: 'reference_to_video:media', label: '参考图或参考视频', mediaTypes: ['image', 'video'] }]
-    case 'stt':
+      return [{ id: 'reference_to_video:media', label: '参考图、参考视频或参考音频', mediaTypes: ['image', 'video', 'audio'] }]
+    case 'edit_video':
+    case 'extend_video':
+    case 'upscale_video':
+      return [{ id: `${operation}:video`, label: '目标视频', mediaTypes: ['video'] }]
+    case 'speech_to_text':
     case 'speech_translate':
-    case 'audio_chat':
+    case 'speech_to_speech':
     case 'voice_clone':
-    case 'speech_enhancement':
     case 'dubbing':
+    case 'voice_isolation':
       return [{ id: `${operation}:audio`, label: '参考音频', mediaTypes: ['audio'] }]
+    case 'forced_alignment':
+      return [
+        { id: 'forced_alignment:audio', label: '参考音频', mediaTypes: ['audio'] },
+        { id: 'forced_alignment:transcript', label: '文本稿', roles: ['transcript'], mediaTypes: ['text'] },
+      ]
     default:
       return []
   }

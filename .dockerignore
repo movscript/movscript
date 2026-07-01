@@ -47,6 +47,7 @@ services/data-service/bin/
 services/data-service/main
 services/data-service/uploads/
 surface/*/dist/
+timeline_assemblies/
 
 # Local and editor files.
 .env

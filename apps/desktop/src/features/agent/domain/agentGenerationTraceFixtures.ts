@@ -31,7 +31,7 @@ export const generationTraceReplayFixtures: GenerationTraceReplayFixture[] = [
         data: {
           generation: {
             jobId: 1001,
-            jobType: 'video_i2v',
+            jobType: 'video',
             providerName: 'Replay Provider',
             modelDisplay: 'Replay Video',
             modelIdentifier: 'replay-video-v1',
@@ -47,7 +47,7 @@ export const generationTraceReplayFixtures: GenerationTraceReplayFixture[] = [
         data: {
           generation: {
             jobId: 1001,
-            jobType: 'video_i2v',
+            jobType: 'video',
             providerName: 'Replay Provider',
             modelDisplay: 'Replay Video',
             modelIdentifier: 'replay-video-v1',
@@ -64,7 +64,7 @@ export const generationTraceReplayFixtures: GenerationTraceReplayFixture[] = [
         data: {
           generation: {
             jobId: 1001,
-            jobType: 'video_i2v',
+            jobType: 'video',
             providerName: 'Replay Provider',
             modelDisplay: 'Replay Video',
             modelIdentifier: 'replay-video-v1',
@@ -292,7 +292,7 @@ export const generationTraceReplayFixtures: GenerationTraceReplayFixture[] = [
         data: {
           generation: {
             jobId: 2002,
-            jobType: 'video_i2v',
+            jobType: 'video',
             providerName: 'Sanitized Video Provider',
             modelDisplay: 'Provider Video Model',
             modelIdentifier: 'provider-video-v3',
@@ -308,7 +308,7 @@ export const generationTraceReplayFixtures: GenerationTraceReplayFixture[] = [
         data: {
           generation: {
             jobId: 2002,
-            jobType: 'video_i2v',
+            jobType: 'video',
             providerName: 'Sanitized Video Provider',
             modelDisplay: 'Provider Video Model',
             modelIdentifier: 'provider-video-v3',
@@ -325,7 +325,7 @@ export const generationTraceReplayFixtures: GenerationTraceReplayFixture[] = [
         data: {
           generation: {
             jobId: 2002,
-            jobType: 'video_i2v',
+            jobType: 'video',
             providerName: 'Sanitized Video Provider',
             modelDisplay: 'Provider Video Model',
             modelIdentifier: 'provider-video-v3',

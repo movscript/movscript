@@ -15,7 +15,7 @@ export function createBackendAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'o
       }
     },
     getBackendStatus: () => ipcRenderer.invoke('backend:get-status'),
-    openAdminConsole: (input?: { baseURL?: string; path?: string; authSession?: ElectronAdminAuthSessionInput | null }) => ipcRenderer.invoke('app:open-admin-console', input),
+    openAdminConsole: (input?: { path?: string; authSession?: ElectronAdminAuthSessionInput | null }) => ipcRenderer.invoke('app:open-admin-console', input),
     openExternalURL: (input: { url: string }) => ipcRenderer.invoke('app:open-external-url', input),
   }
 }

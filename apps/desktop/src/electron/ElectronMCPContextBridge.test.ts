@@ -15,7 +15,6 @@ test('electron MCP context route focus preserves non-production timeline scope',
   assert.deepEqual(focus.domainFocus, {
     projectId: '42',
     scope: { category: 'timeline_namespace', kind: 'episode', ref: 'episode_01', field: 'scopeRef' },
-    target: { targetCategory: 'timeline_assembly', targetKind: 'timeline_assembly', targetRef: 'timeline_assembly:episode:episode_01' },
     diagnostics: [],
   })
 })

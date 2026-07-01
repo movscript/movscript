@@ -36,25 +36,25 @@ func (h *AudioHandler) ListModels(c *gin.Context) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ai model catalog is not configured"})
 		return
 	}
-	ttsModels, err := h.listAudioModels(c, ai.CapabilityAudioTTS)
+	ttsModels, err := h.listAudioModels(c, ai.CapabilityFamilyAudioGeneration)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	sttModels, err := h.listAudioModels(c, ai.CapabilityAudioSTT)
+	sttModels, err := h.listAudioModels(c, ai.CapabilityFamilyAudioGeneration)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	alignModels, err := h.listAudioModelsForCapabilities(c, ai.CapabilitySubAlign, ai.CapabilityAudioSTT)
+	alignModels, err := h.listAudioModelsForCapabilities(c, ai.CapabilityFamilyAudioGeneration, ai.CapabilityFamilyAudioGeneration)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"tts":        ttsModels,
-		"transcribe": sttModels,
-		"align":      alignModels,
+		"text_to_speech":   ttsModels,
+		"speech_to_text":   sttModels,
+		"forced_alignment": alignModels,
 	})
 }
 

@@ -74,6 +74,9 @@ export type ElectronLocalProjectCreateInput = {
   projectDir: string
   title?: string
   description?: string
+  localProjectId?: string
+  local_project_id?: string
+  /** @deprecated Use localProjectId. */
   projectId?: string
   overwrite?: boolean
 }
@@ -95,6 +98,9 @@ export type ElectronLocalProjectInspection = {
   hasLocalConfig: boolean
   hasMovScriptDir: boolean
   projectUid?: string
+  localProjectId?: string
+  local_project_id?: string
+  /** @deprecated Use localProjectId. */
   projectId?: string
   title?: string
   description?: string
@@ -118,6 +124,9 @@ export type ElectronLocalProjectResult = {
   projectDir: string
   projectPath: string
   projectUid?: string
+  localProjectId?: string
+  local_project_id?: string
+  /** @deprecated Use localProjectId. */
   projectId?: string
   project: {
     ID: number
@@ -330,17 +339,6 @@ export type ElectronMovScriptEngineContentUnitCreateInput = ElectronMovScriptEng
 
 export type ElectronMovScriptEngineContentUnitEnsureInput = ElectronMovScriptEngineProjectInput & {
   payload: MovScriptEngineEnsureContentUnitInput
-}
-
-export type ElectronMovScriptEngineTimelineAssemblyContentUnitEnsureInput = ElectronMovScriptEngineProjectInput & {
-  payload: Omit<
-    MovScriptEngineEnsureContentUnitInput,
-    'targetKind' | 'targetId' | 'targetRef' | 'scopeKind' | 'scopeRef' | 'contentUnitType' | 'outputKind'
-  > & {
-    scopeKind: string
-    scopeRef: string | number
-    outputKind?: string
-  }
 }
 
 export type ElectronMovScriptEngineSettingCreateInput = ElectronMovScriptEngineProjectInput & {

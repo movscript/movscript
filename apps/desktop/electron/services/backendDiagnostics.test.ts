@@ -26,7 +26,7 @@ test('backend startup failure includes process diagnostics and recent output', (
       binary: '/repo/services/data-service/bin/movscript-server',
       cwd: '/repo/services/data-service',
       dataDir: '/tmp/movscript-data',
-      logPath: '/tmp/movscript-home/backend/logs/local-backend.log',
+      logPath: '/tmp/movscript-home/logs/local-backend.log',
       recentOutput: () => 'server error: listen tcp :8766: bind: address already in use',
     },
   })
@@ -36,7 +36,7 @@ test('backend startup failure includes process diagnostics and recent output', (
   assert.match(message, /Binary: \/repo\/services\/data-service\/bin\/movscript-server/)
   assert.match(message, /CWD: \/repo\/services\/data-service/)
   assert.match(message, /Data dir: \/tmp\/movscript-data/)
-  assert.match(message, /Log file: \/tmp\/movscript-home\/backend\/logs\/local-backend\.log/)
+  assert.match(message, /Log file: \/tmp\/movscript-home\/logs\/local-backend\.log/)
   assert.match(message, /server error: listen tcp :8766/)
 })
 

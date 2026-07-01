@@ -65,9 +65,9 @@ test('shared package app settings normalize URLs, modes, and shot library source
   }), 'https://team.test')
   assert.equal(getSettingsDaemonGatewayBaseURL({
     dataConnection: { kind: 'local', url: 'http://data.test:8766' },
-    daemonGatewayBaseURL: ' http://daemon.test:8766/api/v1 ',
+    daemonGatewayBaseURL: ' http://127.0.0.1:8766/api/v1 ',
     apiBaseURL: 'http://legacy.test:8766',
-  }), 'http://daemon.test:8766')
+  }), 'http://127.0.0.1:8766')
   assert.deepEqual(defaultShotLibrarySource('http://api.test'), {
     id: 'default',
     name: 'Movscript',
@@ -107,10 +107,10 @@ test('shared package app settings normalize URLs, modes, and shot library source
     defaultSettings,
     localAPIBaseURL: 'http://localhost:8766',
   }), {
-    dataConnection: { kind: 'local', url: 'http://api.test' },
-    apiBaseURL: 'http://api.test',
+    dataConnection: { kind: 'local', url: 'http://localhost:8766' },
+    apiBaseURL: 'http://localhost:8766',
     cloudAPIBaseURL: 'http://localhost:8765',
-    daemonGatewayBaseURL: 'http://api.test',
+    daemonGatewayBaseURL: 'http://localhost:8766',
     launchMode: 'local',
     workMode: 'agent',
     onboardingCompleted: true,
@@ -119,9 +119,32 @@ test('shared package app settings normalize URLs, modes, and shot library source
     localDisplayName: 'Local',
     shotLibrarySources: [
       { id: 'custom', name: 'Custom', baseURL: 'http://shot.test', enabled: true, readOnly: false, authToken: undefined },
-      { id: 'default', name: 'Movscript', baseURL: 'http://api.test', enabled: true, readOnly: false },
+      { id: 'default', name: 'Movscript', baseURL: 'http://localhost:8766', enabled: true, readOnly: false },
     ],
     defaultShotLibrarySourceId: 'custom',
+  })
+
+  assert.deepEqual(normalizeAppSettings({
+    dataConnection: { kind: 'external', url: 'https://team.example/api/v1' },
+    launchMode: 'cloud',
+  }, {
+    defaultSettings,
+    localAPIBaseURL: 'http://localhost:8766',
+  }), {
+    dataConnection: { kind: 'cloud', url: 'https://team.example' },
+    apiBaseURL: 'https://team.example',
+    cloudAPIBaseURL: 'https://team.example',
+    daemonGatewayBaseURL: 'http://localhost:8766',
+    launchMode: 'cloud',
+    workMode: 'project',
+    onboardingCompleted: false,
+    language: undefined,
+    movScriptWorkspaceDir: undefined,
+    localDisplayName: undefined,
+    shotLibrarySources: [
+      { id: 'default', name: 'Movscript', baseURL: 'https://team.example', enabled: true, readOnly: false },
+    ],
+    defaultShotLibrarySourceId: 'default',
   })
 
   assert.deepEqual(normalizeAppSettings({

@@ -26,7 +26,7 @@ When one generated thing should use another generated thing, keep the source pro
 8. Run `domain_interpret` when downstream artifact tools need refreshed backend candidate/decision/selection metadata.
 9. Run `domain_regeneration_plan` when selected outputs may affect downstream content.
 
-Inline candidate APIs are compatibility paths for legacy asset/keyframe/source-entity candidate workflows. Prefer content unit candidates for system primitive and timeline assembly outputs. For normal asset generation, use an `asset_ref` content unit; do not write new candidates or selections into `asset.json`.
+Inline candidate APIs are compatibility paths for legacy asset/keyframe/source-entity candidate workflows. Prefer content unit candidates for system primitive outputs. For normal asset generation, use an `asset_ref` content unit; do not write new candidates or selections into `asset.json`.
 
 Do not manually call `domain_create_content_candidate` after `generation_submit` content-unit image/video jobs; the content-unit generation monitor owns candidate creation.
 

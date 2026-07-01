@@ -7,9 +7,13 @@ import {
 } from '@movscript/workspace/node'
 import {
   createProjectServiceClientFromRuntime,
+  PROJECT_SERVICE_ASSETS_QUERY_ENDPOINT,
   PROJECT_SERVICE_ASSET_CREATE_ENDPOINT,
+  PROJECT_SERVICE_ASSET_PROVIDER_CERTIFICATION_PATCH_ENDPOINT,
   PROJECT_SERVICE_ASSET_UPSERT_ENDPOINT,
   PROJECT_SERVICE_AUDIO_CUE_CREATE_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_WORKSPACE_READ_ENDPOINT,
+  PROJECT_SERVICE_CONTENT_WORKSPACE_SNAPSHOT_ENDPOINT,
   PROJECT_SERVICE_CONTENT_UNIT_CREATE_ENDPOINT,
   PROJECT_SERVICE_CONTENT_UNIT_EDIT_PROMPT_UPDATE_ENDPOINT,
   PROJECT_SERVICE_CONTENT_UNIT_ENSURE_ENDPOINT,
@@ -17,6 +21,7 @@ import {
   PROJECT_SERVICE_CONTENT_CANDIDATE_CREATE_ENDPOINT,
   PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT,
   PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_SELECT_ENDPOINT,
+  PROJECT_SERVICE_ENTITIES_QUERY_ENDPOINT,
   PROJECT_SERVICE_ENTITY_DELETE_ENDPOINT,
   PROJECT_SERVICE_ENTITY_TRANSITION_UPDATE_ENDPOINT,
   PROJECT_SERVICE_EXPRESSION_UNIT_CREATE_ENDPOINT,
@@ -26,6 +31,7 @@ import {
   PROJECT_SERVICE_PRODUCTION_CREATE_ENDPOINT,
   PROJECT_SERVICE_SCENE_MOMENT_CREATE_ENDPOINT,
   PROJECT_SERVICE_SEGMENT_CREATE_ENDPOINT,
+  PROJECT_SERVICE_SETTINGS_QUERY_ENDPOINT,
   PROJECT_SERVICE_SETTING_CREATE_ENDPOINT,
   PROJECT_SERVICE_SETTING_STATE_CREATE_ENDPOINT,
   PROJECT_SERVICE_SETTING_UPSERT_ENDPOINT,
@@ -39,6 +45,7 @@ import {
   type MovScriptDecisionStore,
 } from '@movscript/workspace/repository'
 import { resolveMovScriptBackendSession } from '../../../../backend/node/config.js'
+import { getMovScriptBackendRuntimeAuthToken } from '../../../../backend/node/runtime.js'
 import {
   buildContentSourceWorkspaceData,
   type ContentSourceWorkspaceData,
@@ -70,6 +77,7 @@ export type MovScriptDomainRuntime = NodeMovScriptEngine & NodeMovScriptWorkspac
   regenerationPlan(): Promise<unknown>
   loadContentWorkspaceSnapshot(): Promise<ContentSourceWorkspaceSnapshot>
   loadContentWorkspace(): Promise<ContentSourceWorkspaceData>
+  patchAssetProviderCertification(input?: unknown): Promise<any>
 }
 
 type ProjectDecisionStoreConfigResolver = () => Promise<ProjectDecisionStoreConfig | undefined>
@@ -117,6 +125,7 @@ function createMovScriptDomainRuntimeFromEngine(
     createSettingState: (input) => projectService.sourceOperation(PROJECT_SERVICE_SETTING_STATE_CREATE_ENDPOINT, input),
     upsertAsset: (input) => projectService.sourceOperation(PROJECT_SERVICE_ASSET_UPSERT_ENDPOINT, input),
     createAsset: (input) => projectService.sourceOperation(PROJECT_SERVICE_ASSET_CREATE_ENDPOINT, input),
+    readScriptSource: (input) => projectService.readScriptSource(input),
     upsertScript: (input) => projectService.upsertScript(input),
     snapshotScriptVersionFromMarkdown: (input) => projectService.snapshotScriptVersionFromMarkdown(input),
     upsertContentUnit: (input) => projectService.sourceOperation(PROJECT_SERVICE_CONTENT_UNIT_UPSERT_ENDPOINT, input),
@@ -143,10 +152,14 @@ function createMovScriptDomainRuntimeFromEngine(
     inspectWorkspace: (inspectInput = {}) => projectService.inspectWorkspace(inspectInput),
     interpretWorkspace: () => projectService.interpretWorkspace(),
     overviewWorkspace: () => projectService.overviewWorkspace(),
-    productionWorkPlan: () => engine.productionWorkPlan(),
+    queryEntities: (query) => projectService.sourceOperation(PROJECT_SERVICE_ENTITIES_QUERY_ENDPOINT, { query }),
+    querySettings: (query) => projectService.sourceOperation(PROJECT_SERVICE_SETTINGS_QUERY_ENDPOINT, { query }),
+    queryAssets: (query) => projectService.sourceOperation(PROJECT_SERVICE_ASSETS_QUERY_ENDPOINT, { query }),
+    patchAssetProviderCertification: (input) => projectService.sourceOperation(PROJECT_SERVICE_ASSET_PROVIDER_CERTIFICATION_PATCH_ENDPOINT, input),
+    productionWorkPlan: () => projectService.productionWorkPlan(),
     regenerationPlan: () => projectService.regenerationPlan(),
-    loadContentWorkspaceSnapshot: () => loadContentSourceWorkspaceSnapshotFromEngine(engine),
-    loadContentWorkspace: async () => buildContentSourceWorkspaceData(await loadContentSourceWorkspaceSnapshotFromEngine(engine)),
+    loadContentWorkspaceSnapshot: () => projectService.sourceOperation(PROJECT_SERVICE_CONTENT_WORKSPACE_SNAPSHOT_ENDPOINT) as Promise<ContentSourceWorkspaceSnapshot>,
+    loadContentWorkspace: () => projectService.sourceOperation(PROJECT_SERVICE_CONTENT_WORKSPACE_READ_ENDPOINT) as Promise<ContentSourceWorkspaceData>,
   }
 }
 
@@ -158,9 +171,11 @@ function isNamespaceHierarchyWrite(input: { category?: string; domainCategory?: 
 function createProjectServiceAccessor(projectDir: string, decisionStoreConfig?: ProjectDecisionStoreConfigResolver): {
   inspectWorkspace(input?: { commit?: string; checkpointHash?: string }): Promise<unknown>
   overviewWorkspace(): Promise<unknown>
+  productionWorkPlan(): Promise<unknown>
   interpretWorkspace(): ReturnType<NodeMovScriptEngine['interpret']>
   regenerationPlan(): Promise<unknown>
   upsertProjectStandards(input?: unknown): Promise<any>
+  readScriptSource(input?: unknown): Promise<any>
   upsertScript(input?: unknown): Promise<any>
   snapshotScriptVersionFromMarkdown(input?: unknown): Promise<any>
   sourceOperation(endpoint: string, input?: unknown): Promise<any>
@@ -176,8 +191,13 @@ function createProjectServiceAccessor(projectDir: string, decisionStoreConfig?: 
     inspectWorkspace: async (input = {}) => (await getClient().inspectSource({ projectDir, ...input })).inspection,
     overviewWorkspace: async () => (await getClient().overviewSource({ projectDir })).overview,
     interpretWorkspace: async () => (await getClient().interpretSource({ projectDir })).interpretation as Awaited<ReturnType<NodeMovScriptEngine['interpret']>>,
+    productionWorkPlan: async () => (await getClient().productionWorkPlan({ projectDir })).productionWorkPlan,
     regenerationPlan: async () => (await getClient().regenerationPlan({ projectDir })).regenerationPlan,
     upsertProjectStandards: async (input = {}) => (await getClient().upsertProjectStandards({
+      projectDir,
+      input: sourceOperationInput(input),
+    })).result,
+    readScriptSource: async (input = {}) => (await getClient().readScriptSource({
       projectDir,
       input: sourceOperationInput(input),
     })).result,
@@ -238,7 +258,7 @@ function runtimeKey(input: MovScriptDomainRuntimeInput): string {
     workspaceDir: input.workspaceDir,
     userId: input.userId,
   })
-  const token = getMCPAuthToken() || session.token || ''
+  const token = getMCPAuthToken() || getMovScriptBackendRuntimeAuthToken() || session.token || ''
   return [
     projectCwd,
     input.userId ?? '',
@@ -293,7 +313,7 @@ function createMCPDecisionStoreConfigResolver(input: MovScriptDomainRuntimeInput
     workspaceDir: input.workspaceDir,
     userId: input.userId,
   })
-  const token = getMCPAuthToken() || session.token
+  const token = getMCPAuthToken() || getMovScriptBackendRuntimeAuthToken() || session.token
   if (!token) return undefined
   const projectCwd = projectCwdFromInput(input)
   let configPromise: Promise<ProjectDecisionStoreConfig | undefined> | undefined

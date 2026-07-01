@@ -12,12 +12,10 @@ type RouteReferenceAssetIntent struct {
 }
 
 type capabilityDomain struct {
-	Operations       []string                        `json:"-"`
-	OperationInputs  map[string][]operationInputSlot `json:"-"`
-	ReferenceAssets  referenceAssetCapability        `json:"reference_assets"`
-	AssetTransport   assetTransportCapability        `json:"asset_transport"`
-	RequiresImageURL bool                            `json:"requires_public_image_url"`
-	RequiresVideoURL bool                            `json:"requires_public_video_url"`
+	Operations      []string                        `json:"-"`
+	OperationInputs map[string][]operationInputSlot `json:"-"`
+	ReferenceAssets referenceAssetCapability        `json:"reference_assets"`
+	AssetTransport  assetTransportCapability        `json:"asset_transport"`
 }
 
 type referenceAssetCapability struct {
@@ -56,12 +54,10 @@ type operationCapability struct {
 
 func (domain *capabilityDomain) UnmarshalJSON(data []byte) error {
 	type rawCapabilityDomain struct {
-		Operations       json.RawMessage                 `json:"operations"`
-		OperationSlots   map[string][]operationInputSlot `json:"operation_slots"`
-		ReferenceAssets  referenceAssetCapability        `json:"reference_assets"`
-		AssetTransport   assetTransportCapability        `json:"asset_transport"`
-		RequiresImageURL bool                            `json:"requires_public_image_url"`
-		RequiresVideoURL bool                            `json:"requires_public_video_url"`
+		Operations      json.RawMessage                 `json:"operations"`
+		OperationSlots  map[string][]operationInputSlot `json:"operation_slots"`
+		ReferenceAssets referenceAssetCapability        `json:"reference_assets"`
+		AssetTransport  assetTransportCapability        `json:"asset_transport"`
 	}
 	var raw rawCapabilityDomain
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -69,8 +65,6 @@ func (domain *capabilityDomain) UnmarshalJSON(data []byte) error {
 	}
 	domain.ReferenceAssets = raw.ReferenceAssets
 	domain.AssetTransport = raw.AssetTransport
-	domain.RequiresImageURL = raw.RequiresImageURL
-	domain.RequiresVideoURL = raw.RequiresVideoURL
 	domain.Operations = nil
 	domain.OperationInputs = map[string][]operationInputSlot{}
 	for operation, slots := range raw.OperationSlots {
@@ -157,10 +151,7 @@ func RouteCapabilityPublicURLRequirements(rawJSON, capability string) PublicURLR
 	if !ok {
 		return PublicURLRequirements{}
 	}
-	requirements := PublicURLRequirements{
-		Image: domain.RequiresImageURL,
-		Video: domain.RequiresVideoURL,
-	}
+	requirements := PublicURLRequirements{}
 	if containsTrimmed(domain.AssetTransport.InputMedia, "public_url") {
 		modalities := domainReferenceModalities(domain)
 		if len(modalities) == 0 {
@@ -195,9 +186,6 @@ func validateStructuredCapabilityRequest(capability, operation string, refs []Ro
 	if !isStructuredCapabilityFamily(capability) {
 		return nil
 	}
-	if strings.TrimSpace(operation) == "" {
-		return fmt.Errorf("missing_operation_intent")
-	}
 	for _, ref := range refs {
 		if strings.TrimSpace(ref.Role) == "" {
 			return fmt.Errorf("missing_input_role")
@@ -212,8 +200,11 @@ func validateStructuredCapabilityRequest(capability, operation string, refs []Ro
 func capabilityJSONSupportsIntent(rawJSON, capability, operation string, refs []RouteReferenceAssetIntent) (bool, string) {
 	capability = strings.TrimSpace(capability)
 	operation = strings.TrimSpace(operation)
-	if capability == "" || operation == "" {
+	if capability == "" {
 		return false, "missing_operation_intent"
+	}
+	if operation == "" {
+		return capabilityJSONSupportsInferredIntent(rawJSON, capability, refs)
 	}
 	rawJSON = strings.TrimSpace(rawJSON)
 	if rawJSON == "" {
@@ -242,7 +233,7 @@ func capabilityJSONSupportsIntent(rawJSON, capability, operation string, refs []
 func capabilityJSONSupportsOperation(rawJSON, capability, operation string) (bool, string) {
 	capability = strings.TrimSpace(capability)
 	operation = strings.TrimSpace(operation)
-	if capability == "" || operation == "" {
+	if capability == "" {
 		return false, "missing_operation_intent"
 	}
 	rawJSON = strings.TrimSpace(rawJSON)
@@ -256,6 +247,9 @@ func capabilityJSONSupportsOperation(rawJSON, capability, operation string) (boo
 	domain, ok := domains[capability]
 	if !ok {
 		return false, "missing_capability:" + capability
+	}
+	if operation == "" {
+		return true, ""
 	}
 	if !containsTrimmed(domain.Operations, operation) {
 		return false, "missing_operation:" + operation
@@ -309,8 +303,32 @@ func capabilityJSONHasDomain(rawJSON, capability string) bool {
 	return ok
 }
 
+func capabilityJSONOperationsByCapability(rawJSON string, capabilities []string) map[string][]string {
+	capabilities = compactTrimmed(capabilities)
+	if len(capabilities) == 0 {
+		return nil
+	}
+	var domains map[string]capabilityDomain
+	if strings.TrimSpace(rawJSON) != "" {
+		_ = json.Unmarshal([]byte(rawJSON), &domains)
+	}
+	out := make(map[string][]string, len(capabilities))
+	for _, capability := range capabilities {
+		if domain, ok := domains[capability]; ok && len(domain.Operations) > 0 {
+			out[capability] = appendUniqueTrimmed(nil, domain.Operations...)
+			continue
+		}
+		if operations := inferredStructuredCapabilityOperations(capability, nil); len(operations) > 0 {
+			out[capability] = appendUniqueTrimmed(nil, operations...)
+		}
+	}
+	return out
+}
+
 func inferredStructuredCapabilityOperations(capability string, refs []RouteReferenceAssetIntent) []string {
 	switch strings.TrimSpace(capability) {
+	case CapabilityFamilyTextGeneration:
+		return []string{"chat", "responses"}
 	case CapabilityFamilyImageGeneration:
 		return inferredImageGenerationOperations(refs)
 	case CapabilityFamilyVideoGeneration:
@@ -327,9 +345,9 @@ func inferredImageGenerationOperations(refs []RouteReferenceAssetIntent) []strin
 		return []string{ImageOperationTextToImage}
 	}
 	if hasReferenceAssetRole(refs, "style_reference") {
-		return []string{"style_transfer", ImageOperationReferenceToImage, ImageOperationImageToImage}
+		return []string{ImageOperationReferenceToImage, ImageOperationEditImage}
 	}
-	return []string{ImageOperationReferenceToImage, ImageOperationImageToImage, ImageOperationImageEdit}
+	return []string{ImageOperationReferenceToImage, ImageOperationEditImage}
 }
 
 func inferredVideoGenerationOperations(refs []RouteReferenceAssetIntent) []string {
@@ -349,14 +367,14 @@ func inferredVideoGenerationOperations(refs []RouteReferenceAssetIntent) []strin
 		operations = appendUniqueTrimmed(operations, VideoOperationFirstFrameToVideo)
 	}
 	if hasVideo && !hasImage && !hasAudio {
-		operations = appendUniqueTrimmed(operations, VideoOperationVideoToVideo)
+		operations = appendUniqueTrimmed(operations, VideoOperationReferenceToVideo)
 	}
 	if hasImage && !hasVideo && !hasAudio {
 		operations = appendUniqueTrimmed(operations, VideoOperationImageToVideo)
 	}
 	operations = appendUniqueTrimmed(operations, VideoOperationReferenceToVideo)
 	if hasVideo {
-		operations = appendUniqueTrimmed(operations, VideoOperationVideoToVideo)
+		operations = appendUniqueTrimmed(operations, VideoOperationReferenceToVideo)
 	}
 	if hasImage {
 		operations = appendUniqueTrimmed(operations, VideoOperationImageToVideo)
@@ -366,9 +384,9 @@ func inferredVideoGenerationOperations(refs []RouteReferenceAssetIntent) []strin
 
 func inferredAudioGenerationOperations(refs []RouteReferenceAssetIntent) []string {
 	if hasReferenceAssetMediaType(refs, "audio") {
-		return []string{AudioOperationAudioChat, AudioOperationVoiceClone, AudioOperationSTT, AudioOperationSpeechTranslate}
+		return []string{AudioOperationSpeechToSpeech, AudioOperationVoiceClone, AudioOperationSpeechToText, AudioOperationSpeechTranslate}
 	}
-	return []string{AudioOperationTTS, AudioOperationMusic, AudioOperationSFX, AudioOperationVoiceDesign}
+	return []string{AudioOperationTextToSpeech, AudioOperationMusicGeneration, AudioOperationSoundEffectGeneration, AudioOperationVoiceDesign}
 }
 
 func referenceAssetsMatchIntent(capability referenceAssetCapability, refs []RouteReferenceAssetIntent) string {

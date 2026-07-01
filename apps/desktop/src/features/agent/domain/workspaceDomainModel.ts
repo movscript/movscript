@@ -78,13 +78,6 @@ export function buildWorkspaceReviewPath(workspace: WorkspaceArtifact): string |
   const targetFocus = movScriptDomainFocusFromRecord(target, workspace.projectId !== undefined ? { projectId: workspace.projectId } : {})
     ?? movScriptDomainFocusFromRecord(source, workspace.projectId !== undefined ? { projectId: workspace.projectId } : {})
 
-  if (workspace.kind === 'content_unit_workspace' && targetFocus?.target?.targetKind === 'timeline_assembly') {
-    return withRouteParams(ROUTES.project.contentPreview, {
-      workspaceId: workspace.id,
-      ...movScriptRouteParamsForDomainFocus(targetFocus),
-    })
-  }
-
   if (workspace.kind === 'production_workspace') {
     return withRouteParams(ROUTES.project.scripts, {
       workspaceId: workspace.id,

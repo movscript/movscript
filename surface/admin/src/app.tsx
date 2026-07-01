@@ -11,7 +11,6 @@ import { Button } from '@movscript/ui/primitives'
 import { runtimeBaseRoutes, runtimeCapabilities, runtimeNavItems, runtimeRoutes } from '@admin-runtime'
 import { Toaster } from '@admin/components/ui/Toaster'
 import { initTheme, useTheme } from '@admin/hooks/useTheme'
-import { APP_SETTINGS_STORAGE_KEY, normalizeAPIBaseURL } from '@admin/lib/config'
 import { useTranslation } from 'react-i18next'
 import i18n, { type SupportedLanguage } from '@admin/i18n'
 import { isMovScriptThemeName, setMovScriptTheme, type MovScriptThemeName } from '@movscript/theme'
@@ -46,31 +45,6 @@ function applyAdminLaunchContext(session: AdminLaunchContext) {
   }
   if (session.language === 'zh-CN' || session.language === 'en-US') {
     void i18n.changeLanguage(session.language)
-  }
-  persistLaunchContextAPIBaseURL(session.api_base_url)
-}
-
-function persistLaunchContextAPIBaseURL(apiBaseURL: unknown) {
-  if (typeof window === 'undefined' || typeof apiBaseURL !== 'string' || !apiBaseURL.trim()) return
-  try {
-    const normalized = normalizeAPIBaseURL(apiBaseURL)
-    const raw = window.localStorage.getItem(APP_SETTINGS_STORAGE_KEY)
-    const parsed = raw ? JSON.parse(raw) : {}
-    const state = parsed && typeof parsed === 'object' && 'state' in parsed
-      ? {
-          ...(parsed as { state?: { settings?: Record<string, unknown> } }).state,
-          settings: {
-            ...((parsed as { state?: { settings?: Record<string, unknown> } }).state?.settings ?? {}),
-            apiBaseURL: normalized,
-          },
-        }
-      : undefined
-    const next = state
-      ? { ...(parsed as Record<string, unknown>), state }
-      : { ...(parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {}), apiBaseURL: normalized }
-    window.localStorage.setItem(APP_SETTINGS_STORAGE_KEY, JSON.stringify(next))
-  } catch {
-    window.localStorage.setItem(APP_SETTINGS_STORAGE_KEY, JSON.stringify({ apiBaseURL: normalizeAPIBaseURL(apiBaseURL) }))
   }
 }
 

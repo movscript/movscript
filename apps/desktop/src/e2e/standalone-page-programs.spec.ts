@@ -16,7 +16,7 @@ const IMAGE_MODEL = {
   provider: 'e2e',
   display_name: 'E2E Image Model',
   short_name: 'e2e-image',
-  capabilities: ['image'],
+  capabilities: ['image_generation'],
   accepts_image_input: true,
   is_default: true,
   supported_params: [],
@@ -57,9 +57,9 @@ test('canvas list, opened canvas, and tools render as standalone page programs',
   await expect(page.locator('.app-shell[data-surface="canvas"]')).toBeVisible()
   await expect(page.getByText('E2E Workflow Canvas')).toBeVisible()
 
-  await page.goto('/tools/ref-image-gen')
+  await page.goto('/tools/image')
   await expect(page.locator('.app-shell[data-surface="tool"]')).toBeVisible()
-  await expect(page.locator('.app-window-route-title')).toContainText(/参考生图|参考图生成|Reference Image/)
+  await expect(page.locator('.app-window-route-title')).toContainText(/图片生成|Image Generation/)
   await expect(page.getByText('e2e-image')).toBeVisible()
   await expect(page.getByText('e2e-reference.png')).toBeVisible()
 
@@ -69,7 +69,7 @@ test('canvas list, opened canvas, and tools render as standalone page programs',
   await expect(hideSidebarButton).toHaveCount(1)
   await hideSidebarButton.click()
   await expect(sidebarSlot).toHaveAttribute('data-hidden', 'true')
-  await expect(page).toHaveURL(/\/tools\/ref-image-gen$/)
+  await expect(page).toHaveURL(/\/tools\/image$/)
 })
 
 async function installBootstrap(page: Page, baseURL: string) {

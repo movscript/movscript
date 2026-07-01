@@ -1,5 +1,7 @@
 import { app, clipboard, dialog, Menu, nativeImage, Tray } from 'electron'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { dirname } from 'node:path'
 import { openHomeWindow } from './appWindowRegistry'
 import { codexPluginInstallCommand, installMovScriptCodexPlugin } from './codexPluginInstaller'
 import {
@@ -11,15 +13,17 @@ import {
   uninstallSdkRuntimePackage,
 } from './sdkRuntimePackageStore'
 import { broadcastCrossPageNotification } from './crossPageNotifications'
-import { resolveAppIconPath, resolveTrayIconPath } from '../appWindow/paths'
+import { resolveAppIconPath, resolveNativeTrayHelperPath, resolveTrayIconPath } from '../appWindow/paths'
 import { writeDesktopState } from './desktopStateStore'
 
 let tray: Tray | null = null
+let nativeTrayProcess: ChildProcess | null = null
 let installing = false
 let trayLanguage: 'zh-CN' | 'en-US' = 'en-US'
 let trayDiagnostics: AppTrayDiagnostics = initialTrayDiagnostics()
 const runtimeOperations = new Map<string, TrayRuntimeOperation>()
 const DEFAULT_APP_SERVER_RUNTIME_VERSION = '0.0.1-alpha.13'
+const DEFAULT_MACOS_TRAY_TITLE = 'MovScript'
 
 type TrayRuntimeAction = 'download' | 'update' | 'uninstall'
 type TrayRuntimeOperationStatus = 'running' | 'success' | 'error'
@@ -51,7 +55,11 @@ interface AppTrayDiagnostics {
   imageSize: { width: number; height: number }
   templateImage: boolean
   usedFallbackIcon: boolean
-  debugTitle: boolean
+  titleVisible: boolean
+  trayTitle: string
+  nativeHelperPath: string
+  nativeHelperExists: boolean
+  nativeHelperRunning: boolean
   updatedAt: string
   error?: string
 }
@@ -106,8 +114,9 @@ export function installAppTray(): void {
   }
 
   tray.setToolTip('MovScript')
-  if (process.platform === 'darwin' && process.env.MOVSCRIPT_TRAY_DEBUG_TITLE === '1') {
-    tray.setTitle('MovScript')
+  const trayTitle = macOSTrayTitle()
+  if (trayTitle) {
+    tray.setTitle(trayTitle)
   }
   trayLanguage = detectSystemTrayLanguage()
   tray.on('click', () => {
@@ -115,6 +124,7 @@ export function installAppTray(): void {
   })
   recordTrayDiagnostics(trayDiagnosticsFromImage(trayImage, true))
   refreshTrayMenu()
+  installNativeMacTray()
 }
 
 export function isAppTrayInstalled(): boolean {
@@ -376,6 +386,52 @@ function detectSystemTrayLanguage(): 'zh-CN' | 'en-US' {
   return app.getLocale().toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US'
 }
 
+function macOSTrayTitle(): string {
+  return process.platform === 'darwin' ? DEFAULT_MACOS_TRAY_TITLE : ''
+}
+
+function installNativeMacTray(): void {
+  if (process.platform !== 'darwin' || nativeTrayProcess) return
+
+  const helperPath = resolveNativeTrayHelperPath()
+  if (!app.isPackaged || !existsSync(helperPath)) {
+    recordTrayDiagnostics({
+      ...trayDiagnostics,
+      nativeHelperPath: helperPath,
+      nativeHelperExists: existsSync(helperPath),
+      nativeHelperRunning: false,
+      updatedAt: new Date().toISOString(),
+    })
+    return
+  }
+
+  const child = spawn(helperPath, [
+    String(process.pid),
+    resolveMacOSAppBundlePath(),
+    DEFAULT_MACOS_TRAY_TITLE,
+  ], {
+    stdio: 'ignore',
+  })
+  nativeTrayProcess = child
+  child.once('exit', () => {
+    if (nativeTrayProcess === child) nativeTrayProcess = null
+  })
+  app.once('before-quit', () => {
+    child.kill()
+  })
+  recordTrayDiagnostics({
+    ...trayDiagnostics,
+    nativeHelperPath: helperPath,
+    nativeHelperExists: true,
+    nativeHelperRunning: true,
+    updatedAt: new Date().toISOString(),
+  })
+}
+
+function resolveMacOSAppBundlePath(): string {
+  return dirname(dirname(dirname(process.execPath)))
+}
+
 function createTrayImage(): TrayImageResult {
   if (process.platform === 'darwin') {
     const iconPath = resolveTrayIconPath()
@@ -416,6 +472,7 @@ function errorMessage(error: unknown): string {
 
 function trayDiagnosticsFromImage(input: TrayImageResult, installed: boolean): AppTrayDiagnostics {
   const size = input.image.getSize()
+  const trayTitle = macOSTrayTitle()
   return {
     installed,
     platform: process.platform,
@@ -426,7 +483,11 @@ function trayDiagnosticsFromImage(input: TrayImageResult, installed: boolean): A
     imageSize: { width: size.width, height: size.height },
     templateImage: input.templateImage,
     usedFallbackIcon: input.usedFallbackIcon,
-    debugTitle: process.platform === 'darwin' && process.env.MOVSCRIPT_TRAY_DEBUG_TITLE === '1',
+    titleVisible: Boolean(trayTitle),
+    trayTitle,
+    nativeHelperPath: process.platform === 'darwin' ? resolveNativeTrayHelperPath() : '',
+    nativeHelperExists: process.platform === 'darwin' && existsSync(resolveNativeTrayHelperPath()),
+    nativeHelperRunning: Boolean(nativeTrayProcess),
     updatedAt: new Date().toISOString(),
   }
 }
@@ -442,7 +503,11 @@ function initialTrayDiagnostics(): AppTrayDiagnostics {
     imageSize: { width: 0, height: 0 },
     templateImage: false,
     usedFallbackIcon: false,
-    debugTitle: false,
+    titleVisible: false,
+    trayTitle: '',
+    nativeHelperPath: '',
+    nativeHelperExists: false,
+    nativeHelperRunning: false,
     updatedAt: new Date().toISOString(),
   }
 }

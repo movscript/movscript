@@ -20,6 +20,7 @@ export function normalizeAPIBaseURL(value: string): string {
 
 function readStoredAPIBaseURL(): string | null {
   if (typeof window === 'undefined') return null
+  if (isElectronAdminSurface()) return null
   try {
     const raw = window.localStorage.getItem(APP_SETTINGS_STORAGE_KEY)
     if (!raw) return null
@@ -41,6 +42,7 @@ export function isLocalLaunchMode(settings?: Pick<AppSettings, 'launchMode'> | n
 }
 
 export function getDefaultAPIBaseURL(): string {
+  if (isElectronAdminSurface()) return normalizeAPIBaseURL(DEFAULT_API_ORIGIN)
   if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
     return normalizeAPIBaseURL(window.location.origin)
   }
@@ -74,6 +76,11 @@ function readURLAPIBaseURL(): string | null {
   } catch {
     return null
   }
+}
+
+function isElectronAdminSurface(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.location.protocol === 'movscript-admin:'
 }
 
 function readLaunchContextAPIBaseURL(): string | null {

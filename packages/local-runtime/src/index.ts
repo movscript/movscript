@@ -1,11 +1,12 @@
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import {
   createScenarioApplicationRunner,
   type ProgramAdapter,
 } from '@movscript/app-runner'
 import {
+  cleanupStaleRuntimeRecords,
   findRuntimeApp,
   findRuntimeEndpoint,
   pidIsAlive,
@@ -33,6 +34,10 @@ const REQUIRED_LOCAL_RUNTIME_DAEMON_SERVICES = [
   'movscript.media.pipeline',
 ] as const
 const LOCAL_DATA_SERVICE = 'movscript.data.service'
+const LOCAL_RUNTIME_LOG_DIR_NAME = 'logs'
+const LOCAL_RUNTIME_DAEMON_LOG_FILE = 'local-daemon.jsonl'
+const DEFAULT_LOCAL_RUNTIME_LOG_MAX_BYTES = 5 * 1024 * 1024
+const DEFAULT_LOCAL_RUNTIME_LOG_RETAIN = 3
 
 export interface LocalRuntimeIdentity {
   pluginVersion?: string
@@ -117,6 +122,12 @@ export async function runPersistentLocalRuntimeDaemon(options: RunPersistentLoca
       requestAction: (action) => resolveAction(action),
       snapshot: () => readRuntimeHomeSnapshot(homeDir),
     }
+    writeLocalRuntimeDaemonLog(homeDir, 'daemon.starting', {
+      dataPlane,
+      ...(dataServiceURL ? { dataServiceURL } : {}),
+      identity,
+      restartCount,
+    }, env)
     const runner = createScenarioApplicationRunner({
       homeDir,
       application: options.application,
@@ -144,11 +155,23 @@ export async function runPersistentLocalRuntimeDaemon(options: RunPersistentLoca
         restartCount,
       },
     })
+    writeLocalRuntimeDaemonLog(homeDir, 'daemon.ready', {
+      dataPlane,
+      ...(dataServiceURL ? { dataServiceURL } : {}),
+      identity,
+      restartCount,
+      profile: startupPolicy.scenarioId,
+    }, env)
     const signalAction = installLocalRuntimeDaemonSignalHandlers(resolveAction)
     const idleAction = startLocalRuntimeDaemonIdleWatcher(state)
     const action = await actionPromise
     idleAction()
     signalAction()
+    writeLocalRuntimeDaemonLog(homeDir, 'daemon.stopping', {
+      action: action.type,
+      reason: action.reason,
+      restartCount,
+    }, env)
     await runner.shutdown()
     writeRuntimeAppRecord(homeDir, {
       applicationId: options.application.applicationId,
@@ -166,6 +189,11 @@ export async function runPersistentLocalRuntimeDaemon(options: RunPersistentLoca
         restartCount,
       },
     })
+    writeLocalRuntimeDaemonLog(homeDir, 'daemon.stopped', {
+      action: action.type,
+      reason: action.reason,
+      restartCount,
+    }, env)
     if (action.type === 'restart') {
       restartCount += 1
       continue
@@ -177,6 +205,7 @@ export async function runPersistentLocalRuntimeDaemon(options: RunPersistentLoca
 export async function ensureLocalRuntimeDaemon(options: EnsureLocalRuntimeDaemonOptions): Promise<Record<string, unknown>> {
   const startupTimeoutMs = options.startupTimeoutMs ?? 15_000
   const stopTimeoutMs = options.stopTimeoutMs ?? 5_000
+  cleanupStaleRuntimeRecords(options.homeDir)
   const initial = await probeLocalRuntimeDaemon(options.homeDir)
   if (!options.forceRestart && initial.available && localRuntimeServicesReady(initial) && localRuntimeMatchesRequest(initial, options)) {
     await localRuntimeControlRequest(options.homeDir, 'POST', '/touch').catch(() => undefined)
@@ -201,6 +230,12 @@ export async function ensureLocalRuntimeDaemon(options: EnsureLocalRuntimeDaemon
       await stopAvailableLocalRuntimeDaemon(options.homeDir, stopTimeoutMs)
     }
 
+    writeLocalRuntimeDaemonLog(options.homeDir, 'daemon.ensure.spawn', {
+      entrypoint: options.entrypoint,
+      runArgs: options.runArgs ?? ['daemon', 'run'],
+      forceRestart: options.forceRestart === true,
+      identity: options.identity ?? {},
+    }, options.env)
     const child = spawn(process.execPath, [options.entrypoint, ...(options.runArgs ?? ['daemon', 'run'])], {
       cwd: options.cwd,
       env: {
@@ -216,10 +251,68 @@ export async function ensureLocalRuntimeDaemon(options: EnsureLocalRuntimeDaemon
     const ready = await waitForLocalRuntimeReady(options.homeDir, startupTimeoutMs, options)
     if (ready) return { status: 'ready', reused: false, launcherPid: child.pid, ...ready }
     const lastProbe = await probeLocalRuntimeDaemon(options.homeDir)
+    writeLocalRuntimeDaemonLog(options.homeDir, 'daemon.ensure.failed', {
+      entrypoint: options.entrypoint,
+      launcherPid: child.pid,
+      summary: localRuntimeReadinessSummary(lastProbe, options),
+      lastProbe,
+    }, options.env)
     throw new Error(`MovScript local runtime daemon did not become ready within ${startupTimeoutMs}ms; ${localRuntimeReadinessSummary(lastProbe, options)}`)
   } finally {
     lock.release()
   }
+}
+
+export function resolveLocalRuntimeDaemonLogPath(homeDir: string): string {
+  return join(homeDir, LOCAL_RUNTIME_LOG_DIR_NAME, LOCAL_RUNTIME_DAEMON_LOG_FILE)
+}
+
+export function writeLocalRuntimeDaemonLog(
+  homeDir: string,
+  event: string,
+  metadata: Record<string, unknown> = {},
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  try {
+    const logPath = resolveLocalRuntimeDaemonLogPath(homeDir)
+    mkdirSync(dirname(logPath), { recursive: true })
+    rotateLocalRuntimeDaemonLog(logPath, env)
+    appendFileSync(logPath, `${JSON.stringify({
+      schema: 'movscript.runtime-log-entry.v1',
+      timestamp: new Date().toISOString(),
+      source: 'local-runtime',
+      serviceName: LOCAL_RUNTIME_DAEMON_APP_ID,
+      event,
+      pid: process.pid,
+      ...metadata,
+    })}\n`, 'utf8')
+  } catch {
+    // Runtime logging must never prevent daemon startup, shutdown, or recovery.
+  }
+}
+
+function rotateLocalRuntimeDaemonLog(logPath: string, env: NodeJS.ProcessEnv): void {
+  const maxBytes = positiveIntegerEnv(env.MOVSCRIPT_LOCAL_DAEMON_LOG_MAX_BYTES, DEFAULT_LOCAL_RUNTIME_LOG_MAX_BYTES)
+  const retain = positiveIntegerEnv(env.MOVSCRIPT_LOCAL_DAEMON_LOG_RETAIN, DEFAULT_LOCAL_RUNTIME_LOG_RETAIN)
+  if (maxBytes <= 0 || retain <= 0 || !existsSync(logPath)) return
+  if (statSync(logPath).size < maxBytes) return
+  for (let index = retain - 1; index >= 1; index -= 1) {
+    const from = `${logPath}.${index}`
+    const to = `${logPath}.${index + 1}`
+    if (existsSync(from)) {
+      rmSync(to, { force: true })
+      renameSync(from, to)
+    }
+  }
+  const rotated = `${logPath}.1`
+  rmSync(rotated, { force: true })
+  renameSync(logPath, rotated)
+}
+
+function positiveIntegerEnv(value: string | undefined, fallback: number): number {
+  if (!value?.trim()) return fallback
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : fallback
 }
 
 export async function probeLocalRuntimeDaemon(homeDir: string): Promise<LocalRuntimeProbe> {

@@ -1,67 +1,53 @@
-import { resolve } from 'node:path'
 import {
-  callTool,
-  handleJSONRPC,
   listResources,
-  listTools,
   makeError,
   makeResult,
   readResource,
-  setMCPDefaultWorkspaceDir,
   type JSONRPCRequest,
   type JSONRPCResponse,
   type MCPJSONValue,
   type MCPTool,
 } from '@movscript/core/mcp/node'
 import {
-  setMovScriptBackendAPIBaseURL,
-} from '@movscript/core/backend/node'
-import {
   adminCommandSpecs,
   contextCommandSpecs,
+  domainCommandSpecs,
   editingCommandSpecs,
   isAdminMCPToolName,
   isContextMCPToolName,
+  isDomainMCPToolName,
   isEditingMCPToolName,
+  isProductionEditingMCPToolName,
   isRuntimeMCPToolName,
   isSystemMCPToolName,
-  isTimelineMCPToolName,
   isWorkspaceMCPToolName,
+  productionEditingCommandSpecs,
   runMovScriptAdminCommand,
   runMovScriptContextCommand,
+  runMovScriptDomainCommand,
   runMovScriptEditingCommand,
+  runMovScriptProductionEditingCommand,
   runMovScriptRuntimeCommand,
   runMovScriptSystemCommand,
-  runMovScriptTimelineCommand,
   runMovScriptWorkspaceCommand,
   runtimeCommandSpecs,
   systemCommandSpecs,
-  timelineCommandSpecs,
   unwrapCommandDataWithDebug,
   workspaceCommandSpecs,
 } from '@movscript/cli-commands'
 import {
   LOCAL_RUNTIME_DAEMON_CONTROL_SERVICE,
-  LOCAL_RUNTIME_DAEMON_GATEWAY_SERVICE,
 } from '@movscript/local-runtime'
 import {
   findRuntimeEndpoint,
-  findRuntimeService,
   readRuntimeHomeSnapshot,
   resolveMovScriptHomeDir,
   type RuntimeEndpointRecord,
-  type RuntimeHomeSnapshot,
 } from '@movscript/runtime-contracts'
 
 export { runtimeConfigure, runtimeStatus } from '@movscript/cli-commands'
 
 const LOCAL_NODE_CONTROL_SERVICE = LOCAL_RUNTIME_DAEMON_CONTROL_SERVICE
-const LOCAL_NODE_GATEWAY_SERVICE = LOCAL_RUNTIME_DAEMON_GATEWAY_SERVICE
-const DATA_SERVICE = 'movscript.data.service'
-const PROJECT_SERVICE = 'movscript.project.service'
-const EDITING_SERVICE = 'movscript.editing.service'
-const LOCAL_SURFACE_HOST_SERVICE = 'movscript.local-surface.host'
-const MEDIA_PIPELINE_SERVICE = 'movscript.media.pipeline'
 
 export type DaemonMCPJSONRPCOptions = {
   touchRuntime?: boolean
@@ -71,19 +57,21 @@ export type DaemonMCPJSONRPCOptions = {
 
 const adminTools: MCPTool[] = commandSpecsToMCPTools(adminCommandSpecs)
 const contextTools: MCPTool[] = commandSpecsToMCPTools(contextCommandSpecs)
+const domainTools: MCPTool[] = commandSpecsToMCPTools(domainCommandSpecs)
 const editingTools: MCPTool[] = commandSpecsToMCPTools(editingCommandSpecs)
+const productionEditingTools: MCPTool[] = commandSpecsToMCPTools(productionEditingCommandSpecs)
 const runtimeTools: MCPTool[] = commandSpecsToMCPTools(runtimeCommandSpecs)
 const systemTools: MCPTool[] = commandSpecsToMCPTools(systemCommandSpecs)
-const timelineTools: MCPTool[] = commandSpecsToMCPTools(timelineCommandSpecs)
 const workspaceTools: MCPTool[] = commandSpecsToMCPTools(workspaceCommandSpecs)
 
 export const daemonMCPCommandTools: MCPTool[] = [
   ...adminTools,
   ...contextTools,
+  ...domainTools,
   ...editingTools,
+  ...productionEditingTools,
   ...runtimeTools,
   ...systemTools,
-  ...timelineTools,
   ...workspaceTools,
 ]
 
@@ -134,7 +122,8 @@ export async function handleDaemonMCPJSONRPC(
       case 'resources/read':
         return makeResult(id, await readResource(stringParam(req.params, 'uri') ?? ''))
       default:
-        return handleJSONRPC(req)
+        if (isNotification) return undefined
+        return makeError(id, -32601, 'Method not found')
     }
   } catch (error) {
     if (isNotification) return undefined
@@ -143,7 +132,7 @@ export async function handleDaemonMCPJSONRPC(
 }
 
 export function listDaemonMCPTools(): MCPTool[] {
-  return mergeTools(daemonMCPCommandTools, listTools())
+  return [...daemonMCPCommandTools]
 }
 
 export async function callDaemonMCPTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue> {
@@ -161,17 +150,19 @@ export async function callDaemonMCPTool(params: MCPJSONValue | undefined): Promi
   if (isSystemMCPToolName(name)) {
     return unwrapCommandDataWithDebug(await runMovScriptSystemCommand(name!, args)) as MCPJSONValue
   }
+  if (isDomainMCPToolName(name)) {
+    return unwrapCommandDataWithDebug(await runMovScriptDomainCommand(name!, args)) as MCPJSONValue
+  }
   if (isEditingMCPToolName(name)) {
     return unwrapCommandDataWithDebug(await runMovScriptEditingCommand(name!, args)) as MCPJSONValue
   }
-  if (isTimelineMCPToolName(name)) {
-    return unwrapCommandDataWithDebug(await runMovScriptTimelineCommand(name!, args)) as MCPJSONValue
+  if (isProductionEditingMCPToolName(name)) {
+    return unwrapCommandDataWithDebug(await runMovScriptProductionEditingCommand(name!, args)) as MCPJSONValue
   }
   if (isWorkspaceMCPToolName(name)) {
     return unwrapCommandDataWithDebug(await runMovScriptWorkspaceCommand(name!, args)) as MCPJSONValue
   }
-  bindBackendRuntimeForCoreTools(args)
-  return callTool(params)
+  throw new Error(`unknown daemon MCP tool: ${name ?? '<missing>'}`)
 }
 
 export async function readDaemonMCPResource(uri: string): Promise<MCPJSONValue> {
@@ -182,43 +173,31 @@ function commandSpecsToMCPTools(tools: Array<{
   mcpToolName: string
   mcpAliases?: string[]
   description: string
+  stability?: string
   inputSchema: unknown
   outputSchema: unknown
 }>): MCPTool[] {
-  return tools.flatMap((tool) => [
-    {
-      name: tool.mcpToolName,
-      description: tool.description,
-      inputSchema: tool.inputSchema as MCPTool['inputSchema'],
-      outputSchema: tool.outputSchema as MCPTool['outputSchema'],
-    },
-    ...(tool.mcpAliases ?? []).map((alias) => ({
-      name: alias,
-      description: `Compatibility alias for ${tool.mcpToolName}. ${tool.description}`,
-      inputSchema: tool.inputSchema as MCPTool['inputSchema'],
-      outputSchema: tool.outputSchema as MCPTool['outputSchema'],
-    })),
-  ])
-}
-
-function runtimeDiscoveredEndpoints(runtimeHome: RuntimeHomeSnapshot): Record<string, string> {
-  const endpoints: Record<string, string> = {}
-  setEndpoint(endpoints, 'control', runtimeHome, LOCAL_NODE_CONTROL_SERVICE)
-  setEndpoint(endpoints, 'gateway', runtimeHome, LOCAL_NODE_GATEWAY_SERVICE)
-  setEndpoint(endpoints, 'dataService', runtimeHome, DATA_SERVICE)
-  setEndpoint(endpoints, 'projectService', runtimeHome, PROJECT_SERVICE)
-  setEndpoint(endpoints, 'editingService', runtimeHome, EDITING_SERVICE)
-  setEndpoint(endpoints, 'surfaceHost', runtimeHome, LOCAL_SURFACE_HOST_SERVICE)
-  setEndpoint(endpoints, 'mediaPipeline', runtimeHome, MEDIA_PIPELINE_SERVICE)
-  return endpoints
-}
-
-function setEndpoint(output: Record<string, string>, key: string, runtimeHome: RuntimeHomeSnapshot, serviceName: string): void {
-  const endpoint = endpointURL(
-    findRuntimeEndpoint(runtimeHome, serviceName)
-      ?? findRuntimeService(runtimeHome, serviceName)?.endpoint,
-  )
-  if (endpoint) output[key] = endpoint
+  return tools.flatMap((tool) => {
+    const description = tool.stability === 'temporary_fallback'
+      ? `Temporary fallback (migration-only): ${tool.description}`
+      : tool.description
+    return [
+      {
+        name: tool.mcpToolName,
+        description,
+        inputSchema: tool.inputSchema as MCPTool['inputSchema'],
+        outputSchema: tool.outputSchema as MCPTool['outputSchema'],
+      },
+      ...(tool.mcpAliases ?? []).map((alias) => ({
+        name: alias,
+        description: tool.stability === 'temporary_fallback'
+          ? `Temporary fallback compatibility alias for ${tool.mcpToolName}. ${tool.description}`
+          : `Compatibility alias for ${tool.mcpToolName}. ${tool.description}`,
+        inputSchema: tool.inputSchema as MCPTool['inputSchema'],
+        outputSchema: tool.outputSchema as MCPTool['outputSchema'],
+      })),
+    ]
+  })
 }
 
 async function touchLocalNode(): Promise<void> {
@@ -226,34 +205,6 @@ async function touchLocalNode(): Promise<void> {
   const endpoint = endpointURL(findRuntimeEndpoint(readRuntimeHomeSnapshot(homeDir), LOCAL_NODE_CONTROL_SERVICE))
   if (!endpoint) return
   await fetch(`${endpoint}/touch`, { method: 'POST', signal: AbortSignal.timeout(750) })
-}
-
-function resolveRuntimeHomeArg(args: Record<string, unknown>): string {
-  const homeDir = stringValue(args.homeDir ?? args.home_dir ?? args.movscriptHome ?? args.movscript_home)
-  return homeDir ? resolve(homeDir) : resolveMovScriptHomeDir()
-}
-
-function bindBackendRuntimeForCoreTools(args: Record<string, unknown>): void {
-  const homeDir = resolveRuntimeHomeArg(args)
-  const runtimeHome = readRuntimeHomeSnapshot(homeDir)
-  const endpoints = runtimeDiscoveredEndpoints(runtimeHome)
-  const backendEndpoint = endpoints.gateway ?? endpoints.dataService
-  if (backendEndpoint) setMovScriptBackendAPIBaseURL(backendEndpoint)
-  if (backendEndpoint && args.mcp_base_url === undefined && args.mcpBaseURL === undefined) {
-    args.mcp_base_url = backendEndpoint
-  }
-
-  const agentSurfaceEndpoint = endpoints.gateway ?? endpoints.surfaceHost
-  if (agentSurfaceEndpoint && args.frontend_origin === undefined && args.frontendOrigin === undefined) {
-    args.frontend_origin = agentSurfaceEndpoint
-  }
-
-  const workspaceDir = stringValue(args.workspaceDir ?? args.workspace_dir)
-    ?? stringValue(args.projectDir ?? args.project_dir)
-    ?? stringValue(args.projectPath ?? args.project_path)
-    ?? stringValue(args.cwd)
-    ?? process.env.MOVSCRIPT_WORKSPACE_DIR
-  if (workspaceDir) setMCPDefaultWorkspaceDir(resolve(workspaceDir))
 }
 
 function endpointURL(endpoint: RuntimeEndpointRecord | undefined): string | undefined {

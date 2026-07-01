@@ -34,7 +34,7 @@ test('generation resolver matches models from prompt references without a user-s
   })
   assert.deepEqual(ordinaryReference.profile?.labels, ['参考图生视频'])
   assert.equal(ordinaryReference.matches.map((match) => match.model_id).join(','), 'cross-over-video')
-  assert.equal(ordinaryReference.matches[0]?.legacy_operation, 'image_to_video')
+  assert.equal(ordinaryReference.matches[0]?.selected_operation, 'image_to_video')
   assert.equal(ordinaryReference.blocked[0]?.model_id, 'prompt-video')
 
   const firstFrame = resolveGenerationModels({
@@ -44,7 +44,7 @@ test('generation resolver matches models from prompt references without a user-s
   })
   assert.deepEqual(firstFrame.profile?.labels, ['首帧生视频'])
   assert.equal(firstFrame.matches[0]?.model_id, 'cross-over-video')
-  assert.equal(firstFrame.matches[0]?.legacy_operation, 'first_frame_to_video')
+  assert.equal(firstFrame.matches[0]?.selected_operation, 'first_frame_to_video')
 })
 
 test('generation resolver does not treat ordinary image references as first-frame references', () => {
@@ -75,9 +75,9 @@ test('generation resolver does not treat ordinary image references as first-fram
 
 test('generation resolver ranks exact first-last frame support above generic image-to-video support', () => {
   const genericImageToVideo: GenerationResolverModelLike = {
-    model_id: 'generic-i2v',
-    display_name: 'Generic I2V',
-    capabilities: ['video_generation', 'video_i2v'],
+    model_id: 'generic-image-video',
+    display_name: 'Generic Image Video',
+    capabilities: ['video_generation'],
     accepts_image_input: true,
     input_requirements: {
       image: { min: 0, max: 1 },
@@ -108,8 +108,8 @@ test('generation resolver ranks exact first-last frame support above generic ima
 
   assert.deepEqual(result.profile?.labels, ['首尾帧生视频'])
   assert.equal(result.matches[0]?.model_id, 'first-last-video')
-  assert.equal(result.matches[0]?.legacy_operation, 'first_last_frame_to_video')
-  assert.equal(result.blocked[0]?.model_id, 'generic-i2v')
+  assert.equal(result.matches[0]?.selected_operation, 'first_last_frame_to_video')
+  assert.equal(result.blocked[0]?.model_id, 'generic-image-video')
   assert(result.blocked[0]?.blockers.some((blocker) => blocker.code === 'too_many_references'))
 })
 

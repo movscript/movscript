@@ -76,7 +76,7 @@ func (a *StabilityAdapter) GenerateAudio(ctx context.Context, req media.AudioGen
 	if strings.TrimSpace(a.APIKey) == "" {
 		return media.AudioGenerationResponse{}, fmt.Errorf("stability api_key is required")
 	}
-	if req.Kind != media.AudioGenerationKindMusic && req.Kind != media.AudioGenerationKindSFX {
+	if req.Kind != media.AudioGenerationKindMusic && req.Kind != media.AudioGenerationKindSoundEffect {
 		return media.AudioGenerationResponse{}, fmt.Errorf("unsupported stability audio generation kind %q", req.Kind)
 	}
 	prompt := strings.TrimSpace(req.Prompt)

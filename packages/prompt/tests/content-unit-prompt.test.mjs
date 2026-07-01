@@ -8,7 +8,7 @@ import {
 
 test('parses prompt refs from all editable prompt text fields', () => {
   const refs = parseContentUnitEditPromptRefs({
-    text: 'Use {{asset::wet_hair}} for {{candidate:candidate_a}} and {{resource::42}}.',
+    text: 'Use {{asset::wet_hair}} for {{candidate:candidate_a}} and {{resource::42}} via {{ref:ref_1}}.',
     negative_text: 'Avoid {{asset:dry_hair}}.',
     notes: 'Match {{storyboard:main}} and {{audio_cue::phone_vibration}}.',
   })
@@ -17,6 +17,7 @@ test('parses prompt refs from all editable prompt text fields', () => {
     ['asset', 'wet_hair', 'edit_prompt.text'],
     ['candidate', 'candidate_a', 'edit_prompt.text'],
     ['resource', '42', 'edit_prompt.text'],
+    ['ref', 'ref_1', 'edit_prompt.text'],
     ['asset', 'dry_hair', 'edit_prompt.negative_text'],
     ['storyboard', 'main', 'edit_prompt.notes'],
     ['audio_cue', 'phone_vibration', 'edit_prompt.notes'],
@@ -160,6 +161,253 @@ test('builds typed resource mentions and reference assets from semantic ref meta
     role: 'first_frame',
     source_ref: '{{asset::hero_portrait role=first_frame media=image}}',
   }])
+})
+
+test('passes generation references as model inputs even when prompt text does not mention them', async () => {
+  const index = indexFromDocuments([
+    document('content_units/cu_image_task/content_unit.json', {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_image_task',
+      title: 'Image task',
+      content_unit_type: 'storyboard_ref',
+      output_kind: 'image',
+      storyboard_ref: 'opening',
+      edit_prompt: { text: 'Generate a clean storyboard frame.' },
+      generation_references: [{
+        kind: 'resource',
+        ref: 42,
+        media_type: 'image',
+        role: 'reference_image',
+      }],
+    }),
+  ])
+
+  const result = await buildContentUnitBackendPromptById({
+    index,
+    contentUnitId: 'cu_image_task',
+    decisionProvider: decisionProvider({}),
+  })
+
+  assert.equal(result.ok, true)
+  assert.equal(result.prompt.text, 'Generate a clean storyboard frame.')
+  assert.deepEqual(result.prompt.resource_ids, [42])
+  assert.deepEqual(result.prompt.reference_assets, [{
+    resource_id: 42,
+    media_type: 'image',
+    role: 'reference_image',
+    source_ref: '@[resource:image:reference_image:42]',
+  }])
+})
+
+test('compiles canonical prompt refs through generation reference ids', async () => {
+  const index = indexFromDocuments([
+    document('settings/hero/states/base/assets/wet_hair/asset.json', {
+      schema: 'movscript.asset.v1',
+      kind: 'asset',
+      id: 'wet_hair',
+      title: 'Wet hair',
+    }),
+    document('content_units/cu_wet_hair_ref/content_unit.json', {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_wet_hair_ref',
+      title: 'Wet hair reference',
+      content_unit_type: 'asset_ref',
+      output_kind: 'image',
+      asset_ref: 'wet_hair',
+      edit_prompt: { text: 'Generate wet hair reference.' },
+    }),
+    document('content_units/cu_video_task/content_unit.json', {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_video_task',
+      title: 'Video task',
+      content_unit_type: 'storyboard_ref',
+      output_kind: 'video',
+      storyboard_ref: 'opening',
+      edit_prompt: { text: 'Animate from {{ref:ref_first_frame}}.' },
+      generation_references: [{
+        id: 'ref_first_frame',
+        kind: 'asset',
+        ref: 'wet_hair',
+        media_type: 'image',
+        role: 'first_frame',
+      }],
+    }),
+  ])
+
+  const result = await buildContentUnitBackendPromptById({
+    index,
+    contentUnitId: 'cu_video_task',
+    decisionProvider: decisionProvider({
+      cu_wet_hair_ref: {
+        candidates: [{ id: 'candidate_a', outputs: [{ kind: 'image', resource_id: 123 }] }],
+        selection: { candidate_id: 'candidate_a', resource_id: 123 },
+      },
+    }),
+  })
+
+  assert.equal(result.ok, true)
+  assert.equal(result.prompt.text, 'Animate from @[resource:image:first_frame:123].')
+  assert.deepEqual(result.prompt.resource_ids, [123])
+  assert.deepEqual(result.prompt.reference_assets, [{
+    reference_id: 'ref_first_frame',
+    source_kind: 'asset',
+    source_id: 'wet_hair',
+    resource_id: 123,
+    media_type: 'image',
+    role: 'first_frame',
+    source_ref: '{{asset::wet_hair role=first_frame media=image}}',
+  }])
+})
+
+test('matches resource prompt refs against normalized generation reference ids', async () => {
+  const index = indexFromDocuments([
+    document('content_units/cu_image_task/content_unit.json', {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_image_task',
+      title: 'Image task',
+      content_unit_type: 'storyboard_ref',
+      output_kind: 'image',
+      storyboard_ref: 'opening',
+      edit_prompt: { text: 'Use {{resource::31}} as the visual reference.' },
+      generation_references: [{
+        kind: 'resource',
+        ref: 'resource:31',
+        media_type: 'image',
+        role: 'reference_image',
+      }],
+    }),
+  ])
+
+  const result = await buildContentUnitBackendPromptById({
+    index,
+    contentUnitId: 'cu_image_task',
+    decisionProvider: decisionProvider({}),
+  })
+
+  assert.equal(result.ok, true)
+  assert.equal(result.prompt.text, 'Use @[resource:image:reference_image:31] as the visual reference.')
+  assert.deepEqual(result.prompt.resource_ids, [31])
+  assert.deepEqual(result.prompt.reference_assets, [{
+    resource_id: 31,
+    media_type: 'image',
+    role: 'reference_image',
+    source_ref: '@[resource:image:reference_image:31]',
+  }])
+})
+
+test('matches asset prompt refs against normalized generation reference ids', async () => {
+  const index = indexFromDocuments([
+    document('settings/hero/states/base/assets/wet_hair/asset.json', {
+      schema: 'movscript.asset.v1',
+      kind: 'asset',
+      id: 'wet_hair',
+      title: 'Wet hair',
+    }),
+    document('content_units/cu_wet_hair_ref/content_unit.json', {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_wet_hair_ref',
+      title: 'Wet hair reference',
+      content_unit_type: 'asset_ref',
+      output_kind: 'image',
+      asset_ref: 'wet_hair',
+      edit_prompt: { text: 'Generate wet hair reference.' },
+    }),
+    document('content_units/cu_image_task/content_unit.json', {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_image_task',
+      title: 'Image task',
+      content_unit_type: 'storyboard_ref',
+      output_kind: 'image',
+      storyboard_ref: 'opening',
+      edit_prompt: { text: 'Use {{asset:wet_hair role=first_frame media=image}} as the continuity reference.' },
+      generation_references: [{
+        kind: 'asset',
+        ref: 'asset:wet_hair',
+        media_type: 'image',
+        role: 'reference_image',
+      }],
+    }),
+  ])
+
+  const result = await buildContentUnitBackendPromptById({
+    index,
+    contentUnitId: 'cu_image_task',
+    decisionProvider: decisionProvider({
+      cu_wet_hair_ref: {
+        candidates: [{ id: 'candidate_a', outputs: [{ kind: 'image', resource_id: 123 }] }],
+        selection: { candidate_id: 'candidate_a', resource_id: 123 },
+      },
+    }),
+  })
+
+  assert.equal(result.ok, true)
+  assert.equal(result.prompt.text, 'Use @[resource:image:reference_image:123] as the continuity reference.')
+  assert.deepEqual(result.prompt.resource_ids, [123])
+  assert.deepEqual(result.prompt.reference_assets, [{
+    resource_id: 123,
+    media_type: 'image',
+    role: 'reference_image',
+    source_ref: '{{asset::wet_hair role=reference_image media=image}}',
+  }])
+})
+
+test('requires prompt refs to be present in the explicit generation reference pool', async () => {
+  const index = indexFromDocuments([
+    document('settings/hero/states/base/assets/portrait/asset.json', {
+      schema: 'movscript.asset.v1',
+      kind: 'asset',
+      id: 'hero_portrait',
+      title: 'Hero portrait',
+    }),
+    document('content_units/cu_hero_portrait_ref/content_unit.json', {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_hero_portrait_ref',
+      title: 'Hero portrait reference',
+      content_unit_type: 'asset_ref',
+      output_kind: 'image',
+      asset_ref: 'hero_portrait',
+      edit_prompt: { text: 'Generate hero portrait reference.' },
+    }),
+    document('content_units/cu_image_task/content_unit.json', {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_image_task',
+      title: 'Image task',
+      content_unit_type: 'asset_ref',
+      output_kind: 'image',
+      asset_ref: 'other_asset',
+      edit_prompt: { text: 'Use {{asset::hero_portrait}} as a visible character cue.' },
+      generation_references: [{
+        kind: 'resource',
+        ref: 42,
+        media_type: 'image',
+        role: 'reference_image',
+      }],
+    }),
+  ])
+
+  const result = await buildContentUnitBackendPromptById({
+    index,
+    contentUnitId: 'cu_image_task',
+    decisionProvider: decisionProvider({
+      cu_hero_portrait_ref: {
+        candidates: [{ id: 'candidate_a', outputs: [{ kind: 'image', resource_id: 321 }] }],
+        selection: { candidate_id: 'candidate_a', resource_id: 321 },
+      },
+    }),
+  })
+
+  assert.equal(result.ok, false)
+  assert.ok(result.blockers.some((blocker) => blocker.code === 'prompt_ref_not_in_generation_references'))
+  assert.equal(result.prompt.text, 'Use {{asset::hero_portrait}} as a visible character cue.')
+  assert.deepEqual(result.prompt.resource_ids, [42])
 })
 
 test('builds backend prompt from promptText override without returning raw prompt refs', async () => {

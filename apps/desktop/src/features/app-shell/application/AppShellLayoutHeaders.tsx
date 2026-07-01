@@ -1,7 +1,6 @@
 import React from 'react'
 import { Header } from '@/features/app-shell/components/Header'
 import { ProjectGitHeaderActions } from '@/features/app-shell/components/ProjectGitHeaderActions'
-import { ProjectEntryDeckHeader } from '@movscript/project-surface/react'
 import {
   AppShellAgentContentToggle,
   AppShellHistoryNavigationControls,
@@ -17,13 +16,10 @@ import {
 } from '@/features/app-shell/application/appShellRouteHeaders'
 import type { RouteLayoutPaneController } from '@/features/app-shell/application/useRouteLayoutPaneController'
 import type { AccountSettingsPageTab } from '@/features/app-shell/components/AccountSettingsDialog'
-import type { RouteLayoutSpec } from '@/routes/routeLayoutRegistry'
 import type { Project } from '@/types'
 
 interface AppShellLayoutHeadersInput {
   pathname: string
-  search: string
-  routeLayout: Pick<RouteLayoutSpec, 'projectEntryId'>
   currentProject: Project | null
   accountSettingsActiveTab: AccountSettingsPageTab | undefined
   agentSettingsActive: boolean
@@ -63,8 +59,6 @@ interface AppShellLayoutHeaders {
 
 export function createAppShellLayoutHeaders({
   pathname,
-  search,
-  routeLayout,
   currentProject,
   accountSettingsActiveTab,
   agentSettingsActive,
@@ -137,14 +131,7 @@ export function createAppShellLayoutHeaders({
   const toolCenterContent = accountSettingsActiveTab
     ? accountSettingsRouteHeaderTitle(accountSettingsActiveTab)
     : toolRouteHeaderTitle(pathname)
-  const projectCenterContent = currentProject?.name ? (
-    <ProjectEntryDeckHeader
-      activeEntryId={routeLayout.projectEntryId}
-      activeSearch={search}
-      projectId={currentProject.ID}
-      projectName={currentProject.name}
-    />
-  ) : projectRouteHeaderTitle(pathname)
+  const projectCenterContent = projectRouteHeaderTitle(pathname)
 
   const toolLeftHeader = toolChrome && !toolSidebarHidden ? (
     <Header

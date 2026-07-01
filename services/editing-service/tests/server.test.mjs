@@ -65,7 +65,8 @@ test('editing-service timeline bundles derive context and preview timeline from 
 
   assert.match(source, /const index = await workspaceService\.loadIndex\(\)\n  const context = queryMovScriptWorkspaceProductionContext\(index,/)
   assert.match(source, /const previewTimeline = readProductionPreviewTimelineFromIndex\(index, productionId\)/)
-  assert.match(source, /const previewTimeline = deriveMovScriptWorkspaceTimelineAssemblyPreviewTimeline\(index,/)
+  assert.doesNotMatch(source, /timelineAssemblyBundle/)
+  assert.doesNotMatch(source, /deriveMovScriptWorkspaceTimelineAssemblyPreviewTimeline/)
   assert.doesNotMatch(source, /workspaceService\.queryProductionContext\(/)
   assert.doesNotMatch(source, /workspaceService\.readTimelineAssemblyPreviewTimeline\(/)
 })
@@ -93,146 +94,6 @@ test('editing-service executes pure MediaEditingProject commands', async () => {
   assert.equal(created.result.editing_project.timeline.width, 1280)
   assert.deepEqual(created.result.editing_project.assets, { assets: [] })
 
-  const fromEditPlan = await postJSON(`${runtime.url}${EDITING_SERVICE_PROJECT_COMMAND_ENDPOINT}`, {
-    command: 'createProjectFromEditPlan',
-    input: {
-      projectId: 'project-service-test',
-      title: 'Edit plan cut',
-      editPlan: {
-        schema: 'movscript.edit_plan.v1',
-        productionId: 'pilot',
-        productionPath: 'productions/pilot',
-        sceneMomentId: 'rain_call',
-        sceneMomentPath: 'productions/pilot/scene_moments/rain_call',
-        target_ref: 'productions/pilot/scene_moments/rain_call',
-        status: 'ready_to_compose',
-        tracks: [],
-        compose_inputs: [],
-      },
-    },
-  })
-  assert.equal(fromEditPlan.command, 'createProjectFromEditPlan')
-  assert.equal(fromEditPlan.result.status, 'ok')
-  assert.equal(fromEditPlan.result.editing_project.projectId, 'project-service-test')
-  assert.equal(fromEditPlan.result.editing_project.source.kind, 'movscript_edit_plan')
-
-  const fromEditDecisions = await postJSON(`${runtime.url}${EDITING_SERVICE_PROJECT_COMMAND_ENDPOINT}`, {
-    command: 'createProjectFromEditDecisions',
-    input: {
-      projectId: 'project-service-test',
-      title: 'Edit decisions cut',
-      productionId: 'pilot',
-      targetKind: 'timeline_assembly',
-      targetRef: 'timeline_assembly:production:pilot',
-      editDecisions: {
-        version: 1,
-        render_runtime: 'ffmpeg',
-        cuts: [{
-          id: 'cut_intro',
-          source: 'clip_intro',
-          in_seconds: 0,
-          out_seconds: 2,
-        }],
-      },
-      assetManifest: {
-        assets: [{
-          id: 'clip_intro',
-          type: 'video',
-          resource_id: 911,
-          label: 'Intro clip',
-        }],
-      },
-    },
-  })
-  assert.equal(fromEditDecisions.command, 'createProjectFromEditDecisions')
-  assert.equal(fromEditDecisions.result.status, 'ok')
-  assert.equal(fromEditDecisions.result.editing_project.projectId, 'project-service-test')
-  assert.equal(fromEditDecisions.result.editing_project.source.kind, 'edit_decisions')
-  assert.equal(fromEditDecisions.result.editing_project.timeline.tracks[0].id, 'track_primary_video')
-  assert.equal(fromEditDecisions.result.editing_project.timeline.tracks[0].clips[0].asset.resourceId, 911)
-  assert.equal(fromEditDecisions.result.editing_project.timeline.metadata.renderRuntime, 'ffmpeg')
-
-  const compiledFromEditDecisions = await postJSON(`${runtime.url}${EDITING_SERVICE_PROJECT_COMMAND_ENDPOINT}`, {
-    command: 'createProjectFromEditDecisions',
-    input: {
-      projectId: 'project-service-test',
-      title: 'Compiled edit decisions cut',
-      targetKind: 'timeline_assembly',
-      targetRef: 'timeline_assembly:production:pilot',
-      scopeKind: 'production',
-      scopeRef: 'pilot',
-      now: '2026-06-29T00:00:00.000Z',
-      timelineAssembly: {
-        id: 'assembly_pilot',
-        target_ref: 'timeline_assembly:production:pilot',
-        scope_kind: 'production',
-        scope_ref: 'pilot',
-      },
-      editDecisions: {
-        version: 1,
-        render_runtime: 'ffmpeg',
-        cuts: [{
-          id: 'cut_intro',
-          source: 'clip_intro',
-          in_seconds: 0,
-          out_seconds: 2,
-        }],
-      },
-      assetManifest: {
-        assets: [{
-          id: 'clip_intro',
-          type: 'video',
-          resource_id: 911,
-          label: 'Intro clip',
-        }],
-      },
-    },
-  })
-  assert.equal(compiledFromEditDecisions.result.status, 'ok')
-  assert.equal(compiledFromEditDecisions.result.compile_manifest.schema, 'movscript.timeline_assembly.compile_manifest.v1')
-  assert.equal(compiledFromEditDecisions.result.compile_manifest.status, 'ready')
-  assert.equal(compiledFromEditDecisions.result.compile_manifest.backend.runtime_locked, true)
-  assert.equal(compiledFromEditDecisions.result.compile_result.status, 'ready')
-  assert.equal(compiledFromEditDecisions.result.editing_project.provenance.sourceHash, compiledFromEditDecisions.result.compile_manifest.input_hash)
-  assert.equal(compiledFromEditDecisions.result.editing_project.timeline.metadata.compileManifestId, compiledFromEditDecisions.result.compile_manifest.id)
-
-  const blockedRuntimeLock = await postJSON(`${runtime.url}${EDITING_SERVICE_PROJECT_COMMAND_ENDPOINT}`, {
-    command: 'createProjectFromEditDecisions',
-    input: {
-      projectId: 'project-service-test',
-      title: 'Blocked HyperFrames compile',
-      targetKind: 'timeline_assembly',
-      targetRef: 'timeline_assembly:production:pilot',
-      timelineAssembly: {
-        id: 'assembly_pilot',
-        target_ref: 'timeline_assembly:production:pilot',
-      },
-      editDecisions: {
-        version: 1,
-        render_runtime: 'hyperframes',
-        cuts: [{
-          id: 'cut_intro',
-          source: 'clip_intro',
-          in_seconds: 0,
-          out_seconds: 2,
-        }],
-      },
-      assetManifest: {
-        assets: [{
-          id: 'clip_intro',
-          type: 'video',
-          resource_id: 911,
-          label: 'Intro clip',
-        }],
-      },
-    },
-  })
-  assert.equal(blockedRuntimeLock.result.status, 'blocked')
-  assert.equal(blockedRuntimeLock.result.code, 'TIMELINE_ASSEMBLY_COMPILE_BLOCKED')
-  assert.equal(blockedRuntimeLock.result.compile_manifest.status, 'blocked')
-  assert.equal(blockedRuntimeLock.result.diagnostics.some((diagnostic) => diagnostic.code === 'runtime_lock_backend_mismatch'), true)
-  assert.equal(blockedRuntimeLock.result.editing_project, undefined)
-
   const fromPreviewTimeline = await postJSON(`${runtime.url}${EDITING_SERVICE_PROJECT_COMMAND_ENDPOINT}`, {
     command: 'createProjectFromPreviewTimeline',
     input: {
@@ -255,11 +116,11 @@ test('editing-service executes pure MediaEditingProject commands', async () => {
   assert.equal(fromPreviewTimeline.command, 'createProjectFromPreviewTimeline')
   assert.equal(fromPreviewTimeline.result.status, 'ok')
   assert.equal(fromPreviewTimeline.result.editing_project.id, 'editing_project_production_pilot')
-  assert.equal(fromPreviewTimeline.result.editing_project.source.targetKind, 'timeline_assembly')
-  assert.equal(fromPreviewTimeline.result.editing_project.source.targetRef, 'timeline_assembly:production:pilot')
+  assert.equal(fromPreviewTimeline.result.editing_project.source.targetKind, 'production')
+  assert.equal(fromPreviewTimeline.result.editing_project.source.targetRef, 'pilot')
   assert.equal(fromPreviewTimeline.result.editing_project.timeline.durationMs, 7000)
-  assert.equal(fromPreviewTimeline.result.editing_project.timeline.metadata.targetKind, 'timeline_assembly')
-  assert.equal(fromPreviewTimeline.result.editing_project.timeline.metadata.legacyTargetKind, 'production')
+  assert.equal(fromPreviewTimeline.result.editing_project.timeline.metadata.targetKind, 'production')
+  assert.equal(fromPreviewTimeline.result.editing_project.timeline.metadata.targetRef, 'pilot')
   assert.equal(fromPreviewTimeline.result.editing_project.timeline.tracks[0].clips[0].asset.resourceId, 612)
 
   let project = baseEditingProject()
@@ -550,97 +411,26 @@ test('editing-service exposes timeline views through the shared workspace servic
   }
   assert.equal(bundle.kind, 'productionTimelineBundle')
   assert.equal(bundle.result.schema, 'movscript.production-timeline-bundle.v1')
-  assert.equal(bundle.result.preferred_schema, 'movscript.timeline-assembly-bundle.v1')
+  assert.equal(bundle.result.preferred_schema, undefined)
   assert.equal(bundle.result.status, 'ok')
-  assert.equal(bundle.result.target_kind, 'timeline_assembly')
-  assert.equal(bundle.result.target_ref, 'timeline_assembly:production:pilot')
+  assert.equal(bundle.result.target_kind, 'production')
+  assert.equal(bundle.result.target_ref, 'pilot')
   assert.equal(bundle.result.scope_kind, 'production')
   assert.equal(bundle.result.scope_ref, 'pilot')
-  assert.equal(bundle.result.legacy_alias.target_kind, 'production')
+  assert.equal(bundle.result.legacy_alias, undefined)
   assert.equal(bundle.result.preview_timeline.productionId, 'pilot')
   assert.equal(bundle.result.clips[0].contentUnitId, 'cu_rain_call')
   assert.equal(bundle.result.clips[0].resourceId, 612)
   assert.equal(bundle.result.edit_plan.schema, 'movscript.edit_plan.v1')
-  assert.equal(bundle.result.edit_plan.target_kind, 'timeline_assembly')
-  assert.equal(bundle.result.edit_plan.target_ref, 'timeline_assembly:production:pilot')
+  assert.equal(bundle.result.edit_plan.target_kind, 'production')
+  assert.equal(bundle.result.edit_plan.target_ref, 'pilot')
   assert.equal(bundle.result.edit_plan.tracks[0].items[0].resource_id, 612)
-  assert.equal(bundle.result.context.target_kind, 'timeline_assembly')
-  assert.equal(bundle.result.context.selected_content_units[0].target_kind, 'timeline_assembly')
+  assert.equal(bundle.result.context.target_kind, 'production')
+  assert.equal(bundle.result.context.selected_content_units[0].target_kind, 'production')
   assert.equal(bundle.result.context.resources[0].resource_id, 612)
-  assert.equal(bundle.result.media_editing_project.source.targetKind, 'timeline_assembly')
-  assert.equal(bundle.result.media_editing_project.provenance.legacyTargetKind, 'production')
+  assert.equal(bundle.result.media_editing_project.source.targetKind, 'production')
+  assert.equal(bundle.result.media_editing_project.provenance.legacyTargetKind, undefined)
   assert.equal(bundle.result.media_editing_project.timeline.durationMs, 7000)
-
-  let assemblyBundle
-  globalThis.fetch = decisionFetch
-  try {
-    assemblyBundle = await postJSON(`${runtime.url}${EDITING_SERVICE_TIMELINE_VIEW_ENDPOINT}`, {
-      projectDir,
-      kind: 'timelineAssemblyBundle',
-      targetRef: 'timeline_assembly:production:pilot',
-      now: '2026-06-24T00:00:00.000Z',
-      decisionStore: {
-        kind: 'scoped-project-data',
-        baseUrl: 'http://movscript.test',
-        projectUid: 'prj_pilot',
-        token: 'test-token',
-      },
-    })
-  } finally {
-    globalThis.fetch = originalFetch
-  }
-  assert.equal(assemblyBundle.kind, 'timelineAssemblyBundle')
-  assert.equal(assemblyBundle.result.schema, 'movscript.timeline-assembly-bundle.v1')
-  assert.equal(assemblyBundle.result.target_kind, 'timeline_assembly')
-  assert.equal(assemblyBundle.result.target_ref, 'timeline_assembly:production:pilot')
-  assert.equal(assemblyBundle.result.production_id, 'pilot')
-
-  let episodeAssemblyBundle
-  globalThis.fetch = decisionFetch
-  try {
-    episodeAssemblyBundle = await postJSON(`${runtime.url}${EDITING_SERVICE_TIMELINE_VIEW_ENDPOINT}`, {
-      projectDir,
-      kind: 'timelineAssemblyBundle',
-      targetRef: 'timeline_assembly:episode:pilot',
-      now: '2026-06-24T00:00:00.000Z',
-      decisionStore: {
-        kind: 'scoped-project-data',
-        baseUrl: 'http://movscript.test',
-        projectUid: 'prj_pilot',
-        token: 'test-token',
-      },
-    })
-  } finally {
-    globalThis.fetch = originalFetch
-  }
-  assert.equal(episodeAssemblyBundle.kind, 'timelineAssemblyBundle')
-  assert.equal(episodeAssemblyBundle.result.schema, 'movscript.timeline-assembly-bundle.v1')
-  assert.equal(episodeAssemblyBundle.result.status, 'ok')
-  assert.equal(episodeAssemblyBundle.result.target_kind, 'timeline_assembly')
-  assert.equal(episodeAssemblyBundle.result.target_ref, 'timeline_assembly:episode:pilot')
-  assert.equal(episodeAssemblyBundle.result.scope_kind, 'episode')
-  assert.equal(episodeAssemblyBundle.result.scope_ref, 'pilot')
-  assert.equal(episodeAssemblyBundle.result.production_id, undefined)
-  assert.equal(episodeAssemblyBundle.result.preview_timeline.targetKind, 'timeline_assembly')
-  assert.equal(episodeAssemblyBundle.result.preview_timeline.scopeKind, 'episode')
-  assert.equal(episodeAssemblyBundle.result.preview_timeline.items.some((item) => item.itemType === 'timeline_namespace' && item.entity.id === 'opening'), true)
-  assert.equal(episodeAssemblyBundle.result.clips[0].contentUnitId, 'cu_rain_call')
-  assert.equal(episodeAssemblyBundle.result.edit_plan.target_kind, 'timeline_assembly')
-  assert.equal(episodeAssemblyBundle.result.edit_plan.scope_kind, 'episode')
-  assert.equal(episodeAssemblyBundle.result.edit_plan.productionId, undefined)
-  assert.equal(episodeAssemblyBundle.result.context.scope_kind, 'episode')
-  assert.equal(episodeAssemblyBundle.result.media_editing_project.source.productionId, undefined)
-  assert.equal(episodeAssemblyBundle.result.media_editing_project.source.scopeKind, 'episode')
-  assert.equal(episodeAssemblyBundle.result.media_editing_project.provenance.legacyTargetKind, undefined)
-
-  const missingAssembly = await postJSON(`${runtime.url}${EDITING_SERVICE_TIMELINE_VIEW_ENDPOINT}`, {
-    projectDir,
-    kind: 'timelineAssemblyBundle',
-    targetRef: 'timeline_assembly:episode:missing_episode',
-  })
-  assert.equal(missingAssembly.result.schema, 'movscript.timeline-assembly-bundle.v1')
-  assert.equal(missingAssembly.result.status, 'blocked')
-  assert.equal(missingAssembly.result.blockers[0].code, 'timeline_assembly_preview_timeline_missing')
 
   const unsupported = await fetch(`${runtime.url}${EDITING_SERVICE_TIMELINE_VIEW_ENDPOINT}`, {
     method: 'POST',
@@ -785,7 +575,7 @@ test('editing-service validates task request bodies', async () => {
     body: JSON.stringify({ taskType: 'media_transcode', input: { source: { id: 'source' } } }),
   })
   assert.equal(missingProject.status, 400)
-  assert.match((await missingProject.json()).message, /projectId is required/)
+  assert.match((await missingProject.json()).message, /mediaProjectId is required/)
 })
 
 test('editing-service builds media pipeline task actions', async () => {

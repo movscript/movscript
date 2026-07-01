@@ -17,7 +17,6 @@ export {
   createMediaEditingProjectService,
   clipFitsTrackType,
   createMediaEditingProjectFromProductionTimelineClips,
-  createMediaEditingProjectFromTimelineAssemblyClips,
   mediaTimelineIsValid,
   MediaEditingProjectService,
   normalizeMediaClipVolumePercent,
@@ -38,7 +37,6 @@ export {
   type MediaEditingProjectSourceKind,
   type MediaProductionTimelineClip,
   type MediaProductionTimelineProjectOptions,
-  type MediaTimelineAssemblyProjectOptions,
   type MediaTimelineCommand,
   type MediaTimelineCommandType,
   type MediaTimelineDiagnostic,
@@ -51,27 +49,6 @@ export {
   type TextSpec,
   type TransitionSpec,
 } from './media-project.js'
-
-export {
-  compileTimelineAssemblyToFinishingProject,
-  compileTimelineAssemblyToMediaEditingProject,
-  createTimelineAssemblyCompileManifest,
-  type TimelineAssemblyCompileBackend,
-  type TimelineAssemblyCompileDiagnostic,
-  type TimelineAssemblyCompileManifest,
-  type TimelineAssemblyCompileManifestInput,
-  type TimelineAssemblyCompileRenderSettings,
-  type TimelineAssemblyCompileSeverity,
-  type TimelineAssemblyCompileStatus,
-  type TimelineAssemblyFinishingBackend,
-  type TimelineAssemblyFinishingCompileInput,
-  type TimelineAssemblyFinishingCompileResult,
-  type TimelineAssemblyFinishingProject,
-  type TimelineAssemblyFinishingProjectAdapter,
-  type TimelineAssemblyFinishingProjectFile,
-  type TimelineAssemblyMediaEditingCompileInput,
-  type TimelineAssemblyMediaEditingCompileResult,
-} from './compile-manifest.js'
 
 export {
   createMediaEditingProjectFromEditDecisions,
@@ -133,11 +110,16 @@ export const MEDIA_PIPELINE_CAPABILITIES_ENDPOINT = '/v1/media-pipeline/capabili
 export const MEDIA_PIPELINE_PROBE_ENDPOINT = '/v1/media-pipeline/probe'
 export const MEDIA_PIPELINE_TASK_CREATE_ENDPOINT = '/v1/media-pipeline/task/create'
 export const MEDIA_PIPELINE_TASK_ACTION_ENDPOINT = '/v1/media-pipeline/task/action'
+export const MEDIA_PIPELINE_RESULT_REGISTER_ENDPOINT = '/v1/media-pipeline/results/register'
+export const MEDIA_PIPELINE_RESULT_GET_ENDPOINT = '/v1/media-pipeline/results/get'
+export const MEDIA_PIPELINE_RESULT_LIST_ENDPOINT = '/v1/media-pipeline/results/list'
+export const MEDIA_PIPELINE_RESULT_WATCH_CREATE_ENDPOINT = '/v1/media-pipeline/results/watch/create'
+export const MEDIA_PIPELINE_RESULT_WATCH_GET_ENDPOINT = '/v1/media-pipeline/results/watch/get'
+export const MEDIA_PIPELINE_RESULT_WATCH_LIST_ENDPOINT = '/v1/media-pipeline/results/watch/list'
+export const MEDIA_PIPELINE_RESULT_WATCH_CANCEL_ENDPOINT = '/v1/media-pipeline/results/watch/cancel'
 
 export type EditingServiceProjectCommandName =
   | 'createProject'
-  | 'createProjectFromEditPlan'
-  | 'createProjectFromEditDecisions'
   | 'createProjectFromPreviewTimeline'
   | 'saveProject'
   | 'getProject'
@@ -171,7 +153,6 @@ export type EditingServiceTimelineViewKind =
   | 'previewTimeline'
   | 'sceneMomentEditPlan'
   | 'sceneMomentTimelineBundle'
-  | 'timelineAssemblyBundle'
   | 'productionTimelineBundle'
 
 export interface EditingServiceTimelineViewRequest {
@@ -277,6 +258,10 @@ export interface MediaPipelineProbeResponse {
     code?: string
     error?: string
   }
+  backendProjectRender?: Record<string, unknown>
+  backend_project_render?: Record<string, unknown>
+  backendProjectPreview?: Record<string, unknown>
+  backend_project_preview?: Record<string, unknown>
 }
 
 export interface MediaPipelineTaskCreateRequest {
@@ -303,6 +288,216 @@ export interface MediaPipelineTaskActionResponse {
   action: MediaPipelineTaskActionName
   task?: EditingMediaPipelineTaskState | null
   logs?: EditingRuntimeTaskLogs
+}
+
+export interface MediaPipelineResultRecord {
+  schema: 'movscript.media-pipeline-result.v1'
+  resultId: string
+  result_id: string
+  projectId?: string
+  project_id?: string
+  taskId?: string
+  task_id?: string
+  backend: string
+  kind: string
+  outputKind: string
+  output_kind: string
+  status: string
+  source?: string
+  outputPath?: string
+  output_path?: string
+  outputName?: string
+  output_name?: string
+  hlsManifestPath?: string
+  hls_manifest_path?: string
+  hlsDirectory?: string
+  hls_directory?: string
+  hlsSegmentPaths?: string[]
+  hls_segment_paths?: string[]
+  hlsVariants?: unknown[]
+  hls_variants?: unknown[]
+  resourceId?: string | number
+  resource_id?: string | number
+  streamId?: string | number
+  stream_id?: string | number
+  candidateId?: string | number
+  candidate_id?: string | number
+  artifacts?: unknown[]
+  provenance?: Record<string, unknown>
+  metadata?: Record<string, unknown>
+  createdAt: string
+  created_at: string
+  updatedAt: string
+  updated_at: string
+}
+
+export interface MediaPipelineResultRegisterRequest {
+  result?: Partial<MediaPipelineResultRecord> & Record<string, unknown>
+  [key: string]: unknown
+}
+
+export interface MediaPipelineResultRegisterResponse {
+  schema: 'movscript.media-pipeline-result-register.v1'
+  status: 'registered'
+  result: MediaPipelineResultRecord
+}
+
+export interface MediaPipelineResultGetRequest {
+  resultId?: string
+  result_id?: string
+}
+
+export interface MediaPipelineResultGetResponse {
+  schema: 'movscript.media-pipeline-result-get.v1'
+  status: 'found' | 'not_found'
+  result: MediaPipelineResultRecord | null
+}
+
+export interface MediaPipelineResultListRequest {
+  filter?: {
+    projectId?: string
+    project_id?: string
+    taskId?: string
+    task_id?: string
+    backend?: string
+    kind?: string
+    outputKind?: string
+    output_kind?: string
+    status?: string
+    limit?: number
+  }
+  projectId?: string
+  project_id?: string
+  taskId?: string
+  task_id?: string
+  backend?: string
+  kind?: string
+  outputKind?: string
+  output_kind?: string
+  status?: string
+  limit?: number
+}
+
+export interface MediaPipelineResultListResponse {
+  schema: 'movscript.media-pipeline-result-list.v1'
+  status: 'ok'
+  results: MediaPipelineResultRecord[]
+  count: number
+}
+
+export interface MediaPipelineResultWatchRecord {
+  schema: 'movscript.media-pipeline-result-watch.v1'
+  watchId: string
+  watch_id: string
+  projectId?: string
+  project_id?: string
+  taskId?: string
+  task_id?: string
+  resultId?: string
+  result_id?: string
+  backend: 'external_nle'
+  status: 'watching' | 'succeeded' | 'canceled' | 'failed'
+  outputDirectory?: string
+  output_directory?: string
+  outputPath?: string
+  output_path?: string
+  hlsManifestPath?: string
+  hls_manifest_path?: string
+  hlsDirectory?: string
+  hls_directory?: string
+  hlsSegmentPaths?: string[]
+  hls_segment_paths?: string[]
+  exchangeProjectPath?: string
+  exchange_project_path?: string
+  externalApp?: string
+  external_app?: string
+  reviewer?: string
+  reviewStatus?: string
+  review_status?: string
+  outputKind?: string
+  output_kind?: string
+  pollIntervalMs: number
+  poll_interval_ms: number
+  timeoutMs?: number
+  timeout_ms?: number
+  attempts: number
+  detected?: Record<string, unknown>
+  result?: MediaPipelineResultRecord
+  error?: {
+    code?: string
+    message?: string
+  } & Record<string, unknown>
+  provenance?: Record<string, unknown>
+  metadata?: Record<string, unknown>
+  createdAt: string
+  created_at: string
+  updatedAt: string
+  updated_at: string
+  completedAt?: string
+  completed_at?: string
+}
+
+export interface MediaPipelineResultWatchCreateRequest {
+  watch?: Partial<MediaPipelineResultWatchRecord> & Record<string, unknown>
+  [key: string]: unknown
+}
+
+export interface MediaPipelineResultWatchCreateResponse {
+  schema: 'movscript.media-pipeline-result-watch-create.v1'
+  status: 'watching' | 'succeeded'
+  watch: MediaPipelineResultWatchRecord
+}
+
+export interface MediaPipelineResultWatchGetRequest {
+  watchId?: string
+  watch_id?: string
+}
+
+export interface MediaPipelineResultWatchGetResponse {
+  schema: 'movscript.media-pipeline-result-watch-get.v1'
+  status: 'found' | 'not_found'
+  watch: MediaPipelineResultWatchRecord | null
+}
+
+export interface MediaPipelineResultWatchListRequest {
+  filter?: {
+    projectId?: string
+    project_id?: string
+    taskId?: string
+    task_id?: string
+    resultId?: string
+    result_id?: string
+    backend?: string
+    status?: string
+    limit?: number
+  }
+  projectId?: string
+  project_id?: string
+  taskId?: string
+  task_id?: string
+  resultId?: string
+  result_id?: string
+  backend?: string
+  status?: string
+  limit?: number
+}
+
+export interface MediaPipelineResultWatchListResponse {
+  schema: 'movscript.media-pipeline-result-watch-list.v1'
+  status: 'ok'
+  watches: MediaPipelineResultWatchRecord[]
+  count: number
+}
+
+export interface MediaPipelineResultWatchCancelRequest {
+  watchId?: string
+  watch_id?: string
+}
+
+export interface MediaPipelineResultWatchCancelResponse {
+  schema: 'movscript.media-pipeline-result-watch-cancel.v1'
+  status: 'canceled' | 'not_found'
+  watch: MediaPipelineResultWatchRecord | null
 }
 
 export interface EditingServiceClientOptions {
@@ -447,6 +642,55 @@ export class MediaPipelineServiceClient {
       taskId: request.taskId,
       ...(request.options ? { options: request.options } : {}),
     }, signal)
+  }
+
+  async registerResult(
+    request: MediaPipelineResultRegisterRequest,
+    signal?: AbortSignal,
+  ): Promise<MediaPipelineResultRegisterResponse> {
+    return this.request('POST', MEDIA_PIPELINE_RESULT_REGISTER_ENDPOINT, request, signal)
+  }
+
+  async getResult(
+    request: MediaPipelineResultGetRequest,
+    signal?: AbortSignal,
+  ): Promise<MediaPipelineResultGetResponse> {
+    return this.request('POST', MEDIA_PIPELINE_RESULT_GET_ENDPOINT, request, signal)
+  }
+
+  async listResults(
+    request: MediaPipelineResultListRequest = {},
+    signal?: AbortSignal,
+  ): Promise<MediaPipelineResultListResponse> {
+    return this.request('POST', MEDIA_PIPELINE_RESULT_LIST_ENDPOINT, request, signal)
+  }
+
+  async createResultWatch(
+    request: MediaPipelineResultWatchCreateRequest,
+    signal?: AbortSignal,
+  ): Promise<MediaPipelineResultWatchCreateResponse> {
+    return this.request('POST', MEDIA_PIPELINE_RESULT_WATCH_CREATE_ENDPOINT, request, signal)
+  }
+
+  async getResultWatch(
+    request: MediaPipelineResultWatchGetRequest,
+    signal?: AbortSignal,
+  ): Promise<MediaPipelineResultWatchGetResponse> {
+    return this.request('POST', MEDIA_PIPELINE_RESULT_WATCH_GET_ENDPOINT, request, signal)
+  }
+
+  async listResultWatches(
+    request: MediaPipelineResultWatchListRequest = {},
+    signal?: AbortSignal,
+  ): Promise<MediaPipelineResultWatchListResponse> {
+    return this.request('POST', MEDIA_PIPELINE_RESULT_WATCH_LIST_ENDPOINT, request, signal)
+  }
+
+  async cancelResultWatch(
+    request: MediaPipelineResultWatchCancelRequest,
+    signal?: AbortSignal,
+  ): Promise<MediaPipelineResultWatchCancelResponse> {
+    return this.request('POST', MEDIA_PIPELINE_RESULT_WATCH_CANCEL_ENDPOINT, request, signal)
   }
 
   private async request<T>(method: 'GET' | 'POST', path: string, body?: unknown, signal?: AbortSignal): Promise<T> {

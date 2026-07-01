@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { basename, resolve } from 'node:path'
+import { existsSync, lstatSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { basename, isAbsolute, resolve } from 'node:path'
 import {
   createScenarioApplicationRunner,
   type ProgramAdapter,
@@ -49,11 +49,16 @@ function errorMessage(error: unknown): string {
 }
 
 function currentPluginIdentity(): { pluginVersion: string; pluginRoot: string } {
+  return pluginIdentityForRoot(PLUGIN_ROOT)
+}
+
+function pluginIdentityForRoot(pluginRoot: string): { pluginVersion: string; pluginRoot: string } {
   return {
-    pluginVersion: readPluginVersion(resolve(PLUGIN_ROOT, 'manifest.runtime.json'))
-      ?? readPluginVersion(resolve(PLUGIN_ROOT, '.codex-plugin/plugin.json'))
+    pluginVersion: readPluginVersion(resolve(pluginRoot, 'manifest.runtime.json'))
+      ?? readPluginVersion(resolve(pluginRoot, '.codex-plugin/plugin.json'))
+      ?? readPluginVersion(resolve(pluginRoot, '.provider-plugin/plugin.json'))
       ?? 'unknown',
-    pluginRoot: PLUGIN_ROOT,
+    pluginRoot,
   }
 }
 
@@ -74,15 +79,15 @@ async function main(): Promise<void> {
     return
   }
 
-  await runEmbeddedMovcli([process.argv[0] ?? 'node', 'movscript', ...process.argv.slice(2)])
+  await runEmbeddedMovScriptCli([process.argv[0] ?? 'node', 'movscript', ...process.argv.slice(2)])
 }
 
-async function runEmbeddedMovcli(argv: string[]): Promise<void> {
+async function runEmbeddedMovScriptCli(argv: string[]): Promise<void> {
   const previousEmbedded = process.env.MOVSCRIPT_CLI_EMBEDDED
   process.env.MOVSCRIPT_CLI_EMBEDDED = '1'
   try {
-    const { runMovcli } = await import('@movscript/cli')
-    await runMovcli(argv)
+    const { runMovScriptCli } = await import('@movscript/cli')
+    await runMovScriptCli(argv)
   } finally {
     if (previousEmbedded === undefined) delete process.env.MOVSCRIPT_CLI_EMBEDDED
     else process.env.MOVSCRIPT_CLI_EMBEDDED = previousEmbedded
@@ -154,14 +159,6 @@ async function runLocalDaemonCLI(): Promise<boolean> {
     await runPersistentLocalNode()
     return true
   }
-  if (command === '__movscript_movcli') {
-    if (subcommand === 'daemon' || subcommand === 'local-node') {
-      await runLocalDaemonCommand(subcommand, rawArgs.slice(2))
-      return true
-    }
-    await runEmbeddedMovcli([process.argv[0] ?? 'node', 'movcli', ...rawArgs.slice(1)])
-    return true
-  }
   if (command === 'cli') {
     const [cliCommand, ...cliArgs] = rawArgs.slice(1)
     if (!cliCommand || cliCommand === '--help' || cliCommand === '-h' || cliCommand === 'help') {
@@ -169,7 +166,7 @@ async function runLocalDaemonCLI(): Promise<boolean> {
       return true
     }
     if (cliCommand !== 'daemon' && cliCommand !== 'local-node') {
-      await runEmbeddedMovcli([process.argv[0] ?? 'node', 'movcli', ...rawArgs.slice(1)])
+      await runEmbeddedMovScriptCli([process.argv[0] ?? 'node', 'movscript', ...rawArgs.slice(1)])
       return true
     }
     await runLocalDaemonCommand(cliCommand, cliArgs)
@@ -237,6 +234,7 @@ interface LocalDaemonCLIOptions {
   json?: boolean
   projectDir?: string
   remember?: boolean
+  startupTimeoutMs?: number
   token?: string
   workspaceDir?: string
 }
@@ -289,6 +287,12 @@ function parseLocalDaemonArgs(command: string, rawArgs: string[]): { subcommand:
     }
     if (arg === '--idle-timeout' || arg.startsWith('--idle-timeout=')) {
       options.idleTimeout = optionValue('--idle-timeout')
+      continue
+    }
+    if (arg === '--startup-timeout-ms' || arg.startsWith('--startup-timeout-ms=')) {
+      const value = Number(optionValue('--startup-timeout-ms'))
+      if (!Number.isFinite(value) || value <= 0) throw new Error(`${command} ${subcommand ?? 'start'} requires a positive number for --startup-timeout-ms`)
+      options.startupTimeoutMs = Math.floor(value)
       continue
     }
     if (arg === '--backend-mode' || arg.startsWith('--backend-mode=')) {
@@ -366,7 +370,6 @@ function printMovScriptCLIHelp(): void {
     '',
     'Compatibility:',
     '  movscript-agent-mcp        # same as movscript mcp stdio',
-    '  movcli ...                 # same command runner, legacy name',
     '',
   ].join('\n'))
 }
@@ -381,6 +384,7 @@ function printLocalDaemonHelp(command: string): void {
     '  --data-plane <local|cloud|external>',
     '  --data-service-url <url>        Cloud or external Data Service URL',
     '  --idle-timeout <duration>       Idle shutdown timeout, for example 30m or never',
+    '  --startup-timeout-ms <ms>       Startup readiness timeout in milliseconds',
     '  --backend-mode <local|cloud>    Runtime backend mode for configure',
     '  --backend-base-url <url>        Runtime backend/gateway URL for configure',
     '  --workspace <dir>               Workspace root for configure',
@@ -406,14 +410,146 @@ async function ensureLocalNode(
   homeDir: string,
   options: LocalDaemonCLIOptions = {},
 ): Promise<Record<string, unknown>> {
-  return await ensureLocalRuntimeDaemon({
-    homeDir,
-    entrypoint: AGENT_MCP_ENTRYPOINT,
-    runArgs: ['daemon', 'run'],
-    cwd: RUN_CWD,
-    env: localDaemonEnvFromOptions(options),
-    identity: currentPluginIdentity(),
+  const env = localDaemonEnvFromOptions(options)
+  const startupTimeoutMs = options.startupTimeoutMs
+  try {
+    return await ensureLocalRuntimeDaemon({
+      homeDir,
+      entrypoint: AGENT_MCP_ENTRYPOINT,
+      runArgs: ['daemon', 'run'],
+      cwd: RUN_CWD,
+      env,
+      identity: currentPluginIdentity(),
+      startupTimeoutMs,
+    })
+  } catch (error) {
+    const rollback = rollbackCurrentPluginForStartupFailure(homeDir, error)
+    if (!rollback.rolledBack) throw error
+    const previousEntrypoint = resolve(rollback.previousRoot, 'bin/movscript.mjs')
+    if (!existsSync(previousEntrypoint)) {
+      throw new Error(`MovScript local daemon startup failed, plugin rollback switched current to ${rollback.previousRoot}, but previous entrypoint is missing: ${previousEntrypoint}; original error: ${errorMessage(error)}`)
+    }
+    try {
+      const result = await ensureLocalRuntimeDaemon({
+        homeDir,
+        entrypoint: previousEntrypoint,
+        runArgs: ['daemon', 'run'],
+        cwd: pluginRunCwdForRoot(rollback.previousRoot),
+        env,
+        identity: pluginIdentityForRoot(rollback.previousRoot),
+        startupTimeoutMs,
+      })
+      return {
+        ...result,
+        rollback,
+      }
+    } catch (rollbackError) {
+      throw new Error(`MovScript local daemon startup failed for current plugin and rollback bundle; rollback=${JSON.stringify(rollback)}; original error: ${errorMessage(error)}; rollback error: ${errorMessage(rollbackError)}`)
+    }
+  }
+}
+
+function pluginRunCwdForRoot(pluginRoot: string): string {
+  return existsSync(resolve(pluginRoot, 'runtime')) ? pluginRoot : DEV_REPO_ROOT
+}
+
+type PluginStartupRollbackResult =
+  | { rolledBack: false; reason: string }
+  | {
+    rolledBack: true
+    reason: 'daemon_startup_failure'
+    failedRoot: string
+    previousRoot: string
+    previousVersion: string
+    identityPath: string
+  }
+
+function rollbackCurrentPluginForStartupFailure(homeDir: string, error: unknown): PluginStartupRollbackResult {
+  if (!pluginStartupFailureRollbackEnabled()) return { rolledBack: false, reason: 'disabled' }
+  const pluginStore = resolve(homeDir, 'plugins/movscript')
+  const currentLink = resolve(pluginStore, 'current')
+  const previousLink = resolve(pluginStore, 'previous')
+  const currentRoot = pluginPointerTarget(currentLink, pluginStore)
+  const previousRoot = pluginPointerTarget(previousLink, pluginStore)
+  if (!currentRoot) return { rolledBack: false, reason: 'current_pointer_missing' }
+  if (!previousRoot) return { rolledBack: false, reason: 'previous_pointer_missing' }
+  if (!sameDirectory(currentRoot, PLUGIN_ROOT)) return { rolledBack: false, reason: 'current_pointer_does_not_match_running_plugin' }
+  if (sameDirectory(previousRoot, currentRoot)) return { rolledBack: false, reason: 'previous_matches_current' }
+  if (!existsSync(previousRoot)) return { rolledBack: false, reason: 'previous_bundle_missing' }
+
+  switchPluginPointer(currentLink, previousRoot)
+  switchPluginPointer(previousLink, currentRoot)
+  const identityPath = writePluginBundleIdentity({
+    pluginStore,
+    targetRoot: previousRoot,
+    version: pluginIdentityForRoot(previousRoot).pluginVersion,
+    previousRoot: currentRoot,
+    reason: 'auto-rollback-daemon-startup-failure',
+    error,
   })
+  return {
+    rolledBack: true,
+    reason: 'daemon_startup_failure',
+    failedRoot: currentRoot,
+    previousRoot,
+    previousVersion: pluginIdentityForRoot(previousRoot).pluginVersion,
+    identityPath,
+  }
+}
+
+function pluginStartupFailureRollbackEnabled(): boolean {
+  const raw = process.env.MOVSCRIPT_PLUGIN_ROLLBACK_ON_DAEMON_START_FAILURE?.trim().toLowerCase()
+  return raw !== '0' && raw !== 'false' && raw !== 'off'
+}
+
+function pluginPointerTarget(linkPath: string, pluginStore: string): string | undefined {
+  try {
+    if (!lstatSync(linkPath).isSymbolicLink()) return undefined
+    const target = readlinkSync(linkPath)
+    return isAbsolute(target) ? target : resolve(pluginStore, target)
+  } catch {
+    return undefined
+  }
+}
+
+function switchPluginPointer(linkPath: string, targetRoot: string): void {
+  const tmpLink = `${linkPath}.next.${process.pid}.${Date.now()}`
+  rmSync(tmpLink, { force: true })
+  symlinkSync(targetRoot, tmpLink, process.platform === 'win32' ? 'junction' : 'dir')
+  rmSync(linkPath, { force: true })
+  renameSync(tmpLink, linkPath)
+}
+
+function sameDirectory(left: string, right: string): boolean {
+  try {
+    return realpathSync(left) === realpathSync(right)
+  } catch {
+    return resolve(left) === resolve(right)
+  }
+}
+
+function writePluginBundleIdentity(input: {
+  pluginStore: string
+  targetRoot: string
+  version: string
+  previousRoot: string
+  reason: string
+  error: unknown
+}): string {
+  const identityPath = resolve(input.pluginStore, 'current.identity')
+  const content = [
+    'schema=movscript.agent-plugin-bundle.v1',
+    `version=${input.version}`,
+    `pluginRoot=${input.targetRoot}`,
+    `currentLink=${resolve(input.pluginStore, 'current')}`,
+    `previousRoot=${input.previousRoot}`,
+    `installedAt=${new Date().toISOString()}`,
+    `reason=${input.reason}`,
+    `startupError=${errorMessage(input.error).replace(/\r?\n/g, ' ')}`,
+    '',
+  ].join('\n')
+  writeFileSync(identityPath, content, 'utf8')
+  return identityPath
 }
 
 function isLegacyAgentMCPInvocation(): boolean {

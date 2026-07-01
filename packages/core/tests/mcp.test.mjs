@@ -268,7 +268,7 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
     route: { pathname: '/projects/42', search: '?workspaceId=secret&tab=timeline', hash: '#edit' },
     project: { id: 42, name: 'Demo Project' },
     productionId: 'prod-1',
-    selection: { entityKind: 'timeline_assembly', label: 'Cut v1' },
+    selection: { entityKind: 'production', label: 'Cut v1' },
     updatedAt: '2026-06-29T00:00:00.000Z',
   })
   const currentContext = await callTool('context_current_get', {})
@@ -333,6 +333,15 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(tools.includes('domain_append_candidate'))
   assert.ok(tools.includes('domain_create_asset_slot_candidate'))
   assert.ok(tools.includes('domain_create_keyframe_candidate'))
+  assert.ok(tools.includes('domain_select_candidate'))
+  assert.ok(tools.includes('domain_update_candidate'))
+  assert.ok(tools.includes('domain_unlock_candidate'))
+  assert.match(String(toolsByName.get('domain_append_candidate')?.description), /Migration-only temporary fallback/)
+  assert.match(String(toolsByName.get('domain_create_asset_slot_candidate')?.description), /Migration-only temporary fallback/)
+  assert.match(String(toolsByName.get('domain_create_keyframe_candidate')?.description), /Migration-only temporary fallback/)
+  assert.match(String(toolsByName.get('domain_select_candidate')?.description), /Migration-only temporary fallback/)
+  assert.match(String(toolsByName.get('domain_update_candidate')?.description), /Migration-only temporary fallback/)
+  assert.match(String(toolsByName.get('domain_unlock_candidate')?.description), /Migration-only temporary fallback/)
   assert.ok(tools.includes('domain_create_content_candidate'))
   assert.ok(tools.includes('domain_register_raw_resource_as_content_unit_candidate'))
   assert.ok(tools.includes('domain_create_content_candidate_batch'))
@@ -444,12 +453,16 @@ test('MCP local project tools initialize and fetch a path-bound project', async 
         arguments: {
           projectDir,
           title: 'Loose Path Project',
+          localProjectId: 'loose_path_project',
         },
       },
     })
 
     assert.equal(initResponse?.error, undefined)
     assert.equal(initResponse?.result?.data?.status, 'created')
+    assert.equal(initResponse?.result?.data?.localProjectId, 'loose_path_project')
+    assert.equal(initResponse?.result?.data?.local_project_id, 'loose_path_project')
+    assert.equal(initResponse?.result?.data?.projectId, 'loose_path_project')
     assert.equal(initResponse?.result?.data?.projectDir, projectDir)
     assert.match(initResponse?.result?.data?.projectUid ?? '', /^prj_/)
     assert.equal(initResponse?.result?.data?.backendProject?.project_uid, initResponse?.result?.data?.projectUid)
@@ -457,7 +470,9 @@ test('MCP local project tools initialize and fetch a path-bound project', async 
     assert.equal(initResponse?.result?.data?.locator?.projectDir, projectDir)
     assert.equal(initResponse?.result?.data?.locator?.projectUid, initResponse?.result?.data?.projectUid)
     assert.equal(existsSync(join(projectDir, 'workspace.json')), true)
-    assert.equal(JSON.parse(readFileSync(join(projectDir, 'workspace.json'), 'utf8')).project_uid, initResponse?.result?.data?.projectUid)
+    const workspaceJson = JSON.parse(readFileSync(join(projectDir, 'workspace.json'), 'utf8'))
+    assert.equal(workspaceJson.project_uid, initResponse?.result?.data?.projectUid)
+    assert.equal(workspaceJson.project_id, 'loose_path_project')
     assert.equal(JSON.parse(readFileSync(join(projectDir, 'project.json'), 'utf8')).title, 'Loose Path Project')
 
     const fetchResponse = await handleJSONRPC({
@@ -595,6 +610,9 @@ test('MCP domain asset certification registers selected asset resource and write
     globalThis.fetch = async (input, init = {}) => {
       const bound = mockProjectBindingResponse(input, init)
       if (bound) return bound
+      if (projectServiceRuntime?.url && String(input).startsWith(projectServiceRuntime.url)) {
+        return originalFetch(input, init)
+      }
       const url = new URL(String(input))
       const body = typeof init.body === 'string' && init.body ? JSON.parse(init.body) : {}
       if (url.pathname.endsWith('/decisions/query') && init.method === 'POST') {
@@ -641,7 +659,7 @@ test('MCP domain asset certification registers selected asset resource and write
 
     const result = await callTool('domain_certify_asset_provider', {
       projectDir,
-      projectId: 'prj_asset_certification',
+      providerScopeId: 'prj_asset_certification',
       assetId: 'wet_hair',
       resourceId: 101,
       source_url: 'https://cdn.example.test/wet-hair.png',
@@ -983,124 +1001,156 @@ test('MCP content candidate schemas expose status enum and default guidance', ()
   assert.match(registerTool.description ?? '', /RawResource as a content-unit candidate/)
 })
 
-test('MCP content unit schema guidance keeps namespace scopes behind timeline assemblies', () => {
+test('MCP content unit schema guidance routes namespace playback to production editing workspaces', () => {
   const tools = listTools()
   const contentUnitTool = tools.find((tool) => tool.name === 'domain_upsert_content_unit')
   assert.ok(contentUnitTool, 'domain_upsert_content_unit schema should be exposed')
-  assert.match(contentUnitTool.description ?? '', /timeline_assembly_ref/)
-  assert.match(contentUnitTool.description ?? '', /target_ref=timeline_assembly:<scopeKind>:<scopeRef>/)
-  assert.match(contentUnitTool.description ?? '', /do not invent episode_ref, beat_ref/)
+  assert.match(contentUnitTool.description ?? '', /system primitives/)
+  assert.match(contentUnitTool.description ?? '', /production editing workspace/)
+  assert.doesNotMatch(contentUnitTool.description ?? '', /timeline_assembly_ref/)
 
   const productionTreeTool = tools.find((tool) => tool.name === 'domain_upsert_production_tree')
   assert.ok(productionTreeTool, 'domain_upsert_production_tree schema should be exposed')
-  assert.match(productionTreeTool.description ?? '', /legacy production-projection tree/)
-  assert.match(productionTreeTool.description ?? '', /prefer explicit timeline_assembly_ref/)
+  assert.match(productionTreeTool.description ?? '', /production story tree/)
+  assert.match(productionTreeTool.description ?? '', /production editing workspace/)
+  assert.doesNotMatch(productionTreeTool.description ?? '', /timeline_assembly_ref/)
 
   const timelineNamespaceTreeTool = tools.find((tool) => tool.name === 'domain_upsert_timeline_namespace_tree')
   assert.ok(timelineNamespaceTreeTool, 'domain_upsert_timeline_namespace_tree schema should be exposed')
   assert.match(timelineNamespaceTreeTool.description ?? '', /path-first timeline namespace tree/)
   assert.match(timelineNamespaceTreeTool.description ?? '', /instance parent-child structure comes from targetPath/)
-  assert.match(timelineNamespaceTreeTool.description ?? '', /must not carry content-unit refs/)
+  assert.match(timelineNamespaceTreeTool.description ?? '', /story structure only/)
+  assert.match(timelineNamespaceTreeTool.description ?? '', /production editing workspace/)
 })
 
-test('MCP domain_upsert_content_unit writes timeline assembly refs from scope fields', async () => {
+test('MCP domain_upsert_production allocates production id from title when omitted', async () => {
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-mcp-production-id-'))
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = async (input, init) => mockProjectBindingResponse(input, init) ?? previousFetch(input, init)
+  try {
+    await writeTestProjectManifest(projectDir, 'prj_mcp_production_id', 'MCP Production ID')
+
+    const result = await callTool('domain_upsert_production', {
+      projectDir,
+      production: { title: 'Trailer Cut' },
+    })
+
+    assert.equal(result.productionId, 'trailer_cut')
+    assert.equal(result.productionPath, 'productions/trailer_cut/production.json')
+
+    const written = JSON.parse(await readFile(join(projectDir, 'productions/trailer_cut/production.json'), 'utf8'))
+    assert.equal(written.id, 'trailer_cut')
+    assert.equal(written.title, 'Trailer Cut')
+  } finally {
+    globalThis.fetch = previousFetch
+    await rm(projectDir, { recursive: true, force: true })
+  }
+})
+
+test('MCP domain_upsert_content_unit rejects removed namespace playback refs', async () => {
   const projectDir = mkdtempSync(join(tmpdir(), 'movscript-mcp-assembly-'))
   const previousFetch = globalThis.fetch
   globalThis.fetch = async (input, init) => mockProjectBindingResponse(input, init) ?? previousFetch(input, init)
   try {
     await writeTestProjectManifest(projectDir, 'prj_mcp_assembly', 'MCP Assembly')
 
-    const result = await callTool('domain_upsert_content_unit', {
-      projectDir,
-      unit: {
-        id: 'cu_episode_01_cut',
-        title: 'Episode 01 cut',
-        contentUnitType: 'timeline_assembly_ref',
-        outputKind: 'video',
-        targetCategory: 'timeline_assembly',
-        scopeKind: 'episode',
-        scopeRef: 'episode_01',
-        editPrompt: { text: 'Assemble episode 01 from selected scene moments.' },
-      },
-    })
-
-    assert.equal(result.contentUnitPath, 'content_units/cu_episode_01_cut/content_unit.json')
-    assert.equal(result.record.content_unit_type, 'timeline_assembly_ref')
-    assert.equal(result.record.output_kind, 'video')
-    assert.equal(result.record.target_category, 'timeline_assembly')
-    assert.equal(result.record.target_kind, 'timeline_assembly')
-    assert.equal(result.record.target_ref, 'timeline_assembly:episode:episode_01')
-    assert.equal(result.record.scope_kind, 'episode')
-    assert.equal(result.record.scope_ref, 'episode_01')
-
-    const written = JSON.parse(await readFile(join(projectDir, result.contentUnitPath), 'utf8'))
-    assert.equal(written.target_ref, 'timeline_assembly:episode:episode_01')
+    await assert.rejects(
+      callTool('domain_upsert_content_unit', {
+        projectDir,
+        unit: {
+          id: 'cu_episode_01_cut',
+          title: 'Episode 01 cut',
+          contentUnitType: 'timeline_assembly_ref',
+          outputKind: 'video',
+          targetCategory: 'timeline_assembly',
+          scopeKind: 'episode',
+          scopeRef: 'episode_01',
+          editPrompt: { text: 'Assemble episode 01 from selected scene moments.' },
+        },
+      }),
+      /production_editing_workspace_create\/open/,
+    )
   } finally {
     globalThis.fetch = previousFetch
     await rm(projectDir, { recursive: true, force: true })
   }
 })
 
-test('MCP production tree preserves explicit timeline assembly content units', async () => {
+test('MCP production tree rejects explicit namespace playback content units', async () => {
   const projectDir = mkdtempSync(join(tmpdir(), 'movscript-mcp-tree-assembly-'))
   const previousFetch = globalThis.fetch
   globalThis.fetch = async (input, init) => mockProjectBindingResponse(input, init) ?? previousFetch(input, init)
   try {
     await writeTestProjectManifest(projectDir, 'prj_mcp_tree_assembly', 'MCP Tree Assembly')
 
-    const result = await callTool('domain_upsert_production_tree', {
-      projectDir,
-      production: {
-        id: 'pilot',
-        title: 'Pilot',
-        namespace_kind: 'episode',
-      },
-      segments: [
-        {
-          segment: {
-            id: 'opening',
-            title: 'Opening',
-            namespace_kind: 'beat',
-            order: 1,
-          },
-          content_units: [
-            {
-              id: 'cu_opening_cut',
-              title: 'Opening cut',
-              content_unit_type: 'timeline_assembly_ref',
-              output_kind: 'video',
-              target_kind: 'timeline_assembly',
-              target_ref: 'timeline_assembly:beat:opening',
-              scope_kind: 'beat',
-              scope_ref: 'opening',
-              edit_prompt: { text: 'Assemble the opening beat.' },
-            },
-          ],
+    await assert.rejects(
+      callTool('domain_upsert_production_tree', {
+        projectDir,
+        production: {
+          id: 'pilot',
+          title: 'Pilot',
+          namespace_kind: 'episode',
         },
-      ],
-    })
-
-    assert.equal(result.segments[0]?.contentUnits[0]?.record?.content_unit_type, 'timeline_assembly_ref')
-    assert.equal(result.segments[0]?.contentUnits[0]?.record?.target_kind, 'timeline_assembly')
-    assert.equal(result.segments[0]?.contentUnits[0]?.record?.target_ref, 'timeline_assembly:beat:opening')
-    assert.equal(result.segments[0]?.contentUnits[0]?.record?.scope_kind, 'beat')
-    assert.equal(result.segments[0]?.contentUnits[0]?.record?.scope_ref, 'opening')
-    assert.equal(result.segments[0]?.contentUnits[0]?.record?.segment_ref, undefined)
-
-    const written = JSON.parse(await readFile(join(projectDir, 'content_units', 'cu_opening_cut', 'content_unit.json'), 'utf8'))
-    assert.equal(written.content_unit_type, 'timeline_assembly_ref')
-    assert.equal(written.target_kind, 'timeline_assembly')
-    assert.equal(written.target_ref, 'timeline_assembly:beat:opening')
-    assert.equal(written.scope_kind, 'beat')
-    assert.equal(written.scope_ref, 'opening')
-    assert.equal(written.segment_ref, undefined)
+        segments: [
+          {
+            segment: {
+              id: 'opening',
+              title: 'Opening',
+              namespace_kind: 'beat',
+              order: 1,
+            },
+            content_units: [
+              {
+                id: 'cu_opening_cut',
+                title: 'Opening cut',
+                content_unit_type: 'timeline_assembly_ref',
+                output_kind: 'video',
+                target_kind: 'timeline_assembly',
+                target_ref: 'timeline_assembly:beat:opening',
+                scope_kind: 'beat',
+                scope_ref: 'opening',
+                edit_prompt: { text: 'Assemble the opening beat.' },
+              },
+            ],
+          },
+        ],
+      }),
+      /production_editing_workspace_create\/open/,
+    )
   } finally {
     globalThis.fetch = previousFetch
     await rm(projectDir, { recursive: true, force: true })
   }
 })
 
-test('MCP timeline namespace tree writes path-first namespace nodes and assembly content units', async () => {
+test('MCP production tree reuses title-allocated production id for children', async () => {
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-mcp-tree-production-id-'))
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = async (input, init) => mockProjectBindingResponse(input, init) ?? previousFetch(input, init)
+  try {
+    await writeTestProjectManifest(projectDir, 'prj_mcp_tree_production_id', 'MCP Tree Production ID')
+
+    const result = await callTool('domain_upsert_production_tree', {
+      projectDir,
+      production: { title: 'Pilot Film' },
+      segments: [
+        { segment: { id: 'opening', title: 'Opening' } },
+      ],
+    })
+
+    assert.equal(result.production.productionId, 'pilot_film')
+    assert.equal(result.segments[0]?.segment?.productionPath, 'productions/pilot_film/production.json')
+
+    const segment = JSON.parse(await readFile(join(projectDir, 'productions/pilot_film/segments/opening/segment.json'), 'utf8'))
+    assert.equal(segment.id, 'opening')
+    assert.equal(segment.title, 'Opening')
+  } finally {
+    globalThis.fetch = previousFetch
+    await rm(projectDir, { recursive: true, force: true })
+  }
+})
+
+test('MCP timeline namespace tree writes path-first namespace nodes and primitive content units', async () => {
   const projectDir = mkdtempSync(join(tmpdir(), 'movscript-mcp-timeline-namespace-'))
   const previousFetch = globalThis.fetch
   globalThis.fetch = async (input, init) => mockProjectBindingResponse(input, init) ?? previousFetch(input, init)
@@ -1122,14 +1172,6 @@ test('MCP timeline namespace tree writes path-first namespace nodes and assembly
             title: 'Opening',
             order: 1,
             segment_ref: 'legacy_segment_ref',
-            content_units: [
-              {
-                id: 'cu_opening_assembly',
-                title: 'Opening assembly',
-                output_kind: 'video',
-                edit_prompt: { text: 'Assemble the selected moments for the opening beat.' },
-              },
-            ],
             scene_moments: [
               {
                 id: 'rain_call',
@@ -1204,12 +1246,7 @@ test('MCP timeline namespace tree writes path-first namespace nodes and assembly
     assert.ok(result.primitives.some((item) => item.targetPath === 'timeline/pilot/segments/opening/scene_moments/rain_call/expression_units/phone_closeup/expression_unit.json'))
     assert.ok(result.primitives.some((item) => item.targetPath === 'timeline/pilot/segments/opening/scene_moments/rain_call/expression_units/phone_closeup/keyframes/phone_first_frame/keyframe.json'))
     assert.ok(result.primitives.some((item) => item.targetPath === 'timeline/pilot/segments/opening/scene_moments/rain_call/audio_cues/phone_ring/audio_cue.json'))
-    assert.equal(result.contentUnits[0]?.record?.content_unit_type, 'timeline_assembly_ref')
-    assert.equal(result.contentUnits[0]?.record?.target_kind, 'timeline_assembly')
-    assert.equal(result.contentUnits[0]?.record?.target_ref, 'timeline_assembly:beat:opening')
-    assert.equal(result.contentUnits[0]?.record?.scope_kind, 'beat')
-    assert.equal(result.contentUnits[0]?.record?.scope_ref, 'opening')
-    assert.equal(result.contentUnits[0]?.record?.segment_ref, undefined)
+    assert.equal(result.contentUnits.some((item) => item.record?.content_unit_type === 'timeline_assembly_ref'), false)
 
     const root = JSON.parse(await readFile(join(projectDir, 'timeline', 'pilot', 'production.json'), 'utf8'))
     assert.equal(root.kind, 'production')
@@ -1242,15 +1279,6 @@ test('MCP timeline namespace tree writes path-first namespace nodes and assembly
     const audioCue = JSON.parse(await readFile(join(projectDir, 'timeline', 'pilot', 'segments', 'opening', 'scene_moments', 'rain_call', 'audio_cues', 'phone_ring', 'audio_cue.json'), 'utf8'))
     assert.equal(audioCue.kind, 'audio_cue')
     assert.equal(audioCue.cue_kind, 'sound_effect')
-
-    const contentUnit = JSON.parse(await readFile(join(projectDir, 'content_units', 'cu_opening_assembly', 'content_unit.json'), 'utf8'))
-    assert.equal(contentUnit.content_unit_type, 'timeline_assembly_ref')
-    assert.equal(contentUnit.target_kind, 'timeline_assembly')
-    assert.equal(contentUnit.target_ref, 'timeline_assembly:beat:opening')
-    assert.equal(contentUnit.scope_kind, 'beat')
-    assert.equal(contentUnit.scope_ref, 'opening')
-    assert.equal(contentUnit.production_ref, undefined)
-    assert.equal(contentUnit.segment_ref, undefined)
 
     const sceneContentUnit = JSON.parse(await readFile(join(projectDir, 'content_units', 'cu_rain_call_scene', 'content_unit.json'), 'utf8'))
     assert.equal(sceneContentUnit.content_unit_type, 'scene_moment_ref')
@@ -1564,10 +1592,9 @@ test('MCP production status summary exposes project timeline namespace projectio
       kind: 'content_unit',
       id: 'cu_opening_assembly',
       title: 'Opening Assembly',
-      content_unit_type: 'timeline_assembly_ref',
+      content_unit_type: 'segment_ref',
       output_kind: 'video',
-      target_kind: 'timeline_assembly',
-      target_ref: 'timeline_assembly:segment:opening',
+      segment_ref: 'opening',
       edit_prompt: { text: 'Compose the opening beat.' },
     }), 'utf8')
 
@@ -1582,13 +1609,8 @@ test('MCP production status summary exposes project timeline namespace projectio
     assert.equal(summary.project_timeline_status.timeline_namespace_count, 2)
     assert.equal(summary.project_timeline_status.timeline_namespaces.find((item) => item.id === 'pilot')?.kind, 'episode')
     assert.equal(summary.project_timeline_status.timeline_namespaces.find((item) => item.id === 'opening')?.kind, 'beat')
-    const assembly = summary.project_timeline_status.timeline_assemblies.find((item) => item.content_unit_id === 'cu_opening_assembly')
-    assert.equal(assembly?.target_kind, 'timeline_assembly')
-    assert.equal(assembly?.target_ref, 'timeline_assembly:segment:opening')
-    assert.equal(assembly?.scope?.category, 'timeline_namespace')
-    assert.equal(assembly?.scope?.kind, 'beat')
-    assert.equal(assembly?.scope?.id, 'opening')
-    assert.equal(summary.timeline_assemblies.find((item) => item.content_unit_id === 'cu_opening_assembly')?.scope?.kind, 'beat')
+    assert.equal(summary.project_timeline_status.timeline_assemblies, undefined)
+    assert.equal(summary.timeline_assemblies, undefined)
   } finally {
     updateMCPContextSnapshot(emptyMCPContextSnapshot())
     await rm(workspaceDir, { recursive: true, force: true })
@@ -1619,7 +1641,6 @@ test('MCP focus omits workspaceId from route search while preserving page focus 
     domainFocus: {
       projectId: '2',
       scope: { category: 'timeline_namespace', kind: 'episode', ref: 'episode_01' },
-      target: { targetCategory: 'timeline_assembly', targetKind: 'timeline_assembly', targetRef: 'timeline_assembly:episode:episode_01' },
       diagnostics: [],
     },
     selection: null,
@@ -1632,7 +1653,7 @@ test('MCP focus omits workspaceId from route search while preserving page focus 
   assert.equal(snapshot.route.search, '?view=review&asset_id=88&scopeKind=episode&scopeRef=episode_01')
   assert.equal(snapshot.project?.id, 2)
   assert.equal(snapshot.domainFocus?.scope?.kind, 'episode')
-  assert.equal(snapshot.domainFocus?.target?.targetKind, 'timeline_assembly')
+  assert.equal(snapshot.domainFocus?.target, undefined)
 })
 
 test('MCP focus returns an empty search when workspaceId is the only route query param', () => {
@@ -2324,7 +2345,7 @@ test('MCP image generation compatible mode maps unsupported aspect ratio to mode
     id: 41,
     model_id: 'volcengine:seedream-4-0',
     display_name: 'Seedream 4.0',
-    capabilities: ['image'],
+    capabilities: ['image_generation'],
     supported_params: [
       {
         key: 'image_size',
@@ -2349,15 +2370,6 @@ test('MCP image generation compatible mode maps unsupported aspect ratio to mode
       requests.push({ url, method: init?.method ?? 'GET' })
       if (url === 'http://movscript.test/api/v1/models?capability=image_generation&operation=text_to_image') {
         return new Response(JSON.stringify([seedream4]), { status: 200, headers: { 'content-type': 'application/json' } })
-      }
-      if (url === 'http://movscript.test/api/v1/models?capability=image_edit&operation=text_to_image') {
-        return new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })
-      }
-      if (url === 'http://movscript.test/api/v1/models?capability=image') {
-        return new Response(JSON.stringify([seedream4]), { status: 200, headers: { 'content-type': 'application/json' } })
-      }
-      if (url === 'http://movscript.test/api/v1/models?capability=image_edit') {
-        return new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })
       }
       if (url === 'http://movscript.test/api/v1/jobs') {
         assert.equal(init?.method, 'POST')
@@ -2389,7 +2401,6 @@ test('MCP image generation compatible mode maps unsupported aspect ratio to mode
     assert.ok(result.param_audit.some((item) => item.key === 'aspect_ratio' && item.reason === 'dropped_unsupported_parameter'))
     assert.deepEqual(requests.map((item) => `${item.method} ${item.url}`), [
       'GET http://movscript.test/api/v1/models?capability=image_generation&operation=text_to_image',
-      'GET http://movscript.test/api/v1/models?capability=image_edit&operation=text_to_image',
       'POST http://movscript.test/api/v1/jobs',
     ])
   } finally {
@@ -2407,7 +2418,7 @@ test('MCP low-level image generation can submit without project binding', async 
     id: 41,
     model_id: 'gpt-image-2',
     display_name: 'GPT Image 2',
-    capabilities: ['image'],
+    capabilities: ['image_generation'],
     supported_params: [
       { key: 'image_size', type: 'select', options: ['1024x1024'], default: '1024x1024' },
       { key: 'quality', type: 'select', options: ['auto', 'low'], default: 'auto' },
@@ -2419,15 +2430,6 @@ test('MCP low-level image generation can submit without project binding', async 
       const url = String(input)
       if (url === 'http://movscript.test/api/v1/models?capability=image_generation&operation=text_to_image') {
         return new Response(JSON.stringify([model]), { status: 200, headers: { 'content-type': 'application/json' } })
-      }
-      if (url === 'http://movscript.test/api/v1/models?capability=image_edit&operation=text_to_image') {
-        return new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })
-      }
-      if (url === 'http://movscript.test/api/v1/models?capability=image') {
-        return new Response(JSON.stringify([model]), { status: 200, headers: { 'content-type': 'application/json' } })
-      }
-      if (url === 'http://movscript.test/api/v1/models?capability=image_edit') {
-        return new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })
       }
       if (url === 'http://movscript.test/api/v1/jobs') {
         assert.equal(init?.method, 'POST')
@@ -2467,7 +2469,7 @@ test('MCP image generation strict mode rejects explicit unsupported params befor
     id: 41,
     model_id: 'volcengine:seedream-4-0',
     display_name: 'Seedream 4.0',
-    capabilities: ['image'],
+    capabilities: ['image_generation'],
     supported_params: [
       {
         key: 'image_size',
@@ -2486,15 +2488,6 @@ test('MCP image generation strict mode rejects explicit unsupported params befor
       const url = String(input)
       if (url === 'http://movscript.test/api/v1/models?capability=image_generation&operation=text_to_image') {
         return new Response(JSON.stringify([seedream4]), { status: 200, headers: { 'content-type': 'application/json' } })
-      }
-      if (url === 'http://movscript.test/api/v1/models?capability=image_edit&operation=text_to_image') {
-        return new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })
-      }
-      if (url === 'http://movscript.test/api/v1/models?capability=image') {
-        return new Response(JSON.stringify([seedream4]), { status: 200, headers: { 'content-type': 'application/json' } })
-      }
-      if (url === 'http://movscript.test/api/v1/models?capability=image_edit') {
-        return new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })
       }
       if (url === 'http://movscript.test/api/v1/jobs') {
         posted = true
@@ -2531,7 +2524,7 @@ test('MCP image generation drops unsupported defaults without treating them as s
     id: 41,
     model_id: 'volcengine:seedream-4-0',
     display_name: 'Seedream 4.0',
-    capabilities: ['image'],
+    capabilities: ['image_generation'],
     supported_params: [
       {
         key: 'image_size',
@@ -2596,7 +2589,7 @@ test('MCP content-unit image generation compiles prompt and monitor auto-creates
     id: 41,
     model_id: 'volcengine:seedream-4-0',
     display_name: 'Seedream 4.0',
-    capabilities: ['image'],
+    capabilities: ['image_generation'],
     supported_params: [
       { key: 'image_size', type: 'select', options: ['1024x1024'], default: '1024x1024' },
     ],
@@ -2625,9 +2618,6 @@ test('MCP content-unit image generation compiles prompt and monitor auto-creates
       const url = new URL(String(input))
       const body = typeof init.body === 'string' && init.body ? JSON.parse(init.body) : {}
       if (url.href === 'http://movscript.test/api/v1/models?capability=image_generation&operation=text_to_image') return json([model])
-      if (url.href === 'http://movscript.test/api/v1/models?capability=image_edit&operation=text_to_image') return json([])
-      if (url.href === 'http://movscript.test/api/v1/models?capability=image') return json([model])
-      if (url.href === 'http://movscript.test/api/v1/models?capability=image_edit') return json([])
       if (url.href === 'http://movscript.test/api/v1/jobs' && init.method === 'POST') {
         postedJobBody = body
         return json({ ID: 94, status: 'pending' }, 201)
@@ -2678,7 +2668,7 @@ test('MCP content-unit image generation compiles prompt and monitor auto-creates
     })
 
     const submitted = await callTool('generation_submit', {
-      capability: 'image',
+      capability: 'image_generation',
       operation: 'text_to_image',
       scope: 'content_unit',
       projectDir,
@@ -2697,7 +2687,7 @@ test('MCP content-unit image generation compiles prompt and monitor auto-creates
     assert.equal(submitted.compiled_prompt_text, 'Generate a cold close-up preview for the arrival shot.')
     assert.equal(submitted.provider_prompt_text, 'Generate a cold close-up preview for the arrival shot.')
     assert.deepEqual(submitted.input_resource_ids, [])
-    assert.equal(submitted.capability, 'image')
+    assert.equal(submitted.capability, 'image_generation')
     assert.equal(submitted.scope, 'content_unit')
     assert.equal(submitted.output_kind, 'image')
     assert.equal(submitted.monitor.tool, 'generation_job_get')

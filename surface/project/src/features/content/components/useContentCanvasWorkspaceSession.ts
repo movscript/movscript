@@ -89,8 +89,6 @@ export function useContentCanvasWorkspaceSession({
       'scope_ref',
       'targetRef',
       'target_ref',
-      'timeline_assembly_ref',
-      'timelineAssemblyRef',
       'productionId',
       'production_id',
       'setting_id',

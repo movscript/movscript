@@ -182,16 +182,13 @@ func comboAPIKindsForTemplate(template CatalogTemplate) []string {
 }
 
 func comboAPIKindsForCapabilities(capabilities []string) []string {
-	if hasString(capabilities, CapabilityVideo) || hasString(capabilities, CapabilityVideoI2V) || hasString(capabilities, CapabilityVideoV2V) {
+	if hasString(capabilities, CapabilityFamilyVideoGeneration) {
 		return []string{"video", "async_task"}
 	}
-	if hasString(capabilities, CapabilityImage) || hasString(capabilities, CapabilityImageEdit) {
+	if hasString(capabilities, CapabilityFamilyImageGeneration) {
 		return []string{"image"}
 	}
-	if hasString(capabilities, CapabilityAudioTTS) || hasString(capabilities, CapabilityAudioSTT) ||
-		hasString(capabilities, CapabilityAudioMusic) || hasString(capabilities, CapabilityAudioSFX) ||
-		hasString(capabilities, CapabilityAudioChat) || hasString(capabilities, CapabilityVoiceClone) ||
-		hasString(capabilities, CapabilityVoiceDesign) || hasString(capabilities, CapabilityAudioTranslate) {
+	if hasString(capabilities, CapabilityFamilyAudioGeneration) {
 		return []string{"audio"}
 	}
 	return []string{"text"}

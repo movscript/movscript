@@ -17,7 +17,7 @@ import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspace
 export interface DesktopRuntimePreparation {
   workspaceDir: string
   movscriptServerPath?: string
-  movcliBinDir?: string
+  movscriptCliBinDir?: string
   preflight: MovScriptRuntimePreflightResult
 }
 
@@ -25,7 +25,7 @@ export function prepareDesktopRuntimeDependencies(input: {
   workspaceDir?: string
   resourcesPath?: string
   requireMovScriptServer?: boolean
-  requireMovcli?: boolean
+  requireMovScriptCli?: boolean
   requireGit?: boolean
 } = {}): DesktopRuntimePreparation {
   const workspaceDir = input.workspaceDir?.trim() || resolveDesktopDefaultMovScriptWorkspaceDir()
@@ -35,7 +35,7 @@ export function prepareDesktopRuntimeDependencies(input: {
   ensureMovScriptHomeConfig(root.configTomlPath)
   const requireMovScriptServer = input.requireMovScriptServer === true
 
-  const movcliBinDir = input.requireMovcli === false
+  const movscriptCliBinDir = input.requireMovScriptCli === false
     ? undefined
     : ensureWorkspaceMovScriptCliBin({ workspaceDir, resourcesPath })
 
@@ -46,18 +46,18 @@ export function prepareDesktopRuntimeDependencies(input: {
   const preflight = withDesktopLocalGitPreflight(movScriptRuntimePreflight({
     workspaceDir,
     requireMovScriptServer,
-    requireMovcli: input.requireMovcli,
+    requireMovScriptCli: input.requireMovScriptCli,
   }), { ...input, requireMovScriptServer })
 
   if (movscriptServerPath) process.env.MOVSCRIPT_BACKEND_BIN = movscriptServerPath
-  if (movcliBinDir) process.env.MOVSCRIPT_CLI_BIN_DIR = movcliBinDir
+  if (movscriptCliBinDir) process.env.MOVSCRIPT_CLI_BIN_DIR = movscriptCliBinDir
   process.env.MOVSCRIPT_HOME ||= workspaceDir
   process.env.MOVSCRIPT_WORKSPACE_DIR ||= workspaceDir
 
   return {
     workspaceDir,
     ...(movscriptServerPath ? { movscriptServerPath } : {}),
-    ...(movcliBinDir ? { movcliBinDir } : {}),
+    ...(movscriptCliBinDir ? { movscriptCliBinDir } : {}),
     preflight,
   }
 }

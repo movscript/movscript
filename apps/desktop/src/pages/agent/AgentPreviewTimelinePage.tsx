@@ -16,7 +16,7 @@ export default function AgentPreviewTimelinePage() {
   const { data: snapshot, isLoading, error } = useQuery({
     queryKey: agentSurfaceKeys.snapshot('preview-timeline', queryParams),
     queryFn: () => fetchAgentSurfaceSnapshot('preview-timeline', queryParams),
-    enabled: proxy.ready && Boolean(timelineScopeId || queryParams.targetKind === 'timeline_assembly' || queryParams.target_kind === 'timeline_assembly'),
+    enabled: proxy.ready && Boolean(timelineScopeId),
   })
   const previewResourceIds = useMemo(() => agentPreviewTimelineResourceIds(snapshot), [snapshot])
   const resourceQueries = useQueries({

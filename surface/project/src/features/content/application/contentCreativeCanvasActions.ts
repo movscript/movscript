@@ -3,7 +3,6 @@ import { contentCanvasNodeCanUseCandidateFlow } from '../domain/contentCanvasDom
 
 export type CreativeCanvasAction =
   | { kind: 'create_child'; childKind: Extract<ContentCanvasNodeKind, 'segment' | 'scene_moment' | 'expression_unit' | 'keyframe' | 'storyboard' | 'asset' | 'state'>; label: string }
-  | { kind: 'create_assembly'; label: string }
   | { kind: 'generate_candidate'; label: string }
   | { kind: 'upload_candidate'; label: string }
   | { kind: 'select_candidate'; candidateId: string; label: string }
@@ -45,13 +44,11 @@ function timelineNamespaceActionsForNode(node: ContentCanvasNode): CreativeCanva
   if (node.kind === 'production') {
     return [
       { kind: 'create_child', childKind: 'segment', label: '添加子层级' },
-      { kind: 'create_assembly', label: '创建剪辑聚合' },
     ]
   }
   if (node.kind === 'segment') {
     return [
       { kind: 'create_child', childKind: 'scene_moment', label: '添加情节' },
-      { kind: 'create_assembly', label: '创建剪辑聚合' },
     ]
   }
   return []

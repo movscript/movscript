@@ -1,9 +1,11 @@
 import {
   forwardRef,
+  type CSSProperties,
   type HTMLAttributes,
   type ReactNode,
   type Ref,
 } from "react";
+import { createPortal } from "react-dom";
 
 import { cn } from "../../../../../../lib/cn";
 import { Button, type ButtonProps } from "../../../../../primitives";
@@ -43,6 +45,8 @@ export type CanvasNodePromptInputViewProps = HTMLAttributes<HTMLDivElement> & {
   mentionOpen: boolean;
   mentionItems: CanvasNodeMentionItem[];
   mentionEmptyLabel: ReactNode;
+  mentionMenuPortalContainer?: Element | DocumentFragment | null;
+  mentionMenuStyle?: CSSProperties;
   attachmentItems: CanvasNodePromptAttachmentItem[];
   attachmentEmptyLabel: ReactNode;
 };
@@ -55,12 +59,30 @@ export function CanvasNodePromptInputView({
   mentionOpen,
   mentionItems,
   mentionEmptyLabel,
+  mentionMenuPortalContainer,
+  mentionMenuStyle,
   attachmentItems,
   attachmentEmptyLabel,
   onMouseDown,
   onClick,
   ...props
 }: CanvasNodePromptInputViewProps) {
+  const mentionMenu = mentionOpen ? (
+    <CanvasNodeMentionMenu style={mentionMenuStyle}>
+      {mentionItems.length === 0 ? (
+        <CanvasNodeMentionMenuEmpty>{mentionEmptyLabel}</CanvasNodeMentionMenuEmpty>
+      ) : mentionItems.map((item) => (
+        <CanvasNodeMentionMenuItem
+          key={item.id}
+          media={item.media}
+          label={item.label}
+          meta={item.meta}
+          onMouseDown={item.onMouseDown}
+        />
+      ))}
+    </CanvasNodeMentionMenu>
+  ) : null;
+
   return (
     <CanvasNodePromptInputPanel
       onMouseDown={(event) => {
@@ -81,21 +103,7 @@ export function CanvasNodePromptInputView({
           if (event.key === "Escape") onEditorEscape();
         }}
       />
-      {mentionOpen ? (
-        <CanvasNodeMentionMenu>
-          {mentionItems.length === 0 ? (
-            <CanvasNodeMentionMenuEmpty>{mentionEmptyLabel}</CanvasNodeMentionMenuEmpty>
-          ) : mentionItems.map((item) => (
-            <CanvasNodeMentionMenuItem
-              key={item.id}
-              media={item.media}
-              label={item.label}
-              meta={item.meta}
-              onMouseDown={item.onMouseDown}
-            />
-          ))}
-        </CanvasNodeMentionMenu>
-      ) : null}
+      {mentionMenuPortalContainer && mentionMenu ? createPortal(mentionMenu, mentionMenuPortalContainer) : mentionMenu}
       {attachmentItems.length > 0 ? (
         <CanvasNodeAttachmentList>
           {attachmentItems.map((item) => (

@@ -1,221 +1,222 @@
+---
 lab: minimax
 templates:
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: MiniMax M3
-      id: minimax:MiniMax-M3
-      input:
-        accepts_image: true
-        max_images: -1
-        max_videos: -1
-      lab: minimax
-      model_id: MiniMax-M3
-      order: 74
-      source:
-        status: verified
-        url: https://platform.minimax.io/docs/guides/text-generation
-        verified_at: "2026-06-25"
-    - route_adapter_hint: minimax
-      allow_model_id_override: true
-      capabilities:
-        - audio_tts
-      display_name: MiniMax Speech 2.8 HD
-      id: minimax:speech-2.8-hd
-      lab: minimax
-      model_id: speech-2.8-hd
-      order: 81
-      source:
-        status: verified
-        url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
-        verified_at: "2026-06-25"
-    - route_adapter_hint: minimax
-      allow_model_id_override: true
-      capabilities:
-        - audio_tts
-      display_name: MiniMax Speech 2.8 Turbo
-      id: minimax:speech-2.8-turbo
-      lab: minimax
-      model_id: speech-2.8-turbo
-      order: 82
-      source:
-        status: verified
-        url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
-        verified_at: "2026-06-25"
-    - route_adapter_hint: minimax
-      allow_model_id_override: true
-      capabilities:
-        - audio_tts
-      display_name: MiniMax Speech 2.6 HD
-      id: minimax:speech-2.6-hd
-      lab: minimax
-      model_id: speech-2.6-hd
-      order: 83
-      source:
-        status: verified
-        url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
-        verified_at: "2026-06-25"
-    - route_adapter_hint: minimax
-      allow_model_id_override: true
-      capabilities:
-        - audio_tts
-      display_name: MiniMax Speech 2.6 Turbo
-      id: minimax:speech-2.6-turbo
-      lab: minimax
-      model_id: speech-2.6-turbo
-      order: 84
-      source:
-        status: verified
-        url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
-        verified_at: "2026-06-25"
-    - route_adapter_hint: minimax
-      allow_model_id_override: true
-      capabilities:
-        - audio_tts
-      display_name: MiniMax Speech 02 HD
-      id: minimax:speech-02-hd
-      lab: minimax
-      model_id: speech-02-hd
-      order: 85
-      source:
-        status: verified
-        url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
-        verified_at: "2026-06-25"
-    - route_adapter_hint: minimax
-      allow_model_id_override: true
-      capabilities:
-        - audio_tts
-      display_name: MiniMax Speech 02 Turbo
-      id: minimax:speech-02-turbo
-      lab: minimax
-      model_id: speech-02-turbo
-      order: 86
-      source:
-        status: verified
-        url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
-        verified_at: "2026-06-25"
-    - route_adapter_hint: minimax
-      allow_model_id_override: true
-      capabilities:
-        - audio_tts
-      display_name: MiniMax Speech 01 HD
-      id: minimax:speech-01-hd
-      lab: minimax
-      model_id: speech-01-hd
-      order: 87
-      source:
-        status: verified
-        url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
-        verified_at: "2026-06-25"
-    - route_adapter_hint: minimax
-      allow_model_id_override: true
-      capabilities:
-        - audio_tts
-      display_name: MiniMax Speech 01 Turbo
-      id: minimax:speech-01-turbo
-      lab: minimax
-      model_id: speech-01-turbo
-      order: 88
-      source:
-        status: verified
-        url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: MiniMax M2.7
-      id: minimax:MiniMax-M2.7
-      lab: minimax
-      model_id: MiniMax-M2.7
-      order: 75
-      source:
-        status: verified
-        url: https://platform.minimax.io/docs/guides/text-generation
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: MiniMax M2.7 Highspeed
-      id: minimax:MiniMax-M2.7-highspeed
-      lab: minimax
-      model_id: MiniMax-M2.7-highspeed
-      order: 76
-      source:
-        status: verified
-        url: https://platform.minimax.io/docs/guides/text-generation
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: MiniMax M2.5
-      id: minimax:MiniMax-M2.5
-      lab: minimax
-      model_id: MiniMax-M2.5
-      order: 77
-      source:
-        status: verified
-        url: https://platform.minimax.io/docs/guides/text-generation
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: MiniMax M2.1
-      id: minimax:MiniMax-M2.1
-      lab: minimax
-      model_id: MiniMax-M2.1
-      order: 78
-      source:
-        status: verified
-        url: https://platform.minimax.io/docs/guides/text-generation
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: MiniMax M2.1 Highspeed
-      id: minimax:MiniMax-M2.1-highspeed
-      lab: minimax
-      model_id: MiniMax-M2.1-highspeed
-      order: 79
-      source:
-        status: verified
-        url: https://platform.minimax.io/docs/guides/text-generation
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: MiniMax M2
-      id: minimax:MiniMax-M2
-      lab: minimax
-      model_id: MiniMax-M2
-      order: 80
-      source:
-        status: verified
-        url: https://platform.minimax.io/docs/guides/text-generation
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: MiniMax M2.1
-      id: minimax:minimax-m2-1
-      lab: minimax
-      model_id: minimax-m2.1
-      order: 89
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: MiniMax M3
+  id: minimax:MiniMax-M3
+  input:
+    accepts_image: true
+    max_images: -1
+    max_videos: -1
+  lab: minimax
+  model_id: MiniMax-M3
+  order: 74
+  source:
+    status: verified
+    url: https://platform.minimax.io/docs/guides/text-generation
+    verified_at: '2026-06-25'
+- route_adapter_hint: minimax
+  allow_model_id_override: true
+  capabilities:
+  - audio_generation
+  display_name: MiniMax Speech 2.8 HD
+  id: minimax:speech-2.8-hd
+  lab: minimax
+  model_id: speech-2.8-hd
+  order: 81
+  source:
+    status: verified
+    url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
+    verified_at: '2026-06-25'
+- route_adapter_hint: minimax
+  allow_model_id_override: true
+  capabilities:
+  - audio_generation
+  display_name: MiniMax Speech 2.8 Turbo
+  id: minimax:speech-2.8-turbo
+  lab: minimax
+  model_id: speech-2.8-turbo
+  order: 82
+  source:
+    status: verified
+    url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
+    verified_at: '2026-06-25'
+- route_adapter_hint: minimax
+  allow_model_id_override: true
+  capabilities:
+  - audio_generation
+  display_name: MiniMax Speech 2.6 HD
+  id: minimax:speech-2.6-hd
+  lab: minimax
+  model_id: speech-2.6-hd
+  order: 83
+  source:
+    status: verified
+    url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
+    verified_at: '2026-06-25'
+- route_adapter_hint: minimax
+  allow_model_id_override: true
+  capabilities:
+  - audio_generation
+  display_name: MiniMax Speech 2.6 Turbo
+  id: minimax:speech-2.6-turbo
+  lab: minimax
+  model_id: speech-2.6-turbo
+  order: 84
+  source:
+    status: verified
+    url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
+    verified_at: '2026-06-25'
+- route_adapter_hint: minimax
+  allow_model_id_override: true
+  capabilities:
+  - audio_generation
+  display_name: MiniMax Speech 02 HD
+  id: minimax:speech-02-hd
+  lab: minimax
+  model_id: speech-02-hd
+  order: 85
+  source:
+    status: verified
+    url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
+    verified_at: '2026-06-25'
+- route_adapter_hint: minimax
+  allow_model_id_override: true
+  capabilities:
+  - audio_generation
+  display_name: MiniMax Speech 02 Turbo
+  id: minimax:speech-02-turbo
+  lab: minimax
+  model_id: speech-02-turbo
+  order: 86
+  source:
+    status: verified
+    url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
+    verified_at: '2026-06-25'
+- route_adapter_hint: minimax
+  allow_model_id_override: true
+  capabilities:
+  - audio_generation
+  display_name: MiniMax Speech 01 HD
+  id: minimax:speech-01-hd
+  lab: minimax
+  model_id: speech-01-hd
+  order: 87
+  source:
+    status: verified
+    url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
+    verified_at: '2026-06-25'
+- route_adapter_hint: minimax
+  allow_model_id_override: true
+  capabilities:
+  - audio_generation
+  display_name: MiniMax Speech 01 Turbo
+  id: minimax:speech-01-turbo
+  lab: minimax
+  model_id: speech-01-turbo
+  order: 88
+  source:
+    status: verified
+    url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: MiniMax M2.7
+  id: minimax:MiniMax-M2.7
+  lab: minimax
+  model_id: MiniMax-M2.7
+  order: 75
+  source:
+    status: verified
+    url: https://platform.minimax.io/docs/guides/text-generation
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: MiniMax M2.7 Highspeed
+  id: minimax:MiniMax-M2.7-highspeed
+  lab: minimax
+  model_id: MiniMax-M2.7-highspeed
+  order: 76
+  source:
+    status: verified
+    url: https://platform.minimax.io/docs/guides/text-generation
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: MiniMax M2.5
+  id: minimax:MiniMax-M2.5
+  lab: minimax
+  model_id: MiniMax-M2.5
+  order: 77
+  source:
+    status: verified
+    url: https://platform.minimax.io/docs/guides/text-generation
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: MiniMax M2.1
+  id: minimax:MiniMax-M2.1
+  lab: minimax
+  model_id: MiniMax-M2.1
+  order: 78
+  source:
+    status: verified
+    url: https://platform.minimax.io/docs/guides/text-generation
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: MiniMax M2.1 Highspeed
+  id: minimax:MiniMax-M2.1-highspeed
+  lab: minimax
+  model_id: MiniMax-M2.1-highspeed
+  order: 79
+  source:
+    status: verified
+    url: https://platform.minimax.io/docs/guides/text-generation
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: MiniMax M2
+  id: minimax:MiniMax-M2
+  lab: minimax
+  model_id: MiniMax-M2
+  order: 80
+  source:
+    status: verified
+    url: https://platform.minimax.io/docs/guides/text-generation
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: MiniMax M2.1
+  id: minimax:minimax-m2-1
+  lab: minimax
+  model_id: minimax-m2.1
+  order: 89
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'

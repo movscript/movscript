@@ -14,6 +14,8 @@ import {
 } from './contentCanvasWorkspaceCommandModel'
 import {
   candidateDecisionForNode,
+  contentNodeGenerationReference,
+  generationReferencesFromContentNode,
   selectedCandidateForNode,
 } from './contentCanvasWorkspaceNodeModel'
 
@@ -299,6 +301,62 @@ test('content canvas candidate selection resolves content unit id and node id ke
   assert.equal(selectedCandidateForNode(contentUnitNode, { cu_1: 'cand_b' })?.id, 'cand_b')
   assert.equal(candidateDecisionForNode(sourceNode, {})?.tone, 'pending')
   assert.equal(candidateDecisionForNode(sourceNode, { cu_1: 'cand_b' })?.tone, 'selected')
+})
+
+test('content canvas generation references normalize resource ids from legacy ref shapes', () => {
+  const resourceNode = nodeFixture({
+    id: 'resource:31',
+    entityKey: 'resource:31',
+    kind: 'resource',
+    title: 'Pose reference',
+    subtitle: 'image',
+    record: { ID: 31 },
+  })
+
+  assert.deepEqual(contentNodeGenerationReference(resourceNode), {
+    id: 'resource:31',
+    kind: 'resource',
+    ref: 31,
+    resource_id: 31,
+    media_type: 'image',
+    role: 'reference_image',
+    label: 'Pose reference',
+    source: 'content_canvas',
+  })
+
+  const ownerNode = nodeFixture({
+    record: {
+      generation_references: [{
+        raw: '{{resource::31 role=reference_image media=image}}',
+      }],
+    },
+  })
+
+  assert.deepEqual(generationReferencesFromContentNode(ownerNode), [{
+    kind: 'resource',
+    ref: 31,
+    raw: '{{resource::31 role=reference_image media=image}}',
+    resource_id: 31,
+    media_type: 'image',
+    role: 'reference_image',
+  }])
+
+  assert.deepEqual(generationReferencesFromContentNode(nodeFixture({
+    record: {
+      generation_references: [{
+        kind: 'resource',
+        ref: 'resource:31',
+        media_type: 'image',
+        role: 'reference_image',
+      }],
+    },
+  })), [{
+    kind: 'resource',
+    ref: 31,
+    resource_id: 31,
+    media_type: 'image',
+    role: 'reference_image',
+  }])
 })
 
 function nodeFixture(patch: Partial<ContentCanvasNode>): ContentCanvasNode {

@@ -49,7 +49,6 @@ type ModelRouteDiagnosticEndpoint struct {
 	BaseURL          string `json:"base_url,omitempty"`
 	PathPrefix       string `json:"path_prefix,omitempty"`
 	Mode             string `json:"mode,omitempty"`
-	OperationProfile string `json:"operation_profile,omitempty"`
 	EffectiveBaseURL string `json:"effective_base_url,omitempty"`
 }
 
@@ -234,7 +233,7 @@ func (s *AIService) diagnosticRouteCandidate(
 	if endpoint := diagnosticRouteEndpoint(binding, credentials); endpoint != nil {
 		candidate.EffectiveEndpoint = endpoint
 	}
-	if resourceAccess := diagnosticRouteResourceAccess(binding.RouteCapabilitiesJSON, capability); resourceAccess != nil {
+	if resourceAccess := diagnosticRouteResourceAccess(binding.AdapterType, capability, req.Operation); resourceAccess != nil {
 		candidate.ResourceAccess = resourceAccess
 	}
 	if len(candidate.Reasons) == 0 {
@@ -243,8 +242,8 @@ func (s *AIService) diagnosticRouteCandidate(
 	return candidate
 }
 
-func diagnosticRouteResourceAccess(routeCapabilitiesJSON string, capability string) *ModelRouteResourceAccess {
-	requirements := RouteCapabilityPublicURLRequirements(routeCapabilitiesJSON, capability)
+func diagnosticRouteResourceAccess(adapterType string, capability string, operation string) *ModelRouteResourceAccess {
+	requirements := AdapterOperationPublicURLRequirements(adapterType, capability, operation)
 	var inputMedia []string
 	if requirements.Image {
 		inputMedia = append(inputMedia, "image")
@@ -278,10 +277,9 @@ func diagnosticRouteEndpoint(binding persistencemodel.AIModelRouteBinding, crede
 		BaseURL:          strings.TrimSpace(config.BaseURL),
 		PathPrefix:       normalizeRouteEndpointPathPrefix(config.PathPrefix),
 		Mode:             normalizeRouteEndpointMode(config.Mode),
-		OperationProfile: strings.TrimSpace(config.OperationProfile),
 		EffectiveBaseURL: effectiveRouteBaseURL(baseURL, config),
 	}
-	if endpoint.BaseURL == "" && endpoint.PathPrefix == "" && endpoint.OperationProfile == "" && endpoint.EffectiveBaseURL == "" {
+	if endpoint.BaseURL == "" && endpoint.PathPrefix == "" && endpoint.EffectiveBaseURL == "" {
 		return nil
 	}
 	return &endpoint

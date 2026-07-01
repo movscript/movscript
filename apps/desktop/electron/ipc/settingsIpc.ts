@@ -4,7 +4,7 @@ import { findRuntimeEndpoint, readRuntimeHomeSnapshot } from '@movscript/runtime
 import type { AppSettings } from '../../src/shared/contracts/appSettings'
 import { LOCAL_BACKEND_URL, setBackendStatus, stopBackend, type BackendStatus } from '../services/backend'
 import { resolveDesktopDefaultMovScriptWorkspaceDir, setDesktopDefaultMovScriptWorkspaceDir } from '../services/movscriptWorkspaceDefaults'
-import { readDesktopAppSettings, writeDesktopAppSettings } from '../services/appSettings'
+import { readDesktopAppSettingsForRenderer, writeDesktopAppSettings } from '../services/appSettings'
 import { ensureDesktopLocalRuntime } from '../../runtime/desktopApplicationRuntime'
 import {
   agentRuntimeCredentialSummary,
@@ -42,7 +42,7 @@ export function registerSettingsIpcHandlers(deps: SettingsIpcDependencies): void
           dataPlane: 'local',
         })
       }
-      setBackendStatus({ state: 'ready', baseURL: resolveGatewayURL(movScriptHomeDir) ?? resolveDataServiceURL(movScriptHomeDir) ?? settings.apiBaseURL ?? LOCAL_BACKEND_URL }, deps.broadcastBackendStatus)
+      setBackendStatus({ state: 'ready', baseURL: resolveGatewayURL(movScriptHomeDir) ?? LOCAL_BACKEND_URL }, deps.broadcastBackendStatus)
     } else {
       await stopBackend(deps.broadcastBackendStatus, { terminate: true })
       if (!configuredByDaemon) {
@@ -62,7 +62,7 @@ export function registerSettingsIpcHandlers(deps: SettingsIpcDependencies): void
     })
   })
   ipcMain.handle('app:get-settings', () => {
-    return readDesktopAppSettings(resolveDesktopDefaultMovScriptWorkspaceDir())
+    return readDesktopAppSettingsForRenderer(resolveDesktopDefaultMovScriptWorkspaceDir())
   })
   ipcMain.handle('app:get-settings-secrets', () => {
     return rendererAppSettingsSecrets(readAppSettingsSecrets(resolveDesktopDefaultMovScriptWorkspaceDir()))
@@ -86,11 +86,14 @@ export function registerSettingsIpcHandlers(deps: SettingsIpcDependencies): void
 }
 
 function runtimeDataConnectionFromSettings(settings: AppSettings): {
-  kind: 'local' | 'cloud' | 'external'
+  kind: 'local' | 'cloud'
   url?: string
 } {
-  const kind = settings.dataConnection?.kind ?? (settings.launchMode === 'local' ? 'local' : 'cloud')
-  const url = settings.dataConnection?.url ?? (kind === 'local' ? settings.daemonGatewayBaseURL : settings.apiBaseURL)
+  const kind = settings.launchMode === 'local' || settings.dataConnection?.kind === 'local' ? 'local' : 'cloud'
+  if (kind === 'local') {
+    return { kind }
+  }
+  const url = settings.dataConnection?.url ?? settings.cloudAPIBaseURL ?? settings.apiBaseURL
   return {
     kind,
     ...(url ? { url } : {}),
@@ -113,12 +116,6 @@ async function configureDaemonRuntime(
   } catch {
     return false
   }
-}
-
-function resolveDataServiceURL(homeDir: string): string | undefined {
-  const endpoint = findRuntimeEndpoint(readRuntimeHomeSnapshot(homeDir), 'movscript.data.service')
-  if (!endpoint) return undefined
-  return endpoint.url ?? endpoint.baseURL ?? (endpoint.port ? `http://127.0.0.1:${endpoint.port}` : undefined)
 }
 
 function resolveGatewayURL(homeDir: string): string | undefined {

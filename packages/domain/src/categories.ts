@@ -13,7 +13,6 @@ export const MOVSCRIPT_SYSTEM_PRIMITIVE_KINDS = [
   'keyframe',
   'audio_cue',
   'asset',
-  'timeline_assembly',
 ] as const satisfies readonly MovScriptSystemPrimitiveKind[]
 
 const TIMELINE_NAMESPACE_KINDS = new Set<string>(MOVSCRIPT_TIMELINE_NAMESPACE_ENTITY_KINDS)

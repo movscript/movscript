@@ -1,5 +1,5 @@
 export type AppLaunchMode = 'cloud' | 'local'
-export type AppDataConnectionKind = 'local' | 'cloud' | 'external'
+export type AppDataConnectionKind = 'local' | 'cloud'
 export type AppWorkMode = 'project' | 'tool' | 'agent'
 export type AppLanguage = 'zh-CN' | 'en-US'
 
@@ -17,7 +17,7 @@ export interface AppSettings {
   workMode: AppWorkMode
   onboardingCompleted: boolean
   language?: AppLanguage
-  /** @deprecated Use dataConnection.url for cloud/external data connections. */
+  /** @deprecated Use dataConnection.url for cloud data connections. */
   cloudAPIBaseURL?: string
   daemonGatewayBaseURL?: string
   movScriptWorkspaceDir?: string
@@ -42,6 +42,9 @@ export interface NormalizeAppSettingsOptions {
 
 type LegacyAppSettings = Partial<AppSettings> & {
   localAPIBaseURL?: string
+  dataConnection?: Partial<AppDataConnectionSettings> & {
+    kind?: AppDataConnectionKind | 'external' | string
+  }
 }
 
 type LegacyNormalizeAppSettingsOptions = NormalizeAppSettingsOptions & {
@@ -60,7 +63,7 @@ export function normalizeAPIBaseURL(value: string): string {
   return trimmed.endsWith('/api/v1') ? trimmed.slice(0, -'/api/v1'.length) : trimmed
 }
 
-export function isLocalLaunchMode(settings?: Pick<AppSettings, 'launchMode'> | null): boolean {
+export function isLocalLaunchMode(settings?: { launchMode?: string | null } | null): boolean {
   return settings?.launchMode === 'local'
 }
 
@@ -83,9 +86,9 @@ export function getSettingsDaemonGatewayBaseURL(
   settings?: { daemonGatewayBaseURL?: string; dataConnection?: AppDataConnectionSettings | null; apiBaseURL?: string } | null,
 ): string {
   return normalizeAPIBaseURL(
-    settings?.daemonGatewayBaseURL?.trim()
-      || (isLocalDataConnection(settings) ? settings?.dataConnection?.url?.trim() : '')
-      || settings?.apiBaseURL?.trim()
+    normalizeOptionalLocalGatewayBaseURL(settings?.daemonGatewayBaseURL)
+      || (isLocalDataConnection(settings) ? normalizeOptionalLocalGatewayBaseURL(settings?.dataConnection?.url) : undefined)
+      || normalizeOptionalLocalGatewayBaseURL(settings?.apiBaseURL)
       || '',
   )
 }
@@ -104,27 +107,29 @@ export function normalizeAppSettings(
     localAPIBaseURL: _legacyDefaultLocalAPIBaseURL,
     ...defaultSettingsWithoutLegacyLocalAPIBaseURL
   } = legacyOptions.defaultSettings
+  const dataConnectionKind = normalizeDataConnectionKind(
+    legacySettings.dataConnection?.kind,
+    settings?.launchMode,
+    options.defaultSettings.dataConnection?.kind,
+  )
   const cloudAPIBaseURL = normalizeOptionalAPIBaseURL(settings?.cloudAPIBaseURL)
-    ?? (settings?.launchMode === 'cloud' ? normalizeOptionalAPIBaseURL(settings?.apiBaseURL) : undefined)
+    ?? (dataConnectionKind === 'cloud' ? normalizeOptionalAPIBaseURL(legacySettings.dataConnection?.url) : undefined)
+    ?? (dataConnectionKind === 'cloud' ? normalizeOptionalAPIBaseURL(settings?.apiBaseURL) : undefined)
     ?? options.defaultSettings.cloudAPIBaseURL
     ?? options.defaultSettings.apiBaseURL
-  const daemonGatewayBaseURL = normalizeOptionalAPIBaseURL(settings?.daemonGatewayBaseURL)
-    ?? normalizeOptionalAPIBaseURL(legacySettings.localAPIBaseURL)
-    ?? (settings?.launchMode === 'local' ? normalizeOptionalAPIBaseURL(settings?.apiBaseURL) : undefined)
+  const daemonGatewayBaseURL = normalizeOptionalLocalGatewayBaseURL(settings?.daemonGatewayBaseURL)
+    ?? normalizeOptionalLocalGatewayBaseURL(legacySettings.localAPIBaseURL)
+    ?? (dataConnectionKind === 'local' ? normalizeOptionalLocalGatewayBaseURL(legacySettings.dataConnection?.url) : undefined)
     ?? options.daemonGatewayBaseURL
     ?? legacyOptions.localAPIBaseURL
     ?? options.defaultSettings.daemonGatewayBaseURL
     ?? legacyOptions.defaultSettings.localAPIBaseURL
     ?? options.defaultSettings.apiBaseURL
-  const dataConnectionKind = normalizeDataConnectionKind(
-    settings?.dataConnection?.kind,
-    settings?.launchMode,
-    options.defaultSettings.dataConnection?.kind,
-  )
-  const dataConnectionURL = normalizeOptionalAPIBaseURL(settings?.dataConnection?.url)
-    ?? (dataConnectionKind === 'local' ? daemonGatewayBaseURL : undefined)
+  const dataConnectionURL = dataConnectionKind === 'local'
+    ? daemonGatewayBaseURL
+    : normalizeOptionalAPIBaseURL(legacySettings.dataConnection?.url)
     ?? (settings?.launchMode === 'cloud' ? normalizeOptionalAPIBaseURL(settings?.apiBaseURL) : undefined)
-    ?? (dataConnectionKind !== 'local' ? cloudAPIBaseURL : undefined)
+    ?? cloudAPIBaseURL
   const dataConnection: AppDataConnectionSettings = {
     kind: dataConnectionKind,
     ...(dataConnectionURL ? { url: dataConnectionURL } : {}),
@@ -132,7 +137,9 @@ export function normalizeAppSettings(
   const fallbackAPIBaseURL = dataConnection.kind === 'local'
     ? daemonGatewayBaseURL
     : dataConnection.url ?? cloudAPIBaseURL
-  const apiBaseURL = normalizeAPIBaseURL(settings?.apiBaseURL || fallbackAPIBaseURL)
+  const apiBaseURL = dataConnection.kind === 'local'
+    ? normalizeAPIBaseURL(fallbackAPIBaseURL)
+    : normalizeAPIBaseURL(settings?.apiBaseURL || fallbackAPIBaseURL)
   const shotLibrarySources = normalizeShotLibrarySources(settings?.shotLibrarySources, apiBaseURL)
   const defaultShotLibrarySourceId = normalizeDefaultShotLibrarySourceId(settings?.defaultShotLibrarySourceId, shotLibrarySources)
   return {
@@ -157,14 +164,31 @@ function normalizeOptionalAPIBaseURL(value: string | undefined): string | undefi
   return value?.trim() ? normalizeAPIBaseURL(value) : undefined
 }
 
+function normalizeOptionalLocalGatewayBaseURL(value: string | undefined): string | undefined {
+  const normalized = normalizeOptionalAPIBaseURL(value)
+  if (!normalized) return undefined
+  try {
+    const url = new URL(normalized)
+    const hostname = url.hostname.toLowerCase()
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]') {
+      return normalized
+    }
+  } catch {
+    return undefined
+  }
+  return undefined
+}
+
 function normalizeDataConnectionKind(
   value: unknown,
   legacyLaunchMode: unknown,
   fallback: unknown,
 ): AppDataConnectionKind {
-  if (value === 'local' || value === 'cloud' || value === 'external') return value
+  if (value === 'local' || value === 'cloud') return value
+  if (value === 'external') return 'cloud'
   if (legacyLaunchMode === 'local') return 'local'
-  if (fallback === 'local' || fallback === 'cloud' || fallback === 'external') return fallback
+  if (fallback === 'local' || fallback === 'cloud') return fallback
+  if (fallback === 'external') return 'cloud'
   return 'cloud'
 }
 

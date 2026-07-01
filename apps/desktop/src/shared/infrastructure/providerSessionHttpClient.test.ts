@@ -560,6 +560,16 @@ async function withRuntimeConfig<T>(callback: () => Promise<T>): Promise<T> {
   setRuntimeConfigSnapshot({
     movScriptHomeDir: '/tmp/movscript-home',
     workspaceDir: '/tmp/movscript-home',
+    runtimeConnection: {
+      schema: 'movscript.runtime-connection.v1',
+      mode: 'local',
+      gatewayBaseURL: 'http://localhost:8766',
+      apiV1BaseURL: 'http://localhost:8766/api/v1',
+      authMode: 'local-owner',
+      displayName: 'Local daemon gateway',
+      status: 'connected',
+      source: 'daemon',
+    },
     runtime: {
       schema: 'movscript.runtime-descriptor.v1',
       runtime: {

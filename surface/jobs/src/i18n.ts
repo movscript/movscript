@@ -31,21 +31,20 @@ export const jobsSurfaceI18nResources = {
       pages: {
         jobs: {
           categories: {
-            image: 'Text to Image',
-            imageEdit: 'Reference Image',
-            video: 'Text to Video',
-            videoI2V: 'Reference Video',
-            videoV2V: 'Video Transfer',
+            image: 'Image',
+            video: 'Video',
+            audio: 'Audio',
           },
           operations: {
             text_to_image: 'Text to Image',
-            image_to_image: 'Image to Image',
-            image_edit: 'Image Edit',
+            reference_to_image: 'Reference to Image',
+            edit_image: 'Image Edit',
             prompt_to_video: 'Prompt to Video',
             image_to_video: 'Image to Video',
             first_frame_to_video: 'First Frame to Video',
             first_last_frame_to_video: 'First/Last Frame to Video',
             reference_to_video: 'Reference to Video',
+            edit_video: 'Video Edit',
           },
           status: {
             pending: 'Queued',
@@ -127,21 +126,20 @@ export const jobsSurfaceI18nResources = {
       pages: {
         jobs: {
           categories: {
-            image: '文生图',
-            imageEdit: '参考生图',
-            video: '文生视频',
-            videoI2V: '参考生视频',
-            videoV2V: '视频迁移',
+            image: '图片',
+            video: '视频',
+            audio: '音频',
           },
           operations: {
             text_to_image: '文生图',
-            image_to_image: '图生图',
-            image_edit: '图像编辑',
+            reference_to_image: '参考生图',
+            edit_image: '图像编辑',
             prompt_to_video: '文生视频',
             image_to_video: '图生视频',
             first_frame_to_video: '首帧生视频',
             first_last_frame_to_video: '首尾帧生视频',
             reference_to_video: '全能参考生视频',
+            edit_video: '视频编辑',
           },
           status: {
             pending: '排队中',

@@ -16,16 +16,30 @@ interface AdminCliOptions {
   payload?: string
   payloadFile?: string
   providerId?: string
+  providerInstanceId?: string
   credentialKey?: string
   catalogEntryId?: string
   bindingId?: string
   keyId?: string
+  cloudFileConfigId?: string
   resourceId?: string
   requiredMediaType?: string
   profileId?: string
   transport?: string
   purpose?: string
   routeId?: string
+  toolType?: string
+  toolServerId?: string
+  toolServerScope?: string
+  operation?: string
+  toolPath?: string
+  workflow?: string
+  toolPayload?: string
+  clientId?: string
+  promptId?: string
+  filename?: string
+  subfolder?: string
+  fileType?: string
   id?: string
   yes?: boolean
   json?: boolean
@@ -67,16 +81,30 @@ function addAdminOptions(command: Command): void {
     .option('--payload <json>', 'JSON object request body')
     .option('--payload-file <path>', 'Path to a JSON object request body')
     .option('--provider-id <id>', 'Provider id')
+    .option('--provider-instance-id <id>', 'Provider instance id for connection diagnostics')
     .option('--credential-key <key>', 'Provider credential key')
     .option('--catalog-entry-id <id>', 'Model catalog entry id')
     .option('--binding-id <id>', 'Route binding id')
     .option('--key-id <id>', 'Model gateway API key id')
+    .option('--cloud-file-config-id <id>', 'Cloud file storage or object relay config id')
     .option('--resource-id <id>', 'RawResource id for resource-access diagnostics')
     .option('--required-media-type <type>', 'Required resource media type for resource-access diagnostics')
     .option('--profile-id <id>', 'ResourceAccessProfile id for resource-access diagnostics')
     .option('--transport <transport>', 'Resource access transport, currently public_url')
     .option('--purpose <purpose>', 'Diagnostic purpose for resource-access resolution')
     .option('--route-id <id>', 'Route id whose resource transport requirement is being tested')
+    .option('--tool-type <type>', 'Generation tool type for call-test diagnostics, such as comfyui or webui')
+    .option('--tool-server-id <id>', 'Generation tool server id for call-test diagnostics')
+    .option('--tool-server-scope <scope>', 'Generation tool server scope for call-test diagnostics')
+    .option('--operation <operation>', 'Generation tool call-test operation')
+    .option('--tool-path <path>', 'Safe generation tool path for supported get-style diagnostics')
+    .option('--workflow <json>', 'ComfyUI workflow JSON object for queue_prompt diagnostics')
+    .option('--tool-payload <json>', 'Upstream tool payload JSON object for WebUI txt2img/img2img diagnostics')
+    .option('--client-id <id>', 'ComfyUI client id for queue_prompt diagnostics')
+    .option('--prompt-id <id>', 'ComfyUI prompt id for history diagnostics')
+    .option('--filename <name>', 'ComfyUI output filename for view diagnostics')
+    .option('--subfolder <name>', 'ComfyUI output subfolder for view diagnostics')
+    .option('--file-type <type>', 'ComfyUI view file type')
     .option('--id <id>', 'Generic id alias for delete/update commands')
     .option('--yes', 'Confirm delete or no-payload admin mutation')
     .option('--json', 'Print JSON output')
@@ -112,17 +140,32 @@ function adminArgs(options: AdminCliOptions, command: Command): Record<string, u
     query: parseQuery(options.query),
     payload: parsePayload(options),
     providerId: options.providerId,
+    providerInstanceId: options.providerInstanceId,
     credentialKey: options.credentialKey,
     catalogEntryId: options.catalogEntryId,
     bindingId: options.bindingId,
     keyId: options.keyId,
+    cloudFileConfigId: options.cloudFileConfigId,
     resourceId: options.resourceId,
     requiredMediaType: options.requiredMediaType,
     profileId: options.profileId,
     transport: options.transport,
     purpose: options.purpose,
     routeId: options.routeId,
+    toolType: options.toolType,
+    toolServerId: options.toolServerId,
+    toolServerScope: options.toolServerScope,
+    operation: options.operation,
+    toolPath: options.toolPath,
+    workflow: parseJSONRecordOption(options.workflow, '--workflow'),
+    toolPayload: parseJSONRecordOption(options.toolPayload, '--tool-payload'),
+    clientId: options.clientId,
+    promptId: options.promptId,
+    filename: options.filename,
+    subfolder: options.subfolder,
+    fileType: options.fileType,
     id: options.id,
+    yes: options.yes,
   })
 }
 
@@ -147,6 +190,8 @@ function requiresConfirmation(spec: AdminCommandSpec, options: AdminCliOptions):
   if (options.yes) return false
   if (spec.method === 'DELETE') return true
   if (spec.commandId === 'admin.provider.credential.set_primary') return true
+  if (spec.commandId === 'admin.provider_instance.config.apply') return true
+  if (spec.commandId === 'admin.provider_instance.config.activate') return true
   return false
 }
 
@@ -174,6 +219,13 @@ function parsePayload(options: AdminCliOptions): Record<string, unknown> | undef
   if (text === undefined) return undefined
   const value = JSON.parse(text) as unknown
   if (!isRecord(value)) throw new Error('admin payload must be a JSON object')
+  return value
+}
+
+function parseJSONRecordOption(text: string | undefined, label: string): Record<string, unknown> | undefined {
+  if (text === undefined) return undefined
+  const value = JSON.parse(text) as unknown
+  if (!isRecord(value)) throw new Error(`${label} must be a JSON object`)
   return value
 }
 

@@ -1022,10 +1022,10 @@ func stringPtrValue(value *string) string {
 func (a *OpenAIAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (ImageResponse, error) {
 	hasInputImage := len(req.InputImageDataList) > 0 || len(req.InputImageBytes) > 0 || req.InputImage != "" || req.CloudFileID != ""
 	if hasInputImage {
-		return a.imageEdit(ctx, req)
+		return a.editImage(ctx, req)
 	}
 	if req.EditOnly {
-		return ImageResponse{}, fmt.Errorf("this model requires an input image (image_edit capability)")
+		return ImageResponse{}, fmt.Errorf("this model requires an input image")
 	}
 
 	n := req.N
@@ -1103,14 +1103,14 @@ func (a *OpenAIAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (Im
 	return ImageResponse{URLs: urls, Debug: takeDebug(ctx)}, nil
 }
 
-// imageEdit calls POST /images/edits.
+// editImage calls POST /images/edits.
 //
 // Priority order for the input image:
 //  1. InputImageDataList — sends ordered resource bytes as multipart
 //  2. InputImageBytes — sends raw bytes as multipart
 //  3. InputImage URL — downloads the image bytes and sends as multipart
 //  4. CloudFileID — fallback for providers that accept file IDs
-func (a *OpenAIAdapter) imageEdit(ctx context.Context, req ImageRequest) (ImageResponse, error) {
+func (a *OpenAIAdapter) editImage(ctx context.Context, req ImageRequest) (ImageResponse, error) {
 	if req.Size == "" && req.AspectRatio != "" {
 		req.Size = aspectRatioToOpenAIImageSize(req.Model, req.AspectRatio)
 	}
@@ -1139,7 +1139,7 @@ func (a *OpenAIAdapter) imageEdit(ctx context.Context, req ImageRequest) (ImageR
 	if len(readers) > 0 {
 		// Use custom multipart when the provider requires a non-standard field name (e.g. xAI "image[]").
 		if req.ImageFieldName != "" && req.ImageFieldName != "image" {
-			return a.imageEditMultipartCustomField(ctx, req, req.InputImageDataList)
+			return a.editImageMultipartCustomField(ctx, req, req.InputImageDataList)
 		}
 	} else if len(req.InputImageBytes) > 0 {
 		imgData = req.InputImageBytes
@@ -1151,7 +1151,7 @@ func (a *OpenAIAdapter) imageEdit(ctx context.Context, req ImageRequest) (ImageR
 		debugImages = []string{fmt.Sprintf("(binary %s, %d bytes)", mimeType, len(imgData))}
 	} else {
 		if req.InputImage == "" && req.CloudFileID != "" {
-			return a.imageEditByFileID(ctx, req)
+			return a.editImageByFileID(ctx, req)
 		}
 		var err error
 		imgData, mimeType, err = fetchURLBytes(ctx, req.InputImage, "")
@@ -1164,7 +1164,7 @@ func (a *OpenAIAdapter) imageEdit(ctx context.Context, req ImageRequest) (ImageR
 
 	// Use custom multipart when the provider requires a non-standard field name (e.g. xAI "image[]").
 	if req.ImageFieldName != "" && req.ImageFieldName != "image" {
-		return a.imageEditMultipartCustomField(ctx, req, []MediaData{{Bytes: imgData, MimeType: mimeType}})
+		return a.editImageMultipartCustomField(ctx, req, []MediaData{{Bytes: imgData, MimeType: mimeType}})
 	}
 
 	params := openai.ImageEditParams{
@@ -1225,9 +1225,9 @@ func openAIImageEditInput(readers []io.Reader) openai.ImageEditParamsImageUnion 
 	return openai.ImageEditParamsImageUnion{OfFileArray: readers}
 }
 
-// imageEditByFileID sends POST /images/edits with a JSON body referencing a provider file ID.
+// editImageByFileID sends POST /images/edits with a JSON body referencing a provider file ID.
 // Some providers (xAI) accept "image[]": fileID as JSON instead of a multipart binary upload.
-func (a *OpenAIAdapter) imageEditByFileID(ctx context.Context, req ImageRequest) (ImageResponse, error) {
+func (a *OpenAIAdapter) editImageByFileID(ctx context.Context, req ImageRequest) (ImageResponse, error) {
 	params := openai.ImageEditParams{
 		Model:  req.Model,
 		Prompt: req.Prompt,
@@ -1282,9 +1282,9 @@ func (a *OpenAIAdapter) imageEditByFileID(ctx context.Context, req ImageRequest)
 	return ImageResponse{URLs: urls, Debug: takeDebug(ctx)}, nil
 }
 
-// imageEditMultipartCustomField is a raw-HTTP fallback for providers that require
+// editImageMultipartCustomField is a raw-HTTP fallback for providers that require
 // a non-standard multipart field name for the image (e.g. xAI uses "image[]").
-func (a *OpenAIAdapter) imageEditMultipartCustomField(ctx context.Context, req ImageRequest, mediaList []MediaData) (ImageResponse, error) {
+func (a *OpenAIAdapter) editImageMultipartCustomField(ctx context.Context, req ImageRequest, mediaList []MediaData) (ImageResponse, error) {
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	fieldName := req.ImageFieldName
@@ -1874,14 +1874,14 @@ func (a *OpenAIAdapter) Synthesize(ctx context.Context, req media.TTSRequest) (m
 	}, nil
 }
 
-func (a *OpenAIAdapter) ChatAudio(ctx context.Context, req media.AudioChatRequest) (media.AudioChatResponse, error) {
+func (a *OpenAIAdapter) GenerateSpeechToSpeech(ctx context.Context, req media.SpeechToSpeechRequest) (media.SpeechToSpeechResponse, error) {
 	model := firstNonEmptyAI(req.Model, "gpt-4o-mini-audio-preview")
 	prompt := strings.TrimSpace(req.Prompt)
 	if prompt == "" {
 		prompt = stringParam(req.Params, "prompt", "")
 	}
 	if prompt == "" && len(req.Audio) == 0 {
-		return media.AudioChatResponse{}, fmt.Errorf("prompt or audio is required")
+		return media.SpeechToSpeechResponse{}, fmt.Errorf("prompt or audio is required")
 	}
 	responseFormat := openAIAudioResponseFormat(req.AudioFormat)
 	voice := firstNonEmptyAI(req.Voice, stringParam(req.Params, "voice", ""), "alloy")
@@ -1924,36 +1924,36 @@ func (a *OpenAIAdapter) ChatAudio(ctx context.Context, req media.AudioChatReques
 		body["max_tokens"] = maxTokens
 	}
 
-	raw, status, latency, err := a.postOpenAIJSONWithErrorLabel(ctx, "/chat/completions", body, "openai audio chat")
+	raw, status, latency, err := a.postOpenAIJSONWithErrorLabel(ctx, "/chat/completions", body, "openai speech-to-speech")
 	if err != nil {
 		recordDebugIfEmpty(ctx, DebugCallResult{
 			Success: false, ModelID: model, Endpoint: a.chatEndpoint(), Method: "POST",
-			RequestBody: mustJSON(redactAudioChatDebugBody(body)), ResponseStatus: status, ResponseBody: string(raw), LatencyMs: latency, Error: err.Error(),
+			RequestBody: mustJSON(redactSpeechToSpeechDebugBody(body)), ResponseStatus: status, ResponseBody: string(raw), LatencyMs: latency, Error: err.Error(),
 		})
-		return media.AudioChatResponse{}, err
+		return media.SpeechToSpeechResponse{}, err
 	}
 	var parsed openAIChatCompletionResponse
 	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return media.AudioChatResponse{}, fmt.Errorf("decode audio chat completion: %w", err)
+		return media.SpeechToSpeechResponse{}, fmt.Errorf("decode speech-to-speech completion: %w", err)
 	}
 	if len(parsed.Choices) == 0 {
-		return media.AudioChatResponse{}, fmt.Errorf("no choices returned")
+		return media.SpeechToSpeechResponse{}, fmt.Errorf("no choices returned")
 	}
 	message := parsed.Choices[0].Message
-	audio, err := decodeOpenAIChatAudio(message.Audio.Data)
+	audio, err := decodeOpenAIGenerateSpeechToSpeech(message.Audio.Data)
 	if err != nil {
-		return media.AudioChatResponse{}, err
+		return media.SpeechToSpeechResponse{}, err
 	}
 	text := firstNonEmptyAI(message.Audio.Transcript, stringPtrValue(message.Content))
 	if len(audio) == 0 && text == "" {
-		return media.AudioChatResponse{}, fmt.Errorf("audio chat response did not include audio or text")
+		return media.SpeechToSpeechResponse{}, fmt.Errorf("speech-to-speech response did not include audio or text")
 	}
 	recordDebugIfEmpty(ctx, DebugCallResult{
 		Success: true, ModelID: model, Endpoint: a.chatEndpoint(), Method: "POST",
-		RequestBody: mustJSON(redactAudioChatDebugBody(body)), ResponseStatus: status,
-		ResponseBody: fmt.Sprintf("(audio chat response: audio_bytes=%d text_chars=%d)", len(audio), len(text)), LatencyMs: latency,
+		RequestBody: mustJSON(redactSpeechToSpeechDebugBody(body)), ResponseStatus: status,
+		ResponseBody: fmt.Sprintf("(speech-to-speech response: audio_bytes=%d text_chars=%d)", len(audio), len(text)), LatencyMs: latency,
 	})
-	return media.AudioChatResponse{
+	return media.SpeechToSpeechResponse{
 		Audio:       audio,
 		Text:        text,
 		MimeType:    mimeTypeForOpenAIAudioFormat(responseFormat),
@@ -2038,7 +2038,7 @@ func (a *OpenAIAdapter) Transcribe(ctx context.Context, req media.TranscribeRequ
 	}, nil
 }
 
-func (a *OpenAIAdapter) TranslateAudio(ctx context.Context, req media.AudioTranslateRequest) (media.SubtitleResponse, error) {
+func (a *OpenAIAdapter) TranslateSpeech(ctx context.Context, req media.SpeechTranslateRequest) (media.SubtitleResponse, error) {
 	if len(req.Audio) == 0 {
 		return media.SubtitleResponse{}, fmt.Errorf("audio is required")
 	}
@@ -2097,7 +2097,7 @@ func (a *OpenAIAdapter) TranslateAudio(ctx context.Context, req media.AudioTrans
 		RequestHeaders: reqHeaders, RequestBody: debugBody, ResponseStatus: resp.StatusCode, ResponseBody: string(data), LatencyMs: latency,
 	})
 	if resp.StatusCode >= 400 {
-		return media.SubtitleResponse{}, fmt.Errorf("openai audio translation HTTP %d: %s", resp.StatusCode, string(data))
+		return media.SubtitleResponse{}, fmt.Errorf("openai speech translation HTTP %d: %s", resp.StatusCode, string(data))
 	}
 	timing, transcript := parseOpenAITranscript(data, req.TargetLanguage)
 	content := []byte(transcript)
@@ -2195,14 +2195,14 @@ func openAIInputAudioFormat(mimeType string) string {
 	}
 }
 
-func decodeOpenAIChatAudio(data string) ([]byte, error) {
+func decodeOpenAIGenerateSpeechToSpeech(data string) ([]byte, error) {
 	data = strings.TrimSpace(data)
 	if data == "" {
 		return nil, nil
 	}
 	audio, err := base64.StdEncoding.DecodeString(data)
 	if err != nil {
-		return nil, fmt.Errorf("decode audio chat response audio: %w", err)
+		return nil, fmt.Errorf("decode speech-to-speech response audio: %w", err)
 	}
 	return audio, nil
 }
@@ -2223,7 +2223,7 @@ func redactAudioSpeechDebugBody(body map[string]any) map[string]any {
 	return out
 }
 
-func redactAudioChatDebugBody(body map[string]any) map[string]any {
+func redactSpeechToSpeechDebugBody(body map[string]any) map[string]any {
 	raw, err := json.Marshal(body)
 	if err != nil {
 		return body
@@ -2257,7 +2257,7 @@ func parseOpenAITranscript(data []byte, language string) (media.TimingMetadata, 
 		segments = []media.TimedTextUnit{{ID: "segment_1", Text: text}}
 	}
 	return media.TimingMetadata{
-		Source:   media.TimingSourceSTT,
+		Source:   media.TimingSourceSpeechToText,
 		Provider: "openai-compatible",
 		Language: firstNonEmptyAI(strings.TrimSpace(language), stringField(raw, "language")),
 		Segments: segments,

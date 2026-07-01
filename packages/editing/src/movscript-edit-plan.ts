@@ -27,7 +27,7 @@ export interface MovScriptEditPlanTrack {
 
 export interface MovScriptEditPlanArtifact {
   schema: 'movscript.edit_plan.v1'
-  target_kind?: 'scene_moment' | 'timeline_assembly' | string
+  target_kind?: 'scene_moment' | string
   productionId: string | number
   productionPath: string
   sceneMomentId: string | number

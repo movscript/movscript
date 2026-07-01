@@ -34,12 +34,12 @@ test('jobMonitorPageFromSearchParams normalizes missing and invalid pages', () =
 })
 
 test('jobFiltersFromSearchParams parses job filter params', () => {
-  const filters = jobFiltersFromSearchParams(new URLSearchParams('job_id=42&status=failed&job_type=video&feature_key=video_v2v&user_id=7&org_id=3&project_id=4'))
+  const filters = jobFiltersFromSearchParams(new URLSearchParams('job_id=42&status=failed&job_type=video&feature_key=video_generation&user_id=7&org_id=3&project_id=4'))
   assert.deepEqual(filters, {
     jobId: '42',
     status: 'failed',
     jobType: 'video',
-    featureKey: 'video_v2v',
+    featureKey: 'video_generation',
     modelId: '',
     userId: '7',
     orgId: '3',

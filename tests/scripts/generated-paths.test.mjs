@@ -35,5 +35,12 @@ test('generated path classifier leaves source release scripts and controlled Go 
 
 test('clean targets and ignore patterns share the core staging contract', () => {
   assert.ok(generatedCleanTargets.stage.includes('apps/desktop/.package-stage'))
+  assert.ok(generatedCleanTargets.release.includes('release-artifacts'))
+  assert.ok(generatedCleanTargets.release.includes('downloaded-artifacts'))
+  assert.ok(generatedCleanTargets.release.includes('apps/*/release'))
+  assert.ok(generatedCleanTargets.release.includes('plugins/*/release'))
   assert.ok(generatedIgnorePatterns.includes('apps/desktop/.package-stage/'))
+  assert.ok(generatedIgnorePatterns.includes('release-artifacts/'))
+  assert.ok(generatedIgnorePatterns.includes('downloaded-artifacts/'))
+  assert.ok(generatedIgnorePatterns.includes('plugins/*/release/'))
 })

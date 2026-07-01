@@ -75,8 +75,6 @@ type ModelImportModelPlan struct {
 	EndpointBaseURL       string   `json:"endpoint_base_url,omitempty"`
 	EndpointPathPrefix    string   `json:"endpoint_path_prefix,omitempty"`
 	EndpointMode          string   `json:"endpoint_mode,omitempty"`
-	OperationProfile      string   `json:"operation_profile,omitempty"`
-	RouteCapabilitiesJSON string   `json:"route_capabilities_json,omitempty"`
 	Status                string   `json:"status"`
 	CatalogEntryID        uint     `json:"catalog_entry_id,omitempty"`
 	ExistingRouteID       uint     `json:"existing_route_id,omitempty"`
@@ -310,25 +308,7 @@ func modelImportPlanCreatesDisabledRouteForProvider(plan ModelImportModelPlan, p
 	if modelImportPlanSkipsRoute(plan) || modelImportPlanRequiresLocalProvider(plan) {
 		return true, "Yunwu auto-sync created this route disabled because the matched template is not usable through the Yunwu gateway yet. Add a route adapter and capability mapping before enabling it."
 	}
-	if modelImportPlanLacksYunwuRouteMapping(plan) {
-		return true, "Yunwu auto-sync created this route disabled because MovScript does not yet have a route capability mapping for this model family. Add route capability details before enabling it."
-	}
 	return false, ""
-}
-
-func modelImportPlanLacksYunwuRouteMapping(plan ModelImportModelPlan) bool {
-	if strings.TrimSpace(plan.RouteCapabilitiesJSON) != "" {
-		return false
-	}
-	for _, capability := range plan.Capabilities {
-		switch strings.TrimSpace(capability) {
-		case infraai.CapabilityText, infraai.CapabilityReasoning, infraai.CapabilityImage, infraai.CapabilityImageEdit:
-			continue
-		default:
-			return true
-		}
-	}
-	return false
 }
 
 func modelImportDisabledRoutePlan(plan ModelImportModelPlan, provider persistencemodel.AIProvider) ModelImportModelPlan {
@@ -340,9 +320,6 @@ func modelImportDisabledRoutePlan(plan ModelImportModelPlan, provider persistenc
 		adapterType = infraai.AdapterOpenAICompat
 	}
 	plan.AdapterType = adapterType
-	if strings.TrimSpace(plan.RouteCapabilitiesJSON) == "" {
-		plan.RouteCapabilitiesJSON = modelImportStructuredCapabilitiesJSON(plan.Capabilities)
-	}
 	return plan
 }
 
@@ -374,9 +351,6 @@ func applyModelImportProviderProfile(plan *ModelImportModelPlan, providerKind st
 	}
 	if strings.TrimSpace(plan.ModelCapabilitiesJSON) == "" {
 		plan.ModelCapabilitiesJSON = modelImportStructuredCapabilitiesJSON(plan.Capabilities)
-	}
-	if strings.TrimSpace(plan.RouteCapabilitiesJSON) == "" {
-		plan.RouteCapabilitiesJSON = plan.ModelCapabilitiesJSON
 	}
 }
 
@@ -421,7 +395,7 @@ func applyYunwuModelImportRouteProfile(plan *ModelImportModelPlan) {
 		applyYunwuAlibailianVideoRouteProfile(plan)
 		return
 	}
-	if !modelImportPlanHasAnyCapability(*plan, infraai.CapabilityVideo, infraai.CapabilityVideoI2V, infraai.CapabilityVideoV2V) {
+	if !modelImportPlanHasAnyCapability(*plan, infraai.CapabilityFamilyVideoGeneration) {
 		return
 	}
 	switch strings.TrimSpace(plan.AdapterType) {
@@ -441,42 +415,34 @@ func applyYunwuAlibailianVideoRouteProfile(plan *ModelImportModelPlan) {
 	plan.AdapterType = infraai.AdapterDashScope
 	plan.EndpointPathPrefix = "/alibailian/api/v1"
 	plan.EndpointMode = "replace_path"
-	plan.OperationProfile = "synthesis"
-	if !modelImportPlanHasAnyCapability(*plan, infraai.CapabilityVideo, infraai.CapabilityVideoI2V, infraai.CapabilityVideoV2V) {
-		plan.Capabilities = []string{infraai.CapabilityVideoI2V}
+	if !modelImportPlanHasAnyCapability(*plan, infraai.CapabilityFamilyVideoGeneration) {
+		plan.Capabilities = []string{infraai.CapabilityFamilyVideoGeneration}
 	}
-	plan.RouteCapabilitiesJSON = `{"video_generation":{"operations":["prompt_to_video","image_to_video","reference_to_video","video_to_video"],"reference_assets":{"min":0,"max":4,"roles":["generic","reference_image","reference_video"],"modalities":["image","video"]},"requires_public_image_url":true,"requires_public_video_url":true}}`
-	plan.ModelCapabilitiesJSON = plan.RouteCapabilitiesJSON
+	plan.ModelCapabilitiesJSON = `{"video_generation":{"operations":["prompt_to_video","image_to_video","reference_to_video","edit_video"],"reference_assets":{"min":0,"max":4,"roles":["generic","reference_image","reference_video"],"modalities":["image","video"]}}}`
 }
 
 func applyYunwuOfficialVideoGenerationsRouteProfile(plan *ModelImportModelPlan) {
 	plan.AdapterType = infraai.AdapterOfficialVideoGenerations
 	plan.EndpointPathPrefix = "/v1"
 	plan.EndpointMode = "replace_path"
-	plan.OperationProfile = "generation"
-	plan.RouteCapabilitiesJSON = `{"video_generation":{"operations":["prompt_to_video"]}}`
-	plan.ModelCapabilitiesJSON = plan.RouteCapabilitiesJSON
+	plan.ModelCapabilitiesJSON = `{"video_generation":{"operations":["prompt_to_video"]}}`
 }
 
 func applyYunwuOpenAIVideoMultipartRouteProfile(plan *ModelImportModelPlan) {
 	plan.AdapterType = infraai.AdapterOpenAIVideoMultipart
 	plan.EndpointPathPrefix = "/v1"
 	plan.EndpointMode = "replace_path"
-	plan.OperationProfile = "generation"
 	if strings.TrimSpace(plan.ModelCapabilitiesJSON) == "" {
 		plan.ModelCapabilitiesJSON = modelImportStructuredCapabilitiesJSON(plan.Capabilities)
 	}
-	plan.RouteCapabilitiesJSON = plan.ModelCapabilitiesJSON
 }
 
 func applyYunwuUnifiedVideoRouteProfile(plan *ModelImportModelPlan) {
 	plan.AdapterType = infraai.AdapterYunwuUnifiedVideo
 	plan.EndpointPathPrefix = "/v1"
 	plan.EndpointMode = "replace_path"
-	plan.OperationProfile = "generation"
 	plan.Capabilities = modelImportEnsureImageToVideoCapabilities(plan.Capabilities)
-	plan.RouteCapabilitiesJSON = `{"video_generation":{"operations":["image_to_video"],"reference_assets":{"min":1,"max":4,"roles":["generic","reference_image"],"modalities":["image"]},"requires_public_image_url":true}}`
-	plan.ModelCapabilitiesJSON = plan.RouteCapabilitiesJSON
+	plan.ModelCapabilitiesJSON = `{"video_generation":{"operations":["image_to_video"],"reference_assets":{"min":1,"max":4,"roles":["generic","reference_image"],"modalities":["image"]}}}`
 }
 
 func modelImportLooksAlibailianVideoModel(providerModelID string) bool {
@@ -491,15 +457,15 @@ func modelImportLooksAlibailianVideoModel(providerModelID string) bool {
 
 func modelImportEnsureImageToVideoCapabilities(capabilities []string) []string {
 	if len(capabilities) == 0 {
-		return []string{infraai.CapabilityVideoI2V}
+		return []string{infraai.CapabilityFamilyVideoGeneration}
 	}
 	out := make([]string, 0, len(capabilities)+1)
 	replacedVideo := false
 	for _, capability := range capabilities {
 		switch strings.TrimSpace(capability) {
-		case infraai.CapabilityVideo:
-			if !modelImportHasString(out, infraai.CapabilityVideoI2V) {
-				out = append(out, infraai.CapabilityVideoI2V)
+		case infraai.CapabilityFamilyVideoGeneration:
+			if !modelImportHasString(out, infraai.CapabilityFamilyVideoGeneration) {
+				out = append(out, infraai.CapabilityFamilyVideoGeneration)
 			}
 			replacedVideo = true
 		case "":
@@ -509,14 +475,14 @@ func modelImportEnsureImageToVideoCapabilities(capabilities []string) []string {
 			}
 		}
 	}
-	if !replacedVideo && !modelImportHasString(out, infraai.CapabilityVideoI2V) {
-		out = append(out, infraai.CapabilityVideoI2V)
+	if !replacedVideo && !modelImportHasString(out, infraai.CapabilityFamilyVideoGeneration) {
+		out = append(out, infraai.CapabilityFamilyVideoGeneration)
 	}
 	return out
 }
 
 func modelImportDefaultAdapterForCapabilities(capabilities []string) string {
-	if modelImportHasString(capabilities, infraai.CapabilityVideo) || modelImportHasString(capabilities, infraai.CapabilityVideoI2V) || modelImportHasString(capabilities, infraai.CapabilityVideoV2V) {
+	if modelImportHasString(capabilities, infraai.CapabilityFamilyVideoGeneration) || modelImportHasString(capabilities, infraai.CapabilityFamilyVideoGeneration) || modelImportHasString(capabilities, infraai.CapabilityFamilyVideoGeneration) {
 		return infraai.AdapterOpenAIVideoMultipart
 	}
 	return infraai.AdapterOpenAICompat
@@ -541,45 +507,48 @@ func modelImportStructuredCapabilitiesJSON(capabilities []string) string {
 		}
 		domain["operations"] = current
 	}
-	if modelImportHasString(capabilities, infraai.CapabilityText) || modelImportHasString(capabilities, infraai.CapabilityReasoning) {
+	if modelImportHasString(capabilities, infraai.CapabilityFamilyTextGeneration) || modelImportHasString(capabilities, infraai.CapabilityReasoning) {
 		addOps(infraai.CapabilityFamilyTextGeneration, "chat", "responses")
 	}
-	if modelImportHasString(capabilities, infraai.CapabilityImage) {
-		addOps(infraai.CapabilityFamilyImageGeneration, infraai.ImageOperationTextToImage)
+	if modelImportHasString(capabilities, infraai.CapabilityFamilyImageGeneration) {
+		addOps(infraai.CapabilityFamilyImageGeneration,
+			infraai.ImageOperationTextToImage,
+			infraai.ImageOperationReferenceToImage,
+			infraai.ImageOperationEditImage,
+		)
 	}
-	if modelImportHasString(capabilities, infraai.CapabilityImageEdit) {
-		addOps(infraai.CapabilityFamilyImageGeneration, infraai.ImageOperationImageToImage, infraai.ImageOperationImageEdit)
+	if modelImportHasString(capabilities, infraai.CapabilityFamilyVideoGeneration) {
+		addOps(infraai.CapabilityFamilyVideoGeneration,
+			infraai.VideoOperationPromptToVideo,
+			infraai.VideoOperationImageToVideo,
+			infraai.VideoOperationFirstFrameToVideo,
+			infraai.VideoOperationFirstLastFrameToVideo,
+			infraai.VideoOperationReferenceToVideo,
+			infraai.VideoOperationEditVideo,
+			infraai.VideoOperationExtendVideo,
+			infraai.VideoOperationUpscaleVideo,
+		)
+		domains[infraai.CapabilityFamilyVideoGeneration]["reference_assets"] = map[string]any{
+			"min":        0,
+			"max":        4,
+			"roles":      []string{"generic", "reference_image", "reference_video", "first_frame", "last_frame"},
+			"modalities": []string{"image", "video"},
+		}
 	}
-	switch {
-	case modelImportHasString(capabilities, infraai.CapabilityVideoV2V):
-		addOps(infraai.CapabilityFamilyVideoGeneration, infraai.VideoOperationReferenceToVideo, infraai.VideoOperationVideoToVideo)
-		domains[infraai.CapabilityFamilyVideoGeneration]["reference_assets"] = map[string]any{"min": 1, "max": 4, "roles": []string{"reference_video"}, "modalities": []string{"video"}}
-	case modelImportHasString(capabilities, infraai.CapabilityVideoI2V):
-		addOps(infraai.CapabilityFamilyVideoGeneration, infraai.VideoOperationImageToVideo)
-		domains[infraai.CapabilityFamilyVideoGeneration]["reference_assets"] = map[string]any{"min": 1, "max": 4, "roles": []string{"generic", "reference_image"}, "modalities": []string{"image"}}
-	case modelImportHasString(capabilities, infraai.CapabilityVideo):
-		addOps(infraai.CapabilityFamilyVideoGeneration, infraai.VideoOperationPromptToVideo)
-	}
-	if modelImportHasString(capabilities, infraai.CapabilityAudioTTS) {
-		addOps(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationTTS)
-	}
-	if modelImportHasString(capabilities, infraai.CapabilityAudioSTT) {
-		addOps(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationSTT)
-	}
-	if modelImportHasString(capabilities, infraai.CapabilityAudioMusic) {
-		addOps(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationMusic)
-	}
-	if modelImportHasString(capabilities, infraai.CapabilityAudioSFX) {
-		addOps(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationSFX)
-	}
-	if modelImportHasString(capabilities, infraai.CapabilityAudioChat) || modelImportHasString(capabilities, infraai.CapabilityAudio) {
-		addOps(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationAudioChat)
-	}
-	if modelImportHasString(capabilities, infraai.CapabilityVoiceClone) {
-		addOps(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationVoiceClone)
-	}
-	if modelImportHasString(capabilities, infraai.CapabilityVoiceDesign) {
-		addOps(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationVoiceDesign)
+	if modelImportHasString(capabilities, infraai.CapabilityFamilyAudioGeneration) {
+		addOps(infraai.CapabilityFamilyAudioGeneration,
+			infraai.AudioOperationTextToSpeech,
+			infraai.AudioOperationSpeechToText,
+			infraai.AudioOperationSpeechTranslate,
+			infraai.AudioOperationSpeechToSpeech,
+			infraai.AudioOperationVoiceClone,
+			infraai.AudioOperationVoiceDesign,
+			infraai.AudioOperationDubbing,
+			infraai.AudioOperationMusicGeneration,
+			infraai.AudioOperationSoundEffectGeneration,
+			infraai.AudioOperationVoiceIsolation,
+			infraai.AudioOperationForcedAlignment,
+		)
 	}
 	if len(domains) == 0 {
 		return ""
@@ -648,14 +617,14 @@ func (s *Service) findOrCreateImportedCatalogEntry(ctx context.Context, plan Mod
 			ShortName:             strings.TrimSpace(plan.PublicModelID),
 			IsEnabled:             true,
 			Capabilities:          strings.Join(plan.Capabilities, ","),
-			SupportedParams:       modelImportSupportedParams(plan.TemplateID),
+			SupportedParams:       modelImportSupportedParams(plan),
 			ModelCapabilitiesJSON: strings.TrimSpace(plan.ModelCapabilitiesJSON),
 		}
 		if template, ok := catalogTemplateByID(plan.TemplateID); ok {
 			entry.AcceptsImage = template.AcceptsImageInput
 			entry.MaxInputImages = template.MaxInputImages
 			entry.MaxInputVideos = template.MaxInputVideos
-			entry.ImageEditField = template.ImageEditField
+			entry.InputImageField = template.InputImageField
 		}
 		if err := validateModelCatalogEntry(&entry); err != nil {
 			return entry, false, err
@@ -691,19 +660,17 @@ func (s *Service) findOrCreateImportedRouteBinding(ctx context.Context, entryID 
 			adapterType = infraai.AdapterOpenAICompat
 		}
 		binding, err = s.createModelRouteBindingModel(ctx, strconv.FormatUint(uint64(entryID), 10), ModelRouteBindingInput{
-			TemplateVersion:       modelImportTemplateVersion(plan.TemplateID),
-			RouteGroup:            routeGroup,
-			ProviderID:            provider.ProviderID,
-			AdapterType:           adapterType,
-			ProviderModelID:       providerModelID,
-			EndpointBaseURL:       plan.EndpointBaseURL,
-			EndpointPathPrefix:    plan.EndpointPathPrefix,
-			EndpointMode:          plan.EndpointMode,
-			OperationProfile:      plan.OperationProfile,
-			RouteCapabilitiesJSON: plan.RouteCapabilitiesJSON,
-			IsEnabled:             &enabled,
-			Priority:              0,
-			CapacityWeight:        1,
+			TemplateVersion:    modelImportTemplateVersion(plan.TemplateID),
+			RouteGroup:         routeGroup,
+			ProviderID:         provider.ProviderID,
+			AdapterType:        adapterType,
+			ProviderModelID:    providerModelID,
+			EndpointBaseURL:    plan.EndpointBaseURL,
+			EndpointPathPrefix: plan.EndpointPathPrefix,
+			EndpointMode:       plan.EndpointMode,
+			IsEnabled:          &enabled,
+			Priority:           0,
+			CapacityWeight:     1,
 		})
 		if err != nil {
 			return binding, false, err
@@ -905,7 +872,7 @@ func modelImportPlanForModel(providerModelID string) ModelImportModelPlan {
 			Status:          modelImportStatusNew,
 			Recommended:     true,
 		}
-		if capabilitiesEqual(capabilities, []string{infraai.CapabilityText}) {
+		if capabilitiesEqual(capabilities, []string{infraai.CapabilityFamilyTextGeneration}) {
 			plan.Diagnostics = []string{"No built-in model template matched; imported as a generic text model."}
 		} else {
 			plan.Diagnostics = []string{"No built-in model template matched; capabilities were inferred from the provider model id. Review before applying."}
@@ -916,7 +883,7 @@ func modelImportPlanForModel(providerModelID string) ModelImportModelPlan {
 		ProviderModelID: providerModelID,
 		PublicModelID:   providerModelID,
 		DisplayName:     providerModelID,
-		Capabilities:    []string{infraai.CapabilityText},
+		Capabilities:    []string{infraai.CapabilityFamilyTextGeneration},
 		AdapterType:     infraai.AdapterOpenAICompat,
 		Status:          modelImportStatusNew,
 		Recommended:     true,
@@ -1041,42 +1008,39 @@ func inferModelImportCapabilities(providerModelID string) []string {
 	id := normalizeModelImportTemplateID(providerModelID)
 	switch {
 	case id == "":
-		return []string{infraai.CapabilityText}
+		return []string{infraai.CapabilityFamilyTextGeneration}
 	case strings.Contains(id, "transcribe") || strings.Contains(id, "whisper") ||
 		strings.Contains(id, "-asr") || strings.HasSuffix(id, "asr") ||
-		strings.Contains(id, "-stt") || strings.Contains(id, "speech-to-text") ||
+		strings.Contains(id, "-s"+"tt") || strings.Contains(id, "speech-to-text") ||
 		strings.Contains(id, "chirp"):
-		return []string{infraai.CapabilityAudioSTT}
+		return []string{infraai.CapabilityFamilyAudioGeneration}
 	case strings.Contains(id, "tts") || strings.Contains(id, "text-to-speech") ||
 		strings.Contains(id, "cosyvoice") || strings.HasPrefix(id, "speech-"):
-		return []string{infraai.CapabilityAudioTTS}
+		return []string{infraai.CapabilityFamilyAudioGeneration}
 	case strings.Contains(id, "audio-preview") || strings.Contains(id, "omni") || strings.Contains(id, "mimo"):
-		return []string{infraai.CapabilityAudioChat}
+		return []string{infraai.CapabilityFamilyAudioGeneration}
 	case strings.Contains(id, "lyria") || strings.Contains(id, "music") ||
 		strings.Contains(id, "mureka") || strings.Contains(id, "suno") || strings.Contains(id, "udio"):
-		return []string{infraai.CapabilityAudioMusic}
+		return []string{infraai.CapabilityFamilyAudioGeneration}
 	case strings.Contains(id, "sound-effect") || strings.Contains(id, "sound-effects") ||
 		strings.Contains(id, "-sfx") || strings.Contains(id, "text-to-sound"):
-		return []string{infraai.CapabilityAudioSFX}
+		return []string{infraai.CapabilityFamilyAudioGeneration}
 	case strings.Contains(id, "voice-clone") || strings.Contains(id, "voiceclone"):
-		return []string{infraai.CapabilityVoiceClone}
+		return []string{infraai.CapabilityFamilyAudioGeneration}
 	case strings.Contains(id, "voice-design") || strings.Contains(id, "voice-designing"):
-		return []string{infraai.CapabilityVoiceDesign}
+		return []string{infraai.CapabilityFamilyAudioGeneration}
 	case strings.Contains(id, "seedance") || strings.HasPrefix(id, "veo-") ||
 		strings.Contains(id, "-video") || strings.Contains(id, "hailuo"):
-		return []string{infraai.CapabilityVideo}
+		return []string{infraai.CapabilityFamilyVideoGeneration}
 	case strings.Contains(id, "gpt-image") || strings.Contains(id, "chatgpt-image") ||
 		strings.Contains(id, "imagen") || strings.Contains(id, "seedream") ||
 		strings.Contains(id, "qwen-image") || strings.Contains(id, "-image"):
-		if strings.Contains(id, "gpt-image") || strings.Contains(id, "chatgpt-image") || strings.Contains(id, "gemini") {
-			return []string{infraai.CapabilityImage, infraai.CapabilityImageEdit}
-		}
-		return []string{infraai.CapabilityImage}
+		return []string{infraai.CapabilityFamilyImageGeneration}
 	default:
 		if modelImportLooksReasoningCapable(id) {
-			return []string{infraai.CapabilityText, infraai.CapabilityReasoning}
+			return []string{infraai.CapabilityFamilyTextGeneration, infraai.CapabilityReasoning}
 		}
-		return []string{infraai.CapabilityText}
+		return []string{infraai.CapabilityFamilyTextGeneration}
 	}
 }
 
@@ -1127,9 +1091,14 @@ func modelImportPlanFromTemplate(providerModelID string, template infraai.Catalo
 	return plan
 }
 
-func modelImportSupportedParams(templateID string) string {
-	if template, ok := catalogTemplateByID(templateID); ok {
-		return paramDefsJSON(template.SupportedParams)
+func modelImportSupportedParams(plan ModelImportModelPlan) string {
+	if template, ok := catalogTemplateByID(plan.TemplateID); ok {
+		return modelOperationParamProfileJSON(
+			plan.AdapterType,
+			plan.Capabilities,
+			plan.ModelCapabilitiesJSON,
+			template.SupportedParams,
+		)
 	}
 	return ""
 }

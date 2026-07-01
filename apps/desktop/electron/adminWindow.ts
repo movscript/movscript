@@ -11,6 +11,7 @@ import {
   readAdminRendererURLFromEnv,
   resolveAdminConsoleURL,
 } from './services/adminConsole'
+import { getElectronRuntimeConfig } from './services/runtimeConfig'
 import type { ElectronAPI } from '../src/shared/contracts/electronApi'
 
 const ADMIN_PROTOCOL_SCHEME = 'movscript-admin'
@@ -47,7 +48,12 @@ export function installAdminProtocol(): void {
 export async function openAdminConsoleWindow(input?: Parameters<NonNullable<ElectronAPI['openAdminConsole']>>[0]): Promise<{ url: string }> {
   installAdminProtocol()
   const rendererURL = resolveAdminRendererURL()
-  const url = resolveAdminConsoleURL(input, rendererURL ? { rendererURL } : undefined)
+  const runtimeConnection = getElectronRuntimeConfig().runtimeConnection
+  const url = resolveAdminConsoleURL({
+    path: input?.path,
+    baseURL: runtimeConnection.gatewayBaseURL,
+    authSession: normalizeAdminAuthSession(input?.authSession ?? null, runtimeConnection.gatewayBaseURL),
+  }, rendererURL ? { rendererURL } : undefined)
   const win = getOrCreateAdminWindow()
   try {
     await win.loadURL(url)
@@ -63,6 +69,17 @@ export async function openAdminConsoleWindow(input?: Parameters<NonNullable<Elec
   win.show()
   win.focus()
   return { url }
+}
+
+function normalizeAdminAuthSession(
+  session: NonNullable<Parameters<NonNullable<ElectronAPI['openAdminConsole']>>[0]>['authSession'] | null | undefined,
+  apiBaseURL: string,
+): NonNullable<Parameters<NonNullable<ElectronAPI['openAdminConsole']>>[0]>['authSession'] | null {
+  if (!session?.user) return session ?? null
+  return {
+    ...session,
+    api_base_url: apiBaseURL,
+  }
 }
 
 function getOrCreateAdminWindow(): BrowserWindow {

@@ -1,1612 +1,1607 @@
+---
 lab: seed
 templates:
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: 豆包 Seed 2.0 Pro
-      id: volcengine:doubao-seed-2-0-pro
-      lab: seed
-      model_id: doubao-seed-2-0-pro-260215
-      order: 21
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: 豆包 Seed 2.0 Lite
-      id: volcengine:doubao-seed-2-0-lite
-      lab: seed
-      model_id: doubao-seed-2-0-lite-260215
-      order: 22
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: 豆包 Seed 2.0 Mini
-      id: volcengine:doubao-seed-2-0-mini
-      lab: seed
-      model_id: doubao-seed-2-0-mini-260215
-      order: 23
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: 豆包 Seed 1.8
-      id: volcengine:doubao-seed-1-8
-      lab: seed
-      model_id: doubao-seed-1.8-251228
-      order: 24
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: 豆包 Seed 1.6
-      id: volcengine:doubao-seed-1-6
-      lab: seed
-      model_id: doubao-seed-1.6-251015
-      order: 25
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: 豆包 Seed 1.6 Lite
-      id: volcengine:doubao-seed-1-6-lite
-      lab: seed
-      model_id: doubao-seed-1.6-lite-251015
-      order: 26
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: 豆包 Seed 1.6 Flash
-      id: volcengine:doubao-seed-1-6-flash
-      lab: seed
-      model_id: doubao-seed-1.6-flash-250828
-      order: 27
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: 豆包 Seed 1.6 Vision
-      id: volcengine:doubao-seed-1-6-vision
-      lab: seed
-      model_id: doubao-seed-1.6-vision-250815
-      order: 28
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: 豆包 1.5 Lite 32k
-      id: volcengine:doubao-1-5-lite-32k
-      lab: seed
-      model_id: doubao-1.5-lite-32k-250115
-      order: 29
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379
-        verified_at: "2026-06-25"
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: 豆包 Seed 2.0 Pro (Ark 原生)
-      id: volcengine-ark:doubao-seed-2-0-pro
-      lab: seed
-      model_id: doubao-seed-2-0-pro-260215
-      order: 30
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379
-        verified_at: "2026-06-25"
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: 豆包 Seed 2.0 Lite (Ark 原生)
-      id: volcengine-ark:doubao-seed-2-0-lite
-      lab: seed
-      model_id: doubao-seed-2-0-lite-260215
-      order: 31
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379
-        verified_at: "2026-06-25"
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: 豆包 Seed 1.6 (Ark 原生)
-      id: volcengine-ark:doubao-seed-1-6
-      lab: seed
-      model_id: doubao-seed-1.6-251015
-      order: 32
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - image
-      display_name: Seedream 3.0 图像
-      id: volcengine:seedream-3-0
-      lab: seed
-      model_id: doubao-seedream-3-0-t2i-250415
-      order: 33
-      params:
-        - default: "1:1"
-          key: aspect_ratio
-          label: 画面比例
-          options:
-            - "1:1"
-            - "16:9"
-            - "9:16"
-            - "4:3"
-            - "3:4"
-          type: select
-        - default: -1
-          key: seed
-          label: 种子
-          max: 2.147483647e+09
-          min: -1
-          step: 1
-          type: number
-        - default: 2.5
-          key: prompt_strength
-          label: 提示词强度
-          max: 10
-          min: 1
-          step: 0.1
-          type: number
-        - default: true
-          key: watermark
-          label: 水印
-          type: boolean
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379/1366799?lang=zh
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - image
-      display_name: Seedream 4.0 图像
-      id: volcengine:seedream-4-0
-      input:
-        accepts_image: true
-        max_images: 14
-      lab: seed
-      model_id: doubao-seedream-4-0-250828
-      order: 34
-      params:
-        - default: 2048x2048
-          key: image_size
-          label: 画面尺寸
-          options:
-            - 1K
-            - 2K
-            - 4K
-            - 1024x1024
-            - 2048x2048
-            - 2304x1728
-            - 1728x2304
-            - 2848x1600
-            - 1600x2848
-            - 4096x4096
-            - 5504x3040
-            - 3040x5504
-          type: select
-        - default: true
-          key: watermark
-          label: 水印
-          type: boolean
-        - default: disabled
-          key: sequential_image_generation
-          label: 组图
-          options:
-            - disabled
-            - auto
-          type: select
-        - key: image_count
-          label: 生成张数
-          max: 15
-          min: 1
-          requires_value:
-            - param: sequential_image_generation
-              value: auto
-          step: 1
-          type: number
-        - default: standard
-          key: optimize_prompt_mode
-          label: 提示词优化
-          options:
-            - standard
-            - fast
-          type: select
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379/1366799?lang=zh
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - image
-      display_name: Seedream 4.5 图像
-      id: volcengine:seedream-4-5
-      input:
-        accepts_image: true
-        max_images: 14
-      lab: seed
-      model_id: doubao-seedream-4-5-251128
-      order: 35
-      params:
-        - default: 2048x2048
-          key: image_size
-          label: 画面尺寸
-          options:
-            - 2K
-            - 4K
-            - 1024x1024
-            - 2048x2048
-            - 2304x1728
-            - 1728x2304
-            - 2848x1600
-            - 1600x2848
-            - 4096x4096
-            - 5504x3040
-            - 3040x5504
-          type: select
-        - default: true
-          key: watermark
-          label: 水印
-          type: boolean
-        - default: disabled
-          key: sequential_image_generation
-          label: 组图
-          options:
-            - disabled
-            - auto
-          type: select
-        - key: image_count
-          label: 生成张数
-          max: 15
-          min: 1
-          requires_value:
-            - param: sequential_image_generation
-              value: auto
-          step: 1
-          type: number
-        - default: standard
-          key: optimize_prompt_mode
-          label: 提示词优化
-          options:
-            - standard
-            - fast
-          type: select
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379/1366799?lang=zh
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - image
-      display_name: Seedream 5.0 图像
-      id: volcengine:seedream-5-0
-      input:
-        accepts_image: true
-        max_images: 14
-      lab: seed
-      model_id: doubao-seedream-5-0-260128
-      order: 36
-      params:
-        - default: 2048x2048
-          key: image_size
-          label: 画面尺寸
-          options:
-            - 2K
-            - 3K
-            - 4K
-            - 1024x1024
-            - 2048x2048
-            - 2304x1728
-            - 1728x2304
-            - 2848x1600
-            - 1600x2848
-            - 4096x4096
-            - 5504x3040
-            - 3040x5504
-          type: select
-        - default: true
-          key: watermark
-          label: 水印
-          type: boolean
-        - default: disabled
-          key: sequential_image_generation
-          label: 组图
-          options:
-            - disabled
-            - auto
-          type: select
-        - key: image_count
-          label: 生成张数
-          max: 15
-          min: 1
-          requires_value:
-            - param: sequential_image_generation
-              value: auto
-          step: 1
-          type: number
-        - default: standard
-          key: optimize_prompt_mode
-          label: 提示词优化
-          options:
-            - standard
-            - fast
-          type: select
-        - default: jpeg
-          key: output_format
-          label: 格式
-          options:
-            - jpeg
-            - png
-          type: select
-        - default: false
-          key: web_search
-          label: 联网搜索
-          type: boolean
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379/1366799?lang=zh
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - image
-      display_name: Seedream 5.0 Lite 图像
-      id: volcengine:seedream-5-0-lite
-      input:
-        accepts_image: true
-        max_images: 14
-      lab: seed
-      model_id: doubao-seedream-5-0-lite-260128
-      order: 37
-      params:
-        - default: 2048x2048
-          key: image_size
-          label: 画面尺寸
-          options:
-            - 2K
-            - 3K
-            - 4K
-            - 1024x1024
-            - 2048x2048
-            - 2304x1728
-            - 1728x2304
-            - 2848x1600
-            - 1600x2848
-            - 4096x4096
-            - 5504x3040
-            - 3040x5504
-          type: select
-        - default: true
-          key: watermark
-          label: 水印
-          type: boolean
-        - default: disabled
-          key: sequential_image_generation
-          label: 组图
-          options:
-            - disabled
-            - auto
-          type: select
-        - key: image_count
-          label: 生成张数
-          max: 15
-          min: 1
-          requires_value:
-            - param: sequential_image_generation
-              value: auto
-          step: 1
-          type: number
-        - default: standard
-          key: optimize_prompt_mode
-          label: 提示词优化
-          options:
-            - standard
-            - fast
-          type: select
-        - default: jpeg
-          key: output_format
-          label: 格式
-          options:
-            - jpeg
-            - png
-          type: select
-        - default: false
-          key: web_search
-          label: 联网搜索
-          type: boolean
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379/1366799?lang=zh
-        verified_at: "2026-06-25"
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - image
-      display_name: Seedream 3.0 图像 (Ark 原生)
-      id: volcengine-ark:seedream-3-0
-      lab: seed
-      model_id: doubao-seedream-3-0-t2i-250415
-      order: 38
-      params:
-        - default: "1:1"
-          key: aspect_ratio
-          label: 画面比例
-          options:
-            - "1:1"
-            - "16:9"
-            - "9:16"
-            - "4:3"
-            - "3:4"
-          type: select
-        - default: -1
-          key: seed
-          label: 种子
-          max: 2.147483647e+09
-          min: -1
-          step: 1
-          type: number
-        - default: 2.5
-          key: prompt_strength
-          label: 提示词强度
-          max: 10
-          min: 1
-          step: 0.1
-          type: number
-        - default: true
-          key: watermark
-          label: 水印
-          type: boolean
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379/1366799?lang=zh
-        verified_at: "2026-06-25"
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - image
-      display_name: Seedream 5.0 图像 (Ark 原生)
-      id: volcengine-ark:seedream-5-0
-      input:
-        accepts_image: true
-        max_images: 14
-      lab: seed
-      model_id: doubao-seedream-5-0-260128
-      order: 39
-      params:
-        - default: 2048x2048
-          key: image_size
-          label: 画面尺寸
-          options:
-            - 2K
-            - 3K
-            - 4K
-            - 1024x1024
-            - 2048x2048
-            - 2304x1728
-            - 1728x2304
-            - 2848x1600
-            - 1600x2848
-            - 4096x4096
-            - 5504x3040
-            - 3040x5504
-          type: select
-        - default: true
-          key: watermark
-          label: 水印
-          type: boolean
-        - default: disabled
-          key: sequential_image_generation
-          label: 组图
-          options:
-            - disabled
-            - auto
-          type: select
-        - key: image_count
-          label: 生成张数
-          max: 15
-          min: 1
-          requires_value:
-            - param: sequential_image_generation
-              value: auto
-          step: 1
-          type: number
-        - default: standard
-          key: optimize_prompt_mode
-          label: 提示词优化
-          options:
-            - standard
-            - fast
-          type: select
-        - default: jpeg
-          key: output_format
-          label: 格式
-          options:
-            - jpeg
-            - png
-          type: select
-        - default: false
-          key: web_search
-          label: 联网搜索
-          type: boolean
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379/1366799?lang=zh
-        verified_at: "2026-06-25"
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - image
-      display_name: Seedream 5.0 Lite 图像 (Ark 原生)
-      id: volcengine-ark:seedream-5-0-lite
-      input:
-        accepts_image: true
-        max_images: 14
-      lab: seed
-      model_id: doubao-seedream-5-0-lite-260128
-      order: 40
-      params:
-        - default: 2048x2048
-          key: image_size
-          label: 画面尺寸
-          options:
-            - 2K
-            - 3K
-            - 4K
-            - 1024x1024
-            - 2048x2048
-            - 2304x1728
-            - 1728x2304
-            - 2848x1600
-            - 1600x2848
-            - 4096x4096
-            - 5504x3040
-            - 3040x5504
-          type: select
-        - default: true
-          key: watermark
-          label: 水印
-          type: boolean
-        - default: disabled
-          key: sequential_image_generation
-          label: 组图
-          options:
-            - disabled
-            - auto
-          type: select
-        - key: image_count
-          label: 生成张数
-          max: 15
-          min: 1
-          requires_value:
-            - param: sequential_image_generation
-              value: auto
-          step: 1
-          type: number
-        - default: standard
-          key: optimize_prompt_mode
-          label: 提示词优化
-          options:
-            - standard
-            - fast
-          type: select
-        - default: jpeg
-          key: output_format
-          label: 格式
-          options:
-            - jpeg
-            - png
-          type: select
-        - default: false
-          key: web_search
-          label: 联网搜索
-          type: boolean
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379/1366799?lang=zh
-        verified_at: "2026-06-25"
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - video
-      display_name: Seedance 1-0 Lite 文生视频
-      id: volcengine:seedance-1-0-lite-t2v
-      lab: seed
-      model_id: doubao-seedance-1-0-lite-t2v-250428
-      order: 41
-      params:
-        - default: "5"
-          key: duration
-          label: 时长(秒)
-          options:
-            - "2"
-            - "5"
-            - "10"
-            - "12"
-          type: select
-        - default: "16:9"
-          key: aspect_ratio
-          label: 画面比例
-          options:
-            - "16:9"
-            - "9:16"
-            - "1:1"
-            - "4:3"
-            - "3:4"
-            - "21:9"
-          type: select
-        - default: 720p
-          key: resolution
-          label: 分辨率
-          options:
-            - 480p
-            - 720p
-            - 1080p
-          type: select
-        - default: -1
-          key: seed
-          label: 种子
-          max: 4.294967295e+09
-          min: -1
-          step: 1
-          type: number
-        - default: false
-          key: watermark
-          label: 水印
-          type: boolean
-        - default: false
-          key: fixed_camera
-          label: 固定镜头
-          type: boolean
-        - default: false
-          key: return_last_frame
-          label: 返回尾帧
-          type: boolean
-        - default: default
-          key: service_tier
-          label: 服务等级
-          options:
-            - default
-            - flex
-          type: select
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379/1520757?lang=zh
-        verified_at: "2026-06-25"
-      video:
-        default_duration_sec: 5
-        max_duration_sec: 12
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - video_i2v
-      display_name: Seedance 1-0 Lite 图生视频
-      id: volcengine:seedance-1-0-lite-i2v
-      input:
-        accepts_image: true
-        max_images: 4
-      lab: seed
-      model_id: doubao-seedance-1-0-lite-i2v-250428
-      order: 42
-      params:
-        - default: "5"
-          key: duration
-          label: 时长(秒)
-          options:
-            - "2"
-            - "5"
-            - "10"
-            - "12"
-          type: select
-        - default: "16:9"
-          key: aspect_ratio
-          label: 画面比例
-          options:
-            - "16:9"
-            - "9:16"
-            - "1:1"
-            - "4:3"
-            - "3:4"
-            - "21:9"
-          type: select
-        - default: 720p
-          key: resolution
-          label: 分辨率
-          options:
-            - 480p
-            - 720p
-          type: select
-        - default: -1
-          key: seed
-          label: 种子
-          max: 4.294967295e+09
-          min: -1
-          step: 1
-          type: number
-        - default: false
-          key: watermark
-          label: 水印
-          type: boolean
-        - default: false
-          key: return_last_frame
-          label: 返回尾帧
-          type: boolean
-        - default: default
-          key: service_tier
-          label: 服务等级
-          options:
-            - default
-            - flex
-          type: select
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379/1520757?lang=zh
-        verified_at: "2026-06-25"
-      video:
-        default_duration_sec: 5
-        max_duration_sec: 12
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - video
-      display_name: Seedance 1-0 Pro Fast 视频
-      id: volcengine:seedance-1-0-pro-fast
-      lab: seed
-      model_id: doubao-seedance-1-0-pro-fast-251015
-      order: 43
-      params:
-        - default: "5"
-          key: duration
-          label: 时长(秒)
-          options:
-            - "2"
-            - "5"
-            - "10"
-            - "12"
-          type: select
-        - default: "16:9"
-          key: aspect_ratio
-          label: 画面比例
-          options:
-            - "16:9"
-            - "9:16"
-            - "1:1"
-            - "4:3"
-            - "3:4"
-            - "21:9"
-          type: select
-        - default: 720p
-          key: resolution
-          label: 分辨率
-          options:
-            - 480p
-            - 720p
-            - 1080p
-          type: select
-        - default: -1
-          key: seed
-          label: 种子
-          max: 4.294967295e+09
-          min: -1
-          step: 1
-          type: number
-        - default: false
-          key: watermark
-          label: 水印
-          type: boolean
-        - default: false
-          key: fixed_camera
-          label: 固定镜头
-          type: boolean
-        - default: false
-          key: return_last_frame
-          label: 返回尾帧
-          type: boolean
-        - default: default
-          key: service_tier
-          label: 服务等级
-          options:
-            - default
-            - flex
-          type: select
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379/1520757?lang=zh
-        verified_at: "2026-06-25"
-      video:
-        default_duration_sec: 5
-        max_duration_sec: 12
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - video
-        - video_i2v
-      display_name: Seedance 1.5 Pro 视频
-      id: volcengine:seedance-1-5-pro
-      input:
-        accepts_image: true
-        max_images: 1
-      lab: seed
-      model_id: doubao-seedance-1-5-pro-251215
-      order: 44
-      params:
-        - default: "5"
-          key: duration
-          label: 时长(秒)
-          options:
-            - "-1"
-            - "4"
-            - "5"
-            - "10"
-            - "12"
-          type: select
-        - default: adaptive
-          key: aspect_ratio
-          label: 画面比例
-          options:
-            - adaptive
-            - "16:9"
-            - "9:16"
-            - "1:1"
-            - "4:3"
-            - "3:4"
-            - "21:9"
-          type: select
-        - conditional_enum:
-            - options:
-                - 480p
-              when_param: workspace
-              when_value: true
-          default: 720p
-          key: resolution
-          label: 分辨率
-          options:
-            - 480p
-            - 720p
-            - 1080p
-          type: select
-        - default: -1
-          key: seed
-          label: 种子
-          max: 4.294967295e+09
-          min: -1
-          step: 1
-          type: number
-        - default: false
-          key: watermark
-          label: 水印
-          type: boolean
-        - default: true
-          key: audio
-          label: 生成音频
-          type: boolean
-        - default: false
-          key: fixed_camera
-          label: 固定镜头
-          type: boolean
-        - conditional_const:
-            - value: false
-              when_param: workspace
-              when_value: true
-          default: false
-          key: return_last_frame
-          label: 返回尾帧
-          type: boolean
-        - conditional_enum:
-            - options:
-                - default
-              when_param: workspace
-              when_value: true
-          default: default
-          key: service_tier
-          label: 服务等级
-          options:
-            - default
-            - flex
-          type: select
-        - default: false
-          key: workspace
-          label: 样片模式
-          type: boolean
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379/1520757?lang=zh
-        verified_at: "2026-06-25"
-      video:
-        default_duration_sec: 5
-        max_duration_sec: 12
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - video
-        - video_i2v
-        - video_v2v
-      display_name: Seedance 2.0 视频
-      id: volcengine:seedance-2-0
-      input:
-        accepts_image: true
-        max_images: 1
-        max_videos: 1
-      lab: seed
-      model_id: doubao-seedance-2-0-260128
-      order: 45
-      params:
-        - default: "5"
-          key: duration
-          label: 时长(秒)
-          options:
-            - "-1"
-            - "4"
-            - "5"
-            - "10"
-            - "11"
-            - "15"
-          type: select
-        - default: adaptive
-          key: aspect_ratio
-          label: 画面比例
-          options:
-            - adaptive
-            - "16:9"
-            - "9:16"
-            - "1:1"
-            - "4:3"
-            - "3:4"
-            - "21:9"
-          type: select
-        - default: 720p
-          key: resolution
-          label: 分辨率
-          options:
-            - 480p
-            - 720p
-            - 1080p
-          type: select
-        - default: -1
-          key: seed
-          label: 种子
-          max: 4.294967295e+09
-          min: -1
-          step: 1
-          type: number
-        - default: false
-          key: watermark
-          label: 水印
-          type: boolean
-        - default: true
-          key: audio
-          label: 生成音频
-          type: boolean
-        - default: false
-          key: return_last_frame
-          label: 返回尾帧
-          type: boolean
-        - default: false
-          key: web_search
-          label: 联网搜索
-          type: boolean
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379/1520757?lang=zh
-        verified_at: "2026-06-25"
-      video:
-        default_duration_sec: 5
-        max_duration_sec: 15
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - audio_tts
-      display_name: Seed Speech TTS 2.0 Expressive
-      id: volcengine:seed-tts-2-0-expressive
-      lab: seed
-      model_id: seed-tts-2.0-expressive
-      order: 45
-      params:
-        - key: speaker
-          label: 音色
-          type: string
-          default: zh_female_vv_uranus_bigtts
-        - key: encoding
-          label: 音频格式
-          type: select
-          options:
-            - mp3
-            - wav
-            - pcm
-            - ogg_opus
-          default: mp3
-        - key: sample_rate
-          label: 采样率
-          type: number
-          default: 24000
-          min: 8000
-          step: 1000
-        - key: emotion
-          label: 情绪
-          type: string
-          default: ""
-        - key: speech_rate
-          label: 语速
-          type: number
-          default: 0
-          min: -50
-          max: 100
-          step: 1
-        - key: loudness_rate
-          label: 音量
-          type: number
-          default: 0
-          min: -50
-          max: 100
-          step: 1
-        - key: explicit_language
-          label: 显式语言
-          type: string
-          default: ""
-        - key: resource_id
-          label: Resource ID
-          type: string
-          default: seed-tts-2.0
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/6561/2528925?lang=zh
-        verified_at: "2026-06-26"
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - audio_tts
-      display_name: Seed Speech TTS 2.0 Standard
-      id: volcengine:seed-tts-2-0-standard
-      lab: seed
-      model_id: seed-tts-2.0-standard
-      order: 46
-      params:
-        - key: speaker
-          label: 音色
-          type: string
-          default: zh_female_vv_uranus_bigtts
-        - key: encoding
-          label: 音频格式
-          type: select
-          options:
-            - mp3
-            - wav
-            - pcm
-            - ogg_opus
-          default: mp3
-        - key: sample_rate
-          label: 采样率
-          type: number
-          default: 24000
-          min: 8000
-          step: 1000
-        - key: emotion
-          label: 情绪
-          type: string
-          default: ""
-        - key: speech_rate
-          label: 语速
-          type: number
-          default: 0
-          min: -50
-          max: 100
-          step: 1
-        - key: loudness_rate
-          label: 音量
-          type: number
-          default: 0
-          min: -50
-          max: 100
-          step: 1
-        - key: explicit_language
-          label: 显式语言
-          type: string
-          default: ""
-        - key: resource_id
-          label: Resource ID
-          type: string
-          default: seed-tts-2.0
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/6561/2528925?lang=zh
-        verified_at: "2026-06-26"
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - audio_tts
-      display_name: Seed Speech TTS 1.1
-      id: volcengine:seed-tts-1-1
-      lab: seed
-      model_id: seed-tts-1.1
-      order: 47
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/6561/1257584?lang=zh
-        verified_at: "2026-06-25"
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - audio_tts
-      display_name: Seed Speech TTS 1.0
-      id: volcengine:seed-tts-1-0
-      lab: seed
-      model_id: seed-tts-1.0
-      order: 48
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/6561/1257584?lang=zh
-        verified_at: "2026-06-25"
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - audio_tts
-      display_name: Seed Speech TTS 1.0 Concurr
-      id: volcengine:seed-tts-1-0-concurr
-      lab: seed
-      model_id: seed-tts-1.0-concurr
-      order: 49
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/6561/1257584?lang=zh
-        verified_at: "2026-06-25"
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - audio_music
-        - audio_sfx
-      display_name: Doubao Seed-Audio 1.0
-      id: volcengine:doubao-seed-audio-1-0
-      lab: seed
-      model_id: doubao-seed-audio-1-0
-      order: 49
-      params:
-        - key: duration
-          label: 时长(秒)
-          type: number
-          default: 60
-          min: 1
-          max: 120
-          step: 1
-        - key: output_format
-          label: 音频格式
-          type: select
-          options:
-            - mp3
-            - wav
-            - ogg
-            - flac
-          default: mp3
-        - key: negative_prompt
-          label: 负向提示词
-          type: string
-          default: ""
-        - key: reference_audio_url
-          label: 参考音频 URL
-          type: string
-          default: ""
-        - key: style
-          label: 风格
-          type: string
-          default: ""
-        - key: seed
-          label: 种子
-          type: number
-          default: 0
-          step: 1
-        - key: poll_timeout_ms
-          label: 轮询超时(ms)
-          type: number
-          default: 600000
-          min: 1000
-          step: 1000
-        - key: poll_interval_ms
-          label: 轮询间隔(ms)
-          type: number
-          default: 5000
-          min: 500
-          step: 500
-      source:
-        status: observed
-        url: https://ark.volcengine.com/region:cn-beijing/experience/voice?model=doubao-seed-audio-1-0
-        verified_at: "2026-06-26"
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - audio_transcribe
-      display_name: Doubao Seed ASR 2.0
-      id: volcengine:doubao-seed-asr-2-0
-      lab: seed
-      model_id: volc.seedasr.auc
-      order: 50
-      params:
-        - key: format
-          label: 音频格式
-          type: select
-          options:
-            - mp3
-            - m4a
-            - wav
-            - ogg
-            - webm
-            - flac
-          default: mp3
-        - key: language
-          label: 语言
-          type: string
-          default: ""
-        - key: enable_itn
-          label: 数字文本规整
-          type: boolean
-          default: true
-        - key: enable_punc
-          label: 标点
-          type: boolean
-          default: true
-        - key: show_utterances
-          label: 分句结果
-          type: boolean
-          default: true
-        - key: enable_speaker_info
-          label: 说话人分离
-          type: boolean
-          default: false
-        - key: poll_timeout_ms
-          label: 轮询超时(ms)
-          type: number
-          default: 600000
-          min: 1000
-          step: 1000
-        - key: poll_interval_ms
-          label: 轮询间隔(ms)
-          type: number
-          default: 5000
-          min: 500
-          step: 500
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/6561/1354868
-        verified_at: "2026-06-25"
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - audio_chat
-      display_name: Doubao RealtimeVoice
-      id: volcengine:doubao-realtime-voice
-      lab: seed
-      model_id: Doubao-RealtimeVoice
-      order: 51
-      params:
-        - key: model_version
-          label: 模型版本
-          type: select
-          options:
-            - "1.2.1.1"
-            - "2.2.0.0"
-          default: "1.2.1.1"
-        - key: speaker
-          label: 音色
-          type: string
-          default: zh_female_vv_jupiter_bigtts
-        - key: input_mod
-          label: 输入模式
-          type: select
-          options:
-            - audio
-            - audio_file
-            - keep_alive
-            - push_to_talk
-            - text
-          default: audio_file
-        - key: input_audio_format
-          label: 输入音频格式
-          type: select
-          options:
-            - pcm
-            - speech_opus
-          default: pcm
-        - key: input_sample_rate
-          label: 输入采样率
-          type: number
-          default: 16000
-          min: 8000
-          step: 1000
-        - key: output_audio_format
-          label: 输出音频格式
-          type: select
-          options:
-            - ogg
-            - pcm
-            - pcm_s16le
-          default: pcm_s16le
-        - key: output_sample_rate
-          label: 输出采样率
-          type: number
-          default: 24000
-          min: 8000
-          step: 1000
-        - key: end_asr
-          label: 自动结束识别
-          type: boolean
-          default: true
-        - key: end_smooth_window_ms
-          label: 断句平滑窗口(ms)
-          type: number
-          default: 1500
-          min: 500
-          max: 50000
-          step: 100
-        - key: speech_rate
-          label: 语速
-          type: number
-          default: 0
-          min: -50
-          max: 100
-          step: 1
-        - key: loudness_rate
-          label: 音量
-          type: number
-          default: 0
-          min: -50
-          max: 100
-          step: 1
-        - key: bot_name
-          label: 机器人名称
-          type: string
-          default: 豆包
-        - key: system_role
-          label: 系统人设
-          type: string
-          default: ""
-        - key: speaking_style
-          label: 说话风格
-          type: string
-          default: ""
-        - key: strict_audit
-          label: 严格审核
-          type: boolean
-          default: true
-        - key: read_timeout_ms
-          label: 读取超时(ms)
-          type: number
-          default: 120000
-          min: 1000
-          step: 1000
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/6561/1594356
-        verified_at: "2026-06-26"
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - voice_clone
-      display_name: Seed Speech Voice Replication 2.0
-      id: volcengine:seed-voice-replication-2-0
-      lab: seed
-      model_id: seed-voice-replication-2.0
-      order: 52
-      params:
-        - key: speaker_id
-          label: 音色 ID
-          type: string
-          default: ""
-        - key: resource_id
-          label: Resource ID
-          type: string
-          default: seed-icl-2.0
-        - key: model_type
-          label: 模型类型
-          type: number
-          default: 4
-          min: 1
-          step: 1
-        - key: source
-          label: 音频来源
-          type: number
-          default: 2
-          min: 1
-          step: 1
-        - key: language
-          label: 语言类型
-          type: number
-          default: 0
-          min: 0
-          step: 1
-        - key: audio_format
-          label: 音频格式
-          type: select
-          options:
-            - wav
-            - mp3
-            - m4a
-            - ogg
-          default: wav
-        - key: wait_for_ready
-          label: 等待训练完成
-          type: boolean
-          default: false
-        - key: poll_timeout_ms
-          label: 轮询超时(ms)
-          type: number
-          default: 300000
-          min: 1000
-          step: 1000
-        - key: poll_interval_ms
-          label: 轮询间隔(ms)
-          type: number
-          default: 5000
-          min: 500
-          step: 500
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/6561/2534906
-        verified_at: "2026-06-26"
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - voice_design
-      display_name: 豆包 Seed Voice Design
-      id: volcengine:doubao-seed-voice-design
-      lab: seed
-      model_id: doubao-seed-voice-design
-      order: 53
-      params:
-        - key: resource_id
-          label: Resource ID
-          type: string
-          default: doubao-seed-voice-design
-        - key: endpoint
-          label: Endpoint
-          type: string
-          default: ""
-        - key: preview_text
-          label: 试听文本
-          type: string
-          default: ""
-        - key: speaker_id
-          label: 音色 ID
-          type: string
-          default: ""
-        - key: language
-          label: 语言类型
-          type: number
-          default: 0
-          min: 0
-          step: 1
-        - key: sample_rate
-          label: 采样率
-          type: number
-          default: 24000
-          min: 8000
-          step: 1000
-        - key: image_url
-          label: 参考图片 URL
-          type: string
-          default: ""
-        - key: image_bytes
-          label: 参考图片 Base64
-          type: string
-          default: ""
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/6561/2277844
-        verified_at: "2026-06-26"
-    - route_adapter_hint: volcen
-      allow_model_id_override: true
-      capabilities:
-        - video
-        - video_i2v
-        - video_v2v
-      display_name: Seedance 2.0 Fast 视频
-      id: volcengine:seedance-2-0-fast
-      input:
-        accepts_image: true
-        max_images: 1
-        max_videos: 1
-      lab: seed
-      model_id: doubao-seedance-2-0-fast-260128
-      order: 46
-      params:
-        - default: "5"
-          key: duration
-          label: 时长(秒)
-          options:
-            - "-1"
-            - "4"
-            - "5"
-            - "10"
-            - "11"
-            - "15"
-          type: select
-        - default: adaptive
-          key: aspect_ratio
-          label: 画面比例
-          options:
-            - adaptive
-            - "16:9"
-            - "9:16"
-            - "1:1"
-            - "4:3"
-            - "3:4"
-            - "21:9"
-          type: select
-        - default: 720p
-          key: resolution
-          label: 分辨率
-          options:
-            - 480p
-            - 720p
-          type: select
-        - default: -1
-          key: seed
-          label: 种子
-          max: 4.294967295e+09
-          min: -1
-          step: 1
-          type: number
-        - default: false
-          key: watermark
-          label: 水印
-          type: boolean
-        - default: true
-          key: audio
-          label: 生成音频
-          type: boolean
-        - default: false
-          key: return_last_frame
-          label: 返回尾帧
-          type: boolean
-        - default: false
-          key: web_search
-          label: 联网搜索
-          type: boolean
-      source:
-        status: verified
-        url: https://www.volcengine.com/docs/82379/1520757?lang=zh
-        verified_at: "2026-06-25"
-      video:
-        default_duration_sec: 5
-        max_duration_sec: 15
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: 豆包 Seed 2.0 Pro
+  id: volcengine:doubao-seed-2-0-pro
+  lab: seed
+  model_id: doubao-seed-2-0-pro-260215
+  order: 21
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: 豆包 Seed 2.0 Lite
+  id: volcengine:doubao-seed-2-0-lite
+  lab: seed
+  model_id: doubao-seed-2-0-lite-260215
+  order: 22
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: 豆包 Seed 2.0 Mini
+  id: volcengine:doubao-seed-2-0-mini
+  lab: seed
+  model_id: doubao-seed-2-0-mini-260215
+  order: 23
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: 豆包 Seed 1.8
+  id: volcengine:doubao-seed-1-8
+  lab: seed
+  model_id: doubao-seed-1.8-251228
+  order: 24
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: 豆包 Seed 1.6
+  id: volcengine:doubao-seed-1-6
+  lab: seed
+  model_id: doubao-seed-1.6-251015
+  order: 25
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: 豆包 Seed 1.6 Lite
+  id: volcengine:doubao-seed-1-6-lite
+  lab: seed
+  model_id: doubao-seed-1.6-lite-251015
+  order: 26
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: 豆包 Seed 1.6 Flash
+  id: volcengine:doubao-seed-1-6-flash
+  lab: seed
+  model_id: doubao-seed-1.6-flash-250828
+  order: 27
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: 豆包 Seed 1.6 Vision
+  id: volcengine:doubao-seed-1-6-vision
+  lab: seed
+  model_id: doubao-seed-1.6-vision-250815
+  order: 28
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: 豆包 1.5 Lite 32k
+  id: volcengine:doubao-1-5-lite-32k
+  lab: seed
+  model_id: doubao-1.5-lite-32k-250115
+  order: 29
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379
+    verified_at: '2026-06-25'
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: 豆包 Seed 2.0 Pro (Ark 原生)
+  id: volcengine-ark:doubao-seed-2-0-pro
+  lab: seed
+  model_id: doubao-seed-2-0-pro-260215
+  order: 30
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379
+    verified_at: '2026-06-25'
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: 豆包 Seed 2.0 Lite (Ark 原生)
+  id: volcengine-ark:doubao-seed-2-0-lite
+  lab: seed
+  model_id: doubao-seed-2-0-lite-260215
+  order: 31
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379
+    verified_at: '2026-06-25'
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: 豆包 Seed 1.6 (Ark 原生)
+  id: volcengine-ark:doubao-seed-1-6
+  lab: seed
+  model_id: doubao-seed-1.6-251015
+  order: 32
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - image_generation
+  display_name: Seedream 3.0 图像
+  id: volcengine:seedream-3-0
+  lab: seed
+  model_id: doubao-seedream-3-0-t2i-250415
+  order: 33
+  params:
+  - default: '1:1'
+    key: aspect_ratio
+    label: 画面比例
+    options:
+    - '1:1'
+    - '16:9'
+    - '9:16'
+    - '4:3'
+    - '3:4'
+    type: select
+  - default: -1
+    key: seed
+    label: 种子
+    max: 2147483647.0
+    min: -1
+    step: 1
+    type: number
+  - default: 2.5
+    key: prompt_strength
+    label: 提示词强度
+    max: 10
+    min: 1
+    step: 0.1
+    type: number
+  - default: true
+    key: watermark
+    label: 水印
+    type: boolean
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379/1366799?lang=zh
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - image_generation
+  display_name: Seedream 4.0 图像
+  id: volcengine:seedream-4-0
+  input:
+    accepts_image: true
+    max_images: 14
+  lab: seed
+  model_id: doubao-seedream-4-0-250828
+  order: 34
+  params:
+  - default: 2048x2048
+    key: image_size
+    label: 画面尺寸
+    options:
+    - 1K
+    - 2K
+    - 4K
+    - 1024x1024
+    - 2048x2048
+    - 2304x1728
+    - 1728x2304
+    - 2848x1600
+    - 1600x2848
+    - 4096x4096
+    - 5504x3040
+    - 3040x5504
+    type: select
+  - default: true
+    key: watermark
+    label: 水印
+    type: boolean
+  - default: disabled
+    key: sequential_image_generation
+    label: 组图
+    options:
+    - disabled
+    - auto
+    type: select
+  - key: image_count
+    label: 生成张数
+    max: 15
+    min: 1
+    requires_value:
+    - param: sequential_image_generation
+      value: auto
+    step: 1
+    type: number
+  - default: standard
+    key: optimize_prompt_mode
+    label: 提示词优化
+    options:
+    - standard
+    - fast
+    type: select
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379/1366799?lang=zh
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - image_generation
+  display_name: Seedream 4.5 图像
+  id: volcengine:seedream-4-5
+  input:
+    accepts_image: true
+    max_images: 14
+  lab: seed
+  model_id: doubao-seedream-4-5-251128
+  order: 35
+  params:
+  - default: 2048x2048
+    key: image_size
+    label: 画面尺寸
+    options:
+    - 2K
+    - 4K
+    - 1024x1024
+    - 2048x2048
+    - 2304x1728
+    - 1728x2304
+    - 2848x1600
+    - 1600x2848
+    - 4096x4096
+    - 5504x3040
+    - 3040x5504
+    type: select
+  - default: true
+    key: watermark
+    label: 水印
+    type: boolean
+  - default: disabled
+    key: sequential_image_generation
+    label: 组图
+    options:
+    - disabled
+    - auto
+    type: select
+  - key: image_count
+    label: 生成张数
+    max: 15
+    min: 1
+    requires_value:
+    - param: sequential_image_generation
+      value: auto
+    step: 1
+    type: number
+  - default: standard
+    key: optimize_prompt_mode
+    label: 提示词优化
+    options:
+    - standard
+    - fast
+    type: select
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379/1366799?lang=zh
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - image_generation
+  display_name: Seedream 5.0 图像
+  id: volcengine:seedream-5-0
+  input:
+    accepts_image: true
+    max_images: 14
+  lab: seed
+  model_id: doubao-seedream-5-0-260128
+  order: 36
+  params:
+  - default: 2048x2048
+    key: image_size
+    label: 画面尺寸
+    options:
+    - 2K
+    - 3K
+    - 4K
+    - 1024x1024
+    - 2048x2048
+    - 2304x1728
+    - 1728x2304
+    - 2848x1600
+    - 1600x2848
+    - 4096x4096
+    - 5504x3040
+    - 3040x5504
+    type: select
+  - default: true
+    key: watermark
+    label: 水印
+    type: boolean
+  - default: disabled
+    key: sequential_image_generation
+    label: 组图
+    options:
+    - disabled
+    - auto
+    type: select
+  - key: image_count
+    label: 生成张数
+    max: 15
+    min: 1
+    requires_value:
+    - param: sequential_image_generation
+      value: auto
+    step: 1
+    type: number
+  - default: standard
+    key: optimize_prompt_mode
+    label: 提示词优化
+    options:
+    - standard
+    - fast
+    type: select
+  - default: jpeg
+    key: output_format
+    label: 格式
+    options:
+    - jpeg
+    - png
+    type: select
+  - default: false
+    key: web_search
+    label: 联网搜索
+    type: boolean
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379/1366799?lang=zh
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - image_generation
+  display_name: Seedream 5.0 Lite 图像
+  id: volcengine:seedream-5-0-lite
+  input:
+    accepts_image: true
+    max_images: 14
+  lab: seed
+  model_id: doubao-seedream-5-0-lite-260128
+  order: 37
+  params:
+  - default: 2048x2048
+    key: image_size
+    label: 画面尺寸
+    options:
+    - 2K
+    - 3K
+    - 4K
+    - 1024x1024
+    - 2048x2048
+    - 2304x1728
+    - 1728x2304
+    - 2848x1600
+    - 1600x2848
+    - 4096x4096
+    - 5504x3040
+    - 3040x5504
+    type: select
+  - default: true
+    key: watermark
+    label: 水印
+    type: boolean
+  - default: disabled
+    key: sequential_image_generation
+    label: 组图
+    options:
+    - disabled
+    - auto
+    type: select
+  - key: image_count
+    label: 生成张数
+    max: 15
+    min: 1
+    requires_value:
+    - param: sequential_image_generation
+      value: auto
+    step: 1
+    type: number
+  - default: standard
+    key: optimize_prompt_mode
+    label: 提示词优化
+    options:
+    - standard
+    - fast
+    type: select
+  - default: jpeg
+    key: output_format
+    label: 格式
+    options:
+    - jpeg
+    - png
+    type: select
+  - default: false
+    key: web_search
+    label: 联网搜索
+    type: boolean
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379/1366799?lang=zh
+    verified_at: '2026-06-25'
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - image_generation
+  display_name: Seedream 3.0 图像 (Ark 原生)
+  id: volcengine-ark:seedream-3-0
+  lab: seed
+  model_id: doubao-seedream-3-0-t2i-250415
+  order: 38
+  params:
+  - default: '1:1'
+    key: aspect_ratio
+    label: 画面比例
+    options:
+    - '1:1'
+    - '16:9'
+    - '9:16'
+    - '4:3'
+    - '3:4'
+    type: select
+  - default: -1
+    key: seed
+    label: 种子
+    max: 2147483647.0
+    min: -1
+    step: 1
+    type: number
+  - default: 2.5
+    key: prompt_strength
+    label: 提示词强度
+    max: 10
+    min: 1
+    step: 0.1
+    type: number
+  - default: true
+    key: watermark
+    label: 水印
+    type: boolean
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379/1366799?lang=zh
+    verified_at: '2026-06-25'
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - image_generation
+  display_name: Seedream 5.0 图像 (Ark 原生)
+  id: volcengine-ark:seedream-5-0
+  input:
+    accepts_image: true
+    max_images: 14
+  lab: seed
+  model_id: doubao-seedream-5-0-260128
+  order: 39
+  params:
+  - default: 2048x2048
+    key: image_size
+    label: 画面尺寸
+    options:
+    - 2K
+    - 3K
+    - 4K
+    - 1024x1024
+    - 2048x2048
+    - 2304x1728
+    - 1728x2304
+    - 2848x1600
+    - 1600x2848
+    - 4096x4096
+    - 5504x3040
+    - 3040x5504
+    type: select
+  - default: true
+    key: watermark
+    label: 水印
+    type: boolean
+  - default: disabled
+    key: sequential_image_generation
+    label: 组图
+    options:
+    - disabled
+    - auto
+    type: select
+  - key: image_count
+    label: 生成张数
+    max: 15
+    min: 1
+    requires_value:
+    - param: sequential_image_generation
+      value: auto
+    step: 1
+    type: number
+  - default: standard
+    key: optimize_prompt_mode
+    label: 提示词优化
+    options:
+    - standard
+    - fast
+    type: select
+  - default: jpeg
+    key: output_format
+    label: 格式
+    options:
+    - jpeg
+    - png
+    type: select
+  - default: false
+    key: web_search
+    label: 联网搜索
+    type: boolean
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379/1366799?lang=zh
+    verified_at: '2026-06-25'
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - image_generation
+  display_name: Seedream 5.0 Lite 图像 (Ark 原生)
+  id: volcengine-ark:seedream-5-0-lite
+  input:
+    accepts_image: true
+    max_images: 14
+  lab: seed
+  model_id: doubao-seedream-5-0-lite-260128
+  order: 40
+  params:
+  - default: 2048x2048
+    key: image_size
+    label: 画面尺寸
+    options:
+    - 2K
+    - 3K
+    - 4K
+    - 1024x1024
+    - 2048x2048
+    - 2304x1728
+    - 1728x2304
+    - 2848x1600
+    - 1600x2848
+    - 4096x4096
+    - 5504x3040
+    - 3040x5504
+    type: select
+  - default: true
+    key: watermark
+    label: 水印
+    type: boolean
+  - default: disabled
+    key: sequential_image_generation
+    label: 组图
+    options:
+    - disabled
+    - auto
+    type: select
+  - key: image_count
+    label: 生成张数
+    max: 15
+    min: 1
+    requires_value:
+    - param: sequential_image_generation
+      value: auto
+    step: 1
+    type: number
+  - default: standard
+    key: optimize_prompt_mode
+    label: 提示词优化
+    options:
+    - standard
+    - fast
+    type: select
+  - default: jpeg
+    key: output_format
+    label: 格式
+    options:
+    - jpeg
+    - png
+    type: select
+  - default: false
+    key: web_search
+    label: 联网搜索
+    type: boolean
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379/1366799?lang=zh
+    verified_at: '2026-06-25'
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - video_generation
+  display_name: Seedance 1-0 Lite 文生视频
+  id: volcengine:seedance-1-0-lite-t2v
+  lab: seed
+  model_id: doubao-seedance-1-0-lite-t2v-250428
+  order: 41
+  params:
+  - default: '5'
+    key: duration
+    label: 时长(秒)
+    options:
+    - '2'
+    - '5'
+    - '10'
+    - '12'
+    type: select
+  - default: '16:9'
+    key: aspect_ratio
+    label: 画面比例
+    options:
+    - '16:9'
+    - '9:16'
+    - '1:1'
+    - '4:3'
+    - '3:4'
+    - '21:9'
+    type: select
+  - default: 720p
+    key: resolution
+    label: 分辨率
+    options:
+    - 480p
+    - 720p
+    - 1080p
+    type: select
+  - default: -1
+    key: seed
+    label: 种子
+    max: 4294967295.0
+    min: -1
+    step: 1
+    type: number
+  - default: false
+    key: watermark
+    label: 水印
+    type: boolean
+  - default: false
+    key: fixed_camera
+    label: 固定镜头
+    type: boolean
+  - default: false
+    key: return_last_frame
+    label: 返回尾帧
+    type: boolean
+  - default: default
+    key: service_tier
+    label: 服务等级
+    options:
+    - default
+    - flex
+    type: select
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379/1520757?lang=zh
+    verified_at: '2026-06-25'
+  video:
+    default_duration_sec: 5
+    max_duration_sec: 12
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - video_generation
+  display_name: Seedance 1-0 Lite 图生视频
+  id: volcengine:seedance-1-0-lite-i2v
+  input:
+    accepts_image: true
+    max_images: 4
+  lab: seed
+  model_id: doubao-seedance-1-0-lite-i2v-250428
+  order: 42
+  params:
+  - default: '5'
+    key: duration
+    label: 时长(秒)
+    options:
+    - '2'
+    - '5'
+    - '10'
+    - '12'
+    type: select
+  - default: '16:9'
+    key: aspect_ratio
+    label: 画面比例
+    options:
+    - '16:9'
+    - '9:16'
+    - '1:1'
+    - '4:3'
+    - '3:4'
+    - '21:9'
+    type: select
+  - default: 720p
+    key: resolution
+    label: 分辨率
+    options:
+    - 480p
+    - 720p
+    type: select
+  - default: -1
+    key: seed
+    label: 种子
+    max: 4294967295.0
+    min: -1
+    step: 1
+    type: number
+  - default: false
+    key: watermark
+    label: 水印
+    type: boolean
+  - default: false
+    key: return_last_frame
+    label: 返回尾帧
+    type: boolean
+  - default: default
+    key: service_tier
+    label: 服务等级
+    options:
+    - default
+    - flex
+    type: select
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379/1520757?lang=zh
+    verified_at: '2026-06-25'
+  video:
+    default_duration_sec: 5
+    max_duration_sec: 12
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - video_generation
+  display_name: Seedance 1-0 Pro Fast 视频
+  id: volcengine:seedance-1-0-pro-fast
+  lab: seed
+  model_id: doubao-seedance-1-0-pro-fast-251015
+  order: 43
+  params:
+  - default: '5'
+    key: duration
+    label: 时长(秒)
+    options:
+    - '2'
+    - '5'
+    - '10'
+    - '12'
+    type: select
+  - default: '16:9'
+    key: aspect_ratio
+    label: 画面比例
+    options:
+    - '16:9'
+    - '9:16'
+    - '1:1'
+    - '4:3'
+    - '3:4'
+    - '21:9'
+    type: select
+  - default: 720p
+    key: resolution
+    label: 分辨率
+    options:
+    - 480p
+    - 720p
+    - 1080p
+    type: select
+  - default: -1
+    key: seed
+    label: 种子
+    max: 4294967295.0
+    min: -1
+    step: 1
+    type: number
+  - default: false
+    key: watermark
+    label: 水印
+    type: boolean
+  - default: false
+    key: fixed_camera
+    label: 固定镜头
+    type: boolean
+  - default: false
+    key: return_last_frame
+    label: 返回尾帧
+    type: boolean
+  - default: default
+    key: service_tier
+    label: 服务等级
+    options:
+    - default
+    - flex
+    type: select
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379/1520757?lang=zh
+    verified_at: '2026-06-25'
+  video:
+    default_duration_sec: 5
+    max_duration_sec: 12
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - video_generation
+  display_name: Seedance 1.5 Pro 视频
+  id: volcengine:seedance-1-5-pro
+  input:
+    accepts_image: true
+    max_images: 1
+  lab: seed
+  model_id: doubao-seedance-1-5-pro-251215
+  order: 44
+  params:
+  - default: '5'
+    key: duration
+    label: 时长(秒)
+    options:
+    - "-1"
+    - '4'
+    - '5'
+    - '10'
+    - '12'
+    type: select
+  - default: adaptive
+    key: aspect_ratio
+    label: 画面比例
+    options:
+    - adaptive
+    - '16:9'
+    - '9:16'
+    - '1:1'
+    - '4:3'
+    - '3:4'
+    - '21:9'
+    type: select
+  - conditional_enum:
+    - options:
+      - 480p
+      when_param: workspace
+      when_value: true
+    default: 720p
+    key: resolution
+    label: 分辨率
+    options:
+    - 480p
+    - 720p
+    - 1080p
+    type: select
+  - default: -1
+    key: seed
+    label: 种子
+    max: 4294967295.0
+    min: -1
+    step: 1
+    type: number
+  - default: false
+    key: watermark
+    label: 水印
+    type: boolean
+  - default: true
+    key: audio
+    label: 生成音频
+    type: boolean
+  - default: false
+    key: fixed_camera
+    label: 固定镜头
+    type: boolean
+  - conditional_const:
+    - value: false
+      when_param: workspace
+      when_value: true
+    default: false
+    key: return_last_frame
+    label: 返回尾帧
+    type: boolean
+  - conditional_enum:
+    - options:
+      - default
+      when_param: workspace
+      when_value: true
+    default: default
+    key: service_tier
+    label: 服务等级
+    options:
+    - default
+    - flex
+    type: select
+  - default: false
+    key: workspace
+    label: 样片模式
+    type: boolean
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379/1520757?lang=zh
+    verified_at: '2026-06-25'
+  video:
+    default_duration_sec: 5
+    max_duration_sec: 12
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - video_generation
+  display_name: Seedance 2.0 视频
+  id: volcengine:seedance-2-0
+  input:
+    accepts_image: true
+    max_images: 1
+    max_videos: 1
+  lab: seed
+  model_id: doubao-seedance-2-0-260128
+  order: 45
+  params:
+  - default: '5'
+    key: duration
+    label: 时长(秒)
+    options:
+    - "-1"
+    - '4'
+    - '5'
+    - '10'
+    - '11'
+    - '15'
+    type: select
+  - default: adaptive
+    key: aspect_ratio
+    label: 画面比例
+    options:
+    - adaptive
+    - '16:9'
+    - '9:16'
+    - '1:1'
+    - '4:3'
+    - '3:4'
+    - '21:9'
+    type: select
+  - default: 720p
+    key: resolution
+    label: 分辨率
+    options:
+    - 480p
+    - 720p
+    - 1080p
+    type: select
+  - default: -1
+    key: seed
+    label: 种子
+    max: 4294967295.0
+    min: -1
+    step: 1
+    type: number
+  - default: false
+    key: watermark
+    label: 水印
+    type: boolean
+  - default: true
+    key: audio
+    label: 生成音频
+    type: boolean
+  - default: false
+    key: return_last_frame
+    label: 返回尾帧
+    type: boolean
+  - default: false
+    key: web_search
+    label: 联网搜索
+    type: boolean
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379/1520757?lang=zh
+    verified_at: '2026-06-25'
+  video:
+    default_duration_sec: 5
+    max_duration_sec: 15
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - audio_generation
+  display_name: Seed Speech TTS 2.0 Expressive
+  id: volcengine:seed-tts-2-0-expressive
+  lab: seed
+  model_id: seed-tts-2.0-expressive
+  order: 45
+  params:
+  - key: speaker
+    label: 音色
+    type: string
+    default: zh_female_vv_uranus_bigtts
+  - key: encoding
+    label: 音频格式
+    type: select
+    options:
+    - mp3
+    - wav
+    - pcm
+    - ogg_opus
+    default: mp3
+  - key: sample_rate
+    label: 采样率
+    type: number
+    default: 24000
+    min: 8000
+    step: 1000
+  - key: emotion
+    label: 情绪
+    type: string
+    default: ''
+  - key: speech_rate
+    label: 语速
+    type: number
+    default: 0
+    min: -50
+    max: 100
+    step: 1
+  - key: loudness_rate
+    label: 音量
+    type: number
+    default: 0
+    min: -50
+    max: 100
+    step: 1
+  - key: explicit_language
+    label: 显式语言
+    type: string
+    default: ''
+  - key: resource_id
+    label: Resource ID
+    type: string
+    default: seed-tts-2.0
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/6561/2528925?lang=zh
+    verified_at: '2026-06-26'
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - audio_generation
+  display_name: Seed Speech TTS 2.0 Standard
+  id: volcengine:seed-tts-2-0-standard
+  lab: seed
+  model_id: seed-tts-2.0-standard
+  order: 46
+  params:
+  - key: speaker
+    label: 音色
+    type: string
+    default: zh_female_vv_uranus_bigtts
+  - key: encoding
+    label: 音频格式
+    type: select
+    options:
+    - mp3
+    - wav
+    - pcm
+    - ogg_opus
+    default: mp3
+  - key: sample_rate
+    label: 采样率
+    type: number
+    default: 24000
+    min: 8000
+    step: 1000
+  - key: emotion
+    label: 情绪
+    type: string
+    default: ''
+  - key: speech_rate
+    label: 语速
+    type: number
+    default: 0
+    min: -50
+    max: 100
+    step: 1
+  - key: loudness_rate
+    label: 音量
+    type: number
+    default: 0
+    min: -50
+    max: 100
+    step: 1
+  - key: explicit_language
+    label: 显式语言
+    type: string
+    default: ''
+  - key: resource_id
+    label: Resource ID
+    type: string
+    default: seed-tts-2.0
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/6561/2528925?lang=zh
+    verified_at: '2026-06-26'
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - audio_generation
+  display_name: Seed Speech TTS 1.1
+  id: volcengine:seed-tts-1-1
+  lab: seed
+  model_id: seed-tts-1.1
+  order: 47
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/6561/1257584?lang=zh
+    verified_at: '2026-06-25'
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - audio_generation
+  display_name: Seed Speech TTS 1.0
+  id: volcengine:seed-tts-1-0
+  lab: seed
+  model_id: seed-tts-1.0
+  order: 48
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/6561/1257584?lang=zh
+    verified_at: '2026-06-25'
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - audio_generation
+  display_name: Seed Speech TTS 1.0 Concurr
+  id: volcengine:seed-tts-1-0-concurr
+  lab: seed
+  model_id: seed-tts-1.0-concurr
+  order: 49
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/6561/1257584?lang=zh
+    verified_at: '2026-06-25'
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - audio_generation
+  display_name: Doubao Seed-Audio 1.0
+  id: volcengine:doubao-seed-audio-1-0
+  lab: seed
+  model_id: doubao-seed-audio-1-0
+  order: 49
+  params:
+  - key: duration
+    label: 时长(秒)
+    type: number
+    default: 60
+    min: 1
+    max: 120
+    step: 1
+  - key: output_format
+    label: 音频格式
+    type: select
+    options:
+    - mp3
+    - wav
+    - ogg
+    - flac
+    default: mp3
+  - key: negative_prompt
+    label: 负向提示词
+    type: string
+    default: ''
+  - key: reference_audio_url
+    label: 参考音频 URL
+    type: string
+    default: ''
+  - key: style
+    label: 风格
+    type: string
+    default: ''
+  - key: seed
+    label: 种子
+    type: number
+    default: 0
+    step: 1
+  - key: poll_timeout_ms
+    label: 轮询超时(ms)
+    type: number
+    default: 600000
+    min: 1000
+    step: 1000
+  - key: poll_interval_ms
+    label: 轮询间隔(ms)
+    type: number
+    default: 5000
+    min: 500
+    step: 500
+  source:
+    status: observed
+    url: https://ark.volcengine.com/region:cn-beijing/experience/voice?model=doubao-seed-audio-1-0
+    verified_at: '2026-06-26'
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - audio_generation
+  display_name: Doubao Seed ASR 2.0
+  id: volcengine:doubao-seed-asr-2-0
+  lab: seed
+  model_id: volc.seedasr.auc
+  order: 50
+  params:
+  - key: format
+    label: 音频格式
+    type: select
+    options:
+    - mp3
+    - m4a
+    - wav
+    - ogg
+    - webm
+    - flac
+    default: mp3
+  - key: language
+    label: 语言
+    type: string
+    default: ''
+  - key: enable_itn
+    label: 数字文本规整
+    type: boolean
+    default: true
+  - key: enable_punc
+    label: 标点
+    type: boolean
+    default: true
+  - key: show_utterances
+    label: 分句结果
+    type: boolean
+    default: true
+  - key: enable_speaker_info
+    label: 说话人分离
+    type: boolean
+    default: false
+  - key: poll_timeout_ms
+    label: 轮询超时(ms)
+    type: number
+    default: 600000
+    min: 1000
+    step: 1000
+  - key: poll_interval_ms
+    label: 轮询间隔(ms)
+    type: number
+    default: 5000
+    min: 500
+    step: 500
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/6561/1354868
+    verified_at: '2026-06-25'
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - audio_generation
+  display_name: Doubao RealtimeVoice
+  id: volcengine:doubao-realtime-voice
+  lab: seed
+  model_id: Doubao-RealtimeVoice
+  order: 51
+  params:
+  - key: model_version
+    label: 模型版本
+    type: select
+    options:
+    - 1.2.1.1
+    - 2.2.0.0
+    default: 1.2.1.1
+  - key: speaker
+    label: 音色
+    type: string
+    default: zh_female_vv_jupiter_bigtts
+  - key: input_mod
+    label: 输入模式
+    type: select
+    options:
+    - audio
+    - audio_file
+    - keep_alive
+    - push_to_talk
+    - text
+    default: audio_file
+  - key: input_audio_format
+    label: 输入音频格式
+    type: select
+    options:
+    - pcm
+    - speech_opus
+    default: pcm
+  - key: input_sample_rate
+    label: 输入采样率
+    type: number
+    default: 16000
+    min: 8000
+    step: 1000
+  - key: output_audio_format
+    label: 输出音频格式
+    type: select
+    options:
+    - ogg
+    - pcm
+    - pcm_s16le
+    default: pcm_s16le
+  - key: output_sample_rate
+    label: 输出采样率
+    type: number
+    default: 24000
+    min: 8000
+    step: 1000
+  - key: end_asr
+    label: 自动结束识别
+    type: boolean
+    default: true
+  - key: end_smooth_window_ms
+    label: 断句平滑窗口(ms)
+    type: number
+    default: 1500
+    min: 500
+    max: 50000
+    step: 100
+  - key: speech_rate
+    label: 语速
+    type: number
+    default: 0
+    min: -50
+    max: 100
+    step: 1
+  - key: loudness_rate
+    label: 音量
+    type: number
+    default: 0
+    min: -50
+    max: 100
+    step: 1
+  - key: bot_name
+    label: 机器人名称
+    type: string
+    default: 豆包
+  - key: system_role
+    label: 系统人设
+    type: string
+    default: ''
+  - key: speaking_style
+    label: 说话风格
+    type: string
+    default: ''
+  - key: strict_audit
+    label: 严格审核
+    type: boolean
+    default: true
+  - key: read_timeout_ms
+    label: 读取超时(ms)
+    type: number
+    default: 120000
+    min: 1000
+    step: 1000
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/6561/1594356
+    verified_at: '2026-06-26'
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - audio_generation
+  display_name: Seed Speech Voice Replication 2.0
+  id: volcengine:seed-voice-replication-2-0
+  lab: seed
+  model_id: seed-voice-replication-2.0
+  order: 52
+  params:
+  - key: speaker_id
+    label: 音色 ID
+    type: string
+    default: ''
+  - key: resource_id
+    label: Resource ID
+    type: string
+    default: seed-icl-2.0
+  - key: model_type
+    label: 模型类型
+    type: number
+    default: 4
+    min: 1
+    step: 1
+  - key: source
+    label: 音频来源
+    type: number
+    default: 2
+    min: 1
+    step: 1
+  - key: language
+    label: 语言类型
+    type: number
+    default: 0
+    min: 0
+    step: 1
+  - key: audio_format
+    label: 音频格式
+    type: select
+    options:
+    - wav
+    - mp3
+    - m4a
+    - ogg
+    default: wav
+  - key: wait_for_ready
+    label: 等待训练完成
+    type: boolean
+    default: false
+  - key: poll_timeout_ms
+    label: 轮询超时(ms)
+    type: number
+    default: 300000
+    min: 1000
+    step: 1000
+  - key: poll_interval_ms
+    label: 轮询间隔(ms)
+    type: number
+    default: 5000
+    min: 500
+    step: 500
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/6561/2534906
+    verified_at: '2026-06-26'
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - audio_generation
+  display_name: 豆包 Seed Voice Design
+  id: volcengine:doubao-seed-voice-design
+  lab: seed
+  model_id: doubao-seed-voice-design
+  order: 53
+  params:
+  - key: resource_id
+    label: Resource ID
+    type: string
+    default: doubao-seed-voice-design
+  - key: endpoint
+    label: Endpoint
+    type: string
+    default: ''
+  - key: preview_text
+    label: 试听文本
+    type: string
+    default: ''
+  - key: speaker_id
+    label: 音色 ID
+    type: string
+    default: ''
+  - key: language
+    label: 语言类型
+    type: number
+    default: 0
+    min: 0
+    step: 1
+  - key: sample_rate
+    label: 采样率
+    type: number
+    default: 24000
+    min: 8000
+    step: 1000
+  - key: image_url
+    label: 参考图片 URL
+    type: string
+    default: ''
+  - key: image_bytes
+    label: 参考图片 Base64
+    type: string
+    default: ''
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/6561/2277844
+    verified_at: '2026-06-26'
+- route_adapter_hint: volcen
+  allow_model_id_override: true
+  capabilities:
+  - video_generation
+  display_name: Seedance 2.0 Fast 视频
+  id: volcengine:seedance-2-0-fast
+  input:
+    accepts_image: true
+    max_images: 1
+    max_videos: 1
+  lab: seed
+  model_id: doubao-seedance-2-0-fast-260128
+  order: 46
+  params:
+  - default: '5'
+    key: duration
+    label: 时长(秒)
+    options:
+    - "-1"
+    - '4'
+    - '5'
+    - '10'
+    - '11'
+    - '15'
+    type: select
+  - default: adaptive
+    key: aspect_ratio
+    label: 画面比例
+    options:
+    - adaptive
+    - '16:9'
+    - '9:16'
+    - '1:1'
+    - '4:3'
+    - '3:4'
+    - '21:9'
+    type: select
+  - default: 720p
+    key: resolution
+    label: 分辨率
+    options:
+    - 480p
+    - 720p
+    type: select
+  - default: -1
+    key: seed
+    label: 种子
+    max: 4294967295.0
+    min: -1
+    step: 1
+    type: number
+  - default: false
+    key: watermark
+    label: 水印
+    type: boolean
+  - default: true
+    key: audio
+    label: 生成音频
+    type: boolean
+  - default: false
+    key: return_last_frame
+    label: 返回尾帧
+    type: boolean
+  - default: false
+    key: web_search
+    label: 联网搜索
+    type: boolean
+  source:
+    status: verified
+    url: https://www.volcengine.com/docs/82379/1520757?lang=zh
+    verified_at: '2026-06-25'
+  video:
+    default_duration_sec: 5
+    max_duration_sec: 15

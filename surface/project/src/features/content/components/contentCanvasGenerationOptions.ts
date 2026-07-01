@@ -1,15 +1,26 @@
 import {
   buildGenerationIntentForOutputKind,
   completeGenerationReferenceAssets,
-  generationCapabilityForOutputKind,
   generationOperationOptionsForOutputKind,
   type GenerationIntentPayload,
   type GenerationOperationOption,
   type GenerationPromptReferenceIntent,
 } from '@movscript/core/generation'
+import type { SurfaceModelCapability } from '@movscript/shared'
 
-export function contentCanvasGenerationCapability(mediaKind: string | null | undefined): string | null {
-  return generationCapabilityForOutputKind(mediaKind)
+export function contentCanvasGenerationCapability(mediaKind: string | null | undefined): SurfaceModelCapability | null {
+  switch (String(mediaKind ?? '').trim()) {
+    case 'image':
+      return 'image_generation'
+    case 'video':
+      return 'video_generation'
+    case 'audio':
+      return 'audio_generation'
+    case 'text':
+      return 'text_generation'
+    default:
+      return null
+  }
 }
 
 export function contentCanvasGenerationOperationOptions(

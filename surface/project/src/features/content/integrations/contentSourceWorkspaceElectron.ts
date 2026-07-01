@@ -65,11 +65,14 @@ export function createContentSourceWorkspaceRuntimePort(
       return result as ContentCandidateRecord
     },
     async updateContentUnitEditPrompt(input) {
-	      await requireContentWorkspaceEngineAPI('updateMovScriptEngineContentUnitEditPrompt')({
-	        ...projectInput(input.projectId),
-	        expectedWorkspaceVersions: uncheckedWorkspaceVersions,
-	        targetPath: input.targetPath,
+      await requireContentWorkspaceEngineAPI('updateMovScriptEngineContentUnitEditPrompt')({
+        ...projectInput(input.projectId),
+        expectedWorkspaceVersions: uncheckedWorkspaceVersions,
+        targetPath: input.targetPath,
         editPrompt: input.editPrompt,
+        ...(input.generationReferences !== undefined ? { generationReferences: input.generationReferences } : {}),
+        ...(input.referenceAssets !== undefined ? { referenceAssets: input.referenceAssets } : {}),
+        ...(input.modelIntent !== undefined ? { modelIntent: input.modelIntent } : {}),
       })
     },
     async updateExpressionUnit(input) {

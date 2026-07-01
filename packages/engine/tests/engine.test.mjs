@@ -13,64 +13,12 @@ async function createTestEngine() {
   return { engine, projectDir }
 }
 
-test('ensureContentUnitForEntity creates canonical timeline assembly content units', async () => {
-  const { engine, projectDir } = await createTestEngine()
-
-  const result = await engine.ensureContentUnitForEntity({
-    targetKind: 'timeline_assembly',
-    scopeKind: 'episode',
-    scopeRef: 'episode_01',
-    id: 'cu_episode_01_cut',
-    title: 'Episode 01 cut',
-    prompt: 'Assemble the selected scene moments for episode 01.',
-  })
-
-  assert.equal(result.contentUnitPath, 'content_units/cu_episode_01_cut/content_unit.json')
-  assert.equal(result.record.content_unit_type, 'timeline_assembly_ref')
-  assert.equal(result.record.output_kind, 'video')
-  assert.equal(result.record.target_category, 'timeline_assembly')
-  assert.equal(result.record.target_kind, 'timeline_assembly')
-  assert.equal(result.record.target_ref, 'timeline_assembly:episode:episode_01')
-  assert.equal(result.record.scope_kind, 'episode')
-  assert.equal(result.record.scope_ref, 'episode_01')
-  assert.equal(result.record.edit_prompt.text, 'Assemble the selected scene moments for episode 01.')
-
-  const written = JSON.parse(await readFile(join(projectDir, result.contentUnitPath), 'utf8'))
-  assert.equal(written.target_ref, 'timeline_assembly:episode:episode_01')
-})
-
-test('ensureContentUnitForEntity treats production_ref as a legacy timeline assembly alias', async () => {
+test('ensureContentUnitForEntity rejects timeline assembly content unit targets', async () => {
   const { engine } = await createTestEngine()
-  await engine.createContentUnit({
-    id: 'cu_pilot_video',
-    title: 'Pilot video',
-    contentUnitType: 'production_ref',
-    outputKind: 'video',
-    productionId: 'pilot',
-  })
-
-  const existing = await engine.ensureContentUnitForEntity({
+  await assert.rejects(() => engine.ensureContentUnitForEntity({
     targetKind: 'timeline_assembly',
-    scopeKind: 'production',
-    scopeRef: 'pilot',
-  })
-
-  assert.equal(existing.contentUnitPath, 'content_units/cu_pilot_video/content_unit.json')
-  assert.equal(existing.record.content_unit_type, 'production_ref')
-  assert.equal(existing.record.production_ref, 'pilot')
-
-  const updated = await engine.ensureContentUnitForEntity({
-    targetKind: 'timeline_assembly',
-    scopeKind: 'production',
-    scopeRef: 'pilot',
-    prompt: 'Refresh the pilot cut while preserving the legacy content unit type.',
-  })
-
-  assert.equal(updated.contentUnitPath, 'content_units/cu_pilot_video/content_unit.json')
-  assert.equal(updated.record.content_unit_type, 'production_ref')
-  assert.equal(updated.record.production_ref, 'pilot')
-  assert.equal(updated.record.target_ref, 'timeline_assembly:production:pilot')
-  assert.equal(updated.record.edit_prompt.text, 'Refresh the pilot cut while preserving the legacy content unit type.')
+    targetRef: 'timeline_assembly:production:pilot',
+  }), /timeline_assembly content unit targets are not supported/)
 })
 
 test('writeHierarchyNode preserves explicit custom hierarchy target paths', async () => {
@@ -107,6 +55,17 @@ test('create APIs allocate IDs from titles when omitted', async () => {
 
   const defaultProduction = await engine.createProduction()
   assert.equal(defaultProduction.productionPath, 'productions/main/production.json')
+  assert.equal(defaultProduction.productionId, 'main')
+
+  const titledProduction = await engine.createProduction({ title: 'Trailer Cut' })
+  assert.equal(titledProduction.productionId, 'trailer_cut')
+  assert.equal(titledProduction.productionPath, 'productions/trailer_cut/production.json')
+  const titledProductionRecord = JSON.parse(await readFile(
+    join(projectDir, 'productions/trailer_cut/production.json'),
+    'utf8',
+  ))
+  assert.equal(titledProductionRecord.id, 'trailer_cut')
+  assert.equal(titledProductionRecord.title, 'Trailer Cut')
 
   await engine.createProduction({ id: 'pilot', title: 'Pilot' })
   await engine.createSegment({ productionId: 'pilot', id: 'opening', title: 'Opening' })

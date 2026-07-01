@@ -270,7 +270,11 @@ async function postDaemonGateway(path: string, body: Record<string, unknown>): P
 async function readDaemonGatewayBaseURL(): Promise<string> {
   const config = await refreshRuntimeConfigSnapshot()
   const snapshot = config ?? getRuntimeConfigSnapshot()
-  return snapshot?.gatewayBaseURL ?? snapshot?.apiBaseURL ?? getAPIBaseURL()
+  return snapshot?.runtimeConnection.gatewayBaseURL
+    ?? snapshot?.runtime.gateway.baseURL
+    ?? snapshot?.gatewayBaseURL
+    ?? snapshot?.apiBaseURL
+    ?? getAPIBaseURL()
 }
 
 function repositoryArgs(

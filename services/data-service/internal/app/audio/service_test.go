@@ -57,7 +57,7 @@ func TestAlignLoadsAudioResourceAndCallsSubtitleAlignModel(t *testing.T) {
 		Model:         gorm.Model{ID: 11},
 		PublicModelID: "logical-align",
 		DisplayName:   "Subtitle Align",
-		Capabilities:  ai.CapabilitySubAlign,
+		Capabilities:  ai.CapabilityFamilyAudioGeneration,
 		IsEnabled:     true,
 	}
 	if err := db.Create(&entry).Error; err != nil {
@@ -129,7 +129,7 @@ func TestResolveAudioRouteUsesCatalogEntryIDWithoutLegacyModelConfig(t *testing.
 		PublicModelID: "voice-fast",
 		DisplayName:   "Voice Fast",
 		IsEnabled:     true,
-		Capabilities:  ai.CapabilityAudioTTS,
+		Capabilities:  ai.CapabilityFamilyAudioGeneration,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -150,7 +150,7 @@ func TestResolveAudioRouteUsesCatalogEntryIDWithoutLegacyModelConfig(t *testing.
 
 	service := NewService(db, ai.NewAIService(db, ai.NewRegistry(db, nil)), nil)
 	ctx := ai.WithProviderRouteGroup(context.Background(), "priority")
-	route, err := service.resolveAudioRoute(ctx, 42, "voice-fast", ai.CapabilityAudioTTS)
+	route, err := service.resolveAudioRoute(ctx, 42, "voice-fast", ai.CapabilityFamilyAudioGeneration)
 	if err != nil {
 		t.Fatalf("resolveAudioRoute() error = %v", err)
 	}

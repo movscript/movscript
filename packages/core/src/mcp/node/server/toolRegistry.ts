@@ -2,7 +2,7 @@ import type { MCPTool } from '../../protocol/types.js'
 import { contextTools } from '../../tools/context/definitions.js'
 import { domainTools } from '../../tools/domain/definitions.js'
 import { editingTools } from '../../tools/editing/definitions.js'
-import { timelineTools } from '../../tools/timeline/definitions.js'
+import { productionEditingTools } from '../../tools/production-editing/definitions.js'
 import { projectTools } from '../../tools/project/index.js'
 import { modelTools } from '../../tools/model/definitions.js'
 import { generationTools } from '../../tools/generation/definitions.js'
@@ -30,7 +30,7 @@ export function listTools(): MCPTool[] {
       project: baseProjectTools,
     }),
     ...domainTools(),
-    ...timelineTools(),
+    ...productionEditingTools(),
     ...editingTools(),
     ...artifactTools(),
     ...contextTools(),

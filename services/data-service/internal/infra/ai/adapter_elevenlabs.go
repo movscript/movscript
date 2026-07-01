@@ -268,7 +268,7 @@ func (a *ElevenLabsAdapter) GenerateAudio(ctx context.Context, req media.AudioGe
 	switch req.Kind {
 	case media.AudioGenerationKindMusic:
 		return a.generateMusic(ctx, req, prompt)
-	case media.AudioGenerationKindSFX:
+	case media.AudioGenerationKindSoundEffect:
 		return a.generateSoundEffect(ctx, req, prompt)
 	default:
 		return media.AudioGenerationResponse{}, fmt.Errorf("unsupported elevenlabs audio generation kind %q", req.Kind)
@@ -574,7 +574,7 @@ func parseElevenLabsTranscript(data []byte, language string) (media.TimingMetada
 		segments = []media.TimedTextUnit{{ID: "segment_1", Text: text}}
 	}
 	return media.TimingMetadata{
-		Source:   media.TimingSourceSTT,
+		Source:   media.TimingSourceSpeechToText,
 		Provider: "elevenlabs",
 		Language: strings.TrimSpace(language),
 		Segments: segments,
@@ -660,7 +660,7 @@ func readElevenLabsRealtimeTranscript(ctx context.Context, conn *websocket.Conn,
 		case "committed_transcript", "committed_transcript_with_timestamps":
 			transcript := stringField(event, "text")
 			timing := media.TimingMetadata{
-				Source:   media.TimingSourceSTT,
+				Source:   media.TimingSourceSpeechToText,
 				Provider: "elevenlabs",
 				Language: firstNonEmptyAI(stringField(event, "language_code"), strings.TrimSpace(language)),
 				Words:    parseElevenLabsTimedUnits(event["words"], "word"),

@@ -7,7 +7,7 @@ import { mockGenerationAppShell } from './generationAppShell'
 const JOBS = [
   makeJob(8101, 'image', 'pending', '等待中的图片'),
   makeJob(8102, 'video', 'running', '运行中的视频'),
-  makeJob(8103, 'image_edit', 'succeeded', '成功的图片', {
+  makeJob(8103, 'image', 'succeeded', '成功的图片', {
     output_resource: {
       ID: 9103,
       owner_id: 123,
@@ -18,7 +18,7 @@ const JOBS = [
       mime_type: 'image/png',
     },
   }),
-  makeJob(8104, 'video_i2v', 'failed', '失败的视频', {
+  makeJob(8104, 'video', 'failed', '失败的视频', {
     error_msg: 'provider rejected request',
     provider_task_history: '[{"status":"running","message":"provider started"},{"status":"failed","message":"provider rejected request"}]',
     state_trace: JSON.stringify([
@@ -38,7 +38,7 @@ const JOBS = [
       },
     ]),
   }),
-  makeJob(8105, 'video_v2v', 'cancelled', '取消的视频', { error_msg: 'user cancelled task' }),
+  makeJob(8105, 'video', 'cancelled', '取消的视频', { error_msg: 'user cancelled task' }),
 ]
 
 test('jobs page filters generation jobs by operational status', async ({ page }, testInfo) => {

@@ -5,7 +5,7 @@
 This release publishes two user-facing packages from the same GitHub Release:
 
 - Movscript Agent Plugin, a plugin-only package for Codex or another Agent provider without installing Desktop.
-- Movscript Desktop, the local visual workspace for macOS Apple Silicon, macOS Intel, and Windows x64.
+- Movscript Desktop, the local visual workspace for macOS Apple Silicon, macOS Intel, Windows x64, and Linux x64.
 
 Both packages reuse the same local `movscript.local-node` daemon when local execution is needed. The daemon is a shared runtime component, not a third public download choice.
 
@@ -17,6 +17,7 @@ This release continues to target early community testing of the desktop workflow
 - Publish the macOS Apple Silicon / arm64 desktop package.
 - Publish the macOS Intel / x64 desktop package.
 - Publish the Windows x64 desktop package as an installer and portable artifact.
+- Publish the Linux x64 desktop package as an AppImage artifact.
 - Stop bundling the app-server runtime by default; Mova and Codex app-server agents now become available only after the runtime is installed.
 - Install the app-server runtime on demand from the `@movscript/mova-app-server` meta package, which resolves the matching platform package.
 - Prevent ordinary runtime requests from auto-installing app-server packages; only the Console download/update action and tray runtime actions can use the install channel.
@@ -36,13 +37,12 @@ This release continues to target early community testing of the desktop workflow
 - Release readiness check validates the tag against the package version.
 - Package resource contract verification runs as part of the release workflow.
 - The Agent Plugin package is built and attached as a separate release artifact.
-- The macOS and Windows packaged app smoke tests run as part of the release workflow.
+- The macOS, Windows, and Linux packaged app smoke tests run as part of the release workflow.
 - DMG checksum verification and mounted app verification run as part of the release workflow.
 - SHA256 checksums are attached with the release artifacts.
 
 ## Known Issues
 
-- Linux desktop packages are not included yet.
 - Windows ARM64 packages are temporarily omitted until a stable ffmpeg source is available.
 - Windows packages may be unsigned unless release signing is configured; Windows SmartScreen can require manual approval for unsigned builds.
 - The app is still an early community release. Workflows, file formats, provider behavior, plugin contracts, and release packaging may change before a stable version.

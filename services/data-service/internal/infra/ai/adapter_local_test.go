@@ -25,7 +25,7 @@ func TestLocalAdapterGenerateAudioProducesMusicWAV(t *testing.T) {
 	if resp.MimeType != "audio/wav" || resp.DurationMs != 1000 {
 		t.Fatalf("resp = %+v", resp)
 	}
-	if !strings.HasPrefix(resp.ProviderRef, "local:music:") {
+	if !strings.HasPrefix(resp.ProviderRef, "local:music_generation:") {
 		t.Fatalf("provider ref = %q", resp.ProviderRef)
 	}
 }

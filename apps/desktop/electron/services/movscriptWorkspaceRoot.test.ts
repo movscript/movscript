@@ -6,6 +6,7 @@ import test from 'node:test'
 import {
   ensureMovScriptWorkspace,
   ensureMovScriptWorkspaceRoot,
+  fallbackUserMovScriptHomeDir,
   fallbackUserMovScriptWorkspaceDir,
   MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA,
   readMovScriptWorkspaceConfig,
@@ -33,6 +34,7 @@ test('workspace config initialization creates the MovScript workspace root manif
   assert.equal(existsSync(root.manifestPath), true)
   assert.equal(existsSync(root.providersDir), true)
   assert.equal(existsSync(root.backendDir), true)
+  assert.equal(existsSync(root.logsDir), true)
   assert.equal(existsSync(paths.configPath), true)
   assert.equal(paths.providerConfigsDir, root.providersDir)
   assert.equal(paths.configPath, join(root.realmsDir, 'local', 'providers', 'default', 'config.json'))
@@ -125,6 +127,29 @@ test('default user workspace is the .movscript home directory itself', () => {
   const fallback = fallbackUserMovScriptWorkspaceDir()
   assert.equal(fallback.split(/[\\/]/).at(-1), '.movscript')
   assert.equal(resolveMovScriptWorkspaceRootPaths(fallback).controlDir, fallback)
+})
+
+test('workspace fallback follows the runtime Community Home contract', () => {
+  assert.equal(
+    fallbackUserMovScriptHomeDir({
+      platform: 'win32',
+      userHomeDir: 'C:\\Users\\me',
+      env: {
+        LOCALAPPDATA: 'D:\\MovscriptData',
+        MOVSCRIPT_HOME: 'E:\\explicit-home',
+        MOVSCRIPT_WORKSPACE_DIR: 'F:\\legacy-home',
+      },
+    }),
+    'D:\\MovscriptData\\MovScript\\Home',
+  )
+  assert.equal(
+    fallbackUserMovScriptHomeDir({
+      platform: 'darwin',
+      userHomeDir: '/Users/me',
+      env: { MOVSCRIPT_HOME: '/tmp/explicit-home' },
+    }),
+    '/Users/me/.movscript',
+  )
 })
 
 test('codex provider profile config is separate from the managed .codex runtime home', () => {

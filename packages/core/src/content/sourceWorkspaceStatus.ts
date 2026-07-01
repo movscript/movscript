@@ -6,7 +6,7 @@ import type {
 
 export function buildContentSourceWorkspaceProjectTimelineStatus(
   snapshot: ContentSourceWorkspaceSnapshot,
-  contentUnitSummaries: Array<Record<string, unknown>> = contentSourceWorkspaceContentUnitStatusSummaries(snapshot),
+  _contentUnitSummaries: Array<Record<string, unknown>> = [],
 ): Record<string, unknown> {
   const namespaceVocabulary = snapshot.namespaceVocabulary ?? {
     timelineTemplate: undefined,
@@ -34,15 +34,9 @@ export function buildContentSourceWorkspaceProjectTimelineStatus(
       ...(parent ? { parent } : {}),
     }
   })
-  const timelineAssemblies = timelineAssemblyStatusEntries(snapshot, contentUnitSummaries)
-  const hasBlockingRefs = timelineAssemblies.some((item) => arrayValue(item.blocking_refs).length > 0)
-  const hasStaleSelection = timelineAssemblies.some((item) => {
-    const staleStatus = stringField(item.stale_status)
-    return staleStatus === 'has_stale_selection' || staleStatus === 'stale'
-  })
   return {
     schema: 'movscript.project_timeline_status.v1',
-    status: hasBlockingRefs ? 'blocked' : hasStaleSelection ? 'needs_review' : 'ok',
+    status: 'ok',
     namespace_vocabulary: {
       timeline_template: namespaceVocabulary.timelineTemplate,
       timeline_namespaces: namespaceVocabulary.timelineNamespaces,
@@ -51,8 +45,6 @@ export function buildContentSourceWorkspaceProjectTimelineStatus(
     },
     timeline_namespace_count: timelineNamespaces.length,
     timeline_namespaces: timelineNamespaces,
-    timeline_assembly_count: timelineAssemblies.length,
-    timeline_assemblies: timelineAssemblies,
     system_primitives: {
       scene_moments_count: snapshot.sceneMoments.length,
       expression_units_count: snapshot.expressionUnits.length,
@@ -60,12 +52,6 @@ export function buildContentSourceWorkspaceProjectTimelineStatus(
       keyframes_count: snapshot.keyframes.length,
       audio_cues_count: snapshot.audioCues.length,
       assets_count: snapshot.assets.length,
-    },
-    legacy_aliases: {
-      productions: 'timeline_namespaces',
-      segments: 'timeline_namespaces',
-      production_ref: 'timeline_assembly_ref',
-      segment_ref: 'timeline_assembly_ref',
     },
   }
 }
@@ -76,37 +62,6 @@ export function contentSourceWorkspaceContentUnitStatusSummaries(
   const candidatesByContentUnit = contentCandidateRecordsByContentUnitId(snapshot.indexDocuments)
   const selectionsByContentUnit = selectionRecordsByContentUnitId(snapshot.indexDocuments)
   return snapshot.contentUnits.map((unit) => summarizeContentUnitStatus(unit, candidatesByContentUnit, selectionsByContentUnit))
-}
-
-function timelineAssemblyStatusEntries(
-  snapshot: ContentSourceWorkspaceSnapshot,
-  contentUnitSummaries: Array<Record<string, unknown>>,
-): Array<Record<string, unknown>> {
-  const contentUnitById = new Map(snapshot.contentUnits.map((unit) => [String(entityId(unit)), unit]))
-  return contentUnitSummaries
-    .filter((summary) => isTimelineAssemblyContentUnitSummary(summary))
-    .map((summary) => {
-      const contentUnitId = idField(summary.content_unit_id)
-      const unit = contentUnitById.get(String(contentUnitId))
-      const scope = unit ? timelineAssemblyScopeRefForContentUnit(snapshot, unit) : undefined
-      return {
-        assembly_ref: summary.target_ref,
-        content_unit_id: contentUnitId,
-        title: summary.title,
-        path: summary.path,
-        content_unit_type: summary.content_unit_type,
-        target_kind: 'timeline_assembly',
-        target_ref: summary.target_ref,
-        output_kind: summary.output_kind,
-        candidate_count: summary.candidate_count,
-        candidate_ids: summary.candidate_ids,
-        selected_candidate: summary.selected_candidate,
-        selected_resource: summary.selected_resource,
-        stale_status: summary.stale_status,
-        blocking_refs: summary.blocking_refs,
-        ...(scope ? { scope } : {}),
-      }
-    })
 }
 
 function summarizeContentUnitStatus(
@@ -136,32 +91,6 @@ function summarizeContentUnitStatus(
     selected_resource: selectedResourceId,
     stale_status: stringField(selection?.stale_policy) === 'accept_stale' ? 'accepted_stale' : 'ok',
     blocking_refs: selection?.candidate_id === undefined && candidates.length > 0 ? ['selection_missing'] : [],
-  }
-}
-
-function isTimelineAssemblyContentUnitSummary(summary: Record<string, unknown>): boolean {
-  const type = stringField(summary.content_unit_type)
-  const targetKind = stringField(summary.target_kind)
-  const targetRef = stringField(summary.target_ref)
-  return type === 'timeline_assembly_ref'
-    || targetKind === 'timeline_assembly'
-    || Boolean(targetRef?.startsWith('timeline_assembly:'))
-}
-
-function timelineAssemblyScopeRefForContentUnit(
-  snapshot: ContentSourceWorkspaceSnapshot,
-  unit: ContentSourceWorkspaceSnapshot['contentUnits'][number],
-): Record<string, unknown> | undefined {
-  const edge = (snapshot.domainEdges ?? []).find((candidate) =>
-    candidate.relation === 'scope'
-    && candidate.target.category === 'timeline_namespace'
-    && domainRefMatchesEntity(candidate.source, unit))
-  if (!edge) return undefined
-  return {
-    category: edge.target.category,
-    kind: edge.target.kind,
-    id: edge.target.id,
-    path: edge.target.path,
   }
 }
 
@@ -208,14 +137,6 @@ function domainRefMatchesNode(
     )
 }
 
-function domainRefMatchesEntity(
-  ref: { id?: string | number; path?: string },
-  entity: ContentSourceWorkspaceSnapshot['contentUnits'][number],
-): boolean {
-  return sameId(ref.id, entityId(entity))
-    || (ref.path !== undefined && ref.path === entity.path)
-}
-
 function contentCandidateRecordsByContentUnitId(
   documents: ContentSourceWorkspaceSnapshot['indexDocuments'],
 ): Map<string, ContentCandidateRecord[]> {
@@ -260,10 +181,6 @@ function contentUnitIdForRuntimeDocument(path: string, ref?: string): string | u
 function firstCandidateOutput(candidate: ContentCandidateRecord | undefined): Record<string, unknown> | undefined {
   const outputs = Array.isArray(candidate?.outputs) ? candidate.outputs : []
   return outputs.find(isRecord)
-}
-
-function arrayValue(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : []
 }
 
 function stringArrayField(value: unknown): string[] {

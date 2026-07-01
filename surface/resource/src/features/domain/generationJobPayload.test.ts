@@ -46,3 +46,15 @@ test('buildGenerationJobPayload keeps non numeric duration in extra params', () 
     feature_key: 'tool.video',
   })
 })
+
+test('buildGenerationJobPayload rejects prompt resource mentions outside input references', () => {
+  assert.throws(() => buildGenerationJobPayload({
+    modelId: 'image.workspace',
+    jobType: 'image',
+    title: 'Image job',
+    prompt: 'use @[resource:8] as reference',
+    params: {},
+    inputResourceIds: [7],
+    sourceKey: 'tool.image',
+  }), /generation_prompt_reference_not_in_input_resources:8/)
+})

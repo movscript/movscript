@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -23,7 +24,44 @@ type AdminSettingsHandler struct {
 	service *adminsettings.Service
 }
 
+type usagePolicyDiagnosis struct {
+	Status             string                            `json:"status"`
+	Mode               string                            `json:"mode"`
+	EnforcementReady   bool                              `json:"enforcement_ready"`
+	Observable         bool                              `json:"observable"`
+	ConfiguredLimits   usagePolicyLimitSummary           `json:"configured_limits"`
+	Runtime            usagePolicyRuntimeDiagnosis       `json:"runtime"`
+	Policy             adminsettings.UsagePolicySettings `json:"policy"`
+	Checks             []usagePolicyDiagnosticCheck      `json:"checks"`
+	Blockers           []string                          `json:"blockers"`
+	Warnings           []string                          `json:"warnings"`
+	RecommendedActions []string                          `json:"recommended_actions"`
+}
+
+type usagePolicyLimitSummary struct {
+	DefaultUsageCreditLimit   bool `json:"default_usage_credit_limit"`
+	DefaultMonthlyCreditLimit bool `json:"default_monthly_credit_limit"`
+	DefaultDailyCreditLimit   bool `json:"default_daily_credit_limit"`
+	GatewayRequestsPerMinute  bool `json:"gateway_requests_per_minute"`
+	GatewayConcurrent         bool `json:"gateway_concurrent"`
+	GatewayEstimatedCost      bool `json:"gateway_estimated_cost"`
+}
+
+type usagePolicyRuntimeDiagnosis struct {
+	UsageAccountingAvailable          bool `json:"usage_accounting_available"`
+	PolicyDocumentAvailable           bool `json:"policy_document_available"`
+	GatewayRuntimeEnforcementVerified bool `json:"gateway_runtime_enforcement_verified"`
+}
+
+type usagePolicyDiagnosticCheck struct {
+	Code    string         `json:"code"`
+	Status  string         `json:"status"`
+	Message string         `json:"message"`
+	Details map[string]any `json:"details,omitempty"`
+}
+
 var generationToolHTTPClient = http.DefaultClient
+var resourceAccessProfileHTTPClient = http.DefaultClient
 
 func NewAdminSettingsHandler(db *gorm.DB, encryptionKeyHex string) *AdminSettingsHandler {
 	return &AdminSettingsHandler{db: db, service: adminsettings.NewService(db, encryptionKeyHex)}
@@ -171,6 +209,367 @@ func (h *AdminSettingsHandler) UpdateResourceAccessSettings(c *gin.Context) {
 		},
 	})
 	c.JSON(http.StatusOK, updated)
+}
+
+func (h *AdminSettingsHandler) ListResourceAccessProfiles(c *gin.Context) {
+	settings, err := h.service.PublicResourceAccessSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("查询资源公网访问 Profile 失败"))
+		return
+	}
+	c.JSON(http.StatusOK, settings)
+}
+
+type resourceAccessProfileUpsertRequest struct {
+	adminsettings.ResourceAccessProfile
+	DefaultProfileID string `json:"default_profile_id,omitempty"`
+}
+
+func (h *AdminSettingsHandler) UpsertResourceAccessProfile(c *gin.Context) {
+	var req resourceAccessProfileUpsertRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
+		return
+	}
+	profileID := c.Param("profileID")
+	updated, err := h.service.UpsertResourceAccessProfile(c.Request.Context(), profileID, req.ResourceAccessProfile, req.DefaultProfileID)
+	if err != nil {
+		if errors.Is(err, adminsettings.ErrInvalidResourceAccessSettings) {
+			c.JSON(http.StatusBadRequest, api.InvalidInput("资源公网访问 Profile 无效：启用 public tunnel/public backend/object relay 时必须填写 http/https 公网地址，启用签名时必须填写签名密钥"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.Internal("保存资源公网访问 Profile 失败"))
+		return
+	}
+	normalizedProfileID := adminsettings.NormalizeResourceAccessProfileID(firstNonEmpty(profileID, req.ID))
+	profile, _ := findResourceAccessProfile(updated, normalizedProfileID)
+	audit.Record(c, h.db, audit.Event{
+		Action:     "settings.resource_access_profile.admin_upserted",
+		TargetType: "admin_setting",
+		TargetID:   normalizedProfileID,
+		Metadata: map[string]any{
+			"default_profile_id": updated.DefaultProfileID,
+			"profile":            resourceAccessProfileAuditMetadata(profile),
+		},
+	})
+	c.JSON(http.StatusOK, updated)
+}
+
+func (h *AdminSettingsHandler) DeleteResourceAccessProfile(c *gin.Context) {
+	profileID := c.Param("profileID")
+	updated, err := h.service.DeleteResourceAccessProfile(c.Request.Context(), profileID)
+	if err != nil {
+		if errors.Is(err, adminsettings.ErrResourceAccessProfileNotFound) {
+			c.JSON(http.StatusNotFound, api.NotFound("资源公网访问 Profile 不存在"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.Internal("删除资源公网访问 Profile 失败"))
+		return
+	}
+	normalizedProfileID := adminsettings.NormalizeResourceAccessProfileID(profileID)
+	audit.Record(c, h.db, audit.Event{
+		Action:     "settings.resource_access_profile.admin_deleted",
+		TargetType: "admin_setting",
+		TargetID:   normalizedProfileID,
+		Metadata: map[string]any{
+			"default_profile_id": updated.DefaultProfileID,
+			"profile_id":         normalizedProfileID,
+		},
+	})
+	c.JSON(http.StatusOK, updated)
+}
+
+type resourceAccessProfileTestResult struct {
+	Status        string `json:"status"`
+	ProfileID     string `json:"profile_id"`
+	Mode          string `json:"mode"`
+	Enabled       bool   `json:"enabled"`
+	HealthURL     string `json:"health_url,omitempty"`
+	Reachable     bool   `json:"reachable"`
+	StatusCode    int    `json:"status_code,omitempty"`
+	ContentType   string `json:"content_type,omitempty"`
+	ContentLength int64  `json:"content_length,omitempty"`
+	Error         string `json:"error,omitempty"`
+}
+
+func (h *AdminSettingsHandler) TestResourceAccessProfile(c *gin.Context) {
+	settings, err := h.service.ResourceAccessSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("读取资源公网访问 Profile 失败"))
+		return
+	}
+	profileID := c.Param("profileID")
+	profile, ok := findResourceAccessProfile(settings, profileID)
+	if !ok {
+		c.JSON(http.StatusNotFound, api.NotFound("资源公网访问 Profile 不存在"))
+		return
+	}
+	result := checkResourceAccessProfileHealth(c.Request.Context(), profile)
+	audit.Record(c, h.db, audit.Event{
+		Action:     "settings.resource_access_profile.admin_tested",
+		TargetType: "admin_setting",
+		TargetID:   result.ProfileID,
+		Metadata: map[string]any{
+			"profile_id":  result.ProfileID,
+			"mode":        result.Mode,
+			"enabled":     result.Enabled,
+			"health_url":  result.HealthURL,
+			"reachable":   result.Reachable,
+			"status_code": result.StatusCode,
+			"status":      result.Status,
+		},
+	})
+	c.JSON(http.StatusOK, result)
+}
+
+type resourceAccessRouteDiagnoseRequest struct {
+	RouteID           any    `json:"route_id,omitempty"`
+	ProfileID         string `json:"profile_id,omitempty"`
+	Transport         string `json:"transport,omitempty"`
+	RequiredMediaType string `json:"required_media_type,omitempty"`
+	Purpose           string `json:"purpose,omitempty"`
+}
+
+func (h *AdminSettingsHandler) DiagnoseResourceAccessRoute(c *gin.Context) {
+	var req resourceAccessRouteDiagnoseRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
+		return
+	}
+	settings, err := h.service.ResourceAccessSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("读取资源公网访问配置失败"))
+		return
+	}
+	transport := strings.TrimSpace(req.Transport)
+	if transport == "" {
+		transport = "public_url"
+	}
+	blockers := []string{}
+	warnings := []string{}
+	if transport != "public_url" {
+		blockers = append(blockers, "unsupported_resource_transport")
+	}
+	profile, ok := findResourceAccessProfile(settings, req.ProfileID)
+	profileMeta := map[string]any{}
+	if !ok {
+		blockers = append(blockers, "missing_resource_access_profile")
+	} else {
+		profileMeta = resourceAccessProfileAuditMetadata(profile)
+		if !profile.Enabled {
+			blockers = append(blockers, "resource_access_profile_disabled")
+		}
+		if !isPublicResourceAccessMode(profile.Mode) {
+			blockers = append(blockers, "unsupported_resource_access_mode")
+		}
+		if strings.TrimSpace(profile.PublicBaseURL) == "" {
+			blockers = append(blockers, "missing_public_base_url")
+		}
+		if profile.SigningEnabled && strings.TrimSpace(profile.SigningSecret) == "" && !profile.SigningSecretSet {
+			blockers = append(blockers, "missing_signing_secret")
+		}
+		if strings.TrimSpace(profile.InternalBaseURL) == "" && profile.Mode == "object_relay" {
+			warnings = append(warnings, "object_relay_internal_base_url_not_configured")
+		}
+	}
+	ready := len(blockers) == 0
+	status := "error"
+	if ready {
+		status = "ok"
+	}
+	response := gin.H{
+		"status":              status,
+		"ready":               ready,
+		"route_id":            req.RouteID,
+		"transport":           transport,
+		"purpose":             strings.TrimSpace(req.Purpose),
+		"required_media_type": strings.TrimSpace(req.RequiredMediaType),
+		"default_profile_id":  settings.DefaultProfileID,
+		"profile":             profileMeta,
+		"blockers":            blockers,
+		"warnings":            warnings,
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "settings.resource_access_route.admin_diagnosed",
+		TargetType: "admin_setting",
+		TargetID:   adminsettings.ResourceAccessSettingsKey,
+		Metadata: map[string]any{
+			"route_id":   req.RouteID,
+			"transport":  transport,
+			"profile_id": profileMeta["id"],
+			"ready":      ready,
+			"blockers":   blockers,
+			"warnings":   warnings,
+		},
+	})
+	c.JSON(http.StatusOK, response)
+}
+
+func (h *AdminSettingsHandler) GetUsagePolicySettings(c *gin.Context) {
+	settings, err := h.service.UsagePolicySettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("查询用量策略设置失败"))
+		return
+	}
+	c.JSON(http.StatusOK, settings)
+}
+
+func (h *AdminSettingsHandler) DiagnoseUsagePolicy(c *gin.Context) {
+	settings, err := h.service.UsagePolicySettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("诊断用量策略设置失败"))
+		return
+	}
+	c.JSON(http.StatusOK, diagnoseUsagePolicy(settings))
+}
+
+func (h *AdminSettingsHandler) UpdateUsagePolicySettings(c *gin.Context) {
+	var req adminsettings.UsagePolicySettings
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
+		return
+	}
+	updated, err := h.service.UpdateUsagePolicySettings(c.Request.Context(), req)
+	if err != nil {
+		if errors.Is(err, adminsettings.ErrInvalidUsagePolicySettings) {
+			c.JSON(http.StatusBadRequest, api.InvalidInput("用量策略设置无效：mode 必须是 off/observe/enforce，额度、请求限制和告警阈值必须为非负数，告警阈值需在 0-100 之间"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.Internal("保存用量策略设置失败"))
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "settings.usage_policy.admin_updated",
+		TargetType: "admin_setting",
+		TargetID:   adminsettings.UsagePolicySettingsKey,
+		Metadata: map[string]any{
+			"mode":                         updated.Mode,
+			"default_usage_credit_limit":   updated.DefaultUsageCreditLimit,
+			"default_monthly_credit_limit": updated.DefaultMonthlyCreditLimit,
+			"default_daily_credit_limit":   updated.DefaultDailyCreditLimit,
+			"alert_thresholds":             updated.AlertThresholds,
+			"gateway": map[string]any{
+				"max_requests_per_minute":     updated.Gateway.MaxRequestsPerMinute,
+				"max_concurrent_requests":     updated.Gateway.MaxConcurrentRequests,
+				"max_estimated_cost_per_call": updated.Gateway.MaxEstimatedCostPerCall,
+			},
+		},
+	})
+	c.JSON(http.StatusOK, updated)
+}
+
+func diagnoseUsagePolicy(settings adminsettings.UsagePolicySettings) usagePolicyDiagnosis {
+	limits := usagePolicyLimitSummary{
+		DefaultUsageCreditLimit:   settings.DefaultUsageCreditLimit > 0,
+		DefaultMonthlyCreditLimit: settings.DefaultMonthlyCreditLimit > 0,
+		DefaultDailyCreditLimit:   settings.DefaultDailyCreditLimit > 0,
+		GatewayRequestsPerMinute:  settings.Gateway.MaxRequestsPerMinute > 0,
+		GatewayConcurrent:         settings.Gateway.MaxConcurrentRequests > 0,
+		GatewayEstimatedCost:      settings.Gateway.MaxEstimatedCostPerCall > 0,
+	}
+	runtime := usagePolicyRuntimeDiagnosis{
+		UsageAccountingAvailable:          true,
+		PolicyDocumentAvailable:           true,
+		GatewayRuntimeEnforcementVerified: false,
+	}
+	diagnosis := usagePolicyDiagnosis{
+		Status:           "disabled",
+		Mode:             settings.Mode,
+		Observable:       settings.Mode == "observe" || settings.Mode == "enforce",
+		ConfiguredLimits: limits,
+		Runtime:          runtime,
+		Policy:           settings,
+		Blockers:         []string{},
+		Warnings:         []string{},
+		Checks: []usagePolicyDiagnosticCheck{{
+			Code:    "usage_policy_document",
+			Status:  "ready",
+			Message: "Usage policy settings document is available.",
+		}, {
+			Code:    "usage_accounting",
+			Status:  "ready",
+			Message: "Usage accounting and usage log surfaces are available.",
+		}},
+		RecommendedActions: []string{},
+	}
+
+	switch settings.Mode {
+	case "off":
+		diagnosis.Checks = append(diagnosis.Checks, usagePolicyDiagnosticCheck{
+			Code:    "usage_policy_mode",
+			Status:  "disabled",
+			Message: "Usage policy mode is off; no policy enforcement is expected.",
+		})
+		diagnosis.RecommendedActions = append(diagnosis.RecommendedActions, "Switch mode to observe before enforcement rollout.")
+	case "observe":
+		diagnosis.Status = "observe"
+		diagnosis.Warnings = append(diagnosis.Warnings, "usage_policy_observe_mode")
+		diagnosis.Checks = append(diagnosis.Checks, usagePolicyDiagnosticCheck{
+			Code:    "usage_policy_mode",
+			Status:  "warning",
+			Message: "Usage policy is in observe mode; diagnostics and reporting are allowed but calls are not blocked by this policy document.",
+		})
+		diagnosis.RecommendedActions = append(diagnosis.RecommendedActions, "Review usage logs and configured limits before switching mode to enforce.")
+	case "enforce":
+		diagnosis.Checks = append(diagnosis.Checks, usagePolicyDiagnosticCheck{
+			Code:    "usage_policy_mode",
+			Status:  "ready",
+			Message: "Usage policy mode is enforce.",
+		})
+		if !hasConfiguredUsagePolicyLimit(limits) {
+			diagnosis.Status = "blocked"
+			diagnosis.Blockers = append(diagnosis.Blockers, "missing_usage_policy_limits")
+			diagnosis.Checks = append(diagnosis.Checks, usagePolicyDiagnosticCheck{
+				Code:    "usage_policy_limits",
+				Status:  "blocked",
+				Message: "Enforce mode needs at least one default credit or gateway limit.",
+			})
+			diagnosis.RecommendedActions = append(diagnosis.RecommendedActions, "Configure at least one default usage, monthly, daily, request, concurrency, or estimated-cost limit.")
+			break
+		}
+		diagnosis.Checks = append(diagnosis.Checks, usagePolicyDiagnosticCheck{
+			Code:    "usage_policy_limits",
+			Status:  "ready",
+			Message: "At least one usage policy limit is configured.",
+		})
+		if !runtime.GatewayRuntimeEnforcementVerified {
+			diagnosis.Status = "degraded"
+			diagnosis.Warnings = append(diagnosis.Warnings, "gateway_runtime_enforcement_not_verified")
+			diagnosis.Checks = append(diagnosis.Checks, usagePolicyDiagnosticCheck{
+				Code:    "gateway_runtime_enforcement",
+				Status:  "warning",
+				Message: "Gateway runtime enforcement for this admin usage policy document is not verified in the current deployment.",
+			})
+			diagnosis.RecommendedActions = append(diagnosis.RecommendedActions, "Verify or wire gateway/entitlement runtime enforcement before treating the policy as blocking.")
+			break
+		}
+		diagnosis.Status = "ready"
+		diagnosis.EnforcementReady = true
+		diagnosis.Checks = append(diagnosis.Checks, usagePolicyDiagnosticCheck{
+			Code:    "gateway_runtime_enforcement",
+			Status:  "ready",
+			Message: "Gateway runtime enforcement is verified for this deployment.",
+		})
+	default:
+		diagnosis.Status = "blocked"
+		diagnosis.Blockers = append(diagnosis.Blockers, "invalid_usage_policy_mode")
+		diagnosis.Checks = append(diagnosis.Checks, usagePolicyDiagnosticCheck{
+			Code:    "usage_policy_mode",
+			Status:  "blocked",
+			Message: "Usage policy mode must be off, observe, or enforce.",
+		})
+	}
+
+	return diagnosis
+}
+
+func hasConfiguredUsagePolicyLimit(limits usagePolicyLimitSummary) bool {
+	return limits.DefaultUsageCreditLimit ||
+		limits.DefaultMonthlyCreditLimit ||
+		limits.DefaultDailyCreditLimit ||
+		limits.GatewayRequestsPerMinute ||
+		limits.GatewayConcurrent ||
+		limits.GatewayEstimatedCost
 }
 
 func (h *AdminSettingsHandler) GetOrgGenerationToolsSettings(c *gin.Context) {
@@ -582,6 +981,104 @@ func runtimeGenerationToolServerPublic(server adminsettings.GenerationToolServer
 		"password_set": server.Password != "",
 		"token_set":    server.Token != "",
 		"tags":         server.Tags,
+	}
+}
+
+func findResourceAccessProfile(settings adminsettings.ResourceAccessSettings, profileID string) (adminsettings.ResourceAccessProfile, bool) {
+	profileID = adminsettings.NormalizeResourceAccessProfileID(profileID)
+	if profileID == "" {
+		profileID = settings.DefaultProfileID
+	}
+	if profileID != "" {
+		for _, profile := range settings.Profiles {
+			if profile.ID == profileID {
+				return profile, true
+			}
+		}
+		return adminsettings.ResourceAccessProfile{}, false
+	}
+	if len(settings.Profiles) > 0 {
+		return settings.Profiles[0], true
+	}
+	return adminsettings.ResourceAccessProfile{}, false
+}
+
+func checkResourceAccessProfileHealth(ctx context.Context, profile adminsettings.ResourceAccessProfile) resourceAccessProfileTestResult {
+	result := resourceAccessProfileTestResult{
+		Status:    "error",
+		ProfileID: profile.ID,
+		Mode:      profile.Mode,
+		Enabled:   profile.Enabled,
+	}
+	if !profile.Enabled {
+		result.Error = "resource access profile is disabled"
+		return result
+	}
+	if !isPublicResourceAccessMode(profile.Mode) {
+		result.Error = "resource access profile mode does not expose a public health URL"
+		return result
+	}
+	if strings.TrimSpace(profile.PublicBaseURL) == "" {
+		result.Error = "resource access profile public_base_url is required"
+		return result
+	}
+	result.HealthURL = strings.TrimRight(profile.PublicBaseURL, "/") + profile.HealthCheckPath
+	checkCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(checkCtx, http.MethodHead, result.HealthURL, nil)
+	if err != nil {
+		result.Error = err.Error()
+		return result
+	}
+	resp, err := resourceAccessProfileHTTPClient.Do(req)
+	if err == nil && resp != nil && (resp.StatusCode == http.StatusMethodNotAllowed || resp.StatusCode == http.StatusNotImplemented || resp.StatusCode == http.StatusNotFound) {
+		_ = resp.Body.Close()
+		req, err = http.NewRequestWithContext(checkCtx, http.MethodGet, result.HealthURL, nil)
+		if err == nil {
+			resp, err = resourceAccessProfileHTTPClient.Do(req)
+		}
+	}
+	if err != nil {
+		result.Error = err.Error()
+		return result
+	}
+	if resp == nil {
+		result.Error = "resource access profile health check returned no response"
+		return result
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1024))
+	result.StatusCode = resp.StatusCode
+	result.ContentType = resp.Header.Get("Content-Type")
+	result.ContentLength = resp.ContentLength
+	result.Reachable = resp.StatusCode >= 200 && resp.StatusCode < 400
+	if result.Reachable {
+		result.Status = "ok"
+	} else {
+		result.Error = resp.Status
+	}
+	return result
+}
+
+func isPublicResourceAccessMode(mode string) bool {
+	return mode == "public_tunnel" || mode == "public_backend" || mode == "object_relay"
+}
+
+func resourceAccessProfileAuditMetadata(profile adminsettings.ResourceAccessProfile) map[string]any {
+	if profile.ID == "" {
+		return map[string]any{}
+	}
+	return map[string]any{
+		"id":                 profile.ID,
+		"name":               profile.Name,
+		"enabled":            profile.Enabled,
+		"mode":               profile.Mode,
+		"public_base_url":    profile.PublicBaseURL,
+		"internal_base_url":  profile.InternalBaseURL,
+		"signing_enabled":    profile.SigningEnabled,
+		"signing_secret_set": profile.SigningSecretSet || strings.TrimSpace(profile.SigningSecret) != "",
+		"expires_seconds":    profile.ExpiresSeconds,
+		"health_check_path":  profile.HealthCheckPath,
 	}
 }
 

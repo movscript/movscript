@@ -30,10 +30,12 @@ type CommitProjectChangeOptions = {
 
 export function useEditingProjectPersistence({
   editingProjectId,
+  editingProjectProjectId,
   mediaAPI,
   resetWorkspaceViewState,
 }: {
   editingProjectId: string | undefined
+  editingProjectProjectId?: string
   mediaAPI: EditingMediaAPI | undefined
   resetWorkspaceViewState: () => void
 }) {
@@ -207,11 +209,11 @@ export function useEditingProjectPersistence({
     }
     void openProject({
       id: editingProjectId,
-      projectId: STANDALONE_EDITING_PROJECT_ID,
+      projectId: editingProjectProjectId || STANDALONE_EDITING_PROJECT_ID,
       title: editingProjectId,
       updatedAt: new Date().toISOString(),
     })
-  }, [editingProjectId, openProject])
+  }, [editingProjectId, editingProjectProjectId, openProject])
 
   useEffect(() => {
     if (!activeProject || !isDirty) return undefined

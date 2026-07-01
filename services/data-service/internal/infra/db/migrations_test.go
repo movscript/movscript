@@ -157,8 +157,6 @@ func TestRunMigrationsInitializesFormalBaselineSchema(t *testing.T) {
 		"endpoint_base_url",
 		"endpoint_path_prefix",
 		"endpoint_mode",
-		"operation_profile",
-		"route_capabilities_json",
 	} {
 		if !db.Migrator().HasColumn(&model.AIModelRouteBinding{}, column) {
 			t.Fatalf("expected baseline route binding column %q", column)
@@ -190,7 +188,7 @@ func TestMigrateModelRouteTemplateMetadataAddsColumns(t *testing.T) {
 			accepts_image numeric,
 			max_input_images integer,
 			max_input_videos integer,
-			image_edit_field text,
+			input_image_field text,
 			supported_params text
 		)
 	`).Error; err != nil {
@@ -225,10 +223,71 @@ func TestMigrateModelRouteTemplateMetadataAddsColumns(t *testing.T) {
 			t.Fatalf("expected migrated model catalog column %q", column)
 		}
 	}
-	for _, column := range []string{"combo_template_key", "template_version", "endpoint_base_url", "endpoint_path_prefix", "endpoint_mode", "operation_profile", "route_capabilities_json"} {
+	for _, column := range []string{"combo_template_key", "template_version", "endpoint_base_url", "endpoint_path_prefix", "endpoint_mode"} {
 		if !db.Migrator().HasColumn(&model.AIModelRouteBinding{}, column) {
 			t.Fatalf("expected migrated route binding column %q", column)
 		}
+	}
+}
+
+func TestMigrateModelCatalogInputImageFieldBackfillsLegacyImageEditField(t *testing.T) {
+	db := testutil.OpenSQLite(t, "model-catalog-input-image-field.db")
+	if err := db.Exec(`
+		CREATE TABLE ai_model_catalog_entries (
+			id integer primary key autoincrement,
+			created_at datetime,
+			updated_at datetime,
+			deleted_at datetime,
+			public_model_id text,
+			display_name text,
+			short_name text,
+			is_enabled numeric,
+			capabilities text,
+			accepts_image numeric,
+			max_input_images integer,
+			max_input_videos integer,
+			image_edit_field text,
+			supported_params text
+		)
+	`).Error; err != nil {
+		t.Fatalf("create legacy catalog table: %v", err)
+	}
+	if err := db.Exec(`
+		INSERT INTO ai_model_catalog_entries (
+			public_model_id, display_name, short_name, is_enabled, capabilities,
+			accepts_image, max_input_images, max_input_videos, image_edit_field, supported_params
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`,
+		"grok-imagine-image-quality-edit",
+		"Grok Imagine Image Quality Edit",
+		"grok-edit",
+		true,
+		"image_generation",
+		true,
+		1,
+		0,
+		"image",
+		"",
+	).Error; err != nil {
+		t.Fatalf("insert legacy catalog entry: %v", err)
+	}
+
+	if err := migrateModelCatalogInputImageField(db); err != nil {
+		t.Fatalf("migrateModelCatalogInputImageField() error = %v", err)
+	}
+	if !db.Migrator().HasColumn("ai_model_catalog_entries", "input_image_field") {
+		t.Fatal("expected input_image_field column after migration")
+	}
+	var inputImageField string
+	if err := db.Raw(`
+		SELECT input_image_field
+		FROM ai_model_catalog_entries
+		WHERE public_model_id = ?
+	`, "grok-imagine-image-quality-edit").Scan(&inputImageField).Error; err != nil {
+		t.Fatalf("load migrated input_image_field: %v", err)
+	}
+	if inputImageField != "image" {
+		t.Fatalf("input_image_field = %q, want legacy image_edit_field value", inputImageField)
 	}
 }
 

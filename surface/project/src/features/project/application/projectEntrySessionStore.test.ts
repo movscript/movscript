@@ -63,9 +63,9 @@ test('project entry session snapshot normalization drops invalid entries and pre
           path: 'timeline/episode_01/production.json',
         },
         target: {
-          targetCategory: 'timeline_assembly',
-          targetKind: 'timeline_assembly',
-          targetRef: 'timeline_assembly:episode:episode_01',
+          targetCategory: 'content',
+          targetKind: 'content_unit',
+          targetRef: 'content_unit:episode_01_preview',
         },
         scopeLevel: 'production',
       },
@@ -90,9 +90,9 @@ test('project entry session snapshot normalization drops invalid entries and pre
     path: 'timeline/episode_01/production.json',
   })
   assert.deepEqual(snapshots.valid?.selection?.target, {
-    targetCategory: 'timeline_assembly',
-    targetKind: 'timeline_assembly',
-    targetRef: 'timeline_assembly:episode:episode_01',
+    targetCategory: 'content',
+    targetKind: 'content_unit',
+    targetRef: 'content_unit:episode_01_preview',
   })
 })
 

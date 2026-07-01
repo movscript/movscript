@@ -53,10 +53,7 @@ export function projectReadModelToStatusSummary(
   const productionSummary = recordValue(model.productionSummary ?? overview?.production)
   const contentSummary = recordValue(model.contentSummary ?? overview?.content)
   const readiness = recordValue(model.readiness ?? overview?.readiness)
-  const timelineAssemblies = arrayValue(projectTimelineStatus?.timeline_assemblies ?? projectTimelineStatus?.timelineAssemblies)
-  const contentUnits = timelineAssemblies.length > 0
-    ? timelineAssemblies.map((item, index) => readModelContentUnit(recordValue(item) ?? { value: item }, index))
-    : readModelContentUnits(contentSummary, readiness)
+  const contentUnits = readModelContentUnits(contentSummary, readiness)
   const productionItems = arrayValue(productionSummary?.items ?? productionSummary?.productions ?? productionSummary?.productionItems)
   const firstProduction = recordValue(productionItems[0])
   const productionId = target.productionId
@@ -74,7 +71,6 @@ export function projectReadModelToStatusSummary(
       project_timeline_status: projectTimelineStatus,
       namespace_vocabulary: projectTimelineStatus.namespace_vocabulary,
       timeline_namespaces: projectTimelineStatus.timeline_namespaces,
-      timeline_assemblies: projectTimelineStatus.timeline_assemblies,
     } : {}),
     productions: [
       {
@@ -102,9 +98,6 @@ export function targetFieldsForDomainFocus(focus: MovScriptNormalizedFocus | und
     ...(focus.target?.targetCategory ? { target_category: focus.target.targetCategory } : {}),
     ...(focus.target?.targetKind ? { target_kind: focus.target.targetKind } : {}),
     ...(focus.target?.targetRef ? { target_ref: focus.target.targetRef } : {}),
-    ...(focus.target?.targetKind === 'timeline_assembly' && focus.target.targetRef
-      ? { timeline_assembly_ref: focus.target.targetRef }
-      : {}),
   }
 }
 

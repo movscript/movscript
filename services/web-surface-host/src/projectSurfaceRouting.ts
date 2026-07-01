@@ -113,8 +113,6 @@ const NORMALIZED_FOCUS_KEYS = [
   'target_kind',
   'targetRef',
   'target_ref',
-  'timelineAssemblyRef',
-  'timeline_assembly_ref',
   'domainTargetCategory',
   'domain_target_category',
   'domainTargetKind',

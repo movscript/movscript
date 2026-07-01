@@ -2,6 +2,7 @@ package ai
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 )
 
@@ -159,14 +160,22 @@ type ParamRequiresValue struct {
 	Value any    `json:"value" yaml:"value"`
 }
 
-// ModelParamProfile describes a catalog-entry-specific delta on top of adapter params.
-// It is the preferred JSON shape for catalog supported params.
-// For backward compatibility, supported params may still be a []ParamDef full override.
+// ModelParamProfile describes a catalog-entry-specific delta on top of adapter params
+// for one operation.
 type ModelParamProfile struct {
 	Allow    []string            `json:"allow,omitempty"`
 	Deny     []string            `json:"deny,omitempty"`
 	Override map[string]ParamDef `json:"override,omitempty"`
 	Add      []ParamDef          `json:"add,omitempty"`
+}
+
+// ModelOperationParamProfile is the v2 model parameter contract. Catalog entries
+// select canonical adapter parameters by operation instead of exposing one flat
+// model-wide parameter list.
+type ModelOperationParamProfile struct {
+	Version     int                          `json:"version,omitempty"`
+	Common      ModelParamProfile            `json:"common,omitempty"`
+	ByOperation map[string]ModelParamProfile `json:"by_operation,omitempty"`
 }
 
 // AdapterParamSet describes the default generation controls exposed by an adapter
@@ -178,6 +187,41 @@ type AdapterParamSet struct {
 	Params     []ParamDef `json:"params"`
 }
 
+// AdapterOperationParamSet describes canonical parameters an adapter can
+// interpret for one system operation. Provider-native field names stay inside
+// adapter implementation code and do not appear in model contracts.
+type AdapterOperationParamSet struct {
+	Capability string     `json:"capability"`
+	Operation  string     `json:"operation"`
+	Params     []ParamDef `json:"params"`
+}
+
+const (
+	AssetTransportPublicURL      = "public_url"
+	AssetTransportMultipart      = "multipart"
+	AssetTransportProviderFileID = "provider_file_id"
+	AssetTransportInlineBytes    = "inline_bytes"
+
+	AdapterResultModeSync      = "sync"
+	AdapterResultModeAsyncTask = "async_task"
+
+	AdapterOutputMediaProviderURL = "provider_url"
+	AdapterOutputMediaArtifactURL = "artifact_url"
+	AdapterOutputMediaInlineBytes = "inline_bytes"
+)
+
+// AdapterOperationContract describes the provider-facing behavior an adapter
+// implements for one canonical system operation. Catalog entries expose the
+// public model contract; route bindings are accepted only when their adapter can
+// satisfy that contract.
+type AdapterOperationContract struct {
+	Capability          string   `json:"capability"`
+	Operation           string   `json:"operation"`
+	InputMediaTransport []string `json:"input_media_transport,omitempty"`
+	ResultMode          string   `json:"result_mode,omitempty"`
+	OutputMedia         []string `json:"output_media,omitempty"`
+}
+
 // ModelDef describes an enabled model after resolving its admin-declared config
 // with adapter defaults. It is used at runtime and is not a catalog entry.
 type ModelDef struct {
@@ -185,7 +229,7 @@ type ModelDef struct {
 	Lab          string // model creator/family; provider/account is handled by routes
 	ModelID      string // API model ID sent in requests
 	DisplayName  string
-	Capabilities []string // use Capability* constants: "text", "image", "video", "video_i2v", "video_v2v", "image_edit", "reasoning"
+	Capabilities []string // use CapabilityFamily* constants such as "text_generation", "image_generation", "video_generation", "audio_generation".
 	AdapterType  string
 	SourceStatus string
 	APIKinds     []string
@@ -193,12 +237,12 @@ type ModelDef struct {
 	// AllowModelIDOverride lets admins replace the ModelID (e.g. Volcengine ep-xxx endpoints).
 	AllowModelIDOverride bool
 
-	// ImageEditField is the multipart form field name used when sending an image to /images/edits.
+	// InputImageField is the multipart form field name used when sending an image to /images/edits.
 	// Empty means the adapter uses the default ("image"). Set to "image[]" for xAI-compatible APIs.
-	ImageEditField string
+	InputImageField string
 
 	// AcceptsImageInput indicates the model can receive an image as input.
-	// True for image_edit models and image-to-video (i2v) models.
+	// True for models that can accept image references.
 	// Frontend uses this to decide whether to show the image upload area.
 	AcceptsImageInput bool
 
@@ -212,6 +256,10 @@ type ModelDef struct {
 
 	// SupportedParams lists user-configurable generation parameters exposed in the UI.
 	SupportedParams []ParamDef
+
+	// SupportedParamsByOperation lists user-configurable generation parameters
+	// exposed in the v2 public model contract, keyed by system operation.
+	SupportedParamsByOperation map[string][]ParamDef
 
 	// SupportedParamsExplicit is true when SupportedParams came from the model
 	// config override rather than adapter defaults. It lets an explicit empty
@@ -238,7 +286,7 @@ type CatalogTemplate struct {
 	AcceptsImageInput    bool       `json:"accepts_image_input"`
 	MaxInputImages       int        `json:"max_input_images"`
 	MaxInputVideos       int        `json:"max_input_videos"`
-	ImageEditField       string     `json:"image_edit_field,omitempty"`
+	InputImageField      string     `json:"input_image_field,omitempty"`
 	SupportedParams      []ParamDef `json:"supported_params,omitempty"`
 }
 
@@ -253,13 +301,15 @@ type CredField struct {
 // AdapterDef describes how to authenticate with a specific adapter.
 // One AdapterDef = one set of credentials + one adapter implementation.
 type AdapterDef struct {
-	AdapterType      string            `json:"adapter_type"`
-	DisplayName      string            `json:"display_name"`
-	Description      string            `json:"description"`
-	DefaultBaseURL   string            `json:"default_base_url"`
-	CredFields       []CredField       `json:"cred_fields"`
-	SupportsFilesAPI bool              `json:"supports_files_api"` // provider has a Files API for pre-uploading media
-	ParamSets        []AdapterParamSet `json:"param_sets,omitempty"`
+	AdapterType        string                     `json:"adapter_type"`
+	DisplayName        string                     `json:"display_name"`
+	Description        string                     `json:"description"`
+	DefaultBaseURL     string                     `json:"default_base_url"`
+	CredFields         []CredField                `json:"cred_fields"`
+	SupportsFilesAPI   bool                       `json:"supports_files_api"` // provider has a Files API for pre-uploading media
+	ParamSets          []AdapterParamSet          `json:"param_sets,omitempty"`
+	OperationParamSets []AdapterOperationParamSet `json:"operation_param_sets,omitempty"`
+	OperationContracts []AdapterOperationContract `json:"operation_contracts,omitempty"`
 }
 
 func commonImageParams() []ParamDef {
@@ -462,10 +512,7 @@ func vyroSeedanceVideoParams() []ParamDef {
 			Options: []string{"5", "10"}, Default: "5"},
 		{Key: "aspect_ratio", Label: "画面比例", Type: "select",
 			Options: []string{"16:9", "9:16", "1:1"}, Default: "16:9"},
-		{Key: "size", Label: "清晰度", Type: "select",
-			Options: []string{"720P", "1080P"}, Default: "720P"},
-		{Key: "resolution", Label: "分辨率", Type: "select",
-			Options: []string{"720p", "1080p"}, Default: "720p"},
+		{Key: "generate_audio", Label: "生成音频", Type: "boolean", Default: true},
 	}
 }
 
@@ -570,7 +617,7 @@ func openAICompatAudioTranscribeParams() []ParamDef {
 	}
 }
 
-func openAICompatAudioChatParams() []ParamDef {
+func openAICompatSpeechToSpeechParams() []ParamDef {
 	return []ParamDef{
 		{Key: "voice", Label: "音色", Type: "select",
 			Options: []string{"alloy", "ash", "ballad", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer"}, Default: "alloy"},
@@ -581,7 +628,7 @@ func openAICompatAudioChatParams() []ParamDef {
 	}
 }
 
-func xiaomiMimoAudioChatParams() []ParamDef {
+func xiaomiMimoSpeechToSpeechParams() []ParamDef {
 	return []ParamDef{
 		{Key: "language", Label: "识别语言", Type: "select",
 			Options: []string{"auto", "zh", "en"}, Default: "auto"},
@@ -633,14 +680,14 @@ var AdapterDefs = []AdapterDef{
 		DefaultBaseURL: "movscript://local",
 		CredFields:     []CredField{},
 		ParamSets: []AdapterParamSet{
-			{Capability: CapabilityText, Params: commonTextParams()},
+			{Capability: CapabilityFamilyTextGeneration, Params: commonTextParams()},
 			{Capability: CapabilityReasoning, Params: commonTextParams()},
-			{Capability: CapabilityAudioMusic, Params: audioGenerationParams()},
-			{Capability: CapabilityAudioSFX, Params: audioGenerationParams()},
-			{Capability: CapabilityAudioChat, Params: openAICompatAudioChatParams()},
-			{Capability: CapabilityVoiceClone, Params: voiceCloneParams()},
-			{Capability: CapabilityVoiceDesign, Params: voiceDesignParams()},
-			{Capability: CapabilitySubTranslate, Params: commonTextParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: audioGenerationParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: audioGenerationParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: openAICompatSpeechToSpeechParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: voiceCloneParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: voiceDesignParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: commonTextParams()},
 		},
 	},
 	{
@@ -654,13 +701,13 @@ var AdapterDefs = []AdapterDef{
 			{Key: "base_url", Label: "Base URL（可选，用于代理或第三方兼容接口）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
-			{Capability: CapabilityText, Params: commonTextParams()},
-			{Capability: CapabilityImage, Params: commonImageParams()},
-			{Capability: CapabilityImageEdit, Params: commonImageParams()},
-			{Capability: CapabilityAudioTTS, Params: openAICompatAudioSpeechParams()},
-			{Capability: CapabilityAudioSTT, Params: openAICompatAudioTranscribeParams()},
-			{Capability: CapabilityAudioChat, Params: openAICompatAudioChatParams()},
-			{Capability: CapabilitySubAlign, Params: openAICompatAudioTranscribeParams()},
+			{Capability: CapabilityFamilyTextGeneration, Params: commonTextParams()},
+			{Capability: CapabilityFamilyImageGeneration, Params: commonImageParams()},
+			{Capability: CapabilityFamilyImageGeneration, Params: commonImageParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: openAICompatAudioSpeechParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: openAICompatAudioTranscribeParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: openAICompatSpeechToSpeechParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: openAICompatAudioTranscribeParams()},
 		},
 	},
 	{
@@ -674,9 +721,9 @@ var AdapterDefs = []AdapterDef{
 			{Key: "base_url", Label: "Base URL（可选，用于官方或中转站入口）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
-			{Capability: CapabilityVideo, Params: openAICompatVideoParams()},
-			{Capability: CapabilityVideoI2V, Params: openAICompatVideoParams()},
-			{Capability: CapabilityVideoV2V, Params: openAICompatVideoParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Params: openAICompatVideoParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Params: openAICompatVideoParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Params: openAICompatVideoParams()},
 		},
 	},
 	{
@@ -689,7 +736,7 @@ var AdapterDefs = []AdapterDef{
 			{Key: "base_url", Label: "Base URL（可选，用于官方或中转站入口）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
-			{Capability: CapabilityVideo, Params: openAICompatVideoParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Params: openAICompatVideoParams()},
 		},
 	},
 	{
@@ -702,8 +749,8 @@ var AdapterDefs = []AdapterDef{
 			{Key: "base_url", Label: "Base URL（可选，用于 api3.wlai.vip 等云雾入口）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
-			{Capability: CapabilityVideo, Params: yunwuVideoParams()},
-			{Capability: CapabilityVideoI2V, Params: yunwuVideoParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Params: yunwuVideoParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Params: yunwuVideoParams()},
 		},
 	},
 	{
@@ -716,8 +763,8 @@ var AdapterDefs = []AdapterDef{
 			{Key: "base_url", Label: "Base URL（默认 http://127.0.0.1:9090/v1）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
-			{Capability: CapabilityImage, Params: doubao2APIImageParams()},
-			{Capability: CapabilityVideo, Params: doubao2APIVideoParams()},
+			{Capability: CapabilityFamilyImageGeneration, Params: doubao2APIImageParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Params: doubao2APIVideoParams()},
 		},
 	},
 	{
@@ -730,7 +777,7 @@ var AdapterDefs = []AdapterDef{
 			{Key: "base_url", Label: "Base URL（可选，用于代理或第三方兼容接口）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
-			{Capability: CapabilityText, Params: commonTextParams()},
+			{Capability: CapabilityFamilyTextGeneration, Params: commonTextParams()},
 		},
 	},
 	{
@@ -742,8 +789,8 @@ var AdapterDefs = []AdapterDef{
 			{Key: "secret_key", Label: "Secret Key", Required: true},
 		},
 		ParamSets: []AdapterParamSet{
-			{Capability: CapabilityVideo, Params: klingVideoParams()},
-			{Capability: CapabilityVideoI2V, Params: klingVideoParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Params: klingVideoParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Params: klingVideoParams()},
 		},
 	},
 	{
@@ -761,14 +808,14 @@ var AdapterDefs = []AdapterDef{
 			{Key: "speech_base_url", Label: "Speech Base URL（TTS 可选）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
-			{Capability: CapabilityText, Params: commonTextParams()},
-			{Capability: CapabilityImage, Params: volcenImageParams()},
-			{Capability: CapabilityImageEdit, Params: volcenImageParams()},
-			{Capability: CapabilityVideo, Params: volcenVideoParams()},
-			{Capability: CapabilityVideoI2V, Params: volcenVideoParams()},
-			{Capability: CapabilityVideoV2V, Params: volcenVideoParams()},
-			{Capability: CapabilityAudioTTS, Params: volcenTTSParams()},
-			{Capability: CapabilityAudioSTT, Params: volcenASRParams()},
+			{Capability: CapabilityFamilyTextGeneration, Params: commonTextParams()},
+			{Capability: CapabilityFamilyImageGeneration, Params: volcenImageParams()},
+			{Capability: CapabilityFamilyImageGeneration, Params: volcenImageParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Params: volcenVideoParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Params: volcenVideoParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Params: volcenVideoParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: volcenTTSParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: volcenASRParams()},
 		},
 	},
 	{
@@ -781,13 +828,13 @@ var AdapterDefs = []AdapterDef{
 			{Key: "base_url", Label: "Base URL（可选，用于代理）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
-			{Capability: CapabilityText, Params: commonTextParams()},
-			{Capability: CapabilityImage, Params: geminiImageParams()},
-			{Capability: CapabilityImageEdit, Params: geminiImageParams()},
-			{Capability: CapabilityVideo, Params: geminiVideoParams()},
-			{Capability: CapabilityVideoI2V, Params: geminiVideoParams()},
-			{Capability: CapabilityAudioTTS, Params: geminiTTSParams()},
-			{Capability: CapabilityAudioMusic, Params: geminiMusicParams()},
+			{Capability: CapabilityFamilyTextGeneration, Params: commonTextParams()},
+			{Capability: CapabilityFamilyImageGeneration, Params: geminiImageParams()},
+			{Capability: CapabilityFamilyImageGeneration, Params: geminiImageParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Params: geminiVideoParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Params: geminiVideoParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: geminiTTSParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: geminiMusicParams()},
 		},
 	},
 	{
@@ -800,10 +847,10 @@ var AdapterDefs = []AdapterDef{
 			{Key: "base_url", Label: "Base URL（可选：国际站/北京/美国区）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
-			{Capability: CapabilityVideo, Params: dashScopeVideoParams()},
-			{Capability: CapabilityVideoI2V, Params: dashScopeVideoParams()},
-			{Capability: CapabilityVideoV2V, Params: dashScopeVideoParams()},
-			{Capability: CapabilityAudioTTS, Params: dashScopeTTSParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Params: dashScopeVideoParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Params: dashScopeVideoParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Params: dashScopeVideoParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: dashScopeTTSParams()},
 		},
 	},
 	{
@@ -816,8 +863,8 @@ var AdapterDefs = []AdapterDef{
 			{Key: "base_url", Label: "Base URL（可选）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
-			{Capability: CapabilityVideo, Params: viduVideoParams()},
-			{Capability: CapabilityVideoI2V, Params: viduVideoParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Params: viduVideoParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Params: viduVideoParams()},
 		},
 	},
 	{
@@ -830,8 +877,26 @@ var AdapterDefs = []AdapterDef{
 			{Key: "base_url", Label: "Base URL（可选，用于 83zi 或同协议入口）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
-			{Capability: CapabilityVideo, Params: vyroSeedanceVideoParams()},
-			{Capability: CapabilityVideoI2V, Params: vyroSeedanceVideoParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Params: vyroSeedanceVideoParams()},
+		},
+		OperationParamSets: []AdapterOperationParamSet{
+			{Capability: CapabilityFamilyVideoGeneration, Operation: VideoOperationPromptToVideo, Params: vyroSeedanceVideoParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Operation: VideoOperationReferenceToVideo, Params: vyroSeedanceVideoParams()},
+		},
+		OperationContracts: []AdapterOperationContract{
+			{
+				Capability:  CapabilityFamilyVideoGeneration,
+				Operation:   VideoOperationPromptToVideo,
+				ResultMode:  AdapterResultModeAsyncTask,
+				OutputMedia: []string{AdapterOutputMediaProviderURL, AdapterOutputMediaArtifactURL},
+			},
+			{
+				Capability:          CapabilityFamilyVideoGeneration,
+				Operation:           VideoOperationReferenceToVideo,
+				InputMediaTransport: []string{AssetTransportMultipart},
+				ResultMode:          AdapterResultModeAsyncTask,
+				OutputMedia:         []string{AdapterOutputMediaProviderURL, AdapterOutputMediaArtifactURL},
+			},
 		},
 	},
 	{
@@ -844,10 +909,10 @@ var AdapterDefs = []AdapterDef{
 			{Key: "base_url", Label: "Base URL（可选，用于代理）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
-			{Capability: CapabilityAudioTTS, Params: elevenLabsTTSParams()},
-			{Capability: CapabilityAudioSTT, Params: elevenLabsSTTParams()},
-			{Capability: CapabilityVoiceClone, Params: voiceCloneParams()},
-			{Capability: CapabilityVoiceDesign, Params: voiceDesignParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: elevenLabsTTSParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: elevenLabsSTTParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: voiceCloneParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: voiceDesignParams()},
 		},
 	},
 	{
@@ -860,7 +925,7 @@ var AdapterDefs = []AdapterDef{
 			{Key: "base_url", Label: "Base URL（可选，用于代理）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
-			{Capability: CapabilityAudioTTS, Params: miniMaxTTSParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: miniMaxTTSParams()},
 		},
 	},
 	{
@@ -873,7 +938,7 @@ var AdapterDefs = []AdapterDef{
 			{Key: "base_url", Label: "Base URL（可选，用于代理）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
-			{Capability: CapabilityAudioChat, Params: xiaomiMimoAudioChatParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: xiaomiMimoSpeechToSpeechParams()},
 		},
 	},
 	{
@@ -886,7 +951,7 @@ var AdapterDefs = []AdapterDef{
 			{Key: "base_url", Label: "Base URL（可选，用于代理）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
-			{Capability: CapabilityAudioMusic, Params: murekaMusicParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: murekaMusicParams()},
 		},
 	},
 	{
@@ -899,8 +964,8 @@ var AdapterDefs = []AdapterDef{
 			{Key: "base_url", Label: "Base URL（可选，用于代理）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
-			{Capability: CapabilityAudioMusic, Params: stabilityAudioParams()},
-			{Capability: CapabilityAudioSFX, Params: stabilityAudioParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: stabilityAudioParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: stabilityAudioParams()},
 		},
 	},
 }
@@ -1041,7 +1106,7 @@ func CatalogTemplates() []CatalogTemplate {
 			AcceptsImageInput:    def.AcceptsImageInput,
 			MaxInputImages:       def.MaxInputImages,
 			MaxInputVideos:       def.MaxInputVideos,
-			ImageEditField:       def.ImageEditField,
+			InputImageField:      def.InputImageField,
 			SupportedParams:      NormalizeParamDefsForUI(cloneParamDefs(def.SupportedParams)),
 		})
 	}
@@ -1083,6 +1148,312 @@ func GetAdapterDef(adapterType string) *AdapterDef {
 	return nil
 }
 
+// AdapterOperationContracts returns the normalized adapter contract registry for
+// one adapter. Explicit declarations win, with conservative defaults derived
+// from the adapter's known protocol family while the full registry is being
+// filled out.
+func AdapterOperationContracts(adapterType string) []AdapterOperationContract {
+	adapterType = strings.TrimSpace(adapterType)
+	def := GetAdapterDef(adapterType)
+	if def == nil {
+		return nil
+	}
+	contracts := append([]AdapterOperationContract(nil), def.OperationContracts...)
+	if len(contracts) == 0 {
+		contracts = defaultAdapterOperationContracts(adapterType, def)
+	}
+	return normalizeAdapterOperationContracts(contracts)
+}
+
+func AdapterSupportsOperation(adapterType, capability, operation string) bool {
+	capability = strings.TrimSpace(capability)
+	operation = strings.TrimSpace(operation)
+	if capability == "" {
+		return false
+	}
+	if operation == "" && !isStructuredCapabilityFamily(capability) {
+		return true
+	}
+	for _, contract := range AdapterOperationContracts(adapterType) {
+		if strings.TrimSpace(contract.Capability) != capability {
+			continue
+		}
+		if operation == "" || strings.TrimSpace(contract.Operation) == operation {
+			return true
+		}
+	}
+	return false
+}
+
+func AdapterOperationPublicURLRequirements(adapterType, capability, operation string) PublicURLRequirements {
+	capability = strings.TrimSpace(capability)
+	operation = strings.TrimSpace(operation)
+	var out PublicURLRequirements
+	for _, contract := range AdapterOperationContracts(adapterType) {
+		if strings.TrimSpace(contract.Capability) != capability {
+			continue
+		}
+		if operation != "" && strings.TrimSpace(contract.Operation) != operation {
+			continue
+		}
+		if !containsTrimmed(contract.InputMediaTransport, AssetTransportPublicURL) {
+			continue
+		}
+		switch capability {
+		case CapabilityFamilyImageGeneration:
+			out.Image = true
+		case CapabilityFamilyAudioGeneration:
+			out.Audio = true
+		case CapabilityFamilyVideoGeneration:
+			out.Image = true
+			out.Video = true
+			out.Audio = true
+		default:
+			out.Image = true
+			out.Video = true
+			out.Audio = true
+		}
+	}
+	return out
+}
+
+func AdapterSupportsModelContract(adapterType string, capabilities []string, modelCapabilitiesJSON string, paramsByOperation map[string][]ParamDef) error {
+	operationsByCapability := capabilityJSONOperationsByCapability(modelCapabilitiesJSON, capabilities)
+	for capability, operations := range operationsByCapability {
+		for _, operation := range operations {
+			operation = strings.TrimSpace(operation)
+			if operation == "" {
+				continue
+			}
+			if !AdapterSupportsOperation(adapterType, capability, operation) {
+				return fmt.Errorf("adapter %q does not support %s operation %q", adapterType, capability, operation)
+			}
+			if err := adapterSupportsOperationParams(adapterType, capability, operation, paramsByOperation[operation]); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func adapterSupportsOperationParams(adapterType, capability, operation string, params []ParamDef) error {
+	if len(params) == 0 {
+		return nil
+	}
+	baseParams := DefaultParamsForAdapterOperation(adapterType, capability, operation)
+	known := make(map[string]bool, len(baseParams))
+	for _, param := range baseParams {
+		if key := normalizeParamKey(param.Key); key != "" {
+			known[key] = true
+		}
+	}
+	for _, param := range params {
+		key := normalizeParamKey(param.Key)
+		if key == "" || known[key] {
+			continue
+		}
+		return fmt.Errorf("adapter %q does not declare canonical param %q for operation %q", adapterType, key, operation)
+	}
+	return nil
+}
+
+func normalizeAdapterOperationContracts(values []AdapterOperationContract) []AdapterOperationContract {
+	out := make([]AdapterOperationContract, 0, len(values))
+	byKey := map[string]int{}
+	for _, value := range values {
+		capability := strings.TrimSpace(value.Capability)
+		operation := strings.TrimSpace(value.Operation)
+		if capability == "" || operation == "" {
+			continue
+		}
+		key := capability + "\x00" + operation
+		value.Capability = capability
+		value.Operation = operation
+		value.InputMediaTransport = appendUniqueTrimmed(nil, value.InputMediaTransport...)
+		value.OutputMedia = appendUniqueTrimmed(nil, value.OutputMedia...)
+		value.ResultMode = strings.TrimSpace(value.ResultMode)
+		if value.ResultMode == "" {
+			value.ResultMode = AdapterResultModeSync
+		}
+		if idx, ok := byKey[key]; ok {
+			out[idx].InputMediaTransport = appendUniqueTrimmed(out[idx].InputMediaTransport, value.InputMediaTransport...)
+			out[idx].OutputMedia = appendUniqueTrimmed(out[idx].OutputMedia, value.OutputMedia...)
+			if out[idx].ResultMode == "" || out[idx].ResultMode == AdapterResultModeSync {
+				out[idx].ResultMode = value.ResultMode
+			}
+			continue
+		}
+		byKey[key] = len(out)
+		out = append(out, value)
+	}
+	return out
+}
+
+func defaultAdapterOperationContracts(adapterType string, def *AdapterDef) []AdapterOperationContract {
+	capabilities := map[string]bool{}
+	for _, set := range def.ParamSets {
+		if capability := strings.TrimSpace(set.Capability); capability != "" {
+			capabilities[capability] = true
+		}
+	}
+	for _, set := range def.OperationParamSets {
+		if capability := strings.TrimSpace(set.Capability); capability != "" {
+			capabilities[capability] = true
+		}
+	}
+	var out []AdapterOperationContract
+	add := func(capability string, operations []string, transport []string, resultMode string, output []string) {
+		for _, operation := range operations {
+			out = append(out, AdapterOperationContract{
+				Capability:          capability,
+				Operation:           operation,
+				InputMediaTransport: append([]string(nil), transport...),
+				ResultMode:          resultMode,
+				OutputMedia:         append([]string(nil), output...),
+			})
+		}
+	}
+	if capabilities[CapabilityFamilyTextGeneration] || capabilities[CapabilityReasoning] {
+		add(CapabilityFamilyTextGeneration, allTextGenerationOperations(), nil, AdapterResultModeSync, nil)
+	}
+	if capabilities[CapabilityFamilyImageGeneration] {
+		add(CapabilityFamilyImageGeneration, defaultImageOperationsForAdapter(adapterType), defaultInputTransportForAdapter(adapterType, CapabilityFamilyImageGeneration), AdapterResultModeSync, []string{AdapterOutputMediaArtifactURL})
+	}
+	if capabilities[CapabilityFamilyVideoGeneration] {
+		add(CapabilityFamilyVideoGeneration, defaultVideoOperationsForAdapter(adapterType), defaultInputTransportForAdapter(adapterType, CapabilityFamilyVideoGeneration), defaultResultModeForAdapter(adapterType, CapabilityFamilyVideoGeneration), []string{AdapterOutputMediaProviderURL, AdapterOutputMediaArtifactURL})
+	}
+	if capabilities[CapabilityFamilyAudioGeneration] {
+		add(CapabilityFamilyAudioGeneration, defaultAudioOperationsForAdapter(adapterType), defaultInputTransportForAdapter(adapterType, CapabilityFamilyAudioGeneration), defaultResultModeForAdapter(adapterType, CapabilityFamilyAudioGeneration), []string{AdapterOutputMediaArtifactURL})
+	}
+	return out
+}
+
+func defaultInputTransportForAdapter(adapterType, capability string) []string {
+	switch strings.TrimSpace(capability) {
+	case CapabilityFamilyVideoGeneration:
+		switch strings.TrimSpace(adapterType) {
+		case AdapterVolcen, AdapterDashScope, AdapterVidu, AdapterKling, AdapterYunwuUnifiedVideo:
+			return []string{AssetTransportPublicURL}
+		case AdapterOpenAIVideoMultipart, AdapterVyroSeedance:
+			return []string{AssetTransportMultipart}
+		}
+	case CapabilityFamilyImageGeneration:
+		switch strings.TrimSpace(adapterType) {
+		case AdapterOpenAICompat:
+			return []string{AssetTransportProviderFileID, AssetTransportMultipart}
+		}
+	case CapabilityFamilyAudioGeneration:
+		switch strings.TrimSpace(adapterType) {
+		case AdapterOpenAICompat, AdapterElevenLabs, AdapterXiaomiMimo:
+			return []string{AssetTransportMultipart}
+		}
+	}
+	return nil
+}
+
+func defaultResultModeForAdapter(adapterType, capability string) string {
+	switch strings.TrimSpace(capability) {
+	case CapabilityFamilyVideoGeneration:
+		return AdapterResultModeAsyncTask
+	case CapabilityFamilyAudioGeneration:
+		switch strings.TrimSpace(adapterType) {
+		case AdapterMureka, AdapterStability, AdapterDashScope, AdapterVolcen:
+			return AdapterResultModeAsyncTask
+		}
+	}
+	return AdapterResultModeSync
+}
+
+func defaultImageOperationsForAdapter(adapterType string) []string {
+	switch strings.TrimSpace(adapterType) {
+	case AdapterDoubao2API:
+		return []string{ImageOperationTextToImage}
+	default:
+		return allImageGenerationOperations()
+	}
+}
+
+func defaultVideoOperationsForAdapter(adapterType string) []string {
+	switch strings.TrimSpace(adapterType) {
+	case AdapterOfficialVideoGenerations:
+		return []string{VideoOperationPromptToVideo}
+	case AdapterYunwuUnifiedVideo:
+		return []string{VideoOperationImageToVideo}
+	case AdapterDoubao2API:
+		return []string{VideoOperationPromptToVideo, VideoOperationImageToVideo}
+	case AdapterVyroSeedance:
+		return []string{VideoOperationPromptToVideo, VideoOperationReferenceToVideo}
+	default:
+		return allVideoGenerationOperations()
+	}
+}
+
+func defaultAudioOperationsForAdapter(adapterType string) []string {
+	switch strings.TrimSpace(adapterType) {
+	case AdapterElevenLabs:
+		return []string{AudioOperationTextToSpeech, AudioOperationSpeechToText, AudioOperationVoiceClone, AudioOperationVoiceDesign}
+	case AdapterMiniMax:
+		return []string{AudioOperationTextToSpeech}
+	case AdapterXiaomiMimo:
+		return []string{AudioOperationSpeechToSpeech}
+	case AdapterMureka:
+		return []string{AudioOperationMusicGeneration}
+	case AdapterStability:
+		return []string{AudioOperationMusicGeneration, AudioOperationSoundEffectGeneration}
+	case AdapterDashScope:
+		return []string{AudioOperationTextToSpeech}
+	case AdapterVolcen:
+		return []string{AudioOperationTextToSpeech, AudioOperationSpeechToText}
+	default:
+		return allAudioGenerationOperations()
+	}
+}
+
+func allTextGenerationOperations() []string {
+	return []string{"chat", "responses", "agent_task"}
+}
+
+func allImageGenerationOperations() []string {
+	return []string{
+		ImageOperationTextToImage,
+		ImageOperationReferenceToImage,
+		ImageOperationEditImage,
+		ImageOperationInpaint,
+		ImageOperationOutpaint,
+		ImageOperationVariation,
+		ImageOperationUpscaleImage,
+	}
+}
+
+func allVideoGenerationOperations() []string {
+	return []string{
+		VideoOperationPromptToVideo,
+		VideoOperationImageToVideo,
+		VideoOperationFirstFrameToVideo,
+		VideoOperationFirstLastFrameToVideo,
+		VideoOperationReferenceToVideo,
+		VideoOperationEditVideo,
+		VideoOperationExtendVideo,
+		VideoOperationUpscaleVideo,
+	}
+}
+
+func allAudioGenerationOperations() []string {
+	return []string{
+		AudioOperationTextToSpeech,
+		AudioOperationSpeechToText,
+		AudioOperationSpeechTranslate,
+		AudioOperationSpeechToSpeech,
+		AudioOperationVoiceClone,
+		AudioOperationVoiceDesign,
+		AudioOperationDubbing,
+		AudioOperationMusicGeneration,
+		AudioOperationSoundEffectGeneration,
+		AudioOperationVoiceIsolation,
+		AudioOperationForcedAlignment,
+	}
+}
+
 // DefaultParamsForAdapter returns the adapter-level default parameters for the
 // requested capabilities. The result is de-duplicated by abstract parameter key.
 func DefaultParamsForAdapter(adapterType string, capabilities []string) []ParamDef {
@@ -1111,6 +1482,43 @@ func DefaultParamsForAdapter(adapterType string, capabilities []string) []ParamD
 	return out
 }
 
+// DefaultParamsForAdapterOperation returns the adapter-level canonical parameters
+// for one operation. Operation-specific declarations extend or override the
+// capability-level defaults.
+func DefaultParamsForAdapterOperation(adapterType, capability, operation string) []ParamDef {
+	capability = strings.TrimSpace(capability)
+	operation = strings.TrimSpace(operation)
+	base := DefaultParamsForAdapter(adapterType, []string{capability})
+	def := GetAdapterDef(adapterType)
+	if def == nil || capability == "" || operation == "" {
+		return base
+	}
+	out := NormalizeParamDefsForUI(cloneParamDefs(base))
+	byKey := make(map[string]int, len(out))
+	for i, param := range out {
+		if key := normalizeParamKey(param.Key); key != "" {
+			byKey[key] = i
+		}
+	}
+	for _, set := range def.OperationParamSets {
+		if strings.TrimSpace(set.Capability) != capability || strings.TrimSpace(set.Operation) != operation {
+			continue
+		}
+		for _, param := range NormalizeParamDefsForUI(set.Params) {
+			if param.Key == "" {
+				continue
+			}
+			if idx, ok := byKey[param.Key]; ok {
+				out[idx] = cloneParamDef(param)
+				continue
+			}
+			byKey[param.Key] = len(out)
+			out = append(out, cloneParamDef(param))
+		}
+	}
+	return out
+}
+
 // ResolveEffectiveParams resolves the runtime parameter schema for one model.
 // Empty modelParamConfig inherits adapter defaults. A legacy []ParamDef value is
 // treated as a full explicit override. A ModelParamProfile value is applied as a
@@ -1131,6 +1539,66 @@ func ResolveEffectiveParams(adapterType string, capabilities []string, modelPara
 	params := DefaultParamsForAdapter(adapterType, capabilities)
 	params = applyModelParamProfile(params, profile)
 	return NormalizeParamDefsForUI(params), true
+}
+
+// ResolveEffectiveParamsByOperation resolves the v2 public parameter contract
+// for each operation supported by a model.
+func ResolveEffectiveParamsByOperation(adapterType string, capabilities []string, modelCapabilitiesJSON string, modelParamConfig string) (map[string][]ParamDef, bool) {
+	operationsByCapability := capabilityJSONOperationsByCapability(modelCapabilitiesJSON, capabilities)
+	if len(operationsByCapability) == 0 {
+		return nil, false
+	}
+	var profile ModelOperationParamProfile
+	explicit := false
+	if strings.TrimSpace(modelParamConfig) != "" {
+		var legacy []ParamDef
+		if err := json.Unmarshal([]byte(modelParamConfig), &legacy); err == nil {
+			explicit = true
+			legacy = NormalizeParamDefsForUI(legacy)
+			out := make(map[string][]ParamDef)
+			for _, operations := range operationsByCapability {
+				for _, operation := range operations {
+					operation = strings.TrimSpace(operation)
+					if operation == "" {
+						continue
+					}
+					out[operation] = cloneParamDefs(legacy)
+				}
+			}
+			return out, explicit
+		}
+		if err := json.Unmarshal([]byte(modelParamConfig), &profile); err == nil && modelOperationParamProfileHasShape(profile) {
+			explicit = true
+		}
+	}
+	out := make(map[string][]ParamDef)
+	for capability, operations := range operationsByCapability {
+		for _, operation := range operations {
+			operation = strings.TrimSpace(operation)
+			if operation == "" {
+				continue
+			}
+			params := DefaultParamsForAdapterOperation(adapterType, capability, operation)
+			if explicit {
+				params = applyModelParamProfile(params, profile.Common)
+				if operationProfile, ok := profile.ByOperation[operation]; ok {
+					params = applyModelParamProfile(params, operationProfile)
+				}
+			}
+			out[operation] = NormalizeParamDefsForUI(params)
+		}
+	}
+	return out, explicit
+}
+
+func modelOperationParamProfileHasShape(profile ModelOperationParamProfile) bool {
+	return profile.Version != 0 ||
+		modelParamProfileHasShape(profile.Common) ||
+		len(profile.ByOperation) > 0
+}
+
+func modelParamProfileHasShape(profile ModelParamProfile) bool {
+	return len(profile.Allow) > 0 || len(profile.Deny) > 0 || len(profile.Override) > 0 || len(profile.Add) > 0
 }
 
 func applyModelParamProfile(params []ParamDef, profile ModelParamProfile) []ParamDef {
@@ -1417,9 +1885,9 @@ func filterKnownRequiresValues(values []ParamRequiresValue, known map[string]boo
 // Adapter definitions provide default parameter controls; model definitions may
 // override those controls by storing CustomSupportedParams, including "[]" to
 // explicitly expose no parameters for a model.
-func ResolveModelDef(modelDefID, adapterType, customDisplayName, customCaps, _ string,
+func ResolveModelDef(modelDefID, adapterType, customDisplayName, customCaps, customCapabilitiesJSON string,
 	customAcceptsImage bool, customMaxInputImages, customMaxInputVideos int,
-	customImageEditField, customSupportedParams string) *ModelDef {
+	customInputImageField, customSupportedParams string) *ModelDef {
 
 	def := &ModelDef{
 		ID:          modelDefID,
@@ -1437,13 +1905,13 @@ func ResolveModelDef(modelDefID, adapterType, customDisplayName, customCaps, _ s
 		def.Capabilities = splitComma(customCaps)
 	}
 	if len(def.Capabilities) == 0 {
-		def.Capabilities = []string{CapabilityText}
+		def.Capabilities = []string{CapabilityFamilyTextGeneration}
 	}
 
 	if customMaxInputImages != 0 {
 		def.MaxInputImages = customMaxInputImages
 	}
-	if customAcceptsImage || customMaxInputImages != 0 || hasString(def.Capabilities, CapabilityImageEdit) || hasString(def.Capabilities, CapabilityVideoI2V) {
+	if customAcceptsImage || customMaxInputImages != 0 || hasString(def.Capabilities, CapabilityFamilyImageGeneration) || hasString(def.Capabilities, CapabilityFamilyVideoGeneration) {
 		def.AcceptsImageInput = true
 	}
 	if def.AcceptsImageInput && def.MaxInputImages == 0 {
@@ -1452,13 +1920,14 @@ func ResolveModelDef(modelDefID, adapterType, customDisplayName, customCaps, _ s
 	if customMaxInputVideos != 0 {
 		def.MaxInputVideos = customMaxInputVideos
 	}
-	if customImageEditField != "" {
-		def.ImageEditField = customImageEditField
+	if customInputImageField != "" {
+		def.InputImageField = customInputImageField
 	}
-	if def.ImageEditField == "" && adapterType == AdapterOpenAICompat && hasString(def.Capabilities, CapabilityImageEdit) {
-		def.ImageEditField = "image[]"
+	if def.InputImageField == "" && adapterType == AdapterOpenAICompat && hasString(def.Capabilities, CapabilityFamilyImageGeneration) {
+		def.InputImageField = "image[]"
 	}
 	def.SupportedParams, def.SupportedParamsExplicit = ResolveEffectiveParams(adapterType, def.Capabilities, customSupportedParams)
+	def.SupportedParamsByOperation, _ = ResolveEffectiveParamsByOperation(adapterType, def.Capabilities, customCapabilitiesJSON, customSupportedParams)
 	return def
 }
 

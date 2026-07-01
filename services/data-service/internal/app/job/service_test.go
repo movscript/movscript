@@ -30,8 +30,8 @@ func TestRequireImageVerificationDisabled(t *testing.T) {
 	}
 }
 
-func TestEnqueueGenerationAcceptsOrthogonalAudioAndSubtitleJobTypes(t *testing.T) {
-	db := testutil.OpenSQLite(t, "job_enqueue_p3_audio_subtitle.db",
+func TestEnqueueGenerationAcceptsAudioGenerationOperation(t *testing.T) {
+	db := testutil.OpenSQLite(t, "job_enqueue_audio_generation_operation.db",
 		&persistencemodel.Job{},
 		&persistencemodel.RawResource{},
 		&persistencemodel.AICredential{},
@@ -50,108 +50,64 @@ func TestEnqueueGenerationAcceptsOrthogonalAudioAndSubtitleJobTypes(t *testing.T
 	}
 	service := NewService(db, ai.NewAIService(db, ai.NewRegistry(db, nil)))
 
-	for _, capability := range []string{
-		ai.CapabilityAudioMusic,
-		ai.CapabilityAudioSFX,
-		ai.CapabilityAudioSTT,
-		ai.CapabilityAudioTranslate,
-		ai.CapabilityAudioChat,
-		ai.CapabilityVoiceClone,
-		ai.CapabilityVoiceDesign,
-		ai.CapabilitySubAlign,
-		ai.CapabilitySubTranslate,
-	} {
-		intentCapability, intentOperation, capabilitiesJSON := generationIntentContractForExecutionCapability(capability)
-		entry := persistencemodel.AIModelCatalogEntry{
-			PublicModelID:         "local-" + capability,
-			DisplayName:           "Local " + capability,
-			Capabilities:          capability,
-			IsEnabled:             true,
-			ModelCapabilitiesJSON: capabilitiesJSON,
-		}
-		if err := db.Create(&entry).Error; err != nil {
-			t.Fatalf("create catalog entry %s: %v", capability, err)
-		}
-		if err := db.Create(&persistencemodel.AIModelRouteBinding{
-			CatalogEntryID:        entry.ID,
-			SourceType:            persistencemodel.ModelRouteSourceLocalProvider,
-			ProviderModelID:       "provider-" + capability,
-			CredentialID:          &cred.ID,
-			IsEnabled:             true,
-			CapacityWeight:        1,
-			RouteCapabilitiesJSON: capabilitiesJSON,
-		}).Error; err != nil {
-			t.Fatalf("create route binding %s: %v", capability, err)
-		}
-
-		input := EnqueueInput{
-			UserID:     42,
-			ModelID:    entry.PublicModelID,
-			JobType:    capability,
-			FeatureKey: "test." + capability,
-			Title:      "P3 " + capability,
-			Prompt:     "generate resource",
-			GenerationIntent: &GenerationIntentInput{
-				Capability: intentCapability,
-				Operation:  intentOperation,
-			},
-		}
-		if capability == ai.CapabilityAudioMusic || capability == ai.CapabilityAudioSFX {
-			input.Duration = 2
-		}
-		job, err := service.EnqueueGeneration(context.Background(), input)
-		if err != nil {
-			t.Fatalf("EnqueueGeneration(%s) error = %v", capability, err)
-		}
-		if job.JobType != capability {
-			t.Fatalf("job type = %q, want %q", job.JobType, capability)
-		}
-		if job.UsageReservationID == nil {
-			t.Fatalf("job %s did not store a usage reservation id", capability)
-		}
-		var snapshot struct {
-			JobType    string `json:"job_type"`
-			FeatureKey string `json:"feature_key"`
-			Model      struct {
-				ConfigID uint `json:"config_id"`
-			} `json:"model"`
-		}
-		if err := json.Unmarshal([]byte(job.RequestContext), &snapshot); err != nil {
-			t.Fatalf("decode request context for %s: %v", capability, err)
-		}
-		if snapshot.JobType != capability || snapshot.FeatureKey != "test."+capability {
-			t.Fatalf("request context for %s = %#v", capability, snapshot)
-		}
-		if snapshot.Model.ConfigID != entry.ID {
-			t.Fatalf("request context model for %s = %#v", capability, snapshot.Model)
-		}
+	capabilitiesJSON := `{"audio_generation":{"operations":["text_to_speech"]}}`
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:         "local-audio-family",
+		DisplayName:           "Local Audio Generation",
+		Capabilities:          ai.CapabilityFamilyAudioGeneration,
+		IsEnabled:             true,
+		ModelCapabilitiesJSON: capabilitiesJSON,
 	}
-}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	if err := db.Create(&persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		AdapterType:     cred.AdapterType,
+		ProviderModelID: "provider-audio-family",
+		CredentialID:    &cred.ID,
+		IsEnabled:       true,
+		CapacityWeight:  1}).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
 
-func generationIntentContractForExecutionCapability(capability string) (string, string, string) {
-	switch capability {
-	case ai.CapabilityAudioTTS:
-		return ai.CapabilityFamilyAudioGeneration, ai.AudioOperationTTS, `{"audio_generation":{"operations":["tts"]}}`
-	case ai.CapabilityAudioMusic:
-		return ai.CapabilityFamilyAudioGeneration, ai.AudioOperationMusic, `{"audio_generation":{"operations":["music"]}}`
-	case ai.CapabilityAudioSFX:
-		return ai.CapabilityFamilyAudioGeneration, ai.AudioOperationSFX, `{"audio_generation":{"operations":["sfx"]}}`
-	case ai.CapabilityAudioSTT:
-		return ai.CapabilityFamilyAudioGeneration, ai.AudioOperationSTT, `{"audio_generation":{"operations":["stt"]}}`
-	case ai.CapabilityAudioTranslate:
-		return ai.CapabilityFamilyAudioGeneration, ai.AudioOperationSpeechTranslate, `{"audio_generation":{"operations":["speech_translate"]}}`
-	case ai.CapabilityAudioChat:
-		return ai.CapabilityFamilyAudioGeneration, ai.AudioOperationAudioChat, `{"audio_generation":{"operations":["audio_chat"]}}`
-	case ai.CapabilityVoiceClone:
-		return ai.CapabilityFamilyAudioGeneration, ai.AudioOperationVoiceClone, `{"audio_generation":{"operations":["voice_clone"]}}`
-	case ai.CapabilityVoiceDesign:
-		return ai.CapabilityFamilyAudioGeneration, ai.AudioOperationVoiceDesign, `{"audio_generation":{"operations":["voice_design"]}}`
-	case ai.CapabilitySubAlign:
-		return ai.CapabilitySubAlign, ai.CapabilitySubAlign, `{"subtitle_align":{"operations":["subtitle_align"]}}`
-	case ai.CapabilitySubTranslate:
-		return ai.CapabilitySubTranslate, ai.CapabilitySubTranslate, `{"subtitle_translate":{"operations":["subtitle_translate"]}}`
-	default:
-		return capability, capability, `{}`
+	job, err := service.EnqueueGeneration(context.Background(), EnqueueInput{
+		UserID:     42,
+		ModelID:    entry.PublicModelID,
+		JobType:    domainjob.JobTypeAudio,
+		FeatureKey: "test.audio",
+		Title:      "Audio generation",
+		Prompt:     "generate resource",
+		GenerationIntent: &GenerationIntentInput{
+			Capability: ai.CapabilityFamilyAudioGeneration,
+			Operation:  ai.AudioOperationTextToSpeech,
+		},
+	})
+	if err != nil {
+		t.Fatalf("EnqueueGeneration(audio_generation) error = %v", err)
+	}
+	if job.JobType != domainjob.JobTypeAudio {
+		t.Fatalf("job type = %q, want %q", job.JobType, domainjob.JobTypeAudio)
+	}
+	if job.UsageReservationID == nil {
+		t.Fatal("job did not store a usage reservation id")
+	}
+	var snapshot struct {
+		JobType    string `json:"job_type"`
+		FeatureKey string `json:"feature_key"`
+		Model      struct {
+			ConfigID uint `json:"config_id"`
+		} `json:"model"`
+	}
+	if err := json.Unmarshal([]byte(job.RequestContext), &snapshot); err != nil {
+		t.Fatalf("decode request context: %v", err)
+	}
+	if snapshot.JobType != domainjob.JobTypeAudio || snapshot.FeatureKey != "test.audio" {
+		t.Fatalf("request context = %#v", snapshot)
+	}
+	if snapshot.Model.ConfigID != entry.ID {
+		t.Fatalf("request context model = %#v", snapshot.Model)
 	}
 }
 
@@ -171,20 +127,20 @@ func TestEnqueueGenerationTTSCatalogRouteWithoutLegacyModelConfig(t *testing.T) 
 		PublicModelID:         "voice-main",
 		DisplayName:           "Voice Main",
 		IsEnabled:             true,
-		Capabilities:          ai.CapabilityAudioTTS,
-		ModelCapabilitiesJSON: `{"audio_generation":{"operations":["tts"]}}`,
+		Capabilities:          ai.CapabilityFamilyAudioGeneration,
+		ModelCapabilitiesJSON: `{"audio_generation":{"operations":["text_to_speech"]}}`,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	binding := persistencemodel.AIModelRouteBinding{
-		CatalogEntryID:        entry.ID,
-		SourceType:            persistencemodel.ModelRouteSourceRelayGateway,
-		RouteGroup:            "default",
-		ProviderModelID:       "provider-voice-v2",
-		IsEnabled:             true,
-		CapacityWeight:        1,
-		RouteCapabilitiesJSON: `{"audio_generation":{"operations":["tts"]}}`,
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
+		RouteGroup:      "default",
+		AdapterType:     ai.AdapterOpenAICompat,
+		ProviderModelID: "provider-voice-v2",
+		IsEnabled:       true,
+		CapacityWeight:  1,
 	}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
@@ -194,12 +150,12 @@ func TestEnqueueGenerationTTSCatalogRouteWithoutLegacyModelConfig(t *testing.T) 
 	job, err := service.EnqueueGeneration(context.Background(), EnqueueInput{
 		UserID:  42,
 		ModelID: "voice-main",
-		JobType: ai.CapabilityAudioTTS,
+		JobType: domainjob.JobTypeAudio,
 		Title:   "Narration",
 		Prompt:  "hello",
 		GenerationIntent: &GenerationIntentInput{
 			Capability: ai.CapabilityFamilyAudioGeneration,
-			Operation:  ai.AudioOperationTTS,
+			Operation:  ai.AudioOperationTextToSpeech,
 		},
 	})
 	if err != nil {
@@ -248,20 +204,20 @@ func TestPreflightGenerationValidatesRouteWithoutCreatingJobOrReservation(t *tes
 		PublicModelID:         "voice-preflight",
 		DisplayName:           "Voice Preflight",
 		IsEnabled:             true,
-		Capabilities:          ai.CapabilityAudioTTS,
-		ModelCapabilitiesJSON: `{"audio_generation":{"operations":["tts"]}}`,
+		Capabilities:          ai.CapabilityFamilyAudioGeneration,
+		ModelCapabilitiesJSON: `{"audio_generation":{"operations":["text_to_speech"]}}`,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	binding := persistencemodel.AIModelRouteBinding{
-		CatalogEntryID:        entry.ID,
-		SourceType:            persistencemodel.ModelRouteSourceRelayGateway,
-		RouteGroup:            "default",
-		ProviderModelID:       "provider-voice-preflight",
-		IsEnabled:             true,
-		CapacityWeight:        1,
-		RouteCapabilitiesJSON: `{"audio_generation":{"operations":["tts"]}}`,
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
+		RouteGroup:      "default",
+		AdapterType:     ai.AdapterOpenAICompat,
+		ProviderModelID: "provider-voice-preflight",
+		IsEnabled:       true,
+		CapacityWeight:  1,
 	}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
@@ -271,18 +227,18 @@ func TestPreflightGenerationValidatesRouteWithoutCreatingJobOrReservation(t *tes
 	result, err := service.PreflightGeneration(context.Background(), EnqueueInput{
 		UserID:  42,
 		ModelID: "voice-preflight",
-		JobType: ai.CapabilityAudioTTS,
+		JobType: domainjob.JobTypeAudio,
 		Title:   "Narration preflight",
 		Prompt:  "hello",
 		GenerationIntent: &GenerationIntentInput{
 			Capability: ai.CapabilityFamilyAudioGeneration,
-			Operation:  ai.AudioOperationTTS,
+			Operation:  ai.AudioOperationTextToSpeech,
 		},
 	})
 	if err != nil {
 		t.Fatalf("PreflightGeneration(TTS catalog route) error = %v", err)
 	}
-	if !result.Ready || result.JobType != ai.CapabilityAudioTTS || result.CatalogEntryID != entry.ID || result.RouteBindingID != binding.ID {
+	if !result.Ready || result.JobType != domainjob.JobTypeAudio || result.CatalogEntryID != entry.ID || result.RouteBindingID != binding.ID {
 		t.Fatalf("preflight result = %#v, want ready route metadata", result)
 	}
 	var jobCount int64
@@ -323,7 +279,7 @@ func TestEnqueueGenerationRejectsVisualJobWithoutIntent(t *testing.T) {
 		PublicModelID:   "grok-imagine-video-1.5",
 		DisplayName:     "Grok Imagine Video 1.5",
 		IsEnabled:       true,
-		Capabilities:    ai.CapabilityVideoI2V,
+		Capabilities:    ai.CapabilityFamilyVideoGeneration,
 		AcceptsImage:    true,
 		MaxInputImages:  1,
 		SupportedParams: `[{"key":"duration","type":"select","options":["5"],"default":"5"}]`,
@@ -358,7 +314,7 @@ func TestEnqueueGenerationRejectsVisualJobWithoutIntent(t *testing.T) {
 	_, err := service.EnqueueGeneration(context.Background(), EnqueueInput{
 		UserID:           42,
 		ModelID:          entry.PublicModelID,
-		JobType:          ai.CapabilityVideo,
+		JobType:          domainjob.JobTypeVideo,
 		Title:            "Reference video",
 		Prompt:           "make it move",
 		Duration:         5,
@@ -381,7 +337,7 @@ func TestEnqueueGenerationIntentRoutesByOperationWithoutInputAwarePromotion(t *t
 		&persistencemodel.UsageLog{},
 	)
 	cred := persistencemodel.AICredential{
-		AdapterType: ai.AdapterLocal,
+		AdapterType: ai.AdapterVolcen,
 		DisplayName: "Local structured video",
 		IsEnabled:   true,
 	}
@@ -391,7 +347,7 @@ func TestEnqueueGenerationIntentRoutesByOperationWithoutInputAwarePromotion(t *t
 	entry := persistencemodel.AIModelCatalogEntry{
 		PublicModelID:         "story-video",
 		DisplayName:           "Story Video",
-		Capabilities:          ai.CapabilityVideo,
+		Capabilities:          ai.CapabilityFamilyVideoGeneration,
 		AcceptsImage:          true,
 		MaxInputImages:        2,
 		IsEnabled:             true,
@@ -401,29 +357,32 @@ func TestEnqueueGenerationIntentRoutesByOperationWithoutInputAwarePromotion(t *t
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	imageOnlyRoute := persistencemodel.AIModelRouteBinding{
-		CatalogEntryID:        entry.ID,
-		SourceType:            persistencemodel.ModelRouteSourceLocalProvider,
-		ProviderID:            "local_provider",
-		ProviderModelID:       "provider-image-video",
-		CredentialID:          &cred.ID,
-		IsEnabled:             true,
-		Priority:              20,
-		CapacityWeight:        1,
-		RouteCapabilitiesJSON: `{"video_generation":{"operations":["image_to_video"],"reference_assets":{"min":1,"max":1,"modalities":["image"],"roles":["generic"]}}}`,
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:      "local_provider",
+		AdapterType:     cred.AdapterType,
+		ProviderModelID: "provider-image-video",
+		CredentialID:    &cred.ID,
+		IsEnabled:       false,
+		Priority:        20,
+		CapacityWeight:  1,
 	}
 	firstLastRoute := persistencemodel.AIModelRouteBinding{
-		CatalogEntryID:        entry.ID,
-		SourceType:            persistencemodel.ModelRouteSourceLocalProvider,
-		ProviderID:            "local_provider",
-		ProviderModelID:       "provider-first-last-video",
-		CredentialID:          &cred.ID,
-		IsEnabled:             true,
-		Priority:              10,
-		CapacityWeight:        1,
-		RouteCapabilitiesJSON: `{"video_generation":{"operations":["first_last_frame_to_video"],"reference_assets":{"min":2,"max":2,"modalities":["image"],"roles":["first_frame","last_frame"]}}}`,
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:      "local_provider",
+		AdapterType:     cred.AdapterType,
+		ProviderModelID: "provider-first-last-video",
+		CredentialID:    &cred.ID,
+		IsEnabled:       true,
+		Priority:        10,
+		CapacityWeight:  1,
 	}
 	if err := db.Create(&imageOnlyRoute).Error; err != nil {
 		t.Fatalf("create image-only route: %v", err)
+	}
+	if err := db.Model(&imageOnlyRoute).Update("is_enabled", false).Error; err != nil {
+		t.Fatalf("disable image-only route: %v", err)
 	}
 	if err := db.Create(&firstLastRoute).Error; err != nil {
 		t.Fatalf("create first-last route: %v", err)
@@ -441,7 +400,7 @@ func TestEnqueueGenerationIntentRoutesByOperationWithoutInputAwarePromotion(t *t
 	job, err := service.EnqueueGeneration(context.Background(), EnqueueInput{
 		UserID:           42,
 		ModelID:          entry.PublicModelID,
-		JobType:          ai.CapabilityVideo,
+		JobType:          domainjob.JobTypeVideo,
 		Title:            "First-last video",
 		Prompt:           "animate between frames",
 		Duration:         5,
@@ -450,7 +409,15 @@ func TestEnqueueGenerationIntentRoutesByOperationWithoutInputAwarePromotion(t *t
 			Capability: ai.CapabilityFamilyVideoGeneration,
 			Operation:  ai.VideoOperationFirstLastFrameToVideo,
 			ReferenceAssets: []GenerationReferenceAssetInput{
-				{Role: "first_frame", MediaType: "image", ResourceID: firstFrame.ID},
+				{
+					ReferenceID: "ref_first_frame",
+					SourceKind:  "asset",
+					SourceID:    "wet_hair",
+					SourceRef:   "{{ref:ref_first_frame}}",
+					Role:        "first_frame",
+					MediaType:   "image",
+					ResourceID:  firstFrame.ID,
+				},
 				{Role: "last_frame", MediaType: "image", ResourceID: lastFrame.ID},
 			},
 		},
@@ -458,7 +425,7 @@ func TestEnqueueGenerationIntentRoutesByOperationWithoutInputAwarePromotion(t *t
 	if err != nil {
 		t.Fatalf("EnqueueGeneration(intent) error = %v", err)
 	}
-	if job.JobType != ai.CapabilityVideo {
+	if job.JobType != domainjob.JobTypeVideo {
 		t.Fatalf("job type = %q, want execution job type video without input-aware promotion", job.JobType)
 	}
 	if job.RouteBindingID == nil || *job.RouteBindingID != firstLastRoute.ID {
@@ -466,6 +433,29 @@ func TestEnqueueGenerationIntentRoutesByOperationWithoutInputAwarePromotion(t *t
 	}
 	if !strings.Contains(job.RequestContext, `"operation":"first_last_frame_to_video"`) || !strings.Contains(job.RequestContext, `"role":"last_frame"`) {
 		t.Fatalf("request context = %s, want generation intent with roles", job.RequestContext)
+	}
+	var snapshot struct {
+		Intent struct {
+			ReferenceAssets []struct {
+				ReferenceID string `json:"reference_id"`
+				SourceKind  string `json:"source_kind"`
+				SourceID    string `json:"source_id"`
+				SourceRef   string `json:"source_ref"`
+				Role        string `json:"role"`
+				MediaType   string `json:"media_type"`
+				ResourceID  uint   `json:"resource_id"`
+			} `json:"reference_assets"`
+		} `json:"intent"`
+	}
+	if err := json.Unmarshal([]byte(job.RequestContext), &snapshot); err != nil {
+		t.Fatalf("unmarshal request context: %v", err)
+	}
+	if len(snapshot.Intent.ReferenceAssets) != 2 {
+		t.Fatalf("reference assets = %v, want two assets", snapshot.Intent.ReferenceAssets)
+	}
+	first := snapshot.Intent.ReferenceAssets[0]
+	if first.ReferenceID != "ref_first_frame" || first.SourceKind != "asset" || first.SourceID != "wet_hair" || first.SourceRef != "{{ref:ref_first_frame}}" {
+		t.Fatalf("first reference asset = %+v, want reference pool metadata", first)
 	}
 }
 
@@ -490,34 +480,34 @@ func TestEnqueueAudioGenerationIntentRoutesByCanonicalOperation(t *testing.T) {
 	entry := persistencemodel.AIModelCatalogEntry{
 		PublicModelID:         "story-audio",
 		DisplayName:           "Story Audio",
-		Capabilities:          ai.CapabilityAudioMusic + "," + ai.CapabilityAudioTTS,
+		Capabilities:          ai.CapabilityFamilyAudioGeneration,
 		IsEnabled:             true,
-		ModelCapabilitiesJSON: `{"audio_generation":{"operations":["tts","music"]}}`,
+		ModelCapabilitiesJSON: `{"audio_generation":{"operations":["text_to_speech","music_generation"]}}`,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	ttsRoute := persistencemodel.AIModelRouteBinding{
-		CatalogEntryID:        entry.ID,
-		SourceType:            persistencemodel.ModelRouteSourceLocalProvider,
-		ProviderID:            "local_provider",
-		ProviderModelID:       "provider-tts",
-		CredentialID:          &cred.ID,
-		IsEnabled:             true,
-		Priority:              20,
-		CapacityWeight:        1,
-		RouteCapabilitiesJSON: `{"audio_generation":{"operations":["tts"]}}`,
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:      "local_provider",
+		AdapterType:     cred.AdapterType,
+		ProviderModelID: "provider-tts",
+		CredentialID:    &cred.ID,
+		IsEnabled:       true,
+		Priority:        20,
+		CapacityWeight:  1,
 	}
 	musicRoute := persistencemodel.AIModelRouteBinding{
-		CatalogEntryID:        entry.ID,
-		SourceType:            persistencemodel.ModelRouteSourceLocalProvider,
-		ProviderID:            "local_provider",
-		ProviderModelID:       "provider-music",
-		CredentialID:          &cred.ID,
-		IsEnabled:             true,
-		Priority:              10,
-		CapacityWeight:        1,
-		RouteCapabilitiesJSON: `{"audio_generation":{"operations":["music"]}}`,
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:      "local_provider",
+		AdapterType:     cred.AdapterType,
+		ProviderModelID: "provider-music",
+		CredentialID:    &cred.ID,
+		IsEnabled:       true,
+		Priority:        10,
+		CapacityWeight:  1,
 	}
 	if err := db.Create(&ttsRoute).Error; err != nil {
 		t.Fatalf("create tts route: %v", err)
@@ -534,20 +524,20 @@ func TestEnqueueAudioGenerationIntentRoutesByCanonicalOperation(t *testing.T) {
 		Prompt:  "generate music",
 		GenerationIntent: &GenerationIntentInput{
 			Capability: ai.CapabilityFamilyAudioGeneration,
-			Operation:  ai.AudioOperationMusic,
+			Operation:  ai.AudioOperationMusicGeneration,
 		},
 	})
 	if err != nil {
 		t.Fatalf("EnqueueGeneration(audio intent) error = %v", err)
 	}
-	if job.JobType != ai.CapabilityAudioMusic {
-		t.Fatalf("job type = %q, want %q", job.JobType, ai.CapabilityAudioMusic)
+	if job.JobType != domainjob.JobTypeAudio {
+		t.Fatalf("job type = %q, want %q", job.JobType, domainjob.JobTypeAudio)
 	}
-	if job.RouteBindingID == nil || *job.RouteBindingID != musicRoute.ID {
-		t.Fatalf("route binding id = %v, want music route %d", job.RouteBindingID, musicRoute.ID)
+	if job.RouteBindingID == nil || *job.RouteBindingID != ttsRoute.ID {
+		t.Fatalf("route binding id = %v, want highest-priority compatible route %d", job.RouteBindingID, ttsRoute.ID)
 	}
-	if !strings.Contains(job.RequestContext, `"capability":"audio_generation"`) || !strings.Contains(job.RequestContext, `"operation":"music"`) {
-		t.Fatalf("request context = %s, want audio generation intent with music operation", job.RequestContext)
+	if !strings.Contains(job.RequestContext, `"capability":"audio_generation"`) || !strings.Contains(job.RequestContext, `"operation":"music_generation"`) {
+		t.Fatalf("request context = %s, want audio generation intent with music_generation operation", job.RequestContext)
 	}
 }
 
@@ -575,7 +565,7 @@ func TestAudioGenerationIntentRequiresExplicitOperation(t *testing.T) {
 }
 
 func TestAudioGenerationExecutionJobTypeRequiresIntent(t *testing.T) {
-	db := testutil.OpenSQLite(t, "job_enqueue_audio_music_without_intent.db",
+	db := testutil.OpenSQLite(t, "job_enqueue_audio_generation_without_intent.db",
 		&persistencemodel.Job{},
 		&persistencemodel.RawResource{},
 		&persistencemodel.AIModelCatalogEntry{},
@@ -585,7 +575,7 @@ func TestAudioGenerationExecutionJobTypeRequiresIntent(t *testing.T) {
 	service := NewService(db, ai.NewAIService(db, ai.NewRegistry(db, nil)))
 	_, err := service.EnqueueGeneration(context.Background(), EnqueueInput{
 		UserID:  42,
-		JobType: ai.CapabilityAudioMusic,
+		JobType: domainjob.JobTypeAudio,
 		Title:   "Music",
 		Prompt:  "generate music",
 	})
@@ -597,7 +587,7 @@ func TestAudioGenerationExecutionJobTypeRequiresIntent(t *testing.T) {
 
 func TestValidateGenerationIntentRequiresStructuredResourceAssets(t *testing.T) {
 	base := EnqueueInput{
-		JobType: ai.CapabilityVideo,
+		JobType: domainjob.JobTypeVideo,
 		GenerationIntent: &GenerationIntentInput{
 			Capability: ai.CapabilityFamilyVideoGeneration,
 			Operation:  ai.VideoOperationFirstLastFrameToVideo,
@@ -687,14 +677,14 @@ func TestExecutionJobTypeForAudioGenerationIntent(t *testing.T) {
 		operation string
 		want      string
 	}{
-		{operation: ai.AudioOperationTTS, want: ai.CapabilityAudioTTS},
-		{operation: ai.AudioOperationMusic, want: ai.CapabilityAudioMusic},
-		{operation: ai.AudioOperationSFX, want: ai.CapabilityAudioSFX},
-		{operation: ai.AudioOperationSTT, want: ai.CapabilityAudioSTT},
-		{operation: ai.AudioOperationSpeechTranslate, want: ai.CapabilityAudioTranslate},
-		{operation: ai.AudioOperationAudioChat, want: ai.CapabilityAudioChat},
-		{operation: ai.AudioOperationVoiceClone, want: ai.CapabilityVoiceClone},
-		{operation: ai.AudioOperationVoiceDesign, want: ai.CapabilityVoiceDesign},
+		{operation: ai.AudioOperationTextToSpeech, want: domainjob.JobTypeAudio},
+		{operation: ai.AudioOperationMusicGeneration, want: domainjob.JobTypeAudio},
+		{operation: ai.AudioOperationSoundEffectGeneration, want: domainjob.JobTypeAudio},
+		{operation: ai.AudioOperationSpeechToText, want: domainjob.JobTypeAudio},
+		{operation: ai.AudioOperationSpeechTranslate, want: domainjob.JobTypeAudio},
+		{operation: ai.AudioOperationSpeechToSpeech, want: domainjob.JobTypeAudio},
+		{operation: ai.AudioOperationVoiceClone, want: domainjob.JobTypeAudio},
+		{operation: ai.AudioOperationVoiceDesign, want: domainjob.JobTypeAudio},
 	}
 	for _, tt := range tests {
 		got := executionJobTypeForGenerationIntent(&GenerationIntentInput{

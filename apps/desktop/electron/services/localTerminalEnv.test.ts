@@ -3,7 +3,7 @@ import { delimiter, resolve } from 'node:path'
 import test from 'node:test'
 import { localTerminalEnv } from './localTerminalEnv'
 
-test('localTerminalEnv injects data service auth and base URL for movcli', () => {
+test('localTerminalEnv injects data service auth and base URL for movscript CLI', () => {
   const workspaceDir = resolve('/tmp/movscript-workspace')
   const projectDir = resolve(workspaceDir, 'projects/demo-film')
   const cliBinDir = resolve(workspaceDir, 'bin')
@@ -36,8 +36,6 @@ test('localTerminalEnv injects data service auth and base URL for movcli', () =>
   assert.equal(env.MOVSCRIPT_PROJECT_ID, '42')
   assert.equal(env.MOVSCRIPT_DATA_SERVICE_URL, 'http://localhost:8765')
   assert.equal(env.MOVSCRIPT_DATA_SERVICE_TOKEN, 'backend-token')
-  assert.equal(env.MOVCLI_TOKEN, undefined)
-  assert.equal(env.MOVCLI_USER_ID, undefined)
   assert.equal(env.MOVSCRIPT_CLI_BIN_DIR, cliBinDir)
   assert.equal(env.PATH, `${cliBinDir}${delimiter}/usr/bin`)
   assert.equal(env.TERM, 'xterm-256color')
@@ -51,7 +49,6 @@ test('localTerminalEnv preserves inherited terminal settings and strips legacy b
       PATH: '/custom/bin',
       TERM: 'screen-256color',
       COLORTERM: '24bit',
-      MOVCLI_TOKEN: 'inherited-token',
       MOVSCRIPT_API_BASE_URL: 'http://legacy.example',
       MOVSCRIPT_BACKEND_AUTH_TOKEN: 'legacy-backend-token',
     },
@@ -70,15 +67,14 @@ test('localTerminalEnv preserves inherited terminal settings and strips legacy b
   assert.equal(env.MOVSCRIPT_DATA_SERVICE_URL, 'http://backend.internal:8765')
   assert.equal(env.MOVSCRIPT_API_BASE_URL, undefined)
   assert.equal(env.MOVSCRIPT_BACKEND_AUTH_TOKEN, undefined)
-  assert.equal(env.MOVCLI_TOKEN, undefined)
   assert.equal(env.TERM, 'screen-256color')
   assert.equal(env.COLORTERM, '24bit')
   assert.equal(env.PATH, '/custom/bin')
 })
 
 test('localTerminalEnv preserves Windows Path key and delimiter', () => {
-  const workspaceDir = 'C:\\Users\\me\\AppData\\Local\\Movscript\\Home'
-  const cliBinDir = 'C:\\Users\\me\\AppData\\Local\\Movscript\\Home\\bin'
+  const workspaceDir = 'C:\\Users\\me\\AppData\\Local\\MovScript\\Home'
+  const cliBinDir = 'C:\\Users\\me\\AppData\\Local\\MovScript\\Home\\bin'
   const env = localTerminalEnv({
     inheritedEnv: {
       Path: 'C:\\Windows',

@@ -132,7 +132,7 @@ async function pollCanvasRuntimeJob(jobId: number, timeoutMs: number) {
 }
 
 function runtimeSourceKey(nodeType: string | undefined, outputType: CanvasPortType) {
-  if (nodeType && ['ref_image_gen', 'ref_video_gen', 'multi_angle', 'style_transfer', 'motion_imitation'].includes(nodeType)) return nodeType
+  if (nodeType && ['reference_to_image', 'reference_to_video'].includes(nodeType)) return nodeType
   if (outputType === 'text') return 'canvas_text'
   if (outputType === 'video') return 'canvas_video'
   return 'canvas_image'
@@ -166,14 +166,9 @@ function canvasRuntimeOperation(input: CanvasRuntimeGenerationRequest): string {
 
 function canvasRuntimeDefaultOperation(nodeType: string | undefined, outputType: CanvasPortType): string | undefined {
   switch (nodeType) {
-    case 'ref_image_gen':
-      return 'image_to_image'
-    case 'multi_angle':
+    case 'reference_to_image':
       return 'reference_to_image'
-    case 'style_transfer':
-      return 'style_transfer'
-    case 'ref_video_gen':
-    case 'motion_imitation':
+    case 'reference_to_video':
       return 'reference_to_video'
     case 'ai_gen':
       if (outputType === 'video') return 'prompt_to_video'
@@ -262,8 +257,8 @@ function canvasRuntimeResourceMediaType(resource: Pick<RawResource, 'type'>): 'i
 }
 
 function runtimeJobTitle(jobType: string) {
-  if (jobType.startsWith('video')) return 'Canvas video generation'
-  if (jobType === 'image_edit') return 'Canvas reference image generation'
+  if (jobType === 'video' || jobType === 'video_generation') return 'Canvas video generation'
+  if (jobType === 'image' || jobType === 'image_generation') return 'Canvas reference image generation'
   return 'Canvas image generation'
 }
 

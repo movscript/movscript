@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { RotateCcw, Save, Plus, TextCursorInput, Trash2 } from 'lucide-react'
 
+import { generationDefaultReferenceRoleForMediaType } from '@movscript/core/generation'
 import type { ContentCanvasNode } from '../domain/contentCanvasTypes'
-import { PromptReferenceInlineEditor, PromptReferenceStrip } from './ContentCanvasPromptReferences'
+import { PromptReferenceInlineEditor, PromptReferencePoolStrip, promptReferenceItemsFromReferences, repairedGenerationReferencesFromPrompt, type PromptReferenceDroppedResource } from './ContentCanvasPromptReferences'
+import { generationReferencesFromContentNode, type ContentCanvasGenerationReference } from './contentCanvasWorkspaceModel'
 import type { CandidateSelections } from './contentCanvasWorkspaceTypes'
 
 export function ContentCanvasPromptEditor({
@@ -12,6 +14,7 @@ export function ContentCanvasPromptEditor({
   nodes,
   onBlur,
   onChange,
+  onReferencePoolCommit,
   onSelectNode,
   onStructuredCommit,
   ownerNode,
@@ -24,6 +27,7 @@ export function ContentCanvasPromptEditor({
   nodes: ContentCanvasNode[]
   onBlur: (prompt: string) => void
   onChange: (prompt: string) => void
+  onReferencePoolCommit?: (prompt: string, generationReferences: Array<Record<string, unknown>>) => void
   onStructuredCommit?: (structured: Record<string, unknown>) => void
   onSelectNode: (node: ContentCanvasNode) => void
   ownerNode: ContentCanvasNode | undefined
@@ -33,10 +37,18 @@ export function ContentCanvasPromptEditor({
   const canEditShotPlan = isSceneMomentVideoContentUnit(ownerNode) && onStructuredCommit
   const [promptDraft, setPromptDraft] = useState(value)
   const [shotPlanDraft, setShotPlanDraft] = useState<ShotPlanItem[]>(() => shotPlanFromStructured(structured))
+  const ownerGenerationReferences = useMemo(() => generationReferencesFromContentNode(ownerNode), [ownerNode])
+  const ownerGenerationReferencesKey = useMemo(() => stableReferencePoolKey(ownerGenerationReferences), [ownerGenerationReferences])
+  const [generationReferenceDrafts, setGenerationReferenceDrafts] = useState<ContentCanvasGenerationReference[]>(ownerGenerationReferences)
   const promptDirty = promptDraft !== value
+  const referenceItems = promptReferenceItemsFromReferences(generationReferenceDrafts, ownerNode, nodes, candidateSelections)
+  const generationReferences = generationReferenceDrafts
   useEffect(() => {
     setPromptDraft(value)
   }, [value])
+  useEffect(() => {
+    setGenerationReferenceDrafts(ownerGenerationReferences)
+  }, [ownerGenerationReferencesKey])
   useEffect(() => {
     setShotPlanDraft(shotPlanFromStructured(structured))
   }, [structured])
@@ -85,6 +97,42 @@ export function ContentCanvasPromptEditor({
       return next
     })
   }
+  const commitReferencePool = useCallback((nextPrompt: string, nextReferences: ContentCanvasGenerationReference[]) => {
+    setPromptDraft(nextPrompt)
+    setGenerationReferenceDrafts(nextReferences)
+    onChange(nextPrompt)
+    onReferencePoolCommit?.(nextPrompt, nextReferences as Array<Record<string, unknown>>)
+  }, [onChange, onReferencePoolCommit])
+  useEffect(() => {
+    const repairedReferences = repairedGenerationReferencesFromPrompt(promptDraft, generationReferences)
+    if (repairedReferences === generationReferences) return
+    setGenerationReferenceDrafts(repairedReferences)
+    if (!onReferencePoolCommit) return
+    onChange(promptDraft)
+    onReferencePoolCommit(promptDraft, repairedReferences as Array<Record<string, unknown>>)
+  }, [generationReferences, onChange, onReferencePoolCommit, promptDraft])
+  const changeReferenceRole = useCallback((reference: (typeof referenceItems)[number], role: string) => {
+    const nextReferences = generationReferences.map((item) => {
+      if (generationReferenceMatchesPromptItem(item, reference)) {
+        return { ...item, role }
+      }
+      if (role === 'first_frame' && item.role === 'first_frame' && item.media_type === 'image') {
+        return { ...item, role: 'reference_image' }
+      }
+      return item
+    })
+    commitReferencePool(promptDraft, nextReferences)
+  }, [commitReferencePool, generationReferences, promptDraft])
+  const removeReference = useCallback((reference: (typeof referenceItems)[number]) => {
+    const nextReferences = generationReferences.filter((item) => !generationReferenceMatchesPromptItem(item, reference))
+    commitReferencePool(removePromptReferenceFromText(promptDraft, reference, generationReferences), nextReferences)
+  }, [commitReferencePool, generationReferences, promptDraft])
+  const addDroppedResourceReference = useCallback((resource: PromptReferenceDroppedResource) => {
+    const nextReference = generationReferenceFromDroppedResource(resource)
+    const nextKey = generationReferencePoolKey(nextReference)
+    const withoutExisting = generationReferences.filter((reference) => generationReferencePoolKey(reference) !== nextKey)
+    commitReferencePool(promptDraft, [...withoutExisting, nextReference])
+  }, [commitReferencePool, generationReferences, promptDraft])
 
   return (
     <div className="content-canvas-prompt-editor">
@@ -114,10 +162,19 @@ export function ContentCanvasPromptEditor({
         nodes={nodes}
         mentionNodes={mentionNodes}
         ownerNode={ownerNode}
+        referenceItems={referenceItems}
         candidateSelections={candidateSelections}
         ariaLabel={ariaLabel}
         onChange={setPromptDraft}
         onBlur={setPromptDraft}
+        onSelectNode={onSelectNode}
+        onResourceReferenceDrop={onReferencePoolCommit ? addDroppedResourceReference : undefined}
+      />
+      <PromptReferencePoolStrip
+        references={referenceItems}
+        onReferenceRemove={onReferencePoolCommit ? removeReference : undefined}
+        onReferenceRoleChange={onReferencePoolCommit ? changeReferenceRole : undefined}
+        onResourceReferenceDrop={onReferencePoolCommit ? addDroppedResourceReference : undefined}
         onSelectNode={onSelectNode}
       />
       {canEditShotPlan ? (
@@ -177,13 +234,6 @@ export function ContentCanvasPromptEditor({
           )) : null}
         </div>
       ) : null}
-      <PromptReferenceStrip
-        prompt={promptDraft}
-        nodes={nodes}
-        ownerNode={ownerNode}
-        candidateSelections={candidateSelections}
-        onSelectNode={onSelectNode}
-      />
     </div>
   )
 }
@@ -270,4 +320,77 @@ function numericDraft(value: unknown): number | undefined {
     if (Number.isFinite(parsed) && parsed > 0) return parsed
   }
   return undefined
+}
+
+function generationReferenceMatchesPromptItem(
+  reference: ContentCanvasGenerationReference,
+  item: ReturnType<typeof promptReferenceItemsFromReferences>[number],
+): boolean {
+  if (item.referenceId && reference.id === item.referenceId) return true
+  if (reference.kind !== item.kind) return false
+  if (reference.resource_id !== undefined && item.resourceId !== undefined) return reference.resource_id === item.resourceId
+  if (reference.ref !== undefined && String(reference.ref) === item.token) return true
+  return reference.id !== undefined && reference.id === item.token
+}
+
+function generationReferenceFromDroppedResource(resource: PromptReferenceDroppedResource): ContentCanvasGenerationReference {
+  const mediaType = generationReferenceMediaTypeFromDroppedResource(resource)
+  const role = generationDefaultReferenceRoleForMediaType(mediaType) ?? 'reference'
+  return {
+    id: `resource:${resource.id}`,
+    kind: 'resource',
+    ref: resource.id,
+    resource_id: resource.id,
+    media_type: mediaType,
+    role,
+    label: resource.name,
+    source: 'content_canvas',
+  }
+}
+
+function generationReferenceMediaTypeFromDroppedResource(resource: PromptReferenceDroppedResource): string {
+  if (resource.type === 'image' || resource.mimeType?.startsWith('image/')) return 'image'
+  if (resource.type === 'video' || resource.mimeType?.startsWith('video/')) return 'video'
+  if (resource.type === 'audio' || resource.mimeType?.startsWith('audio/')) return 'audio'
+  return 'file'
+}
+
+function generationReferencePoolKey(reference: ContentCanvasGenerationReference): string {
+  return [
+    reference.kind ?? '',
+    reference.resource_id ?? reference.ref ?? reference.id ?? '',
+  ].join(':')
+}
+
+function stableReferencePoolKey(references: ContentCanvasGenerationReference[]): string {
+  return JSON.stringify(references)
+}
+
+function removePromptReferenceFromText(
+  prompt: string,
+  item: ReturnType<typeof promptReferenceItemsFromReferences>[number],
+  references: ContentCanvasGenerationReference[],
+): string {
+  const matchingReferences = references.filter((reference) => generationReferenceMatchesPromptItem(reference, item))
+  const tokens = new Set<string>([
+    item.raw,
+    ...matchingReferences.flatMap((reference) => [
+      reference.raw,
+      reference.source_ref,
+      reference.id ? `{{ref:${reference.id}}}` : undefined,
+    ]),
+  ].filter((value): value is string => Boolean(value)))
+  let next = prompt
+  if (item.referenceId) {
+    next = next.replace(new RegExp(`\\{\\{\\s*ref:{1,2}\\s*${escapeRegExp(item.referenceId)}\\s*\\}\\}`, 'g'), '')
+  }
+  for (const token of tokens) {
+    if (!token) continue
+    next = next.split(token).join('')
+  }
+  return next.replace(/[ \t]{2,}/g, ' ').replace(/[ \t]+([,.;，。；])/g, '$1').trim()
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }

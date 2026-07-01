@@ -39,7 +39,7 @@ export type AgentModelCatalogEntry = {
   accepts_image?: boolean
   max_input_images?: number
   max_input_videos?: number
-  image_edit_field?: string
+  input_image_field?: string
   supported_params?: string
   param_limits_json?: string
   model_capabilities_json?: string

@@ -260,7 +260,12 @@ async function loadAgentSessionOutputContentUnits(input: {
 
 function agentOutputProjectServiceBaseURL(runtimeConfig: unknown): string {
   const record = recordValue(runtimeConfig) ?? {}
-  const baseURL = stringValue(record.gatewayBaseURL)
+  const runtimeConnection = recordValue(record.runtimeConnection)
+  const runtime = recordValue(record.runtime)
+  const runtimeGateway = recordValue(runtime?.gateway)
+  const baseURL = stringValue(runtimeConnection?.gatewayBaseURL)
+    ?? stringValue(runtimeGateway?.baseURL)
+    ?? stringValue(record.gatewayBaseURL)
     ?? stringValue(record.daemonGatewayBaseURL)
     ?? stringValue(record.apiBaseURL)
     ?? getAPIBaseURL()

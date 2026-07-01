@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { resolveMovScriptDataServiceSession } from '@movscript/data-client'
 import {
   ensureMovScriptWorkspaceRoot,
   resolveMovScriptWorkspaceRootPaths,
@@ -15,6 +16,18 @@ export function readDesktopAppSettings(movScriptHomeDir: string): AppSettings | 
   return parsed.settings as unknown as AppSettings
 }
 
+export function readDesktopAppSettingsForRenderer(movScriptHomeDir: string): AppSettings | null {
+  const settings = readDesktopAppSettings(movScriptHomeDir)
+  if (!settings || settings.launchMode !== 'cloud') return settings
+  const session = resolveMovScriptDataServiceSession({ workspaceDir: movScriptHomeDir })
+  return {
+    ...settings,
+    dataConnection: { kind: 'cloud', url: session.baseURL },
+    apiBaseURL: session.baseURL,
+    cloudAPIBaseURL: session.baseURL,
+  }
+}
+
 export function writeDesktopAppSettings(movScriptHomeDir: string, settings: AppSettings): void {
   writeJSONAtomic(resolveAppSettingsPath(movScriptHomeDir), {
     schema: APP_SETTINGS_SCHEMA,
@@ -23,12 +36,30 @@ export function writeDesktopAppSettings(movScriptHomeDir: string, settings: AppS
   })
 }
 
-function sanitizeDesktopAppSettings(settings: AppSettings): AppSettings {
-  const { localAPIBaseURL: _legacyLocalAPIBaseURL, ...settingsWithoutLegacy } = settings as AppSettings & {
+type PersistedDesktopAppSettings = Omit<
+  AppSettings,
+  'apiBaseURL' | 'cloudAPIBaseURL' | 'daemonGatewayBaseURL' | 'dataConnection'
+> & {
+  dataConnection: Pick<AppSettings['dataConnection'], 'kind'>
+}
+
+function sanitizeDesktopAppSettings(settings: AppSettings): PersistedDesktopAppSettings {
+  const {
+    apiBaseURL: _derivedAPIBaseURL,
+    cloudAPIBaseURL: _derivedCloudAPIBaseURL,
+    daemonGatewayBaseURL: _derivedDaemonGatewayBaseURL,
+    dataConnection: rawDataConnection,
+    localAPIBaseURL: _legacyLocalAPIBaseURL,
+    ...settingsWithoutLegacy
+  } = settings as AppSettings & {
     localAPIBaseURL?: string
   }
+  const { url: _derivedDataConnectionURL, ...dataConnection } = rawDataConnection ?? { kind: 'cloud' as const }
   return {
     ...settingsWithoutLegacy,
+    dataConnection: {
+      kind: dataConnection.kind === 'local' ? 'local' : 'cloud',
+    },
     shotLibrarySources: settings.shotLibrarySources?.map((source) => ({
       id: source.id,
       name: source.name,

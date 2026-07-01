@@ -36,6 +36,9 @@ const MCP_HOST_DEBUG = process.env.MOVSCRIPT_MCP_HOST_DEBUG === '1'
 const MCP_PROXY_TIMEOUT_MS = 3000
 const LOCAL_NODE_CONTROL_SERVICE = LOCAL_RUNTIME_DAEMON_CONTROL_SERVICE
 const LOCAL_NODE_GATEWAY_SERVICE = LOCAL_RUNTIME_DAEMON_GATEWAY_SERVICE
+const RUNTIME_GATEWAY_SERVICE = 'movscript.runtime.gateway'
+const CLOUD_RUNTIME_GATEWAY_SERVICE = 'movscript.cloud-runtime.gateway'
+const EXTERNAL_RUNTIME_GATEWAY_SERVICE = 'movscript.external-runtime.gateway'
 const DATA_SERVICE = 'movscript.data.service'
 const PROJECT_SERVICE = 'movscript.project.service'
 const EDITING_SERVICE = 'movscript.editing.service'
@@ -149,8 +152,14 @@ function shouldProxyToDaemon(req: JSONRPCRequest, options: MCPHostJSONRPCOptions
 }
 
 function resolveDaemonMCPEndpoint(req: JSONRPCRequest, options: MCPHostJSONRPCOptions): string | undefined {
-  const explicit = stringValue(options.daemonEndpoint ?? process.env.MOVSCRIPT_DAEMON_MCP_ENDPOINT)
+  const explicit = stringValue(
+    options.daemonEndpoint
+      ?? process.env.MOVSCRIPT_DAEMON_MCP_ENDPOINT
+      ?? process.env.MOVSCRIPT_RUNTIME_MCP_ENDPOINT,
+  )
   if (explicit) return normalizeMcpEndpoint(explicit)
+  const gateway = explicitRuntimeGatewayBaseURL()
+  if (gateway) return normalizeMcpEndpoint(gateway)
   const args = objectParam(req.params, 'arguments')
   const homeDir = resolveRuntimeHomeArg(args)
   const endpoints = runtimeDiscoveredEndpoints(readRuntimeHomeSnapshot(homeDir))
@@ -188,13 +197,20 @@ async function proxyMCPHostJSONRPCToDaemon(
 function runtimeDiscoveredEndpoints(runtimeHome: RuntimeHomeSnapshot): Record<string, string> {
   const endpoints: Record<string, string> = {}
   setEndpoint(endpoints, 'control', runtimeHome, LOCAL_NODE_CONTROL_SERVICE)
+  setEndpoint(endpoints, 'runtimeGateway', runtimeHome, RUNTIME_GATEWAY_SERVICE)
+  setEndpoint(endpoints, 'cloudRuntimeGateway', runtimeHome, CLOUD_RUNTIME_GATEWAY_SERVICE)
+  setEndpoint(endpoints, 'externalRuntimeGateway', runtimeHome, EXTERNAL_RUNTIME_GATEWAY_SERVICE)
   setEndpoint(endpoints, 'gateway', runtimeHome, LOCAL_NODE_GATEWAY_SERVICE)
   setEndpoint(endpoints, 'dataService', runtimeHome, DATA_SERVICE)
   setEndpoint(endpoints, 'projectService', runtimeHome, PROJECT_SERVICE)
   setEndpoint(endpoints, 'editingService', runtimeHome, EDITING_SERVICE)
   setEndpoint(endpoints, 'surfaceHost', runtimeHome, LOCAL_SURFACE_HOST_SERVICE)
   setEndpoint(endpoints, 'mediaPipeline', runtimeHome, MEDIA_PIPELINE_SERVICE)
-  if (endpoints.gateway) endpoints.mcp = runtimeMcpEndpoint(endpoints.gateway)
+  const gateway = endpoints.runtimeGateway
+    ?? endpoints.cloudRuntimeGateway
+    ?? endpoints.externalRuntimeGateway
+    ?? endpoints.gateway
+  if (gateway) endpoints.mcp = normalizeMcpEndpoint(gateway)
   return endpoints
 }
 
@@ -204,11 +220,6 @@ function setEndpoint(output: Record<string, string>, key: string, runtimeHome: R
       ?? findRuntimeService(runtimeHome, serviceName)?.endpoint,
   )
   if (endpoint) output[key] = endpoint
-}
-
-function runtimeMcpEndpoint(baseURL: string): string {
-  const normalized = normalizeBaseURL(baseURL)
-  return `${normalized}/v1/mcp`
 }
 
 function resolveRuntimeHomeArg(args: Record<string, unknown>): string {
@@ -239,6 +250,18 @@ function stringParam(value: MCPJSONValue | undefined, key: string): string | und
 
 function normalizeBaseURL(value: string): string {
   return value.trim().replace(/\/+$/, '').replace(/\/api\/v1$/, '')
+}
+
+function explicitRuntimeGatewayBaseURL(): string | undefined {
+  for (const key of [
+    'MOVSCRIPT_RUNTIME_GATEWAY_URL',
+    'MOVSCRIPT_CLOUD_RUNTIME_GATEWAY_URL',
+    'MOVSCRIPT_EXTERNAL_RUNTIME_GATEWAY_URL',
+  ]) {
+    const value = stringValue(process.env[key])
+    if (value) return value
+  }
+  return undefined
 }
 
 function stringValue(value: unknown): string | undefined {

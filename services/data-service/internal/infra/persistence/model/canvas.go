@@ -27,7 +27,7 @@ type Canvas struct {
 // Type values:
 //
 //	media:    text | image | video | audio
-//	tools:    canvas | ref_image_gen | ref_video_gen | multi_angle | style_transfer | motion_imitation
+//	tools:    canvas | reference_to_image | reference_to_video
 type CanvasNode struct {
 	gorm.Model
 	CanvasID uint    `gorm:"not null" json:"canvas_id"`

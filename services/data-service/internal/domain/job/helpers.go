@@ -8,21 +8,10 @@ import (
 )
 
 const (
-	CapabilityImage          = "image"
-	CapabilityImageEdit      = "image_edit"
-	CapabilityVideo          = "video"
-	CapabilityVideoI2V       = "video_i2v"
-	CapabilityVideoV2V       = "video_v2v"
-	CapabilityAudioTTS       = "audio_tts"
-	CapabilityAudioSTT       = "audio_transcribe"
-	CapabilityAudioMusic     = "audio_music"
-	CapabilityAudioSFX       = "audio_sfx"
-	CapabilityAudioChat      = "audio_chat"
-	CapabilityVoiceClone     = "voice_clone"
-	CapabilityVoiceDesign    = "voice_design"
-	CapabilityAudioTranslate = "audio_translate"
-	CapabilitySubAlign       = "subtitle_align"
-	CapabilitySubTranslate   = "subtitle_translate"
+	JobTypeText  = "text"
+	JobTypeImage = "image"
+	JobTypeVideo = "video"
+	JobTypeAudio = "audio"
 )
 
 type RuntimeModelSnapshotInput struct {
@@ -128,9 +117,13 @@ type GenerationIntentSnapshot struct {
 }
 
 type GenerationReferenceAssetRole struct {
-	Role       string `json:"role"`
-	MediaType  string `json:"media_type,omitempty"`
-	ResourceID uint   `json:"resource_id,omitempty"`
+	ReferenceID string `json:"reference_id,omitempty"`
+	SourceKind  string `json:"source_kind,omitempty"`
+	SourceID    any    `json:"source_id,omitempty"`
+	SourceRef   any    `json:"source_ref,omitempty"`
+	Role        string `json:"role"`
+	MediaType   string `json:"media_type,omitempty"`
+	ResourceID  uint   `json:"resource_id,omitempty"`
 }
 
 type ProjectScopeBinding struct {
@@ -329,9 +322,7 @@ func BuildListSpec(filter ListFilter) ListSpec {
 		Limit:  filter.Limit,
 		Offset: filter.Offset,
 	}
-	if filter.JobType == "image" && !filter.ExactType {
-		spec.JobTypes = []string{"image", "image_edit"}
-	} else if filter.JobType != "" {
+	if filter.JobType != "" {
 		spec.JobTypes = []string{filter.JobType}
 	} else {
 		spec.JobTypes = []string{}
@@ -537,12 +528,12 @@ func CostRequest(runtimeModelID uint, jobType string, duration int, extraParams,
 	}
 
 	switch jobType {
-	case CapabilityImage, CapabilityImageEdit:
+	case JobTypeImage:
 		return CostRequestImage, ImageCostRequest{
 			Count:       1,
 			AspectRatio: FirstNonEmpty(aspectRatio, getString("aspect_ratio")),
 		}, VideoCostRequest{}, nil
-	case CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V:
+	case JobTypeVideo:
 		dur := duration
 		if dur <= 0 {
 			dur = getInt("duration")
@@ -565,7 +556,7 @@ func ModelIdentifier(mcfg RuntimeModelSnapshotInput) string {
 }
 
 func IsVideoJob(jobType string) bool {
-	return jobType == CapabilityVideo || jobType == CapabilityVideoI2V || jobType == CapabilityVideoV2V
+	return jobType == JobTypeVideo
 }
 
 func FirstNonEmpty(values ...string) string {

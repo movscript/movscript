@@ -57,7 +57,7 @@ export function AgentPreviewTimelineSurface({
   return (
     <AgentSurfaceShell
       title={focusLabel ? `Timeline preview: ${focusLabel}` : 'Timeline preview'}
-      description="Inspect selected scene-moment outputs in timeline assembly context and identify missing or stale preview material."
+      description="Inspect selected scene-moment outputs for the production preview and identify missing or stale material."
       chips={agentSurfaceFocusChips(domainFocus)}
       ready={ready}
       preparingLabel="Preparing preview timeline surface..."
@@ -74,7 +74,7 @@ export function AgentPreviewTimelineSurface({
             <AgentSurfaceKeyValues items={[
               ['Project', projectId ?? ''],
               ['Focus', focusLabel],
-              ['Assembly target', domainFocus.target?.targetRef ?? ''],
+              ['Preview target', domainFocus.target?.targetRef ?? ''],
               ['Legacy production', legacyProductionId ?? ''],
               ['Generated', snapshot?.generated_at ?? ''],
             ]} />
@@ -105,7 +105,7 @@ export function AgentPreviewTimelineSurface({
               <p>No selected preview clips are available yet.</p>
             )}
           </AgentSurfacePanel>
-          <AgentSurfacePanel title="Blockers" description="Resolve blockers before handing this timeline assembly to editing.">
+          <AgentSurfacePanel title="Blockers" description="Resolve blockers before creating or opening a production editing workspace.">
             {blockers.length > 0 ? (
               <div className="agent-surface-work-list">
                 {blockers.map((blocker, index) => (

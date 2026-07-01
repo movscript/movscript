@@ -67,7 +67,7 @@ test('app home opens the tool entry point', async ({ page }, testInfo) => {
 
   await expect(page.getByRole('button', { name: /Tool/ })).toBeVisible()
   await page.getByRole('button', { name: /Tool/ }).click()
-  await expectWindowCall(page, { type: 'tool', route: '/tools/ref-image-gen' })
+  await expectWindowCall(page, { type: 'tool', route: '/tools/image' })
   await expect(page).toHaveURL(/\/$/)
 })
 

@@ -28,13 +28,13 @@ func (p *emptyCatalogRoutePolicy) ResolveModel(context.Context, providercontract
 
 func (p *emptyCatalogRoutePolicy) ResolveGatewayModelRoute(_ context.Context, request providercontract.AIGatewayRouteRequest) (providercontract.AIGatewayModelRoute, error) {
 	p.routeRequest = request
-	if request.ModelID == "logical-chat" && request.Capability == ai.CapabilityText {
+	if request.ModelID == "logical-chat" && request.Capability == ai.CapabilityFamilyTextGeneration {
 		return providercontract.AIGatewayModelRoute{
 			ModelID:         "logical-chat",
 			CatalogEntryID:  19,
 			RouteBindingID:  29,
 			ProviderModelID: "provider-chat",
-			Capability:      ai.CapabilityText,
+			Capability:      ai.CapabilityFamilyTextGeneration,
 		}, nil
 	}
 	return providercontract.AIGatewayModelRoute{}, errors.New("route not found")
@@ -56,7 +56,7 @@ func TestResolveModelForCapabilityFallsBackToRoutingWhenCatalogIsEmpty(t *testin
 	routes := &emptyCatalogRoutePolicy{}
 	service := &Service{catalog: routes, routing: routes}
 
-	id, responseModel, err := service.resolveModelForCapability(context.Background(), "logical-chat", ai.CapabilityText)
+	id, responseModel, err := service.resolveModelForCapability(context.Background(), "logical-chat", ai.CapabilityFamilyTextGeneration)
 
 	if err != nil {
 		t.Fatalf("resolveModelForCapability() error = %v", err)
@@ -64,7 +64,7 @@ func TestResolveModelForCapabilityFallsBackToRoutingWhenCatalogIsEmpty(t *testin
 	if id != 19 || responseModel != "logical-chat" {
 		t.Fatalf("resolved model = id %d response %q, want catalog entry id 19 and logical-chat", id, responseModel)
 	}
-	if routes.routeRequest.ModelID != "logical-chat" || routes.routeRequest.Capability != ai.CapabilityText {
+	if routes.routeRequest.ModelID != "logical-chat" || routes.routeRequest.Capability != ai.CapabilityFamilyTextGeneration {
 		t.Fatalf("routing request = %#v, want logical-chat text lookup", routes.routeRequest)
 	}
 }
@@ -72,8 +72,8 @@ func TestResolveModelForCapabilityFallsBackToRoutingWhenCatalogIsEmpty(t *testin
 func TestListChatModelsFiltersGatewayKeyAllowedCatalogEntries(t *testing.T) {
 	catalog := &fakeGatewayModelCatalog{
 		models: []providercontract.AIModelDescriptor{
-			{ModelID: "public-a", CatalogEntryID: 1, Capabilities: []string{ai.CapabilityText}},
-			{ModelID: "public-b", CatalogEntryID: 2, Capabilities: []string{ai.CapabilityText}},
+			{ModelID: "public-a", CatalogEntryID: 1, Capabilities: []string{ai.CapabilityFamilyTextGeneration}},
+			{ModelID: "public-b", CatalogEntryID: 2, Capabilities: []string{ai.CapabilityFamilyTextGeneration}},
 		},
 	}
 	service := &Service{catalog: catalog, policy: &PolicyService{}}

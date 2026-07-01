@@ -3,7 +3,6 @@ import { normalizeDomainFocus } from '@movscript/domain'
 import { createProjectServiceClientFromRuntime } from '@movscript/project'
 import { isRecord, stringValue } from '../../../tools/shared/record.js'
 import { normalizeWorkspacePath, sameEntityRef, type MovScriptContentCandidateWriteInput } from '@movscript/workspace'
-import { createNodeMovScriptWorkspaceFileRepository } from '@movscript/workspace/node'
 import type { MovScriptEngineContentUnitInput } from '@movscript/engine'
 import {
   buildContentSourceWorkspaceProjectTimelineStatus,
@@ -443,8 +442,15 @@ export async function domainCertifyAssetProvider(args: Args): Promise<unknown> {
     ?? stringValue(asset.record.title)
     ?? stringValue(asset.record.slot)
     ?? String(asset.id ?? assetRef)
-  const projectId = stringValue(args.projectId ?? args.project_id)
-  const projectName = getOptionalCertificationString(args.projectName ?? args.project_name) ?? projectId
+  const providerScopeId = getOptionalCertificationString(
+    args.providerScopeId
+    ?? args.provider_scope_id
+    ?? args.providerProjectId
+    ?? args.provider_project_id
+    ?? args.projectId
+    ?? args.project_id,
+  )
+  const projectName = getOptionalCertificationString(args.projectName ?? args.project_name) ?? providerScopeId
   const settingId = getOptionalCertificationString(args.settingId ?? args.setting_id)
     ?? stringValue(asset.record.setting_id ?? asset.record.settingId)
     ?? settingIdFromAssetPath(asset.path)
@@ -455,7 +461,7 @@ export async function domainCertifyAssetProvider(args: Args): Promise<unknown> {
     provider,
     resource_id: sourceResourceId,
     ...(selection.candidateId !== undefined ? { source_candidate_id: String(selection.candidateId) } : {}),
-    ...(projectId ? { project_id: projectId } : {}),
+    ...(providerScopeId ? { project_id: providerScopeId } : {}),
     ...(projectName ? { project_name: projectName } : {}),
     ...(settingId ? { setting_id: settingId } : {}),
     ...(model ? { model } : {}),
@@ -484,7 +490,14 @@ export async function domainCertifyAssetProvider(args: Args): Promise<unknown> {
     ...(model ? { model, public_model_id: model, provider_model_id: getOptionalCertificationString(certification.provider_model_id ?? certification.providerModelId) ?? model } : {}),
     ...(certifiedSourceCandidateId !== undefined ? { source_candidate_id: certifiedSourceCandidateId } : {}),
   }
-  const written = await patchAssetProviderCertification(runtime.projectDir, asset.path, asset.record, certifiedProvider, normalizedCertification)
+  const storageKey = providerCertificationStorageKey(certifiedProvider, normalizedCertification)
+  const written = await runtime.patchAssetProviderCertification({
+    assetPath: asset.path,
+    fallbackRecord: asset.record,
+    provider: certifiedProvider,
+    storageKey,
+    certification: normalizedCertification,
+  })
   invalidateMovScriptDomainRuntime(resolveMCPProjectWorkspaceLocator(args))
   return {
     status: 'succeeded',
@@ -496,8 +509,9 @@ export async function domainCertifyAssetProvider(args: Args): Promise<unknown> {
     ...(certifiedSourceCandidateId !== undefined ? { source_candidate_id: certifiedSourceCandidateId } : {}),
     asset_uri: assetUri,
     ...(hubAssetId ? { hub_asset_id: hubAssetId } : {}),
-    certification: written.certification,
-    path: written.path,
+    certification: isRecord(written.certification) ? written.certification : normalizedCertification,
+    path: stringValue(written.path) ?? asset.path,
+    storage_key: storageKey,
     backend_result: backendResult,
     message: `Certified asset ${String(asset.id ?? assetRef)} for ${certifiedProvider}; downstream generation can resolve resource #${String(certifiedSourceResourceId)} as ${assetUri}.`,
   }
@@ -507,9 +521,16 @@ export async function domainQueryRemoteAssetGroups(args: Args): Promise<unknown>
   const provider = providerCertificationProvider(args.provider ?? args.provider_id ?? args.providerId ?? args.provider_key ?? args.providerKey)
   const params = new URLSearchParams()
   const model = getOptionalCertificationString(args.model ?? args.model_id ?? args.modelId ?? args.public_model_id ?? args.publicModelId)
-  const projectId = getOptionalCertificationString(args.projectId ?? args.project_id)
+  const providerScopeId = getOptionalCertificationString(
+    args.providerScopeId
+    ?? args.provider_scope_id
+    ?? args.providerProjectId
+    ?? args.provider_project_id
+    ?? args.projectId
+    ?? args.project_id,
+  )
   if (model) params.set('model', model)
-  if (projectId) params.set('project_id', projectId)
+  if (providerScopeId) params.set('project_id', providerScopeId)
   const suffix = params.toString()
   return backendGet(`/provider-assets/providers/${encodeURIComponent(provider)}/groups${suffix ? `?${suffix}` : ''}`)
 }
@@ -604,18 +625,21 @@ export async function domainSnapshotScriptVersion(args: Args): Promise<unknown> 
 }
 
 export async function domainUpsertContentUnit(args: Args): Promise<unknown> {
+  const input = engineContentUnitInputFromRecord(requiredRecord(args.unit, 'unit'))
+  rejectRemovedNamespacePlaybackContentUnitInput(input)
   return runtimeMutation(args, (runtime) => runtime.createContentUnit(
-    engineContentUnitInputFromRecord(requiredRecord(args.unit, 'unit')),
+    input,
   ))
 }
 
 export async function domainUpsertProduction(args: Args): Promise<unknown> {
   const production = requiredRecord(args.production ?? args.payload ?? args.record, 'production')
-  const productionId = productionIdFrom(args, production)
+  const requestedProductionId = optionalProductionIdFrom(args, production)
   const result = await runtimeMutation(args, (runtime) => runtime.createProduction({
-    id: productionId,
+    id: requestedProductionId,
     title: stringValue(production.title),
   }))
+  const productionId = result.productionId
   return productionWriteResult('production', { productionId }, result)
 }
 
@@ -623,11 +647,12 @@ export async function domainUpsertProductionTree(args: Args): Promise<unknown> {
   const productionPayload = requiredRecord(args.production ?? args.payload ?? args.record, 'production')
   const segmentItems = requiredArray(args.segments ?? productionPayload.segments, 'segments').filter(isRecord)
   return runtimeMutation(args, async (runtime) => {
-    const productionId = productionIdFrom(args, productionPayload)
+    const requestedProductionId = optionalProductionIdFrom(args, productionPayload)
     const production = await runtime.createProduction({
-      id: productionId,
+      id: requestedProductionId,
       title: stringValue(productionPayload.title),
     })
+    const productionId = production.productionId
     const segments = []
     for (const segmentItem of segmentItems) {
       const segmentPayload = treePayload(segmentItem, 'segment')
@@ -807,16 +832,7 @@ async function upsertTimelineNamespaceTreeNode(
   }
   collector.namespaces.push(namespaceSummary)
 
-  const contentUnits = []
-  for (const contentUnitItem of arrayRecords(item.content_units ?? item.contentUnits ?? payload.content_units ?? payload.contentUnits)) {
-    const contentUnitPayload = treePayload(contentUnitItem, 'content_unit')
-    const contentUnit = await runtime.createContentUnit(timelineNamespaceAssemblyContentUnitInput(contentUnitPayload, {
-      namespaceId,
-      namespaceKind,
-    }))
-    contentUnits.push(contentUnit)
-    collector.contentUnits.push(contentUnit)
-  }
+  rejectTimelineNamespaceContentUnits(item, payload)
 
   const sceneMoments = []
   for (const sceneMomentItem of timelineNamespaceSceneMomentItems(item, payload)) {
@@ -836,7 +852,7 @@ async function upsertTimelineNamespaceTreeNode(
 
   return {
     ...namespaceSummary,
-    contentUnits,
+    contentUnits: [],
     sceneMoments,
     children,
   }
@@ -1118,6 +1134,7 @@ export async function domainCreateContentCandidate(args: Args): Promise<unknown>
       contentUnitId,
       ...(candidateIdFromArgs(args) ? { candidateId: candidateIdFromArgs(args) } : {}),
       ...(firstOutputResourceId(args.outputs) !== undefined ? { resourceId: firstOutputResourceId(args.outputs)! } : {}),
+      ...(firstOutputStreamId(args.outputs) !== undefined ? { streamId: firstOutputStreamId(args.outputs)! } : {}),
       projectId: projectIdFromArgs(args),
     }),
   }
@@ -1394,32 +1411,6 @@ function resolveAssetRefSelection(
   }
 }
 
-async function patchAssetProviderCertification(
-  projectDir: string,
-  assetPath: string,
-  fallbackRecord: Record<string, unknown>,
-  provider: string,
-  certification: Record<string, unknown>,
-): Promise<{ path: string; certification: Record<string, unknown> }> {
-  const fileRepository = createNodeMovScriptWorkspaceFileRepository(projectDir)
-  const path = normalizeWorkspacePath(assetPath)
-  const current = await fileRepository.read({ path }).then((file) => JSON.parse(file.content) as unknown).catch(() => fallbackRecord)
-  if (!isRecord(current)) throw new Error(`asset source is not a JSON object: ${path}`)
-  const providerCertifications = isRecord(current.provider_certifications)
-    ? { ...current.provider_certifications }
-    : {}
-  providerCertifications[providerCertificationStorageKey(provider, certification)] = certification
-  const next = {
-    ...current,
-    provider_certifications: providerCertifications,
-  }
-  await fileRepository.write({ path, content: `${JSON.stringify(next, null, 2)}\n` })
-  return {
-    path,
-    certification,
-  }
-}
-
 function providerCertificationStorageKey(provider: string, certification: Record<string, unknown>): string {
   const model = getOptionalCertificationString(certification.model ?? certification.public_model_id ?? certification.publicModelId ?? certification.provider_model_id ?? certification.providerModelId)
   return model ? `${provider}::model:${model}` : provider
@@ -1527,8 +1518,12 @@ function contextIds(args: Args): Record<string, string | number> {
   }
 }
 
+function optionalProductionIdFrom(args: Args, production?: Record<string, unknown>): string | number | undefined {
+  return optionalId(args.productionId ?? args.production_id ?? production?.id ?? production?.client_id)
+}
+
 function productionIdFrom(args: Args, production?: Record<string, unknown>): string | number {
-  return idValue(args.productionId ?? args.production_id ?? production?.id ?? production?.client_id ?? 'main')
+  return optionalProductionIdFrom(args, production) ?? 'main'
 }
 
 function requiredProductionScopeId(args: Args, field: string): string | number {
@@ -2069,33 +2064,10 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function timelineNamespaceAssemblyContentUnitInput(
-  record: Record<string, unknown>,
-  scope: { namespaceId: string | number; namespaceKind: string },
-): MovScriptEngineContentUnitInput {
-  const explicit = engineContentUnitInputFromRecord(record)
-  if (explicit.contentUnitType && explicit.contentUnitType !== 'timeline_assembly_ref') {
-    throw new Error('timeline namespace content_units must use content_unit_type=timeline_assembly_ref')
+function rejectTimelineNamespaceContentUnits(...records: Record<string, unknown>[]): void {
+  if (records.some((record) => arrayRecords(record.content_units ?? record.contentUnits).length > 0)) {
+    throw new Error('timeline namespace nodes no longer accept content_units; use production_editing_workspace_create/open for production-level playback')
   }
-  if (explicit.targetKind && explicit.targetKind !== 'timeline_assembly') {
-    throw new Error('timeline namespace content_units must use target_kind=timeline_assembly')
-  }
-  if (explicit.productionId !== undefined || explicit.segmentId !== undefined) {
-    throw new Error('timeline namespace content_units must not use production_ref, production_id, segment_ref, or segment_id')
-  }
-  const targetRef = explicit.targetRef ?? `timeline_assembly:${scope.namespaceKind}:${scope.namespaceId}`
-  return pruneUndefinedRecord({
-    ...explicit,
-    contentUnitType: 'timeline_assembly_ref',
-    outputKind: explicit.outputKind ?? 'video',
-    targetCategory: 'timeline_assembly',
-    targetKind: 'timeline_assembly',
-    targetRef,
-    scopeKind: explicit.scopeKind ?? scope.namespaceKind,
-    scopeRef: explicit.scopeRef ?? scope.namespaceId,
-    productionId: undefined,
-    segmentId: undefined,
-  }) as MovScriptEngineContentUnitInput
 }
 
 function stripNamespaceRecordFields(record: Record<string, unknown>): Record<string, unknown> {
@@ -2178,19 +2150,8 @@ function arrayRecords(value: unknown): Record<string, unknown>[] {
 
 function treeContentUnitInput(record: Record<string, unknown>, defaults: MovScriptEngineContentUnitInput): MovScriptEngineContentUnitInput {
   const explicitInput = engineContentUnitInputFromRecord(record)
-  if (isExplicitTimelineAssemblyContentUnit(explicitInput)) {
-    return {
-      ...defaults,
-      ...explicitInput,
-      productionId: explicitInput.productionId,
-      segmentId: explicitInput.segmentId,
-      sceneMomentId: explicitInput.sceneMomentId,
-      expressionUnitId: explicitInput.expressionUnitId,
-      storyboardId: explicitInput.storyboardId,
-      keyframeId: explicitInput.keyframeId,
-      audioCueId: explicitInput.audioCueId,
-      assetRef: explicitInput.assetRef,
-    }
+  if (isRemovedNamespacePlaybackContentUnitInput(explicitInput)) {
+    rejectRemovedNamespacePlaybackContentUnitInput(explicitInput)
   }
   return {
     ...defaults,
@@ -2198,7 +2159,13 @@ function treeContentUnitInput(record: Record<string, unknown>, defaults: MovScri
   }
 }
 
-function isExplicitTimelineAssemblyContentUnit(input: MovScriptEngineContentUnitInput): boolean {
+function rejectRemovedNamespacePlaybackContentUnitInput(input: MovScriptEngineContentUnitInput): void {
+  if (isRemovedNamespacePlaybackContentUnitInput(input)) {
+    throw new Error('namespace-scope playback content units are removed; use production_editing_workspace_create/open for production-level playback')
+  }
+}
+
+function isRemovedNamespacePlaybackContentUnitInput(input: MovScriptEngineContentUnitInput): boolean {
   return input.contentUnitType === 'timeline_assembly_ref'
     || input.targetCategory === 'timeline_assembly'
     || input.targetKind === 'timeline_assembly'
@@ -2773,6 +2740,18 @@ function firstOutputResourceId(outputs: unknown): number | undefined {
     if (!isRecord(item)) continue
     const resourceId = numberValue(item.resource_id ?? item.resourceId)
     if (resourceId !== undefined && Number.isInteger(resourceId) && resourceId > 0) return resourceId
+  }
+  return undefined
+}
+
+function firstOutputStreamId(outputs: unknown): string | undefined {
+  const items = Array.isArray(outputs) ? outputs : []
+  for (const item of items) {
+    if (!isRecord(item)) continue
+    const streamId = stringValue(item.stream_id ?? item.streamId)
+    if (streamId) return streamId
+    const numericStreamId = numberValue(item.stream_id ?? item.streamId)
+    if (numericStreamId !== undefined) return String(numericStreamId)
   }
   return undefined
 }

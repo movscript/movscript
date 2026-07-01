@@ -98,6 +98,11 @@ func RegisteredMigrations() []Migration {
 			Name:    "add_provider_asset_library_read_model",
 			Up:      migrateProviderAssetLibraryReadModel,
 		},
+		{
+			Version: "000015",
+			Name:    "add_model_catalog_input_image_field",
+			Up:      migrateModelCatalogInputImageField,
+		},
 	}
 	return append(core, editionMigrations()...)
 }
@@ -122,7 +127,7 @@ func migrateModelRouteTemplateMetadata(db *gorm.DB) error {
 		}
 	}
 	if migrator.HasTable(&persistencemodel.AIModelRouteBinding{}) {
-		for _, columnName := range []string{"combo_template_key", "template_version", "endpoint_base_url", "endpoint_path_prefix", "endpoint_mode", "operation_profile", "route_capabilities_json"} {
+		for _, columnName := range []string{"combo_template_key", "template_version", "endpoint_base_url", "endpoint_path_prefix", "endpoint_mode"} {
 			if err := addTextColumnIfMissing(db, "ai_model_route_bindings", columnName); err != nil {
 				return err
 			}
@@ -171,6 +176,24 @@ func migrateProviderAssetLibraryReadModel(db *gorm.DB) error {
 		&persistencemodel.ProviderAsset{},
 		&persistencemodel.ProviderAssetModelCertification{},
 	)
+}
+
+func migrateModelCatalogInputImageField(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&persistencemodel.AIModelCatalogEntry{}) {
+		return nil
+	}
+	if err := addTextColumnIfMissing(db, "ai_model_catalog_entries", "input_image_field"); err != nil {
+		return err
+	}
+	if !db.Migrator().HasColumn("ai_model_catalog_entries", "image_edit_field") {
+		return nil
+	}
+	return db.Exec(`
+		UPDATE ai_model_catalog_entries
+		SET input_image_field = image_edit_field
+		WHERE COALESCE(input_image_field, '') = ''
+			AND COALESCE(image_edit_field, '') <> ''
+	`).Error
 }
 
 func addTextColumnIfMissing(db *gorm.DB, tableName string, columnName string) error {

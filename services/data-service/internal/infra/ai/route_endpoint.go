@@ -14,27 +14,24 @@ const (
 )
 
 type routeEndpointConfig struct {
-	BaseURL          string
-	PathPrefix       string
-	Mode             string
-	OperationProfile string
+	BaseURL    string
+	PathPrefix string
+	Mode       string
 }
 
 func routeEndpointConfigFromRoute(route ModelRoute) routeEndpointConfig {
 	return routeEndpointConfig{
-		BaseURL:          route.EndpointBaseURL,
-		PathPrefix:       route.EndpointPathPrefix,
-		Mode:             route.EndpointMode,
-		OperationProfile: route.OperationProfile,
+		BaseURL:    route.EndpointBaseURL,
+		PathPrefix: route.EndpointPathPrefix,
+		Mode:       route.EndpointMode,
 	}
 }
 
 func routeEndpointConfigFromBinding(binding persistencemodel.AIModelRouteBinding) routeEndpointConfig {
 	return routeEndpointConfig{
-		BaseURL:          binding.EndpointBaseURL,
-		PathPrefix:       binding.EndpointPathPrefix,
-		Mode:             binding.EndpointMode,
-		OperationProfile: binding.OperationProfile,
+		BaseURL:    binding.EndpointBaseURL,
+		PathPrefix: binding.EndpointPathPrefix,
+		Mode:       binding.EndpointMode,
 	}
 }
 

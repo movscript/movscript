@@ -1,7 +1,7 @@
 import {
+  formatResourceMention,
   parseResourceMentions,
   resourceIdsFromMentions,
-  stripResourceMentions,
 } from '@movscript/workspace'
 import { type GenerationResolvedJobType } from './jobDecision.js'
 import {
@@ -86,6 +86,10 @@ export interface ContentUnitGenerationCandidateCreatePlan {
 }
 
 type PromptReferenceAssetIntent = {
+  reference_id?: string
+  source_kind?: string
+  source_id?: string | number
+  source_ref?: string | number
   role?: string
   media_type?: string
   resource_id: number
@@ -133,26 +137,9 @@ export function generationExecutionJobTypeForIntent(
     case 'video_generation':
       return 'video'
     case 'image_generation':
-      return intent.operation === 'image_to_image' || intent.operation === 'image_edit' ? 'image_edit' : 'image'
+      return 'image'
     case 'audio_generation':
-      switch (intent.operation?.trim()) {
-        case 'music':
-          return 'audio_music'
-        case 'sfx':
-          return 'audio_sfx'
-        case 'stt':
-          return 'audio_transcribe'
-        case 'speech_translate':
-          return 'audio_translate'
-        case 'audio_chat':
-          return 'audio_chat'
-        case 'voice_clone':
-          return 'voice_clone'
-        case 'voice_design':
-          return 'voice_design'
-        default:
-          return 'audio_tts'
-      }
+      return 'audio'
     default:
       return fallbackOutputKind
   }
@@ -280,8 +267,24 @@ export function contentUnitGenerationCandidateId(
 
 export function compiledContentUnitGenerationPromptText(prompt: Record<string, unknown>): string {
   const text = stringField(prompt.text)
-  if (text) return stripResourceMentions(text)
+  if (text) return normalizeCompiledPromptResourceMentions(text)
   throw new Error('compiled content unit prompt has no text')
+}
+
+function normalizeCompiledPromptResourceMentions(text: string): string {
+  const mentions = parseResourceMentions(text)
+  if (mentions.length === 0) return text
+  let normalized = ''
+  let lastIndex = 0
+  for (const mention of mentions) {
+    normalized += text.slice(lastIndex, mention.index)
+    normalized += formatResourceMention(mention.id, {
+      ...(mention.mediaType ? { mediaType: mention.mediaType } : {}),
+      ...(mention.role ? { role: mention.role } : {}),
+    })
+    lastIndex = mention.index + mention.token.length
+  }
+  return normalized + text.slice(lastIndex)
 }
 
 export function compiledContentUnitGenerationPromptResourceIds(prompt: Record<string, unknown>): number[] {
@@ -401,8 +404,16 @@ function referenceAssetsFromValue(value: unknown): PromptReferenceAssetIntent[] 
     if (resourceId === undefined) return []
     const role = stringField(record.role)
     const mediaType = stringField(record.media_type ?? record.mediaType)
+    const referenceId = stringField(record.reference_id ?? record.referenceId)
+    const sourceKind = stringField(record.source_kind ?? record.sourceKind)
+    const sourceId = stringOrNumberField(record.source_id ?? record.sourceId)
+    const sourceRef = stringOrNumberField(record.source_ref ?? record.sourceRef)
     return [{
       resource_id: resourceId,
+      ...(referenceId ? { reference_id: referenceId } : {}),
+      ...(sourceKind ? { source_kind: sourceKind } : {}),
+      ...(sourceId !== undefined ? { source_id: sourceId } : {}),
+      ...(sourceRef !== undefined ? { source_ref: sourceRef } : {}),
       ...(role ? { role } : {}),
       ...(mediaType ? { media_type: mediaType } : {}),
     }]
@@ -438,6 +449,11 @@ function numericId(value: unknown): number | undefined {
     if (Number.isInteger(numberValue) && numberValue > 0) return numberValue
   }
   return undefined
+}
+
+function stringOrNumberField(value: unknown): string | number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  return stringField(value)
 }
 
 function stringField(value: unknown): string | undefined {

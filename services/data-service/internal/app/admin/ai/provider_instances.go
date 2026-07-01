@@ -137,20 +137,10 @@ func providerInstanceAIGatewayCapabilities(def *infraai.AdapterDef) []string {
 	}
 	for _, set := range def.ParamSets {
 		switch set.Capability {
-		case infraai.CapabilityImageEdit:
-			add("image.edit")
-		case infraai.CapabilityAudioTTS:
-			add("audio.speech")
-		case infraai.CapabilityAudioSTT:
-			add("audio.transcribe")
-		case infraai.CapabilityAudioMusic:
-			add("audio.music")
-		case infraai.CapabilityAudioSFX:
-			add("audio.sfx")
-		case infraai.CapabilitySubAlign:
-			add("audio.align")
-		case infraai.CapabilitySubTranslate:
-			add("subtitle.translate")
+		case infraai.CapabilityFamilyImageGeneration:
+			add("image.generation")
+		case infraai.CapabilityFamilyAudioGeneration:
+			add("audio.generation")
 		}
 	}
 	return out

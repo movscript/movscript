@@ -138,7 +138,7 @@ test('core canvas runtime sorts graph dependencies and keeps cycles stable', () 
   ]).map((node) => node.id), ['a', 'b'])
 })
 
-test('core canvas runtime derives prompt and resource inputs from node data and upstream values', () => {
+test('core canvas runtime derives prompt and pooled resource inputs from node data and upstream values', () => {
   const inputs = {
     prompt: [{ type: 'text', text: 'rough workspace' }],
     reference: [
@@ -158,7 +158,7 @@ test('core canvas runtime derives prompt and resource inputs from node data and 
   assert.deepEqual(resourceIdsFromCanvasPrompt(node.data.prompt), [55, 42])
   assert.deepEqual(resourceIdsFromCanvasPrompt('legacy [[resource::55]] then @[resource:42]'), [55, 42])
   assert.deepEqual(inputResourceIdsFromValues(inputs), [42, 77])
-  assert.deepEqual(runtimeResourceIdsForNode(node, inputs), [55, 42, 99, 77])
+  assert.deepEqual(runtimeResourceIdsForNode(node, inputs), [42, 99, 77])
 })
 
 test('core canvas runtime detects and selects populated runtime values', () => {

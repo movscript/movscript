@@ -121,15 +121,7 @@ function createLocalProjectContentAPI(options: LocalProjectContentAPIOptions): S
     createMovScriptEngineExpressionUnit: (input) => projectSourceOperation('/v1/project/expression-units/create', input),
     createMovScriptEngineKeyframe: (input) => projectSourceOperation('/v1/project/keyframes/create', input),
     createMovScriptEngineStoryboard: (input) => projectSourceOperation('/v1/project/storyboards/create', input),
-    ensureMovScriptEngineContentUnitForEntity: (input) => {
-      const payload = payloadInput(input)
-      return projectSourceOperation(
-        isTimelineAssemblyContentUnitInput(payload)
-          ? '/v1/project/timeline-assemblies/content-unit/ensure'
-          : '/v1/project/content-units/ensure',
-        input,
-      )
-    },
+    ensureMovScriptEngineContentUnitForEntity: (input) => projectSourceOperation('/v1/project/content-units/ensure', input),
     createMovScriptEngineContentCandidate: async (input) => {
       const result = await candidateAction('/v1/project/content-candidates/create', stripProjectEnvelope(input))
       return candidateRecordFromResult(result)
@@ -274,15 +266,6 @@ function contentCanvasProjectCommandInput(input: unknown): ProjectInput {
 function candidateRecordFromResult(result: unknown): unknown {
   const record = recordValue(result)
   return recordValue(record.record) ?? recordValue(record.candidate) ?? result
-}
-
-function isTimelineAssemblyContentUnitInput(input: ProjectInput): boolean {
-  const targetKind = stringValue(input.targetKind ?? input.target_kind)
-  const contentUnitType = stringValue(input.contentUnitType ?? input.content_unit_type)
-  const targetRef = stringValue(input.targetRef ?? input.target_ref)
-  return targetKind === 'timeline_assembly'
-    || contentUnitType === 'timeline_assembly_ref'
-    || Boolean(targetRef?.startsWith('timeline_assembly:'))
 }
 
 function isNamespaceHierarchyNodeInput(input: ProjectInput): boolean {

@@ -303,10 +303,9 @@ test('regeneration plan reads latest impact report for namespace context changes
     kind: 'content_unit',
     id: 'cu_opening_assembly',
     title: 'Opening assembly',
-    content_unit_type: 'timeline_assembly_ref',
+    content_unit_type: 'segment_ref',
     output_kind: 'video',
-    target_kind: 'timeline_assembly',
-    target_ref: 'timeline_assembly:segment:a19d',
+    segment_ref: 'a19d',
     edit_prompt: { text: 'Compose the opening assembly.' },
   }))
   const repository = memoryWorkspaceFileRepository(files)

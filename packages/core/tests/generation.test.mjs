@@ -114,6 +114,37 @@ test('core generation job payload requires structured reference assets', () => {
     operation: 'image_to_video',
     reference_assets: [{ role: 'reference_image', media_type: 'image', resource_id: 7 }],
   })
+
+  assert.deepEqual(buildGenerationJobPayload({
+    modelId: 'video.workspace',
+    jobType: 'video',
+    title: 'Video job',
+    prompt: 'make a shot',
+    params: {},
+    inputResourceIds: [7],
+    sourceKey: 'tool.video',
+    generationIntent: {
+      capability: 'video_generation',
+      operation: 'image_to_video',
+      reference_assets: [{
+        reference_id: 'ref_1',
+        source_kind: 'asset',
+        source_id: 'wet_hair',
+        source_ref: '{{ref:ref_1}}',
+        role: 'reference_image',
+        media_type: 'image',
+        resource_id: 7,
+      }],
+    },
+  }).generation_intent.reference_assets, [{
+    reference_id: 'ref_1',
+    source_kind: 'asset',
+    source_id: 'wet_hair',
+    source_ref: '{{ref:ref_1}}',
+    role: 'reference_image',
+    media_type: 'image',
+    resource_id: 7,
+  }])
 })
 
 test('compiled content-unit prompt exposes typed reference assets', () => {
@@ -133,6 +164,27 @@ test('compiled content-unit prompt exposes typed reference assets', () => {
   assert.deepEqual(generationReferenceAssetsFromPromptText('use {{resource::203 role=first_frame media=image}}'), [
     { role: 'first_frame', media_type: 'image', resource_id: 203 },
   ])
+
+  assert.deepEqual(compiledContentUnitGenerationPromptReferenceAssets({
+    text: 'animate @[resource:image:first_frame:101]',
+    reference_assets: [{
+      reference_id: 'ref_first_frame',
+      source_kind: 'asset',
+      source_id: 'wet_hair',
+      source_ref: '{{ref:ref_first_frame}}',
+      role: 'first_frame',
+      media_type: 'image',
+      resource_id: 101,
+    }],
+  }), [{
+    reference_id: 'ref_first_frame',
+    source_kind: 'asset',
+    source_id: 'wet_hair',
+    source_ref: '{{ref:ref_first_frame}}',
+    role: 'first_frame',
+    media_type: 'image',
+    resource_id: 101,
+  }])
 })
 
 test('generation readiness blocks missing first and last frame references before submit', () => {
@@ -207,11 +259,11 @@ test('prompt composer operation options exclude prompt-only generation when refe
   const operations = generationOperationOptionsForOutputKind('image', imageRefs).map((item) => item.value)
 
   assert(!operations.includes('text_to_image'))
-  assert(operations.includes('image_to_image'))
   assert(operations.includes('reference_to_image'))
+  assert(operations.includes('edit_image'))
 
   assert.equal(generationOperationAcceptsReferences('text_to_image', imageRefs), false)
-  assert.equal(generationOperationAcceptsReferences('image_to_image', imageRefs), true)
+  assert.equal(generationOperationAcceptsReferences('edit_image', imageRefs), true)
 })
 
 test('prompt composer requires explicit first and last frame roles', () => {
@@ -264,11 +316,14 @@ test('prompt composer exposes shared reference role labels and options', () => {
     'first_frame',
     'last_frame',
     'style_reference',
+    'character_reference',
+    'product_reference',
+    'target_image',
+    'mask',
   ])
   assert.deepEqual(generationReferenceRoleOptionsForMediaType('video').map((option) => option.value), [
     'reference_video',
-    'motion_reference',
-    'source_video',
+    'target_video',
   ])
   assert.equal(generationReferenceRoleLabel('first_frame'), '首帧')
   assert.equal(generationReferenceRoleLabel('reference_audio'), '音频参考')
@@ -302,7 +357,7 @@ test('generation resolver derives available models from references instead of a 
 
   assert.deepEqual(result.profile.labels, ['首帧生视频'])
   assert.equal(result.matches[0].model_id, 'cross-over-video')
-  assert.equal(result.matches[0].legacy_operation, 'first_frame_to_video')
+  assert.equal(result.matches[0].selected_operation, 'first_frame_to_video')
   assert.equal(result.blocked[0].model_id, 'prompt-video')
 })
 
@@ -329,7 +384,7 @@ test('core generation job payload omits params whose requires_value is not satis
     },
     supportedParams,
     inputResourceIds: [],
-    sourceKey: 'ref_image_gen',
+    sourceKey: 'reference_to_image',
   }).extra_params, JSON.stringify({
     sequential_image_generation: 'disabled',
     watermark: true,
@@ -347,7 +402,7 @@ test('core generation job payload omits params whose requires_value is not satis
     },
     supportedParams,
     inputResourceIds: [],
-    sourceKey: 'ref_image_gen',
+    sourceKey: 'reference_to_image',
   }).extra_params, JSON.stringify({
     sequential_image_generation: 'auto',
     image_count: 1,
@@ -400,7 +455,7 @@ test('core content-unit generation candidates preserve submitted model parameter
   const plan = buildContentUnitGenerationOutputCandidate({
     contentUnitId: 'cu_arrival',
     outputKind: 'image',
-    job: { ID: 94, status: 'succeeded', job_type: 'image_edit' },
+    job: { ID: 94, status: 'succeeded', job_type: 'image' },
     resourceId: 880,
     promptSnapshot,
   })
@@ -408,21 +463,21 @@ test('core content-unit generation candidates preserve submitted model parameter
   assert.equal(promptSnapshot.model_id, 'image.model')
   assert.deepEqual(promptSnapshot.model_params, { image_size: '1024x1024', quality: 'standard' })
   assert.equal(plan.producer.model_id, 'image.model')
-  assert.equal(plan.producer.job_type, 'image_edit')
+  assert.equal(plan.producer.job_type, 'image')
   assert.deepEqual(plan.producer.model_params, { image_size: '1024x1024', quality: 'standard' })
   assert.equal(plan.outputs[0].metadata.model_id, 'image.model')
-  assert.equal(plan.outputs[0].metadata.job_type, 'image_edit')
+  assert.equal(plan.outputs[0].metadata.job_type, 'image')
   assert.deepEqual(plan.promptSnapshot.model_params, { image_size: '1024x1024', quality: 'standard' })
 })
 
-test('core content-unit generation normalizes resource mentions into structured inputs', () => {
+test('core content-unit generation keeps resource mentions while normalizing structured inputs', () => {
   const compiledPrompt = {
     text: 'Use @[resource:7] and [[resource::8]] and {{resource::11}} as references.',
     negative_text: 'Do not drift from [[resource::9]].',
     resource_ids: [7, 10],
   }
 
-  assert.equal(compiledContentUnitGenerationPromptText(compiledPrompt), 'Use and and as references.')
+  assert.equal(compiledContentUnitGenerationPromptText(compiledPrompt), 'Use @[resource:7] and @[resource:8] and @[resource:11] as references.')
   assert.deepEqual(compiledContentUnitGenerationPromptResourceIds(compiledPrompt), [7, 8, 11, 9, 10])
 
   const request = buildContentUnitGenerationRequest({
@@ -443,7 +498,7 @@ test('core content-unit generation normalizes resource mentions into structured 
     },
   })
 
-  assert.equal(request.promptText, 'Use and and as references.')
+  assert.equal(request.promptText, 'Use @[resource:7] and @[resource:8] and @[resource:11] as references.')
   assert.deepEqual(request.inputResourceIds, [7, 8, 11, 9, 10])
   assert.equal(request.jobType, 'video')
 })
@@ -451,47 +506,47 @@ test('core content-unit generation normalizes resource mentions into structured 
 test('core generation job decisions derive effective job type from model capabilities and inputs', () => {
   assert.equal(resolveGenerationJobType({
     outputType: 'image',
-    model: { capabilities: ['image', 'image_edit'] },
+    model: { capabilities: ['image_generation'] },
     attachments: [{ type: 'image' }],
-  }), 'image_edit')
+  }), 'image')
   assert.equal(resolveGenerationJobType({
     outputType: 'image',
-    model: { capabilities: ['image', 'image_edit'] },
+    model: { capabilities: ['image_generation'] },
     attachments: [],
   }), 'image')
   assert.equal(resolveGenerationJobType({
     outputType: 'image',
-    model: { capabilities: ['image_edit'] },
+    model: { capabilities: ['image_generation'] },
     attachments: [],
-  }), 'image_edit')
+  }), 'image')
   assert.equal(resolveGenerationJobType({
     outputType: 'video',
-    model: { capabilities: ['video', 'video_v2v', 'video_i2v'] },
+    model: { capabilities: ['video_generation'] },
     attachments: [{ type: 'video' }, { type: 'image' }],
-  }), 'video_v2v')
+  }), 'video')
   assert.equal(resolveGenerationJobType({
     outputType: 'video',
-    model: { capabilities: ['video', 'video_i2v'] },
+    model: { capabilities: ['video_generation'] },
     attachments: [{ type: 'image' }],
-  }), 'video_i2v')
+  }), 'video')
   assert.equal(resolveGenerationJobType({
     outputType: 'video',
-    model: { capabilities: ['video_i2v'] },
+    model: { capabilities: ['video_generation'] },
     attachments: [],
-  }), 'video_i2v')
+  }), 'video')
   assert.equal(resolveGenerationJobType({
     outputType: 'audio',
-    model: { capabilities: ['audio_tts'] },
+    model: { capabilities: ['audio_generation'] },
     attachments: [],
-  }), 'audio_tts')
+  }), 'audio')
 })
 
 test('core generation job decisions expose model media support and param defaults', () => {
-  assert.equal(generationModelAcceptsImageInput({ capabilities: ['video_i2v'] }), true)
-  assert.equal(generationModelAcceptsImageInput({ capabilities: ['image'], accepts_image_input: true }), true)
-  assert.equal(generationModelAcceptsImageInput({ capabilities: ['image'] }), false)
-  assert.equal(generationModelAcceptsVideoInput({ capabilities: ['video_v2v'] }), true)
-  assert.equal(generationModelAcceptsVideoInput({ capabilities: ['video_i2v'] }), false)
+  assert.equal(generationModelAcceptsImageInput({ capabilities: ['video_generation'], input_requirements: { image: { max: 1 } } }), true)
+  assert.equal(generationModelAcceptsImageInput({ capabilities: ['image_generation'], accepts_image_input: true }), true)
+  assert.equal(generationModelAcceptsImageInput({ capabilities: ['image_generation'] }), false)
+  assert.equal(generationModelAcceptsVideoInput({ capabilities: ['video_generation'], input_requirements: { video: { max: 1 } } }), true)
+  assert.equal(generationModelAcceptsVideoInput({ capabilities: ['video_generation'] }), false)
   assert.deepEqual(generationParamDefaults({
     supported_params: [
       { key: 'quality', default: 'high' },
@@ -508,21 +563,19 @@ test('core generation job decisions derive resource-count job types and capabili
   assert.equal(resolveGenerationJobTypeFromResourceCount({
     outputType: 'image',
     inputResourceCount: 1,
-  }), 'image_edit')
+  }), 'image')
   assert.equal(resolveGenerationJobTypeFromResourceCount({
     outputType: 'video',
     inputResourceCount: 1,
-  }), 'video_i2v')
+  }), 'video')
   assert.equal(resolveGenerationJobTypeFromResourceCount({
     outputType: 'video',
     inputResourceCount: 1,
-    preferredVideoJobType: 'video_v2v',
-  }), 'video_v2v')
+  }), 'video')
   assert.equal(resolveGenerationJobTypeFromResourceCount({
     outputType: 'video',
     inputResourceCount: 0,
-    preferredVideoJobType: 'video_i2v',
-  }), 'video_i2v')
+  }), 'video')
   assert.equal(resolveGenerationCapabilityForResourceCount({
     outputType: 'video',
     inputResourceCount: 0,
@@ -530,11 +583,11 @@ test('core generation job decisions derive resource-count job types and capabili
   assert.equal(resolveGenerationCapabilityForResourceCount({
     outputType: 'image',
     inputResourceCount: 2,
-  }), 'image_edit')
+  }), 'image')
   assert.equal(resolveGenerationCapabilityForResourceCount({
     outputType: 'audio',
     inputResourceCount: 0,
-  }), 'audio_tts')
+  }), 'audio')
 })
 
 test('core generation canvas params choose model params before node defaults', () => {
@@ -551,7 +604,7 @@ test('core generation canvas params choose model params before node defaults', (
     'temperature',
     'max_tokens',
   ])
-  assert.deepEqual(canvasGenerationParamDefs('style_transfer').map((param) => param.key), [
+  assert.deepEqual(canvasGenerationParamDefs('reference_to_image').map((param) => param.key), [
     'aspect_ratio',
     'guidance_scale',
     'preserve_identity',

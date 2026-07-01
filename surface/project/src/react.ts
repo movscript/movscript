@@ -10,18 +10,6 @@ export { ProjectOverviewSurface } from './components/overview/ProjectOverviewSur
 export type { ProjectOverviewSurfaceProps } from './components/overview/ProjectOverviewSurface.js'
 export { ProjectProgressSurface } from './components/progress/ProjectProgressSurface.js'
 export type { ProjectProgressSurfaceProps } from './components/progress/ProjectProgressSurface.js'
-export {
-  ProjectEditDeskSurface,
-  buildEditDecisionHandoff,
-  buildTimelineAssemblyState,
-  buildWorkflowArtifactDebugView,
-} from './components/edit-desk/ProjectEditDeskSurface.js'
-export type {
-  EditDeskHandoffBundle,
-  ProjectEditDeskSurfaceProps,
-  TimelineAssemblyState,
-  WorkflowArtifactDebugView,
-} from './components/edit-desk/ProjectEditDeskSurface.js'
 export { ProjectSurfaceRouteView } from './components/routes/ProjectSurfaceRouteView.js'
 export type {
   ProjectSurfaceReadModelStatus,

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -86,6 +86,16 @@ async function waitForMediaPipelineTask(baseUrl, taskId, status) {
     await new Promise(resolve => setTimeout(resolve, 25))
   }
   throw new Error(`expected task ${taskId} to reach ${status}; latest=${JSON.stringify(latest)}`)
+}
+
+async function waitForMcpResultWatch(watchId, status) {
+  let latest
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    latest = await callTool('editing_result_watch_get', { watchId })
+    if (latest.watch?.status === status) return latest.watch
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
+  throw new Error(`watch ${watchId} did not reach ${status}; latest=${JSON.stringify(latest)}`)
 }
 
 test('MCP editing project and timeline tools apply pure MediaEditingProject edits', async () => {
@@ -269,23 +279,29 @@ test('MCP editing project and timeline tools apply pure MediaEditingProject edit
   assert.equal(localExport.candidate_created, false)
 })
 
-test('MCP editing video compose creates edit-decision projects and preserves runtime blockers', async () => {
-  const created = await callTool('editing_project_create_from_edit_decisions', {
+test('MCP editing video compose requires an explicit MediaEditingProject and preserves runtime blockers', async () => {
+  const editingProject = sampleEditingProject()
+
+  const legacyHandoff = await callToolResponse('editing_video_compose', {
     projectId: 'project-tools',
-    title: 'Compose project',
-    editDecisions: sampleEditDecisions(),
-    assetManifest: sampleAssetManifest(),
+    render_runtime: 'ffmpeg',
+    edit_decisions: { cuts: [] },
+    asset_manifest: { assets: [] },
   })
-  assert.equal(created.status, 'ok')
-  assert.equal(created.editing_project.source.kind, 'edit_decisions')
-  assert.equal(created.editing_project.timeline.tracks[0].id, 'track_primary_video')
-  assert.equal(created.editing_project.timeline.tracks[0].clips[0].asset.resourceId, 701)
+  assert.equal(legacyHandoff?.result, undefined)
+  assert.match(legacyHandoff?.error?.message ?? '', /no longer accepts editDecisions\/assetManifest/)
+
+  const missingProject = await callToolResponse('editing_video_compose', {
+    projectId: 'project-tools',
+    render_runtime: 'ffmpeg',
+  })
+  assert.equal(missingProject?.result, undefined)
+  assert.match(missingProject?.error?.message ?? '', /editingProject or editingProjectId is required/)
 
   const unsupportedRuntime = await callTool('editing_video_compose', {
     projectId: 'project-tools',
     render_runtime: 'hyperframes',
-    edit_decisions: sampleEditDecisions(),
-    asset_manifest: sampleAssetManifest(),
+    editing_project: editingProject,
   })
   assert.equal(unsupportedRuntime.status, 'unsupported_runtime')
   assert.equal(unsupportedRuntime.render_runtime, 'hyperframes')
@@ -294,9 +310,7 @@ test('MCP editing video compose creates edit-decision projects and preserves run
   const compose = await callTool('editing_video_compose', {
     projectId: 'project-tools',
     render_runtime: 'ffmpeg',
-    timelineAssembly: sampleTimelineAssembly(),
-    edit_decisions: sampleEditDecisions(),
-    asset_manifest: sampleAssetManifest(),
+    editing_project: editingProject,
     output: { format: 'mp4' },
   })
   assert.ok(['ok', 'unsupported_runtime'].includes(compose.status))
@@ -306,17 +320,16 @@ test('MCP editing video compose creates edit-decision projects and preserves run
     assert.equal(compose.task.taskType, 'timeline_render')
   }
   assert.equal(compose.render_runtime, 'ffmpeg')
-  assert.equal(compose.editing_project.source.kind, 'edit_decisions')
-  assert.equal(compose.compile_manifest.schema, 'movscript.timeline_assembly.compile_manifest.v1')
-  assert.equal(compose.compile_manifest.status, 'ready')
-  assert.equal(compose.compile_result.status, 'ready')
-  assert.equal(compose.editing_project.provenance.sourceHash, compose.compile_manifest.input_hash)
-  assert.equal(compose.editing_project.timeline.metadata.compileManifestId, compose.compile_manifest.id)
+  assert.equal(compose.editing_project.source.kind, 'manual')
+  assert.notEqual(compose.editing_project.source.targetKind, 'timeline_assembly')
+  assert.equal(compose.compile_manifest, undefined)
+  assert.equal(compose.compile_result, undefined)
+  assert.equal(compose.editing_project.timeline.metadata.compileManifestId, undefined)
   assert.equal(compose.validation.valid, true)
   assert.equal(compose.candidate_created, false)
 })
 
-test('MCP editing video compose renders a TimelineAssembly and local asset through MediaPipeline', async () => {
+test('MCP editing video compose renders an explicit MediaEditingProject with local assets through MediaPipeline', async () => {
   const tempDir = await mkdtemp(join(tmpdir(), 'movscript-core-video-compose-'))
   const fakeFFmpeg = join(tempDir, 'ffmpeg')
   const sourcePath = join(tempDir, 'clip.mp4')
@@ -352,12 +365,11 @@ test('MCP editing video compose renders a TimelineAssembly and local asset throu
   delete process.env.MOVSCRIPT_MEDIA_PIPELINE_BASE_URL
 
   try {
+    const editingProject = sampleLocalEditingProject(sourcePath)
     const compose = await callTool('editing_video_compose', {
       projectId: 'project-tools-mvp',
       render_runtime: 'ffmpeg',
-      timelineAssembly: sampleLocalTimelineAssembly(),
-      edit_decisions: sampleLocalEditDecisions(),
-      asset_manifest: sampleLocalAssetManifest(sourcePath),
+      editing_project: editingProject,
       output: {
         format: 'mp4',
         filename: 'timeline-mvp.mp4',
@@ -368,8 +380,8 @@ test('MCP editing video compose renders a TimelineAssembly and local asset throu
     assert.equal(compose.render_runtime, 'ffmpeg')
     assert.equal(compose.render_runtime_used, 'movscript_media_pipeline_ffmpeg')
     assert.equal(compose.task.taskType, 'timeline_render')
-    assert.equal(compose.compile_manifest.status, 'ready')
-    assert.equal(compose.compile_result.status, 'ready')
+    assert.equal(compose.compile_manifest, undefined)
+    assert.equal(compose.compile_result, undefined)
     assert.equal(compose.validation.valid, true)
     assert.equal(compose.editing_project.timeline.tracks[0].clips[0].asset.localPath, sourcePath)
     assert.equal(compose.render_report.task_id, compose.task.taskId)
@@ -387,6 +399,158 @@ test('MCP editing video compose renders a TimelineAssembly and local asset throu
     })
     assert.equal(taskFromTool.task.status, 'succeeded')
     assert.equal(taskFromTool.task.outputPath, completedTask.outputPath)
+
+    const resultFromTool = await callTool('editing_result_get', {
+      resultId: completedTask.resultId,
+    })
+    assert.equal(resultFromTool.status, 'found')
+    assert.equal(resultFromTool.result.taskId, compose.task.taskId)
+    assert.equal(resultFromTool.result.backend, 'media_editing_project')
+    assert.equal(resultFromTool.result.outputPath, completedTask.outputPath)
+
+    const listedResults = await callTool('editing_result_list', {
+      projectId: 'project-tools-mvp',
+      backend: 'media_editing_project',
+    })
+    assert.equal(listedResults.status, 'ok')
+    assert.equal(listedResults.count, 1)
+    assert.equal(listedResults.results[0].resultId, completedTask.resultId)
+
+    const localExportFromResult = await callTool('editing_export_save_local', {
+      resultId: completedTask.resultId,
+    })
+    assert.equal(localExportFromResult.status, 'ok')
+    assert.equal(localExportFromResult.output_path, completedTask.outputPath)
+    assert.equal(localExportFromResult.result_id, completedTask.resultId)
+    assert.equal(localExportFromResult.uploaded, false)
+    assert.equal(localExportFromResult.candidate_created, false)
+
+    const exchangeDirectory = join(tempDir, 'exchange')
+    const exchangeProjectPath = join(exchangeDirectory, 'movscript-edit.fcpxml')
+    await mkdir(exchangeDirectory, { recursive: true })
+    await writeFile(exchangeProjectPath, '<fcpxml version="1.11" />\n', 'utf8')
+    const openedExternalNle = await callTool('editing_external_nle_open', {
+      exchangeProjectPath,
+      externalApp: 'final_cut_pro',
+      dryRun: true,
+      platform: 'darwin',
+    })
+    assert.equal(openedExternalNle.schema, 'movscript.editing.external_nle.open_result.v1')
+    assert.equal(openedExternalNle.status, 'planned')
+    assert.equal(openedExternalNle.opened, false)
+    assert.equal(openedExternalNle.dry_run, true)
+    assert.equal(openedExternalNle.exchange_project_path, exchangeProjectPath)
+    assert.equal(openedExternalNle.app_name, 'Final Cut Pro')
+    assert.deepEqual(openedExternalNle.command, {
+      executable: 'open',
+      argv: ['-a', 'Final Cut Pro', exchangeProjectPath],
+    })
+    assert.equal(openedExternalNle.candidate_created, false)
+
+    const registeredExternalResult = await callTool('editing_result_register', {
+      resultId: 'external-nle-mcp-result',
+      projectId: 'project-tools-mvp',
+      taskId: 'external-nle-task',
+      backend: 'external_nle',
+      kind: 'fcpxml',
+      outputPath: '/tmp/external-nle.fcpxml',
+    })
+    assert.equal(registeredExternalResult.status, 'registered')
+    assert.equal(registeredExternalResult.result.backend, 'external_nle')
+    assert.equal(registeredExternalResult.result.outputPath, '/tmp/external-nle.fcpxml')
+
+    const externalNleDir = join(tempDir, 'external-nle-output')
+    const externalNleOutputPath = join(externalNleDir, 'editor-final.mov')
+    await mkdir(externalNleDir, { recursive: true })
+    await writeFile(externalNleOutputPath, 'fake external nle output', 'utf8')
+    const recoveredExternalResult = await callTool('editing_result_recover_external_nle', {
+      projectId: 'project-tools-mvp',
+      resultId: 'external-nle-recovered-mcp',
+      outputDirectory: externalNleDir,
+      exchangeProjectPath: join(tempDir, 'exchange', 'movscript-edit.fcpxml'),
+      externalApp: 'final_cut_pro',
+      reviewer: 'editor',
+      reviewStatus: 'approved',
+    })
+    assert.equal(recoveredExternalResult.status, 'registered')
+    assert.equal(recoveredExternalResult.recovered, true)
+    assert.equal(recoveredExternalResult.candidate_created, false)
+    assert.equal(recoveredExternalResult.result.resultId, 'external-nle-recovered-mcp')
+    assert.equal(recoveredExternalResult.result.backend, 'external_nle')
+    assert.equal(recoveredExternalResult.result.kind, 'mov')
+    assert.equal(recoveredExternalResult.result.outputKind, 'video')
+    assert.equal(recoveredExternalResult.result.outputPath, externalNleOutputPath)
+    assert.equal(recoveredExternalResult.result.source, 'external_nle_result_recovery')
+    assert.equal(recoveredExternalResult.result.provenance.external_app, 'final_cut_pro')
+    assert.equal(recoveredExternalResult.result.provenance.review_status, 'approved')
+
+    const recoveredExternalResultFromRegistry = await callTool('editing_result_get', {
+      resultId: 'external-nle-recovered-mcp',
+    })
+    assert.equal(recoveredExternalResultFromRegistry.status, 'found')
+    assert.equal(recoveredExternalResultFromRegistry.result.outputPath, externalNleOutputPath)
+
+    const externalNleHlsDir = join(tempDir, 'external-nle-hls')
+    const externalNleManifestPath = join(externalNleHlsDir, 'index.m3u8')
+    const externalNleSegmentPath = join(externalNleHlsDir, 'segment0.ts')
+    await mkdir(externalNleHlsDir, { recursive: true })
+    await writeFile(externalNleManifestPath, '#EXTM3U\n#EXTINF:1,\nsegment0.ts\n', 'utf8')
+    await writeFile(externalNleSegmentPath, 'fake external nle segment', 'utf8')
+    const recoveredExternalHlsResult = await callTool('editing_result_recover_external_nle', {
+      projectId: 'project-tools-mvp',
+      resultId: 'external-nle-hls-recovered-mcp',
+      outputDirectory: externalNleHlsDir,
+      externalApp: 'davinci_resolve',
+      reviewStatus: 'approved',
+    })
+    assert.equal(recoveredExternalHlsResult.status, 'registered')
+    assert.equal(recoveredExternalHlsResult.result.backend, 'external_nle')
+    assert.equal(recoveredExternalHlsResult.result.kind, 'hls')
+    assert.equal(recoveredExternalHlsResult.result.outputKind, 'hls_stream')
+    assert.equal(recoveredExternalHlsResult.result.hlsManifestPath, externalNleManifestPath)
+    assert.equal(recoveredExternalHlsResult.result.hlsDirectory, externalNleHlsDir)
+    assert.deepEqual(recoveredExternalHlsResult.result.hlsSegmentPaths, [externalNleSegmentPath])
+
+    const externalNleWatchDir = join(tempDir, 'external-nle-watch')
+    const externalNleWatchOutputPath = join(externalNleWatchDir, 'editor-background-final.mov')
+    await mkdir(externalNleWatchDir, { recursive: true })
+    const watchCreated = await callTool('editing_result_watch_external_nle_create', {
+      projectId: 'project-tools-mvp',
+      watchId: 'external-nle-watch-mcp',
+      resultId: 'external-nle-background-watch-mcp',
+      outputDirectory: externalNleWatchDir,
+      pollIntervalMs: 25,
+      timeoutMs: 3000,
+      externalApp: 'premiere',
+      reviewStatus: 'approved',
+    })
+    assert.equal(watchCreated.status, 'watching')
+    assert.equal(watchCreated.watch.watchId, 'external-nle-watch-mcp')
+    assert.equal(watchCreated.watch.status, 'watching')
+    setTimeout(() => {
+      writeFile(externalNleWatchOutputPath, 'fake external nle background output', 'utf8').catch(() => {})
+    }, 100)
+
+    const completedWatch = await waitForMcpResultWatch('external-nle-watch-mcp', 'succeeded')
+    assert.equal(completedWatch.resultId, 'external-nle-background-watch-mcp')
+    assert.equal(completedWatch.result.backend, 'external_nle')
+    assert.equal(completedWatch.result.source, 'external_nle_background_watch')
+    assert.equal(completedWatch.result.outputPath, externalNleWatchOutputPath)
+    assert.equal(completedWatch.result.provenance.recovery, 'background_watch')
+    assert.equal(completedWatch.result.provenance.external_app, 'premiere')
+
+    const backgroundWatchResultFromRegistry = await callTool('editing_result_get', {
+      resultId: 'external-nle-background-watch-mcp',
+    })
+    assert.equal(backgroundWatchResultFromRegistry.status, 'found')
+    assert.equal(backgroundWatchResultFromRegistry.result.outputPath, externalNleWatchOutputPath)
+
+    const listedWatches = await callTool('editing_result_watch_list', {
+      projectId: 'project-tools-mvp',
+      status: 'succeeded',
+    })
+    assert.equal(listedWatches.status, 'ok')
+    assert.ok(listedWatches.watches.some((watch) => watch.watchId === 'external-nle-watch-mcp'))
   } finally {
     if (previousMediaPipelineURL === undefined) {
       delete process.env.MOVSCRIPT_MEDIA_PIPELINE_URL
@@ -506,95 +670,66 @@ test('MCP editing timeline validation reports structural timeline diagnostics', 
   assert.ok(codes.includes('subtitle_reference_missing'))
 })
 
-function sampleEditDecisions() {
+function sampleEditingProject(options = {}) {
+  const projectId = options.projectId ?? 'project-tools'
+  const sourcePath = options.sourcePath ?? '/tmp/intro.mp4'
+  const durationMs = options.durationMs ?? 3000
+  const asset = {
+    id: 'clip_intro',
+    sourceKind: 'local_file',
+    assetType: 'video',
+    localPath: sourcePath,
+    mimeType: 'video/mp4',
+    label: 'Intro',
+  }
   return {
     version: 1,
-    render_runtime: 'ffmpeg',
-    cuts: [{
-      id: 'cut_intro',
-      source: 'clip_intro',
-      in_seconds: 0,
-      out_seconds: 3,
-    }],
-    audio: {
-      music: {
-        asset_id: 'music_bed',
-        volume: 0.4,
-      },
-    },
-  }
-}
-
-function sampleTimelineAssembly() {
-  return {
-    schema: 'movscript.timeline_assembly.v1',
-    id: 'assembly_project_tools',
-    target_ref: 'timeline_assembly:production:pilot',
-    scope_kind: 'production',
-    scope_ref: 'pilot',
-    tracks: [{ id: 'video_main', kind: 'video' }],
-    clips: [{
-      id: 'clip_intro',
-      track_id: 'video_main',
-      kind: 'visual',
-      source: { resource_id: 701 },
-    }],
-  }
-}
-
-function sampleAssetManifest() {
-  return {
-    assets: [
-      { id: 'clip_intro', type: 'video', resource_id: 701, label: 'Intro' },
-      { id: 'music_bed', type: 'audio', resource_id: 702, label: 'Music' },
-    ],
-  }
-}
-
-function sampleLocalEditDecisions() {
-  return {
-    version: 1,
-    render_runtime: 'ffmpeg',
-    cuts: [{
-      id: 'cut_intro',
-      source: 'clip_intro',
-      in_seconds: 0,
-      out_seconds: 1.25,
-      transition_out: 'cut',
-      reason: 'MVP single selected source clip',
-    }],
-  }
-}
-
-function sampleLocalTimelineAssembly() {
-  return {
-    schema: 'movscript.timeline_assembly.v1',
-    id: 'assembly_project_tools_mvp',
-    target_ref: 'timeline_assembly:production:mvp',
-    scope_kind: 'production',
-    scope_ref: 'mvp',
-    tracks: [{ id: 'video_main', kind: 'video' }],
-    clips: [{
-      id: 'clip_intro',
-      track_id: 'video_main',
-      kind: 'visual',
-      source: { asset_id: 'clip_intro' },
-    }],
-  }
-}
-
-function sampleLocalAssetManifest(sourcePath) {
-  return {
-    assets: [
-      {
-        id: 'clip_intro',
+    id: options.id ?? 'editing_project_compose_ready',
+    projectId,
+    title: options.title ?? 'Ready cut',
+    source: { kind: 'manual' },
+    assets: { assets: [asset] },
+    timeline: {
+      version: 1,
+      id: options.timelineId ?? 'timeline_compose_ready',
+      fps: 30,
+      width: 1920,
+      height: 1080,
+      background: '#000000',
+      durationMs,
+      metadata: {},
+      tracks: [{
+        id: 'track_main',
         type: 'video',
-        path: sourcePath,
-        label: 'Selected local intro',
-        candidate_id: 'cand_clip_intro_selected',
-      },
-    ],
+        zIndex: 0,
+        clips: [{
+          id: 'clip_intro',
+          assetType: 'video',
+          assetId: asset.id,
+          asset,
+          timelineStartMs: 0,
+          durationMs,
+          sourceStartMs: 0,
+          sourceEndMs: durationMs,
+          fit: 'cover',
+        }],
+      }],
+    },
+    createdAt: '2026-06-24T00:00:00.000Z',
+    updatedAt: '2026-06-24T00:00:00.000Z',
+    revision: 1,
   }
+}
+
+function sampleLocalEditingProject(sourcePath) {
+  return sampleEditingProject({
+    projectId: 'project-tools-mvp',
+    id: 'editing_project_local_compose',
+    timelineId: 'timeline_local_compose',
+    title: 'Local compose',
+    sourcePath,
+    durationMs: 1250,
+  })
 }
 
 test('MCP editing tools reject malformed MediaEditingProject envelopes before mutation', async () => {
@@ -706,11 +841,10 @@ test('MCP editing export candidate creation is explicit domain state, not an Ele
     candidateId: 'cand_final_hls',
     taskId: 'task_hls_1',
   })
-  assert.equal(hlsResponse?.error, undefined)
-  assert.equal(hlsResponse?.result?.data?.status, 'unsupported_output')
-  assert.equal(hlsResponse?.result?.data?.code, 'HLS_STREAM_CANDIDATE_UNSUPPORTED')
-  assert.equal(hlsResponse?.result?.data?.streamId, 41)
-  assert.notEqual(hlsResponse?.result?.data?.code, 'ELECTRON_EDITING_RUNTIME_REQUIRED')
+  assert.equal(hlsResponse?.result, undefined)
+  assert.match(hlsResponse?.error?.message ?? '', /projectDir or cwd is required/)
+  assert.doesNotMatch(hlsResponse?.error?.message ?? '', /HLS_STREAM_CANDIDATE_UNSUPPORTED/)
+  assert.doesNotMatch(hlsResponse?.error?.message ?? '', /ELECTRON_EDITING_RUNTIME_REQUIRED/)
 
   const response = await callToolResponse('editing_export_create_candidate', {
     contentUnitId: 'cu_final_cut',

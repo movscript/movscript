@@ -24,13 +24,13 @@ Before creating a new production or timeline namespace root:
 3. If none of the known shapes fits, use `custom` and name the user's internal timeline layers explicitly, such as `hook`, `proof`, `demo`, `cta`, `chapter`, `module`, `case`, or any domain-specific terms the user provides.
 4. Write new nontrivial structures with `domain_upsert_timeline_namespace_tree`. Store user vocabulary on nodes with `namespace_kind` / `timeline_namespace_kind`; let path placement express the concrete parent tree.
 5. Keep system primitives stable. Custom namespace nodes organize scope, order, and review boundaries; `scene_moment`, `expression_unit`, `storyboard`, `keyframe`, `asset`, and `content_unit` remain the makeable and trackable production objects.
-6. When a namespace scope needs an output video, use a `timeline_assembly_ref` content unit. Do not invent namespace-specific content-unit types such as `episode_ref`, `module_ref`, or `beat_ref`.
+6. When a namespace scope needs playable assembly or finishing, hand off to a production editing workspace. Do not invent namespace-specific content-unit types such as `episode_ref`, `module_ref`, or `beat_ref`.
 
 ## Output Granularity Decision
 
 Before writing entities, decide what is actually being produced:
 
-1. Decide whether the request is one output, one visual expression unit, one `scene_moment`, multiple scene moments, or a built-in/custom timeline namespace scope that needs a `timeline_assembly_ref` output.
+1. Decide whether the request is one output, one visual expression unit, one `scene_moment`, multiple scene moments, or a built-in/custom timeline namespace scope that needs production editing assembly.
 2. Keep each `scene_moment` short and atomic, normally about 10 seconds or less. If the request spans multiple actions, time/place changes, or independently reviewable beats, split it into multiple scene moments.
 3. Choose the working center. Use a visual `expression_unit` when camera framing, blocking, motion, timing, or a single clip material is the main deliverable. Use `scene_moment` when the deliverable is a complete narrative beat that may contain one or more visual materials.
 4. Decide whether the working center needs evidence for consistency. Use `setting`, `setting_state`, and `asset` for concrete reusable production entities, state namespaces, and state asset references; `keyframe` and `storyboard` for shot visual anchors; `expression_unit` and `audio_cue` for performance, text, voice, sound, or ambience.

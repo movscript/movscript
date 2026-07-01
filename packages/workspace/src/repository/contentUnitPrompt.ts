@@ -7,10 +7,36 @@ export interface MovScriptContentUnitEditPrompt {
   structured?: Record<string, unknown>
 }
 
+export interface MovScriptContentUnitGenerationReference {
+  id?: string
+  kind?: string
+  ref?: string | number
+  raw?: string
+  resource_id?: number
+  media_type?: string
+  role?: string
+  source_ref?: string
+  label?: string
+  source?: string
+}
+
+export interface MovScriptContentUnitReferenceAsset {
+  role?: string
+  media_type?: string
+  resource_id?: number
+  source_ref?: string
+}
+
 export interface MovScriptContentUnitEditPromptUpdateInput {
   fileRepository: MovScriptWorkspaceFileRepository
   targetPath: string
   editPrompt: MovScriptContentUnitEditPrompt
+  generationReferences?: MovScriptContentUnitGenerationReference[]
+  generation_references?: MovScriptContentUnitGenerationReference[]
+  referenceAssets?: MovScriptContentUnitReferenceAsset[]
+  reference_assets?: MovScriptContentUnitReferenceAsset[]
+  modelIntent?: Record<string, unknown>
+  model_intent?: Record<string, unknown>
 }
 
 export interface MovScriptContentUnitEditPromptUpdateResult {
@@ -32,6 +58,15 @@ export async function updateMovScriptContentUnitEditPrompt(
   const record = {
     ...current,
     edit_prompt: editPrompt,
+    ...(input.generationReferences !== undefined || input.generation_references !== undefined
+      ? { generation_references: normalizeGenerationReferences(input.generationReferences ?? input.generation_references) }
+      : {}),
+    ...(input.referenceAssets !== undefined || input.reference_assets !== undefined
+      ? { reference_assets: normalizeReferenceAssets(input.referenceAssets ?? input.reference_assets) }
+      : {}),
+    ...(input.modelIntent !== undefined || input.model_intent !== undefined
+      ? { model_intent: normalizeModelIntent(input.modelIntent ?? input.model_intent) }
+      : {}),
   }
   await input.fileRepository.write({ path: targetPath, content: serializeWorkspaceRecord(record) })
   return { path: targetPath, record }
@@ -66,6 +101,15 @@ function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
 
+function positiveNumberValue(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value.trim())
+    if (Number.isInteger(parsed) && parsed > 0) return parsed
+  }
+  return undefined
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
@@ -76,4 +120,46 @@ function pruneUndefined<T extends Record<string, unknown>>(value: T): T {
     if (item !== undefined) output[key] = item
   }
   return output as T
+}
+
+function normalizeGenerationReferences(value: unknown): MovScriptContentUnitGenerationReference[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const refs = value.flatMap((item): MovScriptContentUnitGenerationReference[] => {
+    if (!isRecord(item)) return []
+    const ref = pruneUndefined({
+      id: stringValue(item.id),
+      kind: stringValue(item.kind ?? item.ref_kind ?? item.refKind ?? item.type),
+      ref: stringValue(item.ref ?? item.target_ref ?? item.targetRef ?? item.source_ref ?? item.sourceRef) ?? positiveNumberValue(item.ref),
+      raw: stringValue(item.raw),
+      resource_id: positiveNumberValue(item.resource_id ?? item.resourceId),
+      media_type: stringValue(item.media_type ?? item.mediaType),
+      role: stringValue(item.role),
+      source_ref: stringValue(item.source_ref ?? item.sourceRef),
+      label: stringValue(item.label ?? item.title),
+      source: stringValue(item.source),
+    })
+    return Object.keys(ref).length > 0 ? [ref] : []
+  })
+  return refs.length > 0 ? refs : undefined
+}
+
+function normalizeReferenceAssets(value: unknown): MovScriptContentUnitReferenceAsset[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const refs = value.flatMap((item): MovScriptContentUnitReferenceAsset[] => {
+    if (!isRecord(item)) return []
+    const ref = pruneUndefined({
+      role: stringValue(item.role),
+      media_type: stringValue(item.media_type ?? item.mediaType),
+      resource_id: positiveNumberValue(item.resource_id ?? item.resourceId),
+      source_ref: stringValue(item.source_ref ?? item.sourceRef),
+    })
+    return ref.role && ref.media_type && ref.resource_id ? [ref] : []
+  })
+  return refs.length > 0 ? refs : undefined
+}
+
+function normalizeModelIntent(value: unknown): Record<string, unknown> | undefined {
+  if (!isRecord(value)) return undefined
+  const out = pruneUndefined({ ...value })
+  return Object.keys(out).length > 0 ? out : undefined
 }

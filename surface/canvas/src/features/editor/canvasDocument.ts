@@ -124,15 +124,15 @@ export async function buildCanvasSavePayload({
 }
 
 function modelCapabilityForCanvasNode(nodeType?: string, data?: Partial<CanvasNodeData>) {
-  if (nodeType === 'text' && data?.source === 'ai') return { capability: 'text' }
-  if (nodeType === 'text_gen') return { capability: 'text' }
-  if (nodeType === 'ai_gen' && (data?.outputType ?? 'image') === 'text') return { capability: 'text' }
-  if (nodeType === 'ai_gen' && data?.outputType === 'video') return { capability: 'video' }
-  if (nodeType === 'ai_gen') return { capability: 'image' }
-  if (nodeType === 'image' && data?.source === 'ai') return { capability: 'image' }
-  if (['ref_image_gen', 'multi_angle', 'style_transfer'].includes(String(nodeType))) return { capability: 'image' }
-  if (nodeType === 'video' && data?.source === 'ai') return { capability: 'video' }
-  if (['ref_video_gen', 'motion_imitation'].includes(String(nodeType))) return { capability: 'video' }
+  if (nodeType === 'text' && data?.source === 'ai') return { capability: 'text_generation' }
+  if (nodeType === 'text_gen') return { capability: 'text_generation' }
+  if (nodeType === 'ai_gen' && (data?.outputType ?? 'image') === 'text') return { capability: 'text_generation' }
+  if (nodeType === 'ai_gen' && data?.outputType === 'video') return { capability: 'video_generation' }
+  if (nodeType === 'ai_gen') return { capability: 'image_generation' }
+  if (nodeType === 'image' && data?.source === 'ai') return { capability: 'image_generation' }
+  if (nodeType === 'reference_to_image') return { capability: 'image_generation' }
+  if (nodeType === 'video' && data?.source === 'ai') return { capability: 'video_generation' }
+  if (nodeType === 'reference_to_video') return { capability: 'video_generation' }
   return null
 }
 

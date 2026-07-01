@@ -17,7 +17,7 @@ export const MOVSCRIPT_DOMAIN_PATH_SEMANTICS: MovScriptDomainPathSemantics = {
     'The source path is the canonical instance tree: parent/child structure is derived from the actual entity file location.',
     'project.namespace_vocabulary and namespace_kind fields name, template, alias, and project vocabulary; they do not create a second instance tree.',
     'Default path templates are writer hints and legacy compatibility paths. Custom namespace layouts are valid when the entity is placed under the intended parent path and uses the canonical entity filename.',
-    'Namespace nodes are organizational scope only. They cannot directly own content-unit refs or become content-unit targets; use timeline_assembly_ref for namespace-scope output.',
+    'Namespace nodes are organizational scope only. They cannot directly own content-unit refs or become content-unit targets; use production editing workspaces for namespace-scope playback output.',
   ],
   diagnostics: [],
 } as const

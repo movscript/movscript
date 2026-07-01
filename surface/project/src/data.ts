@@ -97,7 +97,6 @@ export function agentSurfaceHasTimelineFocus(
 ): boolean {
   return Boolean(
     legacyProductionId !== undefined
-      || focus?.target?.targetCategory === 'timeline_assembly'
       || focus?.scope?.category === 'timeline_namespace',
   )
 }

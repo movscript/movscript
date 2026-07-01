@@ -10,24 +10,12 @@ export function normalizeGenerationResolverOutput(value: unknown): string | unde
   const normalized = normalizeToken(value)
   switch (normalized) {
     case 'image_generation':
-    case 'image_edit':
       return 'image'
     case 'video_generation':
-    case 'video_i2v':
-    case 'video_v2v':
       return 'video'
     case 'audio_generation':
-    case 'audio_tts':
-    case 'audio_transcribe':
-    case 'audio_translate':
-    case 'audio_music':
-    case 'audio_sfx':
-    case 'audio_chat':
-    case 'voice_clone':
-    case 'voice_design':
       return 'audio'
     case 'text_generation':
-    case 'reasoning':
       return 'text'
     default:
       return normalized

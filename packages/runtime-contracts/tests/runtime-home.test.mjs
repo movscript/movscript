@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -7,6 +7,7 @@ import test from 'node:test'
 import {
   activeAppRecords,
   activeEndpointRecords,
+  cleanupStaleRuntimeRecords,
   readRuntimeHomeSnapshot,
   resolveMovScriptHomeDir,
   writeRuntimeAppRecord,
@@ -22,6 +23,25 @@ test('resolveMovScriptHomeDir prefers MOVSCRIPT_HOME and otherwise uses user hom
   assert.equal(
     resolveMovScriptHomeDir({ env: {}, userHomeDir: '/Users/example' }),
     '/Users/example/.movscript',
+  )
+})
+
+test('resolveMovScriptHomeDir uses LocalAppData MovScript Home on Windows', () => {
+  assert.equal(
+    resolveMovScriptHomeDir({
+      env: { LOCALAPPDATA: 'C:\\Users\\example\\AppData\\Local' },
+      platform: 'win32',
+      userHomeDir: 'C:\\Users\\example',
+    }),
+    'C:\\Users\\example\\AppData\\Local\\MovScript\\Home',
+  )
+  assert.equal(
+    resolveMovScriptHomeDir({
+      env: {},
+      platform: 'win32',
+      userHomeDir: 'C:\\Users\\example',
+    }),
+    'C:\\Users\\example\\AppData\\Local\\MovScript\\Home',
   )
 })
 
@@ -61,6 +81,53 @@ test('active records ignore dead pids', () => {
 
   assert.equal(snapshot.apps.length, 1)
   assert.equal(activeAppRecords(snapshot).length, 0)
+})
+
+test('cleanupStaleRuntimeRecords removes inactive and dead-pid runtime records only', () => {
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-runtime-contracts-cleanup-'))
+  const liveAppPath = writeRuntimeAppRecord(homeDir, {
+    applicationId: 'movscript.live',
+    pid: process.pid,
+  })
+  const deadAppPath = writeRuntimeAppRecord(homeDir, {
+    applicationId: 'movscript.dead',
+    pid: 999999999,
+  })
+  const stoppedEndpointPath = writeRuntimeEndpointRecord(homeDir, {
+    serviceName: 'movscript.stopped.gateway',
+    baseURL: 'http://127.0.0.1:8766',
+    status: 'stopped',
+    ready: false,
+  })
+  const pidlessCloudEndpointPath = writeRuntimeEndpointRecord(homeDir, {
+    serviceName: 'movscript.cloud-runtime.gateway',
+    baseURL: 'https://api.example.com',
+  })
+  const deadServicePath = writeRuntimeServiceRecord(homeDir, {
+    serviceName: 'movscript.dead.service',
+    instanceId: 'local-1',
+    pid: 999999999,
+  })
+
+  const cleanup = cleanupStaleRuntimeRecords(homeDir)
+
+  assert.deepEqual(
+    cleanup.removed.map((item) => [item.kind, item.reason]).sort(),
+    [
+      ['app', 'dead_pid'],
+      ['endpoint', 'inactive'],
+      ['service', 'dead_pid'],
+    ],
+  )
+  assert.equal(existsSync(liveAppPath), true)
+  assert.equal(existsSync(pidlessCloudEndpointPath), true)
+  assert.equal(existsSync(deadAppPath), false)
+  assert.equal(existsSync(stoppedEndpointPath), false)
+  assert.equal(existsSync(deadServicePath), false)
+
+  const snapshot = readRuntimeHomeSnapshot(homeDir)
+  assert.equal(snapshot.apps.some((record) => record.applicationId === 'movscript.live'), true)
+  assert.equal(snapshot.endpoints.some((record) => record.serviceName === 'movscript.cloud-runtime.gateway'), true)
 })
 
 test('runtime record writers persist app service and endpoint records under MovScript Home', () => {

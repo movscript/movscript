@@ -1,11 +1,8 @@
 import type { SemanticEntityKind } from '@movscript/language/domain'
 import {
   hasSpecializedContentUnitType,
-  implicitTimelineAssemblyRef,
-  parseImplicitTimelineAssemblyRef,
   primaryRefIdsForContentUnitRecord,
   primaryRefKindForContentUnitType,
-  timelineAssemblyScopeFromContentUnitRecord,
 } from '@movscript/domain'
 import type {
   MovScriptWorkspaceDomainIndex,
@@ -37,25 +34,6 @@ export interface MovScriptWorkspacePreviewTimelineArtifact {
   schema: 'movscript.preview_timeline.v1'
   productionId: string | number
   productionPath: string
-  items: MovScriptWorkspacePreviewTimelineItem[]
-}
-
-export interface MovScriptWorkspaceTimelineAssemblyPreviewTimelineScope {
-  scopeKind: string
-  scopeRef: string | number
-  targetRef?: string
-}
-
-export interface MovScriptWorkspaceTimelineAssemblyPreviewTimelineArtifact {
-  schema: 'movscript.preview_timeline.v1'
-  targetKind: 'timeline_assembly'
-  targetRef: string
-  scopeKind: string
-  scopeRef: string | number
-  scopePath?: string
-  scopeTitle?: string
-  productionId?: string | number
-  productionPath?: string
   items: MovScriptWorkspacePreviewTimelineItem[]
 }
 
@@ -197,164 +175,12 @@ export function deriveMovScriptWorkspacePreviewTimelines(index: MovScriptWorkspa
     })
 }
 
-export function deriveMovScriptWorkspaceTimelineAssemblyPreviewTimeline(
-  index: MovScriptWorkspaceDomainIndex,
-  scope: MovScriptWorkspaceTimelineAssemblyPreviewTimelineScope,
-): MovScriptWorkspaceTimelineAssemblyPreviewTimelineArtifact | undefined {
-  const parsedTarget = parseImplicitTimelineAssemblyRef(scope.targetRef)
-  const scopeKind = parsedTarget?.scopeKind ?? scope.scopeKind
-  const scopeRef = parsedTarget?.scopeRef ?? String(scope.scopeRef)
-  const scopeNode = timelineNamespaceNodeForScope(index, scopeKind, scopeRef)
-  if (!scopeNode?.path) return undefined
-  const scopeEntity = canonicalEntities(index).find((entity) => entity.path === scopeNode.path)
-  const scopeDir = entityDir(scopeNode.path)
-  const contentUnitsByPrimaryRef = groupContentUnitsByPrimaryRef(index)
-  const items: MovScriptWorkspacePreviewTimelineItem[] = []
-  let order = 0
-
-  const appendTimelineNamespace = (namespace: MovScriptWorkspaceIndexedEntity, parentId?: string) => {
-    const namespaceItemId = timelineNamespaceItemId(namespace)
-    items.push({
-      ...timelineItem(namespaceItemId, 'timeline_namespace', namespace, order++),
-      ...(parentId ? { parentId } : {}),
-    })
-    appendNamespaceChildren(entityDir(namespace.path), namespaceItemId)
-  }
-
-  const appendSceneMoment = (sceneMoment: MovScriptWorkspaceIndexedEntity, parentId?: string) => {
-    const sceneMomentItemId = timelineItemId(sceneMoment)
-    const sceneMomentContentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, 'scene_moment', sceneMoment)
-    items.push({
-      ...timelineItem(sceneMomentItemId, 'scene_moment', sceneMoment, order++),
-      ...(parentId ? { parentId } : {}),
-      transition: recordField(sceneMoment.record.transition),
-      contentUnitIds: sceneMomentContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined),
-    })
-    appendContentUnits(sceneMomentContentUnits, sceneMomentItemId)
-    appendSceneMomentChildren(sceneMoment, sceneMomentItemId)
-  }
-
-  const appendContentUnits = (contentUnits: MovScriptWorkspaceIndexedEntity[], parentId: string) => {
-    for (const contentUnit of sortEntities(contentUnits)) {
-      items.push({
-        ...timelineItem(timelineItemId(contentUnit), 'content_unit', contentUnit, order++),
-        parentId,
-      })
-    }
-  }
-
-  const appendSceneMomentChildren = (sceneMoment: MovScriptWorkspaceIndexedEntity, sceneMomentItemId: string) => {
-    for (const storyboard of sortEntities(childEntities(index, entityDir(sceneMoment.path), 'storyboard'))) {
-      const storyboardItemId = timelineItemId(storyboard)
-      const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, 'storyboard', storyboard)
-      const timeline = recordField(storyboard.record.timeline)
-      items.push({
-        ...timelineItem(storyboardItemId, 'storyboard', storyboard, order++),
-        parentId: sceneMomentItemId,
-        caption: stringField(timeline?.caption),
-        gapAfterSec: numberField(timeline?.gap_after_sec),
-        timing: timeline,
-        transition: recordField(storyboard.record.transition),
-        contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined),
-      })
-      appendContentUnits(contentUnits, storyboardItemId)
-    }
-    for (const keyframe of sortEntities(childEntities(index, entityDir(sceneMoment.path), 'keyframe'))) {
-      const keyframeItemId = timelineItemId(keyframe)
-      const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, 'keyframe', keyframe)
-      items.push({
-        ...timelineItem(keyframeItemId, 'keyframe', keyframe, order++),
-        parentId: sceneMomentItemId,
-        timing: recordField(keyframe.record.timing),
-        contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined),
-      })
-      appendContentUnits(contentUnits, keyframeItemId)
-    }
-    for (const expressionUnit of sortEntities(childEntities(index, entityDir(sceneMoment.path), 'expression_unit'))) {
-      const expressionUnitItemId = timelineItemId(expressionUnit)
-      const expressionUnitContentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, 'expression_unit', expressionUnit)
-      items.push({
-        ...timelineItem(expressionUnitItemId, 'expression_unit', expressionUnit, order++),
-        parentId: sceneMomentItemId,
-        contentUnitIds: expressionUnitContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined),
-      })
-      appendContentUnits(expressionUnitContentUnits, expressionUnitItemId)
-      for (const storyboard of sortEntities(childEntities(index, entityDir(expressionUnit.path), 'storyboard'))) {
-        const storyboardItemId = timelineItemId(storyboard)
-        const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, 'storyboard', storyboard)
-        const timeline = recordField(storyboard.record.timeline)
-        items.push({
-          ...timelineItem(storyboardItemId, 'storyboard', storyboard, order++),
-          parentId: expressionUnitItemId,
-          caption: stringField(timeline?.caption),
-          gapAfterSec: numberField(timeline?.gap_after_sec),
-          timing: timeline,
-          transition: recordField(storyboard.record.transition),
-          contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined),
-        })
-        appendContentUnits(contentUnits, storyboardItemId)
-      }
-      for (const keyframe of sortEntities(childEntities(index, entityDir(expressionUnit.path), 'keyframe'))) {
-        const keyframeItemId = timelineItemId(keyframe)
-        const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, 'keyframe', keyframe)
-        items.push({
-          ...timelineItem(keyframeItemId, 'keyframe', keyframe, order++),
-          parentId: expressionUnitItemId,
-          timing: recordField(keyframe.record.timing),
-          contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined),
-        })
-        appendContentUnits(contentUnits, keyframeItemId)
-      }
-    }
-    for (const audioCue of sortEntities(childEntities(index, entityDir(sceneMoment.path), 'audio_cue'))) {
-      items.push({
-        ...timelineItem(timelineItemId(audioCue), 'audio_cue', audioCue, order++),
-        parentId: sceneMomentItemId,
-        cueKind: stringField(audioCue.record.cue_kind),
-        timing: recordField(audioCue.record.timing),
-      })
-    }
-  }
-
-  const appendNamespaceChildren = (parentDir: string, parentId?: string) => {
-    for (const namespace of sortEntities(childEntities(index, parentDir, 'segment'))) {
-      appendTimelineNamespace(namespace, parentId)
-    }
-    for (const sceneMoment of sortEntities(childEntities(index, parentDir, 'scene_moment'))) {
-      appendSceneMoment(sceneMoment, parentId)
-    }
-  }
-
-  appendNamespaceChildren(scopeDir)
-
-  return {
-    schema: 'movscript.preview_timeline.v1',
-    targetKind: 'timeline_assembly',
-    targetRef: scope.targetRef ?? implicitTimelineAssemblyRef(scopeKind, scopeRef),
-    scopeKind,
-    scopeRef,
-    scopePath: scopeDir,
-    scopeTitle: scopeNode.title,
-    ...(scopeEntity?.entityKind === 'production' && scopeEntity.id !== undefined ? {
-      productionId: scopeEntity.id,
-      productionPath: scopeDir,
-    } : {}),
-    items,
-  }
-}
-
 function groupContentUnitsByPrimaryRef(index: MovScriptWorkspaceDomainIndex): Map<string, MovScriptWorkspaceIndexedEntity[]> {
   const out = new Map<string, MovScriptWorkspaceIndexedEntity[]>()
   for (const entity of canonicalEntities(index)) {
     if (entity.entityKind !== 'content_unit') continue
     const contentUnitType = stringField(entity.record.content_unit_type)
     if (!contentUnitType || !hasSpecializedContentUnitType(contentUnitType)) continue
-    const assemblyScope = timelineAssemblyScopeFromContentUnitRecord(entity.record)
-    if (assemblyScope) {
-      for (const key of primaryRefKeys(assemblyScope.kind, assemblyScope.ref)) {
-        out.set(key, [...(out.get(key) ?? []), entity])
-      }
-    }
     const primaryKind = primaryRefKindForContentUnitType(contentUnitType)
     if (!primaryKind) continue
     const primaryRefs = primaryRefIdsForContentUnitRecord(entity.record, primaryKind)
@@ -448,29 +274,6 @@ function canonicalEntities(index: MovScriptWorkspaceDomainIndex): MovScriptWorks
 
 function isProductionWithId(entity: MovScriptWorkspaceIndexedEntity): entity is MovScriptWorkspaceIndexedEntity & { id: string | number } {
   return entity.entityKind === 'production' && entity.id !== undefined
-}
-
-function timelineNamespaceNodeForScope(
-  index: MovScriptWorkspaceDomainIndex,
-  scopeKind: string,
-  scopeRef: string,
-) {
-  const normalizedRef = normalizeRef(scopeRef)
-  return index.domainNodes.find((node) => {
-    if (node.category !== 'timeline_namespace') return false
-    if (node.kind !== scopeKind && node.metadata?.entityKind !== scopeKind) return false
-    const nodePath = node.path ? normalizeRef(node.path) : undefined
-    const nodeDir = node.path ? normalizeRef(entityDir(node.path)) : undefined
-    return normalizeRef(node.id) === normalizedRef
-      || nodePath === normalizedRef
-      || nodeDir === normalizedRef
-  })
-}
-
-function normalizeRef(value: unknown): string | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-  if (typeof value !== 'string' || !value.trim()) return undefined
-  return value.trim().replace(/^\/+|\/+$/g, '')
 }
 
 function sortEntities(entities: MovScriptWorkspaceIndexedEntity[]): MovScriptWorkspaceIndexedEntity[] {

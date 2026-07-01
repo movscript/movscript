@@ -279,9 +279,9 @@ func TestListJobDetailsFiltersOperationalScope(t *testing.T) {
 	orgID := uint(2)
 	otherOrgID := uint(3)
 	jobs := []persistencemodel.Job{
-		{UserID: 7, OrgID: &orgID, ProjectID: &projectID, RuntimeModelID: 4, JobType: "video_i2v", FeatureKey: "ref_video_gen", Status: domainjob.StatusFailed, RequestContext: `{"model_id":"video.fast"}`},
-		{UserID: 7, OrgID: &orgID, ProjectID: &projectID, RuntimeModelID: 4, JobType: "image", FeatureKey: "ref_image_gen", Status: domainjob.StatusSucceeded, RequestContext: `{"model_id":"image.fast"}`},
-		{UserID: 8, OrgID: &otherOrgID, ProjectID: &otherProjectID, RuntimeModelID: 5, JobType: "video_i2v", FeatureKey: "ref_video_gen", Status: domainjob.StatusFailed, RequestContext: `{"model_id":"video.slow"}`},
+		{UserID: 7, OrgID: &orgID, ProjectID: &projectID, RuntimeModelID: 4, JobType: "video", FeatureKey: "reference_to_video", Status: domainjob.StatusFailed, RequestContext: `{"model_id":"video.fast"}`},
+		{UserID: 7, OrgID: &orgID, ProjectID: &projectID, RuntimeModelID: 4, JobType: "image", FeatureKey: "reference_to_image", Status: domainjob.StatusSucceeded, RequestContext: `{"model_id":"image.fast"}`},
+		{UserID: 8, OrgID: &otherOrgID, ProjectID: &otherProjectID, RuntimeModelID: 5, JobType: "video", FeatureKey: "reference_to_video", Status: domainjob.StatusFailed, RequestContext: `{"model_id":"video.slow"}`},
 	}
 	if err := db.Create(&jobs).Error; err != nil {
 		t.Fatalf("seed jobs: %v", err)
@@ -291,8 +291,8 @@ func TestListJobDetailsFiltersOperationalScope(t *testing.T) {
 	items, total, err := service.ListJobDetails(context.Background(), JobFilters{
 		JobID:      &jobs[0].ID,
 		Status:     domainjob.StatusFailed,
-		JobType:    "video_i2v",
-		FeatureKey: "ref_video_gen",
+		JobType:    "video",
+		FeatureKey: "reference_to_video",
 		UserID:     uintPtr(7),
 		OrgID:      &orgID,
 		ProjectID:  &projectID,
@@ -304,7 +304,7 @@ func TestListJobDetailsFiltersOperationalScope(t *testing.T) {
 	if total != 1 || len(items) != 1 {
 		t.Fatalf("expected one filtered job, total=%d len=%d items=%+v", total, len(items), items)
 	}
-	if items[0].UserID != 7 || items[0].JobType != "video_i2v" || items[0].Status != domainjob.StatusFailed {
+	if items[0].UserID != 7 || items[0].JobType != "video" || items[0].Status != domainjob.StatusFailed {
 		t.Fatalf("unexpected filtered job: %+v", items[0].Job)
 	}
 }
@@ -358,7 +358,7 @@ func TestListJobDetailsFiltersByCatalogEntryWithoutLegacyModelConfigFallback(t *
 	entry := persistencemodel.AIModelCatalogEntry{
 		PublicModelID: "video-fast",
 		DisplayName:   "Video Fast",
-		Capabilities:  "video",
+		Capabilities:  "video_generation",
 		IsEnabled:     true,
 	}
 	if err := db.Create(&entry).Error; err != nil {

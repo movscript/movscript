@@ -33,12 +33,12 @@ test('local backend data dir keeps explicit MOVSCRIPT_DATA_DIR override', () => 
   }
 })
 
-test('local backend log path lives under the selected MovScript home backend logs dir', () => {
+test('local backend log path lives under the selected MovScript home logs dir', () => {
   const movScriptHomeDir = mkdtempSync(join(tmpdir(), 'movscript-backend-log-home-'))
 
   assert.equal(
     resolveLocalBackendLogPath(movScriptHomeDir),
-    join(resolveMovScriptWorkspaceRootPaths(movScriptHomeDir).backendDir, 'logs', 'local-backend.log'),
+    join(resolveMovScriptWorkspaceRootPaths(movScriptHomeDir).logsDir, 'local-backend.log'),
   )
 })
 

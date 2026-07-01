@@ -86,7 +86,7 @@ func (s *Service) Synthesize(ctx context.Context, input TTSInput) (TTSResult, er
 	if input.UserID == 0 {
 		return TTSResult{}, fmt.Errorf("%w: user is required", ErrInvalidRequest)
 	}
-	route, err := s.resolveAudioRoute(ctx, input.UserID, input.ModelID, ai.CapabilityAudioTTS)
+	route, err := s.resolveAudioRoute(ctx, input.UserID, input.ModelID, ai.CapabilityFamilyAudioGeneration)
 	if err != nil {
 		return TTSResult{}, err
 	}
@@ -132,7 +132,7 @@ func (s *Service) Synthesize(ctx context.Context, input TTSInput) (TTSResult, er
 		Size:     int64(len(resp.Audio)),
 		Data:     resp.Audio,
 		Derivative: &appresource.UploadDerivativeInput{
-			Operation: "audio.tts",
+			Operation: "text_to_speech",
 			Tool:      "elevenlabs",
 			Params:    rawParamsOrEmpty(input.Params),
 		},
@@ -161,7 +161,7 @@ func (s *Service) Transcribe(ctx context.Context, input TranscribeInput) (Transc
 	if input.UserID == 0 {
 		return TranscribeResult{}, fmt.Errorf("%w: user is required", ErrInvalidRequest)
 	}
-	route, err := s.resolveAudioRoute(ctx, input.UserID, input.ModelID, ai.CapabilityAudioSTT)
+	route, err := s.resolveAudioRoute(ctx, input.UserID, input.ModelID, ai.CapabilityFamilyAudioGeneration)
 	if err != nil {
 		return TranscribeResult{}, err
 	}
@@ -198,7 +198,7 @@ func (s *Service) Align(ctx context.Context, input AlignInput) (TranscribeResult
 	if input.UserID == 0 {
 		return TranscribeResult{}, fmt.Errorf("%w: user is required", ErrInvalidRequest)
 	}
-	route, err := s.resolveAudioRoute(ctx, input.UserID, input.ModelID, ai.CapabilitySubAlign, ai.CapabilityAudioSTT)
+	route, err := s.resolveAudioRoute(ctx, input.UserID, input.ModelID, ai.CapabilityFamilyAudioGeneration, ai.CapabilityFamilyAudioGeneration)
 	if err != nil {
 		return TranscribeResult{}, err
 	}

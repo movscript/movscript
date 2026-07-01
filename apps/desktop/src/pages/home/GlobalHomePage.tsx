@@ -115,7 +115,7 @@ export default function GlobalHomePage() {
 
   function enterToolMode() {
     setWorkMode('tool')
-    void openToolWindow({ route: ROUTES.tools.refImageGen })
+    void openToolWindow({ route: ROUTES.tools.image })
   }
 
   function enterProjectData() {

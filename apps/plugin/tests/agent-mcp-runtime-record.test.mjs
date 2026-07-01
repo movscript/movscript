@@ -367,7 +367,7 @@ test('movscript mcp stdio defaults to persistent full-local local-node without D
         project: { id: 42, name: 'Daemon Context Project' },
         productionId: 'prod-context',
         user: { id: 1, username: 'local-owner', systemRole: 'admin' },
-        selection: { entityKind: 'timeline_assembly', entityId: 5, label: 'Cut v1' },
+        selection: { entityKind: 'production', entityId: 'prod-context', label: 'Cut v1' },
         updatedAt: '2026-06-30T00:00:00.000Z',
       },
     }),

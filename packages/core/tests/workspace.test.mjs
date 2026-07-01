@@ -122,10 +122,10 @@ test('core workspace runtime paths resolve desktop binaries under .movscript/bin
   assert.equal(paths.binDir, '/tmp/movscript-root/bin')
   assert.equal(paths.configTomlPath, '/tmp/movscript-root/config.toml')
   assert.equal(paths.movscriptServerPath, '/tmp/movscript-root/bin/movscript-server')
-  assert.equal(paths.movcliPath, '/tmp/movscript-root/bin/movcli')
-  assert.equal(paths.movcliShimPath, '/tmp/movscript-root/bin/movcli.mjs')
+  assert.equal(paths.movscriptCliPath, '/tmp/movscript-root/bin/movscript')
+  assert.equal(paths.movscriptCliShimPath, '/tmp/movscript-root/bin/movscript.mjs')
   assert.equal(movScriptRuntimeBinaryName('movscript-server', 'win32'), 'movscript-server.exe')
-  assert.equal(movScriptRuntimeCliName('win32'), 'movcli.cmd')
+  assert.equal(movScriptRuntimeCliName('win32'), 'movscript.cmd')
 })
 
 test('core workspace runtime preflight reports missing fatal dependencies', () => {
@@ -143,8 +143,8 @@ test('core workspace runtime preflight reports missing fatal dependencies', () =
     'workspace.configToml',
     'workspace.binDir',
     'runtime.movscriptServer',
-    'runtime.movcli',
-    'runtime.movcliShim',
+    'runtime.movscriptCli',
+    'runtime.movscriptCliShim',
   ])
 })
 
@@ -152,7 +152,7 @@ test('core workspace runtime preflight accepts prepared workspace binaries', () 
   const workspaceDir = '/tmp/prepared-runtime-workspace'
   const paths = resolveMovScriptWorkspaceRuntimePaths({ workspaceDir, platform: 'darwin' })
   const directories = new Set([paths.controlDir, paths.binDir])
-  const files = new Set([paths.configTomlPath, paths.movscriptServerPath, paths.movcliPath, paths.movcliShimPath])
+  const files = new Set([paths.configTomlPath, paths.movscriptServerPath, paths.movscriptCliPath, paths.movscriptCliShimPath])
   const preflight = movScriptRuntimePreflight({
     workspaceDir,
     platform: 'darwin',
@@ -161,7 +161,7 @@ test('core workspace runtime preflight accepts prepared workspace binaries', () 
       isDirectory: () => directories.has(path),
       isFile: () => files.has(path),
     }),
-    canExecute: (path) => path !== paths.movcliShimPath,
+    canExecute: (path) => path !== paths.movscriptCliShimPath,
   })
 
   assert.equal(preflight.ok, true)
@@ -173,9 +173,21 @@ test('core MovScript home fallback uses LocalAppData on Windows', () => {
     fallbackUserMovScriptHomeDir({
       platform: 'win32',
       userHomeDir: 'C:\\Users\\me',
-      env: { LOCALAPPDATA: 'D:\\MovscriptData' },
+      env: {
+        LOCALAPPDATA: 'D:\\MovscriptData',
+        MOVSCRIPT_HOME: 'E:\\explicit-home',
+        MOVSCRIPT_WORKSPACE_DIR: 'F:\\legacy-home',
+      },
     }),
-    'D:\\MovscriptData\\Movscript\\Home',
+    'D:\\MovscriptData\\MovScript\\Home',
+  )
+  assert.equal(
+    fallbackUserMovScriptHomeDir({
+      platform: 'darwin',
+      userHomeDir: '/Users/me',
+      env: { MOVSCRIPT_HOME: '/tmp/explicit-home' },
+    }),
+    '/Users/me/.movscript',
   )
   assert.equal(
     fallbackUserMovScriptHomeDir({
@@ -183,7 +195,7 @@ test('core MovScript home fallback uses LocalAppData on Windows', () => {
       userHomeDir: 'C:\\Users\\me',
       env: {},
     }),
-    'C:\\Users\\me\\AppData\\Local\\Movscript\\Home',
+    'C:\\Users\\me\\AppData\\Local\\MovScript\\Home',
   )
 })
 

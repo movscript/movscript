@@ -418,7 +418,7 @@ export default function ProjectsPage() {
           openLabel={t('pages.projects.localAdminPrompt.openModels')}
           dismissLabel={t('common.dismiss')}
           closeLabel={t('common.close')}
-          onOpenModels={() => void openSurfaceAdminConsole(undefined, '/models')}
+          onOpenModels={() => void openSurfaceAdminConsole('/models')}
           onDismiss={dismissAdminPrompt}
         />
       )}

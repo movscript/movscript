@@ -78,22 +78,21 @@ func (s *AIService) listModelsFromCatalogEntries(ctx context.Context, filter pro
 		}
 		if filter.ProviderVariants && len(bindings) > 0 {
 			for _, binding := range bindings {
-				descriptor := catalogEntryDescriptor(entry, def, &binding, credentials, true)
-				applyListIntentDescriptorMetadata(&descriptor, binding.RouteCapabilitiesJSON, capabilities, operation, referenceAssets, resolveIntent)
+				bindingDef := catalogEntryDefForBinding(entry, &binding, credentials)
+				descriptor := catalogEntryDescriptor(entry, bindingDef, &binding, credentials, true)
+				applyListIntentDescriptorMetadata(&descriptor, entry.ModelCapabilitiesJSON, capabilities, operation, referenceAssets, resolveIntent)
 				out = append(out, descriptor)
 			}
 			continue
 		}
 		var binding *persistencemodel.AIModelRouteBinding
+		descriptorDef := def
 		if len(bindings) > 0 {
 			binding = catalogEntryBestBinding(bindings)
+			descriptorDef = catalogEntryDefForBinding(entry, binding, credentials)
 		}
-		descriptor := catalogEntryDescriptor(entry, def, binding, credentials, false)
-		if binding != nil {
-			applyListIntentDescriptorMetadata(&descriptor, binding.RouteCapabilitiesJSON, capabilities, operation, referenceAssets, resolveIntent)
-		} else {
-			applyListIntentDescriptorMetadata(&descriptor, entry.ModelCapabilitiesJSON, capabilities, operation, referenceAssets, resolveIntent)
-		}
+		descriptor := catalogEntryDescriptor(entry, descriptorDef, binding, credentials, false)
+		applyListIntentDescriptorMetadata(&descriptor, entry.ModelCapabilitiesJSON, capabilities, operation, referenceAssets, resolveIntent)
 		descriptor.SupportedAPIKinds = catalogRouteBindingsSupportedAPIKinds(bindings, credentials)
 		descriptor.ProviderVariants = len(bindings)
 		if descriptor.ProviderVariants == 0 {
@@ -158,17 +157,19 @@ func catalogDescriptorDedupKey(model providercontract.AIModelDescriptor) string 
 
 func catalogDescriptorContractSignature(model providercontract.AIModelDescriptor) string {
 	body, err := json.Marshal(struct {
-		Capabilities      []string                                  `json:"capabilities"`
-		AcceptsImageInput bool                                      `json:"accepts_image_input"`
-		SupportedParams   []map[string]any                          `json:"supported_params"`
-		InputRequirements providercontract.AIModelInputRequirements `json:"input_requirements"`
-		ParamsSchema      map[string]any                            `json:"params_schema"`
+		Capabilities               []string                                  `json:"capabilities"`
+		Operations                 []string                                  `json:"operations"`
+		AcceptsImageInput          bool                                      `json:"accepts_image_input"`
+		SupportedParamsByOperation map[string][]map[string]any               `json:"supported_params_by_operation"`
+		InputRequirements          providercontract.AIModelInputRequirements `json:"input_requirements"`
+		ParamsSchemaByOperation    map[string]map[string]any                 `json:"params_schema_by_operation"`
 	}{
-		Capabilities:      model.Capabilities,
-		AcceptsImageInput: model.AcceptsImageInput,
-		SupportedParams:   model.SupportedParams,
-		InputRequirements: model.InputRequirements,
-		ParamsSchema:      model.ParamsSchema,
+		Capabilities:               model.Capabilities,
+		Operations:                 model.Operations,
+		AcceptsImageInput:          model.AcceptsImageInput,
+		SupportedParamsByOperation: model.SupportedParamsByOperation,
+		InputRequirements:          model.InputRequirements,
+		ParamsSchemaByOperation:    model.ParamsSchemaByOperation,
 	})
 	if err != nil {
 		return strings.TrimSpace(model.ProviderModelID)
@@ -210,16 +211,44 @@ func mergeCatalogDescriptor(left, right providercontract.AIModelDescriptor) prov
 }
 
 func catalogEntryDef(entry persistencemodel.AIModelCatalogEntry) *ModelDef {
+	return catalogEntryDefForAdapter(entry, AdapterOpenAICompat)
+}
+
+func catalogEntryDefForBinding(entry persistencemodel.AIModelCatalogEntry, binding *persistencemodel.AIModelRouteBinding, credentials map[uint]persistencemodel.AICredential) *ModelDef {
+	adapterType := ""
+	if binding != nil {
+		adapterType = strings.TrimSpace(binding.AdapterType)
+		if adapterType == "" && binding.CredentialID != nil && credentials != nil {
+			if credential, ok := credentials[*binding.CredentialID]; ok {
+				adapterType = strings.TrimSpace(credential.AdapterType)
+			}
+		}
+		if adapterType == "" {
+			adapterType = strings.TrimSpace(binding.SourceType)
+		}
+	}
+	return catalogEntryDefForAdapter(entry, adapterType)
+}
+
+func catalogEntryDefForRoute(entry persistencemodel.AIModelCatalogEntry, route ModelRoute) *ModelDef {
+	return catalogEntryDefForAdapter(entry, routeAdapterType(route, ""))
+}
+
+func catalogEntryDefForAdapter(entry persistencemodel.AIModelCatalogEntry, adapterType string) *ModelDef {
+	adapterType = strings.TrimSpace(adapterType)
+	if adapterType == "" || GetAdapterDef(adapterType) == nil {
+		adapterType = AdapterOpenAICompat
+	}
 	return ResolveModelDef(
 		catalogEntryModelDefID(entry),
-		AdapterOpenAICompat,
+		adapterType,
 		entry.DisplayName,
 		entry.Capabilities,
-		"",
+		entry.ModelCapabilitiesJSON,
 		entry.AcceptsImage,
 		entry.MaxInputImages,
 		entry.MaxInputVideos,
-		entry.ImageEditField,
+		entry.InputImageField,
 		entry.SupportedParams,
 	)
 }
@@ -297,9 +326,10 @@ func catalogRouteBindingSupportsAnyListIntent(binding persistencemodel.AIModelRo
 			if !resolveIntent {
 				continue
 			}
-			ok, _ := capabilityJSONSupportsInferredIntent(binding.RouteCapabilitiesJSON, capability, refs)
-			if ok {
-				return true
+			for _, inferredOperation := range inferredStructuredCapabilityOperations(capability, refs) {
+				if AdapterSupportsOperation(binding.AdapterType, capability, inferredOperation) {
+					return true
+				}
 			}
 			continue
 		}
@@ -313,7 +343,7 @@ func catalogRouteBindingSupportsAnyListIntent(binding persistencemodel.AIModelRo
 			}
 			continue
 		}
-		if ok, _ := capabilityJSONSupportsOperation(binding.RouteCapabilitiesJSON, capability, operation); ok {
+		if AdapterSupportsOperation(binding.AdapterType, capability, operation) {
 			return true
 		}
 	}
@@ -345,7 +375,14 @@ func catalogRouteBindingMatchesStructuredIntent(binding persistencemodel.AIModel
 	if !isStructuredCapabilityFamily(capability) {
 		return true, ""
 	}
-	return capabilityJSONSupportsIntent(binding.RouteCapabilitiesJSON, capability, req.Operation, req.ReferenceAssets)
+	operation := strings.TrimSpace(req.Operation)
+	if operation == "" {
+		return true, ""
+	}
+	if AdapterSupportsOperation(binding.AdapterType, capability, operation) {
+		return true, ""
+	}
+	return false, "adapter_contract:" + operation
 }
 
 func catalogEntryBindingsForFilter(bindings []persistencemodel.AIModelRouteBinding, routeGroup string, apiKinds []string, credentials map[uint]persistencemodel.AICredential) []persistencemodel.AIModelRouteBinding {
@@ -489,28 +526,32 @@ func catalogEntryDescriptor(entry persistencemodel.AIModelCatalogEntry, def *Mod
 		capacityWeight = runtimeCandidateCapacityWeight(runtimeModelCandidate{capacityWeight: binding.CapacityWeight})
 		maxConcurrency = binding.MaxConcurrency
 	}
+	supportedParamsByOperation := paramDefsByOperationToContractMaps(def.SupportedParamsByOperation)
+	paramsSchemaByOperation := paramsSchemaByOperation(def.SupportedParamsByOperation)
 	return providercontract.AIModelDescriptor{
-		ModelID:           publicModelID,
-		CatalogEntryID:    entry.ID,
-		CredentialID:      credentialID,
-		ProviderID:        providerID,
-		ProviderModelID:   providerModelID,
-		ModelDefID:        providerModelID,
-		ModelIDOverride:   providerModelID,
-		DisplayName:       def.DisplayName,
-		ShortName:         entry.ShortName,
-		ProviderName:      providerName,
-		AdapterType:       adapterType,
-		Capabilities:      append([]string(nil), def.Capabilities...),
-		SupportedAPIKinds: catalogRouteBindingSupportedAPIKinds(binding, credentials),
-		AcceptsImageInput: def.AcceptsImageInput,
-		LogicalModelID:    publicModelID,
-		Priority:          priority,
-		CapacityWeight:    capacityWeight,
-		MaxConcurrency:    maxConcurrency,
-		SupportedParams:   paramDefsToContractMaps(def.SupportedParams),
-		InputRequirements: modelInputsToContract(modelInputsForDef(def)),
-		ParamsSchema:      ParamsSchema(def.SupportedParams),
+		ContractVersion:            2,
+		ModelID:                    publicModelID,
+		CatalogEntryID:             entry.ID,
+		CredentialID:               credentialID,
+		ProviderID:                 providerID,
+		ProviderModelID:            providerModelID,
+		ModelDefID:                 providerModelID,
+		ModelIDOverride:            providerModelID,
+		DisplayName:                def.DisplayName,
+		ShortName:                  entry.ShortName,
+		ProviderName:               providerName,
+		AdapterType:                adapterType,
+		Capabilities:               append([]string(nil), def.Capabilities...),
+		Operations:                 operationKeysFromParamDefsByOperation(def.SupportedParamsByOperation),
+		SupportedAPIKinds:          catalogRouteBindingSupportedAPIKinds(binding, credentials),
+		AcceptsImageInput:          def.AcceptsImageInput,
+		LogicalModelID:             publicModelID,
+		Priority:                   priority,
+		CapacityWeight:             capacityWeight,
+		MaxConcurrency:             maxConcurrency,
+		SupportedParamsByOperation: supportedParamsByOperation,
+		InputRequirements:          modelInputsToContract(modelInputsForDef(def)),
+		ParamsSchemaByOperation:    paramsSchemaByOperation,
 	}
 }
 
@@ -583,25 +624,23 @@ func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capabili
 				reason = "fallback_candidate"
 			}
 			route := s.enrichModelRouteProviderFacts(ModelRoute{
-				ModelID:               strings.TrimSpace(entry.PublicModelID),
-				RuntimeModelID:        runtimeModelID,
-				CatalogEntryID:        entry.ID,
-				RouteBindingID:        binding.ID,
-				CredentialID:          credentialID,
-				SourceType:            strings.TrimSpace(binding.SourceType),
-				RouteGroup:            strings.TrimSpace(binding.RouteGroup),
-				ProviderID:            catalogRouteProviderID(&binding),
-				AdapterType:           strings.TrimSpace(binding.AdapterType),
-				ProviderModelID:       catalogRouteProviderModelID(entry, &binding),
-				Capability:            capability,
-				APIKind:               firstMatchingModelAPIKind(catalogRouteBindingSupportedAPIKinds(&binding, credentials), apiKinds),
-				Operation:             strings.TrimSpace(req.Operation),
-				EndpointBaseURL:       strings.TrimSpace(binding.EndpointBaseURL),
-				EndpointPathPrefix:    strings.TrimSpace(binding.EndpointPathPrefix),
-				EndpointMode:          normalizeRouteEndpointMode(binding.EndpointMode),
-				OperationProfile:      strings.TrimSpace(binding.OperationProfile),
-				RouteCapabilitiesJSON: strings.TrimSpace(binding.RouteCapabilitiesJSON),
-				SelectionReason:       reason,
+				ModelID:            strings.TrimSpace(entry.PublicModelID),
+				RuntimeModelID:     runtimeModelID,
+				CatalogEntryID:     entry.ID,
+				RouteBindingID:     binding.ID,
+				CredentialID:       credentialID,
+				SourceType:         strings.TrimSpace(binding.SourceType),
+				RouteGroup:         strings.TrimSpace(binding.RouteGroup),
+				ProviderID:         catalogRouteProviderID(&binding),
+				AdapterType:        strings.TrimSpace(binding.AdapterType),
+				ProviderModelID:    catalogRouteProviderModelID(entry, &binding),
+				Capability:         capability,
+				APIKind:            firstMatchingModelAPIKind(catalogRouteBindingSupportedAPIKinds(&binding, credentials), apiKinds),
+				Operation:          strings.TrimSpace(req.Operation),
+				EndpointBaseURL:    strings.TrimSpace(binding.EndpointBaseURL),
+				EndpointPathPrefix: strings.TrimSpace(binding.EndpointPathPrefix),
+				EndpointMode:       normalizeRouteEndpointMode(binding.EndpointMode),
+				SelectionReason:    reason,
 			})
 			candidates = append(candidates, catalogRouteCandidate{
 				route:     route,
@@ -689,25 +728,23 @@ func (s *AIService) resolveRouteBindingModelRoutePlan(req ModelRouteRequest, cap
 		credentialID = *binding.CredentialID
 	}
 	route := s.enrichModelRouteProviderFacts(ModelRoute{
-		ModelID:               strings.TrimSpace(entry.PublicModelID),
-		RuntimeModelID:        runtimeModelID,
-		CatalogEntryID:        entry.ID,
-		RouteBindingID:        binding.ID,
-		CredentialID:          credentialID,
-		SourceType:            strings.TrimSpace(binding.SourceType),
-		RouteGroup:            strings.TrimSpace(binding.RouteGroup),
-		ProviderID:            catalogRouteProviderID(&binding),
-		AdapterType:           strings.TrimSpace(binding.AdapterType),
-		ProviderModelID:       catalogRouteProviderModelID(entry, &binding),
-		Capability:            capability,
-		APIKind:               firstMatchingModelAPIKind(catalogRouteBindingSupportedAPIKinds(&binding, credentials), apiKinds),
-		Operation:             strings.TrimSpace(req.Operation),
-		EndpointBaseURL:       strings.TrimSpace(binding.EndpointBaseURL),
-		EndpointPathPrefix:    strings.TrimSpace(binding.EndpointPathPrefix),
-		EndpointMode:          normalizeRouteEndpointMode(binding.EndpointMode),
-		OperationProfile:      strings.TrimSpace(binding.OperationProfile),
-		RouteCapabilitiesJSON: strings.TrimSpace(binding.RouteCapabilitiesJSON),
-		SelectionReason:       "route_binding_id",
+		ModelID:            strings.TrimSpace(entry.PublicModelID),
+		RuntimeModelID:     runtimeModelID,
+		CatalogEntryID:     entry.ID,
+		RouteBindingID:     binding.ID,
+		CredentialID:       credentialID,
+		SourceType:         strings.TrimSpace(binding.SourceType),
+		RouteGroup:         strings.TrimSpace(binding.RouteGroup),
+		ProviderID:         catalogRouteProviderID(&binding),
+		AdapterType:        strings.TrimSpace(binding.AdapterType),
+		ProviderModelID:    catalogRouteProviderModelID(entry, &binding),
+		Capability:         capability,
+		APIKind:            firstMatchingModelAPIKind(catalogRouteBindingSupportedAPIKinds(&binding, credentials), apiKinds),
+		Operation:          strings.TrimSpace(req.Operation),
+		EndpointBaseURL:    strings.TrimSpace(binding.EndpointBaseURL),
+		EndpointPathPrefix: strings.TrimSpace(binding.EndpointPathPrefix),
+		EndpointMode:       normalizeRouteEndpointMode(binding.EndpointMode),
+		SelectionReason:    "route_binding_id",
 	})
 	return ModelRoutePlan{
 		ModelID:         route.ModelID,
@@ -740,7 +777,7 @@ type catalogRuntimeModel struct {
 	AcceptsImage    bool
 	MaxInputImages  int
 	MaxInputVideos  int
-	ImageEditField  string
+	InputImageField string
 	SupportedParams string
 }
 
@@ -761,7 +798,7 @@ func (s *AIService) catalogRouteDefinition(ctx context.Context, route ModelRoute
 	if err := s.db.WithContext(ctx).First(&entry, route.CatalogEntryID).Error; err != nil {
 		return catalogRouteDefinition{}, true, err
 	}
-	def := catalogEntryDef(entry)
+	def := catalogEntryDefForRoute(entry, route)
 	if !modelHasCapability(def, capability) {
 		return catalogRouteDefinition{}, true, fmt.Errorf("model %q does not support %s", entry.PublicModelID, capability)
 	}
@@ -832,7 +869,7 @@ func catalogRuntimeModelFromEntry(entry persistencemodel.AIModelCatalogEntry, id
 		AcceptsImage:    entry.AcceptsImage,
 		MaxInputImages:  entry.MaxInputImages,
 		MaxInputVideos:  entry.MaxInputVideos,
-		ImageEditField:  strings.TrimSpace(entry.ImageEditField),
+		InputImageField: strings.TrimSpace(entry.InputImageField),
 		SupportedParams: strings.TrimSpace(entry.SupportedParams),
 	}
 }
@@ -941,7 +978,7 @@ func (s *AIService) applyRouteEndpointToCredential(ctx context.Context, route Mo
 	if !routeEndpointHasConfig(config) && route.RouteBindingID != 0 && s != nil && s.db != nil && s.db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) {
 		var binding persistencemodel.AIModelRouteBinding
 		if err := s.db.WithContext(ctx).
-			Select("endpoint_base_url", "endpoint_path_prefix", "endpoint_mode", "operation_profile").
+			Select("endpoint_base_url", "endpoint_path_prefix", "endpoint_mode").
 			Where("id = ? AND deleted_at IS NULL", route.RouteBindingID).
 			First(&binding).Error; err == nil {
 			config = routeEndpointConfigFromBinding(binding)
@@ -1140,6 +1177,60 @@ func paramDefsToContractMaps(params []ParamDef) []map[string]any {
 	return out
 }
 
+func paramDefsByOperationToContractMaps(paramsByOperation map[string][]ParamDef) map[string][]map[string]any {
+	if len(paramsByOperation) == 0 {
+		return nil
+	}
+	out := make(map[string][]map[string]any, len(paramsByOperation))
+	for operation, params := range paramsByOperation {
+		operation = strings.TrimSpace(operation)
+		if operation == "" {
+			continue
+		}
+		items := paramDefsToContractMaps(params)
+		if items == nil {
+			items = []map[string]any{}
+		}
+		out[operation] = items
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func paramsSchemaByOperation(paramsByOperation map[string][]ParamDef) map[string]map[string]any {
+	if len(paramsByOperation) == 0 {
+		return nil
+	}
+	out := make(map[string]map[string]any, len(paramsByOperation))
+	for operation, params := range paramsByOperation {
+		operation = strings.TrimSpace(operation)
+		if operation == "" {
+			continue
+		}
+		out[operation] = ParamsSchema(params)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func operationKeysFromParamDefsByOperation(paramsByOperation map[string][]ParamDef) []string {
+	if len(paramsByOperation) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(paramsByOperation))
+	for operation := range paramsByOperation {
+		if operation = strings.TrimSpace(operation); operation != "" {
+			keys = append(keys, operation)
+		}
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 func cloneAnyMap(input map[string]any) map[string]any {
 	if len(input) == 0 {
 		return nil
@@ -1202,24 +1293,24 @@ func compactModelRouteRequestAPIKinds(req ModelRouteRequest) []string {
 
 func allModelCatalogCapabilities() []string {
 	return []string{
-		CapabilityText,
+		CapabilityFamilyTextGeneration,
 		CapabilityReasoning,
-		CapabilityImage,
-		CapabilityImageEdit,
-		CapabilityVideo,
-		CapabilityVideoI2V,
-		CapabilityVideoV2V,
-		CapabilityAudio,
-		CapabilityAudioTTS,
-		CapabilityAudioSTT,
-		CapabilityAudioMusic,
-		CapabilityAudioSFX,
-		CapabilityAudioChat,
-		CapabilityVoiceClone,
-		CapabilityVoiceDesign,
-		CapabilityAudioTranslate,
-		CapabilitySubAlign,
-		CapabilitySubTranslate,
+		CapabilityFamilyImageGeneration,
+		CapabilityFamilyImageGeneration,
+		CapabilityFamilyVideoGeneration,
+		CapabilityFamilyVideoGeneration,
+		CapabilityFamilyVideoGeneration,
+		CapabilityFamilyAudioGeneration,
+		CapabilityFamilyAudioGeneration,
+		CapabilityFamilyAudioGeneration,
+		CapabilityFamilyAudioGeneration,
+		CapabilityFamilyAudioGeneration,
+		CapabilityFamilyAudioGeneration,
+		CapabilityFamilyAudioGeneration,
+		CapabilityFamilyAudioGeneration,
+		CapabilityFamilyAudioGeneration,
+		CapabilityFamilyAudioGeneration,
+		CapabilityFamilyAudioGeneration,
 	}
 }
 

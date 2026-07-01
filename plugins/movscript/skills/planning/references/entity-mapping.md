@@ -26,7 +26,7 @@ Use current `movscript-lang` entity names in tool calls and source files.
 | legacy shot / camera unit | `shot` |
 | legacy music/sfx/ambience/dialogue/foley cue | `audio_cue` |
 | production task / output slot | `content_unit` |
-| namespace-scope assembly output | `timeline_assembly_ref` content unit |
+| namespace-scope assembly/playback | `ProductionEditingWorkspace` (`system_editing` or `remotion`) |
 | generated/uploaded/imported option | `candidate` |
 | chosen/confirmed option | `selection` |
 | automatic edit / composition plan | interpreted `edit_plan` |
@@ -41,6 +41,6 @@ Canonical ownership:
 - optional legacy audio anchors: `scene_moment -> audio_cue`
 - `content_unit` is top-level and references upstream entities with flat refs.
 
-Except for `content_unit`, these entities are production structure or generation prerequisites. Create only the parts needed for the user's current goal. For new designs, prefer project vocabulary for timeline namespace planning, `scene_moment` plus multimodal `expression_unit` records for production work, then generate materials through `expression_unit_ref` or `scene_moment_ref` content units. When a namespace scope itself needs an output video, use `timeline_assembly_ref`; do not invent `episode_ref`, `beat_ref`, or other namespace-specific content unit types.
+Except for `content_unit`, these entities are production structure or generation prerequisites. Create only the parts needed for the user's current goal. For new designs, prefer project vocabulary for timeline namespace planning, `scene_moment` plus multimodal `expression_unit` records for production work, then generate materials through `expression_unit_ref` or `scene_moment_ref` content units. When a namespace scope itself needs playable assembly or finishing, hand off to a production editing workspace; do not invent `episode_ref`, `beat_ref`, or other namespace-specific content unit types.
 
 `setting` is only for concrete film/music entities to make or reuse, such as a character, prop, place, instrument, costume, or voice identity. `setting_state` is a namespace under one setting for a named condition/version. `asset` belongs under a setting state and describes one asset slot for that state, such as front view, side view, turnaround sheet, material reference, voice timbre, or instrument tone. For image assets, prefer plain white or very clean backgrounds unless scene context is explicitly required.

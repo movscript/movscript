@@ -77,13 +77,13 @@ func (a *LocalAdapter) GenerateAudio(_ context.Context, req media.AudioGeneratio
 	}
 	frequency := 220.0
 	providerKind := string(req.Kind)
-	if req.Kind == media.AudioGenerationKindSFX {
+	if req.Kind == media.AudioGenerationKindSoundEffect {
 		frequency = 880.0
 		providerKind = "sfx"
 	} else if providerKind == "" {
 		providerKind = "music"
 	}
-	audio := localToneWAV(durationSec, frequency, req.Kind == media.AudioGenerationKindSFX)
+	audio := localToneWAV(durationSec, frequency, req.Kind == media.AudioGenerationKindSoundEffect)
 	return media.AudioGenerationResponse{
 		Audio:       audio,
 		MimeType:    "audio/wav",
@@ -92,19 +92,19 @@ func (a *LocalAdapter) GenerateAudio(_ context.Context, req media.AudioGeneratio
 	}, nil
 }
 
-func (a *LocalAdapter) ChatAudio(_ context.Context, req media.AudioChatRequest) (media.AudioChatResponse, error) {
+func (a *LocalAdapter) GenerateSpeechToSpeech(_ context.Context, req media.SpeechToSpeechRequest) (media.SpeechToSpeechResponse, error) {
 	durationSec := 2
 	prompt := strings.TrimSpace(req.Prompt)
 	if prompt == "" {
-		prompt = "audio chat"
+		prompt = "speech-to-speech"
 	}
 	audio := localToneWAV(durationSec, 440, false)
-	return media.AudioChatResponse{
+	return media.SpeechToSpeechResponse{
 		Audio:       audio,
-		Text:        "MovScript local audio chat response: " + truncateLocalText(prompt, 120),
+		Text:        "MovScript local speech-to-speech response: " + truncateLocalText(prompt, 120),
 		MimeType:    "audio/wav",
 		DurationMs:  durationSec * 1000,
-		ProviderRef: "local:audio_chat:" + base64.RawURLEncoding.EncodeToString([]byte(truncateLocalText(prompt, 16))),
+		ProviderRef: "local:speech_to_speech:" + base64.RawURLEncoding.EncodeToString([]byte(truncateLocalText(prompt, 16))),
 	}, nil
 }
 
@@ -113,20 +113,20 @@ func (a *LocalAdapter) Transcribe(_ context.Context, req media.TranscribeRequest
 		Content:     []byte("transcribed"),
 		MimeType:    "text/plain",
 		Format:      "txt",
-		ProviderRef: "local:audio_transcribe",
+		ProviderRef: "local:speech_to_text",
 	}, nil
 }
 
-func (a *LocalAdapter) TranslateAudio(_ context.Context, req media.AudioTranslateRequest) (media.SubtitleResponse, error) {
+func (a *LocalAdapter) TranslateSpeech(_ context.Context, req media.SpeechTranslateRequest) (media.SubtitleResponse, error) {
 	target := strings.TrimSpace(req.TargetLanguage)
 	if target == "" {
 		target = "en"
 	}
 	return media.SubtitleResponse{
-		Content:     []byte("[local audio translation:" + target + "]\ntranslated audio\n"),
+		Content:     []byte("[local speech translation:" + target + "]\ntranslated audio\n"),
 		MimeType:    "text/plain",
 		Format:      "txt",
-		ProviderRef: "local:audio_translate:" + target,
+		ProviderRef: "local:speech_translate:" + target,
 	}, nil
 }
 
@@ -181,11 +181,11 @@ func (a *LocalAdapter) Align(_ context.Context, req media.AlignRequest) (media.S
 		Content:     []byte(content),
 		MimeType:    "text/plain",
 		Format:      "txt",
-		ProviderRef: "local:subtitle_align",
+		ProviderRef: "local:forced_alignment",
 	}, nil
 }
 
-func (a *LocalAdapter) TranslateSubtitle(_ context.Context, req media.TranslateSubtitleRequest) (media.SubtitleResponse, error) {
+func (a *LocalAdapter) GenerateDubbing(_ context.Context, req media.DubbingRequest) (media.SubtitleResponse, error) {
 	target := strings.TrimSpace(req.TargetLanguage)
 	if target == "" {
 		target = "und"
@@ -199,7 +199,7 @@ func (a *LocalAdapter) TranslateSubtitle(_ context.Context, req media.TranslateS
 		Content:     []byte(content),
 		MimeType:    "text/plain",
 		Format:      "txt",
-		ProviderRef: "local:subtitle_translate:" + target,
+		ProviderRef: "local:dubbing:" + target,
 	}, nil
 }
 

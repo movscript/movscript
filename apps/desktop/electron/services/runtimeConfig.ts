@@ -1,4 +1,5 @@
 import {
+  findRuntimeApp,
   findRuntimeEndpoint,
   findRuntimeService,
   readRuntimeHomeSnapshot,
@@ -11,6 +12,8 @@ import {
 } from '@movscript/data-client'
 import type {
   MovScriptDataConnectionContext,
+  MovScriptRuntimeIdentity,
+  MovScriptRuntimeConnectionDescriptor,
   MovScriptRuntimeDescriptor,
 } from '@movscript/shared'
 import type { ElectronRuntimeConfig } from '../../src/shared/contracts/electronApi'
@@ -30,33 +33,35 @@ export function getElectronRuntimeConfig(): ElectronRuntimeConfig {
   const session = resolveMovScriptDataServiceSession({ workspaceDir: movScriptHomeDir })
   const gatewayBaseURL = resolveGatewayBaseURL(movScriptHomeDir)
   const dataServiceBaseURL = resolveDataServiceBaseURL(movScriptHomeDir)
-  const shouldPreferLocalBackend = appSettings?.onboardingCompleted === true && appSettings.launchMode === 'local'
-  const apiBaseURL = resolveRendererAPIGatewayBaseURL({
-    configuredBaseURL: appSettings?.apiBaseURL ?? session.baseURL,
+  const runtimeIdentity = resolveRuntimeIdentity(movScriptHomeDir)
+  const mode = appSettings?.launchMode === 'local' ? 'local' : 'cloud'
+  const runtimeConnection = resolveRuntimeConnection({
+    mode,
+    configuredCloudBaseURL: appSettings?.cloudAPIBaseURL ?? appSettings?.apiBaseURL ?? session.baseURL,
     backendStatus,
     gatewayBaseURL,
-    dataServiceBaseURL,
-    shouldPreferLocalBackend,
   })
   const dataConnection = resolveRuntimeDataConnection({
-    configuredKind: appSettings?.launchMode === 'local' ? 'local' : 'cloud',
+    mode: runtimeConnection.mode,
     backendStatus,
     gatewayBaseURL,
     dataServiceBaseURL,
-    shouldPreferLocalBackend,
+    runtimeConnection,
   })
   const runtime = createRuntimeDescriptor({
-    gatewayBaseURL: gatewayBaseURL ?? apiBaseURL,
+    gatewayBaseURL: runtimeConnection.gatewayBaseURL,
     dataConnection,
+    identity: runtimeIdentity,
   })
   return {
     movScriptHomeDir,
     workspaceDir: movScriptHomeDir,
+    runtimeConnection,
     runtime,
     dataConnection,
     ...(gatewayBaseURL ? { gatewayBaseURL } : {}),
-    apiBaseURL,
-    apiV1BaseURL: normalizeDataServiceAPIBaseURL(apiBaseURL),
+    apiBaseURL: runtimeConnection.gatewayBaseURL,
+    apiV1BaseURL: runtimeConnection.apiV1BaseURL,
     providerRuntimeEnv: providerRuntimeEnvSnapshot(process.env),
     backendStatus: {
       ...backendStatus,
@@ -65,9 +70,60 @@ export function getElectronRuntimeConfig(): ElectronRuntimeConfig {
   }
 }
 
+function resolveRuntimeConnection(input: {
+  mode: MovScriptRuntimeConnectionDescriptor['mode']
+  configuredCloudBaseURL: string
+  backendStatus: ReturnType<typeof getBackendStatus>
+  gatewayBaseURL?: string
+}): MovScriptRuntimeConnectionDescriptor {
+  const gatewayBaseURL = resolveRendererAPIGatewayBaseURL(input)
+  if (input.mode === 'local') {
+    return {
+      schema: 'movscript.runtime-connection.v1',
+      mode: 'local',
+      gatewayBaseURL,
+      apiV1BaseURL: normalizeDataServiceAPIBaseURL(gatewayBaseURL),
+      authMode: 'local-owner',
+      displayName: 'Local daemon gateway',
+      status: runtimeConnectionStatus(input.backendStatus, gatewayBaseURL),
+      source: 'daemon',
+    }
+  }
+
+  return {
+    schema: 'movscript.runtime-connection.v1',
+    mode: 'cloud',
+    gatewayBaseURL,
+    apiV1BaseURL: normalizeDataServiceAPIBaseURL(gatewayBaseURL),
+    authMode: 'session',
+    displayName: 'Cloud data connection',
+    status: gatewayBaseURL ? 'connected' : 'degraded',
+    source: 'cloud',
+  }
+}
+
+function resolveRendererAPIGatewayBaseURL(input: {
+  mode: MovScriptRuntimeConnectionDescriptor['mode']
+  configuredCloudBaseURL: string
+  backendStatus: ReturnType<typeof getBackendStatus>
+  gatewayBaseURL?: string
+}): string {
+  if (input.gatewayBaseURL) {
+    return normalizeDataServiceRootBaseURL(input.gatewayBaseURL)
+  }
+  if (input.mode === 'local') {
+    return normalizeDataServiceRootBaseURL(
+      localBackendStatusBaseURL(input.backendStatus)
+        ?? LOCAL_BACKEND_URL,
+    )
+  }
+  return normalizeDataServiceRootBaseURL(input.configuredCloudBaseURL)
+}
+
 function createRuntimeDescriptor(input: {
   gatewayBaseURL: string
   dataConnection: MovScriptDataConnectionContext
+  identity?: MovScriptRuntimeIdentity
 }): MovScriptRuntimeDescriptor {
   return {
     schema: 'movscript.runtime-descriptor.v1',
@@ -75,6 +131,7 @@ function createRuntimeDescriptor(input: {
       owner: LOCAL_NODE_RUNTIME_OWNER,
       appId: LOCAL_NODE_RUNTIME_OWNER,
       name: 'MovScript Local Node Daemon',
+      ...(input.identity ? { identity: input.identity } : {}),
     },
     gateway: {
       baseURL: normalizeDataServiceRootBaseURL(input.gatewayBaseURL),
@@ -91,19 +148,33 @@ function createRuntimeDescriptor(input: {
   }
 }
 
+function resolveRuntimeIdentity(movScriptHomeDir: string): MovScriptRuntimeIdentity | undefined {
+  const app = findRuntimeApp(readRuntimeHomeSnapshot(movScriptHomeDir), LOCAL_NODE_RUNTIME_OWNER)
+  const metadata = app?.raw.metadata
+  if (!metadata || typeof metadata !== 'object') return undefined
+  const record = metadata as Record<string, unknown>
+  const identity: MovScriptRuntimeIdentity = {
+    ...(stringValue(record.pluginVersion) ? { pluginVersion: stringValue(record.pluginVersion) } : {}),
+    ...(stringValue(record.pluginRoot) ? { pluginRoot: stringValue(record.pluginRoot) } : {}),
+    ...(stringValue(record.runtimeVersion) ? { runtimeVersion: stringValue(record.runtimeVersion) } : {}),
+    ...(stringValue(record.runtimeRoot) ? { runtimeRoot: stringValue(record.runtimeRoot) } : {}),
+  }
+  return Object.keys(identity).length > 0 ? identity : undefined
+}
+
 function resolveRuntimeDataConnection(input: {
-  configuredKind: MovScriptDataConnectionContext['kind']
+  mode: MovScriptRuntimeConnectionDescriptor['mode']
   backendStatus: ReturnType<typeof getBackendStatus>
   gatewayBaseURL?: string
   dataServiceBaseURL?: string
-  shouldPreferLocalBackend: boolean
+  runtimeConnection: MovScriptRuntimeConnectionDescriptor
 }): MovScriptDataConnectionContext {
-  const kind = input.shouldPreferLocalBackend ? 'local' : input.configuredKind
+  const kind = input.mode
   return {
     kind,
     authMode: kind === 'local' ? 'local-owner' : 'session',
     status: runtimeDataConnectionStatus(input),
-    displayName: kind === 'local' ? 'Local daemon data' : 'Cloud data connection',
+    displayName: input.runtimeConnection.displayName,
   }
 }
 
@@ -117,28 +188,34 @@ function runtimeDataConnectionStatus(input: {
   return 'degraded'
 }
 
-function resolveRendererAPIGatewayBaseURL(input: {
-  configuredBaseURL: string
-  backendStatus: ReturnType<typeof getBackendStatus>
-  gatewayBaseURL?: string
-  dataServiceBaseURL?: string
-  shouldPreferLocalBackend: boolean
-}): string {
-  if (input.gatewayBaseURL) {
-    return normalizeDataServiceRootBaseURL(input.gatewayBaseURL)
+function runtimeConnectionStatus(
+  backendStatus: ReturnType<typeof getBackendStatus>,
+  gatewayBaseURL: string,
+): MovScriptRuntimeConnectionDescriptor['status'] {
+  if (backendStatus.state === 'ready' && sameBaseURL(backendStatus.baseURL, gatewayBaseURL)) return 'connected'
+  if (backendStatus.state === 'starting' || backendStatus.state === 'idle') return 'starting'
+  if (backendStatus.state === 'error' || backendStatus.state === 'stopped') return 'unavailable'
+  return 'degraded'
+}
+
+function localBackendStatusBaseURL(backendStatus: ReturnType<typeof getBackendStatus>): string | undefined {
+  if (!backendStatus.baseURL || !isLocalGatewayBaseURL(backendStatus.baseURL)) return undefined
+  return backendStatus.baseURL
+}
+
+function sameBaseURL(left: string | undefined, right: string | undefined): boolean {
+  if (!left || !right) return false
+  return normalizeDataServiceRootBaseURL(left) === normalizeDataServiceRootBaseURL(right)
+}
+
+function isLocalGatewayBaseURL(value: string): boolean {
+  try {
+    const url = new URL(normalizeDataServiceRootBaseURL(value))
+    const hostname = url.hostname.toLowerCase()
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]'
+  } catch {
+    return false
   }
-  if (input.shouldPreferLocalBackend && input.dataServiceBaseURL) {
-    return normalizeDataServiceRootBaseURL(input.dataServiceBaseURL)
-  }
-  if (
-    input.shouldPreferLocalBackend
-    &&
-    input.backendStatus.state === 'ready'
-    && normalizeDataServiceRootBaseURL(input.backendStatus.baseURL) === normalizeDataServiceRootBaseURL(LOCAL_BACKEND_URL)
-  ) {
-    return normalizeDataServiceRootBaseURL(input.backendStatus.baseURL)
-  }
-  return normalizeDataServiceRootBaseURL(input.configuredBaseURL)
 }
 
 function resolveGatewayBaseURL(movScriptHomeDir: string): string | undefined {
@@ -177,4 +254,8 @@ function normalizeHTTPBaseURL(value: string | undefined): string | undefined {
   const url = new URL(trimmed)
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined
   return url.toString().replace(/\/+$/, '')
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }

@@ -1,6 +1,6 @@
 import { readBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
-import { getAPIBaseURL, getSettingsDaemonGatewayBaseURL, isLocalDataConnection } from '@/shared/infrastructure/config'
+import { getAPIBaseURL, isLocalDataConnection, refreshRuntimeConfigSnapshot } from '@/shared/infrastructure/config'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { LOCAL_WORKSPACE_ORG, LOCAL_WORKSPACE_USER, useUserStore } from '@/shared/infrastructure/session/userStore'
 import i18n from '@/i18n'
@@ -22,13 +22,14 @@ export function canOpenAdminConsole(): boolean {
   return useUserStore.getState().currentUser?.system_role === 'super_admin'
 }
 
-export async function openAdminConsole(baseURL?: string, path = ''): Promise<void> {
+export async function openAdminConsole(path = ''): Promise<void> {
   if (!canOpenAdminConsole()) return
   const electronApi = readElectronApi()
   const state = useUserStore.getState()
   const settings = useAppSettingsStore.getState().settings
-  const localMode = isLocalDataConnection(settings)
-  const adminBaseURL = baseURL ?? (localMode ? getSettingsDaemonGatewayBaseURL(settings) : getAPIBaseURL())
+  const runtimeConfig = await refreshRuntimeConfigSnapshot().catch(() => null)
+  const localMode = runtimeConfig?.runtimeConnection.mode === 'local' || isLocalDataConnection(settings)
+  const adminBaseURL = runtimeConfig?.runtimeConnection.gatewayBaseURL ?? getAPIBaseURL()
   const language = resolveAdminLanguage()
   const theme = resolveAdminTheme()
   const authSession = createAdminConsoleAuthSession({
@@ -40,7 +41,6 @@ export async function openAdminConsole(baseURL?: string, path = ''): Promise<voi
   })
   if (electronApi?.openAdminConsole) {
     await electronApi.openAdminConsole({
-      baseURL: adminBaseURL,
       path,
       authSession,
     })

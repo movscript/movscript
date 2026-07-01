@@ -10,7 +10,7 @@ import (
 
 func (s *AIService) CallImageWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req ImageRequest, usage UsageContext) (ImageResponse, error) {
 	usage = usageWithRoute(usage, route)
-	for _, capability := range []string{CapabilityImage, CapabilityImageEdit} {
+	for _, capability := range []string{CapabilityFamilyImageGeneration} {
 		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
 		if err != nil {
 			return ImageResponse{}, err
@@ -25,12 +25,12 @@ func (s *AIService) CallImageWithRouteUsage(ctx context.Context, userID uint, ro
 func (s *AIService) callCatalogImageRuntime(ctx context.Context, userID uint, route ModelRoute, runtime catalogRouteRuntime, capability string, req ImageRequest, usage UsageContext) (ImageResponse, error) {
 	ctx = withProviderSubject(ctx, userID, usage.OrgID)
 	attemptReq := req
-	if capability == CapabilityImageEdit {
+	if attemptReq.ImageFieldName != "" || attemptReq.InputImage != "" || len(attemptReq.InputImageBytes) > 0 || len(attemptReq.InputImageDataList) > 0 || len(attemptReq.ReferenceAssets) > 0 {
 		attemptReq.EditOnly = true
 	}
 	attemptReq.Model = route.ProviderModelID
-	if runtime.def.ImageEditField != "" {
-		attemptReq.ImageFieldName = runtime.def.ImageEditField
+	if runtime.def.InputImageField != "" {
+		attemptReq.ImageFieldName = runtime.def.InputImageField
 	}
 	n := attemptReq.N
 	if n <= 0 {
@@ -60,7 +60,7 @@ func (s *AIService) callCatalogImageRuntime(ctx context.Context, userID uint, ro
 
 func (s *AIService) CallVideoWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req VideoRequest, usage UsageContext) (VideoResponse, error) {
 	usage = usageWithRoute(usage, route)
-	for _, capability := range []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V} {
+	for _, capability := range []string{CapabilityFamilyVideoGeneration} {
 		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
 		if err != nil {
 			return VideoResponse{}, err
@@ -98,7 +98,7 @@ func (s *AIService) callCatalogVideoRuntime(ctx context.Context, userID uint, ro
 }
 
 func (s *AIService) SupportsVideoTasksRoute(ctx context.Context, userID uint, route ModelRoute) bool {
-	for _, capability := range []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V} {
+	for _, capability := range []string{CapabilityFamilyVideoGeneration} {
 		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
 		if err != nil {
 			return false
@@ -112,7 +112,7 @@ func (s *AIService) SupportsVideoTasksRoute(ctx context.Context, userID uint, ro
 }
 
 func (s *AIService) SupportsVideoTaskCancellationRoute(ctx context.Context, userID uint, route ModelRoute) bool {
-	for _, capability := range []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V} {
+	for _, capability := range []string{CapabilityFamilyVideoGeneration} {
 		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
 		if err != nil {
 			return false
@@ -127,7 +127,7 @@ func (s *AIService) SupportsVideoTaskCancellationRoute(ctx context.Context, user
 
 func (s *AIService) CallVideoStartWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req VideoRequest, usage UsageContext) (VideoResponse, error) {
 	usage = usageWithRoute(usage, route)
-	for _, capability := range []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V} {
+	for _, capability := range []string{CapabilityFamilyVideoGeneration} {
 		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
 		if err != nil {
 			return VideoResponse{}, err
@@ -168,7 +168,7 @@ func (s *AIService) CallVideoStartWithRouteUsage(ctx context.Context, userID uin
 
 func (s *AIService) CallVideoPollWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, taskID, taskKind string, requestedDuration int, usage UsageContext) (VideoResponse, error) {
 	usage = usageWithRoute(usage, route)
-	for _, capability := range []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V} {
+	for _, capability := range []string{CapabilityFamilyVideoGeneration} {
 		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
 		if err != nil {
 			return VideoResponse{}, err
@@ -199,7 +199,7 @@ func (s *AIService) CallVideoPollWithRouteUsage(ctx context.Context, userID uint
 }
 
 func (s *AIService) CallVideoCancelRoute(ctx context.Context, userID uint, route ModelRoute, taskID, taskKind string) (VideoResponse, error) {
-	for _, capability := range []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V} {
+	for _, capability := range []string{CapabilityFamilyVideoGeneration} {
 		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
 		if err != nil {
 			return VideoResponse{}, err

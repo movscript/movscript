@@ -201,13 +201,6 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     notes: 'Setting preview is a dedicated review surface for setting namespace assets, states, and slots.',
   }, exact(ROUTES.project.settingPreview)),
   route({
-    routeId: 'studio.editDesk',
-    pathnamePattern: ROUTES.studioEditDesk,
-    ...PROJECT_WORKSPACE_ROUTE,
-    projectEntryId: 'orchestration_production',
-    notes: 'Edit desk reviews workflow artifacts for a focused production and hands off to editing.',
-  }, (pathname) => /^\/studio\/[^/]+\/edit-desk\/?$/.test(pathname)),
-  route({
     routeId: 'project.contentLegacy',
     pathnamePattern: ROUTES.project.contentLegacy,
     ...REDIRECT_ROUTE,
@@ -239,76 +232,6 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     pathnamePattern: ROUTES.tools.text,
     ...TOOL_WORKSPACE_ROUTE,
   }, exact(ROUTES.tools.text)),
-  route({
-    routeId: 'tools.refImageGen',
-    pathnamePattern: ROUTES.tools.refImageGen,
-    ...TOOL_WORKSPACE_ROUTE,
-    panes: [...TOOL_WORKSPACE_ROUTE.panes, ...TOOL_WORKBENCH_PANES],
-  }, exact(ROUTES.tools.refImageGen)),
-  route({
-    routeId: 'tools.refVideoGen',
-    pathnamePattern: ROUTES.tools.refVideoGen,
-    ...TOOL_WORKSPACE_ROUTE,
-    panes: [...TOOL_WORKSPACE_ROUTE.panes, ...TOOL_WORKBENCH_PANES],
-  }, exact(ROUTES.tools.refVideoGen)),
-  route({
-    routeId: 'tools.audioGen',
-    pathnamePattern: ROUTES.tools.audioGen,
-    ...TOOL_WORKSPACE_ROUTE,
-  }, exact(ROUTES.tools.audioGen)),
-  route({
-    routeId: 'tools.audioChat',
-    pathnamePattern: ROUTES.tools.audioChat,
-    ...TOOL_WORKSPACE_ROUTE,
-  }, exact(ROUTES.tools.audioChat)),
-  route({
-    routeId: 'tools.audioTranscribe',
-    pathnamePattern: ROUTES.tools.audioTranscribe,
-    ...TOOL_WORKSPACE_ROUTE,
-  }, exact(ROUTES.tools.audioTranscribe)),
-  route({
-    routeId: 'tools.audioTranslate',
-    pathnamePattern: ROUTES.tools.audioTranslate,
-    ...TOOL_WORKSPACE_ROUTE,
-  }, exact(ROUTES.tools.audioTranslate)),
-  route({
-    routeId: 'tools.musicGen',
-    pathnamePattern: ROUTES.tools.musicGen,
-    ...TOOL_WORKSPACE_ROUTE,
-  }, exact(ROUTES.tools.musicGen)),
-  route({
-    routeId: 'tools.audioSfx',
-    pathnamePattern: ROUTES.tools.audioSfx,
-    ...TOOL_WORKSPACE_ROUTE,
-  }, exact(ROUTES.tools.audioSfx)),
-  route({
-    routeId: 'tools.voiceClone',
-    pathnamePattern: ROUTES.tools.voiceClone,
-    ...TOOL_WORKSPACE_ROUTE,
-  }, exact(ROUTES.tools.voiceClone)),
-  route({
-    routeId: 'tools.voiceDesign',
-    pathnamePattern: ROUTES.tools.voiceDesign,
-    ...TOOL_WORKSPACE_ROUTE,
-  }, exact(ROUTES.tools.voiceDesign)),
-  route({
-    routeId: 'tools.motionImitation',
-    pathnamePattern: ROUTES.tools.motionImitation,
-    ...TOOL_WORKSPACE_ROUTE,
-    panes: [...TOOL_WORKSPACE_ROUTE.panes, ...TOOL_WORKBENCH_PANES],
-  }, exact(ROUTES.tools.motionImitation)),
-  route({
-    routeId: 'tools.styleTransfer',
-    pathnamePattern: ROUTES.tools.styleTransfer,
-    ...TOOL_WORKSPACE_ROUTE,
-    panes: [...TOOL_WORKSPACE_ROUTE.panes, ...TOOL_WORKBENCH_PANES],
-  }, exact(ROUTES.tools.styleTransfer)),
-  route({
-    routeId: 'tools.multiAngle',
-    pathnamePattern: ROUTES.tools.multiAngle,
-    ...TOOL_WORKSPACE_ROUTE,
-    panes: [...TOOL_WORKSPACE_ROUTE.panes, ...TOOL_WORKBENCH_PANES],
-  }, exact(ROUTES.tools.multiAngle)),
   route({
     routeId: 'tools.privateAssets',
     pathnamePattern: ROUTES.tools.privateAssets,

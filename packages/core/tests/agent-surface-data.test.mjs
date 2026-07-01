@@ -8,16 +8,16 @@ import {
 test('agent surface snapshot target includes normalized domain focus', () => {
   const target = agentSurfaceSnapshotTarget({
     projectId: 'project-a',
-    targetKind: 'timeline_assembly',
+    timelineAssemblyRef: 'timeline_assembly:production:pilot',
     scopeKind: 'production',
     scopeRef: 'pilot',
   })
 
   assert.equal(target.projectId, 'project-a')
   assert.equal(target.domain_focus.projectId, 'project-a')
-  assert.equal(target.domain_focus.target?.targetCategory, 'timeline_assembly')
-  assert.equal(target.domain_focus.target?.targetRef, 'timeline_assembly:production:pilot')
+  assert.equal(target.domain_focus.target, undefined)
   assert.equal(target.domain_focus.scope?.kind, 'production')
+  assert.deepEqual(target.domain_focus.diagnostics.map((diagnostic) => diagnostic.code), ['focus_timeline_assembly_target_removed'])
 })
 
 test('agent surface snapshot target reports namespace targets as focus diagnostics', () => {

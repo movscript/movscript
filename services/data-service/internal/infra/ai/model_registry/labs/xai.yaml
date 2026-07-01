@@ -1,387 +1,388 @@
+---
 lab: xai
 templates:
-    - order: 53
-      id: xai:grok-4.3
-      lab: xai
-      model_id: grok-4.3
-      display_name: Grok 4.3
-      route_adapter_hint: official_video_generations
-      capabilities:
-        - text
-        - reasoning
-      input:
-        max_images: -1
-      source:
-        url: https://docs.x.ai/developers/models/grok-4.3
-        verified_at: "2026-06-25"
-        status: verified
-    - order: 54
-      id: xai:grok-imagine-image-quality
-      lab: xai
-      model_id: grok-imagine-image-quality
-      display_name: Grok Imagine Image Quality
-      route_adapter_hint: openai_video_multipart
-      capabilities:
-        - image
-      params:
-        - key: aspect_ratio
-          label: 画面比例
-          type: select
-          options:
-            - auto
-            - "1:1"
-            - "16:9"
-            - "9:16"
-            - "4:3"
-            - "3:4"
-            - "3:2"
-            - "2:3"
-            - "2:1"
-            - "1:2"
-            - "19.5:9"
-            - "9:19.5"
-            - "20:9"
-            - "9:20"
-          default: auto
-        - key: resolution
-          label: 分辨率
-          type: select
-          options:
-            - 1k
-            - 2k
-          default: 1k
-        - key: image_count
-          label: 生成张数
-          type: number
-          default: 1
-          min: 1
-          max: 10
-          step: 1
-      source:
-        url: https://docs.x.ai/developers/model-capabilities/images/generation
-        verified_at: "2026-06-25"
-        status: verified
-    - order: 55
-      id: xai:grok-imagine-image-quality-edit
-      lab: xai
-      model_id: grok-imagine-image-quality
-      display_name: Grok Imagine Image Quality Edit
-      route_adapter_hint: openai_compat
-      capabilities:
-        - image_edit
-      input:
-        accepts_image: true
-        max_images: 3
-      params:
-        - key: aspect_ratio
-          label: 画面比例
-          type: select
-          options:
-            - auto
-            - "1:1"
-            - "16:9"
-            - "9:16"
-            - "4:3"
-            - "3:4"
-            - "3:2"
-            - "2:3"
-            - "2:1"
-            - "1:2"
-            - "19.5:9"
-            - "9:19.5"
-            - "20:9"
-            - "9:20"
-          default: auto
-        - key: resolution
-          label: 分辨率
-          type: select
-          options:
-            - 1k
-            - 2k
-          default: 1k
-      source:
-        url: https://docs.x.ai/developers/model-capabilities/images/editing
-        verified_at: "2026-06-25"
-        status: verified
-    - order: 56
-      id: xai:grok-imagine-video
-      lab: xai
-      model_id: grok-imagine-video
-      display_name: Grok Imagine Video
-      route_adapter_hint: openai_compat
-      capabilities:
-        - video
-      params:
-        - key: duration
-          label: 时长(秒)
-          type: select
-          options:
-            - "1"
-            - "5"
-            - "10"
-            - "15"
-          default: "5"
-        - key: aspect_ratio
-          label: 画面比例
-          type: select
-          options:
-            - "1:1"
-            - "16:9"
-            - "9:16"
-            - "4:3"
-            - "3:4"
-            - "3:2"
-            - "2:3"
-          default: "16:9"
-        - key: resolution
-          label: 分辨率
-          type: select
-          options:
-            - 480p
-            - 720p
-          default: 480p
-      source:
-        url: https://docs.x.ai/developers/model-capabilities/video/generation
-        verified_at: "2026-06-25"
-        status: verified
-      video:
-        default_duration_sec: 5
-        max_duration_sec: 15
-    - order: 57
-      id: xai:grok-imagine-video-1.5
-      lab: xai
-      model_id: grok-imagine-video-1.5
-      display_name: Grok Imagine Video 1.5
-      route_adapter_hint: openai_compat
-      capabilities:
-        - video_i2v
-      input:
-        accepts_image: true
-        max_images: 1
-      params:
-        - key: duration
-          label: 时长(秒)
-          type: select
-          options:
-            - "1"
-            - "5"
-            - "10"
-            - "15"
-          default: "5"
-        - key: aspect_ratio
-          label: 画面比例
-          type: select
-          options:
-            - "1:1"
-            - "16:9"
-            - "9:16"
-            - "4:3"
-            - "3:4"
-            - "3:2"
-            - "2:3"
-          default: "16:9"
-        - key: resolution
-          label: 分辨率
-          type: select
-          options:
-            - 480p
-            - 720p
-            - 1080p
-          default: 480p
-      source:
-        url: https://docs.x.ai/developers/model-capabilities/video/image-to-video
-        verified_at: "2026-06-25"
-        status: verified
-      video:
-        default_duration_sec: 5
-        max_duration_sec: 15
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: Grok 3
-      id: xai:grok-3
-      lab: xai
-      model_id: grok-3
-      order: 58
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: Grok 3 Mini
-      id: xai:grok-3-mini
-      lab: xai
-      model_id: grok-3-mini
-      order: 59
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: Grok 4
-      id: xai:grok-4
-      input:
-        accepts_image: true
-        max_images: -1
-      lab: xai
-      model_id: grok-4
-      order: 60
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: Grok 4 1 Fast Non Reasoning
-      id: xai:grok-4-1-fast-non-reasoning
-      lab: xai
-      model_id: grok-4-1-fast-non-reasoning
-      order: 61
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: Grok 4 1 Fast Reasoning
-      id: xai:grok-4-1-fast-reasoning
-      lab: xai
-      model_id: grok-4-1-fast-reasoning
-      order: 62
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: Grok 4 Fast Non Reasoning
-      id: xai:grok-4-fast-non-reasoning
-      lab: xai
-      model_id: grok-4-fast-non-reasoning
-      order: 63
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: Grok 4 Fast Reasoning
-      id: xai:grok-4-fast-reasoning
-      lab: xai
-      model_id: grok-4-fast-reasoning
-      order: 64
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - image
-      display_name: Grok Imagine Image
-      id: xai:grok-imagine-image
-      lab: xai
-      model_id: grok-imagine-image
-      order: 65
-      params:
-        - key: aspect_ratio
-          label: 画面比例
-          type: select
-          options:
-            - auto
-            - "1:1"
-            - "16:9"
-            - "9:16"
-            - "4:3"
-            - "3:4"
-            - "3:2"
-            - "2:3"
-            - "2:1"
-            - "1:2"
-            - "19.5:9"
-            - "9:19.5"
-            - "20:9"
-            - "9:20"
-          default: auto
-        - key: resolution
-          label: 分辨率
-          type: select
-          options:
-            - 1k
-            - 2k
-          default: 1k
-        - key: image_count
-          label: 生成张数
-          type: number
-          default: 1
-          min: 1
-          max: 10
-          step: 1
-      source:
-        status: verified
-        url: https://docs.x.ai/developers/model-capabilities/images/generation
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - image
-      display_name: Grok Imagine Image Pro
-      id: xai:grok-imagine-image-pro
-      lab: xai
-      model_id: grok-imagine-image-pro
-      order: 66
-      params:
-        - key: aspect_ratio
-          label: 画面比例
-          type: select
-          options:
-            - auto
-            - "1:1"
-            - "16:9"
-            - "9:16"
-            - "4:3"
-            - "3:4"
-            - "3:2"
-            - "2:3"
-            - "2:1"
-            - "1:2"
-            - "19.5:9"
-            - "9:19.5"
-            - "20:9"
-            - "9:20"
-          default: auto
-        - key: resolution
-          label: 分辨率
-          type: select
-          options:
-            - 1k
-            - 2k
-          default: 1k
-        - key: image_count
-          label: 生成张数
-          type: number
-          default: 1
-          min: 1
-          max: 10
-          step: 1
-      source:
-        status: verified
-        url: https://docs.x.ai/developers/model-capabilities/images/generation
-        verified_at: "2026-06-26"
+- order: 53
+  id: xai:grok-4.3
+  lab: xai
+  model_id: grok-4.3
+  display_name: Grok 4.3
+  route_adapter_hint: official_video_generations
+  capabilities:
+  - text_generation
+  - reasoning
+  input:
+    max_images: -1
+  source:
+    url: https://docs.x.ai/developers/models/grok-4.3
+    verified_at: '2026-06-25'
+    status: verified
+- order: 54
+  id: xai:grok-imagine-image-quality
+  lab: xai
+  model_id: grok-imagine-image-quality
+  display_name: Grok Imagine Image Quality
+  route_adapter_hint: openai_video_multipart
+  capabilities:
+  - image_generation
+  params:
+  - key: aspect_ratio
+    label: 画面比例
+    type: select
+    options:
+    - auto
+    - '1:1'
+    - '16:9'
+    - '9:16'
+    - '4:3'
+    - '3:4'
+    - '3:2'
+    - '2:3'
+    - '2:1'
+    - '1:2'
+    - 19.5:9
+    - '9:19.5'
+    - '20:9'
+    - '9:20'
+    default: auto
+  - key: resolution
+    label: 分辨率
+    type: select
+    options:
+    - 1k
+    - 2k
+    default: 1k
+  - key: image_count
+    label: 生成张数
+    type: number
+    default: 1
+    min: 1
+    max: 10
+    step: 1
+  source:
+    url: https://docs.x.ai/developers/model-capabilities/images/generation
+    verified_at: '2026-06-25'
+    status: verified
+- order: 55
+  id: xai:grok-imagine-image-quality-edit
+  lab: xai
+  model_id: grok-imagine-image-quality
+  display_name: Grok Imagine Image Quality Edit
+  route_adapter_hint: openai_compat
+  capabilities:
+  - image_generation
+  input:
+    accepts_image: true
+    max_images: 3
+  params:
+  - key: aspect_ratio
+    label: 画面比例
+    type: select
+    options:
+    - auto
+    - '1:1'
+    - '16:9'
+    - '9:16'
+    - '4:3'
+    - '3:4'
+    - '3:2'
+    - '2:3'
+    - '2:1'
+    - '1:2'
+    - 19.5:9
+    - '9:19.5'
+    - '20:9'
+    - '9:20'
+    default: auto
+  - key: resolution
+    label: 分辨率
+    type: select
+    options:
+    - 1k
+    - 2k
+    default: 1k
+  source:
+    url: https://docs.x.ai/developers/model-capabilities/images/editing
+    verified_at: '2026-06-25'
+    status: verified
+- order: 56
+  id: xai:grok-imagine-video
+  lab: xai
+  model_id: grok-imagine-video
+  display_name: Grok Imagine Video
+  route_adapter_hint: openai_compat
+  capabilities:
+  - video_generation
+  params:
+  - key: duration
+    label: 时长(秒)
+    type: select
+    options:
+    - '1'
+    - '5'
+    - '10'
+    - '15'
+    default: '5'
+  - key: aspect_ratio
+    label: 画面比例
+    type: select
+    options:
+    - '1:1'
+    - '16:9'
+    - '9:16'
+    - '4:3'
+    - '3:4'
+    - '3:2'
+    - '2:3'
+    default: '16:9'
+  - key: resolution
+    label: 分辨率
+    type: select
+    options:
+    - 480p
+    - 720p
+    default: 480p
+  source:
+    url: https://docs.x.ai/developers/model-capabilities/video/generation
+    verified_at: '2026-06-25'
+    status: verified
+  video:
+    default_duration_sec: 5
+    max_duration_sec: 15
+- order: 57
+  id: xai:grok-imagine-video-1.5
+  lab: xai
+  model_id: grok-imagine-video-1.5
+  display_name: Grok Imagine Video 1.5
+  route_adapter_hint: openai_compat
+  capabilities:
+  - video_generation
+  input:
+    accepts_image: true
+    max_images: 1
+  params:
+  - key: duration
+    label: 时长(秒)
+    type: select
+    options:
+    - '1'
+    - '5'
+    - '10'
+    - '15'
+    default: '5'
+  - key: aspect_ratio
+    label: 画面比例
+    type: select
+    options:
+    - '1:1'
+    - '16:9'
+    - '9:16'
+    - '4:3'
+    - '3:4'
+    - '3:2'
+    - '2:3'
+    default: '16:9'
+  - key: resolution
+    label: 分辨率
+    type: select
+    options:
+    - 480p
+    - 720p
+    - 1080p
+    default: 480p
+  source:
+    url: https://docs.x.ai/developers/model-capabilities/video/image-to-video
+    verified_at: '2026-06-25'
+    status: verified
+  video:
+    default_duration_sec: 5
+    max_duration_sec: 15
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: Grok 3
+  id: xai:grok-3
+  lab: xai
+  model_id: grok-3
+  order: 58
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: Grok 3 Mini
+  id: xai:grok-3-mini
+  lab: xai
+  model_id: grok-3-mini
+  order: 59
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: Grok 4
+  id: xai:grok-4
+  input:
+    accepts_image: true
+    max_images: -1
+  lab: xai
+  model_id: grok-4
+  order: 60
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: Grok 4 1 Fast Non Reasoning
+  id: xai:grok-4-1-fast-non-reasoning
+  lab: xai
+  model_id: grok-4-1-fast-non-reasoning
+  order: 61
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: Grok 4 1 Fast Reasoning
+  id: xai:grok-4-1-fast-reasoning
+  lab: xai
+  model_id: grok-4-1-fast-reasoning
+  order: 62
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: Grok 4 Fast Non Reasoning
+  id: xai:grok-4-fast-non-reasoning
+  lab: xai
+  model_id: grok-4-fast-non-reasoning
+  order: 63
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: Grok 4 Fast Reasoning
+  id: xai:grok-4-fast-reasoning
+  lab: xai
+  model_id: grok-4-fast-reasoning
+  order: 64
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - image_generation
+  display_name: Grok Imagine Image
+  id: xai:grok-imagine-image
+  lab: xai
+  model_id: grok-imagine-image
+  order: 65
+  params:
+  - key: aspect_ratio
+    label: 画面比例
+    type: select
+    options:
+    - auto
+    - '1:1'
+    - '16:9'
+    - '9:16'
+    - '4:3'
+    - '3:4'
+    - '3:2'
+    - '2:3'
+    - '2:1'
+    - '1:2'
+    - 19.5:9
+    - '9:19.5'
+    - '20:9'
+    - '9:20'
+    default: auto
+  - key: resolution
+    label: 分辨率
+    type: select
+    options:
+    - 1k
+    - 2k
+    default: 1k
+  - key: image_count
+    label: 生成张数
+    type: number
+    default: 1
+    min: 1
+    max: 10
+    step: 1
+  source:
+    status: verified
+    url: https://docs.x.ai/developers/model-capabilities/images/generation
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - image_generation
+  display_name: Grok Imagine Image Pro
+  id: xai:grok-imagine-image-pro
+  lab: xai
+  model_id: grok-imagine-image-pro
+  order: 66
+  params:
+  - key: aspect_ratio
+    label: 画面比例
+    type: select
+    options:
+    - auto
+    - '1:1'
+    - '16:9'
+    - '9:16'
+    - '4:3'
+    - '3:4'
+    - '3:2'
+    - '2:3'
+    - '2:1'
+    - '1:2'
+    - 19.5:9
+    - '9:19.5'
+    - '20:9'
+    - '9:20'
+    default: auto
+  - key: resolution
+    label: 分辨率
+    type: select
+    options:
+    - 1k
+    - 2k
+    default: 1k
+  - key: image_count
+    label: 生成张数
+    type: number
+    default: 1
+    min: 1
+    max: 10
+    step: 1
+  source:
+    status: verified
+    url: https://docs.x.ai/developers/model-capabilities/images/generation
+    verified_at: '2026-06-26'

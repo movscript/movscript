@@ -23,22 +23,24 @@ type ListOptions struct {
 }
 
 type PublicModel struct {
-	ID                 uint                                      `json:"id"`
-	CatalogEntryID     uint                                      `json:"catalog_entry_id,omitempty"`
-	ModelID            string                                    `json:"model_id"`
-	DisplayName        string                                    `json:"display_name"`
-	ShortName          string                                    `json:"short_name,omitempty"`
-	Capabilities       []string                                  `json:"capabilities"`
-	SupportedAPIKinds  []string                                  `json:"supported_api_kinds,omitempty"`
-	AcceptsImageInput  bool                                      `json:"accepts_image_input"`
-	InferredOperation  string                                    `json:"inferred_operation,omitempty"`
-	ResolverOperations []string                                  `json:"resolver_operations,omitempty"`
-	IsDefault          bool                                      `json:"is_default,omitempty"`
-	LogicalModelID     string                                    `json:"logical_model_id,omitempty"`
-	ProviderVariants   int                                       `json:"provider_variant_count,omitempty"`
-	SupportedParams    []map[string]any                          `json:"supported_params,omitempty"`
-	InputRequirements  providercontract.AIModelInputRequirements `json:"input_requirements,omitempty"`
-	ParamsSchema       map[string]any                            `json:"params_schema,omitempty"`
+	ContractVersion            int                                       `json:"contract_version,omitempty"`
+	ID                         uint                                      `json:"id"`
+	CatalogEntryID             uint                                      `json:"catalog_entry_id,omitempty"`
+	ModelID                    string                                    `json:"model_id"`
+	DisplayName                string                                    `json:"display_name"`
+	ShortName                  string                                    `json:"short_name,omitempty"`
+	Capabilities               []string                                  `json:"capabilities"`
+	Operations                 []string                                  `json:"operations,omitempty"`
+	SupportedAPIKinds          []string                                  `json:"supported_api_kinds,omitempty"`
+	AcceptsImageInput          bool                                      `json:"accepts_image_input"`
+	InferredOperation          string                                    `json:"inferred_operation,omitempty"`
+	ResolverOperations         []string                                  `json:"resolver_operations,omitempty"`
+	IsDefault                  bool                                      `json:"is_default,omitempty"`
+	LogicalModelID             string                                    `json:"logical_model_id,omitempty"`
+	ProviderVariants           int                                       `json:"provider_variant_count,omitempty"`
+	SupportedParamsByOperation map[string][]map[string]any               `json:"supported_params_by_operation,omitempty"`
+	InputRequirements          providercontract.AIModelInputRequirements `json:"input_requirements,omitempty"`
+	ParamsSchemaByOperation    map[string]map[string]any                 `json:"params_schema_by_operation,omitempty"`
 }
 
 func NewService(modelCatalog providercontract.AIGatewayModelCatalog, cacheStore ...cache.Cache) *Service {
@@ -82,22 +84,24 @@ func (s *Service) ListByCapabilityForRoute(ctx context.Context, capability strin
 
 func publicModelFromDescriptor(descriptor providercontract.AIModelDescriptor) PublicModel {
 	return PublicModel{
-		ID:                 descriptor.CatalogEntryID,
-		CatalogEntryID:     descriptor.CatalogEntryID,
-		ModelID:            descriptor.ModelID,
-		DisplayName:        descriptor.DisplayName,
-		ShortName:          descriptor.ShortName,
-		Capabilities:       append([]string(nil), descriptor.Capabilities...),
-		SupportedAPIKinds:  append([]string(nil), descriptor.SupportedAPIKinds...),
-		AcceptsImageInput:  descriptor.AcceptsImageInput,
-		InferredOperation:  descriptor.InferredOperation,
-		ResolverOperations: append([]string(nil), descriptor.ResolverOperations...),
-		IsDefault:          descriptor.IsDefault,
-		LogicalModelID:     descriptor.LogicalModelID,
-		ProviderVariants:   descriptor.ProviderVariants,
-		SupportedParams:    cloneParamMaps(descriptor.SupportedParams),
-		InputRequirements:  descriptor.InputRequirements,
-		ParamsSchema:       cloneAnyMap(descriptor.ParamsSchema),
+		ContractVersion:            descriptor.ContractVersion,
+		ID:                         descriptor.CatalogEntryID,
+		CatalogEntryID:             descriptor.CatalogEntryID,
+		ModelID:                    descriptor.ModelID,
+		DisplayName:                descriptor.DisplayName,
+		ShortName:                  descriptor.ShortName,
+		Capabilities:               append([]string(nil), descriptor.Capabilities...),
+		Operations:                 append([]string(nil), descriptor.Operations...),
+		SupportedAPIKinds:          append([]string(nil), descriptor.SupportedAPIKinds...),
+		AcceptsImageInput:          descriptor.AcceptsImageInput,
+		InferredOperation:          descriptor.InferredOperation,
+		ResolverOperations:         append([]string(nil), descriptor.ResolverOperations...),
+		IsDefault:                  descriptor.IsDefault,
+		LogicalModelID:             descriptor.LogicalModelID,
+		ProviderVariants:           descriptor.ProviderVariants,
+		SupportedParamsByOperation: cloneParamMapsByOperation(descriptor.SupportedParamsByOperation),
+		InputRequirements:          descriptor.InputRequirements,
+		ParamsSchemaByOperation:    cloneAnyMapsByOperation(descriptor.ParamsSchemaByOperation),
 	}
 }
 
@@ -108,6 +112,31 @@ func cloneParamMaps(input []map[string]any) []map[string]any {
 	out := make([]map[string]any, 0, len(input))
 	for _, item := range input {
 		out = append(out, cloneAnyMap(item))
+	}
+	return out
+}
+
+func cloneParamMapsByOperation(input map[string][]map[string]any) map[string][]map[string]any {
+	if len(input) == 0 {
+		return nil
+	}
+	out := make(map[string][]map[string]any, len(input))
+	for operation, params := range input {
+		out[operation] = cloneParamMaps(params)
+		if out[operation] == nil {
+			out[operation] = []map[string]any{}
+		}
+	}
+	return out
+}
+
+func cloneAnyMapsByOperation(input map[string]map[string]any) map[string]map[string]any {
+	if len(input) == 0 {
+		return nil
+	}
+	out := make(map[string]map[string]any, len(input))
+	for operation, value := range input {
+		out[operation] = cloneAnyMap(value)
 	}
 	return out
 }

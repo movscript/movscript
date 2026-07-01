@@ -11,12 +11,22 @@ interface EditingCliOptions {
   projectDir?: string
   server?: string
   editingServiceUrl?: string
+  mediaPipelineServiceUrl?: string
+  projectServiceUrl?: string
   token?: string
   editingProject?: string
   editingProjectId?: string
+  mediaProjectId?: string
   projectId?: string
   taskId?: string
+  resultId?: string
+  watchId?: string
+  result?: string
   outputPath?: string
+  outputDirectory?: string
+  waitForMs?: string
+  timeoutMs?: string
+  pollIntervalMs?: string
   savePath?: string
   saveDirectory?: string
   hlsDirectory?: string
@@ -34,9 +44,7 @@ interface EditingCliOptions {
   outputKind?: string
   kind?: string
   status?: string
-  editPlan?: string
-  editDecisions?: string
-  assetManifest?: string
+  backend?: string
   source?: string
   output?: string
   asset?: string
@@ -56,8 +64,6 @@ interface EditingCliOptions {
   durationMs?: string
   splitTimeMs?: string
   retainSide?: string
-  timelineAssembly?: string
-  compileManifest?: string
   title?: string
   name?: string
   width?: string
@@ -79,6 +85,13 @@ interface EditingCliOptions {
   producer?: string
   provenance?: string
   promptSnapshot?: string
+  exchangeProjectPath?: string
+  externalApp?: string
+  appName?: string
+  dryRun?: boolean
+  platform?: string
+  reviewer?: string
+  reviewStatus?: string
   productionId?: string
   productionPath?: string
   targetKind?: string
@@ -86,6 +99,7 @@ interface EditingCliOptions {
   scopeKind?: string
   scopeRef?: string
   expectedRevision?: string
+  limit?: string
   workspaceBinding?: string
   importToResource?: boolean
   json?: boolean
@@ -123,12 +137,22 @@ function addEditingOptions(command: Command): void {
     .option('--project-dir <dir>', 'MovScript project directory used for backend auth lookup')
     .option('--server <url>', 'Daemon gateway or Editing Service base URL')
     .option('--editing-service-url <url>', 'Explicit Editing Service base URL')
+    .option('--media-pipeline-service-url <url>', 'Explicit Media Pipeline Service base URL')
+    .option('--project-service-url <url>', 'Explicit Project Service base URL for domain candidate writes')
     .option('--token <token>', 'Backend bearer token')
     .option('--editing-project <json>', 'MediaEditingProject JSON object')
     .option('--editing-project-id <id>', 'Persisted MediaEditingProject id')
-    .option('--project-id <id>', 'MovScript project id')
+    .option('--media-project-id <id>', 'MediaEditingProject project id used by editing workspaces and media task recovery')
+    .option('--project-id <id>', 'Deprecated alias for --media-project-id; not a MovScript source project locator')
     .option('--task-id <id>', 'Editing or Media Pipeline task id')
+    .option('--result-id <id>', 'Media Pipeline result registry id')
+    .option('--watch-id <id>', 'Media Pipeline result watch id')
+    .option('--result <json>', 'Media Pipeline result registry JSON object')
     .option('--output-path <path>', 'Completed export output path')
+    .option('--output-directory <dir>', 'Directory to scan for external backend render output')
+    .option('--wait-for-ms <ms>', 'Wait this many milliseconds while scanning external backend output')
+    .option('--timeout-ms <ms>', 'Maximum background watch lifetime in milliseconds')
+    .option('--poll-interval-ms <ms>', 'Polling interval for external backend output scanning')
     .option('--save-path <path>', 'Local file path to save a single-file export')
     .option('--save-directory <dir>', 'Local directory to save an HLS bundle')
     .option('--hls-directory <dir>', 'Directory containing HLS manifest and segments')
@@ -141,14 +165,12 @@ function addEditingOptions(command: Command): void {
     .option('--source-derivative-id <id>', 'Source derivative id')
     .option('--content-unit-id <id>', 'Content unit id for explicit candidate creation')
     .option('--resource-id <id>', 'RawResource id for explicit candidate creation')
-    .option('--stream-id <id>', 'MediaStreamArtifact id; currently unsupported for candidates')
+    .option('--stream-id <id>', 'MediaStreamArtifact id for explicit HLS stream candidate creation')
     .option('--candidate-id <id>', 'Optional candidate id')
     .option('--output-kind <kind>', 'Candidate output kind')
     .option('--kind <kind>', 'Alias for output kind')
     .option('--status <status>', 'Candidate status')
-    .option('--edit-plan <json>', 'MovScript edit_plan artifact JSON')
-    .option('--edit-decisions <json>', 'Edit decision artifact JSON')
-    .option('--asset-manifest <json>', 'Asset manifest JSON')
+    .option('--backend <backend>', 'Media Pipeline result backend, such as media_editing_project, remotion, hyperframes, or external_nle')
     .option('--source <json>', 'Media Pipeline source descriptor JSON')
     .option('--output <json>', 'Media Pipeline output options JSON')
     .option('--asset <json>', 'MediaAssetDescriptor JSON')
@@ -168,8 +190,6 @@ function addEditingOptions(command: Command): void {
     .option('--duration-ms <ms>', 'Clip duration in milliseconds')
     .option('--split-time-ms <ms>', 'Timeline split position in milliseconds')
     .option('--retain-side <side>', 'Split retain side')
-    .option('--timeline-assembly <json>', 'TimelineAssembly JSON')
-    .option('--compile-manifest <json>', 'CompileManifest JSON')
     .option('--title <title>', 'MediaEditingProject title')
     .option('--name <name>', 'Timeline track or project item name')
     .option('--width <px>', 'Project canvas width')
@@ -191,6 +211,13 @@ function addEditingOptions(command: Command): void {
     .option('--producer <json>', 'Candidate producer metadata JSON')
     .option('--provenance <json>', 'Candidate provenance metadata JSON')
     .option('--prompt-snapshot <json>', 'Candidate prompt snapshot JSON')
+    .option('--exchange-project-path <path>', 'External NLE exchange project file used for handoff provenance')
+    .option('--external-app <name>', 'External NLE app name used for recovery provenance')
+    .option('--app-name <name>', 'Local application display name for External NLE open')
+    .option('--dry-run', 'Plan an External NLE open command without launching a local application')
+    .option('--platform <platform>', 'Platform override for External NLE open diagnostics')
+    .option('--reviewer <name>', 'Human reviewer/editor name for recovered external output')
+    .option('--review-status <status>', 'Human review status for recovered external output')
     .option('--production-id <id>', 'Source production id')
     .option('--production-path <path>', 'Source production path')
     .option('--target-kind <kind>', 'Source target kind')
@@ -198,6 +225,7 @@ function addEditingOptions(command: Command): void {
     .option('--scope-kind <kind>', 'Source scope kind')
     .option('--scope-ref <ref>', 'Source scope ref')
     .option('--expected-revision <revision>', 'Expected MediaEditingProject revision for optimistic locking')
+    .option('--limit <count>', 'Maximum number of registry results to return')
     .option('--workspace-binding <json>', 'MediaEditingProject workspace binding JSON')
     .option('--import-to-resource', 'Ask the render task output to be imported as a RawResource when supported')
     .option('--json', 'Print JSON output')
@@ -227,12 +255,22 @@ function editingArgs(options: EditingCliOptions, command: Command): Record<strin
     projectDir: options.projectDir,
     backendBaseURL: options.server ?? global.server,
     editingServiceURL: options.editingServiceUrl,
+    mediaPipelineServiceURL: options.mediaPipelineServiceUrl,
+    projectServiceURL: options.projectServiceUrl,
     token: options.token ?? global.token,
     editingProject: jsonArg(options.editingProject, '--editing-project'),
     editingProjectId: options.editingProjectId,
+    mediaProjectId: options.mediaProjectId,
     projectId: options.projectId,
     taskId: options.taskId,
+    resultId: options.resultId,
+    watchId: options.watchId,
+    result: jsonArg(options.result, '--result'),
     outputPath: options.outputPath,
+    outputDirectory: options.outputDirectory,
+    waitForMs: numericArg(options.waitForMs, '--wait-for-ms'),
+    timeoutMs: numericArg(options.timeoutMs, '--timeout-ms'),
+    pollIntervalMs: numericArg(options.pollIntervalMs, '--poll-interval-ms'),
     savePath: options.savePath,
     saveDirectory: options.saveDirectory,
     hlsDirectory: options.hlsDirectory,
@@ -250,9 +288,7 @@ function editingArgs(options: EditingCliOptions, command: Command): Record<strin
     outputKind: options.outputKind,
     kind: options.kind,
     status: options.status,
-    editPlan: jsonArg(options.editPlan, '--edit-plan'),
-    editDecisions: jsonArg(options.editDecisions, '--edit-decisions'),
-    assetManifest: jsonArg(options.assetManifest, '--asset-manifest'),
+    backend: options.backend,
     source: jsonArg(options.source, '--source'),
     output: jsonArg(options.output, '--output'),
     asset: jsonArg(options.asset, '--asset'),
@@ -272,8 +308,6 @@ function editingArgs(options: EditingCliOptions, command: Command): Record<strin
     durationMs: numericArg(options.durationMs, '--duration-ms'),
     splitTimeMs: numericArg(options.splitTimeMs, '--split-time-ms'),
     retainSide: options.retainSide,
-    timelineAssembly: jsonArg(options.timelineAssembly, '--timeline-assembly'),
-    compileManifest: jsonArg(options.compileManifest, '--compile-manifest'),
     title: options.title,
     name: options.name,
     width: numericArg(options.width, '--width'),
@@ -295,6 +329,13 @@ function editingArgs(options: EditingCliOptions, command: Command): Record<strin
     producer: jsonArg(options.producer, '--producer'),
     provenance: jsonArg(options.provenance, '--provenance'),
     promptSnapshot: jsonArg(options.promptSnapshot, '--prompt-snapshot'),
+    exchangeProjectPath: options.exchangeProjectPath,
+    externalApp: options.externalApp,
+    appName: options.appName,
+    dryRun: options.dryRun,
+    platform: options.platform,
+    reviewer: options.reviewer,
+    reviewStatus: options.reviewStatus,
     productionId: options.productionId,
     productionPath: options.productionPath,
     targetKind: options.targetKind,
@@ -302,6 +343,7 @@ function editingArgs(options: EditingCliOptions, command: Command): Record<strin
     scopeKind: options.scopeKind,
     scopeRef: options.scopeRef,
     expectedRevision: numericArg(options.expectedRevision, '--expected-revision'),
+    limit: numericArg(options.limit, '--limit'),
     workspace: jsonArg(options.workspaceBinding, '--workspace-binding'),
     importToResource: options.importToResource === true ? true : undefined,
   })

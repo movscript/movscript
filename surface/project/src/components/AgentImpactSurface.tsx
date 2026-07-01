@@ -242,7 +242,6 @@ function timelineFocusRecordFromImpactItem(
 ): Record<string, string> | undefined {
   const scopeKind = stringValue(item.timelineScopeKind ?? item.timeline_scope_kind ?? item.scopeKind ?? item.scope_kind ?? item.namespaceKind ?? item.namespace_kind)
   const scopeRef = stringValue(item.timelineScopeRef ?? item.timeline_scope_ref ?? item.scopeRef ?? item.scope_ref ?? item.namespaceRef ?? item.namespace_ref ?? item.namespacePath ?? item.namespace_path)
-  const timelineAssemblyRef = stringValue(item.timelineAssemblyRef ?? item.timeline_assembly_ref)
   const targetKind = stringValue(item.targetKind ?? item.target_kind)
   const targetRef = stringValue(item.targetRef ?? item.target_ref)
   const productionId = productionIdFromPath(stringValue(item.targetPath ?? item.target_path))
@@ -255,13 +254,6 @@ function timelineFocusRecordFromImpactItem(
   } else if ((targetKind === 'production' || targetKind === 'segment') && targetRef) {
     record.scopeKind = targetKind
     record.scopeRef = targetRef
-  }
-  if (timelineAssemblyRef) {
-    record.targetKind = 'timeline_assembly'
-    record.targetRef = timelineAssemblyRef
-  } else if (targetKind === 'timeline_assembly' && targetRef) {
-    record.targetKind = targetKind
-    record.targetRef = targetRef
   }
   if (!record.scopeKind && !record.targetKind && productionId) record.productionId = productionId
   return record.scopeKind || record.targetKind || record.productionId ? record : undefined

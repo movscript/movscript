@@ -99,6 +99,7 @@ func modelRouteToContract(route ModelRoute, capability string) providercontract.
 		ProviderID:      route.ProviderID,
 		ProviderKind:    route.ProviderKind,
 		AdapterKey:      route.AdapterKey,
+		AdapterType:     route.AdapterType,
 		ProviderModelID: route.ProviderModelID,
 		Capability:      capability,
 		Operation:       route.Operation,

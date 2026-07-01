@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Route } from '@playwright/test'
 import { Buffer } from 'node:buffer'
 
 import { PROJECT_STANDARDS_WORKSPACE_WORKSPACE_SCHEMA } from '@movscript/project-surface/data'
@@ -61,9 +61,53 @@ test('project workspace reaches project standards overview', async ({ page }, te
 
   await page.goto('/project/standards')
 
-  await expect(page.getByRole('button', { name: /规范/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: '新增规范' })).toBeVisible()
   await expect(page.getByRole('heading', { name: '规范工作板' })).toBeVisible()
   await expect(page.getByRole('heading', { name: '基础规范' })).toBeVisible()
+})
+
+test('project surface creates and opens production editing workspaces through Desktop gateway', async ({ page }, testInfo) => {
+  const baseURL = testInfo.project.use.baseURL
+  if (!baseURL) throw new Error('production editing workspace E2E requires a baseURL')
+
+  const seed = buildGenerationAppBootstrap(String(baseURL))
+  await installE2EBootstrapSeed(page, {
+    ...seed,
+    project: {
+      ...(seed.project!),
+      project_uid: 'e2e-project-uid',
+      workspace_path: '/tmp/movscript-e2e-production-editing',
+      project_path: '/tmp/movscript-e2e-production-editing',
+    },
+  })
+  await mockGenerationAppShell(page)
+  await installProjectSurfaceGatewayMock(page, String(baseURL))
+  const productionEditingCalls = await mockProductionEditingGateway(page)
+  await mockProjectWorkspaceEntities(page)
+
+  await page.goto('/project/home')
+
+  await expect(page.getByText('E2E 制作', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '剪辑台' }).click()
+
+  const editingDialog = page.getByRole('dialog', { name: 'E2E 制作 剪辑台' })
+  await expect(editingDialog).toBeVisible()
+  await expect(editingDialog.getByText('E2E 制作 Remotion')).toBeVisible()
+
+  await editingDialog.getByRole('button', { name: '新建系统剪辑' }).click()
+  await expect.poll(() => productionEditingCalls.create.map((call) => call.kind)).toContain('system_editing')
+
+  await editingDialog.getByRole('button', { name: '新建 Remotion' }).click()
+  await expect.poll(() => productionEditingCalls.create.map((call) => call.kind)).toContain('remotion')
+
+  await editingDialog.getByRole('button', { name: '打开' }).click()
+  await expect.poll(() => productionEditingCalls.open.map((call) => call.workspaceId ?? call.workspace_id)).toContain('remotion-e2e')
+  await expect.poll(() => productionEditingCalls.mediaTasks.map((call) => call.request?.backend)).toContain('remotion')
+  expect(productionEditingCalls.mediaTasks[0]?.request).toMatchObject({
+    backend: 'remotion',
+    taskType: 'backend_project_preview',
+    projectDirectory: '/tmp/movscript-e2e-production-editing/.movscript/production-editing/remotion-e2e',
+  })
 })
 
 test('project content workspace renders dedicated preview and prompt canvas pages', async ({ page }, testInfo) => {
@@ -96,7 +140,102 @@ test('project content workspace renders dedicated preview and prompt canvas page
   await expect(page.getByLabel('右侧节点信息区域')).toBeVisible()
   await expect(page.locator('.content-canvas-preview-candidate-card')).toHaveCount(1)
   await expect(page.getByText('雨夜画面候选')).toBeVisible()
+  await expect(page.locator('.content-canvas-prompt-inline-reference')).toContainText('Resource 9101')
+  await expect(page.locator('.content-canvas-prompt-reference-strip__item')).toContainText('Resource 9101')
+  await expect(page.locator('.content-canvas-prompt-reference-strip__item')).toContainText('参考图')
+  await expect(page.locator('.content-canvas-prompt-reference-strip__item img')).toBeVisible()
   await expect(page.getByText('手机参考候选')).toHaveCount(0)
+
+  const promptEditor = page.locator('.content-canvas-prompt-inline-editor')
+  await expect(promptEditor).toBeVisible()
+  await promptEditor.click()
+  await promptEditor.press('End')
+  await promptEditor.type(' @')
+  const mentionMenu = page.locator('.content-canvas-prompt-mention-menu')
+  await expect(mentionMenu).toBeVisible()
+  await expect(mentionMenu).toContainText('Resource 9101')
+  const mentionMenuBox = await mentionMenu.boundingBox()
+  expect(mentionMenuBox).not.toBeNull()
+  expect(mentionMenuBox!.height).toBeGreaterThan(20)
+  expect(mentionMenuBox!.y).toBeGreaterThanOrEqual(0)
+  await promptEditor.press('Escape')
+
+  const referenceRoleSelect = page.locator('.content-canvas-prompt-reference-strip__role')
+  await referenceRoleSelect.selectOption('first_frame')
+  await expect(page.locator('.content-canvas-prompt-reference-strip__item')).toContainText('首帧')
+  await referenceRoleSelect.selectOption('reference_image')
+  await expect(page.locator('.content-canvas-prompt-reference-strip__item')).toContainText('参考图')
+  await page.locator('.content-canvas-prompt-reference-strip__remove').click()
+  await expect(page.locator('.content-canvas-prompt-reference-strip__item')).toHaveCount(0)
+  await expect(page.locator('.content-canvas-prompt-inline-reference')).toHaveCount(0)
+  const contentWorkspaceCalls = await page.evaluate(() => (window as unknown as {
+    __contentWorkspaceCalls: {
+      promptUpdates: Array<{ editPrompt: { text?: string }; generationReferences?: Array<Record<string, unknown>> }>
+    }
+  }).__contentWorkspaceCalls)
+  const autoRepairUpdate = contentWorkspaceCalls.promptUpdates.find((call) => call.generationReferences?.some((reference) => reference.source === 'prompt_legacy_auto_repair'))
+  expect(autoRepairUpdate?.generationReferences?.[0]).toMatchObject({
+    id: 'resource:9101',
+    kind: 'resource',
+    ref: 9101,
+    resource_id: 9101,
+    media_type: 'image',
+    role: 'reference_image',
+    source_ref: '{{resource::9101}}',
+    source: 'prompt_legacy_auto_repair',
+  })
+  const firstFrameUpdate = contentWorkspaceCalls.promptUpdates.find((call) => call.generationReferences?.some((reference) => reference.role === 'first_frame'))
+  expect(firstFrameUpdate?.generationReferences?.[0]).toMatchObject({
+    id: 'resource:9101',
+    kind: 'resource',
+    ref: 9101,
+    resource_id: 9101,
+    role: 'first_frame',
+  })
+  const roleUpdate = contentWorkspaceCalls.promptUpdates.find((call) => call.generationReferences?.some((reference) => reference.role === 'reference_image'))
+  expect(roleUpdate?.generationReferences?.[0]).toMatchObject({
+    id: 'resource:9101',
+    kind: 'resource',
+    ref: 9101,
+    resource_id: 9101,
+    media_type: 'image',
+    role: 'reference_image',
+  })
+  const removalUpdate = contentWorkspaceCalls.promptUpdates.at(-1)
+  expect(removalUpdate?.generationReferences).toEqual([])
+  expect(removalUpdate?.editPrompt.text).not.toContain('{{resource::9101}}')
+
+  const emptyReferenceStrip = page.locator('.content-canvas-prompt-reference-strip[data-empty="true"]')
+  await expect(emptyReferenceStrip).toBeVisible()
+  await emptyReferenceStrip.evaluate((element) => {
+    const dataTransfer = new DataTransfer()
+    dataTransfer.setData('application/resource-id', '9101')
+    dataTransfer.setData('application/canvas-resource', JSON.stringify({
+      ID: 9101,
+      name: 'Dragged reference.png',
+      type: 'image',
+      mime_type: 'image/png',
+    }))
+    element.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }))
+    element.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }))
+  })
+  await expect(page.locator('.content-canvas-prompt-reference-strip__item')).toContainText('Dragged reference.png')
+  await expect(page.locator('.content-canvas-prompt-reference-strip__item img')).toBeVisible()
+  const callsAfterDrop = await page.evaluate(() => (window as unknown as {
+    __contentWorkspaceCalls: {
+      promptUpdates: Array<{ editPrompt: { text?: string }; generationReferences?: Array<Record<string, unknown>> }>
+    }
+  }).__contentWorkspaceCalls)
+  expect(callsAfterDrop.promptUpdates.at(-1)?.generationReferences?.[0]).toMatchObject({
+    id: 'resource:9101',
+    kind: 'resource',
+    ref: 9101,
+    resource_id: 9101,
+    media_type: 'image',
+    role: 'reference_image',
+    label: 'Dragged reference.png',
+    source: 'content_canvas',
+  })
 
   await page.getByRole('button', { name: /^KEY 手机冷光/ }).click()
   await expect(page.getByLabel('预览播放器')).toContainText('手机冷光')
@@ -113,6 +252,27 @@ test('project content workspace renders dedicated preview and prompt canvas page
   await expect(page.getByText('暂无创作节点')).toBeVisible()
 
   const promptCanvas = page.getByLabel('提示词无限画布')
+  await promptCanvas.getByRole('button', { name: '打开项目节点' }).click()
+  const nodeDrawer = page.getByLabel('项目节点库')
+  await expect(nodeDrawer).toBeVisible()
+  await nodeDrawer.getByRole('button', { name: /雨夜来电/ }).click()
+  await expect(page.getByText('2 个创作节点，1 个可生成节点')).toBeVisible()
+  const canvasPromptEditor = promptCanvas.locator('.content-prompt-flow-node__prompt-panel .content-canvas-prompt-inline-editor')
+  await expect(canvasPromptEditor).toBeVisible()
+  await expect(promptCanvas.locator('.content-prompt-flow-node__prompt-panel .content-canvas-prompt-reference-strip__item')).toContainText('Resource 9101')
+  await canvasPromptEditor.click()
+  await canvasPromptEditor.press('End')
+  await canvasPromptEditor.type(' ：＠')
+  const canvasMentionMenu = page.locator('.content-canvas-prompt-mention-menu')
+  await expect(canvasMentionMenu).toBeVisible()
+  await expect(canvasMentionMenu).toContainText('Resource 9101')
+  const canvasMentionMenuBox = await canvasMentionMenu.boundingBox()
+  expect(canvasMentionMenuBox).not.toBeNull()
+  expect(canvasMentionMenuBox!.height).toBeGreaterThan(20)
+  expect(canvasMentionMenuBox!.y).toBeGreaterThanOrEqual(0)
+  await canvasPromptEditor.press('Escape')
+  await nodeDrawer.getByRole('button', { name: '关闭项目节点' }).click()
+
   await expect(promptCanvas.getByRole('button', { name: '新建内容画布' })).toBeVisible()
   await expect(promptCanvas.getByRole('button', { name: '重命名内容画布' })).toBeVisible()
 
@@ -204,6 +364,245 @@ async function mockProjectWorkspaceWorkspaces(page: Parameters<typeof mockGenera
   })
 }
 
+async function installProjectSurfaceGatewayMock(page: Parameters<typeof mockGenerationAppShell>[0], gatewayBaseURL: string) {
+  await page.addInitScript(({ gatewayBaseURL }) => {
+    const apiWindow = window as unknown as { api?: Record<string, unknown> }
+    apiWindow.api = {
+      ...(apiWindow.api ?? {}),
+      getRuntimeConfig: async () => ({
+        workspaceDir: '/tmp/movscript-e2e-home',
+        movScriptHomeDir: '/tmp/movscript-e2e-home',
+        gatewayBaseURL,
+        apiBaseURL: gatewayBaseURL,
+        apiV1BaseURL: `${gatewayBaseURL}/api/v1`,
+        runtimeConnection: {
+          schema: 'movscript.runtime-connection.v1',
+          mode: 'local',
+          gatewayBaseURL,
+          apiV1BaseURL: `${gatewayBaseURL}/api/v1`,
+          authMode: 'local-owner',
+          displayName: 'E2E local gateway',
+          status: 'connected',
+          source: 'daemon',
+        },
+        runtime: {
+          schema: 'movscript.runtime-descriptor.v1',
+          runtime: {
+            owner: 'movscript.local-node',
+            appId: 'movscript.local-node',
+            name: 'MovScript Local Node Daemon',
+          },
+          gateway: {
+            baseURL: gatewayBaseURL,
+            canonicalPrefix: '/v1',
+          },
+          dataConnection: {
+            kind: 'local',
+            authMode: 'local-owner',
+            status: 'connected',
+            displayName: 'E2E local data',
+          },
+          capabilities: {
+            project: true,
+            canvas: true,
+            resources: true,
+            editing: true,
+            media: true,
+          },
+        },
+        dataConnection: {
+          kind: 'local',
+          authMode: 'local-owner',
+          status: 'connected',
+          displayName: 'E2E local data',
+        },
+        providerRuntimeEnv: {},
+        backendStatus: {
+          ok: true,
+          baseURL: gatewayBaseURL,
+        },
+      }),
+    }
+  }, { gatewayBaseURL })
+}
+
+async function mockProductionEditingGateway(page: Parameters<typeof mockGenerationAppShell>[0]) {
+  const calls: {
+    create: Array<Record<string, unknown>>
+    open: Array<Record<string, unknown>>
+    mediaTasks: Array<{ request?: Record<string, unknown> }>
+  } = {
+    create: [],
+    open: [],
+    mediaTasks: [],
+  }
+  const remotionWorkspace = {
+    workspaceId: 'remotion-e2e',
+    workspace_id: 'remotion-e2e',
+    kind: 'remotion',
+    title: 'E2E 制作 Remotion',
+    projectDirectory: '/tmp/movscript-e2e-production-editing/.movscript/production-editing/remotion-e2e',
+    project_directory: '/tmp/movscript-e2e-production-editing/.movscript/production-editing/remotion-e2e',
+    stale: false,
+  }
+
+  await page.route('**/v1/context/sessions', async (route) => {
+    await fulfillRouteJSON(route, {
+      schema: 'movscript.context-envelope.v1',
+      contextId: 'context-e2e-production-editing',
+      revision: 1,
+      issuedAt: NOW,
+      runtime: {
+        owner: 'desktop-owned',
+        appId: 'movscript.desktop-e2e',
+        gatewayPrefix: '/v1',
+      },
+      principal: {
+        userId: '1001',
+        kind: 'local-owner',
+        scopeKind: 'org',
+        scopeId: 1,
+      },
+      dataConnection: {
+        kind: 'local',
+        authMode: 'local-owner',
+        status: 'connected',
+      },
+      session: {
+        sessionId: 'session-e2e-production-editing',
+        project: {
+          id: String(PROJECT_ID),
+          key: String(PROJECT_ID),
+          backendProjectId: PROJECT_ID,
+          uid: 'e2e-project-uid',
+          title: 'E2E Demo Project',
+        },
+        workspace: {
+          kind: 'local-fs',
+          projectCwd: '/tmp/movscript-e2e-production-editing',
+        },
+        capabilities: {
+          localFileAccess: true,
+          fileImport: true,
+          mediaPreview: true,
+        },
+      },
+    })
+  })
+
+  await page.route('**/v1/project/home/read-model', async (route) => {
+    await fulfillRouteJSON(route, {
+      projectHomeReadModel: {
+        schema: 'movscript.project-home-read-model.v1',
+        scripts: [],
+        productions: [{
+          id: 'pilot',
+          title: 'E2E 制作',
+          kind: 'short_drama',
+          production_type: 'short_drama',
+        }],
+        sceneMoments: [],
+        settings: [],
+        assets: [],
+        contentUnits: [],
+      },
+    })
+  })
+
+  await page.route('**/v1/project/productions/editing-workspaces/list', async (route) => {
+    await fulfillRouteJSON(route, {
+      result: {
+        workspaces: [remotionWorkspace],
+        pagination: {
+          total: 1,
+          page: 1,
+          pageSize: 5,
+          hasNextPage: false,
+        },
+      },
+    })
+  })
+
+  await page.route('**/v1/project/productions/editing-workspaces/create', async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>
+    calls.create.push(body)
+    await fulfillRouteJSON(route, {
+      result: {
+        workspace: {
+          workspaceId: `${body.kind ?? 'workspace'}-created-e2e`,
+          workspace_id: `${body.kind ?? 'workspace'}-created-e2e`,
+          kind: body.kind,
+          title: body.title,
+        },
+        handoffPreflight: {
+          schema: 'movscript.production_editing_handoff_preflight.v1',
+          ready: true,
+          blockers: [],
+          agentSkill: {
+            status: 'available',
+            skill: body.kind === 'remotion' ? 'remotion' : 'system_edit',
+          },
+          projectRuntime: {
+            status: 'ready',
+          },
+        },
+      },
+    })
+  })
+
+  await page.route('**/v1/project/productions/editing-workspaces/open', async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>
+    calls.open.push(body)
+    await fulfillRouteJSON(route, {
+      result: {
+        workspace: remotionWorkspace,
+        handoff: {
+          schema: 'movscript.production_editing_handoff.v1',
+          toSkill: 'remotion',
+          to_skill: 'remotion',
+        },
+        handoffPreflight: {
+          schema: 'movscript.production_editing_handoff_preflight.v1',
+          ready: true,
+          blockers: [],
+          agentSkill: {
+            status: 'available',
+            skill: 'remotion',
+          },
+          projectRuntime: {
+            status: 'ready',
+          },
+        },
+        open_action: {
+          kind: 'media_pipeline_task_request',
+          backend: 'remotion',
+          taskType: 'backend_project_preview',
+          task_type: 'backend_project_preview',
+          projectDirectory: remotionWorkspace.projectDirectory,
+          project_directory: remotionWorkspace.project_directory,
+          previewCommand: ['pnpm', 'remotion', 'studio'],
+          preview_command: ['pnpm', 'remotion', 'studio'],
+        },
+      },
+    })
+  })
+
+  await page.route('**/v1/media-pipeline/task/create', async (route) => {
+    const body = route.request().postDataJSON() as { request?: Record<string, unknown> }
+    calls.mediaTasks.push(body)
+    await fulfillRouteJSON(route, {
+      task: {
+        id: 'task-remotion-preview-e2e',
+        status: 'queued',
+        backend: 'remotion',
+        taskType: 'backend_project_preview',
+      },
+    })
+  })
+
+  return calls
+}
+
 async function mockContentWorkspaceResourceFiles(page: Parameters<typeof mockGenerationAppShell>[0]) {
   await page.route(/\/(?:api\/v1\/resources|v1\/resources|resources)\/\d+\/file(?:[?#]|$)/, async (route) => {
     await route.fulfill({
@@ -211,6 +610,14 @@ async function mockContentWorkspaceResourceFiles(page: Parameters<typeof mockGen
       contentType: 'image/png',
       body: ONE_BY_ONE_PNG,
     })
+  })
+}
+
+async function fulfillRouteJSON(route: Route, body: unknown) {
+  await route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify(body),
   })
 }
 
@@ -260,7 +667,7 @@ async function installContentWorkspaceElectronApiMock(page: Parameters<typeof mo
           content_unit_type: 'scene_moment_ref',
           output_kind: 'video',
           scene_moment_ref: 'rain_call',
-          edit_prompt: { text: 'A rainy night phone call with {{asset:phone}} as visual anchor.' },
+          edit_prompt: { text: 'A rainy night phone call with {{resource::9101}} as visual anchor.' },
         }),
         entity('content_unit', 'cu_expr', 'content_units/cu_expr/content_unit.json', {
           id: 'cu_expr',
@@ -364,9 +771,11 @@ async function installContentWorkspaceElectronApiMock(page: Parameters<typeof mo
     const contentWorkspaceCalls: {
       ensuredContentUnits: unknown[]
       selectedCandidates: Array<{ contentUnitId?: string; candidateId?: string; resourceId?: number }>
+      promptUpdates: Array<{ editPrompt: { text?: string }; generationReferences?: Array<Record<string, unknown>> }>
     } = {
       ensuredContentUnits: [],
       selectedCandidates: [],
+      promptUpdates: [],
     }
     ;(window as unknown as { __contentWorkspaceCalls: typeof contentWorkspaceCalls }).__contentWorkspaceCalls = contentWorkspaceCalls
     window.api = {
@@ -404,6 +813,15 @@ async function installContentWorkspaceElectronApiMock(page: Parameters<typeof mo
       },
       selectMovScriptEngineContentUnitCandidate: async (input: { contentUnitId?: string; candidateId?: string; resourceId?: number }) => {
         contentWorkspaceCalls.selectedCandidates.push(input)
+      },
+      updateMovScriptEngineContentUnitEditPrompt: async (input: {
+        editPrompt: { text?: string }
+        generationReferences?: Array<Record<string, unknown>>
+      }) => {
+        contentWorkspaceCalls.promptUpdates.push({
+          editPrompt: input.editPrompt,
+          ...(input.generationReferences !== undefined ? { generationReferences: input.generationReferences } : {}),
+        })
       },
       buildMovScriptEngineContentUnitBackendPrompt: async () => ({ ok: true, prompt: { text: 'Compiled prompt', resource_ids: [], replacements: [] }, blockers: [] }),
     }

@@ -117,6 +117,13 @@ jobs:
             artifact: movscript-desktop-windows-x64
             ffmpeg-platform: win32
             ffmpeg-arch: x64
+          - name: linux-x64
+            os: ubuntu-24.04
+            package-platform: linux
+            package-arch: x64
+            artifact: movscript-desktop-linux-x64
+            ffmpeg-platform: linux
+            ffmpeg-arch: x64
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -291,6 +298,9 @@ jobs:
 
       - name: Package plugin app
         run: pnpm run release -- package --app plugin
+
+      - name: Smoke test plugin package
+        run: pnpm run release -- smoke-plugin-package
 
       - name: Collect plugin release artifact
         run: pnpm run release -- collect --app plugin

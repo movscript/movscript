@@ -25,11 +25,10 @@ export {
   SCENE_MAIN_NODE,
 } from './contentCanvasWorkspaceGraphModel'
 export {
-  appendAssetReferenceToPrompt,
-  appendContentNodeReferenceToPrompt,
   candidateDecisionForNode,
   candidatesForNode,
   contentStatusLabel,
+  generationReferencesFromContentNode,
   isExpressionPromptNode,
   mediaKindForNode,
   mediaKindLabel,
@@ -38,8 +37,9 @@ export {
   selectedCandidateForNode,
   settingKindFromNode,
   stringField,
-  upsertContentNodeReferenceInPrompt,
+  upsertContentNodeGenerationReference,
   uniqueContentNodes,
+  type ContentCanvasGenerationReference,
   type NodeMediaKind,
 } from './contentCanvasWorkspaceNodeModel'
 

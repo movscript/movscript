@@ -11,12 +11,11 @@ import type {
   MovScriptDomainEdge,
   MovScriptDomainRef,
   MovScriptNormalizedContentUnitTarget,
-  MovScriptTimelineAssemblyScope,
+  MovScriptTimelineNamespaceScope,
   MovScriptWorkTargetCategory,
 } from './types.js'
 
 export const MOVSCRIPT_SPECIALIZED_CONTENT_UNIT_TYPES = [
-  'timeline_assembly_ref',
   'production_ref',
   'segment_ref',
   'asset_ref',
@@ -31,30 +30,21 @@ export const MOVSCRIPT_SPECIALIZED_CONTENT_UNIT_TYPES = [
 export type MovScriptSpecializedContentUnitType = typeof MOVSCRIPT_SPECIALIZED_CONTENT_UNIT_TYPES[number]
 
 const CONTENT_UNIT_TARGET_ADAPTERS: Record<MovScriptSpecializedContentUnitType, MovScriptContentUnitTargetAdapter> = {
-  timeline_assembly_ref: {
-    contentUnitType: 'timeline_assembly_ref',
-    targetCategory: 'timeline_assembly',
-    targetKind: 'timeline_assembly',
-    outputKind: 'video',
-    primaryRefField: 'target_ref',
-  },
   production_ref: {
     contentUnitType: 'production_ref',
-    targetCategory: 'timeline_assembly',
-    targetKind: 'timeline_assembly',
+    targetKind: 'production',
     outputKind: 'video',
     primaryRefKind: 'production',
     primaryRefField: 'production_ref',
-    legacyNamespaceKind: 'production',
+    namespaceScopeKind: 'production',
   },
   segment_ref: {
     contentUnitType: 'segment_ref',
-    targetCategory: 'timeline_assembly',
-    targetKind: 'timeline_assembly',
+    targetKind: 'segment',
     outputKind: 'video',
     primaryRefKind: 'segment',
     primaryRefField: 'segment_ref',
-    legacyNamespaceKind: 'segment',
+    namespaceScopeKind: 'segment',
   },
   asset_ref: primitiveAdapter('asset_ref', 'asset', 'image'),
   keyframe_ref: primitiveAdapter('keyframe_ref', 'keyframe', 'image'),
@@ -119,8 +109,8 @@ export function primaryRefFieldNameForKind(kind: MovScriptContentUnitPromptRefKi
 }
 
 export function contentUnitTypesForPromptRefKind(kind: MovScriptContentUnitPromptRefKind): string[] {
-  if (kind === 'production') return ['production_ref', 'timeline_assembly_ref']
-  if (kind === 'segment') return ['segment_ref', 'timeline_assembly_ref']
+  if (kind === 'production') return ['production_ref']
+  if (kind === 'segment') return ['segment_ref']
   if (kind === 'scene_moment') return ['scence_moment_ref', 'scene_moment_ref']
   if (kind === 'expression_unit') return ['expression_unit_ref']
   return [`${kind}_ref`]
@@ -143,13 +133,11 @@ export function primaryRefIdsForContentUnitRecord(
       return compactStrings(
         record.production_ref,
         record.target_kind === 'production' ? record.target_ref : undefined,
-        timelineAssemblyScopeRefFor(record, 'production'),
       )
     case 'segment':
       return compactStrings(
         record.segment_ref,
         record.target_kind === 'segment' ? record.target_ref : undefined,
-        timelineAssemblyScopeRefFor(record, 'segment'),
       )
     case 'scene_moment':
       return compactStrings(record.target_kind === 'scene_moment' ? record.target_ref : undefined, record.scene_moment_ref, record.scence_moment_ref)
@@ -181,18 +169,25 @@ export function normalizeContentUnitTarget(record: Record<string, unknown>): Mov
   const explicitTargetCategory = stringField(record.target_category ?? record.targetCategory)
   const explicitTargetKind = stringField(record.target_kind ?? record.targetKind)
   const explicitTargetRef = idString(record.target_ref ?? record.targetRef)
-  const explicitScopeKind = stringField(record.scope_kind ?? record.scopeKind)
-  const explicitScopeRef = idString(record.scope_ref ?? record.scopeRef)
-  const explicitScope = explicitScopeKind && explicitScopeRef
-    ? { scopeKind: explicitScopeKind, scopeRef: explicitScopeRef }
-    : undefined
   const diagnostics: MovScriptDomainDiagnostic[] = []
   const outputKind = outputKindForContentUnitType(contentUnitType, record.output_kind ?? record.outputKind)
   const primaryRefKind = adapter?.primaryRefKind
   const primaryRefField = adapter?.primaryRefField ?? (primaryRefKind ? primaryRefFieldNameForKind(primaryRefKind) : undefined)
   const primaryRefs = primaryRefKind ? primaryRefIdsForContentUnitRecord(record, primaryRefKind) : []
 
+  if (contentUnitType === 'timeline_assembly_ref') {
+    return removedTimelineAssemblyContentUnitTarget(contentUnitType, outputKind)
+  }
+
   if (!adapter) {
+    if (explicitTargetCategory === 'timeline_assembly' || explicitTargetKind === 'timeline_assembly') {
+      return {
+        contentUnitType,
+        outputKind,
+        primaryRefs,
+        diagnostics: [timelineAssemblyTargetRemovedDiagnostic(explicitTargetKind === 'timeline_assembly' ? 'target_kind' : 'target_category')],
+      }
+    }
     const targetCategory = explicitWorkTargetCategory(explicitTargetCategory)
       ?? (explicitTargetKind ? workTargetCategoryForKind(explicitTargetKind) : undefined)
     if (explicitTargetCategory && isMovScriptNamespaceCategory(explicitTargetCategory)) {
@@ -216,70 +211,12 @@ export function normalizeContentUnitTarget(record: Record<string, unknown>): Mov
     }
   }
 
-  if (adapter.contentUnitType === 'timeline_assembly_ref') {
-    if (explicitTargetCategory && isMovScriptNamespaceCategory(explicitTargetCategory)) {
-      diagnostics.push(namespaceTargetDiagnostic(explicitTargetCategory, 'target_category'))
-    }
-    if (explicitTargetKind && isMovScriptNamespaceKind(explicitTargetKind)) {
-      diagnostics.push(namespaceTargetDiagnostic(explicitTargetKind, 'target_kind'))
-    }
-    if (explicitTargetKind && explicitTargetKind !== 'timeline_assembly') {
-      diagnostics.push({
-        severity: 'error',
-        code: 'content_unit_target_kind_mismatch',
-        message: `${contentUnitType} must target timeline_assembly, not ${explicitTargetKind}`,
-        field: 'target_kind',
-      })
-    }
-    const targetRef = explicitTargetKind === 'timeline_assembly' && explicitTargetRef
-      ? explicitTargetRef
-      : explicitScope
-        ? implicitTimelineAssemblyRef(explicitScope.scopeKind, explicitScope.scopeRef)
-        : undefined
-    const parsedScope = parseImplicitTimelineAssemblyRef(targetRef)
-    if (!targetRef) {
-      diagnostics.push({
-        severity: 'error',
-        code: 'content_unit_target_ref_missing',
-        message: `${contentUnitType} requires target_ref or scope_kind/scope_ref`,
-        field: 'target_ref',
-      })
-    } else if (!parsedScope) {
-      diagnostics.push({
-        severity: 'error',
-        code: 'content_unit_scope_ref_invalid',
-        message: `${contentUnitType} target_ref must use timeline_assembly:<scopeKind>:<scopeRef>`,
-        field: 'target_ref',
-      })
-    }
-    return {
-      contentUnitType,
-      outputKind,
-      target: {
-        targetCategory: 'timeline_assembly',
-        targetKind: 'timeline_assembly',
-        ...(targetRef ? { targetRef } : {}),
-      },
-      primaryRefField: adapter.primaryRefField,
-      primaryRefs,
-      ...(parsedScope ? {
-        scope: {
-          category: 'timeline_namespace',
-          kind: parsedScope.scopeKind,
-          ref: parsedScope.scopeRef,
-          field: explicitTargetRef ? 'target_ref' : 'scope_ref',
-        },
-      } : {}),
-      diagnostics,
-    }
-  }
-
-  if (adapter.legacyNamespaceKind) {
+  if (adapter.namespaceScopeKind) {
     if (explicitTargetCategory && isMovScriptNamespaceCategory(explicitTargetCategory)) {
       diagnostics.push(namespaceTargetDiagnostic(explicitTargetCategory, 'target_category'))
     }
     const scopeRef = firstUnique(primaryRefs)
-      ?? (explicitTargetKind === adapter.legacyNamespaceKind ? explicitTargetRef : undefined)
+      ?? (explicitTargetKind === adapter.namespaceScopeKind ? explicitTargetRef : undefined)
     if (!scopeRef) {
       diagnostics.push({
         severity: 'error',
@@ -288,7 +225,10 @@ export function normalizeContentUnitTarget(record: Record<string, unknown>): Mov
         field: adapter.primaryRefField,
       })
     }
-    if (explicitTargetKind && explicitTargetKind !== adapter.legacyNamespaceKind && explicitTargetKind !== 'timeline_assembly') {
+    if (explicitTargetCategory === 'timeline_assembly' || explicitTargetKind === 'timeline_assembly') {
+      diagnostics.push(timelineAssemblyTargetRemovedDiagnostic(explicitTargetKind === 'timeline_assembly' ? 'target_kind' : 'target_category'))
+    }
+    if (explicitTargetKind && explicitTargetKind !== adapter.namespaceScopeKind) {
       diagnostics.push({
         severity: 'error',
         code: 'content_unit_target_kind_mismatch',
@@ -296,33 +236,23 @@ export function normalizeContentUnitTarget(record: Record<string, unknown>): Mov
         field: 'target_kind',
       })
     }
-    const targetRef = explicitTargetKind === 'timeline_assembly' && explicitTargetRef
-      ? explicitTargetRef
-      : scopeRef
-        ? implicitTimelineAssemblyRef(adapter.legacyNamespaceKind, scopeRef)
-        : undefined
     return {
       contentUnitType,
       outputKind,
-      target: {
-        targetCategory: 'timeline_assembly',
-        targetKind: 'timeline_assembly',
-        ...(targetRef ? { targetRef } : {}),
-      },
       primaryRefKind,
       primaryRefField,
       primaryRefs,
       ...(scopeRef ? {
         scope: {
           category: 'timeline_namespace',
-          kind: adapter.legacyNamespaceKind,
+          kind: adapter.namespaceScopeKind,
           ref: scopeRef,
           field: adapter.primaryRefField,
         },
       } : {}),
-      legacyAlias: {
+      namespaceAlias: {
         contentUnitType: contentUnitType as 'production_ref' | 'segment_ref',
-        namespaceKind: adapter.legacyNamespaceKind,
+        namespaceKind: adapter.namespaceScopeKind,
       },
       diagnostics,
     }
@@ -356,11 +286,13 @@ export function normalizeContentUnitTarget(record: Record<string, unknown>): Mov
   return {
     contentUnitType,
     outputKind,
-    target: {
-      targetCategory: adapter.targetCategory,
-      targetKind: adapter.targetKind,
-      ...(targetRef ? { targetRef } : {}),
-    },
+    ...(adapter.targetCategory ? {
+      target: {
+        targetCategory: adapter.targetCategory,
+        targetKind: adapter.targetKind,
+        ...(targetRef ? { targetRef } : {}),
+      },
+    } : {}),
     primaryRefKind,
     primaryRefField,
     primaryRefs,
@@ -368,8 +300,21 @@ export function normalizeContentUnitTarget(record: Record<string, unknown>): Mov
   }
 }
 
-export function timelineAssemblyScopeFromContentUnitRecord(record: Record<string, unknown>): MovScriptTimelineAssemblyScope | undefined {
-  return normalizeContentUnitTarget(record).scope
+function removedTimelineAssemblyContentUnitTarget(
+  contentUnitType: string,
+  outputKind: MovScriptContentUnitOutputKind,
+): MovScriptNormalizedContentUnitTarget {
+  return {
+    contentUnitType,
+    outputKind,
+    primaryRefs: [],
+    diagnostics: [{
+      severity: 'error',
+      code: 'content_unit_type_removed',
+      message: 'timeline_assembly_ref is removed; create or open a production editing workspace for playable production output.',
+      field: 'content_unit_type',
+    }],
+  }
 }
 
 export function contentUnitTargetValidationDiagnostics(record: Record<string, unknown>): MovScriptDomainDiagnostic[] {
@@ -385,18 +330,17 @@ export function isContentUnitTargetValidationDiagnostic(
 ): boolean {
   if (diagnostic.code === 'content_unit_namespace_target') return true
   if (diagnostic.code === 'content_unit_target_kind_mismatch') return true
-  if (contentUnitType !== 'timeline_assembly_ref') return false
-  return diagnostic.code === 'content_unit_target_ref_missing'
-    || diagnostic.code === 'content_unit_scope_ref_invalid'
+  if (diagnostic.code === 'content_unit_type_removed') return true
+  if (diagnostic.code === 'content_unit_timeline_assembly_target_removed') return true
+  return false
 }
 
 export function normalizeContentUnitTargetEdges(input: {
   source: MovScriptDomainRef
   record: Record<string, unknown>
-  scopeTarget?: (scope: MovScriptTimelineAssemblyScope) => MovScriptDomainRef | undefined
+  scopeTarget?: (scope: MovScriptTimelineNamespaceScope) => MovScriptDomainRef | undefined
 }): MovScriptDomainEdge[] {
   const normalized = normalizeContentUnitTarget(input.record)
-  const origin = normalized.legacyAlias ? 'legacy_alias' : 'explicit_ref'
   const edges: MovScriptDomainEdge[] = []
   if (normalized.target?.targetRef) {
     edges.push({
@@ -407,7 +351,7 @@ export function normalizeContentUnitTargetEdges(input: {
         id: normalized.target.targetRef,
       },
       relation: 'target',
-      origin,
+      origin: 'explicit_ref',
       field: contentUnitTargetEdgeField(input.record, normalized.primaryRefField, normalized.scope?.field, normalized.target.targetRef),
     })
   }
@@ -420,51 +364,38 @@ export function normalizeContentUnitTargetEdges(input: {
         id: normalized.scope.ref,
       },
       relation: 'scope',
-      origin,
+      origin: 'explicit_ref',
       field: normalized.scope.field,
     })
   }
   return edges
 }
 
-export function implicitTimelineAssemblyRef(scopeKind: string, scopeRef: string): string {
-  return `timeline_assembly:${scopeKind}:${scopeRef}`
-}
-
-export function parseImplicitTimelineAssemblyRef(value: string | undefined): { scopeKind: string; scopeRef: string } | undefined {
-  if (!value?.startsWith('timeline_assembly:')) return undefined
-  const [, scopeKind, ...scopeRefParts] = value.split(':')
-  const scopeRef = scopeRefParts.join(':')
-  if (!scopeKind?.trim() || !scopeRef.trim()) return undefined
-  return { scopeKind: scopeKind.trim(), scopeRef: scopeRef.trim() }
-}
-
 function workTargetCategoryForKind(kind: string): MovScriptWorkTargetCategory | undefined {
   if (kind === 'content_unit') return 'content_unit'
-  if (kind === 'timeline_assembly') return 'timeline_assembly'
   if (isMovScriptSystemPrimitiveKind(kind)) return 'system_primitive'
   return undefined
 }
 
 function explicitWorkTargetCategory(category: string | undefined): MovScriptWorkTargetCategory | undefined {
-  if (category === 'content_unit' || category === 'timeline_assembly' || category === 'system_primitive') return category
+  if (category === 'content_unit' || category === 'system_primitive') return category
   return undefined
-}
-
-function timelineAssemblyScopeRefFor(record: Record<string, unknown>, scopeKind: string): string | undefined {
-  const explicitScopeKind = stringField(record.scope_kind ?? record.scopeKind)
-  const explicitScopeRef = idString(record.scope_ref ?? record.scopeRef)
-  if (explicitScopeKind === scopeKind && explicitScopeRef) return explicitScopeRef
-  if (record.target_kind !== 'timeline_assembly' && record.targetKind !== 'timeline_assembly') return undefined
-  const parsedScope = parseImplicitTimelineAssemblyRef(idString(record.target_ref ?? record.targetRef))
-  return parsedScope?.scopeKind === scopeKind ? parsedScope.scopeRef : undefined
 }
 
 function namespaceTargetDiagnostic(kind: string, field: string): MovScriptDomainDiagnostic {
   return {
     severity: 'error',
     code: 'content_unit_namespace_target',
-    message: `namespace ${kind} cannot be a content unit target; use a system primitive or timeline assembly`,
+    message: `namespace ${kind} cannot be a content unit target; use a system primitive, content_unit, or production editing workspace output`,
+    field,
+  }
+}
+
+function timelineAssemblyTargetRemovedDiagnostic(field: string): MovScriptDomainDiagnostic {
+  return {
+    severity: 'error',
+    code: 'content_unit_timeline_assembly_target_removed',
+    message: 'timeline_assembly targets are removed from content units; use production editing workspaces for playable production output.',
     field,
   }
 }

@@ -1024,7 +1024,7 @@ export function GenerationCandidateDialog({
               </GenerationCallField>
               <GenerationCallField className="content-canvas-generation-candidate-meta-field content-canvas-generation-candidate-meta-field--model" label="模型">
                 <ContentCanvasModelSelector
-                  capability={capability ?? mediaKind}
+                  capability={capability ?? 'image_generation'}
                   operation={operationExplicit ? operation : ''}
                   targetOutput={mediaKind}
                   resolveIntent={!operationExplicit}

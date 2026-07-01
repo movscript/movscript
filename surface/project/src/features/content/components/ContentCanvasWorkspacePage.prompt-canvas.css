@@ -74,6 +74,16 @@
   color: var(--cc-accent);
 }
 
+.content-prompt-canvas-panel__toolbar button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.content-prompt-canvas-panel__toolbar button:disabled:hover {
+  border-color: var(--cc-border);
+  color: var(--cc-text);
+}
+
 .content-prompt-canvas-panel__toolbar span {
   display: inline-flex;
   align-items: center;
@@ -569,6 +579,71 @@
 
 .content-prompt-flow-node[data-weight="compact"][data-expanded="true"] {
   --content-prompt-flow-node-expanded-width: 620px;
+}
+
+.content-prompt-flow-node[data-selected="true"] .content-prompt-flow-node__preview-card,
+.content-prompt-flow-node[data-selected="true"] .content-prompt-flow-node__prompt-panel {
+  border-color: color-mix(in srgb, var(--cc-accent) 54%, var(--cc-border));
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--cc-accent) 18%, transparent),
+    0 18px 46px color-mix(in srgb, var(--ms-color-foreground) 10%, transparent);
+}
+
+.content-prompt-flow-group {
+  box-sizing: border-box;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px dashed color-mix(in srgb, var(--cc-accent) 48%, var(--cc-border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--cc-accent-soft) 68%, transparent);
+  color: var(--cc-accent);
+  cursor: grab;
+  padding: 10px 12px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cc-panel) 42%, transparent);
+}
+
+.content-prompt-flow-group:active {
+  cursor: grabbing;
+}
+
+.content-prompt-flow-group[data-selected="true"] {
+  border-style: solid;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--cc-panel) 42%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--cc-accent) 24%, transparent);
+}
+
+.content-prompt-flow-group header,
+.content-prompt-flow-group header span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.content-prompt-flow-group header {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.content-prompt-flow-group strong,
+.content-prompt-flow-group em {
+  overflow: hidden;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 820;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content-prompt-flow-group em {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--cc-accent) 72%, var(--cc-muted));
+  font-size: 11px;
 }
 
 .content-prompt-flow-node__preview-card,
@@ -1184,7 +1259,9 @@
 }
 
 .content-prompt-canvas-reference-role-menu {
-  z-index: 30;
+  z-index: 10000;
+  background: var(--ms-color-surface-raised, var(--cc-panel));
+  box-shadow: 0 20px 56px color-mix(in srgb, var(--ms-color-foreground) 20%, transparent);
 }
 
 .content-prompt-flow-node__meta {

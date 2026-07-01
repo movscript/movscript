@@ -63,7 +63,7 @@ function appendSingleContentUnitReferences({
     refs: compactUniqueStrings(
       contentUnit.record.scene_moment_ref,
       contentUnit.record.scene_moment_refs,
-      contentUnitPromptEntityRefsForRecord(contentUnit.record, 'scene_moment'),
+      contentUnitGenerationEntityRefsForRecord(contentUnit.record, 'scene_moment'),
     ),
     targetKind: 'scene_moment',
     collectionSegment: 'scene_moments',
@@ -93,7 +93,7 @@ function appendSingleContentUnitReferences({
     refs: compactUniqueStrings(
       contentUnit.record.keyframe_ref,
       contentUnit.record.keyframe_refs,
-      contentUnitPromptEntityRefsForRecord(contentUnit.record, 'keyframe'),
+      contentUnitGenerationEntityRefsForRecord(contentUnit.record, 'keyframe'),
     ),
     targetKind: 'keyframe',
     collectionSegment: 'keyframes',
@@ -110,7 +110,7 @@ function appendSingleContentUnitReferences({
     refs: compactUniqueStrings(
       contentUnit.record.storyboard_ref,
       contentUnit.record.storyboard_refs,
-      contentUnitPromptEntityRefsForRecord(contentUnit.record, 'storyboard'),
+      contentUnitGenerationEntityRefsForRecord(contentUnit.record, 'storyboard'),
     ),
     targetKind: 'storyboard',
     collectionSegment: 'storyboards',
@@ -127,7 +127,7 @@ function appendSingleContentUnitReferences({
     refs: compactUniqueStrings(
       contentUnit.record.audio_cue_ref,
       contentUnit.record.audio_cue_refs,
-      contentUnitPromptEntityRefsForRecord(contentUnit.record, 'audio_cue'),
+      contentUnitGenerationEntityRefsForRecord(contentUnit.record, 'audio_cue'),
     ),
     targetKind: 'audio_cue',
     collectionSegment: 'audio_cues',
@@ -158,7 +158,7 @@ function appendSingleContentUnitReferences({
     contentUnit.record.expression_unit_refs,
     contentUnit.record.expression_ref,
     contentUnit.record.expression_refs,
-    contentUnitPromptEntityRefsForRecord(contentUnit.record, 'expression_unit'),
+    contentUnitGenerationEntityRefsForRecord(contentUnit.record, 'expression_unit'),
   )) {
     const target = referencedNodeFor('expression_unit', expressionRef, nodeByEntityKindAndKey, nodeByPath, 'expression_units')
     if (target) {
@@ -407,10 +407,13 @@ export function contentUnitRawResourceRefsForRecord(record: Record<string, unkno
     record.resource_ids,
   )) refs.add(ref)
 
-  const prompt = record.edit_prompt ?? record.prompt
-  const promptText = stringValue(isRecord(prompt) ? prompt.text : prompt)
-  if (promptText) {
-    for (const ref of resourceRefsFromPrompt(promptText)) refs.add(ref)
+  for (const ref of contentUnitGenerationResourceRefsForRecord(record)) refs.add(ref)
+  if (!contentUnitHasExplicitGenerationReferences(record)) {
+    const prompt = record.edit_prompt ?? record.prompt
+    const promptText = stringValue(isRecord(prompt) ? prompt.text : prompt)
+    if (promptText) {
+      for (const ref of resourceRefsFromPrompt(promptText)) refs.add(ref)
+    }
   }
   return [...refs].filter(Boolean)
 }
@@ -418,10 +421,13 @@ export function contentUnitRawResourceRefsForRecord(record: Record<string, unkno
 function contentUnitAssetRefsForRecord(record: Record<string, unknown>): string[] {
   const refs = new Set<string>()
   for (const ref of compactStrings(record.asset_ref, record.asset_refs)) refs.add(ref)
+  for (const ref of contentUnitGenerationEntityRefsForRecord(record, 'asset')) refs.add(ref)
 
-  const prompt = record.edit_prompt ?? record.prompt
-  for (const text of promptTextFields(prompt)) {
-    for (const ref of assetRefsFromPrompt(text)) refs.add(ref)
+  if (!contentUnitHasExplicitGenerationReferences(record)) {
+    const prompt = record.edit_prompt ?? record.prompt
+    for (const text of promptTextFields(prompt)) {
+      for (const ref of assetRefsFromPrompt(text)) refs.add(ref)
+    }
   }
   return [...refs].filter(Boolean)
 }
@@ -456,6 +462,48 @@ function resourceRefsFromPrompt(text: string): string[] {
   return [...refs]
 }
 
+function contentUnitGenerationEntityRefsForRecord(record: Record<string, unknown>, kind: ContentCanvasNodeKind): string[] {
+  const refs = new Set<string>()
+  for (const item of contentUnitGenerationReferenceRecords(record)) {
+    const refKind = stringValue(item.kind ?? item.ref_kind ?? item.refKind ?? item.type)?.toLowerCase()
+    const sourceRef = stringValue(item.source_ref ?? item.sourceRef ?? item.raw)
+    if (sourceRef) {
+      for (const ref of promptEntityRefsFromText(sourceRef, kind)) refs.add(ref)
+    }
+    if (refKind !== kind) continue
+    for (const ref of compactStrings(item.ref, item.target_ref, item.targetRef)) refs.add(normalizePromptEntityRef(ref, kind))
+  }
+  if (contentUnitHasExplicitGenerationReferences(record)) return [...refs]
+  for (const ref of contentUnitPromptEntityRefsForRecord(record, kind)) refs.add(ref)
+  return [...refs]
+}
+
+function contentUnitGenerationResourceRefsForRecord(record: Record<string, unknown>): string[] {
+  const refs = new Set<string>()
+  for (const item of contentUnitGenerationReferenceRecords(record)) {
+    const refKind = stringValue(item.kind ?? item.ref_kind ?? item.refKind ?? item.type)?.toLowerCase()
+    const sourceRef = stringValue(item.source_ref ?? item.sourceRef ?? item.raw)
+    for (const ref of compactStrings(item.resource_id, item.resourceId)) refs.add(normalizeResourceRef(ref))
+    for (const ref of numericResourceRefs(item.resource_id, item.resourceId)) refs.add(ref)
+    if (sourceRef) {
+      for (const ref of resourceRefsFromPrompt(sourceRef)) refs.add(ref)
+    }
+    if (refKind === 'resource') {
+      for (const ref of compactStrings(item.ref, item.target_ref, item.targetRef)) refs.add(normalizeResourceRef(ref))
+    }
+  }
+  for (const item of arrayValue(record.reference_assets ?? record.referenceAssets)) {
+    if (!isRecord(item)) continue
+    for (const ref of compactStrings(item.resource_id, item.resourceId)) refs.add(normalizeResourceRef(ref))
+    for (const ref of numericResourceRefs(item.resource_id, item.resourceId)) refs.add(ref)
+    const sourceRef = stringValue(item.source_ref ?? item.sourceRef)
+    if (sourceRef) {
+      for (const ref of resourceRefsFromPrompt(sourceRef)) refs.add(ref)
+    }
+  }
+  return [...refs].filter(Boolean)
+}
+
 function contentUnitPromptEntityRefsForRecord(record: Record<string, unknown>, kind: ContentCanvasNodeKind): string[] {
   const refs = new Set<string>()
   const prompt = record.edit_prompt ?? record.prompt
@@ -463,6 +511,15 @@ function contentUnitPromptEntityRefsForRecord(record: Record<string, unknown>, k
     for (const ref of promptEntityRefsFromText(text, kind)) refs.add(ref)
   }
   return [...refs]
+}
+
+function contentUnitHasExplicitGenerationReferences(record: Record<string, unknown>): boolean {
+  return contentUnitGenerationReferenceRecords(record).length > 0
+    || arrayValue(record.reference_assets ?? record.referenceAssets).some(isRecord)
+}
+
+function contentUnitGenerationReferenceRecords(record: Record<string, unknown>): Record<string, unknown>[] {
+  return arrayValue(record.generation_references ?? record.generationReferences).filter(isRecord)
 }
 
 function promptEntityRefsFromText(text: string, kind: string): string[] {

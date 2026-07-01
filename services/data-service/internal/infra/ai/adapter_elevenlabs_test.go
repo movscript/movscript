@@ -304,7 +304,7 @@ func TestElevenLabsGenerateSoundEffectSendsTextOptionsAndModel(t *testing.T) {
 	})}
 
 	resp, err := adapter.GenerateAudio(context.Background(), media.AudioGenerationRequest{
-		Kind:        media.AudioGenerationKindSFX,
+		Kind:        media.AudioGenerationKindSoundEffect,
 		Prompt:      "heavy door creak",
 		Model:       "eleven_text_to_sound_v2",
 		DurationSec: 5,

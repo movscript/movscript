@@ -45,7 +45,6 @@ const TOOL_NAME_LABELS_ZH: Record<string, string> = {
   domain_read_scene_moment_timeline: '读取场景剪辑交接',
   domain_read_production_timeline: '读取成片剪辑交接',
   editing_project_create: '创建剪辑项目',
-  editing_project_create_from_edit_plan: '从剪辑计划创建项目',
   editing_project_get: '读取剪辑项目',
   editing_project_update_settings: '更新剪辑项目设置',
   editing_project_add_asset: '添加剪辑素材',

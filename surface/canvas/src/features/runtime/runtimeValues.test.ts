@@ -32,7 +32,7 @@ test('runtime port values encode typed dialog input', () => {
 test('runtimeInputPortsForNode returns required unconnected ports only', () => {
   const node = {
     id: 'target',
-    type: 'ref_image_gen',
+    type: 'reference_to_image',
     position: { x: 0, y: 0 },
     data: {
       inputPorts: [
@@ -50,7 +50,7 @@ test('runtimeInputPortsForNode returns required unconnected ports only', () => {
 test('runtimeInputPortsForNode does not request raw resource ids for tool card resource inputs', () => {
   const node = {
     id: 'target',
-    type: 'ref_image_gen',
+    type: 'reference_to_image',
     position: { x: 0, y: 0 },
     data: {
       source: 'ai',

@@ -14,7 +14,8 @@ export * from './agentToolProtocol.js'
 export * from './agentTraceProtocol.js'
 export const MEDIA_ARTIFACTS_V1_SCHEMA = 'movscript.media.artifacts.v1'
 export const MEDIA_PROVIDER_CONTRACT_V1_SCHEMA = 'movscript.media.provider_contract.v1'
-export type MediaPipelineCapability = 'audio_tts' | 'audio_transcribe' | 'audio_music' | 'audio_sfx' | 'subtitle_align' | 'subtitle_translate'
+export type MediaPipelineCapability = 'audio_generation'
+export type AudioGenerationOperation = import('./mediaArtifacts.js').AudioGenerationOperation
 export type AudioFormat = import('./mediaArtifacts.js').AudioFormat
 export type MediaArtifactsV1 = import('./mediaArtifacts.js').MediaArtifactsV1
 export type MediaCapabilityContract = import('./mediaArtifacts.js').MediaCapabilityContract

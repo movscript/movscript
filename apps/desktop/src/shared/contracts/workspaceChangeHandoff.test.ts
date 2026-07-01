@@ -86,7 +86,7 @@ test('workspace change handoff preserves timeline scope without inventing produc
       workspaceId: 'workspace-assembly',
       target: { entityType: 'production', entityId: 301 },
     }),
-    '/project/content/preview?view=review&workspaceId=workspace-assembly&scopeKind=production&scopeRef=301&productionId=301&targetCategory=timeline_assembly&targetKind=timeline_assembly&targetRef=timeline_assembly%3Aproduction%3A301&timeline_assembly_ref=timeline_assembly%3Aproduction%3A301',
+    '/project/content/preview?view=review&workspaceId=workspace-assembly&scopeKind=production&scopeRef=301&productionId=301',
   )
 })
 

@@ -82,7 +82,7 @@ export interface Job {
   provider_name?: string
   model_display?: string
   model_identifier?: string
-  job_type: string  // image | image_edit | video | video_i2v | video_v2v | audio_tts | audio_transcribe | audio_translate | audio_music | audio_sfx | audio_chat | voice_clone | voice_design | subtitle_align | subtitle_translate
+  job_type: string  // image | video | audio | text | canvas
   feature_key?: string  // source/audit key supplied by the caller
   title?: string
   status: JobStatus

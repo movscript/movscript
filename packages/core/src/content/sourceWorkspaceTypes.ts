@@ -34,6 +34,7 @@ export interface PreviewCandidate {
   selected?: boolean
   note: string
   resourceId?: number
+  streamId?: string
   resourceKind?: string
   artifactRef?: string
   status?: string

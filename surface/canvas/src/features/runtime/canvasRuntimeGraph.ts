@@ -161,8 +161,8 @@ function canvasResourceValueMediaType(type: CanvasPortType, port: Partial<Canvas
 }
 
 function mediaTypeForNode(type: string | undefined): CanvasPortType {
-  if (type === 'image' || type === 'ref_image_gen' || type === 'multi_angle' || type === 'style_transfer') return 'image'
-  if (type === 'video' || type === 'ref_video_gen' || type === 'motion_imitation') return 'video'
+  if (type === 'image' || type === 'reference_to_image') return 'image'
+  if (type === 'video' || type === 'reference_to_video') return 'video'
   if (type === 'audio') return 'audio'
   if (type === 'text' || type === 'text_gen') return 'text'
   return 'resource'

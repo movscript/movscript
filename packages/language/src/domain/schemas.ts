@@ -284,7 +284,7 @@ export const productionEntitySchema = {
     production_kind: { type: 'string' },
     transition: transitionSchema,
   }),
-  promptSummary: 'Production is a legacy timeline namespace source record. It contributes path-derived containment, context, and transition boundaries, but it is not directly generated; use a timeline_assembly_ref content unit when a namespace scope needs a video output.',
+  promptSummary: 'Production is a timeline namespace source record. It contributes path-derived containment, context, and transition boundaries, but it is not directly generated. Production-level playback and editing belong in a production editing workspace.',
   examples: [{
     title: 'episode',
     content: { schema: 'movscript.production.v1', kind: 'production', id: 'p8f3', title: 'Episode 1', namespace_kind: 'episode' },
@@ -305,7 +305,7 @@ export const segmentEntitySchema = {
     rhythm: { type: 'string' },
     transition: transitionSchema,
   }),
-  promptSummary: 'Segment is a legacy timeline namespace node inside the path tree. Directory id and path parent define containment; namespace_kind names the user-facing layer. It is not directly generated; use scene_moment, expression_unit, or timeline_assembly_ref content units for production work.',
+  promptSummary: 'Segment is a timeline namespace node inside the path tree. Directory id and path parent define containment; namespace_kind names the user-facing layer. It is not directly generated; use scene_moment, expression_unit, or primitive-scoped content units for production work.',
   examples: [{
     title: 'opening',
     content: { schema: 'movscript.segment.v1', kind: 'segment', id: 'a19d', title: 'Opening pressure', namespace_kind: 'beat', order: 1 },
@@ -497,10 +497,10 @@ export const contentUnitEntitySchema = {
   jsonSchema: entitySchema('content_unit', ['content_unit_type', 'output_kind', 'title'], {
     content_unit_type: { type: 'string', minLength: 1 },
     output_kind: { enum: ['image', 'video', 'audio', 'text', 'metadata'] },
-    target_category: { enum: ['timeline_assembly', 'system_primitive', 'content_unit'] },
+    target_category: { enum: ['system_primitive', 'content_unit'] },
     target_kind: {
-      enum: ['timeline_assembly', 'production', 'segment', 'scene_moment', 'expression_unit', 'asset', 'keyframe', 'storyboard', 'audio_cue', 'content_unit'],
-      description: 'Use timeline_assembly, system primitives, or content_unit. production/segment remain legacy aliases only when paired with production_ref/segment_ref normalization. Namespace targets such as setting, setting_state, production, or segment are rejected for new generic content units.',
+      enum: ['scene_moment', 'expression_unit', 'asset', 'keyframe', 'storyboard', 'audio_cue', 'content_unit'],
+      description: 'Use system primitives or content_unit for content unit targets. Production and segment structure is handled through timeline namespaces and production editing workspaces.',
     },
     target_ref: sourceRefSchema,
     scope_kind: { type: 'string' },
@@ -522,8 +522,36 @@ export const contentUnitEntitySchema = {
       notes: { type: 'string' },
       structured: { type: 'object', additionalProperties: true },
     }),
+    generation_references: {
+      type: 'array',
+      items: objectSchema([], {
+        id: { type: 'string' },
+        kind: { type: 'string' },
+        ref: sourceRefSchema,
+        raw: { type: 'string' },
+        resource_id: { type: 'number' },
+        media_type: { type: 'string' },
+        role: { type: 'string' },
+        source_ref: { type: 'string' },
+        label: { type: 'string' },
+        source: { type: 'string' },
+      }),
+      description: 'Independent generation reference pool. Prompt @ refs may only refer to entries already listed here; entries are passed to generation as typed reference assets even when unused in edit_prompt text.',
+    },
+    reference_assets: {
+      type: 'array',
+      items: objectSchema([], {
+        role: { type: 'string' },
+        media_type: { type: 'string' },
+        resource_id: { type: 'number' },
+        source_ref: { type: 'string' },
+      }),
+      description: 'Compatibility direct typed resource references for generation. Prefer generation_references when the source is semantic rather than a raw resource.',
+    },
     model_intent: objectSchema([], {
       capability: { type: 'string' },
+      operation: { type: 'string' },
+      target_output: { type: 'string' },
       provider: { type: 'string' },
       model: { type: 'string' },
       quality: { type: 'string' },
@@ -532,7 +560,7 @@ export const contentUnitEntitySchema = {
       params: { type: 'object', additionalProperties: true },
     }),
   }),
-  promptSummary: 'Content unit is a project-level stable generation task. It targets a system primitive such as scene_moment, expression_unit, asset, keyframe, storyboard, or audio_cue, or it targets a timeline_assembly for rendering a namespace scope. production_ref and segment_ref are legacy aliases for timeline_assembly_ref. References written inside edit_prompt with {{type:id}} syntax are upstream inputs. Candidates copy the normalized prompt snapshot at generation time; selections and runtime candidates are stored outside content_unit.json.',
+  promptSummary: 'Content unit is a project-level stable generation task. It targets a system primitive such as scene_moment, expression_unit, asset, keyframe, storyboard, or audio_cue. Namespace-level playback belongs in a production editing workspace rather than a content unit. generation_references is the independent input/reference fact source for model calls; edit_prompt {{type:id}} or @ resource mentions are text-level references that may only point at entries already in that reference pool. Candidates copy the normalized prompt snapshot at generation time; selections and runtime candidates are stored outside content_unit.json.',
   examples: [{
     title: 'expression_visual_material',
     content: {
@@ -546,20 +574,6 @@ export const contentUnitEntitySchema = {
       generation_role: 'visual_material',
       title: 'Phone close-up visual material',
       edit_prompt: { text: 'Generate this visual expression material with selected references.' },
-    },
-  }, {
-    title: 'episode_assembly',
-    content: {
-      schema: 'movscript.content_unit.v1',
-      kind: 'content_unit',
-      id: 'cu_episode_01',
-      content_unit_type: 'timeline_assembly_ref',
-      output_kind: 'video',
-      target_kind: 'timeline_assembly',
-      target_ref: 'timeline_assembly:episode:episode_01',
-      generation_role: 'timeline_assembly',
-      title: 'Episode 01 assembly',
-      edit_prompt: { text: 'Assemble the selected scene moment outputs for this episode.' },
     },
   }],
 } satisfies SemanticEntitySchemaDefinition

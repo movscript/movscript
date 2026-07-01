@@ -7,7 +7,9 @@ import {
   normalizeAPIBaseURL,
   trimTrailingSlash,
   type MovScriptDataConnectionContext,
+  type MovScriptRuntimeConnectionDescriptor,
   type MovScriptRuntimeDescriptor,
+  type MovScriptRuntimeIdentity,
 } from '@movscript/shared'
 
 const DEFAULT_API_ORIGIN = 'https://api.movscript.com'
@@ -48,17 +50,24 @@ export function getLocalAPIBaseURL(): string {
 }
 
 export function getDaemonGatewayBaseURL(): string {
-  return runtimeConfigSnapshot?.runtime.gateway.baseURL
+  return runtimeConfigSnapshot?.runtimeConnection.gatewayBaseURL
+    || runtimeConfigSnapshot?.runtime.gateway.baseURL
     || runtimeConfigSnapshot?.gatewayBaseURL
     || getLocalAPIBaseURL()
 }
 
 export function getAPIBaseURL(): string {
-  return runtimeConfigSnapshot?.apiBaseURL || readStoredAPIBaseURL() || getDefaultAPIBaseURL()
+  return runtimeConfigSnapshot?.runtimeConnection.gatewayBaseURL
+    || runtimeConfigSnapshot?.runtime.gateway.baseURL
+    || runtimeConfigSnapshot?.apiBaseURL
+    || readStoredAPIBaseURL()
+    || getDefaultAPIBaseURL()
 }
 
 export function getAPIV1BaseURL(): string {
-  return runtimeConfigSnapshot?.apiV1BaseURL || `${getAPIBaseURL()}/api/v1`
+  return runtimeConfigSnapshot?.runtimeConnection.apiV1BaseURL
+    || runtimeConfigSnapshot?.apiV1BaseURL
+    || `${getAPIBaseURL()}/api/v1`
 }
 
 export function getCanvasGatewayBaseURL(): string {
@@ -84,9 +93,9 @@ export function isLocalDataConnection(settings?: Pick<AppSettings, 'dataConnecti
 export function getSettingsDaemonGatewayBaseURL(
   settings?: Pick<AppSettings, 'daemonGatewayBaseURL' | 'dataConnection' | 'apiBaseURL'> | null,
 ): string {
+  if (isLocalDataConnection(settings)) return getDaemonGatewayBaseURL()
   return normalizeAPIBaseURL(
     settings?.daemonGatewayBaseURL?.trim()
-      || (isLocalDataConnection(settings) ? settings?.dataConnection?.url?.trim() : '')
       || settings?.apiBaseURL?.trim()
       || getDaemonGatewayBaseURL(),
   )
@@ -95,6 +104,7 @@ export function getSettingsDaemonGatewayBaseURL(
 export function getSettingsDataConnectionBaseURL(
   settings?: Pick<AppSettings, 'dataConnection' | 'cloudAPIBaseURL' | 'apiBaseURL'> | null,
 ): string {
+  if (isLocalDataConnection(settings)) return getDaemonGatewayBaseURL()
   return normalizeAPIBaseURL(
     settings?.dataConnection?.url?.trim()
       || settings?.cloudAPIBaseURL?.trim()
@@ -128,23 +138,29 @@ function normalizeRuntimeConfigSnapshot(snapshot: ElectronRuntimeConfig): Electr
   )
   const gatewayBaseURL = legacyRuntime?.gateway?.baseURL?.trim()
     ? trimTrailingSlash(legacyRuntime.gateway.baseURL)
+    : snapshot.runtimeConnection?.gatewayBaseURL?.trim()
+      ? trimTrailingSlash(snapshot.runtimeConnection.gatewayBaseURL)
     : snapshot.gatewayBaseURL?.trim()
       ? trimTrailingSlash(snapshot.gatewayBaseURL)
     : typeof legacySnapshot.localAPIBaseURL === 'string' && legacySnapshot.localAPIBaseURL.trim()
       ? normalizeAPIBaseURL(legacySnapshot.localAPIBaseURL)
       : undefined
-  const apiBaseURL = normalizeAPIBaseURL(
-    typeof legacySnapshot.apiBaseURL === 'string' && legacySnapshot.apiBaseURL.trim()
-      ? legacySnapshot.apiBaseURL
-      : gatewayBaseURL ?? getDefaultAPIBaseURL(),
+  const runtimeConnection = normalizeRuntimeConnectionDescriptor(
+    snapshot.runtimeConnection,
+    gatewayBaseURL
+      ?? (dataConnection.kind === 'local' ? getLocalAPIBaseURL() : undefined)
+      ?? (typeof legacySnapshot.apiBaseURL === 'string' && legacySnapshot.apiBaseURL.trim()
+        ? normalizeAPIBaseURL(legacySnapshot.apiBaseURL)
+        : getDefaultAPIBaseURL()),
+    dataConnection,
   )
-  const apiV1BaseURL = snapshot.apiV1BaseURL?.trim()
-    ? normalizeAPIBaseURL(snapshot.apiV1BaseURL) + '/api/v1'
-    : `${apiBaseURL}/api/v1`
+  const apiBaseURL = runtimeConnection.gatewayBaseURL
+  const apiV1BaseURL = runtimeConnection.apiV1BaseURL
   const runtime = normalizeRuntimeDescriptor(legacyRuntime, gatewayBaseURL ?? apiBaseURL, dataConnection)
   return {
     movScriptHomeDir: snapshot.movScriptHomeDir?.trim() || snapshot.workspaceDir.trim(),
     workspaceDir: snapshot.workspaceDir.trim(),
+    runtimeConnection,
     runtime,
     dataConnection,
     ...(gatewayBaseURL ? { gatewayBaseURL } : {}),
@@ -158,6 +174,42 @@ function normalizeRuntimeConfigSnapshot(snapshot: ElectronRuntimeConfig): Electr
   }
 }
 
+function normalizeRuntimeConnectionDescriptor(
+  input: Partial<MovScriptRuntimeConnectionDescriptor> | undefined,
+  gatewayBaseURL: string,
+  dataConnection: MovScriptDataConnectionContext,
+): MovScriptRuntimeConnectionDescriptor {
+  const mode: MovScriptRuntimeConnectionDescriptor['mode'] = input?.mode === 'local' || dataConnection.kind === 'local'
+    ? 'local'
+    : 'cloud'
+  const normalizedGatewayBaseURL = normalizeAPIBaseURL(input?.gatewayBaseURL || gatewayBaseURL)
+  return {
+    schema: 'movscript.runtime-connection.v1',
+    mode,
+    gatewayBaseURL: normalizedGatewayBaseURL,
+    apiV1BaseURL: normalizeAPIV1BaseURL(input?.apiV1BaseURL, normalizedGatewayBaseURL),
+    authMode: mode === 'local' ? 'local-owner' : 'session',
+    displayName: input?.displayName?.trim() || (mode === 'local' ? 'Local daemon gateway' : 'Cloud data connection'),
+    status: normalizeRuntimeConnectionStatus(input?.status, dataConnection.status),
+    source: input?.source === 'cloud' || mode === 'cloud' ? 'cloud' : 'daemon',
+  }
+}
+
+function normalizeAPIV1BaseURL(value: string | undefined, gatewayBaseURL: string): string {
+  const normalized = value?.trim() ? trimTrailingSlash(value.trim()) : ''
+  if (normalized.endsWith('/api/v1')) return normalized
+  return `${normalizeAPIBaseURL(normalized || gatewayBaseURL)}/api/v1`
+}
+
+function normalizeRuntimeConnectionStatus(
+  value: unknown,
+  fallback: unknown,
+): MovScriptRuntimeConnectionDescriptor['status'] {
+  if (value === 'connected' || value === 'starting' || value === 'degraded' || value === 'unavailable') return value
+  if (fallback === 'connected' || fallback === 'degraded' || fallback === 'unavailable') return fallback
+  return 'degraded'
+}
+
 function normalizeRuntimeDescriptor(
   runtime: Partial<MovScriptRuntimeDescriptor> | undefined,
   gatewayBaseURL: string,
@@ -169,6 +221,7 @@ function normalizeRuntimeDescriptor(
       owner: 'movscript.local-node',
       appId: 'movscript.local-node',
       name: 'MovScript Local Node Daemon',
+      ...(normalizeRuntimeIdentity(runtime?.runtime?.identity) ? { identity: normalizeRuntimeIdentity(runtime?.runtime?.identity) } : {}),
     },
     gateway: {
       baseURL: normalizeAPIBaseURL(runtime?.gateway?.baseURL || gatewayBaseURL),
@@ -185,13 +238,24 @@ function normalizeRuntimeDescriptor(
   }
 }
 
+function normalizeRuntimeIdentity(input: Partial<MovScriptRuntimeIdentity> | undefined): MovScriptRuntimeIdentity | undefined {
+  if (!input) return undefined
+  const identity: MovScriptRuntimeIdentity = {
+    ...(input.pluginVersion?.trim() ? { pluginVersion: input.pluginVersion.trim() } : {}),
+    ...(input.pluginRoot?.trim() ? { pluginRoot: input.pluginRoot.trim() } : {}),
+    ...(input.runtimeVersion?.trim() ? { runtimeVersion: input.runtimeVersion.trim() } : {}),
+    ...(input.runtimeRoot?.trim() ? { runtimeRoot: input.runtimeRoot.trim() } : {}),
+  }
+  return Object.keys(identity).length > 0 ? identity : undefined
+}
+
 function normalizeRuntimeDataConnection(input: Partial<MovScriptDataConnectionContext> | undefined): MovScriptDataConnectionContext {
-  const kind = input?.kind === 'local' || input?.kind === 'external' ? input.kind : 'cloud'
+  const kind = input?.kind === 'local' ? 'local' : 'cloud'
   return {
     kind,
-    authMode: input?.authMode ?? (kind === 'local' ? 'local-owner' : kind === 'external' ? 'external' : 'session'),
+    authMode: kind === 'local' ? 'local-owner' : 'session',
     status: input?.status ?? 'degraded',
-    displayName: input?.displayName?.trim() || (kind === 'local' ? 'Local daemon data' : kind === 'external' ? 'External data connection' : 'Cloud data connection'),
+    displayName: input?.displayName?.trim() || (kind === 'local' ? 'Local daemon data' : 'Cloud data connection'),
   }
 }
 

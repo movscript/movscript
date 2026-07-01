@@ -145,6 +145,9 @@ export interface ContentSourceWorkspaceRuntime {
     targetPath: string
     text: string
     assetId?: string
+    generationReferences?: ContentSourceWorkspaceEditPromptPatch['generationReferences']
+    referenceAssets?: ContentSourceWorkspaceEditPromptPatch['referenceAssets']
+    modelIntent?: Record<string, unknown>
   }): Promise<void>
   updateExpressionUnit(unit: ExpressionUnit): Promise<void>
   updateAudioCue(cue: AudioCue): Promise<void>

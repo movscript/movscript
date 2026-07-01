@@ -16,14 +16,11 @@ Create the necessary upstream structure first, then create the content unit. Do 
 - `asset_ref`: image output, requires `asset_ref`. Use to stabilize a reusable concrete production entity or state asset, such as a character, prop, place, instrument, costume, voice identity, front view, side view, material reference, or tone reference.
 - `keyframe_ref`: image output, uses `scene_moment_ref`, `expression_unit_ref`, `storyboard_ref`, and `keyframe_ref` or `keyframe_refs`. Use to stabilize visual anchors for a visual expression unit or storyboard.
 - `storyboard_ref`: image output, requires `storyboard_ref`. Use to stabilize storyboard panels/images for composition, blocking, timing, and shot rhythm before keyframes or final video.
-- `timeline_assembly_ref`: video output for a timeline namespace scope such as an episode, act, sequence, legacy production, or legacy segment. Prefer `target_kind: timeline_assembly`, `target_ref: timeline_assembly:<scopeKind>:<scopeRef>`, and optional `scope_kind` / `scope_ref` for new namespace-scope assembly records.
-- `production_ref`: legacy video alias for `timeline_assembly_ref` with scope kind `production`. Keep it for existing source and compatibility flows; do not use it to model custom namespace kinds.
-- `segment_ref`: legacy video alias for `timeline_assembly_ref` with scope kind `segment`. Keep it for existing source and compatibility flows; do not use it to model custom namespace kinds.
 - `scene_moment_ref` / legacy `scence_moment_ref`: video output, targets one complete scene moment. Prefer `target_kind: scene_moment` and `target_ref` for new records. Use when directly generating one complete scene moment video without material breakdown first.
 - `expression_unit_ref`: output kind may be video, audio, text, image, or metadata. Prefer `target_kind: expression_unit` and `target_ref` for new records. Use for visual material, voice material, subtitle text, sfx/music/ambience, or interaction metadata that will later be composed by an edit plan.
 Unknown `content_unit_type` values are valid generic slots, but interpreter adapters do not collect upstream dependencies, hash source refs, mark selections stale, or include them in regeneration planning.
 
-Do not create `episode_ref`, `act_ref`, `beat_ref`, `timeline_namespace_ref`, or other namespace-specific content unit types. Namespace nodes organize structure; when a namespace scope needs a video, create or target a `timeline_assembly_ref` content unit.
+Do not create namespace-scope content unit types for new work, including project-specific refs such as `episode_ref`, `act_ref`, `beat_ref`, or `timeline_namespace_ref`. Namespace nodes organize story structure; when a namespace scope needs playable assembly or finishing, create/open a production editing workspace.
 
 Legacy source may still contain `shot_ref` content units. Do not create them for new plans; use `expression_unit_ref` for camera-unit visual material.
 
@@ -74,12 +71,13 @@ scene_moment
 -> generated/imported material candidates
 -> user/workflow selects material candidates
 -> interpreted edit_plan groups selected resources into tracks
--> editing_project_create_from_edit_plan creates a MediaEditingProject
--> editing_timeline_* adjusts tracks/clips when needed
--> editing_task_render_create renders through Electron mediaPipeline when render capability is available
+-> production_editing_workspace_create/open creates the concrete production editing workspace
+-> opened workspace hands off to system_edit or remotion by workspace kind
+-> editing_timeline_* adjusts direct system editing projects when needed
+-> editing_task_render_create renders direct system editing projects through Media Pipeline when render capability is available
 -> editing_export_import_resource uploads the finished local export
 -> editing_export_create_candidate explicitly writes the RawResource-backed scene-moment video candidate
--> HLS MediaStreamArtifact outputs stay hosted previews until domain candidate schema supports stream outputs
+-> editing_export_create_candidate can explicitly write HLS MediaStreamArtifact outputs as hls_stream candidates with streamId
 ```
 
 Use the editing path when cross-shot voice, subtitles, sound design, visual consistency, or local regeneration matters. `domain_compose_scene_moment_from_edit_plan` is not an available product editing path.
@@ -106,9 +104,6 @@ shot intent
 Current source supports these flat refs on content units:
 
 - `scene_moment_ref`
-- `timeline_assembly_ref`
-- `production_ref`
-- `segment_ref`
 - `expression_unit_ref`
 - `storyboard_ref`
 - `keyframe_ref`

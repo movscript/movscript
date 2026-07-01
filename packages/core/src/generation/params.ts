@@ -32,6 +32,7 @@ export interface GenerationParamDef {
 
 export interface GenerationParamModelLike {
   supported_params?: GenerationParamDef[]
+  supported_params_by_operation?: Record<string, GenerationParamDef[]>
 }
 
 export interface CanvasGenerationParamNodeDataLike {
@@ -165,13 +166,33 @@ const COMMON_TEXT_PARAMS = [TEXT_TEMPERATURE_PARAM, TEXT_MAX_TOKENS_PARAM]
 
 const NODE_PARAM_DEFS: Record<string, GenerationParamDef[] | undefined> = {
   image: COMMON_IMAGE_PARAMS,
-  ref_image_gen: COMMON_IMAGE_PARAMS,
-  style_transfer: [ASPECT_RATIO_PARAM, IMAGE_STRENGTH_PARAM, PRESERVE_IDENTITY_PARAM, SEED_PARAM],
-  multi_angle: [ASPECT_RATIO_PARAM, VIEW_COUNT_PARAM, IMAGE_QUALITY_PARAM, SEED_PARAM],
+  text_to_image: COMMON_IMAGE_PARAMS,
+  reference_to_image: [ASPECT_RATIO_PARAM, IMAGE_STRENGTH_PARAM, PRESERVE_IDENTITY_PARAM, SEED_PARAM],
+  edit_image: COMMON_IMAGE_PARAMS,
+  inpaint: COMMON_IMAGE_PARAMS,
+  outpaint: COMMON_IMAGE_PARAMS,
+  variation: COMMON_IMAGE_PARAMS,
+  upscale_image: [IMAGE_QUALITY_PARAM],
   video: COMMON_VIDEO_PARAMS,
-  ref_video_gen: COMMON_VIDEO_PARAMS,
-  motion_imitation: [ASPECT_RATIO_PARAM, DURATION_PARAM, VIDEO_RESOLUTION_PARAM, PRESERVE_IDENTITY_PARAM, SEED_PARAM],
-  audio_tts: COMMON_AUDIO_PARAMS,
+  prompt_to_video: COMMON_VIDEO_PARAMS,
+  image_to_video: COMMON_VIDEO_PARAMS,
+  first_frame_to_video: COMMON_VIDEO_PARAMS,
+  first_last_frame_to_video: COMMON_VIDEO_PARAMS,
+  reference_to_video: COMMON_VIDEO_PARAMS,
+  edit_video: COMMON_VIDEO_PARAMS,
+  extend_video: COMMON_VIDEO_PARAMS,
+  upscale_video: [VIDEO_RESOLUTION_PARAM],
+  text_to_speech: COMMON_AUDIO_PARAMS,
+  speech_to_speech: COMMON_AUDIO_PARAMS,
+  voice_clone: COMMON_AUDIO_PARAMS,
+  voice_design: COMMON_AUDIO_PARAMS,
+  dubbing: COMMON_AUDIO_PARAMS,
+  music_generation: [AUDIO_FORMAT_PARAM],
+  sound_effect_generation: [AUDIO_FORMAT_PARAM],
+  speech_to_text: [AUDIO_FORMAT_PARAM],
+  speech_translate: [AUDIO_FORMAT_PARAM],
+  voice_isolation: [AUDIO_FORMAT_PARAM],
+  forced_alignment: [AUDIO_FORMAT_PARAM],
   audio_gen: COMMON_AUDIO_PARAMS,
   text: COMMON_TEXT_PARAMS,
   text_gen: COMMON_TEXT_PARAMS,
@@ -181,8 +202,12 @@ export function canvasGenerationParamDefs(
   nodeType: string,
   outputType?: GenerationOutputType,
   model?: GenerationParamModelLike | null,
+  operation?: string,
 ): GenerationParamDef[] {
-  if (model?.supported_params && model.supported_params.length > 0) return model.supported_params
+  const operationKey = operation?.trim()
+  if (operationKey && model?.supported_params_by_operation?.[operationKey]) {
+    return model.supported_params_by_operation[operationKey]
+  }
   if (nodeType === 'ai_gen') {
     if (outputType === 'video') return COMMON_VIDEO_PARAMS
     if (outputType === 'audio') return COMMON_AUDIO_PARAMS

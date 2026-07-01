@@ -24,9 +24,7 @@ import type {
 import {
   allocateMovScriptEntityId,
   defaultOutputKindForExpressionUnitSlot,
-  implicitTimelineAssemblyRef,
   normalizeExpressionUnitSlotKind,
-  parseImplicitTimelineAssemblyRef,
 } from '@movscript/domain'
 import type { SemanticEntityKind } from '@movscript/language/domain'
 
@@ -55,6 +53,10 @@ export interface MovScriptEngineProductionInput {
   id?: string | number
   title?: string
 }
+
+type MovScriptEngineProductionWriteResult =
+  Awaited<ReturnType<MovScriptWorkspaceService['saveProductionSnapshot']>>
+  & { productionId: string | number }
 
 export interface MovScriptEngineSegmentInput {
   id?: string | number
@@ -268,7 +270,6 @@ export interface MovScriptEngineContentUnitInput {
 }
 
 export type MovScriptEngineContentUnitTargetKind =
-  | 'timeline_assembly'
   | 'asset'
   | 'scene_moment'
   | 'expression_unit'
@@ -279,8 +280,6 @@ export interface MovScriptEngineEnsureContentUnitInput {
   targetKind: MovScriptEngineContentUnitTargetKind
   targetId?: string | number
   targetRef?: string | number
-  scopeKind?: string
-  scopeRef?: string | number
   id?: string | number
   title?: string
   contentUnitType?: string
@@ -332,8 +331,8 @@ export interface MovScriptEngine {
   updateEntityBasics(input: MovScriptEngineEntityBasicsInput): Promise<unknown>
   connectSceneMomentSetting(input: MovScriptEngineSceneMomentSettingConnectionInput): ReturnType<MovScriptWorkspaceService['saveProductionSnapshot']>
   listProductions(input?: MovScriptEngineListInput): Promise<MovScriptWorkspaceIndexedEntity[]>
-  createProduction(input?: MovScriptEngineProductionInput): ReturnType<MovScriptWorkspaceService['saveProductionSnapshot']>
-  updateProduction(input: MovScriptEngineProductionInput & { id: string | number }): ReturnType<MovScriptWorkspaceService['saveProductionSnapshot']>
+  createProduction(input?: MovScriptEngineProductionInput): Promise<MovScriptEngineProductionWriteResult>
+  updateProduction(input: MovScriptEngineProductionInput & { id: string | number }): Promise<MovScriptEngineProductionWriteResult>
   deleteProduction(input: MovScriptEngineDeleteInput): Promise<{ deleted: true; entity: MovScriptWorkspaceIndexedEntity }>
   listSegments(input?: MovScriptEngineListInput): Promise<MovScriptWorkspaceIndexedEntity[]>
   createSegment(input: MovScriptEngineSegmentInput): ReturnType<MovScriptWorkspaceService['saveProductionSnapshot']>
@@ -845,17 +844,18 @@ function connectSceneMomentSetting(
 async function saveProduction(
   workspaceService: MovScriptWorkspaceService,
   input: MovScriptEngineProductionInput,
-) {
+): Promise<MovScriptEngineProductionWriteResult> {
   const productionId = input.id === undefined && !stringValue(input.title)
     ? 'main'
     : await engineEntityId(workspaceService, 'production', input.id, input.title)
-  return workspaceService.saveProductionSnapshot({
+  const result = await workspaceService.saveProductionSnapshot({
     productionId,
     snapshot: {
       production: pruneUndefined({ title: input.title }),
       segments: [],
     },
   })
+  return { ...result, productionId }
 }
 
 async function saveSegment(
@@ -1139,7 +1139,7 @@ async function ensureContentUnitForEntity(
   const existing = (await workspaceService.queryEntities({ entityKind: 'content_unit' }))
     .find((entity) => {
       const recordType = String(entity.record.content_unit_type ?? '')
-      if (!contentUnitTypeMatchesTarget(recordType, contentUnitType, input.targetKind, target)) return false
+      if (!contentUnitTypeMatchesTarget(recordType, contentUnitType)) return false
       return contentUnitRecordMatchesTarget(entity.record, input.targetKind, target)
     })
   if (existing) {
@@ -1175,7 +1175,6 @@ async function ensureContentUnitForEntity(
       source: 'engine',
       target_kind: input.targetKind,
       target_ref: target.targetRef,
-      ...(target.scopeKind && target.scopeRef ? { scope_kind: target.scopeKind, scope_ref: target.scopeRef } : {}),
       ...(input.modelIntent ?? {}),
     },
   })
@@ -1183,29 +1182,24 @@ async function ensureContentUnitForEntity(
 
 interface NormalizedEngineContentUnitTarget {
   targetRef: string
-  scopeKind?: string
-  scopeRef?: string
 }
 
 function normalizeContentUnitTarget(input: MovScriptEngineEnsureContentUnitInput): NormalizedEngineContentUnitTarget {
-  if (input.targetKind !== 'timeline_assembly') {
-    return { targetRef: normalizeEntityRef(input.targetRef ?? input.targetId, input.targetKind) }
-  }
+  assertSupportedContentUnitTargetKind(input.targetKind)
+  return { targetRef: normalizeEntityRef(input.targetRef ?? input.targetId, input.targetKind) }
+}
 
-  const scopeKind = stringValue(input.scopeKind)
-  const scopeRef = idStringValue(input.scopeRef)
-  const rawRef = idStringValue(input.targetRef ?? input.targetId)
-  const parsedRef = parseImplicitTimelineAssemblyRef(rawRef)
-  const normalizedScopeKind = scopeKind ?? parsedRef?.scopeKind
-  const normalizedScopeRef = scopeRef ?? parsedRef?.scopeRef ?? (!parsedRef && scopeKind ? rawRef : undefined)
-  if (!normalizedScopeKind || !normalizedScopeRef) {
-    throw new Error('timeline_assembly target requires targetRef timeline_assembly:<scopeKind>:<scopeRef> or scopeKind/scopeRef')
+function assertSupportedContentUnitTargetKind(kind: string): asserts kind is MovScriptEngineContentUnitTargetKind {
+  if (
+    kind === 'asset'
+    || kind === 'scene_moment'
+    || kind === 'expression_unit'
+    || kind === 'keyframe'
+    || kind === 'storyboard'
+  ) {
+    return
   }
-  return {
-    targetRef: implicitTimelineAssemblyRef(normalizedScopeKind, normalizedScopeRef),
-    scopeKind: normalizedScopeKind,
-    scopeRef: normalizedScopeRef,
-  }
+  throw new Error(`${kind} content unit targets are not supported; use production editing workspaces for playable production output`)
 }
 
 async function engineEntityId(
@@ -1231,14 +1225,8 @@ async function engineEntityId(
 function contentUnitTypeMatchesTarget(
   recordType: string,
   requestedType: string,
-  targetKind: MovScriptEngineContentUnitTargetKind,
-  target: NormalizedEngineContentUnitTarget,
 ): boolean {
-  if (recordType === requestedType) return true
-  if (targetKind !== 'timeline_assembly' || requestedType !== 'timeline_assembly_ref') return false
-  if (target.scopeKind === 'production' && recordType === 'production_ref') return true
-  if (target.scopeKind === 'segment' && recordType === 'segment_ref') return true
-  return false
+  return recordType === requestedType
 }
 
 function contentUnitRecordMatchesTarget(
@@ -1246,17 +1234,6 @@ function contentUnitRecordMatchesTarget(
   targetKind: MovScriptEngineContentUnitTargetKind,
   target: NormalizedEngineContentUnitTarget,
 ): boolean {
-  if (targetKind === 'timeline_assembly') {
-    const targetRefs = compactStrings(record.target_ref, record.targetRef)
-    if (targetRefs.some((ref) => sameEntityRef(ref, target.targetRef))) return true
-    const recordScopeKind = stringValue(record.scope_kind ?? record.scopeKind)
-    const recordScopeRef = stringValue(record.scope_ref ?? record.scopeRef)
-    if (recordScopeKind && recordScopeRef && target.scopeKind === recordScopeKind && sameEntityRef(recordScopeRef, target.scopeRef)) return true
-    if (target.scopeKind === 'production') return compactStrings(record.production_ref, record.productionRef).some((ref) => sameEntityRef(ref, target.scopeRef))
-    if (target.scopeKind === 'segment') return compactStrings(record.segment_ref, record.segmentRef).some((ref) => sameEntityRef(ref, target.scopeRef))
-    return false
-  }
-
   return compactStrings(record[primaryRefFieldForTargetKind(targetKind)])
     .some((ref) => sameEntityRef(ref, target.targetRef))
 }
@@ -1267,7 +1244,6 @@ function defaultContentUnitOutputKind(contentUnitType: string): string {
     case 'keyframe_ref':
     case 'storyboard_ref':
       return 'image'
-    case 'timeline_assembly_ref':
     case 'scence_moment_ref':
     case 'scene_moment_ref':
     case 'production_ref':
@@ -1427,12 +1403,10 @@ function settingRefInput(input: MovScriptEngineSettingRefInput): Record<string, 
 }
 
 function contentUnitTypeForTargetKind(kind: MovScriptEngineContentUnitTargetKind): string {
-  if (kind === 'timeline_assembly') return 'timeline_assembly_ref'
   return `${kind}_ref`
 }
 
 function primaryRefFieldForTargetKind(kind: MovScriptEngineContentUnitTargetKind): string {
-  if (kind === 'timeline_assembly') return 'target_ref'
   return kind === 'scene_moment' ? 'scene_moment_ref' : `${kind}_ref`
 }
 
@@ -1440,15 +1414,6 @@ function contentUnitInputForTarget(
   kind: MovScriptEngineContentUnitTargetKind,
   target: NormalizedEngineContentUnitTarget,
 ): Pick<MovScriptEngineContentUnitInput, 'targetCategory' | 'targetKind' | 'targetRef' | 'scopeKind' | 'scopeRef' | 'assetRef' | 'sceneMomentId' | 'expressionUnitId' | 'keyframeId' | 'storyboardId'> {
-  if (kind === 'timeline_assembly') {
-    return {
-      targetCategory: 'timeline_assembly',
-      targetKind: 'timeline_assembly',
-      targetRef: target.targetRef,
-      scopeKind: target.scopeKind,
-      scopeRef: target.scopeRef,
-    }
-  }
   if (kind === 'asset') return { assetRef: target.targetRef }
   if (kind === 'scene_moment') return { sceneMomentId: target.targetRef }
   if (kind === 'expression_unit') return { expressionUnitId: target.targetRef }
@@ -1461,7 +1426,6 @@ function contentUnitIdForTarget(kind: MovScriptEngineContentUnitTargetKind, targ
 }
 
 function targetKindLabel(kind: MovScriptEngineContentUnitTargetKind): string {
-  if (kind === 'timeline_assembly') return '剪辑聚合'
   if (kind === 'asset') return '素材'
   if (kind === 'scene_moment') return '情节'
   if (kind === 'expression_unit') return '表达单元'
@@ -1485,7 +1449,6 @@ function normalizeEntityRef(value: string | number | undefined, kind: MovScriptE
 }
 
 function collectionSegmentForTargetKind(kind: MovScriptEngineContentUnitTargetKind): string {
-  if (kind === 'timeline_assembly') return 'timeline_assemblies'
   if (kind === 'scene_moment') return 'scene_moments'
   if (kind === 'expression_unit') return 'expression_units'
   if (kind === 'keyframe') return 'keyframes'

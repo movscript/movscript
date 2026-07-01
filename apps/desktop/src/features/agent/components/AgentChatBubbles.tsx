@@ -284,7 +284,7 @@ function MessageBubbleSections({
               <AgentModelSetupCalloutDescription>{t('agents.chat.modelSetupAction.description')}</AgentModelSetupCalloutDescription>
               <AgentModelSetupCalloutAction
                 type="button"
-                onClick={() => void openAdminConsole(undefined, '/models')}
+                onClick={() => void openAdminConsole('/models')}
               >
                 {t('agents.chat.modelSetupAction.openModels')}
               </AgentModelSetupCalloutAction>

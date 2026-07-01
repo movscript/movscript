@@ -21,12 +21,12 @@ export type AgentSurfaceEntity = {
   content_unit_id?: string | number
   candidate_id?: string
   resource_id?: number
+  stream_id?: string
   job_id?: number
   production_id?: string | number
   scene_moment_id?: string | number
   timeline_scope_kind?: string
   timeline_scope_ref?: string | number
-  timeline_assembly_ref?: string | number
   target_category?: string
   target_kind?: string
   target_ref?: string | number
@@ -71,7 +71,6 @@ export type AgentTimelineSurfaceInput = {
   targetCategory?: string
   targetKind?: string
   targetRef?: string | number
-  timelineAssemblyRef?: string | number
 }
 
 export const AGENT_SURFACE_ROUTES = {
@@ -198,7 +197,7 @@ export function createGenerationJobSurface(
 
 export function createContentCandidatesSurface(
   args: Record<string, unknown>,
-  input: { contentUnitId: string | number; candidateId?: string; resourceId?: number; projectId?: string | number },
+  input: { contentUnitId: string | number; candidateId?: string; resourceId?: number; streamId?: string | number; projectId?: string | number },
 ): AgentBrowserSurface {
   return createAgentBrowserSurface(args, {
     route: AGENT_SURFACE_ROUTES.contentCandidates,
@@ -210,12 +209,14 @@ export function createContentCandidatesSurface(
       content_unit_id: input.contentUnitId,
       ...(input.candidateId ? { candidate_id: input.candidateId } : {}),
       ...(input.resourceId !== undefined ? { resource_id: input.resourceId } : {}),
+      ...(input.streamId !== undefined ? { stream_id: String(input.streamId) } : {}),
     },
     query: {
       ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
       contentUnitId: input.contentUnitId,
       ...(input.candidateId ? { candidateId: input.candidateId } : {}),
       ...(input.resourceId !== undefined ? { resourceId: input.resourceId } : {}),
+      ...(input.streamId !== undefined ? { streamId: String(input.streamId) } : {}),
     },
     usage: 'Open this candidate review surface to compare generated candidates, inspect prompt snapshots, and adopt, reject, or defer a content-unit candidate.',
   })
@@ -290,8 +291,8 @@ function resolveTimelineSurfaceFocus(input: AgentTimelineSurfaceInput): {
     namespaceRef: input.namespaceRef,
     namespacePath: input.namespacePath,
     targetCategory: input.targetCategory,
-    targetKind: input.timelineAssemblyRef !== undefined ? 'timeline_assembly' : input.targetKind,
-    targetRef: input.timelineAssemblyRef ?? input.targetRef,
+    targetKind: input.targetKind,
+    targetRef: input.targetRef,
   }
   const focus = normalizeDomainFocus(focusInput)
   const legacyProductionId = input.productionId ?? (focus.scope?.kind === 'production' ? focus.scope.ref : undefined)
@@ -305,7 +306,6 @@ function resolveTimelineSurfaceFocus(input: AgentTimelineSurfaceInput): {
     ...(focus.target?.targetCategory ? { target_category: focus.target.targetCategory } : {}),
     ...(focus.target?.targetKind ? { target_kind: focus.target.targetKind } : {}),
     ...(focus.target?.targetRef !== undefined ? { target_ref: focus.target.targetRef } : {}),
-    ...(focus.target?.targetKind === 'timeline_assembly' && focus.target.targetRef !== undefined ? { timeline_assembly_ref: focus.target.targetRef } : {}),
     domain_focus: focus,
   }
   const query = {

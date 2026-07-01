@@ -5,13 +5,12 @@
   "short_name": "workspace-video",
   "logical_model_id": "video.workspace",
   "capabilities": [
-    "video",
-    "video_i2v"
+    "video_generation"
   ],
   "accepts_image_input": true,
   "input_requirements": {
     "image": {
-      "min": 1,
+      "min": 0,
       "max": 4
     },
     "video": {

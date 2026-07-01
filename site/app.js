@@ -20,6 +20,9 @@ const releaseAssetMatchers = {
     (name) => name.startsWith("movscript-desktop-windows-x64-") && name.includes("Setup") && name.endsWith(".exe"),
     (name) => name.startsWith("movscript-desktop-windows-x64-") && name.endsWith(".exe"),
   ],
+  "linux-x64": [
+    (name) => name.startsWith("movscript-desktop-linux-x64-") && name.endsWith(".AppImage"),
+  ],
   plugin: [
     (name) => name.startsWith("movscript-agent-plugin-") && name.endsWith(".zip"),
   ],
@@ -41,6 +44,7 @@ function detectPlatform() {
     .toLowerCase();
 
   if (value.includes("win")) return "windows";
+  if (value.includes("linux") || value.includes("x11")) return "linux";
   return "macos";
 }
 
@@ -69,6 +73,9 @@ async function detectDownloadTarget() {
 
   if (platform === "windows") {
     return "windows-x64";
+  }
+  if (platform === "linux") {
+    return "linux-x64";
   }
 
   if (arch === "x64") return "macos-x64";
@@ -217,6 +224,6 @@ selectLanguage(detectLanguage());
 selectPlatform(detectPlatform());
 detectDownloadTarget().then((target) => {
   highlightDownloadTarget(target);
-  selectPlatform(target.startsWith("windows") ? "windows" : "macos");
+  selectPlatform(target.startsWith("windows") ? "windows" : target.startsWith("linux") ? "linux" : "macos");
 });
 void loadLatestRelease();

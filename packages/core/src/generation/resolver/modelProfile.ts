@@ -5,9 +5,42 @@ import type {
 } from './types.js'
 import { normalizeGenerationResolverOutput } from './normalizeReferences.js'
 
-const IMAGE_ROLES = ['reference_image', 'style_reference', 'first_frame', 'last_frame', 'generic']
-const VIDEO_ROLES = ['reference_video', 'motion_reference', 'source_video', 'generic']
-const AUDIO_ROLES = ['reference_audio', 'source_audio', 'generic']
+const IMAGE_ROLES = [
+  'reference_image',
+  'style_reference',
+  'character_reference',
+  'product_reference',
+  'target_image',
+  'first_frame',
+  'last_frame',
+  'generic',
+]
+const VIDEO_ROLES = ['reference_video', 'target_video', 'generic']
+const AUDIO_ROLES = ['reference_audio', 'source_audio', 'speech_audio', 'voice_sample', 'target_voice', 'generic']
+
+const IMAGE_INPUT_OPERATIONS = new Set([
+  'reference_to_image',
+  'edit_image',
+  'inpaint',
+  'outpaint',
+  'variation',
+  'upscale_image',
+  'image_to_video',
+  'first_frame_to_video',
+  'first_last_frame_to_video',
+  'reference_to_video',
+])
+const VIDEO_INPUT_OPERATIONS = new Set(['reference_to_video', 'edit_video', 'extend_video', 'upscale_video'])
+const AUDIO_INPUT_OPERATIONS = new Set([
+  'reference_to_video',
+  'speech_to_text',
+  'speech_translate',
+  'speech_to_speech',
+  'voice_clone',
+  'dubbing',
+  'voice_isolation',
+  'forced_alignment',
+])
 
 export function generationModelId(model: GenerationResolverModelLike): string {
   return String(model.model_id ?? model.logical_model_id ?? model.id ?? '').trim() || 'unknown-model'
@@ -29,12 +62,13 @@ export function normalizeGenerationModelProfile(model: GenerationResolverModelLi
     }
   }
   const capabilities = normalizedCapabilities(model.capabilities)
+  const operations = operationsFromModel(model)
   const outputs = outputsFromCapabilities(capabilities)
   return {
     output: outputs,
     accepts_prompt_only: true,
-    input_slots: inferredSlots(model, capabilities),
-    operations: operationsFromModel(model),
+    input_slots: inferredSlots(model, operations),
+    operations,
   }
 }
 
@@ -55,24 +89,26 @@ function normalizedCapabilities(capabilities: readonly string[] | undefined): st
 function outputsFromCapabilities(capabilities: readonly string[] | undefined): string[] {
   const normalized = normalizedCapabilities(capabilities)
   const outputs: string[] = []
-  if (normalized.some((capability) => ['image', 'image_generation', 'image_edit'].includes(capability))) outputs.push('image')
-  if (normalized.some((capability) => ['video', 'video_generation', 'video_i2v', 'video_v2v'].includes(capability))) outputs.push('video')
-  if (normalized.some((capability) => capability.startsWith('audio') || ['voice_clone', 'voice_design'].includes(capability))) outputs.push('audio')
-  if (normalized.some((capability) => ['text', 'text_generation', 'reasoning'].includes(capability))) outputs.push('text')
+  if (normalized.includes('image_generation')) outputs.push('image')
+  if (normalized.includes('video_generation')) outputs.push('video')
+  if (normalized.includes('audio_generation')) outputs.push('audio')
+  if (normalized.includes('text_generation') || normalized.includes('text')) outputs.push('text')
   return outputs.length > 0 ? outputs : ['text']
 }
 
-function inferredSlots(model: GenerationResolverModelLike, capabilities: readonly string[]): GenerationModelInputSlot[] {
+function inferredSlots(model: GenerationResolverModelLike, operations: readonly string[]): GenerationModelInputSlot[] {
   const slots: GenerationModelInputSlot[] = []
   const imageRequirement = model.input_requirements?.image
   const videoRequirement = model.input_requirements?.video
   const audioRequirement = model.input_requirements?.audio
+  const normalizedOperations = operations.map((item) => item.trim().toLowerCase()).filter(Boolean)
   const acceptsImage = model.accepts_image_input === true
     || positiveMax(imageRequirement?.max)
-    || capabilities.includes('image_edit')
-    || capabilities.includes('video_i2v')
-  const acceptsVideo = positiveMax(videoRequirement?.max) || capabilities.includes('video_v2v')
+    || normalizedOperations.some((operation) => IMAGE_INPUT_OPERATIONS.has(operation))
+  const acceptsVideo = positiveMax(videoRequirement?.max)
+    || normalizedOperations.some((operation) => VIDEO_INPUT_OPERATIONS.has(operation))
   const acceptsAudio = positiveMax(audioRequirement?.max)
+    || normalizedOperations.some((operation) => AUDIO_INPUT_OPERATIONS.has(operation))
 
   if (acceptsImage) {
     slots.push({

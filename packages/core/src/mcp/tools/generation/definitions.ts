@@ -16,21 +16,6 @@ const GENERATION_CAPABILITIES = [
   'image_generation',
   'video_generation',
   'audio_generation',
-  'image',
-  'image_edit',
-  'video',
-  'video_i2v',
-  'video_v2v',
-  'audio_tts',
-  'audio_transcribe',
-  'audio_translate',
-  'audio_music',
-  'audio_sfx',
-  'audio_chat',
-  'voice_clone',
-  'voice_design',
-  'subtitle_align',
-  'subtitle_translate',
 ] as const
 
 function generationCapabilityListTool(): MCPTool {
@@ -56,7 +41,7 @@ function generationCapabilityListTool(): MCPTool {
 function generationPrepareTool(): MCPTool {
   return {
     name: 'generation_prepare',
-    description: 'Prepare a MovScript generation request: validate capability/scope, list usable models, and compile content-unit prompts when scope is content_unit. Image/video family requests can omit operation; the backend resolver infers usable model operations from target output and typed reference_assets. Audio family requests still require operation because tts/music/stt are semantically distinct.',
+    description: 'Prepare a MovScript generation request: validate capability/scope, list usable models, and compile content-unit prompts when scope is content_unit. Media requests use image_generation, video_generation, or audio_generation plus a canonical operation and typed reference_assets.',
     inputSchema: generationRequestSchema(['capability']),
     outputSchema: objectSchema(
       {
@@ -77,7 +62,7 @@ function generationPrepareTool(): MCPTool {
 function generationSubmitTool(): MCPTool {
   return {
     name: 'generation_submit',
-    description: 'Submit any MovScript generation job through one unified capability contract. Image/video family submissions may omit operation when typed reference_assets are present; backend routing infers the compatible operation and validates it again. Use scope=content_unit for candidate-producing image/video generation, otherwise outputs are RawResources until explicitly registered.',
+    description: 'Submit any MovScript generation job through one unified capability contract. Media submissions use image_generation, video_generation, or audio_generation plus canonical operation and typed reference_assets. Image/video family submissions may omit operation when typed reference_assets are present; backend routing infers the compatible operation and validates it again. Use scope=content_unit for candidate-producing image/video generation, otherwise outputs are RawResources until explicitly registered.',
     inputSchema: generationRequestSchema(['capability']),
     outputSchema: objectSchema(
       {
@@ -218,7 +203,7 @@ function generationResultRegisterTool(): MCPTool {
 function generationRequestSchema(required: string[] = []): MCPTool['inputSchema'] {
   return objectSchema(
     {
-      capability: { type: 'string', enum: [...GENERATION_CAPABILITIES], description: 'MovScript generation capability. Prefer generation families such as image_generation, video_generation, or audio_generation; image/video operations may be backend-inferred from typed references.' },
+      capability: { type: 'string', enum: [...GENERATION_CAPABILITIES], description: 'MovScript generation capability family. Use image_generation, video_generation, or audio_generation; choose the concrete mode with operation.' },
       scope: { type: 'string', enum: ['free', 'content_unit', 'asset', 'storyboard', 'keyframe'], description: 'Generation target scope. content_unit image/video jobs create candidates on successful terminal polling.' },
       prompt: { type: 'string', minLength: 1 },
       title: { type: 'string' },
@@ -229,33 +214,32 @@ function generationRequestSchema(required: string[] = []): MCPTool['inputSchema'
         enum: [
           'text_to_image',
           'reference_to_image',
-          'image_to_image',
+          'edit_image',
+          'inpaint',
+          'outpaint',
+          'variation',
+          'upscale_image',
           'prompt_to_video',
-          'reference_to_video',
           'image_to_video',
           'first_frame_to_video',
           'first_last_frame_to_video',
-          'video_to_video',
-          'video_edit',
-          'video_extend',
-          'video_inpaint',
-          'object_insert',
-          'object_remove',
-          'motion_control',
-          'lip_sync',
-          'video_upscale',
-          'tts',
-          'stt',
+          'reference_to_video',
+          'edit_video',
+          'extend_video',
+          'upscale_video',
+          'text_to_speech',
+          'speech_to_text',
           'speech_translate',
-          'audio_chat',
+          'speech_to_speech',
           'voice_clone',
           'voice_design',
           'dubbing',
-          'music',
-          'sfx',
-          'speech_enhancement',
+          'music_generation',
+          'sound_effect_generation',
+          'voice_isolation',
+          'forced_alignment',
         ],
-        description: 'Explicit model operation intent. Optional for image_generation/video_generation when typed reference_assets are provided; required for audio_generation because tts, stt, music, and sfx are different user intents.',
+        description: 'Explicit model operation intent. Optional for image_generation/video_generation when typed reference_assets are provided. Required for audio_generation.',
       },
       model_operation: { type: 'string', description: 'Alias for operation.' },
       generation_intent: {
@@ -269,13 +253,13 @@ function generationRequestSchema(required: string[] = []): MCPTool['inputSchema'
           type: 'object',
           additionalProperties: true,
           properties: {
-            role: { type: 'string', enum: ['generic', 'first_frame', 'last_frame', 'reference_image', 'reference_video', 'reference_audio'] },
-            media_type: { type: 'string', enum: ['image', 'video', 'audio'] },
+            role: { type: 'string', enum: ['generic', 'first_frame', 'last_frame', 'reference_image', 'style_reference', 'character_reference', 'product_reference', 'target_image', 'mask', 'reference_video', 'target_video', 'reference_audio', 'source_audio', 'speech_audio', 'voice_sample', 'target_voice', 'transcript'] },
+            media_type: { type: 'string', enum: ['image', 'video', 'audio', 'text'] },
             resource_id: { type: 'number', minimum: 1 },
           },
           required: ['role'],
         },
-        description: 'Semantic roles for input/reference resources. Use reference_image/reference_video/reference_audio for omni reference video, and first_frame/last_frame for first-last video generation.',
+        description: 'Semantic roles for input/reference resources. Use first_frame/last_frame for first-last video generation, target_video for video editing/extension/upscale, and transcript for forced alignment.',
       },
       parameter_mode: { type: 'string', enum: ['compatible', 'strict'] },
       param_mode: { type: 'string', enum: ['compatible', 'strict'] },

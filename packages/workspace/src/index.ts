@@ -83,10 +83,7 @@ export {
 } from './resourceMentions.js'
 
 export {
-  deriveMovScriptWorkspaceTimelineAssemblyPreviewTimeline,
   deriveMovScriptWorkspacePreviewTimelines,
-  type MovScriptWorkspaceTimelineAssemblyPreviewTimelineArtifact,
-  type MovScriptWorkspaceTimelineAssemblyPreviewTimelineScope,
   type MovScriptWorkspacePreviewTimelineArtifact,
   type MovScriptWorkspacePreviewTimelineEntityRef,
   type MovScriptWorkspacePreviewTimelineItem,

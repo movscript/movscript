@@ -55,6 +55,7 @@
               <div class="platform-switch" role="tablist" aria-label="Choose operating system">
                 <button class="platform-tab" type="button" role="tab" aria-selected="true" data-platform-tab="macos">macOS</button>
                 <button class="platform-tab" type="button" role="tab" aria-selected="false" data-platform-tab="windows">Windows</button>
+                <button class="platform-tab" type="button" role="tab" aria-selected="false" data-platform-tab="linux">Linux</button>
               </div>
 
               <div class="platform-panel" role="tabpanel" data-platform-panel="macos">
@@ -88,6 +89,17 @@
                 </div>
                 <p class="note recommendation" data-download-recommendation>Recommended downloads are selected for your device when detection is available.</p>
                 <p class="note">Download the latest x64 <code>.exe</code> installer from GitHub Releases. The installer lets you choose the program installation directory.</p>
+              </div>
+
+              <div class="platform-panel" role="tabpanel" data-platform-panel="linux" hidden>
+                <div class="download-grid" aria-label="Linux downloads">
+                  <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="linux-x64">
+                    <span>Linux x64</span>
+                    <small>AppImage</small>
+                  </a>
+                </div>
+                <p class="note recommendation" data-download-recommendation>Recommended downloads are selected for your device when detection is available.</p>
+                <p class="note">Download the latest x64 <code>.AppImage</code> from GitHub Releases and mark it executable before opening.</p>
               </div>
             </section>
           </div>
@@ -135,6 +147,7 @@
               <div class="platform-switch" role="tablist" aria-label="选择操作系统">
                 <button class="platform-tab" type="button" role="tab" aria-selected="true" data-platform-tab="macos">macOS</button>
                 <button class="platform-tab" type="button" role="tab" aria-selected="false" data-platform-tab="windows">Windows</button>
+                <button class="platform-tab" type="button" role="tab" aria-selected="false" data-platform-tab="linux">Linux</button>
               </div>
 
               <div class="platform-panel" role="tabpanel" data-platform-panel="macos">
@@ -168,6 +181,17 @@
                 </div>
                 <p class="note recommendation" data-download-recommendation>能识别设备时，会自动为你高亮推荐下载项。</p>
                 <p class="note">从 GitHub Releases 下载最新 x64 <code>.exe</code> 安装器。安装器会让你选择程序安装目录。</p>
+              </div>
+
+              <div class="platform-panel" role="tabpanel" data-platform-panel="linux" hidden>
+                <div class="download-grid" aria-label="Linux 下载">
+                  <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="linux-x64">
+                    <span>Linux x64</span>
+                    <small>AppImage</small>
+                  </a>
+                </div>
+                <p class="note recommendation" data-download-recommendation>能识别设备时，会自动为你高亮推荐下载项。</p>
+                <p class="note">从 GitHub Releases 下载最新 x64 <code>.AppImage</code>，赋予可执行权限后打开。</p>
               </div>
             </section>
           </div>

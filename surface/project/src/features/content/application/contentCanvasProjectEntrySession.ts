@@ -71,12 +71,6 @@ function contentCanvasDerivedSelectionFromSearch(searchParams: URLSearchParams):
 
   const productionId = searchParamValue(searchParams, ['productionId', 'production_id'])
     ?? searchParamValue(searchParams, ['scopeRef', 'scope_ref'])
-    ?? idFromTimelineAssemblyRef(searchParamValue(searchParams, [
-      'timeline_assembly_ref',
-      'timelineAssemblyRef',
-      'targetRef',
-      'target_ref',
-    ]))
   if (productionId) return { nodeId: `production:${productionId}`, selectionKind: 'other' }
   return undefined
 }
@@ -109,13 +103,6 @@ function searchParamValue(searchParams: URLSearchParams, keys: string[]): string
     if (value) return value
   }
   return undefined
-}
-
-function idFromTimelineAssemblyRef(value: string | undefined): string | undefined {
-  if (!value?.startsWith('timeline_assembly:')) return undefined
-  const [, , ...tail] = value.split(':')
-  const id = tail.join(':').trim()
-  return id || undefined
 }
 
 function idFromTargetRef(value: string | undefined, prefix: string): string | undefined {

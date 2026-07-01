@@ -1,76 +1,77 @@
+---
 lab: xiaomi-mimo
 templates:
-    - route_adapter_hint: xiaomi_mimo
-      allow_model_id_override: true
-      capabilities:
-        - audio_chat
-      display_name: 小米 MiMo V2.5
-      id: xiaomi-mimo:mimo-v2-5
-      lab: xiaomi-mimo
-      model_id: mimo-v2.5
-      order: 90
-      params:
-        - key: language
-          label: 识别语言
-          type: select
-          options:
-            - auto
-            - zh
-            - en
-          default: auto
-        - key: temperature
-          label: 温度
-          type: number
-          default: 0.8
-          min: 0
-          max: 2
-          step: 0.1
-        - key: max_completion_tokens
-          label: 最大输出 Token
-          type: number
-          min: 1
-          max: 4096
-          step: 1
-      source:
-        status: verified
-        url: https://mimo.mi.com/docs/en-US/api/chat/openai-api
-        verified_at: "2026-06-26"
-    - route_adapter_hint: xiaomi_mimo
-      allow_model_id_override: true
-      capabilities:
-        - audio_chat
-      display_name: 小米 MiMo V2 Omni
-      id: xiaomi-mimo:mimo-v2-omni
-      lab: xiaomi-mimo
-      model_id: mimo-v2-omni
-      order: 91
-      source:
-        status: deprecated
-        url: https://mimo.mi.com/docs/en-US/price/pay-as-you-go
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: MiMo V2 Pro
-      id: xiaomi-mimo:mimo-v2-pro
-      lab: xiaomi-mimo
-      model_id: mimo-v2-pro
-      order: 92
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: MiMo V2.5 Pro
-      id: xiaomi-mimo:mimo-v2-5-pro
-      lab: xiaomi-mimo
-      model_id: mimo-v2.5-pro
-      order: 93
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
+- route_adapter_hint: xiaomi_mimo
+  allow_model_id_override: true
+  capabilities:
+  - audio_generation
+  display_name: 小米 MiMo V2.5
+  id: xiaomi-mimo:mimo-v2-5
+  lab: xiaomi-mimo
+  model_id: mimo-v2.5
+  order: 90
+  params:
+  - key: language
+    label: 识别语言
+    type: select
+    options:
+    - auto
+    - zh
+    - en
+    default: auto
+  - key: temperature
+    label: 温度
+    type: number
+    default: 0.8
+    min: 0
+    max: 2
+    step: 0.1
+  - key: max_completion_tokens
+    label: 最大输出 Token
+    type: number
+    min: 1
+    max: 4096
+    step: 1
+  source:
+    status: verified
+    url: https://mimo.mi.com/docs/en-US/api/chat/openai-api
+    verified_at: '2026-06-26'
+- route_adapter_hint: xiaomi_mimo
+  allow_model_id_override: true
+  capabilities:
+  - audio_generation
+  display_name: 小米 MiMo V2 Omni
+  id: xiaomi-mimo:mimo-v2-omni
+  lab: xiaomi-mimo
+  model_id: mimo-v2-omni
+  order: 91
+  source:
+    status: deprecated
+    url: https://mimo.mi.com/docs/en-US/price/pay-as-you-go
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: MiMo V2 Pro
+  id: xiaomi-mimo:mimo-v2-pro
+  lab: xiaomi-mimo
+  model_id: mimo-v2-pro
+  order: 92
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: MiMo V2.5 Pro
+  id: xiaomi-mimo:mimo-v2-5-pro
+  lab: xiaomi-mimo
+  model_id: mimo-v2.5-pro
+  order: 93
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'

@@ -28,14 +28,14 @@ bin/movscript daemon status
 bin/movscript daemon stop
 bin/movscript admin provider list
 bin/movscript system generation prepare --capability image_generation --json
-bin/movscript timeline backend capability list --json
-bin/movscript timeline compile manifest create --backend media_editing_project --edit-decisions '{"cuts":[]}' --json
+bin/movscript production editing workspace list --production-id pilot --json
+bin/movscript production editing workspace open --production-id pilot --workspace-id rough_cut_v1 --json
 bin/movscript workspace get-model project --json
 ```
 
-This CLI is a product surface, not only an MCP launch script. In no-frontend or CI sessions, `bin/movscript ... --json` should be enough to start/inspect the daemon, configure admin systems, use system generation/resource tools, compile TimelineAssembly intent, select a backend, and return structured diagnostics. The MCP host wraps the same command runners and includes `debug.cli_argv` so agent calls can be reproduced from a terminal.
+This CLI is a product surface, not only an MCP launch script. In no-frontend or CI sessions, `bin/movscript ... --json` should be enough to start/inspect the daemon, configure admin systems, use system generation/resource tools, create/open production editing workspaces, and return structured diagnostics. The MCP host wraps the same command runners and includes `debug.cli_argv` so agent calls can be reproduced from a terminal.
 
-Use `bin/movscript daemon start --data-plane cloud --data-service-url <url>` when the daemon should start local Project, Editing, Canvas, Surface, and Media services while reusing a cloud Data Service instead of launching the local Data Service. The daemon gateway exposes the canonical MCP HTTP endpoint at `/v1/mcp` plus `/v1/mcp/health`; `/mcp` is kept only as a compatibility path. The plugin also ships `bin/movcli` as a compatibility command name for the legacy CLI surface; it is backed by the same plugin bundle. `bin/movscript-agent-mcp` is now only a compatibility shim for `bin/movscript mcp stdio`, and the older `local-node` / `__movscript_local_node` commands are compatibility aliases for `daemon`.
+Use `bin/movscript daemon start --data-plane cloud --data-service-url <url>` when the daemon should start local Project, Editing, Canvas, Surface, and Media services while reusing a cloud Data Service instead of launching the local Data Service. The daemon gateway exposes the canonical MCP HTTP endpoint at `/v1/mcp` plus `/v1/mcp/health`; `/mcp` is kept only as a compatibility path. `bin/movscript` is the only CLI product command. `bin/movscript-agent-mcp` is now only a compatibility shim for `bin/movscript mcp stdio`, and the older `local-node` / `__movscript_local_node` commands are compatibility aliases for `daemon`.
 
 Inside a MovScript project workspace, the selected local folder is the project repo root. `.movscript/manifest.json` is the local control contract. Agent/UI edits target source paths such as `project.json`, `project_standards.json`, `settings/**`, `scripts/**`, `content_units/**`, and `productions/**`. Agents should use domain query/read tools for derived context rather than reading interpreter debug files. Provider config/cache/run/session indexes live under `.movscript/providers/{profile}`.
 
@@ -47,11 +47,11 @@ The host exposes these MCP surfaces to provider runtimes:
 - MCP resources: `resources/list` and `resources/read` come from the shared MovScript core MCP resource registry. These are read-only context/catalog entries, not generation input resources.
 - System tools: `system_project_create`, `system_model_list`, unified generation tools (`generation_capability_list`, `generation_prepare`, `generation_submit`, `generation_job_get`, `generation_job_get_batch`, `generation_result_register`), artifact/stream tools (`system_artifact_upload_export`, `system_artifact_upload_hls_stream`, `system_artifact_get_stream`), resource-library search, shot-library search, external media search, image/video inspection, annotation, and resource upload.
 - Domain tools: `domain_get_model`, `domain_overview`, `domain_query_*`, `domain_read_*`, `domain_upsert_*`, `domain_update_*`, candidate tools, `domain_inspect`, `domain_interpret`, and `domain_regeneration_plan`. Planning upserts cover production, segment, scene_moment, shot, keyframe, storyboard, audio_cue, expression_unit, and content_unit source records. `domain_inspect` diagnoses current source; `domain_interpret` validates source and can refresh diagnostic artifacts; `domain_review` is compatibility-only.
-- Timeline tools: `timeline_backend_capability_list`, `timeline_compile_manifest_create`, `timeline_backend_select`, `timeline_backend_project_create`, `timeline_assembly_compile`, and `timeline_backend_conformance_report`. These compile TimelineAssembly intent into CompileManifest and optional backend execution projects without rendering or persisting. MediaEditingProject, RemotionCompositionProject, HyperFramesCompositionProject, and ExternalNleProject are sibling backend paths; unsupported backends return conformance blockers instead of silent fallback.
+- Production editing tools: `production_editing_resources_refresh`, `production_editing_workspace_list`, `production_editing_workspace_create`, `production_editing_workspace_get`, `production_editing_workspace_open`, and `production_editing_workspace_delete`. These manage only the production-bound workspace lifecycle; once a workspace is opened, agents hand off to `system_edit` for `system_editing` workspaces or `remotion` for Remotion workspaces.
 - Editing tools: `editing_project_*`, `editing_timeline_*`, `editing_runtime_capabilities_get`, `editing_task_*`, and `editing_export_*`. Pure project/timeline operations can run in the headless host. Render/HLS/transcode/reframe work is routed toward Electron `mediaPipeline` / daemon-owned `movscript.media.pipeline`; Desktop may provide enhanced preview or bridge capabilities, but it is not the business sidecar owner.
 
-Together these surfaces cover generation, timeline compile, artifact hosting, and editing tools without treating resource utilities as the product editing path.
-The static bootstrap set also advertises the dedicated `editing_*` tool family, plus the `timeline_*` tool family.
+Together these surfaces cover generation, production editing workspace handoff, artifact hosting, and editing tools without treating resource utilities as the product editing path.
+The static bootstrap set also advertises the dedicated `editing_*` and `production_editing_*` tool families.
 
 MovScript uses three separate media concepts in the plugin contract:
 

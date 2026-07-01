@@ -12,7 +12,6 @@ import {
   normalizeNamespaceVocabulary,
   namespaceVocabularyWithFallbacks,
   normalizePathParentEdge,
-  parseImplicitTimelineAssemblyRef,
   assertNamespaceCannotOwnContentUnitRef,
   assertNamespaceCannotOwnProductionState,
   MOVSCRIPT_DOMAIN_PATH_SEMANTICS,
@@ -21,7 +20,6 @@ import {
   childSettingNamespaceKind,
   childTimelineNamespaceKind,
   contentUnitTypesForPromptRefKind,
-  implicitTimelineAssemblyRef,
   normalizeContentUnitTargetEdges,
   projectMovScriptDomainNodeKind,
   primaryRefKindForContentUnitType,
@@ -31,7 +29,6 @@ import {
   timelineNamespaceRootDefaultPreviewKind,
   timelineNamespaceTemplateDefaultPreviewKind,
   timelineNamespaceTemplateInitialNamespaces,
-  timelineAssemblyScopeFromContentUnitRecord,
 } from '../dist/index.js'
 
 test('entity id suggestions derive readable IDs from titles', () => {
@@ -52,7 +49,7 @@ test('entity id allocation preserves manual uniqueness with numeric suffixes', (
   }).startsWith('cu_'), true)
 })
 
-test('timeline_assembly_ref is the canonical content unit target for namespace scope output', () => {
+test('timeline_assembly_ref is rejected instead of normalized as compatibility data', () => {
   const target = normalizeContentUnitTarget({
     content_unit_type: 'timeline_assembly_ref',
     output_kind: 'video',
@@ -60,18 +57,12 @@ test('timeline_assembly_ref is the canonical content unit target for namespace s
     target_ref: 'timeline_assembly:episode:episode_01',
   })
 
-  assert.equal(target.target?.targetCategory, 'timeline_assembly')
-  assert.equal(target.target?.targetKind, 'timeline_assembly')
-  assert.equal(target.target?.targetRef, 'timeline_assembly:episode:episode_01')
-  assert.deepEqual(target.scope, {
-    category: 'timeline_namespace',
-    kind: 'episode',
-    ref: 'episode_01',
-    field: 'target_ref',
-  })
+  assert.equal(target.target, undefined)
+  assert.equal(target.scope, undefined)
   assert.equal(target.outputKind, 'video')
-  assert.equal(target.diagnostics.length, 0)
-  assert.ok(MOVSCRIPT_SPECIALIZED_CONTENT_UNIT_TYPES.includes('timeline_assembly_ref'))
+  assert.deepEqual(target.diagnostics.map((diagnostic) => diagnostic.code), ['content_unit_type_removed'])
+  assert.deepEqual(target.diagnostics.map((diagnostic) => diagnostic.severity), ['error'])
+  assert.equal(MOVSCRIPT_SPECIALIZED_CONTENT_UNIT_TYPES.includes('timeline_assembly_ref'), false)
 })
 
 test('production type templates keep production root and recommend internal timeline namespaces', () => {
@@ -82,7 +73,7 @@ test('production type templates keep production root and recommend internal time
   assert.equal(timelineNamespaceTemplateDefaultPreviewKind('film'), 'production')
 })
 
-test('content unit target edge normalization emits target and scope edges', () => {
+test('timeline_assembly_ref edge normalization emits no compatibility edges', () => {
   const source = { category: 'content_unit', kind: 'content_unit', id: 'cu_episode' }
   const edges = normalizeContentUnitTargetEdges({
     source,
@@ -91,76 +82,36 @@ test('content unit target edge normalization emits target and scope edges', () =
       target_kind: 'timeline_assembly',
       target_ref: 'timeline_assembly:episode:episode_01',
     },
-    scopeTarget(scope) {
-      return { category: 'timeline_namespace', kind: 'episode', id: scope.ref, path: `timeline/${scope.ref}` }
-    },
   })
 
-  assert.deepEqual(edges, [
-    {
-      source,
-      target: {
-        category: 'timeline_assembly',
-        kind: 'timeline_assembly',
-        id: 'timeline_assembly:episode:episode_01',
-      },
-      relation: 'target',
-      origin: 'explicit_ref',
-      field: 'target_ref',
-    },
-    {
-      source,
-      target: {
-        category: 'timeline_namespace',
-        kind: 'episode',
-        id: 'episode_01',
-        path: 'timeline/episode_01',
-      },
-      relation: 'scope',
-      origin: 'explicit_ref',
-      field: 'target_ref',
-    },
-  ])
+  assert.deepEqual(edges, [])
 })
 
-test('timeline_assembly_ref can derive target refs from explicit scope fields', () => {
-  const targetRef = implicitTimelineAssemblyRef('production', 'pilot')
+test('timeline_assembly_ref explicit scope fields are ignored and rejected', () => {
   const normalized = normalizeContentUnitTarget({
     content_unit_type: 'timeline_assembly_ref',
     scope_kind: 'production',
     scope_ref: 'pilot',
   })
 
-  assert.equal(normalized.target?.targetRef, targetRef)
-  assert.equal(normalized.scope?.kind, 'production')
-  assert.equal(normalized.scope?.ref, 'pilot')
-  assert.deepEqual(timelineAssemblyScopeFromContentUnitRecord({
-    content_unit_type: 'timeline_assembly_ref',
-    target_kind: 'timeline_assembly',
-    target_ref: targetRef,
-  }), {
-    category: 'timeline_namespace',
-    kind: 'production',
-    ref: 'pilot',
-    field: 'target_ref',
-  })
+  assert.equal(normalized.target, undefined)
+  assert.equal(normalized.scope, undefined)
+  assert.deepEqual(normalized.diagnostics.map((diagnostic) => diagnostic.code), ['content_unit_type_removed'])
   assert.deepEqual(primaryRefIdsForContentUnitRecord({
     content_unit_type: 'timeline_assembly_ref',
     target_kind: 'timeline_assembly',
-    target_ref: targetRef,
-  }, 'production'), ['pilot'])
-  assert.deepEqual(contentUnitTypesForPromptRefKind('production'), ['production_ref', 'timeline_assembly_ref'])
+    target_ref: 'timeline_assembly:production:pilot',
+  }, 'production'), [])
+  assert.deepEqual(contentUnitTypesForPromptRefKind('production'), ['production_ref'])
 })
 
-test('legacy production and segment refs normalize to timeline assembly scopes', () => {
+test('production and segment refs normalize to namespace scopes without playback targets', () => {
   const productionTarget = normalizeContentUnitTarget({
     content_unit_type: 'production_ref',
     production_ref: 'pilot',
   })
 
-  assert.equal(productionTarget.target?.targetCategory, 'timeline_assembly')
-  assert.equal(productionTarget.target?.targetKind, 'timeline_assembly')
-  assert.equal(productionTarget.target?.targetRef, 'timeline_assembly:production:pilot')
+  assert.equal(productionTarget.target, undefined)
   assert.deepEqual(productionTarget.scope, {
     category: 'timeline_namespace',
     kind: 'production',
@@ -179,9 +130,7 @@ test('legacy production and segment refs normalize to timeline assembly scopes',
     },
   })
 
-  assert.equal(productionEdges.find((edge) => edge.relation === 'target')?.origin, 'legacy_alias')
-  assert.equal(productionEdges.find((edge) => edge.relation === 'target')?.target.id, 'timeline_assembly:production:pilot')
-  assert.equal(productionEdges.find((edge) => edge.relation === 'target')?.field, 'production_ref')
+  assert.equal(productionEdges.find((edge) => edge.relation === 'target'), undefined)
   assert.equal(productionEdges.find((edge) => edge.relation === 'scope')?.target.kind, 'production')
   assert.equal(productionEdges.find((edge) => edge.relation === 'scope')?.target.id, 'pilot')
 
@@ -192,7 +141,7 @@ test('legacy production and segment refs normalize to timeline assembly scopes',
     segment_ref: 'opening',
   })
 
-  assert.equal(segmentTarget.target?.targetRef, 'timeline_assembly:segment:opening')
+  assert.equal(segmentTarget.target, undefined)
   assert.equal(segmentTarget.scope?.kind, 'segment')
   assert.equal(segmentTarget.scope?.ref, 'opening')
   assert.deepEqual(primaryRefIdsForContentUnitRecord({
@@ -255,7 +204,7 @@ test('content unit target validation diagnostics centralize blocking target inva
     content_unit_type: 'timeline_assembly_ref',
     target_kind: 'timeline_assembly',
     target_ref: 'episode_01',
-  }).map((diagnostic) => diagnostic.code), ['content_unit_scope_ref_invalid'])
+  }).map((diagnostic) => diagnostic.code), ['content_unit_type_removed'])
 
   assert.deepEqual(contentUnitTargetValidationDiagnostics({
     content_unit_type: 'production_ref',
@@ -391,7 +340,7 @@ test('domain node kind projection separates user labels from storage entity kind
   assert.equal(projectMovScriptDomainNodeKind('scene_moment', { kind: 'scene_moment' }), 'scene_moment')
 })
 
-test('normalized focus maps legacy production focus to an assembly work target', () => {
+test('normalized focus maps production focus to scope without implicit assembly target', () => {
   const focus = normalizeDomainFocus({
     projectId: 'project-a',
     productionId: 'pilot',
@@ -400,14 +349,13 @@ test('normalized focus maps legacy production focus to an assembly work target',
   })
 
   assert.equal(focus.projectId, 'project-a')
-  assert.equal(focus.target?.targetCategory, 'timeline_assembly')
-  assert.equal(focus.target?.targetRef, 'timeline_assembly:production:pilot')
+  assert.equal(focus.target, undefined)
   assert.equal(focus.scope?.kind, 'production')
   assert.equal(focus.entity?.category, 'system_primitive')
   assert.equal(classifyMovScriptEntityKind('production'), 'timeline_namespace')
 })
 
-test('normalized focus accepts explicit timeline assembly scopes without duplicating structure', () => {
+test('normalized focus rejects explicit timeline assembly refs without compatibility parsing', () => {
   const focus = normalizeDomainFocus({
     project_id: 'project-a',
     target_kind: 'timeline_assembly',
@@ -415,15 +363,14 @@ test('normalized focus accepts explicit timeline assembly scopes without duplica
     scope_ref: 'episode_01',
   })
 
-  assert.equal(focus.target?.targetCategory, 'timeline_assembly')
-  assert.equal(focus.target?.targetRef, 'timeline_assembly:episode:episode_01')
+  assert.equal(focus.target, undefined)
   assert.deepEqual(focus.scope, {
     category: 'timeline_namespace',
     kind: 'episode',
     ref: 'episode_01',
     field: 'scopeRef',
   })
-  assert.equal(focus.diagnostics.length, 0)
+  assert.deepEqual(focus.diagnostics.map((diagnostic) => diagnostic.code), ['focus_timeline_assembly_target_removed'])
 
   const parsed = normalizeDomainFocus({
     projectId: 'project-a',
@@ -431,28 +378,20 @@ test('normalized focus accepts explicit timeline assembly scopes without duplica
     targetRef: 'timeline_assembly:production:pilot',
   })
 
-  assert.equal(parsed.scope?.kind, 'production')
-  assert.equal(parsed.scope?.ref, 'pilot')
-  assert.equal(parsed.scope?.field, 'targetRef')
-  assert.deepEqual(parseImplicitTimelineAssemblyRef('timeline_assembly:episode:ep:01'), {
-    scopeKind: 'episode',
-    scopeRef: 'ep:01',
-  })
+  assert.equal(parsed.scope, undefined)
+  assert.equal(parsed.target, undefined)
+  assert.deepEqual(parsed.diagnostics.map((diagnostic) => diagnostic.code), ['focus_timeline_assembly_target_removed'])
 })
 
-test('normalized focus accepts timeline assembly ref aliases from surface urls', () => {
+test('normalized focus rejects timeline assembly ref aliases from surface urls', () => {
   const focus = normalizeDomainFocus({
     projectId: 'project-a',
     timeline_assembly_ref: 'timeline_assembly:episode:episode_01',
   })
 
-  assert.equal(focus.target?.targetCategory, 'timeline_assembly')
-  assert.equal(focus.target?.targetKind, 'timeline_assembly')
-  assert.equal(focus.target?.targetRef, 'timeline_assembly:episode:episode_01')
-  assert.equal(focus.scope?.kind, 'episode')
-  assert.equal(focus.scope?.ref, 'episode_01')
-  assert.equal(focus.scope?.field, 'targetRef')
-  assert.equal(focus.diagnostics.length, 0)
+  assert.equal(focus.target, undefined)
+  assert.equal(focus.scope, undefined)
+  assert.deepEqual(focus.diagnostics.map((diagnostic) => diagnostic.code), ['focus_timeline_assembly_target_removed'])
 })
 
 test('focus rejects namespace target categories', () => {

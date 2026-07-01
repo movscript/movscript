@@ -96,6 +96,7 @@ export interface NormalizedContentUnitPrompt {
   }
   model_intent?: Record<string, unknown>
   refs: ContentUnitResolvedRef[]
+  generation_refs?: ContentUnitResolvedRef[]
   runtime_request: {
     capability: string
     provider_intent?: string

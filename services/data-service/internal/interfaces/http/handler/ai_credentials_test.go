@@ -336,7 +336,7 @@ func TestProviderInstancesExposeAIGatewayCredentialsWithoutSecrets(t *testing.T)
 	if !seenAPIKey || !seenFilesKey {
 		t.Fatalf("provider instance secret status = %+v, want api_key and files_api_key configured", item.SecretFields)
 	}
-	for _, capability := range []string{"image.edit", "video.task", "video.poll", "video.cancel", "audio.speech", "audio.transcribe", "audio.align"} {
+	for _, capability := range []string{"image.generation", "video.task", "video.poll", "video.cancel", "audio.generation"} {
 		if !hasCapability(item.Capabilities, capability) {
 			t.Fatalf("provider instance capabilities = %#v, want %s", item.Capabilities, capability)
 		}

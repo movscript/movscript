@@ -428,6 +428,9 @@ importers:
       '@movscript/project':
         specifier: workspace:*
         version: link:../project
+      '@movscript/runtime-contracts':
+        specifier: workspace:*
+        version: link:../runtime-contracts
       '@movscript/workspace':
         specifier: workspace:*
         version: link:../workspace
@@ -828,6 +831,9 @@ importers:
       '@movscript/language':
         specifier: workspace:*
         version: link:../language
+      '@movscript/runtime-contracts':
+        specifier: workspace:*
+        version: link:../runtime-contracts
     devDependencies:
       '@types/node':
         specifier: 22.19.17
@@ -1003,6 +1009,9 @@ importers:
       '@movscript/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@movscript/editing':
+        specifier: workspace:*
+        version: link:../../packages/editing
       '@movscript/engine':
         specifier: workspace:*
         version: link:../../packages/engine

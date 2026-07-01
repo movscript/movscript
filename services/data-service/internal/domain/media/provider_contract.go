@@ -3,25 +3,16 @@ package media
 import "context"
 
 const (
-	CapabilityAudioTTS          = "audio_tts"
-	CapabilityAudioTranscribe   = "audio_transcribe"
-	CapabilityAudioMusic        = "audio_music"
-	CapabilityAudioSFX          = "audio_sfx"
-	CapabilityAudioChat         = "audio_chat"
-	CapabilityVoiceClone        = "voice_clone"
-	CapabilityVoiceDesign       = "voice_design"
-	CapabilityAudioTranslate    = "audio_translate"
-	CapabilitySubtitleAlign     = "subtitle_align"
-	CapabilitySubtitleTranslate = "subtitle_translate"
+	CapabilityAudioGeneration = "audio_generation"
 )
 
 type TimingSource string
 
 const (
-	TimingSourceTTSTiming   TimingSource = "tts_timing"
-	TimingSourceForcedAlign TimingSource = "forced_align"
-	TimingSourceSTT         TimingSource = "stt"
-	TimingSourceManual      TimingSource = "manual"
+	TimingSourceSpeechTiming    TimingSource = "speech_timing"
+	TimingSourceForcedAlignment TimingSource = "forced_alignment"
+	TimingSourceSpeechToText    TimingSource = "speech_to_text"
+	TimingSourceManual          TimingSource = "manual"
 )
 
 type TimedTextUnit struct {
@@ -87,8 +78,8 @@ type TTSResponse struct {
 type AudioGenerationKind string
 
 const (
-	AudioGenerationKindMusic AudioGenerationKind = "music"
-	AudioGenerationKindSFX   AudioGenerationKind = "sfx"
+	AudioGenerationKindMusic       AudioGenerationKind = "music_generation"
+	AudioGenerationKindSoundEffect AudioGenerationKind = "sound_effect_generation"
 )
 
 type AudioGenerationRequest struct {
@@ -109,7 +100,7 @@ type AudioGenerationResponse struct {
 	ProviderRef string `json:"provider_ref,omitempty"`
 }
 
-type AudioChatRequest struct {
+type SpeechToSpeechRequest struct {
 	Prompt          string         `json:"prompt,omitempty"`
 	AudioResourceID uint           `json:"audio_resource_id,omitempty"`
 	Audio           []byte         `json:"-"`
@@ -121,7 +112,7 @@ type AudioChatRequest struct {
 	Params          map[string]any `json:"params,omitempty"`
 }
 
-type AudioChatResponse struct {
+type SpeechToSpeechResponse struct {
 	Audio       []byte          `json:"-"`
 	Text        string          `json:"text,omitempty"`
 	MimeType    string          `json:"mime_type"`
@@ -139,7 +130,7 @@ type TranscribeRequest struct {
 	Params          map[string]any `json:"params,omitempty"`
 }
 
-type AudioTranslateRequest struct {
+type SpeechTranslateRequest struct {
 	AudioResourceID uint           `json:"audio_resource_id,omitempty"`
 	Audio           []byte         `json:"-"`
 	MimeType        string         `json:"mime_type,omitempty"`
@@ -192,7 +183,7 @@ type AlignRequest struct {
 	Params          map[string]any `json:"params,omitempty"`
 }
 
-type TranslateSubtitleRequest struct {
+type DubbingRequest struct {
 	SubtitleResourceID uint           `json:"subtitle_resource_id,omitempty"`
 	Subtitle           []byte         `json:"-"`
 	MimeType           string         `json:"mime_type,omitempty"`
@@ -255,8 +246,8 @@ type AudioGenerationProvider interface {
 	GenerateAudio(ctx context.Context, req AudioGenerationRequest) (AudioGenerationResponse, error)
 }
 
-type AudioChatProvider interface {
-	ChatAudio(ctx context.Context, req AudioChatRequest) (AudioChatResponse, error)
+type SpeechToSpeechProvider interface {
+	GenerateSpeechToSpeech(ctx context.Context, req SpeechToSpeechRequest) (SpeechToSpeechResponse, error)
 }
 
 type SubtitleProvider interface {
@@ -264,8 +255,8 @@ type SubtitleProvider interface {
 	Align(ctx context.Context, req AlignRequest) (SubtitleResponse, error)
 }
 
-type AudioTranslateProvider interface {
-	TranslateAudio(ctx context.Context, req AudioTranslateRequest) (SubtitleResponse, error)
+type SpeechTranslateProvider interface {
+	TranslateSpeech(ctx context.Context, req SpeechTranslateRequest) (SubtitleResponse, error)
 }
 
 type VoiceProfileProvider interface {
@@ -273,8 +264,8 @@ type VoiceProfileProvider interface {
 	DesignVoice(ctx context.Context, req VoiceDesignRequest) (VoiceProfileResponse, error)
 }
 
-type SubtitleTranslateProvider interface {
-	TranslateSubtitle(ctx context.Context, req TranslateSubtitleRequest) (SubtitleResponse, error)
+type DubbingProvider interface {
+	GenerateDubbing(ctx context.Context, req DubbingRequest) (SubtitleResponse, error)
 }
 
 type Renderer interface {

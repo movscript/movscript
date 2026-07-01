@@ -4,6 +4,10 @@ import { useTranslation } from 'react-i18next'
 import { AudioLines, FileText, ImageIcon, VideoIcon, X } from 'lucide-react'
 import { MediaViewer } from '@movscript/resource-surface/resource-media-viewer'
 import {
+  generationDefaultReferenceRoleForMediaType,
+  generationReferenceRoleOptionsForMediaType,
+} from '@movscript/core/generation'
+import {
   GenerationAttachmentPreview,
   GenerationAttachmentTag,
   GenerationInputSlotCard,
@@ -19,14 +23,26 @@ import {
   genInputAttachmentPreviewStyleFromPosition,
   type GenInputAttachmentPreviewPosition,
 } from '@/shared/ui/genInputAttachmentPreviewPlacement'
-import type { InputSlotDef } from '@/shared/ui/GenInputCard'
+import type { GenInputReferenceAsset, InputSlotDef } from '@/shared/ui/GenInputCard'
 
-export function AttachmentTag({ resource, onRemove }: { resource: RawResource; onRemove: () => void }) {
+export function AttachmentTag({
+  resource,
+  referenceAsset,
+  onReferenceRoleChange,
+  onRemove,
+}: {
+  resource: RawResource
+  referenceAsset?: GenInputReferenceAsset
+  onReferenceRoleChange?: (resourceId: number, role: string) => void
+  onRemove: () => void
+}) {
   const { t } = useTranslation()
   const [showPreview, setShowPreview] = useState(false)
   const [previewPos, setPreviewPos] = useState<GenInputAttachmentPreviewPosition>({ left: 8, top: 8 })
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const tagRef = useRef<HTMLDivElement>(null)
+  const mediaType = referenceAsset?.media_type ?? resource.type
+  const role = referenceAsset?.role ?? generationDefaultReferenceRoleForMediaType(mediaType) ?? 'generic'
 
   function handleMouseEnter() {
     timerRef.current = setTimeout(() => {
@@ -46,15 +62,30 @@ export function AttachmentTag({ resource, onRemove }: { resource: RawResource; o
 
   return (
     <>
-      <GenerationAttachmentTag
-        ref={tagRef}
-        media={<MediaViewer resource={resource} lightbox={false} />}
-        label={resource.name}
-        removeIcon={<X size={12} />}
-        onRemove={onRemove}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-      />
+      <div className="flex min-w-0 flex-wrap items-center gap-1">
+        <GenerationAttachmentTag
+          ref={tagRef}
+          media={<MediaViewer resource={resource} lightbox={false} />}
+          label={resource.name}
+          removeIcon={<X size={12} />}
+          onRemove={onRemove}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+        />
+        {onReferenceRoleChange ? (
+          <select
+            className="h-7 min-w-[92px] rounded-md border border-border bg-surface px-2 text-[11px] font-semibold text-foreground"
+            aria-label={`${resource.name} 引用类型`}
+            value={role}
+            onChange={(event) => onReferenceRoleChange(resource.ID, event.currentTarget.value)}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            {generationReferenceRoleOptionsForMediaType(mediaType).map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        ) : null}
+      </div>
 
       {showPreview && createPortal(
         <GenerationAttachmentPreview
@@ -72,13 +103,22 @@ export function AttachmentTag({ resource, onRemove }: { resource: RawResource; o
 export function GenerationInputSlots({
   slots,
   attachments,
+  referenceAssets,
+  onReferenceRoleChange,
   onRemoveAttachment,
 }: {
   slots: InputSlotDef[]
   attachments: RawResource[]
+  referenceAssets?: readonly GenInputReferenceAsset[]
+  onReferenceRoleChange?: (resourceId: number, role: string) => void
   onRemoveAttachment: (index: number) => void
 }) {
   const { t } = useTranslation()
+  const referenceAssetById = new Map(
+    (referenceAssets ?? [])
+      .filter((asset) => asset.resource_id)
+      .map((asset) => [asset.resource_id as number, asset]),
+  )
 
   return (
     <GenerationSlotList>
@@ -104,13 +144,27 @@ export function GenerationInputSlots({
             {items.length > 0 ? (
               <GenerationSlotAttachmentList>
                 {items.map(({ resource, index }) => (
-                  <GenerationSlotAttachmentTag
-                    key={`${resource.ID}-${index}`}
-                    media={<MediaViewer resource={resource} lightbox={false} />}
-                    label={resource.name}
-                    removeIcon={<X size={10} />}
-                    onRemove={() => onRemoveAttachment(index)}
-                  />
+                  <div key={`${resource.ID}-${index}`} className="flex min-w-0 flex-wrap items-center gap-1">
+                    <GenerationSlotAttachmentTag
+                      media={<MediaViewer resource={resource} lightbox={false} />}
+                      label={resource.name}
+                      removeIcon={<X size={10} />}
+                      onRemove={() => onRemoveAttachment(index)}
+                    />
+                    {onReferenceRoleChange ? (
+                      <select
+                        className="h-7 min-w-[92px] rounded-md border border-border bg-surface px-2 text-[11px] font-semibold text-foreground"
+                        aria-label={`${resource.name} 引用类型`}
+                        value={referenceAssetById.get(resource.ID)?.role ?? generationDefaultReferenceRoleForMediaType(referenceAssetById.get(resource.ID)?.media_type ?? resource.type) ?? 'generic'}
+                        onChange={(event) => onReferenceRoleChange(resource.ID, event.currentTarget.value)}
+                        onMouseDown={(event) => event.stopPropagation()}
+                      >
+                        {generationReferenceRoleOptionsForMediaType(referenceAssetById.get(resource.ID)?.media_type ?? resource.type).map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                    ) : null}
+                  </div>
                 ))}
               </GenerationSlotAttachmentList>
             ) : (

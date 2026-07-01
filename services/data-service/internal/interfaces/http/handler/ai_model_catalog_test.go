@@ -123,7 +123,7 @@ func TestListModelCatalogEntriesReturnsProviderFirstRouteBindings(t *testing.T) 
 		&persistencemodel.AIProvider{},
 		&persistencemodel.AIProviderCredential{},
 	)
-	entry := persistencemodel.AIModelCatalogEntry{PublicModelID: "video-fast", DisplayName: "Video Fast", Capabilities: "video", IsEnabled: true}
+	entry := persistencemodel.AIModelCatalogEntry{PublicModelID: "video-fast", DisplayName: "Video Fast", Capabilities: "video_generation", IsEnabled: true}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
@@ -221,47 +221,30 @@ func TestDiagnoseModelRouteExplainsStructuredRouteSelection(t *testing.T) {
 		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
 		RouteGroup:      "default",
 		ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
+		AdapterType:     ai.AdapterVolcen,
 		ProviderModelID: "provider-image-video",
-		IsEnabled:       true,
+		IsEnabled:       false,
 		Priority:        20,
 		CapacityWeight:  1,
-		RouteCapabilitiesJSON: `{
-			"video_generation": {
-				"operations": ["image_to_video"],
-				"reference_assets": {
-					"min": 1,
-					"max": 1,
-					"modalities": ["image"],
-					"roles": ["generic"]
-				}
-			}
-		}`,
 	}
 	firstLastRoute := persistencemodel.AIModelRouteBinding{
 		CatalogEntryID:     entry.ID,
 		SourceType:         persistencemodel.ModelRouteSourceRelayGateway,
 		RouteGroup:         "default",
 		ProviderID:         persistencemodel.ModelRouteSourceRelayGateway,
+		AdapterType:        ai.AdapterVolcen,
 		ProviderModelID:    "provider-first-last-video",
 		IsEnabled:          true,
 		Priority:           10,
 		CapacityWeight:     1,
 		EndpointPathPrefix: "/v1/video/create",
 		EndpointMode:       ai.RouteEndpointModeReplacePath,
-		RouteCapabilitiesJSON: `{
-			"video_generation": {
-				"operations": ["first_last_frame_to_video"],
-				"reference_assets": {
-					"min": 2,
-					"max": 2,
-					"modalities": ["image"],
-					"roles": ["first_frame", "last_frame"]
-				}
-			}
-		}`,
 	}
 	if err := db.Create(&imageOnlyRoute).Error; err != nil {
 		t.Fatalf("create image-only route: %v", err)
+	}
+	if err := db.Model(&imageOnlyRoute).Update("is_enabled", false).Error; err != nil {
+		t.Fatalf("disable image-only route: %v", err)
 	}
 	if err := db.Create(&firstLastRoute).Error; err != nil {
 		t.Fatalf("create first-last route: %v", err)
@@ -309,22 +292,11 @@ func TestDiagnoseModelRouteExplainsStructuredRouteSelection(t *testing.T) {
 	if out.SelectedRouteID != firstLastRoute.ID {
 		t.Fatalf("selected route id = %d, want %d; body=%s", out.SelectedRouteID, firstLastRoute.ID, res.Body.String())
 	}
-	var sawRejectedImageOnly bool
 	var sawSelectedEndpoint bool
 	for _, candidate := range out.Candidates {
-		if candidate.RouteBindingID == imageOnlyRoute.ID && candidate.Status == ai.ModelRouteDiagnosticStatusRejected {
-			for _, reason := range candidate.Reasons {
-				if reason == "missing_route_capability:missing_operation:first_last_frame_to_video" {
-					sawRejectedImageOnly = true
-				}
-			}
-		}
 		if candidate.RouteBindingID == firstLastRoute.ID && candidate.Status == ai.ModelRouteDiagnosticStatusSelected && candidate.EffectiveEndpoint != nil {
 			sawSelectedEndpoint = candidate.EffectiveEndpoint.PathPrefix == "/v1/video/create" && candidate.EffectiveEndpoint.Mode == ai.RouteEndpointModeReplacePath
 		}
-	}
-	if !sawRejectedImageOnly {
-		t.Fatalf("body=%s, want rejected image-only route reason", res.Body.String())
 	}
 	if !sawSelectedEndpoint {
 		t.Fatalf("body=%s, want selected endpoint diagnostics", res.Body.String())
@@ -334,7 +306,7 @@ func TestDiagnoseModelRouteExplainsStructuredRouteSelection(t *testing.T) {
 func TestRouteBindingRejectsLegacySourceAndCredentialInputs(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := testutil.OpenSQLite(t, "handler-ai-model-route-input.db", &persistencemodel.AIModelCatalogEntry{}, &persistencemodel.AIModelRouteBinding{})
-	entry := persistencemodel.AIModelCatalogEntry{PublicModelID: "video-fast", DisplayName: "Video Fast", Capabilities: "video", IsEnabled: true}
+	entry := persistencemodel.AIModelCatalogEntry{PublicModelID: "video-fast", DisplayName: "Video Fast", Capabilities: "video_generation", IsEnabled: true}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}

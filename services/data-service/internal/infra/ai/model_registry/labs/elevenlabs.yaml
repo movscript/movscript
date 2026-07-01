@@ -1,464 +1,465 @@
+---
 lab: elevenlabs
 templates:
-    - order: 1
-      id: elevenlabs:eleven-v3-tts
-      lab: elevenlabs
-      model_id: eleven_v3
-      display_name: ElevenLabs Eleven v3 语音合成
-      route_adapter_hint: elevenlabs
-      capabilities:
-        - audio_tts
-      params:
-        - key: voice
-          label: Voice ID
-          type: string
-          default: ""
-        - key: output_format
-          label: 音频格式
-          type: select
-          options:
-            - mp3_44100_128
-            - mp3_22050_32
-            - pcm_16000
-            - ulaw_8000
-          default: mp3_44100_128
-        - key: stability
-          label: 稳定度
-          type: number
-          default: 0.5
-          max: 1
-          step: 0.01
-        - key: similarity_boost
-          label: 相似度
-          type: number
-          default: 0.75
-          max: 1
-          step: 0.01
-        - key: style
-          label: 风格强度
-          type: number
-          default: 0
-          max: 1
-          step: 0.01
-        - key: use_speaker_boost
-          label: 增强说话人
-          type: boolean
-          default: true
-        - key: speed
-          label: 语速
-          type: number
-          default: 1
-          min: 0.7
-          max: 1.2
-          step: 0.01
-      source:
-        url: https://elevenlabs.io/docs/api-reference/text-to-speech/convert
-        verified_at: "2026-06-25"
-        status: verified
-    - order: 2
-      id: elevenlabs:eleven-multilingual-v2-tts
-      lab: elevenlabs
-      model_id: eleven_multilingual_v2
-      display_name: ElevenLabs Multilingual v2 语音合成
-      route_adapter_hint: elevenlabs
-      capabilities:
-        - audio_tts
-      params:
-        - key: voice
-          label: Voice ID
-          type: string
-          default: ""
-        - key: output_format
-          label: 音频格式
-          type: select
-          options:
-            - mp3_44100_128
-            - mp3_22050_32
-            - pcm_16000
-            - ulaw_8000
-          default: mp3_44100_128
-        - key: stability
-          label: 稳定度
-          type: number
-          default: 0.5
-          max: 1
-          step: 0.01
-        - key: similarity_boost
-          label: 相似度
-          type: number
-          default: 0.75
-          max: 1
-          step: 0.01
-        - key: style
-          label: 风格强度
-          type: number
-          default: 0
-          max: 1
-          step: 0.01
-        - key: use_speaker_boost
-          label: 增强说话人
-          type: boolean
-          default: true
-        - key: speed
-          label: 语速
-          type: number
-          default: 1
-          min: 0.7
-          max: 1.2
-          step: 0.01
-      source:
-        url: https://elevenlabs.io/docs/api-reference/text-to-speech/convert
-        verified_at: "2026-06-25"
-        status: verified
-    - order: 3
-      id: elevenlabs:eleven-flash-v2-5-tts
-      lab: elevenlabs
-      model_id: eleven_flash_v2_5
-      display_name: ElevenLabs Flash v2.5 低延迟语音合成
-      route_adapter_hint: elevenlabs
-      capabilities:
-        - audio_tts
-      params:
-        - key: voice
-          label: Voice ID
-          type: string
-          default: ""
-        - key: output_format
-          label: 音频格式
-          type: select
-          options:
-            - mp3_44100_128
-            - mp3_22050_32
-            - pcm_16000
-            - ulaw_8000
-          default: mp3_44100_128
-        - key: stability
-          label: 稳定度
-          type: number
-          default: 0.5
-          max: 1
-          step: 0.01
-        - key: similarity_boost
-          label: 相似度
-          type: number
-          default: 0.75
-          max: 1
-          step: 0.01
-        - key: style
-          label: 风格强度
-          type: number
-          default: 0
-          max: 1
-          step: 0.01
-        - key: use_speaker_boost
-          label: 增强说话人
-          type: boolean
-          default: true
-        - key: speed
-          label: 语速
-          type: number
-          default: 1
-          min: 0.7
-          max: 1.2
-          step: 0.01
-      source:
-        url: https://elevenlabs.io/docs/api-reference/text-to-speech/convert
-        verified_at: "2026-06-25"
-        status: verified
-    - order: 4
-      id: elevenlabs:eleven-flash-v2-tts
-      lab: elevenlabs
-      model_id: eleven_flash_v2
-      display_name: ElevenLabs Flash v2 英文低延迟语音合成
-      route_adapter_hint: elevenlabs
-      capabilities:
-        - audio_tts
-      params:
-        - key: voice
-          label: Voice ID
-          type: string
-          default: ""
-        - key: output_format
-          label: 音频格式
-          type: select
-          options:
-            - mp3_44100_128
-            - mp3_22050_32
-            - pcm_16000
-            - ulaw_8000
-          default: mp3_44100_128
-        - key: stability
-          label: 稳定度
-          type: number
-          default: 0.5
-          max: 1
-          step: 0.01
-        - key: similarity_boost
-          label: 相似度
-          type: number
-          default: 0.75
-          max: 1
-          step: 0.01
-        - key: style
-          label: 风格强度
-          type: number
-          default: 0
-          max: 1
-          step: 0.01
-        - key: use_speaker_boost
-          label: 增强说话人
-          type: boolean
-          default: true
-        - key: speed
-          label: 语速
-          type: number
-          default: 1
-          min: 0.7
-          max: 1.2
-          step: 0.01
-      source:
-        url: https://elevenlabs.io/docs/api-reference/text-to-speech/convert
-        verified_at: "2026-06-25"
-        status: verified
-    - order: 5
-      id: elevenlabs:scribe-v2
-      lab: elevenlabs
-      model_id: scribe_v2
-      display_name: ElevenLabs Scribe v2 转写
-      route_adapter_hint: elevenlabs
-      capabilities:
-        - audio_transcribe
-      params:
-        - key: diarize
-          label: 区分说话人
-          type: boolean
-          default: false
-        - key: tag_audio_events
-          label: 标注音频事件
-          type: boolean
-          default: true
-      source:
-        url: https://elevenlabs.io/docs/api-reference/speech-to-text/convert
-        verified_at: "2026-06-25"
-        status: verified
-    - order: 6
-      id: elevenlabs:scribe-v2-realtime
-      lab: elevenlabs
-      model_id: scribe_v2_realtime
-      display_name: ElevenLabs Scribe v2 Realtime 转写
-      route_adapter_hint: elevenlabs
-      capabilities:
-        - audio_transcribe
-      params:
-        - key: audio_format
-          label: 音频格式
-          type: select
-          options:
-            - pcm_16000
-            - pcm_22050
-            - pcm_24000
-            - pcm_44100
-            - pcm_48000
-            - ulaw_8000
-            - ulaw_16000
-          default: pcm_16000
-        - key: sample_rate
-          label: 采样率
-          type: number
-          default: 16000
-          min: 8000
-          max: 48000
-          step: 1000
-        - key: include_timestamps
-          label: 返回词级时间戳
-          type: boolean
-          default: true
-        - key: commit_strategy
-          label: 提交策略
-          type: select
-          options:
-            - manual
-            - vad
-          default: manual
-        - key: no_verbatim
-          label: 移除口头填充
-          type: boolean
-          default: false
-        - key: keyterms
-          label: 关键词
-          type: string
-          default: ""
-      source:
-        url: https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime
-        verified_at: "2026-06-26"
-        status: verified
-    - order: 7
-      id: elevenlabs:music-v2
-      lab: elevenlabs
-      model_id: music_v2
-      display_name: ElevenLabs Music v2
-      route_adapter_hint: elevenlabs
-      capabilities:
-        - audio_music
-      params:
-        - key: duration
-          label: 时长(秒)
-          type: select
-          options:
-            - "10"
-            - "30"
-            - "60"
-            - "120"
-          default: "30"
-        - key: output_format
-          label: 音频格式
-          type: select
-          options:
-            - auto
-            - mp3_44100_128
-            - mp3_48000_192
-            - mp3_48000_240
-            - mp3_48000_320
-            - pcm_44100
-            - pcm_48000
-            - opus_48000_96
-          default: auto
-        - key: force_instrumental
-          label: 仅器乐
-          type: boolean
-          default: false
-        - key: seed
-          label: 种子
-          type: number
-          min: 0
-          max: 2147483647
-          step: 1
-      source:
-        url: https://elevenlabs.io/docs/api-reference/music/stream
-        verified_at: "2026-06-25"
-        status: verified
-    - order: 8
-      id: elevenlabs:music-v1
-      lab: elevenlabs
-      model_id: music_v1
-      display_name: ElevenLabs Music v1
-      route_adapter_hint: elevenlabs
-      capabilities:
-        - audio_music
-      params:
-        - key: duration
-          label: 时长(秒)
-          type: select
-          options:
-            - "10"
-            - "30"
-            - "60"
-            - "120"
-          default: "30"
-        - key: output_format
-          label: 音频格式
-          type: select
-          options:
-            - auto
-            - mp3_44100_128
-            - mp3_48000_192
-            - pcm_44100
-            - opus_48000_96
-          default: auto
-        - key: force_instrumental
-          label: 仅器乐
-          type: boolean
-          default: false
-        - key: seed
-          label: 种子
-          type: number
-          min: 0
-          max: 2147483647
-          step: 1
-      source:
-        url: https://elevenlabs.io/docs/api-reference/music/stream
-        verified_at: "2026-06-25"
-        status: verified
-    - order: 9
-      id: elevenlabs:text-to-sound-v2
-      lab: elevenlabs
-      model_id: eleven_text_to_sound_v2
-      display_name: ElevenLabs Text to Sound v2
-      route_adapter_hint: elevenlabs
-      capabilities:
-        - audio_sfx
-      params:
-        - key: duration
-          label: 时长(秒)
-          type: select
-          options:
-            - "1"
-            - "2"
-            - "3"
-            - "5"
-            - "10"
-            - "15"
-            - "30"
-          default: "5"
-        - key: output_format
-          label: 音频格式
-          type: select
-          options:
-            - mp3_44100_128
-            - mp3_22050_32
-            - pcm_44100
-            - pcm_16000
-            - ulaw_8000
-            - opus_48000_96
-          default: mp3_44100_128
-        - key: loop
-          label: 循环
-          type: boolean
-          default: false
-        - key: prompt_influence
-          label: 提示词影响
-          type: number
-          default: 0.3
-          min: 0
-          max: 1
-          step: 0.01
-      source:
-        url: https://elevenlabs.io/docs/api-reference/text-to-sound-effects/convert
-        verified_at: "2026-06-25"
-        status: verified
-    - order: 10
-      id: elevenlabs:instant-voice-clone
-      lab: elevenlabs
-      model_id: instant_voice_clone
-      display_name: ElevenLabs Instant Voice Clone
-      route_adapter_hint: elevenlabs
-      capabilities:
-        - voice_clone
-      source:
-        url: https://elevenlabs.io/docs/overview/capabilities/voices
-        verified_at: "2026-06-25"
-        status: verified
-    - order: 11
-      id: elevenlabs:professional-voice-clone
-      lab: elevenlabs
-      model_id: professional_voice_clone
-      display_name: ElevenLabs Professional Voice Clone
-      route_adapter_hint: elevenlabs
-      capabilities:
-        - voice_clone
-      source:
-        url: https://elevenlabs.io/docs/overview/capabilities/voices
-        verified_at: "2026-06-25"
-        status: verified
-    - order: 12
-      id: elevenlabs:voice-design
-      lab: elevenlabs
-      model_id: voice_design
-      display_name: ElevenLabs Voice Design
-      route_adapter_hint: elevenlabs
-      capabilities:
-        - voice_design
-      source:
-        url: https://elevenlabs.io/docs/overview/capabilities/voices
-        verified_at: "2026-06-25"
-        status: verified
+- order: 1
+  id: elevenlabs:eleven-v3-tts
+  lab: elevenlabs
+  model_id: eleven_v3
+  display_name: ElevenLabs Eleven v3 语音合成
+  route_adapter_hint: elevenlabs
+  capabilities:
+  - audio_generation
+  params:
+  - key: voice
+    label: Voice ID
+    type: string
+    default: ''
+  - key: output_format
+    label: 音频格式
+    type: select
+    options:
+    - mp3_44100_128
+    - mp3_22050_32
+    - pcm_16000
+    - ulaw_8000
+    default: mp3_44100_128
+  - key: stability
+    label: 稳定度
+    type: number
+    default: 0.5
+    max: 1
+    step: 0.01
+  - key: similarity_boost
+    label: 相似度
+    type: number
+    default: 0.75
+    max: 1
+    step: 0.01
+  - key: style
+    label: 风格强度
+    type: number
+    default: 0
+    max: 1
+    step: 0.01
+  - key: use_speaker_boost
+    label: 增强说话人
+    type: boolean
+    default: true
+  - key: speed
+    label: 语速
+    type: number
+    default: 1
+    min: 0.7
+    max: 1.2
+    step: 0.01
+  source:
+    url: https://elevenlabs.io/docs/api-reference/text-to-speech/convert
+    verified_at: '2026-06-25'
+    status: verified
+- order: 2
+  id: elevenlabs:eleven-multilingual-v2-tts
+  lab: elevenlabs
+  model_id: eleven_multilingual_v2
+  display_name: ElevenLabs Multilingual v2 语音合成
+  route_adapter_hint: elevenlabs
+  capabilities:
+  - audio_generation
+  params:
+  - key: voice
+    label: Voice ID
+    type: string
+    default: ''
+  - key: output_format
+    label: 音频格式
+    type: select
+    options:
+    - mp3_44100_128
+    - mp3_22050_32
+    - pcm_16000
+    - ulaw_8000
+    default: mp3_44100_128
+  - key: stability
+    label: 稳定度
+    type: number
+    default: 0.5
+    max: 1
+    step: 0.01
+  - key: similarity_boost
+    label: 相似度
+    type: number
+    default: 0.75
+    max: 1
+    step: 0.01
+  - key: style
+    label: 风格强度
+    type: number
+    default: 0
+    max: 1
+    step: 0.01
+  - key: use_speaker_boost
+    label: 增强说话人
+    type: boolean
+    default: true
+  - key: speed
+    label: 语速
+    type: number
+    default: 1
+    min: 0.7
+    max: 1.2
+    step: 0.01
+  source:
+    url: https://elevenlabs.io/docs/api-reference/text-to-speech/convert
+    verified_at: '2026-06-25'
+    status: verified
+- order: 3
+  id: elevenlabs:eleven-flash-v2-5-tts
+  lab: elevenlabs
+  model_id: eleven_flash_v2_5
+  display_name: ElevenLabs Flash v2.5 低延迟语音合成
+  route_adapter_hint: elevenlabs
+  capabilities:
+  - audio_generation
+  params:
+  - key: voice
+    label: Voice ID
+    type: string
+    default: ''
+  - key: output_format
+    label: 音频格式
+    type: select
+    options:
+    - mp3_44100_128
+    - mp3_22050_32
+    - pcm_16000
+    - ulaw_8000
+    default: mp3_44100_128
+  - key: stability
+    label: 稳定度
+    type: number
+    default: 0.5
+    max: 1
+    step: 0.01
+  - key: similarity_boost
+    label: 相似度
+    type: number
+    default: 0.75
+    max: 1
+    step: 0.01
+  - key: style
+    label: 风格强度
+    type: number
+    default: 0
+    max: 1
+    step: 0.01
+  - key: use_speaker_boost
+    label: 增强说话人
+    type: boolean
+    default: true
+  - key: speed
+    label: 语速
+    type: number
+    default: 1
+    min: 0.7
+    max: 1.2
+    step: 0.01
+  source:
+    url: https://elevenlabs.io/docs/api-reference/text-to-speech/convert
+    verified_at: '2026-06-25'
+    status: verified
+- order: 4
+  id: elevenlabs:eleven-flash-v2-tts
+  lab: elevenlabs
+  model_id: eleven_flash_v2
+  display_name: ElevenLabs Flash v2 英文低延迟语音合成
+  route_adapter_hint: elevenlabs
+  capabilities:
+  - audio_generation
+  params:
+  - key: voice
+    label: Voice ID
+    type: string
+    default: ''
+  - key: output_format
+    label: 音频格式
+    type: select
+    options:
+    - mp3_44100_128
+    - mp3_22050_32
+    - pcm_16000
+    - ulaw_8000
+    default: mp3_44100_128
+  - key: stability
+    label: 稳定度
+    type: number
+    default: 0.5
+    max: 1
+    step: 0.01
+  - key: similarity_boost
+    label: 相似度
+    type: number
+    default: 0.75
+    max: 1
+    step: 0.01
+  - key: style
+    label: 风格强度
+    type: number
+    default: 0
+    max: 1
+    step: 0.01
+  - key: use_speaker_boost
+    label: 增强说话人
+    type: boolean
+    default: true
+  - key: speed
+    label: 语速
+    type: number
+    default: 1
+    min: 0.7
+    max: 1.2
+    step: 0.01
+  source:
+    url: https://elevenlabs.io/docs/api-reference/text-to-speech/convert
+    verified_at: '2026-06-25'
+    status: verified
+- order: 5
+  id: elevenlabs:scribe-v2
+  lab: elevenlabs
+  model_id: scribe_v2
+  display_name: ElevenLabs Scribe v2 转写
+  route_adapter_hint: elevenlabs
+  capabilities:
+  - audio_generation
+  params:
+  - key: diarize
+    label: 区分说话人
+    type: boolean
+    default: false
+  - key: tag_audio_events
+    label: 标注音频事件
+    type: boolean
+    default: true
+  source:
+    url: https://elevenlabs.io/docs/api-reference/speech-to-text/convert
+    verified_at: '2026-06-25'
+    status: verified
+- order: 6
+  id: elevenlabs:scribe-v2-realtime
+  lab: elevenlabs
+  model_id: scribe_v2_realtime
+  display_name: ElevenLabs Scribe v2 Realtime 转写
+  route_adapter_hint: elevenlabs
+  capabilities:
+  - audio_generation
+  params:
+  - key: audio_format
+    label: 音频格式
+    type: select
+    options:
+    - pcm_16000
+    - pcm_22050
+    - pcm_24000
+    - pcm_44100
+    - pcm_48000
+    - ulaw_8000
+    - ulaw_16000
+    default: pcm_16000
+  - key: sample_rate
+    label: 采样率
+    type: number
+    default: 16000
+    min: 8000
+    max: 48000
+    step: 1000
+  - key: include_timestamps
+    label: 返回词级时间戳
+    type: boolean
+    default: true
+  - key: commit_strategy
+    label: 提交策略
+    type: select
+    options:
+    - manual
+    - vad
+    default: manual
+  - key: no_verbatim
+    label: 移除口头填充
+    type: boolean
+    default: false
+  - key: keyterms
+    label: 关键词
+    type: string
+    default: ''
+  source:
+    url: https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime
+    verified_at: '2026-06-26'
+    status: verified
+- order: 7
+  id: elevenlabs:music-v2
+  lab: elevenlabs
+  model_id: music_v2
+  display_name: ElevenLabs Music v2
+  route_adapter_hint: elevenlabs
+  capabilities:
+  - audio_generation
+  params:
+  - key: duration
+    label: 时长(秒)
+    type: select
+    options:
+    - '10'
+    - '30'
+    - '60'
+    - '120'
+    default: '30'
+  - key: output_format
+    label: 音频格式
+    type: select
+    options:
+    - auto
+    - mp3_44100_128
+    - mp3_48000_192
+    - mp3_48000_240
+    - mp3_48000_320
+    - pcm_44100
+    - pcm_48000
+    - opus_48000_96
+    default: auto
+  - key: force_instrumental
+    label: 仅器乐
+    type: boolean
+    default: false
+  - key: seed
+    label: 种子
+    type: number
+    min: 0
+    max: 2147483647
+    step: 1
+  source:
+    url: https://elevenlabs.io/docs/api-reference/music/stream
+    verified_at: '2026-06-25'
+    status: verified
+- order: 8
+  id: elevenlabs:music-v1
+  lab: elevenlabs
+  model_id: music_v1
+  display_name: ElevenLabs Music v1
+  route_adapter_hint: elevenlabs
+  capabilities:
+  - audio_generation
+  params:
+  - key: duration
+    label: 时长(秒)
+    type: select
+    options:
+    - '10'
+    - '30'
+    - '60'
+    - '120'
+    default: '30'
+  - key: output_format
+    label: 音频格式
+    type: select
+    options:
+    - auto
+    - mp3_44100_128
+    - mp3_48000_192
+    - pcm_44100
+    - opus_48000_96
+    default: auto
+  - key: force_instrumental
+    label: 仅器乐
+    type: boolean
+    default: false
+  - key: seed
+    label: 种子
+    type: number
+    min: 0
+    max: 2147483647
+    step: 1
+  source:
+    url: https://elevenlabs.io/docs/api-reference/music/stream
+    verified_at: '2026-06-25'
+    status: verified
+- order: 9
+  id: elevenlabs:text-to-sound-v2
+  lab: elevenlabs
+  model_id: eleven_text_to_sound_v2
+  display_name: ElevenLabs Text to Sound v2
+  route_adapter_hint: elevenlabs
+  capabilities:
+  - audio_generation
+  params:
+  - key: duration
+    label: 时长(秒)
+    type: select
+    options:
+    - '1'
+    - '2'
+    - '3'
+    - '5'
+    - '10'
+    - '15'
+    - '30'
+    default: '5'
+  - key: output_format
+    label: 音频格式
+    type: select
+    options:
+    - mp3_44100_128
+    - mp3_22050_32
+    - pcm_44100
+    - pcm_16000
+    - ulaw_8000
+    - opus_48000_96
+    default: mp3_44100_128
+  - key: loop
+    label: 循环
+    type: boolean
+    default: false
+  - key: prompt_influence
+    label: 提示词影响
+    type: number
+    default: 0.3
+    min: 0
+    max: 1
+    step: 0.01
+  source:
+    url: https://elevenlabs.io/docs/api-reference/text-to-sound-effects/convert
+    verified_at: '2026-06-25'
+    status: verified
+- order: 10
+  id: elevenlabs:instant-voice-clone
+  lab: elevenlabs
+  model_id: instant_voice_clone
+  display_name: ElevenLabs Instant Voice Clone
+  route_adapter_hint: elevenlabs
+  capabilities:
+  - audio_generation
+  source:
+    url: https://elevenlabs.io/docs/overview/capabilities/voices
+    verified_at: '2026-06-25'
+    status: verified
+- order: 11
+  id: elevenlabs:professional-voice-clone
+  lab: elevenlabs
+  model_id: professional_voice_clone
+  display_name: ElevenLabs Professional Voice Clone
+  route_adapter_hint: elevenlabs
+  capabilities:
+  - audio_generation
+  source:
+    url: https://elevenlabs.io/docs/overview/capabilities/voices
+    verified_at: '2026-06-25'
+    status: verified
+- order: 12
+  id: elevenlabs:voice-design
+  lab: elevenlabs
+  model_id: voice_design
+  display_name: ElevenLabs Voice Design
+  route_adapter_hint: elevenlabs
+  capabilities:
+  - audio_generation
+  source:
+    url: https://elevenlabs.io/docs/overview/capabilities/voices
+    verified_at: '2026-06-25'
+    status: verified

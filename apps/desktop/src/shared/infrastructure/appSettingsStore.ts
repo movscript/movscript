@@ -73,37 +73,42 @@ function dataConnectionForSettingsPatch(
   current: AppSettings,
   patch: Partial<AppSettings>,
 ): AppSettings['dataConnection'] | undefined {
-  const kind = patch.dataConnection?.kind ?? patch.launchMode
+  const kind = patch.dataConnection?.kind === 'local' || patch.launchMode === 'local' ? 'local'
+    : patch.dataConnection?.kind === 'cloud' || patch.launchMode === 'cloud' ? 'cloud'
+    : undefined
   if (!kind) return patch.dataConnection
   const patchAPIBaseURL = patch.apiBaseURL?.trim() ? normalizeAPIBaseURL(patch.apiBaseURL) : undefined
+  if (kind === 'local') {
+    return {
+      kind: 'local',
+      url: getDaemonGatewayBaseURL(),
+    }
+  }
   const cloudAPIBaseURL = patch.cloudAPIBaseURL
-    ?? (kind !== 'local' ? patchAPIBaseURL : undefined)
+    ?? patchAPIBaseURL
     ?? current.cloudAPIBaseURL
     ?? getDefaultAPIBaseURL()
-  const daemonGatewayBaseURL = patch.daemonGatewayBaseURL
-    ?? (kind === 'local' ? patchAPIBaseURL : undefined)
-    ?? current.daemonGatewayBaseURL
-    ?? getDaemonGatewayBaseURL()
   return {
     kind,
-    url: patch.dataConnection?.url ?? (kind === 'local' ? daemonGatewayBaseURL : cloudAPIBaseURL),
+    url: patch.dataConnection?.url ?? cloudAPIBaseURL,
   }
 }
 
 function settingsWithDataConnectionURL(current: AppSettings, url: string): AppSettings {
   const normalizedURL = normalizeAPIBaseURL(url)
+  if (current.dataConnection.kind === 'local') {
+    return normalizeSettings({
+      ...current,
+      dataConnection: { kind: 'local', url: getDaemonGatewayBaseURL() },
+      daemonGatewayBaseURL: getDaemonGatewayBaseURL(),
+      apiBaseURL: getDaemonGatewayBaseURL(),
+    })
+  }
   return normalizeSettings({
     ...current,
     apiBaseURL: normalizedURL,
-    ...(current.dataConnection.kind === 'local'
-      ? {
-          daemonGatewayBaseURL: normalizedURL,
-          dataConnection: { kind: 'local', url: normalizedURL },
-        }
-      : {
-          cloudAPIBaseURL: normalizedURL,
-          dataConnection: { kind: current.dataConnection.kind === 'external' ? 'external' : 'cloud', url: normalizedURL },
-        }),
+    cloudAPIBaseURL: normalizedURL,
+    dataConnection: { kind: 'cloud', url: normalizedURL },
   })
 }
 
@@ -142,9 +147,25 @@ function installAppSettingsUpdateListener(): void {
   })
 }
 
-export function sanitizeAppSettingsForPersistence(settings: AppSettings): AppSettings {
+type PersistedRendererAppSettings = Omit<
+  AppSettings,
+  'apiBaseURL' | 'cloudAPIBaseURL' | 'daemonGatewayBaseURL' | 'dataConnection'
+> & {
+  dataConnection: Pick<AppSettings['dataConnection'], 'kind'>
+}
+
+export function sanitizeAppSettingsForPersistence(settings: AppSettings): PersistedRendererAppSettings {
+  const {
+    apiBaseURL: _derivedAPIBaseURL,
+    cloudAPIBaseURL: _derivedCloudAPIBaseURL,
+    daemonGatewayBaseURL: _derivedDaemonGatewayBaseURL,
+    dataConnection: rawDataConnection,
+    ...settingsWithoutDerivedURLs
+  } = settings
+  const { url: _derivedDataConnectionURL, ...dataConnection } = rawDataConnection
   return {
-    ...settings,
+    ...settingsWithoutDerivedURLs,
+    dataConnection,
     shotLibrarySources: settings.shotLibrarySources?.map((source) => ({
       id: source.id,
       name: source.name,
@@ -233,7 +254,7 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
       setLaunchMode: (launchMode) => {
         const current = useAppSettingsStore.getState().settings
         const cloudAPIBaseURL = current.cloudAPIBaseURL ?? getDefaultAPIBaseURL()
-        const daemonGatewayBaseURL = current.daemonGatewayBaseURL ?? getDaemonGatewayBaseURL()
+        const daemonGatewayBaseURL = getDaemonGatewayBaseURL()
         const next = normalizeSettings({
           ...current,
           launchMode,

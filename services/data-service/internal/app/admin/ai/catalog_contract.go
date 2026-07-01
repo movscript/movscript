@@ -19,18 +19,20 @@ type PreviewCatalogEntryContractInput struct {
 }
 
 type CatalogEntryContractPreview struct {
-	Capabilities          []string       `json:"capabilities"`
-	SupportedParams       []ai.ParamDef  `json:"supported_params"`
-	ParamsSchema          map[string]any `json:"params_schema"`
-	ParamsSchemaRuleCount int            `json:"params_schema_rule_count"`
-	AgentContract         AgentContract  `json:"agent_contract"`
+	Capabilities               []string                  `json:"capabilities"`
+	SupportedParamsByOperation map[string][]ai.ParamDef  `json:"supported_params_by_operation"`
+	ParamsSchemaByOperation    map[string]map[string]any `json:"params_schema_by_operation"`
+	AgentContract              AgentContract             `json:"agent_contract"`
 }
 
 type AgentContract struct {
-	ContractVersion    int                    `json:"contract_version"`
-	InputRequirements  AgentInputRequirements `json:"input_requirements"`
-	SupportedParamKeys []string               `json:"supported_param_keys"`
-	SupportedParams    []AgentContractParam   `json:"supported_params"`
+	ContractVersion               int                             `json:"contract_version"`
+	InputRequirements             AgentInputRequirements          `json:"input_requirements"`
+	Operations                    []string                        `json:"operations"`
+	SupportedParamKeysByOperation map[string][]string             `json:"supported_param_keys_by_operation"`
+	SupportedParamsByOperation    map[string][]AgentContractParam `json:"supported_params_by_operation"`
+	ParamsSchemaByOperation       map[string]map[string]any       `json:"params_schema_by_operation"`
+	ParamsSchemaLoadedByOperation map[string]bool                 `json:"params_schema_loaded_by_operation"`
 }
 
 type AgentInputRequirement struct {
@@ -71,57 +73,111 @@ func (s *Service) PreviewCatalogEntryContract(input PreviewCatalogEntryContractI
 	if err := validateInputLimit("custom_max_input_videos", input.CustomMaxInputVideos); err != nil {
 		return CatalogEntryContractPreview{}, err
 	}
-	if err := ai.ValidateModelParamConfig(input.AdapterType, capabilities, input.CustomSupportedParams); err != nil {
+	if err := ai.ValidateModelOperationParamConfig(input.AdapterType, capabilities, "", input.CustomSupportedParams); err != nil {
 		return CatalogEntryContractPreview{}, fmt.Errorf("%w: %v", ErrInvalidModelCatalog, err)
 	}
-	params, _ := ai.ResolveEffectiveParams(input.AdapterType, capabilities, input.CustomSupportedParams)
-	schema := ai.ParamsSchema(params)
+	paramsByOperation, _ := ai.ResolveEffectiveParamsByOperation(input.AdapterType, capabilities, "", input.CustomSupportedParams)
+	schemaByOperation := paramsSchemaByOperation(paramsByOperation)
 	return CatalogEntryContractPreview{
-		Capabilities:          capabilities,
-		SupportedParams:       params,
-		ParamsSchema:          schema,
-		ParamsSchemaRuleCount: schemaRuleCount(schema),
-		AgentContract:         buildAgentContract(capabilities, input.CustomAcceptsImage, input.CustomMaxInputImages, input.CustomMaxInputVideos, params, schema),
+		Capabilities:               capabilities,
+		SupportedParamsByOperation: paramsByOperation,
+		ParamsSchemaByOperation:    schemaByOperation,
+		AgentContract:              buildAgentContract(capabilities, input.CustomAcceptsImage, input.CustomMaxInputImages, input.CustomMaxInputVideos, paramsByOperation, schemaByOperation),
 	}, nil
 }
 
-func buildAgentContract(capabilities []string, acceptsImage bool, maxInputImages, maxInputVideos int, params []ai.ParamDef, schema map[string]any) AgentContract {
+func buildAgentContract(capabilities []string, acceptsImage bool, maxInputImages, maxInputVideos int, paramsByOperation map[string][]ai.ParamDef, schemasByOperation map[string]map[string]any) AgentContract {
+	operations := sortedOperationKeys(paramsByOperation)
 	out := AgentContract{
-		ContractVersion:    1,
-		InputRequirements:  agentInputRequirementsForCapabilities(capabilities, acceptsImage, maxInputImages, maxInputVideos),
-		SupportedParamKeys: make([]string, 0, len(params)),
-		SupportedParams:    make([]AgentContractParam, 0, len(params)),
+		ContractVersion:               2,
+		InputRequirements:             agentInputRequirementsForCapabilities(capabilities, acceptsImage, maxInputImages, maxInputVideos),
+		Operations:                    operations,
+		SupportedParamKeysByOperation: make(map[string][]string, len(operations)),
+		SupportedParamsByOperation:    make(map[string][]AgentContractParam, len(operations)),
+		ParamsSchemaByOperation:       cloneSchemaByOperation(schemasByOperation),
+		ParamsSchemaLoadedByOperation: make(map[string]bool, len(operations)),
 	}
-	schemaProperties := schemaParamProperties(schema)
-	for _, param := range params {
-		if param.Key == "" {
+	for _, operation := range operations {
+		params := paramsByOperation[operation]
+		schema := schemasByOperation[operation]
+		out.ParamsSchemaLoadedByOperation[operation] = schema != nil
+		schemaProperties := schemaParamProperties(schema)
+		items := make([]AgentContractParam, 0, len(params))
+		keys := make([]string, 0, len(params))
+		for _, param := range params {
+			if param.Key == "" {
+				continue
+			}
+			keys = append(keys, param.Key)
+			items = append(items, agentContractParamFromDef(param, schemaProperties[param.Key]))
+		}
+		sort.Strings(keys)
+		out.SupportedParamKeysByOperation[operation] = keys
+		out.SupportedParamsByOperation[operation] = items
+	}
+	return out
+}
+
+func agentContractParamFromDef(param ai.ParamDef, schemaProperty any) AgentContractParam {
+	item := AgentContractParam{
+		Key:              param.Key,
+		Label:            param.Label,
+		Type:             param.Type,
+		Options:          append([]string{}, param.Options...),
+		Default:          param.Default,
+		ConflictsWith:    append([]string{}, param.ConflictsWith...),
+		ConditionalEnum:  cloneConditionalEnum(param.ConditionalEnum),
+		ConditionalConst: append([]ai.ParamConditionalConst{}, param.ConditionalConst...),
+		RequiresValue:    append([]ai.ParamRequiresValue{}, param.RequiresValue...),
+	}
+	if min, ok := paramJSONNumberField(param, "min"); ok {
+		item.Min = &min
+	}
+	if max, ok := paramJSONNumberField(param, "max"); ok {
+		item.Max = &max
+	}
+	if step, ok := paramJSONNumberField(param, "step"); ok {
+		item.Step = &step
+	}
+	mergeAgentContractSchemaProperty(&item, schemaProperty)
+	return item
+}
+
+func paramsSchemaByOperation(paramsByOperation map[string][]ai.ParamDef) map[string]map[string]any {
+	if len(paramsByOperation) == 0 {
+		return map[string]map[string]any{}
+	}
+	out := make(map[string]map[string]any, len(paramsByOperation))
+	for operation, params := range paramsByOperation {
+		operation = strings.TrimSpace(operation)
+		if operation == "" {
 			continue
 		}
-		out.SupportedParamKeys = append(out.SupportedParamKeys, param.Key)
-		item := AgentContractParam{
-			Key:              param.Key,
-			Label:            param.Label,
-			Type:             param.Type,
-			Options:          append([]string{}, param.Options...),
-			Default:          param.Default,
-			ConflictsWith:    append([]string{}, param.ConflictsWith...),
-			ConditionalEnum:  cloneConditionalEnum(param.ConditionalEnum),
-			ConditionalConst: append([]ai.ParamConditionalConst{}, param.ConditionalConst...),
-			RequiresValue:    append([]ai.ParamRequiresValue{}, param.RequiresValue...),
-		}
-		if min, ok := paramJSONNumberField(param, "min"); ok {
-			item.Min = &min
-		}
-		if max, ok := paramJSONNumberField(param, "max"); ok {
-			item.Max = &max
-		}
-		if step, ok := paramJSONNumberField(param, "step"); ok {
-			item.Step = &step
-		}
-		mergeAgentContractSchemaProperty(&item, schemaProperties[param.Key])
-		out.SupportedParams = append(out.SupportedParams, item)
+		out[operation] = ai.ParamsSchema(params)
 	}
-	sort.Strings(out.SupportedParamKeys)
+	return out
+}
+
+func sortedOperationKeys(paramsByOperation map[string][]ai.ParamDef) []string {
+	keys := make([]string, 0, len(paramsByOperation))
+	for operation := range paramsByOperation {
+		operation = strings.TrimSpace(operation)
+		if operation != "" {
+			keys = append(keys, operation)
+		}
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func cloneSchemaByOperation(input map[string]map[string]any) map[string]map[string]any {
+	if len(input) == 0 {
+		return map[string]map[string]any{}
+	}
+	out := make(map[string]map[string]any, len(input))
+	for operation, schema := range input {
+		out[operation] = cloneAnyMap(schema)
+	}
 	return out
 }
 
@@ -162,16 +218,10 @@ func agentInputRequirementsForCapabilities(capabilities []string, acceptsImage b
 }
 
 func agentRequiredImageInputMin(capability string) int {
-	if capability == ai.CapabilityImageEdit || capability == ai.CapabilityVideoI2V {
-		return 1
-	}
 	return 0
 }
 
 func agentRequiredVideoInputMin(capability string) int {
-	if capability == ai.CapabilityVideoV2V {
-		return 1
-	}
 	return 0
 }
 

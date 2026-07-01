@@ -161,7 +161,7 @@
 
 .content-canvas-prompt-mention-menu {
   position: absolute;
-  z-index: 30;
+  z-index: 10000;
   top: calc(100% + 6px);
   left: 0;
   display: grid;
@@ -170,19 +170,19 @@
   overflow: auto;
   border: 1px solid var(--cc-border);
   border-radius: 8px;
-  background: var(--cc-panel);
+  background: var(--ms-color-surface-raised, var(--cc-panel));
   box-shadow: 0 18px 42px color-mix(in srgb, #000 18%, transparent);
   padding: 5px;
 }
 
 .content-canvas-prompt-role-menu {
   position: absolute;
-  z-index: 35;
+  z-index: 10001;
   display: grid;
   width: min(240px, 100%);
   border: 1px solid var(--cc-border);
   border-radius: 8px;
-  background: var(--cc-panel);
+  background: var(--ms-color-surface-raised, var(--cc-panel));
   box-shadow: 0 18px 42px color-mix(in srgb, #000 18%, transparent);
   padding: 5px;
 }
@@ -233,6 +233,15 @@
 
 .content-canvas-prompt-mention-menu button:hover {
   background: var(--cc-accent-soft);
+}
+
+.content-canvas-prompt-mention-menu__empty {
+  margin: 0;
+  color: var(--cc-muted);
+  padding: 8px 9px;
+  font-size: 11px;
+  font-weight: 680;
+  line-height: 1.4;
 }
 
 .content-canvas-prompt-mention-menu .content-canvas-prompt-reference-strip__fallback,
@@ -388,9 +397,16 @@
   gap: 7px;
 }
 
-.content-canvas-prompt-reference-strip button {
+.content-canvas-prompt-reference-strip[data-empty="true"] {
+  min-height: 38px;
+  border: 1px dashed color-mix(in srgb, var(--cc-border) 78%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--cc-panel) 72%, transparent);
+}
+
+.content-canvas-prompt-reference-strip__item {
   display: grid;
-  grid-template-columns: auto 34px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 88px 26px;
   align-items: center;
   gap: 7px;
   min-height: 40px;
@@ -403,27 +419,63 @@
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--cc-success) 14%, transparent) inset;
 }
 
-.content-canvas-prompt-reference-strip button:hover:not(:disabled) {
+.content-canvas-prompt-reference-strip__item:hover {
   border-color: color-mix(in srgb, var(--cc-success) 68%, var(--cc-border));
   background: color-mix(in srgb, var(--cc-success) 14%, var(--cc-panel));
 }
 
-.content-canvas-prompt-reference-strip button:disabled {
+.content-canvas-prompt-reference-strip__main {
+  display: grid;
+  grid-template-columns: auto 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  text-align: left;
+}
+
+.content-canvas-prompt-reference-strip__main:disabled {
   cursor: default;
 }
 
-.content-canvas-prompt-reference-strip button[data-state="pending"] {
+.content-canvas-prompt-reference-strip__item[data-state="pending"] {
   border-color: color-mix(in srgb, var(--cc-warning) 78%, #ca8a04);
   background: color-mix(in srgb, var(--cc-warning) 11%, var(--cc-panel));
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--cc-warning) 14%, transparent) inset;
 }
 
-.content-canvas-prompt-reference-strip button[data-state="empty"],
-.content-canvas-prompt-reference-strip button[data-state="missing"],
-.content-canvas-prompt-reference-strip button[data-missing="true"] {
+.content-canvas-prompt-reference-strip__item[data-state="empty"],
+.content-canvas-prompt-reference-strip__item[data-state="missing"],
+.content-canvas-prompt-reference-strip__item[data-missing="true"] {
   border-color: color-mix(in srgb, var(--cc-danger) 78%, #dc2626);
   background: color-mix(in srgb, var(--cc-danger) 10%, var(--cc-panel));
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--cc-danger) 14%, transparent) inset;
+}
+
+.content-canvas-prompt-reference-strip__role {
+  min-width: 0;
+  height: 28px;
+  border: 1px solid var(--cc-border);
+  border-radius: 7px;
+  background: var(--cc-panel);
+  color: var(--cc-text);
+  font-size: 10px;
+  font-weight: 720;
+}
+
+.content-canvas-prompt-reference-strip__remove {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 28px;
+  border: 1px solid color-mix(in srgb, var(--cc-danger) 35%, var(--cc-border));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--cc-danger) 8%, var(--cc-panel));
+  color: color-mix(in srgb, var(--cc-danger) 74%, var(--cc-text));
+  padding: 0;
 }
 
 .content-canvas-prompt-reference-strip__body {
@@ -455,21 +507,21 @@
 }
 
 .content-canvas-prompt-inline-reference[data-state="selected"] .content-canvas-prompt-reference-strip__fallback,
-.content-canvas-prompt-reference-strip button[data-state="selected"] .content-canvas-prompt-reference-strip__fallback {
+.content-canvas-prompt-reference-strip__item[data-state="selected"] .content-canvas-prompt-reference-strip__fallback {
   background: color-mix(in srgb, var(--cc-success) 16%, transparent);
   color: color-mix(in srgb, var(--cc-success) 80%, var(--cc-text));
 }
 
 .content-canvas-prompt-inline-reference[data-state="pending"] .content-canvas-prompt-reference-strip__fallback,
-.content-canvas-prompt-reference-strip button[data-state="pending"] .content-canvas-prompt-reference-strip__fallback {
+.content-canvas-prompt-reference-strip__item[data-state="pending"] .content-canvas-prompt-reference-strip__fallback {
   background: color-mix(in srgb, var(--cc-warning) 18%, transparent);
   color: color-mix(in srgb, var(--cc-warning) 82%, var(--cc-text));
 }
 
 .content-canvas-prompt-inline-reference[data-state="empty"] .content-canvas-prompt-reference-strip__fallback,
 .content-canvas-prompt-inline-reference[data-state="missing"] .content-canvas-prompt-reference-strip__fallback,
-.content-canvas-prompt-reference-strip button[data-state="empty"] .content-canvas-prompt-reference-strip__fallback,
-.content-canvas-prompt-reference-strip button[data-state="missing"] .content-canvas-prompt-reference-strip__fallback {
+.content-canvas-prompt-reference-strip__item[data-state="empty"] .content-canvas-prompt-reference-strip__fallback,
+.content-canvas-prompt-reference-strip__item[data-state="missing"] .content-canvas-prompt-reference-strip__fallback {
   background: color-mix(in srgb, var(--cc-danger) 15%, transparent);
   color: color-mix(in srgb, var(--cc-danger) 82%, var(--cc-text));
 }

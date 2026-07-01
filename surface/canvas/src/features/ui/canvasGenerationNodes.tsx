@@ -5,10 +5,10 @@ import { modelKeys, surfaceModelReferenceAssetsKey, type PublicModel } from '@mo
 import {
   Loader2, Play,
   Sparkles,
-  Image, Video, Brush, Camera, Layers3, ImagePlus,
-	  Palette, PersonStanding, RotateCw, Wrench,
-	  Workflow,
-	} from 'lucide-react'
+  Image, Video, Layers3, ImagePlus,
+  Wrench,
+  Workflow,
+} from 'lucide-react'
 import { canvasApi, canvasServicePaths } from '../application/canvasServiceApi'
 import {
   publicAgentBackendModelId as publicModelId,
@@ -70,8 +70,16 @@ import { CanvasGenerationInputPanel } from './canvasGenerationInputPanel'
 
 const CANVAS_NODE_IMAGE_THUMB_MAX_SIZE = 320
 
+type CanvasGenerationModelCapability = 'text_generation' | 'image_generation' | 'video_generation'
+
+function canvasModelCapabilityForOutput(outputType: 'image' | 'video' | 'text'): CanvasGenerationModelCapability {
+  if (outputType === 'video') return 'video_generation'
+  if (outputType === 'image') return 'image_generation'
+  return 'text_generation'
+}
+
 function useCanvasGenerationModels(
-  capability?: 'text' | 'image' | 'video',
+  capability?: CanvasGenerationModelCapability,
   operation?: string,
   referenceAssets: NonNullable<GenerationIntentPayload['reference_assets']> = [],
 ) {
@@ -87,16 +95,14 @@ function useCanvasGenerationModels(
 }
 
 function canvasGenerationModelQuery(
-  capability: 'text' | 'image' | 'video',
+  capability: CanvasGenerationModelCapability,
   operation?: string,
   referenceAssets: NonNullable<GenerationIntentPayload['reference_assets']> = [],
 ) {
   const referenceAssetsParam = referenceAssets.length > 0
     ? { reference_assets: surfaceModelReferenceAssetsKey(referenceAssets) }
     : {}
-  if (capability === 'image') return { capability: 'image_generation', ...(operation ? { operation } : {}), ...referenceAssetsParam }
-  if (capability === 'video') return { capability: 'video_generation', ...(operation ? { operation } : {}), ...referenceAssetsParam }
-  return { capability }
+  return { capability, ...(operation ? { operation } : {}), ...referenceAssetsParam }
 }
 
 function canvasDefaultOperationForNode(
@@ -107,14 +113,9 @@ function canvasDefaultOperationForNode(
   const defaultForOutput = () => generationDefaultOperationForOutputKind(outputType, referenceAssets)
   const suggested = (() => {
   switch (type) {
-    case 'ref_image_gen':
-      return 'image_to_image'
-    case 'multi_angle':
+    case 'reference_to_image':
       return 'reference_to_image'
-    case 'style_transfer':
-      return 'style_transfer'
-    case 'ref_video_gen':
-    case 'motion_imitation':
+    case 'reference_to_video':
       return 'reference_to_video'
     case 'ai_gen':
       return defaultForOutput()
@@ -221,15 +222,12 @@ function canvasOperationOptionsForNode(
 ) {
   const preferred = (() => {
   if (outputType === 'image') {
-    if (type === 'ref_image_gen') return ['image_to_image', 'reference_to_image', 'image_edit', 'text_to_image']
-    if (type === 'multi_angle') return ['reference_to_image', 'image_to_image', 'text_to_image']
-    if (type === 'style_transfer') return ['style_transfer', 'image_to_image', 'reference_to_image']
-    return ['text_to_image', 'image_to_image', 'reference_to_image', 'image_edit', 'style_transfer']
+    if (type === 'reference_to_image') return ['reference_to_image', 'edit_image']
+    return ['text_to_image', 'reference_to_image', 'edit_image', 'inpaint', 'outpaint', 'variation', 'upscale_image']
   }
   if (outputType === 'video') {
-    if (type === 'ref_video_gen') return ['reference_to_video', 'image_to_video', 'first_frame_to_video', 'first_last_frame_to_video', 'prompt_to_video']
-    if (type === 'motion_imitation') return ['reference_to_video', 'video_to_video', 'image_to_video']
-    return ['prompt_to_video', 'image_to_video', 'first_frame_to_video', 'first_last_frame_to_video', 'reference_to_video', 'video_to_video']
+    if (type === 'reference_to_video') return ['reference_to_video', 'image_to_video', 'edit_video']
+    return ['prompt_to_video', 'image_to_video', 'first_frame_to_video', 'first_last_frame_to_video', 'reference_to_video', 'edit_video', 'extend_video', 'upscale_video']
   }
   return []
   })()
@@ -529,13 +527,10 @@ function CanvasTextGenerationResultPanel({ data }: { data: NodeDataWithHandlers 
 
 // ── Tool nodes ─────────────────────────────────────────────────────────────────
 
-const TOOL_META: Record<string, { icon: ReactNode; labelKey: string; outputType: 'image' | 'video'; capability: 'image' | 'video'; inputType: 'image' | 'video' | 'image+video' }> = {
-  canvas:           { icon: <Layers3 size={12} />, labelKey: 'canvas.nodeLabels.canvas',           outputType: 'image', capability: 'image', inputType: 'image' },
-  ref_image_gen:    { icon: <Palette size={12} />, labelKey: 'canvas.nodeLabels.ref_image_gen',    outputType: 'image', capability: 'image', inputType: 'image' },
-  ref_video_gen:    { icon: <Camera size={12} />, labelKey: 'canvas.nodeLabels.ref_video_gen',     outputType: 'video', capability: 'video', inputType: 'image+video' },
-  multi_angle:      { icon: <RotateCw size={12} />, labelKey: 'canvas.nodeLabels.multi_angle',     outputType: 'image', capability: 'image', inputType: 'image' },
-  style_transfer:   { icon: <Brush size={12} />, labelKey: 'canvas.nodeLabels.style_transfer',    outputType: 'image', capability: 'image', inputType: 'image' },
-  motion_imitation: { icon: <PersonStanding size={12} />, labelKey: 'canvas.nodeLabels.motion_imitation', outputType: 'video', capability: 'video', inputType: 'image+video' },
+const TOOL_META: Record<string, { icon: ReactNode; labelKey: string; outputType: 'image' | 'video'; capability: 'image_generation' | 'video_generation'; inputType: 'image' | 'video' | 'image+video' }> = {
+  canvas:           { icon: <Layers3 size={12} />, labelKey: 'canvas.nodeLabels.canvas',           outputType: 'image', capability: 'image_generation', inputType: 'image' },
+  reference_to_image: { icon: <ImagePlus size={12} />, labelKey: 'canvas.nodeLabels.reference_to_image', outputType: 'image', capability: 'image_generation', inputType: 'image' },
+  reference_to_video: { icon: <Video size={12} />, labelKey: 'canvas.nodeLabels.reference_to_video', outputType: 'video', capability: 'video_generation', inputType: 'image+video' },
 }
 
 function WorkflowReferenceCard({ data, selected }: { data: NodeDataWithHandlers; selected?: boolean }) {
@@ -597,14 +592,11 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
     return <WorkflowReferenceCard data={data} selected={selected} />
   }
   const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
-  const meta = TOOL_META[type] ?? { icon: <Wrench size={12} />, labelKey: type, outputType: 'image' as const, capability: 'image' as const, inputType: 'image' as const }
+  const meta = TOOL_META[type] ?? { icon: <Wrench size={12} />, labelKey: type, outputType: 'image' as const, capability: 'image_generation' as const, inputType: 'image' as const }
   const metaLabel = type in TOOL_META ? t(meta.labelKey) : meta.labelKey
   const Icon = type === 'canvas' ? Layers3
-    : type === 'ref_image_gen' ? Palette
-    : type === 'ref_video_gen' ? Camera
-    : type === 'multi_angle' ? RotateCw
-    : type === 'style_transfer' ? Brush
-    : type === 'motion_imitation' ? PersonStanding
+    : type === 'reference_to_image' ? ImagePlus
+    : type === 'reference_to_video' ? Video
     : Wrench
   const isRunning = status === 'pending' || status === 'running'
   const isGenerationTool = type !== 'canvas'
@@ -661,7 +653,7 @@ export function TextGenNode({ data, selected }: NodeProps & { data: NodeDataWith
   const { t } = useTranslation()
   const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
   const isRunning = status === 'pending' || status === 'running'
-  const models = useCanvasGenerationModels('text')
+  const models = useCanvasGenerationModels('text_generation')
   const selectedModel = selectedCanvasModel(data, models)
   const readiness = evaluateGenerationReadiness({
     isRunning,
@@ -715,7 +707,7 @@ export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHa
   const isRunning = status === 'pending' || status === 'running'
   const referenceAssets = canvasNodeReferenceAssets(data)
   const modelOperation = data.modelOperation ?? canvasDefaultOperationForNode('ai_gen', outputType, referenceAssets)
-  const models = useCanvasGenerationModels(outputType, modelOperation, referenceAssets)
+  const models = useCanvasGenerationModels(canvasModelCapabilityForOutput(outputType), modelOperation, referenceAssets)
   const selectedModel = selectedCanvasModel(data, models)
   const readiness = outputType === 'text'
     ? evaluateGenerationReadiness({

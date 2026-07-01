@@ -30,7 +30,7 @@ export function registerAuthCommands(program: Command): void {
     .option('--workspace <dir>', 'Workspace root directory')
     .option('--server <url>', 'MovScript server URL')
     .option('--username <username>', 'Username')
-    .option('--password <password>', 'Password (or set MOVCLI_PASSWORD)')
+    .option('--password <password>', 'Password (or set MOVSCRIPT_PASSWORD)')
     .option('--json', 'Print JSON output')
     .action(async (options: AuthOptions, command: Command) => {
       const resolvedOptions = resolveAuthOptions(options, command)
@@ -38,7 +38,7 @@ export function registerAuthCommands(program: Command): void {
       const workspaceDir = resolvedOptions.workspace ?? global.workspace
       const server = resolvedOptions.server ?? global.server
       const username = resolvedOptions.username ?? await promptValue('Username: ')
-      const password = resolvedOptions.password ?? process.env.MOVCLI_PASSWORD ?? await promptValue('Password: ')
+      const password = resolvedOptions.password ?? process.env.MOVSCRIPT_PASSWORD ?? await promptValue('Password: ')
       const login = await loginMovScriptBackend({ workspaceDir, server, username, password })
       const authRecord = writeMovScriptBackendAuth(workspaceDir, {
         token: login.token,

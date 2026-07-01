@@ -16,12 +16,15 @@ import {
   addContentCanvasDocumentNodes,
   clearContentCanvasDocumentNodePositions,
   contentCanvasDocumentsHaveUnsavedProjectChanges,
+  contentCanvasDocumentGroups,
   contentCanvasDocumentNodeIds,
   contentCanvasDocumentPositions,
+  createContentCanvasDocumentGroup,
   createContentCanvasDocument,
   ensureContentCanvasDocumentsState,
   readContentCanvasDocumentsState,
   renameContentCanvasDocument,
+  removeContentCanvasDocumentGroups,
   removeContentCanvasDocumentNodesEverywhere,
   removeContentCanvasDocumentNodes,
   saveContentCanvasDocumentsToProject,
@@ -40,7 +43,6 @@ import { loadContentCanvasProject } from '../application/loadContentCanvasProjec
 import {
   createCandidateFromResourceForContentUnit,
   createCandidateFromContentUnit,
-  createTimelineAssemblyFromNamespace,
   deleteContentCanvasNode,
   ensureDefaultContentUnitFromCanvasNode,
   removeContentUnitCandidateFromCanvas,
@@ -77,7 +79,11 @@ import {
   contentUnitNodeForGenerationTask,
 } from './contentCanvasWorkspaceCommandModel'
 import { contentCanvasGenerationTargetForNode } from './contentCanvasWorkspaceGenerationModel'
-import { promptFromContentNode } from './contentCanvasWorkspaceNodeModel'
+import {
+  generationReferencesFromContentNode,
+  promptFromContentNode,
+  upsertContentNodeGenerationReference,
+} from './contentCanvasWorkspaceNodeModel'
 import { buildContentCanvasWorkspaceViewModel, type ContentCanvasWorkspacePreviewInput } from './contentCanvasWorkspaceViewModel'
 import {
   mergeContentCanvasCommandCandidates,
@@ -235,6 +241,10 @@ export function useContentCanvasWorkspaceController({
   )
   const creativeCanvasNodePositions = useMemo(
     () => contentCanvasDocumentPositions(creativeCanvasDocument),
+    [creativeCanvasDocument],
+  )
+  const creativeCanvasGroups = useMemo(
+    () => contentCanvasDocumentGroups(creativeCanvasDocument),
     [creativeCanvasDocument],
   )
 
@@ -579,6 +589,23 @@ export function useContentCanvasWorkspaceController({
     projectId,
   ])
 
+  const removeNodesFromCreativeCanvas = useCallback((nodeIds: string[]) => {
+    removeContentCanvasDocumentNodes(projectId, creativeCanvasDocumentId, nodeIds)
+    for (const nodeId of nodeIds) clearRemovedCreativeCanvasNodeFocus(nodeId)
+  }, [
+    clearRemovedCreativeCanvasNodeFocus,
+    creativeCanvasDocumentId,
+    projectId,
+  ])
+
+  const createCreativeCanvasGroup = useCallback((input: Parameters<typeof createContentCanvasDocumentGroup>[2]) => {
+    createContentCanvasDocumentGroup(projectId, creativeCanvasDocumentId, input)
+  }, [creativeCanvasDocumentId, projectId])
+
+  const removeGroupsFromCreativeCanvas = useCallback((groupIds: string[]) => {
+    removeContentCanvasDocumentGroups(projectId, creativeCanvasDocumentId, groupIds)
+  }, [creativeCanvasDocumentId, projectId])
+
   const removeNodeFromAllCreativeCanvases = useCallback((nodeId: string) => {
     removeContentCanvasDocumentNodesEverywhere(projectId, [nodeId])
     clearRemovedCreativeCanvasNodeFocus(nodeId)
@@ -613,14 +640,6 @@ export function useContentCanvasWorkspaceController({
     setActiveCanvasNodeId(node.id)
     creationCommands.createCreativeCanvasChild(node, childKind, position ?? positionForCreativeCanvasChild(node), input)
   }, [creationCommands, positionForCreativeCanvasChild])
-
-  const createTimelineAssemblyForNamespace = useCallback((node: ContentCanvasNode) => {
-    if (!projectId || !gateway) return
-    setActiveCanvasNodeId(node.id)
-    void runCanvasCommand(`timeline-assembly:${node.id}`, () => (
-      createTimelineAssemblyFromNamespace(projectId, node, gateway)
-    ))
-  }, [gateway, projectId, runCanvasCommand])
 
   const selectCandidateNode = useCallback((node: ContentCanvasNode) => {
     if (node.kind !== 'candidate' || !projectId || !gateway) return
@@ -848,6 +867,44 @@ export function useContentCanvasWorkspaceController({
     ), { silentSuccess: true })
   }, [gateway, projectId, runCanvasCommand])
 
+  const appendGenerationReferenceDraft = useCallback((
+    targetNode: ContentCanvasNode | undefined,
+    sourceNode: ContentCanvasNode | undefined,
+    options: { role?: string; mediaType?: string } = {},
+  ) => {
+    const contentUnitNode = contentUnitNodeForGenerationTask(targetNode) ?? (targetNode?.kind === 'content_unit' ? targetNode : undefined)
+    const writeTargetNode = contentUnitNode ?? targetNode
+    if (!writeTargetNode || !sourceNode || !projectId || !gateway) return
+    void runCanvasCommand(`generation-reference:${writeTargetNode.id}:${sourceNode.id}`, async () => {
+      const ensuredContentUnitNode = await ensureDefaultContentUnitFromCanvasNode(projectId, writeTargetNode, gateway)
+      const currentPrompt = promptFromContentNode(ensuredContentUnitNode) ?? promptFromContentNode(writeTargetNode) ?? ''
+      const nextReferences = upsertContentNodeGenerationReference(
+        generationReferencesFromContentNode(ensuredContentUnitNode),
+        sourceNode,
+        options,
+      )
+      return updateContentUnitPromptFromCanvas(projectId, ensuredContentUnitNode, currentPrompt, gateway, {
+        generationReferences: nextReferences,
+      })
+    }, { silentSuccess: true })
+  }, [gateway, projectId, runCanvasCommand])
+
+  const commitPromptReferencePoolDraft = useCallback((
+    node: ContentCanvasNode | undefined,
+    prompt: string,
+    generationReferences: Array<Record<string, unknown>>,
+  ) => {
+    const contentUnitNode = contentUnitNodeForGenerationTask(node) ?? (node?.kind === 'content_unit' ? node : undefined)
+    const targetNode = contentUnitNode ?? node
+    if (!targetNode || !projectId || !gateway) return
+    void runCanvasCommand(`generation-reference-pool:${targetNode.id}`, async () => {
+      const ensuredContentUnitNode = await ensureDefaultContentUnitFromCanvasNode(projectId, targetNode, gateway, prompt)
+      return updateContentUnitPromptFromCanvas(projectId, ensuredContentUnitNode, prompt, gateway, {
+        generationReferences,
+      })
+    }, { silentSuccess: true })
+  }, [gateway, projectId, runCanvasCommand])
+
   const saveExpressionUnit = useCallback((node: ContentCanvasNode, input: ContentCanvasExpressionUnitEditorInput) => {
     if (!projectId || !gateway) return
     void runCanvasCommand(`expression-save:${node.id}`, () => updateExpressionUnitFromCanvas(projectId, node, input, gateway))
@@ -885,6 +942,7 @@ export function useContentCanvasWorkspaceController({
     changeExpressionPromptDraft,
     closeSettingCreateDialog,
     commitPromptDraft,
+    commitPromptReferencePoolDraft,
     commitStructuredPromptDraft,
     commitCreativeCanvasNodePosition,
     commitCreativeCanvasNodePositions,
@@ -899,8 +957,10 @@ export function useContentCanvasWorkspaceController({
     createStateForSetting: creationCommands.createStateForSetting,
     createStoryboardForOwner: creationCommands.createStoryboardForOwner,
     createStructureChild: creationCommands.createStructureChild,
+    createCreativeCanvasGroup,
     draftAssetPrompts,
     draftExpressionPrompts,
+    appendGenerationReferenceDraft,
     namespaceVocabulary,
     projectEntryId,
     clearCanvasSelection,
@@ -909,6 +969,7 @@ export function useContentCanvasWorkspaceController({
     createFreeCreativeCanvasDocument,
     creativeCanvasFocusRequest,
     creativeCanvasDocuments,
+    creativeCanvasGroups,
     creativeCanvasHasUnsavedChanges,
     creativeCanvasNodeIds,
     creativeCanvasNodePositions,
@@ -916,7 +977,6 @@ export function useContentCanvasWorkspaceController({
     creativeCanvasViewport: creativeCanvasViewState?.viewport ?? creativeCanvasDocument?.viewport,
     closeStructureCreateDialog,
     createCandidateForNode,
-    createTimelineAssemblyForNamespace,
     deleteCreativeCanvasNode,
     previewCandidatePromptForNode,
     preflightCandidateForNode,
@@ -931,7 +991,9 @@ export function useContentCanvasWorkspaceController({
     projectId,
     projectQuery,
     removeCandidate,
+    removeGroupsFromCreativeCanvas,
     removeNodeFromCreativeCanvas,
+    removeNodesFromCreativeCanvas,
     renameFreeCreativeCanvasDocument,
     runCanvasCommand,
     saveCreativeCanvasDocuments,

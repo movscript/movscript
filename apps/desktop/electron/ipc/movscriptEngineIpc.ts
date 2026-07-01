@@ -12,7 +12,6 @@ import type {
   ElectronMovScriptEngineContentUnitEnsureInput,
   ElectronMovScriptEngineContentUnitEditPromptInput,
   ElectronMovScriptEngineContentUnitGenerationPromptReadInput,
-  ElectronMovScriptEngineTimelineAssemblyContentUnitEnsureInput,
   ElectronMovScriptEngineEntityBasicsUpdateInput,
   ElectronMovScriptEngineExpressionUnitCreateInput,
   ElectronMovScriptEngineExpressionUnitInput,
@@ -64,7 +63,6 @@ import {
   deleteMovScriptEngineContentCanvas,
   deleteMovScriptEngineWorkspaceEntity,
   ensureMovScriptEngineContentUnitForEntity,
-  ensureMovScriptEngineTimelineAssemblyContentUnit,
   listMovScriptEngineContentCanvases,
   loadMovScriptEngineContentWorkspace,
   loadMovScriptEngineContentWorkspaceSnapshot,
@@ -156,9 +154,6 @@ export function registerMovScriptEngineIpcHandlers(): void {
   })
   ipcMain.handle('movscript:engine-content-unit-ensure', (_event, input: ElectronMovScriptEngineContentUnitEnsureInput) => {
     return ensureMovScriptEngineContentUnitForEntity(input)
-  })
-  ipcMain.handle('movscript:engine-timeline-assembly-content-unit-ensure', (_event, input: ElectronMovScriptEngineTimelineAssemblyContentUnitEnsureInput) => {
-    return ensureMovScriptEngineTimelineAssemblyContentUnit(input)
   })
   ipcMain.handle('movscript:engine-setting-create', (_event, input: ElectronMovScriptEngineSettingCreateInput) => {
     return createMovScriptEngineSetting(input)

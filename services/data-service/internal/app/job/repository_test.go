@@ -24,7 +24,7 @@ func TestGormRepositoryRetryPersistsDomainTransitionZeroValues(t *testing.T) {
 	row := model.Job{
 		UserID:              1,
 		RuntimeModelID:      2,
-		JobType:             domainjob.CapabilityImage,
+		JobType:             domainjob.JobTypeImage,
 		Title:               "参考生图-1234",
 		Status:              domainjob.StatusFailed,
 		AttemptCount:        2,
@@ -87,7 +87,7 @@ func TestGormRepositoryDeleteCancelsPendingAndDeletesFinished(t *testing.T) {
 	pending := model.Job{
 		UserID:             1,
 		RuntimeModelID:     2,
-		JobType:            domainjob.CapabilityImage,
+		JobType:            domainjob.JobTypeImage,
 		Title:              "参考生图-5678",
 		Status:             domainjob.StatusPending,
 		Prompt:             "draw",
@@ -96,7 +96,7 @@ func TestGormRepositoryDeleteCancelsPendingAndDeletesFinished(t *testing.T) {
 	finished := model.Job{
 		UserID:         1,
 		RuntimeModelID: 2,
-		JobType:        domainjob.CapabilityImage,
+		JobType:        domainjob.JobTypeImage,
 		Title:          "参考生图-9012",
 		Status:         domainjob.StatusSucceeded,
 		Prompt:         "draw",
@@ -146,7 +146,7 @@ func TestGormRepositoryListFiltersGenerationIntent(t *testing.T) {
 		{
 			UserID:         1,
 			RuntimeModelID: 2,
-			JobType:        domainjob.CapabilityVideo,
+			JobType:        domainjob.JobTypeVideo,
 			Title:          "全能参考生视频",
 			Status:         domainjob.StatusSucceeded,
 			Prompt:         "make video",
@@ -156,7 +156,7 @@ func TestGormRepositoryListFiltersGenerationIntent(t *testing.T) {
 		{
 			UserID:         1,
 			RuntimeModelID: 2,
-			JobType:        domainjob.CapabilityVideo,
+			JobType:        domainjob.JobTypeVideo,
 			Title:          "首尾帧生视频",
 			Status:         domainjob.StatusSucceeded,
 			Prompt:         "make video",
@@ -166,12 +166,12 @@ func TestGormRepositoryListFiltersGenerationIntent(t *testing.T) {
 		{
 			UserID:         1,
 			RuntimeModelID: 2,
-			JobType:        domainjob.CapabilityImage,
+			JobType:        domainjob.JobTypeImage,
 			Title:          "参考生图",
 			Status:         domainjob.StatusSucceeded,
 			Prompt:         "make image",
 			FeatureKey:     "tool.image",
-			RequestContext: `{"intent":{"capability":"image_generation","operation":"image_to_image"}}`,
+			RequestContext: `{"intent":{"capability":"image_generation","operation":"reference_to_image"}}`,
 		},
 	}
 	if err := db.Create(&rows).Error; err != nil {
@@ -207,7 +207,7 @@ func TestServiceEnqueueGenerationPreservesConflictSuggestedFix(t *testing.T) {
 		PublicModelID:         "seedance-conflict-test",
 		DisplayName:           "Seedance Conflict Test",
 		IsEnabled:             true,
-		Capabilities:          ai.CapabilityVideo,
+		Capabilities:          ai.CapabilityFamilyVideoGeneration,
 		ModelCapabilitiesJSON: `{"video_generation":{"operations":["prompt_to_video"]}}`,
 		SupportedParams: `[
 			{"key":"duration","type":"number","conflicts_with":["frames"]},
@@ -218,13 +218,13 @@ func TestServiceEnqueueGenerationPreservesConflictSuggestedFix(t *testing.T) {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	if err := db.Create(&model.AIModelRouteBinding{
-		CatalogEntryID:        entry.ID,
-		SourceType:            model.ModelRouteSourceLocalProvider,
-		ProviderModelID:       "seedance-conflict-provider",
-		CredentialID:          &cred.ID,
-		IsEnabled:             true,
-		CapacityWeight:        1,
-		RouteCapabilitiesJSON: `{"video_generation":{"operations":["prompt_to_video"]}}`,
+		CatalogEntryID:  entry.ID,
+		SourceType:      model.ModelRouteSourceLocalProvider,
+		AdapterType:     cred.AdapterType,
+		ProviderModelID: "seedance-conflict-provider",
+		CredentialID:    &cred.ID,
+		IsEnabled:       true,
+		CapacityWeight:  1,
 	}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
@@ -233,7 +233,7 @@ func TestServiceEnqueueGenerationPreservesConflictSuggestedFix(t *testing.T) {
 	_, err := svc.EnqueueGeneration(context.Background(), EnqueueInput{
 		UserID:  1,
 		ModelID: entry.PublicModelID,
-		JobType: ai.CapabilityVideo,
+		JobType: domainjob.JobTypeVideo,
 		GenerationIntent: &GenerationIntentInput{
 			Capability: ai.CapabilityFamilyVideoGeneration,
 			Operation:  ai.VideoOperationPromptToVideo,
@@ -264,7 +264,7 @@ func TestServiceEnqueueGenerationUsesCatalogRouteWithoutLegacyModelConfig(t *tes
 		PublicModelID:         "image-fast",
 		DisplayName:           "Image Fast Default",
 		IsEnabled:             true,
-		Capabilities:          ai.CapabilityImage,
+		Capabilities:          ai.CapabilityFamilyImageGeneration,
 		ModelCapabilitiesJSON: `{"image_generation":{"operations":["text_to_image"]}}`,
 	}
 	if err := db.Create(&defaultEntry).Error; err != nil {
@@ -274,33 +274,33 @@ func TestServiceEnqueueGenerationUsesCatalogRouteWithoutLegacyModelConfig(t *tes
 		PublicModelID:         "image-fast",
 		DisplayName:           "Image Fast",
 		IsEnabled:             true,
-		Capabilities:          ai.CapabilityImage,
+		Capabilities:          ai.CapabilityFamilyImageGeneration,
 		ModelCapabilitiesJSON: `{"image_generation":{"operations":["text_to_image"]}}`,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	if err := db.Create(&model.AIModelRouteBinding{
-		CatalogEntryID:        defaultEntry.ID,
-		SourceType:            model.ModelRouteSourceRelayGateway,
-		RouteGroup:            "default",
-		ProviderModelID:       "provider-image-default",
-		IsEnabled:             true,
-		Priority:              10,
-		CapacityWeight:        1,
-		RouteCapabilitiesJSON: `{"image_generation":{"operations":["text_to_image"]}}`,
+		CatalogEntryID:  defaultEntry.ID,
+		SourceType:      model.ModelRouteSourceRelayGateway,
+		RouteGroup:      "default",
+		AdapterType:     ai.AdapterOpenAICompat,
+		ProviderModelID: "provider-image-default",
+		IsEnabled:       true,
+		Priority:        10,
+		CapacityWeight:  1,
 	}).Error; err != nil {
 		t.Fatalf("create default route binding: %v", err)
 	}
 	priorityBinding := model.AIModelRouteBinding{
-		CatalogEntryID:        entry.ID,
-		SourceType:            model.ModelRouteSourceRelayGateway,
-		RouteGroup:            "priority",
-		ProviderModelID:       "provider-image-v2",
-		IsEnabled:             true,
-		Priority:              1,
-		CapacityWeight:        1,
-		RouteCapabilitiesJSON: `{"image_generation":{"operations":["text_to_image"]}}`,
+		CatalogEntryID:  entry.ID,
+		SourceType:      model.ModelRouteSourceRelayGateway,
+		RouteGroup:      "priority",
+		AdapterType:     ai.AdapterOpenAICompat,
+		ProviderModelID: "provider-image-v2",
+		IsEnabled:       true,
+		Priority:        1,
+		CapacityWeight:  1,
 	}
 	if err := db.Create(&priorityBinding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
@@ -311,7 +311,7 @@ func TestServiceEnqueueGenerationUsesCatalogRouteWithoutLegacyModelConfig(t *tes
 	job, err := svc.EnqueueGeneration(ctx, EnqueueInput{
 		UserID:  1,
 		ModelID: "image-fast",
-		JobType: ai.CapabilityImage,
+		JobType: domainjob.JobTypeImage,
 		GenerationIntent: &GenerationIntentInput{
 			Capability: ai.CapabilityFamilyImageGeneration,
 			Operation:  ai.ImageOperationTextToImage,
@@ -384,7 +384,7 @@ func TestBuildResponsesUsesOnlyExplicitCatalogEntryID(t *testing.T) {
 			ID:             1,
 			UserID:         1,
 			RuntimeModelID: 99,
-			JobType:        ai.CapabilityImage,
+			JobType:        domainjob.JobTypeImage,
 			Status:         domainjob.StatusPending,
 			Prompt:         "legacy",
 		},
@@ -393,7 +393,7 @@ func TestBuildResponsesUsesOnlyExplicitCatalogEntryID(t *testing.T) {
 			UserID:                1,
 			RuntimeModelID:        99,
 			AIModelCatalogEntryID: &explicitCatalogID,
-			JobType:               ai.CapabilityImage,
+			JobType:               domainjob.JobTypeImage,
 			Status:                domainjob.StatusPending,
 			Prompt:                "explicit",
 		},

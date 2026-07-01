@@ -55,53 +55,70 @@ export function projectSurfaceHrefForLocalProject(
   query.delete('projectPath')
   query.delete('projectUid')
   query.delete('project_uid')
+  query.delete('projectKey')
+  query.delete('project_key')
+  query.delete('routeProjectKey')
+  query.delete('route_project_key')
+  query.delete('backendProjectId')
+  query.delete('backend_project_id')
   query.delete('projectId')
   query.delete('project_id')
   query.delete('projectName')
   query.delete('project_name')
   removeProjectServiceBaseURLQuery(query)
   const projectPath = projectPathFromProject(project)
-  const routeProjectId = localProjectRouteId(project, projectPath)
+  const projectKey = localProjectRouteKey(project, projectPath)
   if (projectPath) query.set('projectDir', projectPath)
   if (project.project_uid?.trim()) query.set('projectUid', project.project_uid.trim())
-  if (hasPositiveProjectId(project.ID)) query.set('projectId', String(project.ID))
+  query.set('projectKey', projectKey)
+  query.set('routeProjectKey', projectKey)
+  if (hasPositiveProjectId(project.ID)) {
+    query.set('backendProjectId', String(project.ID))
+    query.set('projectId', String(project.ID))
+  }
   if (project.name?.trim()) query.set('projectName', project.name.trim())
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) query.set(key, String(value))
   }
   normalizeTimelineFocusQuery(query)
-  return hrefWithSearch(projectSurfacePath(route, routeProjectId), query)
+  return hrefWithSearch(projectSurfacePath(route, projectKey), query)
 }
 
-export function projectHostHref(projectId: string, query: URLSearchParams): string {
-  return hrefWithSearch(projectSurfacePath('overview', projectId), withCompatibleProjectId(query, projectId))
+export function projectHostHref(projectKey: string, query: URLSearchParams): string {
+  return hrefWithSearch(projectSurfacePath('overview', projectKey), withCompatibleProjectKey(query, projectKey))
 }
 
-export function projectRouteHref(segment: string, projectId: string, query: URLSearchParams): string {
+export function projectRouteHref(segment: string, projectKey: string, query: URLSearchParams): string {
   const route = projectSurfaceRouteBySegment(segment)
   const pathname = route
-    ? projectSurfacePath(route.key, projectId)
-    : `${STUDIO_ROOT}/${encodeURIComponent(projectId)}/${encodeURIComponent(segment)}`
-  return hrefWithSearch(pathname, withCompatibleProjectId(query, projectId))
+    ? projectSurfacePath(route.key, projectKey)
+    : `${STUDIO_ROOT}/${encodeURIComponent(projectKey)}/${encodeURIComponent(segment)}`
+  return hrefWithSearch(pathname, withCompatibleProjectKey(query, projectKey))
 }
 
 export function projectRouteContext(pathname: string, query: URLSearchParams) {
   const studioTail = pathname.replace(/^\/studio\/?/, '').split('/').filter(Boolean)
-  const routeProjectId = studioTail[0]
+  const routeProjectKey = studioTail[0]
   const segment = studioTail.slice(1).join('/')
   const route = projectSurfaceRouteBySegment(segment)
   const projectDir = query.get('projectDir') ?? query.get('projectPath') ?? ''
-  const projectId = query.get('projectId')
-    ?? query.get('project_id')
+  const projectKey = routeProjectKey
     ?? query.get('projectKey')
     ?? query.get('project_key')
-    ?? routeProjectId
+    ?? query.get('routeProjectKey')
+    ?? query.get('route_project_key')
+    ?? query.get('projectId')
+    ?? query.get('project_id')
     ?? localProjectIdFromPath(projectDir)
-  const domainFocus = routeDomainFocus(query, projectId)
+  const domainFocus = routeDomainFocus(query, projectKey)
   return {
     route,
     segment,
-    projectId,
+    projectKey,
+    project_key: projectKey,
+    routeProjectKey: routeProjectKey ?? projectKey,
+    route_project_key: routeProjectKey ?? projectKey,
+    projectId: projectKey,
     projectDir,
     domainFocus,
     productionId: routeProductionId(query),
@@ -134,10 +151,12 @@ function recordFromQuery(query: URLSearchParams): Record<string, string> {
   return record
 }
 
-function withCompatibleProjectId(query: URLSearchParams, projectId: string): URLSearchParams {
+function withCompatibleProjectKey(query: URLSearchParams, projectKey: string): URLSearchParams {
   const next = new URLSearchParams(query)
   removeProjectServiceBaseURLQuery(next)
-  if (projectId && projectId !== 'local-project' && !next.get('projectId')) next.set('projectId', projectId)
+  if (projectKey && !next.get('projectKey')) next.set('projectKey', projectKey)
+  if (projectKey && !next.get('routeProjectKey')) next.set('routeProjectKey', projectKey)
+  if (projectKey && projectKey !== 'local-project' && !next.get('projectId')) next.set('projectId', projectKey)
   normalizeTimelineFocusQuery(next)
   return next
 }
@@ -173,8 +192,6 @@ const NORMALIZED_FOCUS_KEYS = [
   'target_kind',
   'targetRef',
   'target_ref',
-  'timelineAssemblyRef',
-  'timeline_assembly_ref',
   'domainTargetCategory',
   'domain_target_category',
   'domainTargetKind',
@@ -183,7 +200,7 @@ const NORMALIZED_FOCUS_KEYS = [
   'domain_target_ref',
 ] as const
 
-function localProjectRouteId(project: LocalProjectRouteProject, projectPath: string | undefined): string {
+function localProjectRouteKey(project: LocalProjectRouteProject, projectPath: string | undefined): string {
   if (hasPositiveProjectId(project.ID)) return String(project.ID)
   const projectUid = project.project_uid?.trim()
   if (projectUid) return projectUid

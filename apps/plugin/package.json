@@ -15,7 +15,6 @@
     "README.md"
   ],
   "bin": {
-    "movcli": "./bin/movcli",
     "movscript": "./bin/movscript",
     "movscript-agent-mcp": "./bin/movscript-agent-mcp"
   },

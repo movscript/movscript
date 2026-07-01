@@ -106,11 +106,11 @@ func runtimeCandidateSaturated(candidate runtimeModelCandidate, view runtimeProv
 func operationTypeForCapability(capability string) string {
 	switch capability {
 	case CapabilityReasoning:
-		return CapabilityText
-	case CapabilityImageEdit:
-		return CapabilityImage
-	case CapabilityVideoI2V, CapabilityVideoV2V:
-		return CapabilityVideo
+		return CapabilityFamilyTextGeneration
+	case CapabilityFamilyImageGeneration:
+		return CapabilityFamilyImageGeneration
+	case CapabilityFamilyVideoGeneration:
+		return CapabilityFamilyVideoGeneration
 	default:
 		return capability
 	}

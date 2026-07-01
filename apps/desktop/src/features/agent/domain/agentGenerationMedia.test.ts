@@ -60,7 +60,7 @@ test('generationProgressListFromEvents keeps the latest state per async job', ()
       data: {
         generation: {
           jobId: 10,
-          jobType: 'video_i2v',
+          jobType: 'video',
           providerName: 'Provider A',
           modelDisplay: 'Video Model',
           modelIdentifier: 'video-model',
@@ -76,7 +76,7 @@ test('generationProgressListFromEvents keeps the latest state per async job', ()
       data: {
         generation: {
           jobId: 10,
-          jobType: 'video_i2v',
+          jobType: 'video',
           providerName: 'Provider A',
           modelDisplay: 'Video Model',
           status: 'succeeded',
@@ -105,7 +105,7 @@ test('generationProgressListFromEvents keeps the latest state per async job', ()
   assert.deepEqual(generationProgressListFromEvents(events), [
     {
       jobId: 10,
-      jobType: 'video_i2v',
+      jobType: 'video',
       providerName: 'Provider A',
       modelDisplay: 'Video Model',
       status: 'succeeded',

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -13,8 +13,10 @@ import {
   localRuntimeServicesReady,
   parseLocalRuntimeDaemonIdleTimeout,
   probeLocalRuntimeDaemon,
+  resolveLocalRuntimeDaemonLogPath,
   resolveLocalRuntimeDaemonDataPlane,
   stopLocalRuntimeDaemon,
+  writeLocalRuntimeDaemonLog,
 } from '../dist/index.js'
 
 test('local runtime daemon readiness does not require a local Data Service', () => {
@@ -138,6 +140,34 @@ test('local runtime daemon probe reports app record startup errors before contro
     assert.equal(probe.pluginRoot, 'test-root')
     assert.equal(probe.dataPlane, 'local')
     assert.equal(probe.error, 'listen EADDRINUSE: address already in use 127.0.0.1:8766')
+  } finally {
+    rmSync(homeDir, { recursive: true, force: true })
+  }
+})
+
+test('local runtime daemon log writes top-level Home logs and rotates JSONL files', () => {
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-local-runtime-logs-home-'))
+  try {
+    const env = {
+      MOVSCRIPT_LOCAL_DAEMON_LOG_MAX_BYTES: '80',
+      MOVSCRIPT_LOCAL_DAEMON_LOG_RETAIN: '2',
+    }
+
+    writeLocalRuntimeDaemonLog(homeDir, 'test.first', { payload: 'x'.repeat(120) }, env)
+    writeLocalRuntimeDaemonLog(homeDir, 'test.second', { payload: 'y'.repeat(120) }, env)
+    writeLocalRuntimeDaemonLog(homeDir, 'test.third', { payload: 'z'.repeat(120) }, env)
+
+    const logPath = resolveLocalRuntimeDaemonLogPath(homeDir)
+    assert.equal(logPath.endsWith('/logs/local-daemon.jsonl'), true)
+    assert.equal(existsSync(logPath), true)
+    assert.equal(existsSync(`${logPath}.1`), true)
+    assert.equal(existsSync(`${logPath}.2`), true)
+    const latest = JSON.parse(readFileSync(logPath, 'utf8').trim())
+    assert.equal(latest.schema, 'movscript.runtime-log-entry.v1')
+    assert.equal(latest.serviceName, 'movscript.local-node')
+    assert.equal(latest.event, 'test.third')
+    assert.match(readFileSync(`${logPath}.1`, 'utf8'), /test\.second/)
+    assert.match(readFileSync(`${logPath}.2`, 'utf8'), /test\.first/)
   } finally {
     rmSync(homeDir, { recursive: true, force: true })
   }

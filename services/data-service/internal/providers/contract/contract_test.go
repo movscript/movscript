@@ -187,9 +187,9 @@ func TestAIGatewayModelRouteJSONIsProviderFirst(t *testing.T) {
 		ProviderKind:    "volcengine_ark_official",
 		AdapterKey:      "volcengine_ark",
 		ProviderModelID: "doubao-seedance-2-0-pro-250528",
-		Capability:      "video",
+		Capability:      "video_generation",
 		Operation:       "first_last_frame_to_video",
-		APIKind:         "video_i2v",
+		APIKind:         "openai_responses",
 	})
 	if err != nil {
 		t.Fatalf("marshal route: %v", err)
@@ -213,7 +213,7 @@ func TestAIModelDescriptorJSONIsProviderFirst(t *testing.T) {
 		ProviderID:      "volc-ark-main",
 		ProviderModelID: "doubao-seedance-2-0-pro-250528",
 		DisplayName:     "Seedance 2.0",
-		Capabilities:    []string{"video"},
+		Capabilities:    []string{"video_generation"},
 	})
 	if err != nil {
 		t.Fatalf("marshal descriptor: %v", err)

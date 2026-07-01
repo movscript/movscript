@@ -2,6 +2,7 @@ import type { AgentConversationRegistryRecord } from '@movscript/core/agent'
 import type { AgentConversationWorkspace } from '@movscript/agent-protocol'
 import type {
   MovScriptDataConnectionContext,
+  MovScriptRuntimeConnectionDescriptor,
   MovScriptRuntimeDescriptor,
 } from '@movscript/shared'
 
@@ -24,6 +25,7 @@ export type ElectronRuntimeConfig = {
   movScriptHomeDir: string
   /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
   workspaceDir: string
+  runtimeConnection: MovScriptRuntimeConnectionDescriptor
   runtime: MovScriptRuntimeDescriptor
   dataConnection: MovScriptDataConnectionContext
   /** @deprecated Use runtime.gateway.baseURL. */

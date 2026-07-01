@@ -14,9 +14,9 @@ export interface AgentBackendPublicModel {
   supported_api_kinds?: ProviderModelAPIKind[] | string[]
   accepts_image_input: boolean
   is_default?: boolean
-  supported_params?: unknown
+  supported_params_by_operation?: Record<string, unknown>
   input_requirements?: unknown
-  params_schema?: Record<string, unknown>
+  params_schema_by_operation?: Record<string, Record<string, unknown>>
 }
 
 export interface AgentBackendModelCatalogClient<TModel extends AgentBackendPublicModel = AgentBackendPublicModel> {

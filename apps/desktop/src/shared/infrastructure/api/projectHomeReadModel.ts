@@ -42,7 +42,11 @@ export async function loadProjectHomeReadModel(
   if (!projectDir) throw new Error('Project directory is required to load project home.')
   const runtimeConfig = await refreshRuntimeConfigSnapshot().catch(() => null)
   const snapshot = runtimeConfig ?? getRuntimeConfigSnapshot()
-  const baseURL = snapshot?.gatewayBaseURL ?? snapshot?.apiBaseURL ?? getAPIBaseURL()
+  const baseURL = snapshot?.runtimeConnection.gatewayBaseURL
+    ?? snapshot?.runtime.gateway.baseURL
+    ?? snapshot?.gatewayBaseURL
+    ?? snapshot?.apiBaseURL
+    ?? getAPIBaseURL()
   const response = await fetch(`${baseURL.replace(/\/+$/, '')}${PROJECT_HOME_READ_MODEL_ENDPOINT}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },

@@ -2,7 +2,10 @@
 name: runtime
 description: Decide MovScript runtime availability across cloud/external data planes and the local runtime daemon before project, domain, generation, or editing work.
 toolGrants:
+  - mcp__movscript__runtime_doctor
   - mcp__movscript__movscript_runtime_status
+  - mcp__movscript__runtime_gateway_configure
+  - mcp__movscript__runtime_gateway_status
 ---
 
 # Runtime Startup
@@ -17,7 +20,7 @@ The first decision is runtime ownership: the per-user MovScript local runtime da
 - Systems/config: local runtime daemon owns local Project/Editing/Canvas/Surface/Media services and optional local Data Service; cloud/external data planes may replace local Data Service; Desktop and MCP sessions attach rather than owning sidecars.
 - Blockers: daemon not running, data-plane endpoint/auth missing, service endpoint absent, sqlite/path/port conflict, provider route/key missing, Local Surface Host unavailable, or FFmpeg/media pipeline degraded.
 - Human review: ask before stop/restart/configure changes that interrupt work or change data plane; do not ask users to start Desktop when daemon can satisfy the workflow.
-- Output: classify runtime owner/data plane, list service readiness, give surface/MCP endpoint, name blockers, and suggest the exact daemon/admin/preflight next step.
+- Output: classify runtime owner/data plane, list service readiness, give surface/MCP endpoint, name blockers, and suggest the exact doctor/daemon/admin/preflight next step.
 
 ## Startup Modes
 
@@ -28,7 +31,7 @@ Explicit user or environment policy wins:
 - `MOVSCRIPT_PLUGIN_MODE=desktop` or `plugin-desktop-compatible`: compatibility mode; prefer existing local daemon/desktop records but do not treat Desktop as business sidecar owner. `plugin-desktop-owned` is accepted only as a legacy alias.
 - `MOVSCRIPT_PLUGIN_MODE=cloud`: connect to cloud or external runtime endpoints when configured.
 - `MOVSCRIPT_LOCAL_DAEMON_DATA_PLANE=local|cloud|external`: controls whether the local daemon starts local Data Service or uses cloud/external Data Service while still starting local Project/Editing/Canvas/Surface/Media services.
-- The plugin bundle exposes one product CLI: `bin/movscript`. Use `bin/movscript mcp stdio` for MCP, `bin/movscript daemon start|status|stop|restart` for daemon control, and `bin/movscript admin ...` for system admin. `bin/movcli` is a compatibility command name backed by the same bundle. `bin/movscript-agent-mcp` is only a compatibility shim for `bin/movscript mcp stdio`, and the older `local-node` / `__movscript_local_node` forms are compatibility aliases for `daemon`.
+- The plugin bundle exposes one product CLI: `bin/movscript`. Use `bin/movscript doctor --json` for no-frontend runtime diagnosis, `bin/movscript mcp stdio` for MCP, `bin/movscript daemon start|status|stop|restart` for daemon control, `bin/movscript runtime gateway configure/status --json` to register or inspect a daemon/cloud/external runtime gateway endpoint, and `bin/movscript admin ...` for system admin. `bin/movscript-agent-mcp` is only a compatibility shim for `bin/movscript mcp stdio`, and the older `local-node` / `__movscript_local_node` forms are compatibility aliases for `daemon`.
 
 Without an explicit mode, decide in this order:
 
@@ -50,7 +53,7 @@ The local runtime daemon is the no-Desktop-required local execution path:
 
 ## Agent Workflow
 
-1. Call `movscript_runtime_status` before asking the user to start Desktop or before assuming local services are unavailable.
+1. Call `movscript_runtime_status` before asking the user to start Desktop or before assuming local services are unavailable. If a cloud/external runtime gateway exists but is not registered in MovScript Home, use `runtime_gateway_configure` / `movscript runtime gateway configure --gateway-base-url ... --gateway-kind cloud|external --json`, then confirm with `runtime_gateway_status`.
 2. Classify the observed state as local daemon, cloud/external data plane, legacy Desktop-owned, basic/diagnostic, or missing/misconfigured.
 3. For local daemon mode, expect local Project/Editing/Canvas/Surface/Media endpoints. Local Data Service is required only when the data plane is `local`.
 4. For cloud/external data plane mode, connect local services to the remote/external Data Service and do not start local Data Service.

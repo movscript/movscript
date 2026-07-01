@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
@@ -14,10 +14,10 @@ const toolDefinitionPaths = [
   'packages/core/src/mcp/tools/external-resources/definitions.ts',
   'packages/core/src/mcp/tools/generation/definitions.ts',
   'packages/core/src/mcp/tools/model/definitions.ts',
+  'packages/core/src/mcp/tools/production-editing/definitions.ts',
   'packages/core/src/mcp/tools/resource-library/definitions.ts',
   'packages/core/src/mcp/tools/resource-media/definitions.ts',
   'packages/core/src/mcp/tools/shot-library/definitions.ts',
-  'packages/core/src/mcp/tools/timeline/definitions.ts',
 ]
 
 function readRepoFile(path) {
@@ -44,7 +44,7 @@ function getEditingToolNames() {
 test('MovScript editing skill routes product editing through editing tools', () => {
   const source = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/editing/SKILL.md'), 'utf8')
 
-  assert.match(source, /editing_project_create_from_edit_plan/)
+  assert.match(source, /editing_project_create/)
   assert.match(source, /editing_project_update_settings/)
   assert.match(source, /editing_project_remove_asset/)
   assert.match(source, /editing_timeline_add_clip/)
@@ -56,8 +56,12 @@ test('MovScript editing skill routes product editing through editing tools', () 
   assert.match(source, /task-specific working copy/)
   assert.match(source, /many independent edits, drafts, variants, exports, and candidates/)
   assert.match(source, /Do not use domain planning\/production records as the editing workspace/)
-  assert.match(source, /use `domain_read_production_timeline` only as a legacy production \/ timeline-assembly material handoff/)
-  assert.match(source, /Do not assume `domain_read_production_edit_plan` or any legacy production\/timeline-scope handoff is the correct default/)
+  assert.match(source, /Use the `production-editing` skill when the task is to create, list, or open a production-bound editing workspace/)
+  assert.match(source, /Once that workspace is open, use `system_edit` for `system_editing` workspaces or `remotion` for Remotion workspaces/)
+  assert.match(source, /`editing_video_compose` is the MovScript video_compose entrypoint for an existing MediaEditingProject/)
+  assert.match(source, /It must not create a project from `edit_decisions`/)
+  assert.match(source, /use `domain_read_production_timeline` only as a production-level material handoff/)
+  assert.match(source, /Do not assume `domain_read_production_edit_plan` or any production-level handoff is the correct default/)
   assert.match(source, /Returning an edit to the domain means importing the artifact/)
   assert.match(source, /Bring the completed artifact back explicitly/)
   assert.match(source, /Do not use `timeline_document` or historical third-party fields as the main workflow contract/)
@@ -65,9 +69,9 @@ test('MovScript editing skill routes product editing through editing tools', () 
   assert.match(source, /ASS\/libass/)
   assert.match(source, /Do not automatically create, adopt, or select candidates after a render succeeds/)
   assert.match(source, /RawResource-backed candidate creation/)
-  assert.match(source, /HLS `MediaStreamArtifact` outputs as hosted previews/)
-  assert.match(source, /future domain candidate schema extension/)
-  assert.match(source, /when any export or artifact tool resolves an Electron task by `taskId`, pass the matching `projectId` as well/)
+  assert.match(source, /HLS `MediaStreamArtifact` outputs can be written as `hls_stream` candidates/)
+  assert.match(source, /publishing HLS for preview still does not create, adopt, or select a candidate/)
+  assert.match(source, /when any export or artifact tool resolves an Electron task by `taskId`, pass the matching `mediaProjectId` as well/)
   assert.match(source, /`editing_export_save_local`, `editing_export_import_resource`, `editing_export_publish_hls`, `system_artifact_upload_export`, and `system_artifact_upload_hls_stream`/)
 
   assert.doesNotMatch(source, /domain_compose_scene_moment_from_edit_plan` is the default/)
@@ -78,6 +82,10 @@ test('MovScript editing skill routes product editing through editing tools', () 
   assert.doesNotMatch(source, /system_resource_video_compose_to_resource/)
   assert.doesNotMatch(source, /system_resource_video_concat_to_resource/)
   assert.doesNotMatch(source, /system_resource_video_trim_to_resource/)
+  assert.doesNotMatch(source, /editing_project_create_from_edit_plan/)
+  assert.doesNotMatch(source, /editing_project_create_from_edit_decisions/)
+  assert.doesNotMatch(source, /create a MediaEditingProject from `edit_decisions`/)
+  assert.doesNotMatch(source, /starting from `edit_decisions`/)
 })
 
 test('MovScript generation and domain skills keep resource utilities out of the main editing path', () => {
@@ -92,8 +100,12 @@ test('MovScript generation and domain skills keep resource utilities out of the 
   const resourceToolDefinitions = readFileSync(resolve(repoRoot, 'packages/core/src/mcp/tools/resource-media/definitions.ts'), 'utf8')
 
   assert.match(generation, /switch to the `editing` skill/)
-  assert.match(generation, /editing_project_create_from_edit_plan/)
+  assert.match(generation, /production-editing/)
+  assert.match(generation, /system_edit/)
+  assert.match(generation, /remotion/)
+  assert.match(generation, /editing_project_create/)
   assert.doesNotMatch(generation, /Use `domain_compose_scene_moment_from_edit_plan` when stitching/)
+  assert.doesNotMatch(generation, /editing_project_create_from_edit_plan/)
 
   assert.match(domain, /not available editing paths/)
   assert.match(domain, /editing_\*/)
@@ -106,14 +118,15 @@ test('MovScript generation and domain skills keep resource utilities out of the 
 
   assert.match(resourceRules, /For product editing, create a `MediaEditingProject` and use `editing_\*` tools/)
 
-  assert.match(planningRecipes, /editing_project_create_from_edit_plan creates a MediaEditingProject/)
-  assert.match(planningRecipes, /editing_task_render_create renders through Electron mediaPipeline/)
+  assert.match(planningRecipes, /production_editing_workspace_create\/open creates the concrete production editing workspace/)
+  assert.match(planningRecipes, /opened workspace hands off to system_edit or remotion by workspace kind/)
+  assert.match(planningRecipes, /editing_task_render_create renders direct system editing projects through Media Pipeline/)
   assert.match(planningRecipes, /`domain_compose_scene_moment_from_edit_plan` is not an available product editing path/)
   assert.doesNotMatch(planningRecipes, /domain_compose_scene_moment_from_edit_plan writes a scene-moment-level video candidate/)
+  assert.doesNotMatch(planningRecipes, /editing_project_create_from_edit_plan/)
 
-  assert.match(editingDefinitions, /MediaEditingProject from a MovScript edit_plan/)
+  assert.match(editingDefinitions, /Create and persist an empty MovScript media editing project/)
   assert.match(editingDefinitions, /export function editingTools\(\)/)
-  assert.match(editingDefinitions, /name: 'editing_project_create_from_edit_plan'/)
   assert.match(editingDefinitions, /name: 'editing_timeline_apply_commands'/)
   assert.match(editingDefinitions, /name: 'editing_timeline_add_clip'/)
   assert.match(editingDefinitions, /name: 'editing_runtime_capabilities_get'/)
@@ -130,6 +143,12 @@ test('MovScript generation and domain skills keep resource utilities out of the 
   assert.doesNotMatch(editingDefinitions, /domain_compose_production_from_timeline'[\s\S]*timeline_document/)
   assert.doesNotMatch(editingDefinitions, /OpenCut-compatible/)
   assert.doesNotMatch(editingDefinitions, /OpenCut-style/)
+  assert.doesNotMatch(editingDefinitions, /editDecisions/)
+  assert.doesNotMatch(editingDefinitions, /edit_decisions/)
+  assert.doesNotMatch(editingDefinitions, /assetManifest/)
+  assert.doesNotMatch(editingDefinitions, /asset_manifest/)
+  assert.doesNotMatch(editingDefinitions, /name: 'editing_project_create_from_edit_plan'/)
+  assert.doesNotMatch(editingDefinitions, /name: 'editing_project_create_from_edit_decisions'/)
 
   assert.doesNotMatch(domainToolDefinitions, /OpenCut-compatible/)
   assert.doesNotMatch(domainToolDefinitions, /OpenCut-style/)
@@ -181,7 +200,7 @@ test('MovScript plugin metadata advertises the dedicated Electron editing path',
   assert.match(readme, /Electron `mediaPipeline`/)
   assert.match(readme, /resource-level media utilities are only for neutral material preparation, not product editing/)
   assert.match(readme, /artifact hosting, and editing tools/)
-  assert.match(readme, /static bootstrap set also advertises the dedicated `editing_\*` tool family/)
+  assert.match(readme, /static bootstrap set also advertises the dedicated `editing_\*` and `production_editing_\*` tool families/)
 })
 
 test('MovScript MCP tool definitions expose the dedicated editing tool family', () => {
@@ -193,8 +212,6 @@ test('MovScript MCP tool definitions expose the dedicated editing tool family', 
   assert.equal(names.has('domain_apply_production_timeline_commands'), false)
   assert.deepEqual(getEditingToolNames(), [
     'editing_project_create',
-    'editing_project_create_from_edit_plan',
-    'editing_project_create_from_edit_decisions',
     'editing_project_get',
     'editing_project_update_settings',
     'editing_project_add_asset',
@@ -218,6 +235,15 @@ test('MovScript MCP tool definitions expose the dedicated editing tool family', 
     'editing_task_get',
     'editing_task_cancel',
     'editing_task_logs_get',
+    'editing_result_register',
+    'editing_result_recover_external_nle',
+    'editing_result_watch_external_nle_create',
+    'editing_result_watch_get',
+    'editing_result_watch_list',
+    'editing_result_watch_cancel',
+    'editing_external_nle_open',
+    'editing_result_get',
+    'editing_result_list',
     'editing_export_import_resource',
     'editing_export_save_local',
     'editing_export_publish_hls',
@@ -233,8 +259,9 @@ test('MovScript MCP tool definitions expose the dedicated editing tool family', 
   ]) {
     assert.equal(names.has(name), true, `${name} should be exposed by MCP definitions`)
   }
-  assert.match(editingDefinitions, /projectId/)
-  assert.match(editingDefinitions, /project_id/)
+  assert.match(editingDefinitions, /mediaProjectId/)
+  assert.match(editingDefinitions, /media_project_id/)
+  assert.match(editingDefinitions, /Deprecated alias for mediaProjectId/)
   for (const name of [
     'editing_task_get',
     'editing_task_cancel',
@@ -250,9 +277,9 @@ test('MovScript MCP tool definitions expose the dedicated editing tool family', 
   assert.match(editingDefinitions, /save_directory/)
   assert.match(editingDefinitions, /hlsDirectory/)
   assert.match(editingDefinitions, /segmentPaths/)
-  assert.match(editingDefinitions, /RawResource-backed/)
-  assert.match(editingDefinitions, /future domain candidate schema extension/)
-  assert.match(editingDefinitions, /Known unsupported HLS MediaStreamArtifact ID/)
+  assert.match(editingDefinitions, /RawResource outputs use resourceId/)
+  assert.match(editingDefinitions, /HLS MediaStreamArtifact outputs use streamId/)
+  assert.match(editingDefinitions, /hls_stream candidate/)
 })
 
 test('MovScript MCP tool definitions expose neutral artifact hosting tools', () => {
@@ -264,8 +291,9 @@ test('MovScript MCP tool definitions expose neutral artifact hosting tools', () 
   assert.equal(names.has('system_artifact_get_stream'), true)
   assert.match(artifactDefinitions, /HLS manifests must use system_artifact_upload_hls_stream/)
   assert.match(artifactDefinitions, /MediaStreamArtifact/)
-  assert.match(artifactDefinitions, /projectId/)
-  assert.match(artifactDefinitions, /project_id/)
+  assert.match(artifactDefinitions, /mediaProjectId/)
+  assert.match(artifactDefinitions, /media_project_id/)
+  assert.match(artifactDefinitions, /Deprecated alias for mediaProjectId/)
 })
 
 test('MovScript generation skill resource grants match neutral MCP resource tools', () => {
@@ -321,7 +349,10 @@ test('MovScript generation skill routes content-unit visual generation through t
   const fallbackNames = new Set(getMCPToolNames())
   const skill = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/generation/SKILL.md'), 'utf8')
   const candidateSelectionFlow = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/generation/references/candidate-selection-flow.md'), 'utf8')
-  const cachedCandidateSelectionFlow = readFileSync(resolve(repoRoot, 'apps/desktop/plugin-cache/movscript-bundled/movscript/9cc8f9d8c6628c1a/skills/generation/references/candidate-selection-flow.md'), 'utf8')
+  const cachedCandidateSelectionFlowPath = resolve(repoRoot, 'apps/desktop/plugin-cache/movscript-bundled/movscript/9cc8f9d8c6628c1a/skills/generation/references/candidate-selection-flow.md')
+  const cachedCandidateSelectionFlow = existsSync(cachedCandidateSelectionFlowPath)
+    ? readFileSync(cachedCandidateSelectionFlowPath, 'utf8')
+    : candidateSelectionFlow
   const coreDefinitions = readFileSync(resolve(repoRoot, 'packages/core/src/mcp/tools/generation/definitions.ts'), 'utf8')
   const coreActions = readFileSync(resolve(repoRoot, 'packages/core/src/mcp/node/tools/generation/actions.ts'), 'utf8')
   const router = readFileSync(resolve(repoRoot, 'packages/core/src/mcp/node/tools/router.ts'), 'utf8')
@@ -376,7 +407,7 @@ test('MovScript skills and MCP definitions expose raw-resource candidate registr
   assert.match(modelUsage, /Use `domain_register_raw_resource_as_content_unit_candidate`/)
 })
 
-test('MovScript skills teach namespace planning and legacy production projection boundaries', () => {
+test('MovScript skills teach namespace planning and production editing workspace boundaries', () => {
   for (const skillRoot of ['plugins/movscript/skills', 'apps/plugin/skills']) {
     const planningSkill = readRepoFile(`${skillRoot}/planning/SKILL.md`)
     const domainSkill = readRepoFile(`${skillRoot}/domain/SKILL.md`)
@@ -386,45 +417,45 @@ test('MovScript skills teach namespace planning and legacy production projection
     const domainStory = readRepoFile(`${skillRoot}/domain/references/domain-story.md`)
 
     assert.match(planningSkill, /output\/scope granularity/)
-    assert.match(planningSkill, /timeline namespace scope that needs a `timeline_assembly_ref`/)
-    assert.match(planningSkill, /legacy production\/segment projection writer/)
-    assert.match(planningSkill, /explicit `timeline_assembly_ref` content unit/)
+    assert.match(planningSkill, /timeline namespace scope that will later be assembled in a production editing workspace/)
+    assert.match(planningSkill, /production editing workspace/)
     assert.doesNotMatch(planningSkill, /production granularity/)
     assert.doesNotMatch(planningSkill, /segments, or productions/)
+    assert.doesNotMatch(planningSkill, /explicit `timeline_assembly_ref` content unit/)
 
-    assert.match(domainSkill, /legacy production\/segment projection writer/)
-    assert.match(domainSkill, /explicit `timeline_assembly_ref` content unit/)
-    assert.match(planningWorkflow, /timeline namespace node \(legacy production\/segment projection when needed\)/)
+    assert.match(domainSkill, /production editing workspace/)
+    assert.doesNotMatch(domainSkill, /explicit `timeline_assembly_ref` content unit/)
+    assert.match(planningWorkflow, /timeline namespace/)
     assert.match(entityMapping, /legacy `production` \/ `segment` records projected as `timeline_namespace`/)
     assert.match(entityGlossary, /Timeline namespace nodes organize story\/time structure/)
     assert.match(domainStory, /Timeline namespace nodes organize story rhythm/)
-    assert.match(domainStory, /`timeline_assembly_ref` is the production target for a namespace scope/)
+    assert.match(domainStory, /production editing workspace/)
+    assert.doesNotMatch(domainStory, /`timeline_assembly_ref` is the production target for a namespace scope/)
   }
 })
 
-test('MovScript generation editing and review skills describe timeline scope and assembly boundaries', () => {
+test('MovScript generation editing and review skills describe production editing boundaries', () => {
   for (const skillRoot of ['plugins/movscript/skills', 'apps/plugin/skills']) {
     const generationSkill = readRepoFile(`${skillRoot}/generation/SKILL.md`)
     const candidateSelectionFlow = readRepoFile(`${skillRoot}/generation/references/candidate-selection-flow.md`)
     const editingSkill = readRepoFile(`${skillRoot}/editing/SKILL.md`)
     const reviewSkill = readRepoFile(`${skillRoot}/review/SKILL.md`)
 
-    assert.match(generationSkill, /outputs anchored to content units, including system primitives and `timeline_assembly_ref` scope outputs/)
-    assert.match(generationSkill, /scene-moment video or timeline assembly/)
-    assert.match(candidateSelectionFlow, /system primitive and timeline assembly outputs/)
+    assert.match(generationSkill, /Production-level assembled playback belongs in a production editing workspace/)
+    assert.match(candidateSelectionFlow, /content-unit candidate/)
+    assert.doesNotMatch(generationSkill, /timeline_assembly_ref/)
+    assert.doesNotMatch(candidateSelectionFlow, /timeline assembly outputs/)
     assert.doesNotMatch(generationSkill, /requested production work/)
-    assert.doesNotMatch(generationSkill, /production outputs anchored to content units/)
 
-    assert.match(editingSkill, /timeline scope\/assembly/)
-    assert.match(editingSkill, /legacy production \/ timeline-assembly material handoff/)
-    assert.match(editingSkill, /legacy production\/timeline-scope handoff/)
-    assert.match(editingSkill, /namespace nodes/)
-    assert.doesNotMatch(editingSkill, /production has one canonical edit/)
-    assert.doesNotMatch(editingSkill, /production-level edit/)
+    assert.match(editingSkill, /production-bound editing workspace/)
+    assert.match(editingSkill, /system_editing/)
+    assert.match(editingSkill, /remotion/)
+    assert.match(editingSkill, /not as a promise that the production has one canonical edit/)
+    assert.doesNotMatch(editingSkill, /timeline-assembly material handoff/)
 
     assert.match(reviewSkill, /generation readiness/)
-    assert.match(reviewSkill, /assembly content unit/)
-    assert.doesNotMatch(reviewSkill, /production readiness/)
+    assert.match(reviewSkill, /content unit/)
+    assert.doesNotMatch(reviewSkill, /assembly content unit/)
   }
 })
 

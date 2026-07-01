@@ -13,7 +13,7 @@ import (
 // It is transport-agnostic (HTTP handler maps JSON fields to this struct).
 type GenRequest struct {
 	RuntimeModelID  uint
-	OutputType      string   // use Capability* constants
+	OutputType      string   // use CapabilityFamily* constants
 	InputModalities []string // "text" | "image" | "video" present in this request
 	ImageCount      int      // number of image resources attached
 	VideoCount      int      // number of video resources attached
@@ -31,46 +31,7 @@ func ValidateGenRequest(def *ModelDef, req GenRequest) error {
 		return unsupportedOutputTypeError(req.OutputType, def.DisplayName, def.Capabilities)
 	}
 
-	// 2. Verify input constraints per output type.
-	switch req.OutputType {
-	case CapabilityImageEdit:
-		// image_edit requires at least one image input.
-		if req.ImageCount == 0 {
-			return invalidInputCountError(
-				"image",
-				fmt.Sprintf("output type %q requires an image input but none was provided", req.OutputType),
-				1,
-				def.MaxInputImages,
-				req.ImageCount,
-			)
-		}
-
-	case CapabilityVideoI2V:
-		// image-to-video requires at least one image input.
-		if req.ImageCount == 0 {
-			return invalidInputCountError(
-				"image",
-				fmt.Sprintf("output type %q requires an image input but none was provided", req.OutputType),
-				1,
-				def.MaxInputImages,
-				req.ImageCount,
-			)
-		}
-
-	case CapabilityVideoV2V:
-		// video-to-video requires at least one video input.
-		if req.VideoCount == 0 {
-			return invalidInputCountError(
-				"video",
-				fmt.Sprintf("output type %q requires a video input but none was provided", req.OutputType),
-				1,
-				def.MaxInputVideos,
-				req.VideoCount,
-			)
-		}
-	}
-
-	// 3. Verify image count does not exceed model limit.
+	// 2. Verify image count does not exceed model limit.
 	if def.MaxInputImages > 0 && req.ImageCount > def.MaxInputImages {
 		return invalidInputCountError(
 			"image",
@@ -90,7 +51,7 @@ func ValidateGenRequest(def *ModelDef, req GenRequest) error {
 		)
 	}
 
-	// 4. Verify video count does not exceed model limit.
+	// 3. Verify video count does not exceed model limit.
 	if def.MaxInputVideos > 0 && req.VideoCount > def.MaxInputVideos {
 		return invalidInputCountError(
 			"video",
@@ -114,16 +75,10 @@ func ValidateGenRequest(def *ModelDef, req GenRequest) error {
 }
 
 func requiredImageInputMin(outputType string) int {
-	if outputType == CapabilityImageEdit || outputType == CapabilityVideoI2V {
-		return 1
-	}
 	return 0
 }
 
 func requiredVideoInputMin(outputType string) int {
-	if outputType == CapabilityVideoV2V {
-		return 1
-	}
 	return 0
 }
 
@@ -148,6 +103,12 @@ func ValidateGenerationParams(def *ModelDef, jobType, extraParams, aspectRatio s
 // ValidateAndNormalizeGenerationParams validates user params against the
 // resolved model schema and returns canonical-key params for request builders.
 func ValidateAndNormalizeGenerationParams(def *ModelDef, jobType, extraParams, aspectRatio string, duration int) (map[string]any, error) {
+	return ValidateAndNormalizeGenerationParamsForOperation(def, jobType, "", extraParams, aspectRatio, duration)
+}
+
+// ValidateAndNormalizeGenerationParamsForOperation validates params against the
+// operation-scoped public model contract when an operation is known.
+func ValidateAndNormalizeGenerationParamsForOperation(def *ModelDef, jobType, operation, extraParams, aspectRatio string, duration int) (map[string]any, error) {
 	if def == nil {
 		return nil, fmt.Errorf("model definition not found")
 	}
@@ -167,8 +128,12 @@ func ValidateAndNormalizeGenerationParams(def *ModelDef, jobType, extraParams, a
 	if len(params) == 0 {
 		return params, nil
 	}
-	if len(def.SupportedParams) == 0 {
-		if def.SupportedParamsExplicit {
+	supportedParams, supportedParamsExplicit, err := generationSupportedParamsForOperation(def, operation)
+	if err != nil {
+		return nil, err
+	}
+	if len(supportedParams) == 0 {
+		if supportedParamsExplicit {
 			for key := range params {
 				return nil, unsupportedParameterError(key, def.DisplayName)
 			}
@@ -176,8 +141,8 @@ func ValidateAndNormalizeGenerationParams(def *ModelDef, jobType, extraParams, a
 		return params, nil
 	}
 
-	supported := make(map[string]ParamDef, len(def.SupportedParams))
-	for _, p := range def.SupportedParams {
+	supported := make(map[string]ParamDef, len(supportedParams))
+	for _, p := range supportedParams {
 		supported[p.Key] = p
 	}
 
@@ -191,8 +156,8 @@ func ValidateAndNormalizeGenerationParams(def *ModelDef, jobType, extraParams, a
 		}
 	}
 
-	if def.SupportedParamsExplicit {
-		if err := validateDeclaredParamRules(params, def.SupportedParams); err != nil {
+	if supportedParamsExplicit {
+		if err := validateDeclaredParamRules(params, supportedParams); err != nil {
 			return nil, err
 		}
 	} else {
@@ -201,6 +166,23 @@ func ValidateAndNormalizeGenerationParams(def *ModelDef, jobType, extraParams, a
 		}
 	}
 	return params, nil
+}
+
+func generationSupportedParamsForOperation(def *ModelDef, operation string) ([]ParamDef, bool, error) {
+	operation = strings.TrimSpace(operation)
+	if operation != "" && len(def.SupportedParamsByOperation) > 0 {
+		params, ok := def.SupportedParamsByOperation[operation]
+		if !ok {
+			return nil, true, fmt.Errorf("model %q does not declare generation params for operation %q", def.DisplayName, operation)
+		}
+		return params, true, nil
+	}
+	if operation == "" && len(def.SupportedParamsByOperation) == 1 && len(def.SupportedParams) == 0 && !def.SupportedParamsExplicit {
+		for _, params := range def.SupportedParamsByOperation {
+			return params, true, nil
+		}
+	}
+	return def.SupportedParams, def.SupportedParamsExplicit, nil
 }
 
 func paramKeyAliases(key string) []string {

@@ -28,7 +28,7 @@ test('app settings config keeps URL and launch mode normalization behind core he
   assert.equal(isLocalLaunchMode({ launchMode: 'cloud' }), false)
 })
 
-test('app settings data connection helpers prefer daemon gateway and typed connection URLs', () => {
+test('app settings data connection helpers use runtime gateway for local and typed URLs for cloud', () => {
   assert.equal(isLocalDataConnection({ dataConnection: { kind: 'local', url: 'http://localhost:8766' } }), true)
   assert.equal(isLocalDataConnection({ dataConnection: { kind: 'cloud', url: 'https://api.example' } }), false)
   assert.equal(
@@ -37,7 +37,7 @@ test('app settings data connection helpers prefer daemon gateway and typed conne
       daemonGatewayBaseURL: 'http://daemon.example:8766/',
       apiBaseURL: 'http://legacy.example:8766/',
     }),
-    'http://daemon.example:8766',
+    'http://localhost:8766',
   )
   assert.equal(
     getSettingsDataConnectionBaseURL({
@@ -53,6 +53,7 @@ test('runtime config snapshot is the preferred API base URL source', () => {
   setRuntimeConfigSnapshot({
     movScriptHomeDir: '/tmp/movscript-home',
     gatewayBaseURL: 'http://localhost:8766/',
+    runtimeConnection: runtimeConnection('http://localhost:8766/', 'local'),
     runtime: runtimeDescriptor('http://localhost:8766/', 'local'),
     dataConnection: { kind: 'local', authMode: 'local-owner', status: 'connected' },
     apiBaseURL: 'http://localhost:8766/',
@@ -66,6 +67,8 @@ test('runtime config snapshot is the preferred API base URL source', () => {
   })
 
   assert.equal(getRuntimeConfigSnapshot()?.apiBaseURL, 'http://localhost:8766')
+  assert.equal(getRuntimeConfigSnapshot()?.runtimeConnection.gatewayBaseURL, 'http://localhost:8766')
+  assert.equal(getRuntimeConfigSnapshot()?.runtimeConnection.mode, 'local')
   assert.equal(getRuntimeConfigSnapshot()?.movScriptHomeDir, '/tmp/movscript-home')
   assert.equal(getRuntimeDescriptor()?.runtime.owner, 'movscript.local-node')
   assert.equal(getRuntimeDescriptor()?.gateway.canonicalPrefix, '/v1')
@@ -84,11 +87,33 @@ test('runtime config snapshot is the preferred API base URL source', () => {
   setRuntimeConfigSnapshot(null)
 })
 
+test('runtime connection descriptor keeps api v1 URL canonical', () => {
+  setRuntimeConfigSnapshot({
+    movScriptHomeDir: '/tmp/movscript-home',
+    workspaceDir: '/tmp/movscript-home',
+    runtimeConnection: {
+      ...runtimeConnection('http://localhost:8766/', 'local'),
+      apiV1BaseURL: 'http://localhost:8766/api/v1/',
+    },
+    runtime: runtimeDescriptor('http://localhost:8766/', 'local'),
+    dataConnection: { kind: 'local', authMode: 'local-owner', status: 'connected' },
+    apiBaseURL: 'https://stale-cloud.example',
+    apiV1BaseURL: 'https://stale-cloud.example/api/v1',
+    backendStatus: { state: 'ready', baseURL: 'http://localhost:8766/' },
+  })
+
+  assert.equal(getAPIBaseURL(), 'http://localhost:8766')
+  assert.equal(getAPIV1BaseURL(), 'http://localhost:8766/api/v1')
+
+  setRuntimeConfigSnapshot(null)
+})
+
 test('runtime config snapshot derives local canvas API from daemon gateway', () => {
   setRuntimeConfigSnapshot({
     movScriptHomeDir: '/tmp/movscript-home',
     workspaceDir: '/tmp/movscript-home',
     gatewayBaseURL: 'http://localhost:8766/',
+    runtimeConnection: runtimeConnection('http://localhost:8766/', 'local'),
     runtime: runtimeDescriptor('http://localhost:8766/', 'local'),
     dataConnection: { kind: 'local', authMode: 'local-owner', status: 'connected' },
     apiBaseURL: 'http://localhost:8766/',
@@ -166,6 +191,7 @@ test('browser app settings are only an API base URL fallback outside Electron ru
         getRuntimeConfig: async () => ({
           movScriptHomeDir: '/tmp/movscript-home',
           workspaceDir: '/tmp/movscript-home',
+          runtimeConnection: runtimeConnection('http://home-runtime:8766', 'local'),
           runtime: runtimeDescriptor('http://home-runtime:8766', 'local'),
           dataConnection: { kind: 'local', authMode: 'local-owner', status: 'connected' },
           apiBaseURL: 'http://home-runtime:8766',
@@ -185,7 +211,7 @@ test('browser app settings are only an API base URL fallback outside Electron ru
 
 function runtimeDescriptor(
   gatewayBaseURL: string,
-  dataConnectionKind: 'local' | 'cloud' | 'external',
+  dataConnectionKind: 'local' | 'cloud',
 ): ElectronRuntimeConfig['runtime'] {
   return {
     schema: 'movscript.runtime-descriptor.v1',
@@ -210,6 +236,23 @@ function runtimeDescriptor(
       editing: true,
       media: true,
     },
+  }
+}
+
+function runtimeConnection(
+  gatewayBaseURL: string,
+  mode: 'local' | 'cloud',
+): ElectronRuntimeConfig['runtimeConnection'] {
+  const normalized = normalizeAPIBaseURL(gatewayBaseURL)
+  return {
+    schema: 'movscript.runtime-connection.v1',
+    mode,
+    gatewayBaseURL: normalized,
+    apiV1BaseURL: `${normalized}/api/v1`,
+    authMode: mode === 'local' ? 'local-owner' : 'session',
+    displayName: mode === 'local' ? 'Local daemon gateway' : 'Cloud data connection',
+    status: 'connected',
+    source: mode === 'local' ? 'daemon' : 'cloud',
   }
 }
 

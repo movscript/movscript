@@ -1078,21 +1078,28 @@
     },
     "jobs": {
       "categories": {
-        "image": "Text to Image",
-        "imageEdit": "Reference Image",
-        "video": "Text to Video",
-        "videoI2V": "Reference Video",
-        "videoV2V": "Video Transfer"
+        "image": "Image",
+        "video": "Video",
+        "audio": "Audio"
       },
       "operations": {
         "text_to_image": "Text to Image",
-        "image_to_image": "Image to Image",
-        "image_edit": "Image Edit",
+        "reference_to_image": "Reference to Image",
+        "edit_image": "Image Edit",
         "prompt_to_video": "Prompt to Video",
         "image_to_video": "Image to Video",
         "first_frame_to_video": "First Frame to Video",
         "first_last_frame_to_video": "First/Last Frame to Video",
-        "reference_to_video": "Reference to Video"
+        "reference_to_video": "Reference to Video",
+        "edit_video": "Video Edit",
+        "text_to_speech": "Text to Speech",
+        "speech_to_text": "Speech to Text",
+        "speech_translate": "Speech Translation",
+        "speech_to_speech": "Speech to Speech",
+        "music_generation": "Music Generation",
+        "sound_effect_generation": "Sound Effects",
+        "voice_clone": "Voice Clone",
+        "voice_design": "Voice Design"
       },
       "status": {
         "pending": "Queued",
@@ -3404,31 +3411,35 @@
     "outputTypes": {
       "image": "Image",
       "video": "Video",
+      "audio": "Audio",
       "text": "Text"
     },
-    "generationOperations": {
-      "text_to_image": "Text to Image",
-      "image_to_image": "Image to Image",
+      "generationOperations": {
+        "text_to_image": "Text to Image",
       "reference_to_image": "Reference to Image",
-      "image_edit": "Image Edit",
-      "style_transfer": "Style Transfer",
+      "edit_image": "Image Edit",
       "prompt_to_video": "Prompt to Video",
       "image_to_video": "Image to Video",
       "first_frame_to_video": "First Frame to Video",
       "first_last_frame_to_video": "First/Last Frame to Video",
       "reference_to_video": "Reference to Video",
-      "video_to_video": "Video to Video"
+      "edit_video": "Video Edit",
+      "text_to_speech": "Text to Speech",
+      "speech_to_text": "Speech to Text",
+      "speech_translate": "Speech Translation",
+      "speech_to_speech": "Speech to Speech",
+      "music_generation": "Music Generation",
+      "sound_effect_generation": "Sound Effects",
+      "voice_clone": "Voice Clone",
+      "voice_design": "Voice Design"
     },
     "nodeLabels": {
       "text": "Text",
       "image": "Image",
       "video": "Video",
       "canvas": "Canvas Reference",
-      "ref_image_gen": "Reference Image",
-      "ref_video_gen": "Reference Video",
-      "multi_angle": "Multi-angle Image",
-      "style_transfer": "Style Transfer",
-      "motion_imitation": "Motion Imitation",
+      "reference_to_image": "Reference to Image",
+      "reference_to_video": "Reference to Video",
       "input": "Input",
       "output": "Output",
       "resource_sink": "Save Resource",
@@ -3510,25 +3521,13 @@
           "label": "Text Generation",
           "description": "Expand, summarize, or rewrite from upstream content."
         },
-        "ref_image_gen": {
-          "label": "Reference Image",
+        "reference_to_image": {
+          "label": "Reference to Image",
           "description": "Generate a new visual direction from reference images."
         },
-        "ref_video_gen": {
-          "label": "Reference Video",
-          "description": "Generate video from reference media."
-        },
-        "multi_angle": {
-          "label": "Multi-angle Image",
-          "description": "Generate multi-angle views from a character or object image."
-        },
-        "style_transfer": {
-          "label": "Style Transfer",
-          "description": "Transfer a reference style to target media."
-        },
-        "motion_imitation": {
-          "label": "Motion Imitation",
-          "description": "Make the target character imitate reference motion."
+        "reference_to_video": {
+          "label": "Reference to Video",
+          "description": "Generate video from image, video, or audio references."
         },
         "canvas": {
           "label": "Canvas Reference",
@@ -3750,12 +3749,8 @@
       "selectOrUploadHint": "Select from the resource library on the left, or upload below",
       "slots": {
         "ref_images": "Reference images (optional)",
-        "ref_video": "Reference video (optional)",
         "target_images": "Target images",
-        "motion_video": "Motion video",
-        "target_image": "Image to edit",
-        "style_images": "Style images",
-        "source_image": "Multi-angle image"
+        "target_image": "Image to edit"
       }
     },
     "genResult": {
@@ -3842,48 +3837,83 @@
       "sourceVideo": "Source Video",
       "sourceAudio": "Source Audio"
     },
-    "defs": {
-      "refImageGen": {
-        "name": "Reference Image",
-        "description": "Generate a new image from a reference image.",
-        "promptPlaceholder": "Describe the image you want to generate... Type @ to reference images from the resource library"
+    "operations": {
+      "promptToImage": {
+        "name": "Text to Image",
+        "description": "Generate images from a prompt.",
+        "promptPlaceholder": "Describe the subject, style, composition, and details..."
       },
-      "refVideoGen": {
-        "name": "Reference Video",
-        "description": "Generate a new video from reference video.",
-        "promptPlaceholder": "Describe the video you want to generate... Type @ to reference images or videos from the resource library"
+      "referenceToImage": {
+        "name": "Reference to Image",
+        "description": "Generate a new image from one or more reference images.",
+        "promptPlaceholder": "Describe what to preserve and what should change... Type @ to reference images from the resource library"
       },
-      "audioGen": {
+      "editImage": {
+        "name": "Image Edit",
+        "description": "Edit input images with instructions.",
+        "promptPlaceholder": "Describe the region or detail to modify, replace, or enhance..."
+      },
+      "promptToVideo": {
+        "name": "Text to Video",
+        "description": "Generate video from a prompt.",
+        "promptPlaceholder": "Describe the shot, action, pacing, style, and sound..."
+      },
+      "imageToVideo": {
+        "name": "Image to Video",
+        "description": "Generate video from reference images.",
+        "promptPlaceholder": "Describe how the image should move..."
+      },
+      "firstFrameToVideo": {
+        "name": "First Frame to Video",
+        "description": "Use a first frame to constrain the video opening.",
+        "promptPlaceholder": "Describe the action and camera changes after the first frame..."
+      },
+      "firstLastFrameToVideo": {
+        "name": "First/Last Frame to Video",
+        "description": "Use first and last frames to constrain the video path.",
+        "promptPlaceholder": "Describe the transition from the first frame to the last frame..."
+      },
+      "referenceToVideo": {
+        "name": "Reference to Video",
+        "description": "Generate video using images, video, or audio as references.",
+        "promptPlaceholder": "Describe the clip, character action, camera, and sound references... Type @ to reference images, videos, or audio"
+      },
+      "editVideo": {
+        "name": "Video Edit",
+        "description": "Edit input video with instructions.",
+        "promptPlaceholder": "Describe what to modify, replace, or enhance in the video..."
+      },
+      "textToSpeech": {
         "name": "Text to Speech",
-        "description": "Synthesize text into voiceover, dialogue, or spoken draft assets.",
+        "description": "Synthesize text into voiceover, dialogue, or spoken drafts.",
         "promptPlaceholder": "Enter the script to synthesize..."
       },
-      "audioChat": {
-        "name": "Voice Chat",
-        "description": "Use Omni or realtime speech models to generate a spoken reply from audio and instructions.",
-        "promptPlaceholder": "Enter conversation instructions, or upload speech as context..."
-      },
-      "audioTranscribe": {
-        "name": "Transcription",
-        "description": "Upload or select an audio resource and transcribe it into editable text.",
-        "promptPlaceholder": "Optional: add language, speaker, terminology, or formatting notes...",
-        "submitPromptFallback": "Transcribe audio"
-      },
-      "audioTranslate": {
-        "name": "Audio Translation",
-        "description": "Upload or select an audio resource and translate it into target-language text.",
-        "promptPlaceholder": "Optional: add source language, target language, terminology, or formatting notes...",
-        "submitPromptFallback": "Translate audio"
-      },
-      "musicGen": {
+      "musicGeneration": {
         "name": "Music Generation",
         "description": "Generate scores, ambient beds, or music drafts from prompts.",
         "promptPlaceholder": "Describe style, mood, tempo, instruments, and duration..."
       },
-      "audioSfx": {
-        "name": "Sound Effects",
+      "soundEffectGeneration": {
+        "name": "Sound Effect Generation",
         "description": "Generate Foley, ambience, transitions, or short sound effects from prompts.",
         "promptPlaceholder": "Describe the sound source, action, environment, distance, texture, and duration..."
+      },
+      "speechToSpeech": {
+        "name": "Speech to Speech",
+        "description": "Generate new speech from text or audio context.",
+        "promptPlaceholder": "Enter conversation goals or conversion instructions, or upload speech as context..."
+      },
+      "speechToText": {
+        "name": "Speech to Text",
+        "description": "Upload or select an audio resource and transcribe it into editable text.",
+        "promptPlaceholder": "Optional: add language, speaker, terminology, or formatting notes...",
+        "submitPromptFallback": "Transcribe audio"
+      },
+      "speechTranslate": {
+        "name": "Speech Translation",
+        "description": "Upload or select an audio resource and translate it into target-language text.",
+        "promptPlaceholder": "Optional: add source language, target language, terminology, or formatting notes...",
+        "submitPromptFallback": "Translate audio"
       },
       "voiceClone": {
         "name": "Voice Clone",
@@ -3896,35 +3926,12 @@
         "description": "Generate a reusable voice profile from a voice description.",
         "promptPlaceholder": "Describe the age, accent, tone, pacing, emotion, and use case...",
         "submitPromptFallback": "Design voice"
-      },
-      "motionImitation": {
-        "name": "Motion Imitation",
-        "description": "Transfer motion from a reference video to the target character and generate a new motion video.",
-        "promptPlaceholder": "(Optional) Describe the target character's appearance. AI will transfer the reference video's motion to that character... Type @ to reference images or videos from the resource library"
-      },
-      "multiAngle": {
-        "name": "Multi-angle",
-        "description": "Generate multiple angle views of a character or object from a single image.",
-        "promptPlaceholder": "Describe the angles or viewpoints you want to generate... Type @ to reference images from the resource library"
-      },
-      "styleTransfer": {
-        "name": "Style Transfer",
-        "description": "Transfer the reference image's art style onto the content image and generate a new stylized image.",
-        "promptPlaceholder": "Describe the target content. AI will redraw it using the reference image's style... Type @ to reference images from the resource library"
       }
     },
     "capabilities": {
       "image": "Image tool",
       "video": "Video tool",
-      "audio": "Audio tool",
-      "audio_tts": "Text to Speech",
-      "audio_transcribe": "Transcription",
-      "audio_translate": "Audio Translation",
-      "audio_music": "Music generation",
-      "audio_sfx": "Sound effects",
-      "audio_chat": "Voice chat",
-      "voice_clone": "Voice clone",
-      "voice_design": "Voice design"
+      "audio": "Audio tool"
     }
   },
   "plugins": {
@@ -4027,13 +4034,12 @@
       "text": "Text",
       "reasoning": "Reasoning",
       "image": "Image",
-      "imageEdit": "Image Edit",
-      "video": "Text to Video",
-      "videoI2V": "Image to Video",
-      "videoV2V": "Video to Video",
-      "audioTTS": "Text to Speech",
-      "audioSTT": "Audio Transcription",
-      "audioChat": "Voice Chat / Omni"
+      "video": "Video",
+      "audio": "Audio",
+      "textGeneration": "Text Generation",
+      "imageGeneration": "Image Generation",
+      "videoGeneration": "Video Generation",
+      "audioGeneration": "Audio Generation"
     },
     "params": {
       "title": "Generation Parameters",
@@ -4494,19 +4500,10 @@
       "finalVideos": "Final Videos",
       "canvas": "Workflow Canvas",
       "editing": "Editing",
-      "refImageGen": "Reference Image",
-      "refVideoGen": "Reference Video",
-      "audioGen": "Text to Speech",
-      "audioChat": "Voice Chat",
-      "audioTranscribe": "Transcription",
-      "audioTranslate": "Audio Translation",
-      "musicGen": "Music Generation",
-      "audioSfx": "Sound Effects",
-      "voiceClone": "Voice Clone",
-      "voiceDesign": "Voice Design",
-      "motionImitation": "Motion Imitation",
-      "styleTransfer": "Style Transfer",
-      "multiAngle": "Multi-angle",
+      "toolImage": "Image Generation",
+      "toolVideo": "Video Generation",
+      "toolAudio": "Audio Generation",
+      "toolText": "Text Output",
       "privateAssets": "Private Assets",
       "resources": "Resources",
       "projectData": "Project Data",

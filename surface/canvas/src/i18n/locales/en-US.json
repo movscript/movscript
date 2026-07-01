@@ -141,16 +141,20 @@
     },
     "generationOperations": {
       "text_to_image": "Text to Image",
-      "image_to_image": "Image to Image",
       "reference_to_image": "Reference to Image",
-      "image_edit": "Image Edit",
-      "style_transfer": "Style Transfer",
+      "edit_image": "Image Edit",
+      "inpaint": "Inpaint",
+      "outpaint": "Outpaint",
+      "variation": "Variation",
+      "upscale_image": "Image Upscale",
       "prompt_to_video": "Prompt to Video",
       "image_to_video": "Image to Video",
       "first_frame_to_video": "First Frame to Video",
       "first_last_frame_to_video": "First/Last Frame to Video",
       "reference_to_video": "Reference to Video",
-      "video_to_video": "Video to Video"
+      "edit_video": "Video Edit",
+      "extend_video": "Video Extend",
+      "upscale_video": "Video Upscale"
     },
     "nodeLabels": {
       "text": "Text",
@@ -158,11 +162,8 @@
       "video": "Video",
       "audio": "Audio",
       "canvas": "Canvas Reference",
-      "ref_image_gen": "Reference Image",
-      "ref_video_gen": "Reference Video",
-      "multi_angle": "Multi-angle Image",
-      "style_transfer": "Style Transfer",
-      "motion_imitation": "Motion Imitation",
+      "reference_to_image": "Reference to Image",
+      "reference_to_video": "Reference to Video",
       "input": "Input",
       "output": "Output",
       "resource_sink": "Save Resource",
@@ -253,25 +254,13 @@
           "label": "AI Text Generation",
           "description": "Expand, summarize, or rewrite from upstream content."
         },
-        "ref_image_gen": {
-          "label": "Reference Image",
-          "description": "Generate a new visual direction from reference images."
+        "reference_to_image": {
+          "label": "Reference to Image",
+          "description": "Generate or edit an image from target and reference images."
         },
-        "ref_video_gen": {
-          "label": "Reference Video",
-          "description": "Generate video from reference media."
-        },
-        "multi_angle": {
-          "label": "Multi-angle Image",
-          "description": "Generate multi-angle views from a character or object image."
-        },
-        "style_transfer": {
-          "label": "Style Transfer",
-          "description": "Transfer a reference style to target media."
-        },
-        "motion_imitation": {
-          "label": "Motion Imitation",
-          "description": "Make the target character imitate reference motion."
+        "reference_to_video": {
+          "label": "Reference to Video",
+          "description": "Generate or edit video from image, video, or audio references."
         },
         "canvas": {
           "label": "Canvas Reference",
@@ -490,12 +479,9 @@
       "selectOrUploadHint": "Select from the resource library on the left, or upload below",
       "slots": {
         "ref_images": "Reference images (optional)",
-        "ref_video": "Reference video (optional)",
         "target_images": "Target images",
-        "motion_video": "Motion video",
         "target_image": "Image to edit",
-        "style_images": "Style images",
-        "source_image": "Multi-angle image"
+        "reference_image": "Reference image"
       }
     },
     "modelSelector": {

@@ -1,8 +1,4 @@
 import {
-  implicitTimelineAssemblyRef,
-  parseImplicitTimelineAssemblyRef,
-} from './contentUnits.js'
-import {
   classifyMovScriptEntityKind,
   isMovScriptNamespaceCategory,
   isMovScriptNamespaceKind,
@@ -39,8 +35,6 @@ export interface MovScriptDomainFocusInput {
   domain_target_kind?: string
   domainTargetRef?: string | number
   domain_target_ref?: string | number
-  timelineAssemblyRef?: string | number
-  timeline_assembly_ref?: string | number
   targetKind?: string
   target_kind?: string
   targetRef?: string | number
@@ -57,22 +51,20 @@ export function normalizeDomainFocus(input: MovScriptDomainFocusInput): MovScrip
   const projectId = idString(input.projectId ?? input.project_id)
   const productionId = idString(input.productionId ?? input.production_id)
   const targetCategory = stringField(input.targetCategory ?? input.target_category ?? input.domainTargetCategory ?? input.domain_target_category)
-  const timelineAssemblyRef = idString(input.timelineAssemblyRef ?? input.timeline_assembly_ref)
-  const targetKind = timelineAssemblyRef ? 'timeline_assembly' : stringField(input.targetKind ?? input.target_kind ?? input.domainTargetKind ?? input.domain_target_kind)
-  const targetRef = timelineAssemblyRef ?? idString(input.targetRef ?? input.target_ref ?? input.domainTargetRef ?? input.domain_target_ref)
+  const rawTargetKind = stringField(input.targetKind ?? input.target_kind ?? input.domainTargetKind ?? input.domain_target_kind)
+  const targetKind = rawTargetKind
+  const targetRef = idString(input.targetRef ?? input.target_ref ?? input.domainTargetRef ?? input.domain_target_ref)
   const entityKind = stringField(input.entityKind ?? input.entity_kind)
   const entityId = idString(input.entityId ?? input.entity_id)
   const productionPath = stringField(input.productionPath ?? input.production_path)
   const explicitScopeKind = stringField(input.scopeKind ?? input.scope_kind ?? input.namespaceKind ?? input.namespace_kind)
   const explicitScopeRef = idString(input.scopeRef ?? input.scope_ref ?? input.namespaceRef ?? input.namespace_ref ?? input.namespacePath ?? input.namespace_path)
-  const parsedAssemblyScope = targetKind === 'timeline_assembly' ? parseImplicitTimelineAssemblyRef(targetRef) : undefined
-  const scopeKind = explicitScopeKind ?? parsedAssemblyScope?.scopeKind ?? (productionId ? 'production' : undefined)
-  const scopeRef = explicitScopeRef ?? parsedAssemblyScope?.scopeRef ?? productionPath ?? productionId
+  const removedTimelineAssemblyRef = idString((input as Record<string, unknown>).timelineAssemblyRef ?? (input as Record<string, unknown>).timeline_assembly_ref)
+  const scopeKind = explicitScopeKind ?? (productionId ? 'production' : undefined)
+  const scopeRef = explicitScopeRef ?? productionPath ?? productionId
   const scopeField = explicitScopeRef
     ? 'scopeRef'
-    : parsedAssemblyScope
-      ? 'targetRef'
-      : productionPath
+    : productionPath
         ? 'productionPath'
         : productionId
           ? 'productionId'
@@ -84,6 +76,14 @@ export function normalizeDomainFocus(input: MovScriptDomainFocusInput): MovScrip
       code: 'focus_namespace_target',
       message: `namespace category ${targetCategory} cannot be normalized as a work target`,
       field: 'targetCategory',
+    })
+  }
+  if (targetCategory === 'timeline_assembly' || rawTargetKind === 'timeline_assembly' || removedTimelineAssemblyRef) {
+    diagnostics.push({
+      severity: 'error',
+      code: 'focus_timeline_assembly_target_removed',
+      message: 'timeline_assembly focus targets are removed; open a production editing workspace instead.',
+      field: removedTimelineAssemblyRef ? 'timelineAssemblyRef' : rawTargetKind === 'timeline_assembly' ? 'targetKind' : 'targetCategory',
     })
   }
   if (targetKind && isMovScriptNamespaceKind(targetKind)) {
@@ -101,9 +101,7 @@ export function normalizeDomainFocus(input: MovScriptDomainFocusInput): MovScrip
     ? {
         targetCategory: explicitTargetCategory,
         targetKind,
-        ...(targetRef ? { targetRef } : scopeKind && scopeRef && targetKind === 'timeline_assembly'
-          ? { targetRef: implicitTimelineAssemblyRef(scopeKind, scopeRef) }
-          : {}),
+        ...(targetRef ? { targetRef } : {}),
       }
     : undefined
 
@@ -118,11 +116,7 @@ export function normalizeDomainFocus(input: MovScriptDomainFocusInput): MovScrip
 
   return {
     ...(projectId ? { projectId } : {}),
-    target: explicitTarget ?? (timelineScope ? {
-      targetCategory: 'timeline_assembly',
-      targetKind: 'timeline_assembly',
-      targetRef: implicitTimelineAssemblyRef(timelineScope.kind, timelineScope.ref),
-    } : undefined),
+    ...(explicitTarget ? { target: explicitTarget } : {}),
     ...(timelineScope ? { scope: timelineScope } : {}),
     ...(entityKind ? {
       entity: {
@@ -138,13 +132,12 @@ export function normalizeDomainFocus(input: MovScriptDomainFocusInput): MovScrip
 
 function workTargetCategoryForKind(kind: string): MovScriptWorkTargetCategory | undefined {
   if (kind === 'content_unit') return 'content_unit'
-  if (kind === 'timeline_assembly') return 'timeline_assembly'
   if (isMovScriptSystemPrimitiveKind(kind)) return 'system_primitive'
   return undefined
 }
 
 function workTargetCategoryForCategory(category: string | undefined): MovScriptWorkTargetCategory | undefined {
-  if (category === 'content_unit' || category === 'timeline_assembly' || category === 'system_primitive') return category
+  if (category === 'content_unit' || category === 'system_primitive') return category
   return undefined
 }
 

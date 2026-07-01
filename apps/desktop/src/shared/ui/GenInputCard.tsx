@@ -67,6 +67,7 @@ export interface GenInputCardProps {
   onPromptChange: (v: string) => void
   attachments: RawResource[]
   onRemoveAttachment: (i: number) => void
+  onReferenceAssetRoleChange?: (resourceId: number, role: string) => void
   // inputSlots: when provided, replaces the legacy inputType-based attachment UI.
   // Each slot defines what kind of resource is expected at that position.
   inputSlots?: InputSlotDef[]
@@ -81,7 +82,6 @@ export interface GenInputCardProps {
   inputType: ToolInputType
   promptPlaceholder?: string
   uploading: boolean
-  imageEditRequired?: boolean
   referenceAssets?: readonly GenInputReferenceAsset[]
   intentLabel?: ReactNode
   outputLabel?: ReactNode
@@ -95,6 +95,7 @@ export function GenInputCard({
   onPromptChange,
   attachments,
   onRemoveAttachment,
+  onReferenceAssetRoleChange,
   inputSlots,
   params,
   paramValues,
@@ -107,7 +108,6 @@ export function GenInputCard({
   inputType,
   promptPlaceholder,
   uploading,
-  imageEditRequired: _imageEditRequired,
   referenceAssets,
   intentLabel,
   outputLabel,
@@ -145,6 +145,9 @@ export function GenInputCard({
       .filter((asset) => asset.resource_id)
       .map((asset) => [asset.resource_id as number, asset]),
   )
+  const referenceAssetsKey = (referenceAssets ?? [])
+    .map((asset) => `${asset.resource_id ?? ''}:${asset.media_type ?? ''}:${asset.role}`)
+    .join('|')
   const visibleParamPreviewItems = params
     .filter((param) => generationParamRequiresValueSatisfied(param, paramValues))
     .slice(0, 6)
@@ -284,6 +287,7 @@ export function GenInputCard({
       return
     }
     const mediaType = roleMenu?.mediaType ?? chip.dataset.mediaType
+    const resourceId = roleMenu?.resourceId ?? Number(chip.dataset.resourceId)
     chip.dataset.role = role
     if (mediaType) chip.dataset.mediaType = mediaType
     const label = chip.querySelector<HTMLElement>('.generation-input-chip__label')
@@ -294,6 +298,7 @@ export function GenInputCard({
         sourceLabel: chip.dataset.sourceLabel,
       })
     }
+    onReferenceAssetRoleChange?.(resourceId, role)
     onPromptChange(serialize(editorRef.current))
     setRoleMenu(null)
     roleMenuChipRef.current = null
@@ -307,6 +312,40 @@ export function GenInputCard({
     }
     prevPromptRef.current = prompt
   }, [prompt])
+
+  useEffect(() => {
+    const editor = editorRef.current
+    if (!editor) return
+    let changed = false
+    for (const chip of Array.from(editor.querySelectorAll<HTMLElement>('[data-resource-id]'))) {
+      const resourceId = Number(chip.dataset.resourceId)
+      if (!Number.isInteger(resourceId)) continue
+      const asset = referenceAssetById.get(resourceId)
+      if (!asset) continue
+      const mediaType = asset.media_type ?? chip.dataset.mediaType
+      const role = asset.role ?? chip.dataset.role
+      if (mediaType && chip.dataset.mediaType !== mediaType) {
+        chip.dataset.mediaType = mediaType
+        changed = true
+      }
+      if (role && chip.dataset.role !== role) {
+        chip.dataset.role = role
+        const label = chip.querySelector<HTMLElement>('.generation-input-chip__label')
+        if (label) {
+          label.textContent = resourceChipDisplayLabel({
+            role,
+            mediaType,
+            sourceLabel: chip.dataset.sourceLabel,
+          })
+        }
+        changed = true
+      }
+    }
+    if (changed) {
+      const nextPrompt = serialize(editor)
+      if (nextPrompt !== prompt) onPromptChange(nextPrompt)
+    }
+  }, [referenceAssetsKey, prompt, onPromptChange])
 
   return (
     <GenerationCallComposerForm
@@ -371,12 +410,20 @@ export function GenInputCard({
           <GenerationInputSlots
             slots={inputSlots}
             attachments={attachments}
+            referenceAssets={referenceAssets}
+            onReferenceRoleChange={onReferenceAssetRoleChange}
             onRemoveAttachment={onRemoveAttachment}
           />
         ) : acceptsMediaInput && attachments.length > 0 ? (
           <GenerationAttachmentList>
             {attachments.map((r, i) => (
-              <AttachmentTag key={r.ID} resource={r} onRemove={() => onRemoveAttachment(i)} />
+              <AttachmentTag
+                key={r.ID}
+                resource={r}
+                referenceAsset={referenceAssetById.get(r.ID)}
+                onReferenceRoleChange={onReferenceAssetRoleChange}
+                onRemove={() => onRemoveAttachment(i)}
+              />
             ))}
           </GenerationAttachmentList>
         ) : null}

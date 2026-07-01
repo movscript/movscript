@@ -38,18 +38,13 @@ export function buildProjectOverviewModel({
   const missingAssets = Math.max(0, data.assetSlots.length - lockedAssets)
   const timelineStatus = recordValue(data.projectTimelineStatus)
   const timelineNamespaces = arrayValue(timelineStatus?.timeline_namespaces ?? timelineStatus?.timelineNamespaces)
-  const timelineAssemblies = arrayValue(timelineStatus?.timeline_assemblies ?? timelineStatus?.timelineAssemblies)
   const systemPrimitives = recordValue(timelineStatus?.system_primitives ?? timelineStatus?.systemPrimitives)
   const timelineNamespaceSignals = timelineStatus
     ? optionalNumber(timelineStatus.timeline_namespace_count ?? timelineStatus.timelineNamespaceCount) ?? timelineNamespaces.length
     : data.productions.length + data.segments.length
-  const timelineAssemblySignals = timelineStatus
-    ? optionalNumber(timelineStatus.timeline_assembly_count ?? timelineStatus.timelineAssemblyCount) ?? timelineAssemblies.length
-    : 0
   const sceneMomentSignals = optionalNumber(systemPrimitives?.scene_moments_count ?? systemPrimitives?.sceneMomentsCount) ?? data.sceneMoments.length
   const timelinePrimitiveSignals = sceneMomentSignals + data.keyframes.length
-  const readyTimelineAssemblies = timelineAssemblies.filter(isTimelineAssemblyReady).length
-  const hasTimelineStructure = timelineNamespaceSignals > 0 || sceneMomentSignals > 0 || timelineAssemblySignals > 0
+  const hasTimelineStructure = timelineNamespaceSignals > 0 || sceneMomentSignals > 0
   const hasProductionInput = hasTimelineStructure || data.contentUnits.length > 0
 
   const standardsDone = [
@@ -61,10 +56,10 @@ export function buildProjectOverviewModel({
   ].filter(Boolean).length
   const standardsProgress = percentage(standardsDone, 5)
 
-  const scriptSignals = data.scriptVersions.length + timelineNamespaceSignals + sceneMomentSignals + timelineAssemblySignals
-  const scriptProgress = Math.max(productionProgress, percentage(timelineNamespaceSignals + sceneMomentSignals + timelineAssemblySignals, Math.max(1, scriptSignals)))
-  const contentSignals = data.contentUnits.length + data.keyframes.length + timelineAssemblySignals
-  const contentProgress = percentage(readyContentUnits + readyKeyframes + readyTimelineAssemblies, Math.max(1, contentSignals))
+  const scriptSignals = data.scriptVersions.length + timelineNamespaceSignals + sceneMomentSignals
+  const scriptProgress = Math.max(productionProgress, percentage(timelineNamespaceSignals + sceneMomentSignals, Math.max(1, scriptSignals)))
+  const contentSignals = data.contentUnits.length + data.keyframes.length
+  const contentProgress = percentage(readyContentUnits + readyKeyframes, Math.max(1, contentSignals))
 
   const lanes = projectEntryDefinitions.map((definition): ProjectOverviewWorkLane => {
     if (definition.id === 'project_standards') {
@@ -80,7 +75,7 @@ export function buildProjectOverviewModel({
       return {
         definition,
         count: contentSignals,
-        detail: `${data.contentUnits.length} 个创作片段，${timelineAssemblySignals} 个装配`,
+        detail: `${data.contentUnits.length} 个创作片段，${data.keyframes.length} 个关键帧`,
         progress: contentProgress,
         state: !hasProductionInput && data.scriptVersions.length === 0 ? 'blocked' : contentProgress >= 70 ? 'ready' : contentSignals > 0 || timelinePrimitiveSignals > 0 ? 'active' : 'empty',
       }
@@ -88,10 +83,10 @@ export function buildProjectOverviewModel({
     if (definition.id === 'content_preview') {
       return {
         definition,
-        count: data.contentUnits.length + timelineAssemblySignals,
-        detail: `${data.contentUnits.length} 个片段可预览，${timelineAssemblySignals} 个装配`,
+        count: data.contentUnits.length,
+        detail: `${data.contentUnits.length} 个片段可预览`,
         progress: contentProgress,
-        state: data.contentUnits.length === 0 && timelineAssemblySignals === 0 ? 'blocked' : contentProgress >= 70 ? 'ready' : 'active',
+        state: data.contentUnits.length === 0 ? 'blocked' : contentProgress >= 70 ? 'ready' : 'active',
       }
     }
     if (definition.id === 'setting_preview') {
@@ -108,7 +103,7 @@ export function buildProjectOverviewModel({
     return {
       definition,
       count: scriptSignals,
-      detail: `${timelineNamespaceSignals} 个时间结构，${sceneMomentSignals} 个场面，${timelineAssemblySignals} 个装配`,
+      detail: `${timelineNamespaceSignals} 个时间结构，${sceneMomentSignals} 个场面`,
       progress: scriptProgress,
       state: data.scriptVersions.length === 0 && !hasTimelineStructure ? 'blocked' : scriptProgress >= 70 ? 'ready' : scriptSignals > 0 ? 'active' : 'empty',
     }
@@ -172,16 +167,4 @@ function recordValue(value: unknown): Record<string, unknown> | undefined {
 
 function arrayValue(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
-}
-
-function isTimelineAssemblyReady(value: unknown): boolean {
-  const record = recordValue(value)
-  if (!record) return false
-  const blockers = arrayValue(record.blocking_refs ?? record.blockingRefs)
-  const staleStatus = typeof record.stale_status === 'string'
-    ? record.stale_status
-    : typeof record.staleStatus === 'string'
-      ? record.staleStatus
-      : ''
-  return blockers.length === 0 && staleStatus !== 'stale' && staleStatus !== 'has_stale_selection'
 }

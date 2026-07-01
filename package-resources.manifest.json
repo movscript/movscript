@@ -51,6 +51,23 @@
       ]
     },
     {
+      "id": "native-macos-tray-helper",
+      "category": "managed-binary",
+      "from": "build/native/movscript-native-tray",
+      "to": "native/movscript-native-tray",
+      "source": "build-artifact",
+      "required": true,
+      "owner": "desktop-release",
+      "license": "Apache-2.0",
+      "updatePolicy": "bundled-with-app",
+      "platforms": ["darwin"],
+      "arches": ["x64", "arm64"],
+      "verification": [
+        "swiftc apps/desktop/native/macTrayStatusItem.swift",
+        "electron-builder extraResources parity"
+      ]
+    },
+    {
       "id": "provider-plugin",
       "category": "plugin-bundle",
       "from": "../../plugins/movscript",

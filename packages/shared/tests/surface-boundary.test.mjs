@@ -797,11 +797,7 @@ test('desktop resource page consumers use the resource surface pages entrypoint'
 
   const checkedFiles = [
     'apps/desktop/src/pages/agent/AgentResourceLibraryPage.tsx',
-    'apps/desktop/src/features/tools/components/RefVideoGenPage.tsx',
-    'apps/desktop/src/features/tools/components/MultiAnglePage.tsx',
-    'apps/desktop/src/features/tools/components/MotionImitationPage.tsx',
-    'apps/desktop/src/features/tools/components/RefImageGenPage.tsx',
-    'apps/desktop/src/features/tools/components/StyleTransferPage.tsx',
+    'apps/desktop/src/features/tools/components/UnifiedToolPage.tsx',
     'apps/desktop/src/features/agent/components/AgentBrowserTabContent.tsx',
   ]
 
@@ -912,7 +908,6 @@ test('project data consumers use the project surface data entrypoint', () => {
   }
 
   for (const file of [
-    'apps/desktop/src/features/app-shell/application/AppShellLayoutHeaders.tsx',
     'apps/desktop/src/features/agent/components/AgentBrowserTabContent.tsx',
   ]) {
     const source = readFileSync(resolve(repoRoot, file), 'utf8')

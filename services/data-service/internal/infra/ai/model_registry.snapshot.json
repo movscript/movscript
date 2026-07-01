@@ -5,13 +5,12 @@
     "model_id": "vyro-seedance-2-fast",
     "route_adapter_hint": "vyro_seedance",
     "capabilities": [
-      "video",
-      "video_i2v"
+      "video_generation"
     ],
     "param_keys": [
       "duration",
       "aspect_ratio",
-      "resolution"
+      "generate_audio"
     ],
     "source": {
       "url": "https://83zi.com/sd2/",
@@ -25,7 +24,7 @@
     "model_id": "eleven_v3",
     "route_adapter_hint": "elevenlabs",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "param_keys": [
       "voice",
@@ -48,7 +47,7 @@
     "model_id": "song_generation",
     "route_adapter_hint": "mureka",
     "capabilities": [
-      "audio_music"
+      "audio_generation"
     ],
     "param_keys": [
       "duration",
@@ -66,7 +65,7 @@
     "model_id": "musicgen",
     "route_adapter_hint": "local",
     "capabilities": [
-      "audio_music"
+      "audio_generation"
     ],
     "param_keys": [
       "duration",
@@ -85,8 +84,7 @@
     "model_id": "stable-audio-3",
     "route_adapter_hint": "stability",
     "capabilities": [
-      "audio_music",
-      "audio_sfx"
+      "audio_generation"
     ],
     "param_keys": [
       "duration",
@@ -105,7 +103,7 @@
     "model_id": "eleven_multilingual_v2",
     "route_adapter_hint": "elevenlabs",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "param_keys": [
       "voice",
@@ -128,7 +126,7 @@
     "model_id": "instrumental_generation",
     "route_adapter_hint": "mureka",
     "capabilities": [
-      "audio_music"
+      "audio_generation"
     ],
     "param_keys": [
       "duration",
@@ -146,7 +144,7 @@
     "model_id": "ace-step",
     "route_adapter_hint": "local",
     "capabilities": [
-      "audio_music"
+      "audio_generation"
     ],
     "param_keys": [
       "duration",
@@ -165,8 +163,7 @@
     "model_id": "stable-audio-2.5",
     "route_adapter_hint": "stability",
     "capabilities": [
-      "audio_music",
-      "audio_sfx"
+      "audio_generation"
     ],
     "param_keys": [
       "duration",
@@ -186,7 +183,7 @@
     "model_id": "eleven_flash_v2_5",
     "route_adapter_hint": "elevenlabs",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "param_keys": [
       "voice",
@@ -209,7 +206,7 @@
     "model_id": "lyrics_generation",
     "route_adapter_hint": "mureka",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "api_kinds": [
       "openai_chat_completions"
@@ -226,7 +223,7 @@
     "model_id": "ace-step-1.5",
     "route_adapter_hint": "local",
     "capabilities": [
-      "audio_music"
+      "audio_generation"
     ],
     "param_keys": [
       "duration",
@@ -245,8 +242,7 @@
     "model_id": "stable-audio-2",
     "route_adapter_hint": "stability",
     "capabilities": [
-      "audio_music",
-      "audio_sfx"
+      "audio_generation"
     ],
     "param_keys": [
       "duration",
@@ -265,7 +261,7 @@
     "model_id": "eleven_flash_v2",
     "route_adapter_hint": "elevenlabs",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "param_keys": [
       "voice",
@@ -288,7 +284,7 @@
     "model_id": "song_extension",
     "route_adapter_hint": "mureka",
     "capabilities": [
-      "audio_music"
+      "audio_generation"
     ],
     "param_keys": [
       "duration"
@@ -305,7 +301,7 @@
     "model_id": "scribe_v2",
     "route_adapter_hint": "elevenlabs",
     "capabilities": [
-      "audio_transcribe"
+      "audio_generation"
     ],
     "param_keys": [
       "diarize",
@@ -323,7 +319,7 @@
     "model_id": "scribe_v2_realtime",
     "route_adapter_hint": "elevenlabs",
     "capabilities": [
-      "audio_transcribe"
+      "audio_generation"
     ],
     "param_keys": [
       "audio_format",
@@ -345,7 +341,7 @@
     "model_id": "gpt-5.2",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -360,7 +356,7 @@
     "model_id": "music_v2",
     "route_adapter_hint": "elevenlabs",
     "capabilities": [
-      "audio_music"
+      "audio_generation"
     ],
     "param_keys": [
       "duration",
@@ -380,7 +376,7 @@
     "model_id": "gpt-4o",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://developers.openai.com/api/docs/models",
@@ -394,7 +390,7 @@
     "model_id": "music_v1",
     "route_adapter_hint": "elevenlabs",
     "capabilities": [
-      "audio_music"
+      "audio_generation"
     ],
     "param_keys": [
       "duration",
@@ -414,7 +410,7 @@
     "model_id": "gpt-4o-mini",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://developers.openai.com/api/docs/models",
@@ -428,7 +424,7 @@
     "model_id": "eleven_text_to_sound_v2",
     "route_adapter_hint": "elevenlabs",
     "capabilities": [
-      "audio_sfx"
+      "audio_generation"
     ],
     "param_keys": [
       "duration",
@@ -448,7 +444,7 @@
     "model_id": "gpt-4.1",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://developers.openai.com/api/docs/models",
@@ -462,7 +458,7 @@
     "model_id": "instant_voice_clone",
     "route_adapter_hint": "elevenlabs",
     "capabilities": [
-      "voice_clone"
+      "audio_generation"
     ],
     "source": {
       "url": "https://elevenlabs.io/docs/overview/capabilities/voices",
@@ -476,7 +472,7 @@
     "model_id": "gpt-4.1-mini",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://developers.openai.com/api/docs/models",
@@ -490,7 +486,7 @@
     "model_id": "professional_voice_clone",
     "route_adapter_hint": "elevenlabs",
     "capabilities": [
-      "voice_clone"
+      "audio_generation"
     ],
     "source": {
       "url": "https://elevenlabs.io/docs/overview/capabilities/voices",
@@ -504,7 +500,7 @@
     "model_id": "o3-mini",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -519,7 +515,7 @@
     "model_id": "voice_design",
     "route_adapter_hint": "elevenlabs",
     "capabilities": [
-      "voice_design"
+      "audio_generation"
     ],
     "source": {
       "url": "https://elevenlabs.io/docs/overview/capabilities/voices",
@@ -533,7 +529,7 @@
     "model_id": "dall-e-3",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "image"
+      "image_generation"
     ],
     "param_keys": [
       "image_size",
@@ -552,7 +548,7 @@
     "model_id": "gpt-image-1",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "image"
+      "image_generation"
     ],
     "param_keys": [
       "image_size",
@@ -570,7 +566,7 @@
     "model_id": "gpt-image-1",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "image_edit"
+      "image_generation"
     ],
     "param_keys": [
       "image_size",
@@ -588,7 +584,7 @@
     "model_id": "gpt-image-2",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "image"
+      "image_generation"
     ],
     "param_keys": [
       "image_size",
@@ -606,7 +602,7 @@
     "model_id": "gpt-4o-mini-tts",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "param_keys": [
       "voice",
@@ -626,7 +622,7 @@
     "model_id": "claude-3-5-sonnet-20241022",
     "route_adapter_hint": "anthropic",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations",
@@ -640,7 +636,7 @@
     "model_id": "gpt-4o-transcribe",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "audio_transcribe"
+      "audio_generation"
     ],
     "param_keys": [
       "response_format",
@@ -659,7 +655,7 @@
     "model_id": "claude-3-7-sonnet-20250219",
     "route_adapter_hint": "anthropic",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -674,7 +670,7 @@
     "model_id": "gpt-4o-mini-transcribe",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "audio_transcribe"
+      "audio_generation"
     ],
     "param_keys": [
       "response_format",
@@ -693,7 +689,7 @@
     "model_id": "claude-3-5-haiku-20241022",
     "route_adapter_hint": "anthropic",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations",
@@ -707,7 +703,7 @@
     "model_id": "gpt-4o-transcribe-diarize",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "audio_transcribe"
+      "audio_generation"
     ],
     "param_keys": [
       "response_format",
@@ -726,7 +722,7 @@
     "model_id": "claude-opus-4-5-20251101",
     "route_adapter_hint": "anthropic",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://platform.claude.com/docs/en/about-claude/models/overview",
@@ -740,8 +736,7 @@
     "model_id": "whisper-1",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "audio_transcribe",
-      "audio_translate"
+      "audio_generation"
     ],
     "param_keys": [
       "response_format",
@@ -760,7 +755,7 @@
     "model_id": "tts-1",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "param_keys": [
       "voice",
@@ -779,7 +774,7 @@
     "model_id": "doubao-seed-2-0-pro-260215",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/82379",
@@ -793,7 +788,7 @@
     "model_id": "tts-1-hd",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "param_keys": [
       "voice",
@@ -812,7 +807,7 @@
     "model_id": "doubao-seed-2-0-lite-260215",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/82379",
@@ -826,7 +821,7 @@
     "model_id": "gpt-4o-mini-audio-preview",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "audio_chat"
+      "audio_generation"
     ],
     "source": {
       "url": "https://developers.openai.com/api/docs/guides/audio",
@@ -840,7 +835,7 @@
     "model_id": "doubao-seed-2-0-mini-260215",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/82379",
@@ -854,7 +849,7 @@
     "model_id": "gpt-3.5-turbo-1106",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -868,7 +863,7 @@
     "model_id": "doubao-seed-1.8-251228",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/82379",
@@ -882,7 +877,7 @@
     "model_id": "gpt-4",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -896,7 +891,7 @@
     "model_id": "doubao-seed-1.6-251015",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/82379",
@@ -910,7 +905,7 @@
     "model_id": "gpt-4-0125-preview",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -924,7 +919,7 @@
     "model_id": "doubao-seed-1.6-lite-251015",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/82379",
@@ -938,7 +933,7 @@
     "model_id": "gpt-4-0613",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -952,7 +947,7 @@
     "model_id": "doubao-seed-1.6-flash-250828",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/82379",
@@ -966,7 +961,7 @@
     "model_id": "gpt-4-turbo",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -980,7 +975,7 @@
     "model_id": "doubao-seed-1.6-vision-250815",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/82379",
@@ -994,7 +989,7 @@
     "model_id": "gpt-4-turbo-2024-04-09",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -1008,7 +1003,7 @@
     "model_id": "doubao-1.5-lite-32k-250115",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/82379",
@@ -1022,7 +1017,7 @@
     "model_id": "gpt-4-turbo-preview",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -1036,7 +1031,7 @@
     "model_id": "doubao-seed-2-0-pro-260215",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/82379",
@@ -1050,7 +1045,7 @@
     "model_id": "gpt-4-vision-preview",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -1064,7 +1059,7 @@
     "model_id": "doubao-seed-2-0-lite-260215",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/82379",
@@ -1078,7 +1073,7 @@
     "model_id": "doubao-seed-1.6-251015",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/82379",
@@ -1092,7 +1087,7 @@
     "model_id": "gpt-4.1-mini-2025-04-14",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -1106,7 +1101,7 @@
     "model_id": "doubao-seedream-3-0-t2i-250415",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "image"
+      "image_generation"
     ],
     "param_keys": [
       "aspect_ratio",
@@ -1126,7 +1121,7 @@
     "model_id": "gpt-4.1-nano",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -1140,7 +1135,7 @@
     "model_id": "doubao-seedream-4-0-250828",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "image"
+      "image_generation"
     ],
     "param_keys": [
       "image_size",
@@ -1161,7 +1156,7 @@
     "model_id": "gpt-4.1-nano-2025-04-14",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -1175,7 +1170,7 @@
     "model_id": "doubao-seedream-4-5-251128",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "image"
+      "image_generation"
     ],
     "param_keys": [
       "image_size",
@@ -1196,7 +1191,7 @@
     "model_id": "gpt-4o-2024-05-13",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -1210,7 +1205,7 @@
     "model_id": "doubao-seedream-5-0-260128",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "image"
+      "image_generation"
     ],
     "param_keys": [
       "image_size",
@@ -1233,7 +1228,7 @@
     "model_id": "gpt-4o-2024-08-06",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -1247,7 +1242,7 @@
     "model_id": "doubao-seedream-5-0-lite-260128",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "image"
+      "image_generation"
     ],
     "param_keys": [
       "image_size",
@@ -1270,7 +1265,7 @@
     "model_id": "gpt-4o-2024-11-20",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -1284,7 +1279,7 @@
     "model_id": "doubao-seedream-3-0-t2i-250415",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "image"
+      "image_generation"
     ],
     "param_keys": [
       "aspect_ratio",
@@ -1304,7 +1299,7 @@
     "model_id": "gpt-4o-audio-preview",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "audio_chat"
+      "audio_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -1318,7 +1313,7 @@
     "model_id": "doubao-seedream-5-0-260128",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "image"
+      "image_generation"
     ],
     "param_keys": [
       "image_size",
@@ -1341,7 +1336,7 @@
     "model_id": "gpt-4o-audio-preview-2024-12-17",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "audio_chat"
+      "audio_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -1355,7 +1350,7 @@
     "model_id": "doubao-seedream-5-0-lite-260128",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "image"
+      "image_generation"
     ],
     "param_keys": [
       "image_size",
@@ -1378,7 +1373,7 @@
     "model_id": "gpt-4o-mini-2024-07-18",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -1392,7 +1387,7 @@
     "model_id": "doubao-seedance-1-0-lite-t2v-250428",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "video"
+      "video_generation"
     ],
     "param_keys": [
       "duration",
@@ -1416,7 +1411,7 @@
     "model_id": "gpt-4o-mini-audio-preview-2024-12-17",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "audio_chat"
+      "audio_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -1430,7 +1425,7 @@
     "model_id": "doubao-seedance-1-0-lite-i2v-250428",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "video_i2v"
+      "video_generation"
     ],
     "param_keys": [
       "duration",
@@ -1453,7 +1448,7 @@
     "model_id": "gpt-5",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -1468,7 +1463,7 @@
     "model_id": "doubao-seedance-1-0-pro-fast-251015",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "video"
+      "video_generation"
     ],
     "param_keys": [
       "duration",
@@ -1492,7 +1487,7 @@
     "model_id": "gpt-5-2025-08-07",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -1507,8 +1502,7 @@
     "model_id": "doubao-seedance-1-5-pro-251215",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "video",
-      "video_i2v"
+      "video_generation"
     ],
     "param_keys": [
       "duration",
@@ -1534,7 +1528,7 @@
     "model_id": "gpt-5-chat-latest",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -1548,7 +1542,7 @@
     "model_id": "seed-tts-2.0-expressive",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "param_keys": [
       "speaker",
@@ -1572,9 +1566,7 @@
     "model_id": "doubao-seedance-2-0-260128",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "video",
-      "video_i2v",
-      "video_v2v"
+      "video_generation"
     ],
     "param_keys": [
       "duration",
@@ -1598,7 +1590,7 @@
     "model_id": "gpt-5-codex",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -1613,7 +1605,7 @@
     "model_id": "seed-tts-2.0-standard",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "param_keys": [
       "speaker",
@@ -1637,9 +1629,7 @@
     "model_id": "doubao-seedance-2-0-fast-260128",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "video",
-      "video_i2v",
-      "video_v2v"
+      "video_generation"
     ],
     "param_keys": [
       "duration",
@@ -1663,7 +1653,7 @@
     "model_id": "kling-v1",
     "route_adapter_hint": "kling",
     "capabilities": [
-      "video"
+      "video_generation"
     ],
     "param_keys": [
       "duration",
@@ -1681,7 +1671,7 @@
     "model_id": "gpt-5-mini",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -1696,7 +1686,7 @@
     "model_id": "seed-tts-1.1",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/6561/1257584?lang=zh",
@@ -1710,7 +1700,7 @@
     "model_id": "kling-v1-6",
     "route_adapter_hint": "kling",
     "capabilities": [
-      "video"
+      "video_generation"
     ],
     "param_keys": [
       "duration",
@@ -1728,7 +1718,7 @@
     "model_id": "gpt-5-mini-2025-08-07",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -1743,7 +1733,7 @@
     "model_id": "seed-tts-1.0",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/6561/1257584?lang=zh",
@@ -1757,7 +1747,7 @@
     "model_id": "kling-v2-master",
     "route_adapter_hint": "kling",
     "capabilities": [
-      "video"
+      "video_generation"
     ],
     "param_keys": [
       "duration",
@@ -1775,7 +1765,7 @@
     "model_id": "gpt-5-nano",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -1790,8 +1780,7 @@
     "model_id": "doubao-seed-audio-1-0",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "audio_music",
-      "audio_sfx"
+      "audio_generation"
     ],
     "param_keys": [
       "duration",
@@ -1815,7 +1804,7 @@
     "model_id": "seed-tts-1.0-concurr",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/6561/1257584?lang=zh",
@@ -1829,7 +1818,7 @@
     "model_id": "kling-v1-5",
     "route_adapter_hint": "kling",
     "capabilities": [
-      "video_i2v"
+      "video_generation"
     ],
     "param_keys": [
       "duration",
@@ -1847,7 +1836,7 @@
     "model_id": "gpt-5-nano-2025-08-07",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -1862,7 +1851,7 @@
     "model_id": "volc.seedasr.auc",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "audio_transcribe"
+      "audio_generation"
     ],
     "param_keys": [
       "format",
@@ -1886,7 +1875,7 @@
     "model_id": "happyhorse-1.0-r2v",
     "route_adapter_hint": "dashscope",
     "capabilities": [
-      "video_i2v"
+      "video_generation"
     ],
     "param_keys": [
       "duration",
@@ -1907,7 +1896,7 @@
     "model_id": "gpt-5-pro",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -1922,7 +1911,7 @@
     "model_id": "Doubao-RealtimeVoice",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "audio_chat"
+      "audio_generation"
     ],
     "param_keys": [
       "model_version",
@@ -1954,7 +1943,7 @@
     "model_id": "gpt-5.1",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -1968,8 +1957,7 @@
     "model_id": "viduq1",
     "route_adapter_hint": "vidu",
     "capabilities": [
-      "video",
-      "video_i2v"
+      "video_generation"
     ],
     "param_keys": [
       "duration",
@@ -1993,7 +1981,7 @@
     "model_id": "seed-voice-replication-2.0",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "voice_clone"
+      "audio_generation"
     ],
     "param_keys": [
       "speaker_id",
@@ -2018,7 +2006,7 @@
     "model_id": "gpt-5.1-2025-11-13",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -2032,7 +2020,7 @@
     "model_id": "doubao-seed-voice-design",
     "route_adapter_hint": "volcen",
     "capabilities": [
-      "voice_design"
+      "audio_generation"
     ],
     "param_keys": [
       "resource_id",
@@ -2056,7 +2044,7 @@
     "model_id": "grok-4.3",
     "route_adapter_hint": "official_video_generations",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2071,7 +2059,7 @@
     "model_id": "gpt-5.1-chat",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -2085,7 +2073,7 @@
     "model_id": "grok-imagine-image-quality",
     "route_adapter_hint": "openai_video_multipart",
     "capabilities": [
-      "image"
+      "image_generation"
     ],
     "param_keys": [
       "aspect_ratio",
@@ -2104,7 +2092,7 @@
     "model_id": "gpt-5.1-chat-latest",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -2118,7 +2106,7 @@
     "model_id": "grok-imagine-image-quality",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "image_edit"
+      "image_generation"
     ],
     "param_keys": [
       "aspect_ratio",
@@ -2136,7 +2124,7 @@
     "model_id": "gpt-5.1-codex",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -2150,7 +2138,7 @@
     "model_id": "grok-imagine-video",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "video"
+      "video_generation"
     ],
     "param_keys": [
       "duration",
@@ -2169,7 +2157,7 @@
     "model_id": "gpt-5.1-codex-max",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -2183,7 +2171,7 @@
     "model_id": "grok-imagine-video-1.5",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "video_i2v"
+      "video_generation"
     ],
     "param_keys": [
       "duration",
@@ -2202,7 +2190,7 @@
     "model_id": "qwen3-max",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2217,7 +2205,7 @@
     "model_id": "gpt-5.1-codex-mini",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -2231,7 +2219,7 @@
     "model_id": "grok-3",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -2245,7 +2233,7 @@
     "model_id": "qwen-plus",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://www.alibabacloud.com/help/en/model-studio/models",
@@ -2259,7 +2247,7 @@
     "model_id": "gpt-5.2-2025-12-11",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -2273,7 +2261,7 @@
     "model_id": "grok-3-mini",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -2287,7 +2275,7 @@
     "model_id": "qwen-turbo",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://www.alibabacloud.com/help/en/model-studio/models",
@@ -2301,7 +2289,7 @@
     "model_id": "gpt-5.2-chat",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -2315,7 +2303,7 @@
     "model_id": "grok-4",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -2329,7 +2317,7 @@
     "model_id": "qwen-vl-max",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://www.alibabacloud.com/help/en/model-studio/models",
@@ -2343,7 +2331,7 @@
     "model_id": "gpt-5.2-chat-latest",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -2357,7 +2345,7 @@
     "model_id": "grok-4-1-fast-non-reasoning",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -2371,7 +2359,7 @@
     "model_id": "qwen-image",
     "route_adapter_hint": "dashscope",
     "capabilities": [
-      "image"
+      "image_generation"
     ],
     "param_keys": [
       "aspect_ratio"
@@ -2388,7 +2376,7 @@
     "model_id": "gpt-5.2-codex",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -2402,7 +2390,7 @@
     "model_id": "grok-4-1-fast-reasoning",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2417,7 +2405,7 @@
     "model_id": "qwen3-tts-flash",
     "route_adapter_hint": "dashscope",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-tts-api",
@@ -2431,7 +2419,7 @@
     "model_id": "deepseek-v4-flash",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2446,7 +2434,7 @@
     "model_id": "gpt-5.2-pro",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2461,7 +2449,7 @@
     "model_id": "grok-4-fast-non-reasoning",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -2475,7 +2463,7 @@
     "model_id": "qwen3-tts-instruct-flash",
     "route_adapter_hint": "dashscope",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-tts-api",
@@ -2489,7 +2477,7 @@
     "model_id": "deepseek-chat",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://api-docs.deepseek.com/quick_start/pricing",
@@ -2503,7 +2491,7 @@
     "model_id": "gpt-5.2-pro-2025-12-11",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2518,7 +2506,7 @@
     "model_id": "grok-4-fast-reasoning",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2533,7 +2521,7 @@
     "model_id": "qwen3-tts-flash-realtime",
     "route_adapter_hint": "dashscope",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://www.alibabacloud.com/help/en/model-studio/interactive-process-of-qwen-tts-realtime-synthesis",
@@ -2547,7 +2535,7 @@
     "model_id": "deepseek-reasoner",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2562,7 +2550,7 @@
     "model_id": "gpt-5.3-chat-latest",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -2576,7 +2564,7 @@
     "model_id": "grok-imagine-image",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "image"
+      "image_generation"
     ],
     "param_keys": [
       "aspect_ratio",
@@ -2595,7 +2583,7 @@
     "model_id": "qwen3-tts-instruct-flash-realtime",
     "route_adapter_hint": "dashscope",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://www.alibabacloud.com/help/en/model-studio/interactive-process-of-qwen-tts-realtime-synthesis",
@@ -2609,7 +2597,7 @@
     "model_id": "deepseek-r1",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2624,7 +2612,7 @@
     "model_id": "gpt-5.3-codex",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -2638,7 +2626,7 @@
     "model_id": "grok-imagine-image-pro",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "image"
+      "image_generation"
     ],
     "param_keys": [
       "aspect_ratio",
@@ -2657,7 +2645,7 @@
     "model_id": "glm-5.2",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2672,7 +2660,7 @@
     "model_id": "cosyvoice-v3.5-plus",
     "route_adapter_hint": "dashscope",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://help.aliyun.com/en/model-studio/cosyvoice-tts-http-api",
@@ -2686,7 +2674,7 @@
     "model_id": "gpt-5.3-codex-spark",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -2700,7 +2688,7 @@
     "model_id": "glm-5.1",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2715,7 +2703,7 @@
     "model_id": "cosyvoice-v3.5-flash",
     "route_adapter_hint": "dashscope",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://help.aliyun.com/en/model-studio/cosyvoice-tts-http-api",
@@ -2729,7 +2717,7 @@
     "model_id": "deepseek-r1-2025-01-20",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2744,7 +2732,7 @@
     "model_id": "gemini-2.5-pro",
     "route_adapter_hint": "gemini",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2759,7 +2747,7 @@
     "model_id": "gpt-5.4",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -2773,7 +2761,7 @@
     "model_id": "glm-5",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2788,7 +2776,7 @@
     "model_id": "cosyvoice-v3-plus",
     "route_adapter_hint": "dashscope",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://help.aliyun.com/en/model-studio/cosyvoice-tts-http-api",
@@ -2802,7 +2790,7 @@
     "model_id": "deepseek-r1-250120",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2817,7 +2805,7 @@
     "model_id": "gemini-2.5-flash",
     "route_adapter_hint": "gemini",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2832,7 +2820,7 @@
     "model_id": "gemini-3.1-pro-preview",
     "route_adapter_hint": "gemini",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2847,7 +2835,7 @@
     "model_id": "gpt-5.4-mini",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2862,7 +2850,7 @@
     "model_id": "glm-4.7",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2877,7 +2865,7 @@
     "model_id": "cosyvoice-v3-flash",
     "route_adapter_hint": "dashscope",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://help.aliyun.com/en/model-studio/cosyvoice-tts-http-api",
@@ -2891,7 +2879,7 @@
     "model_id": "deepseek-r1-250528",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2906,7 +2894,7 @@
     "model_id": "gemini-2.0-flash",
     "route_adapter_hint": "gemini",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://ai.google.dev/gemini-api/docs/models/gemini-2.0-flash",
@@ -2920,7 +2908,7 @@
     "model_id": "gemini-3-flash-preview",
     "route_adapter_hint": "gemini",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2935,7 +2923,7 @@
     "model_id": "gpt-5.4-mini-2026-03-17",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2950,7 +2938,7 @@
     "model_id": "glm-4.6",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -2965,7 +2953,7 @@
     "model_id": "qwen3-omni-flash-realtime",
     "route_adapter_hint": "dashscope",
     "capabilities": [
-      "audio_chat"
+      "audio_generation"
     ],
     "param_keys": [
       "voice",
@@ -2985,7 +2973,7 @@
     "model_id": "deepseek-r1-distill-qwen-32b",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3000,7 +2988,7 @@
     "model_id": "gemini-3.1-flash-lite",
     "route_adapter_hint": "gemini",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3015,7 +3003,7 @@
     "model_id": "imagen-3.0-generate-002",
     "route_adapter_hint": "gemini",
     "capabilities": [
-      "image"
+      "image_generation"
     ],
     "param_keys": [
       "aspect_ratio"
@@ -3032,7 +3020,7 @@
     "model_id": "gpt-5.4-nano",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3047,7 +3035,7 @@
     "model_id": "glm-4.5",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3062,7 +3050,7 @@
     "model_id": "qwen3-omni-flash-realtime-2025-09-15",
     "route_adapter_hint": "dashscope",
     "capabilities": [
-      "audio_chat"
+      "audio_generation"
     ],
     "param_keys": [
       "voice",
@@ -3082,7 +3070,7 @@
     "model_id": "deepseek-r1-distill-qwen-7b",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3097,8 +3085,7 @@
     "model_id": "gemini-3-pro-image-preview",
     "route_adapter_hint": "gemini",
     "capabilities": [
-      "image",
-      "image_edit"
+      "image_generation"
     ],
     "param_keys": [
       "aspect_ratio",
@@ -3116,8 +3103,7 @@
     "model_id": "gemini-2.0-flash-preview-image-generation",
     "route_adapter_hint": "gemini",
     "capabilities": [
-      "image",
-      "image_edit"
+      "image_generation"
     ],
     "param_keys": [
       "aspect_ratio"
@@ -3134,7 +3120,7 @@
     "model_id": "gpt-5.4-nano-2026-03-17",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3149,7 +3135,7 @@
     "model_id": "glm-4.5-air",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3164,7 +3150,7 @@
     "model_id": "qvq-max",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3178,7 +3164,7 @@
     "model_id": "deepseek-v3",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3192,8 +3178,7 @@
     "model_id": "gemini-3.1-flash-image-preview",
     "route_adapter_hint": "gemini",
     "capabilities": [
-      "image",
-      "image_edit"
+      "image_generation"
     ],
     "param_keys": [
       "aspect_ratio",
@@ -3211,8 +3196,7 @@
     "model_id": "veo-2.0-generate-001",
     "route_adapter_hint": "gemini",
     "capabilities": [
-      "video",
-      "video_i2v"
+      "video_generation"
     ],
     "param_keys": [
       "duration",
@@ -3230,7 +3214,7 @@
     "model_id": "gpt-5.4-pro",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3244,7 +3228,7 @@
     "model_id": "glm-4.5-flash",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3259,7 +3243,7 @@
     "model_id": "qvq-max-latest",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3273,7 +3257,7 @@
     "model_id": "deepseek-v3-0324",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3287,7 +3271,7 @@
     "model_id": "gemini-3.1-flash-tts-preview",
     "route_adapter_hint": "gemini",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://ai.google.dev/gemini-api/docs/speech-generation",
@@ -3301,7 +3285,7 @@
     "model_id": "MiniMax-M3",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3316,7 +3300,7 @@
     "model_id": "gpt-5.4-pro-2026-03-05",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3330,7 +3314,7 @@
     "model_id": "glm-3-turbo",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3344,7 +3328,7 @@
     "model_id": "qwen-flash",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3358,7 +3342,7 @@
     "model_id": "deepseek-v3-1",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3372,7 +3356,7 @@
     "model_id": "gemini-2.5-flash-preview-tts",
     "route_adapter_hint": "gemini",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://ai.google.dev/gemini-api/docs/speech-generation",
@@ -3386,7 +3370,7 @@
     "model_id": "MiniMax-M2.7",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3401,7 +3385,7 @@
     "model_id": "gpt-5.5",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3415,7 +3399,7 @@
     "model_id": "glm-4",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3429,7 +3413,7 @@
     "model_id": "qwen-max",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3443,7 +3427,7 @@
     "model_id": "deepseek-v3-1-250821",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3458,7 +3442,7 @@
     "model_id": "gemini-2.5-pro-preview-tts",
     "route_adapter_hint": "gemini",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://ai.google.dev/gemini-api/docs/speech-generation",
@@ -3472,7 +3456,7 @@
     "model_id": "MiniMax-M2.7-highspeed",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3487,7 +3471,7 @@
     "model_id": "gpt-audio",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "audio_chat"
+      "audio_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3501,7 +3485,7 @@
     "model_id": "glm-4-air",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3515,7 +3499,7 @@
     "model_id": "qwen-max-latest",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3529,7 +3513,7 @@
     "model_id": "deepseek-v3-1-think-250821",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3544,7 +3528,7 @@
     "model_id": "lyria-3-clip-preview",
     "route_adapter_hint": "gemini",
     "capabilities": [
-      "audio_music"
+      "audio_generation"
     ],
     "param_keys": [
       "duration",
@@ -3562,7 +3546,7 @@
     "model_id": "MiniMax-M2.5",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3577,7 +3561,7 @@
     "model_id": "gpt-audio-2025-08-28",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "audio_chat"
+      "audio_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3591,7 +3575,7 @@
     "model_id": "glm-4-airx",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3605,7 +3589,7 @@
     "model_id": "qwen-plus-2025-12-01",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3619,7 +3603,7 @@
     "model_id": "deepseek-v3-250324",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3633,7 +3617,7 @@
     "model_id": "lyria-3-pro-preview",
     "route_adapter_hint": "gemini",
     "capabilities": [
-      "audio_music"
+      "audio_generation"
     ],
     "param_keys": [
       "duration",
@@ -3651,7 +3635,7 @@
     "model_id": "MiniMax-M2.1",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3666,8 +3650,7 @@
     "model_id": "gpt-image-1-mini",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "image",
-      "image_edit"
+      "image_generation"
     ],
     "param_keys": [
       "image_size",
@@ -3685,7 +3668,7 @@
     "model_id": "glm-4-flash",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3699,7 +3682,7 @@
     "model_id": "qwen-plus-character",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3713,7 +3696,7 @@
     "model_id": "deepseek-v3.1",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3728,7 +3711,7 @@
     "model_id": "chirp_3",
     "route_adapter_hint": "gemini",
     "capabilities": [
-      "audio_transcribe"
+      "audio_generation"
     ],
     "param_keys": [
       "project_id",
@@ -3748,7 +3731,7 @@
     "model_id": "MiniMax-M2.1-highspeed",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3763,7 +3746,7 @@
     "model_id": "glm-4-long",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3777,7 +3760,7 @@
     "model_id": "qwen-plus-latest",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3791,7 +3774,7 @@
     "model_id": "deepseek-v3.2",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3805,7 +3788,7 @@
     "model_id": "chirp_2",
     "route_adapter_hint": "gemini",
     "capabilities": [
-      "audio_transcribe"
+      "audio_generation"
     ],
     "param_keys": [
       "project_id",
@@ -3825,7 +3808,7 @@
     "model_id": "MiniMax-M2",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3840,7 +3823,7 @@
     "model_id": "gpt-oss-120b",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3854,7 +3837,7 @@
     "model_id": "glm-4.5-airx",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3869,7 +3852,7 @@
     "model_id": "qwen-turbo-2025-07-15",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3883,7 +3866,7 @@
     "model_id": "deepseek-v3.2-exp",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3897,7 +3880,7 @@
     "model_id": "speech-2.8-hd",
     "route_adapter_hint": "minimax",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
@@ -3911,7 +3894,7 @@
     "model_id": "gpt-oss-20b",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3925,7 +3908,7 @@
     "model_id": "glm-4.5-x",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3940,7 +3923,7 @@
     "model_id": "qwen-vl-max-2025-08-13",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -3954,7 +3937,7 @@
     "model_id": "deepseek-v4-pro",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3969,7 +3952,7 @@
     "model_id": "speech-2.8-turbo",
     "route_adapter_hint": "minimax",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
@@ -3983,7 +3966,7 @@
     "model_id": "o1",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -3998,7 +3981,7 @@
     "model_id": "glm-4.6v",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4012,7 +3995,7 @@
     "model_id": "qwen-vl-max-latest",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4026,7 +4009,7 @@
     "model_id": "speech-2.6-hd",
     "route_adapter_hint": "minimax",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
@@ -4040,7 +4023,7 @@
     "model_id": "o1-2024-12-17",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4055,7 +4038,7 @@
     "model_id": "qwen2-vl-72b-instruct",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4069,7 +4052,7 @@
     "model_id": "speech-2.6-turbo",
     "route_adapter_hint": "minimax",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
@@ -4083,7 +4066,7 @@
     "model_id": "o1-mini",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4098,7 +4081,7 @@
     "model_id": "qwen3-0.6b",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4112,7 +4095,7 @@
     "model_id": "speech-02-hd",
     "route_adapter_hint": "minimax",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
@@ -4126,7 +4109,7 @@
     "model_id": "o1-mini-2024-09-12",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4141,7 +4124,7 @@
     "model_id": "qwen3-1.7b",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4155,7 +4138,7 @@
     "model_id": "speech-02-turbo",
     "route_adapter_hint": "minimax",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
@@ -4169,7 +4152,7 @@
     "model_id": "o1-preview-2024-09-12",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4184,7 +4167,7 @@
     "model_id": "qwen3-14b",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4198,7 +4181,7 @@
     "model_id": "speech-01-hd",
     "route_adapter_hint": "minimax",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
@@ -4212,7 +4195,7 @@
     "model_id": "o3",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4227,7 +4210,7 @@
     "model_id": "qwen3-235b-a22b",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4241,7 +4224,7 @@
     "model_id": "speech-01-turbo",
     "route_adapter_hint": "minimax",
     "capabilities": [
-      "audio_tts"
+      "audio_generation"
     ],
     "source": {
       "url": "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
@@ -4255,7 +4238,7 @@
     "model_id": "o3-2025-04-16",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4270,7 +4253,7 @@
     "model_id": "qwen3-235b-a22b-instruct-2507",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4284,7 +4267,7 @@
     "model_id": "minimax-m2.1",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4298,7 +4281,7 @@
     "model_id": "o3-mini-2025-01-31",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4313,7 +4296,7 @@
     "model_id": "qwen3-30b-a3b",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4327,7 +4310,7 @@
     "model_id": "o3-pro",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4342,7 +4325,7 @@
     "model_id": "mimo-v2.5",
     "route_adapter_hint": "xiaomi_mimo",
     "capabilities": [
-      "audio_chat"
+      "audio_generation"
     ],
     "param_keys": [
       "language",
@@ -4361,7 +4344,7 @@
     "model_id": "qwen3-30b-a3b-instruct-2507",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4375,7 +4358,7 @@
     "model_id": "o3-pro-2025-06-10",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4390,7 +4373,7 @@
     "model_id": "mimo-v2-omni",
     "route_adapter_hint": "xiaomi_mimo",
     "capabilities": [
-      "audio_chat"
+      "audio_generation"
     ],
     "source": {
       "url": "https://mimo.mi.com/docs/en-US/price/pay-as-you-go",
@@ -4404,7 +4387,7 @@
     "model_id": "qwen3-30b-a3b-think",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4419,7 +4402,7 @@
     "model_id": "o4-mini",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4434,7 +4417,7 @@
     "model_id": "mimo-v2-pro",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4448,7 +4431,7 @@
     "model_id": "qwen3-30b-a3b-thinking-2507",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4463,7 +4446,7 @@
     "model_id": "o4-mini-2025-04-16",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4478,7 +4461,7 @@
     "model_id": "mimo-v2.5-pro",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4492,7 +4475,7 @@
     "model_id": "qwen3-32b",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4506,7 +4489,7 @@
     "model_id": "qwen3-4b",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4520,7 +4503,7 @@
     "model_id": "qwen3-8b",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4534,7 +4517,7 @@
     "model_id": "qwen3-coder",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4549,7 +4532,7 @@
     "model_id": "qwen3-coder-30b-a3b-instruct",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4564,7 +4547,7 @@
     "model_id": "qwen3-coder-480b-a35b-instruct",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4579,7 +4562,7 @@
     "model_id": "qwen3-coder-flash",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4593,7 +4576,7 @@
     "model_id": "qwen3-coder-plus",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4608,7 +4591,7 @@
     "model_id": "qwen3-max-2026-01-23",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4623,7 +4606,7 @@
     "model_id": "qwen3-max-preview",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4637,7 +4620,7 @@
     "model_id": "qwen3-max-preview-n",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4651,7 +4634,7 @@
     "model_id": "qwen3-next-80b-a3b-instruct",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4665,7 +4648,7 @@
     "model_id": "qwen3-next-80b-a3b-thinking",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4680,7 +4663,7 @@
     "model_id": "qwen3-vl-235b-a22b-instruct",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4694,7 +4677,7 @@
     "model_id": "qwen3-vl-235b-a22b-thinking",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4709,7 +4692,7 @@
     "model_id": "qwen3-vl-30b-a3b-instruct",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4723,7 +4706,7 @@
     "model_id": "qwen3-vl-30b-a3b-thinking",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4738,7 +4721,7 @@
     "model_id": "qwen3-vl-32b-instruct",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4752,7 +4735,7 @@
     "model_id": "qwen3-vl-32b-thinking",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4767,7 +4750,7 @@
     "model_id": "qwen3-vl-8b-instruct",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4781,7 +4764,7 @@
     "model_id": "qwen3-vl-8b-thinking",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4796,7 +4779,7 @@
     "model_id": "qwen3-vl-flash",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4810,7 +4793,7 @@
     "model_id": "qwen3-vl-plus",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4824,7 +4807,7 @@
     "model_id": "qwen3.5-122b-a10b",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4839,7 +4822,7 @@
     "model_id": "qwen3.5-27b",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4853,7 +4836,7 @@
     "model_id": "qwen3.5-35b-a3b",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4867,7 +4850,7 @@
     "model_id": "qwen3.5-397b-a17b",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4882,7 +4865,7 @@
     "model_id": "qwen3.5-plus",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4897,7 +4880,7 @@
     "model_id": "qwen3.5-plus-2026-02-15",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4912,7 +4895,7 @@
     "model_id": "qwen3.6-27b",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4926,7 +4909,7 @@
     "model_id": "qwen3.6-35b-a3b",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4940,7 +4923,7 @@
     "model_id": "qwen3.6-plus",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4954,7 +4937,7 @@
     "model_id": "qwen3.7-max",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4968,7 +4951,7 @@
     "model_id": "qwen3.7-plus",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text"
+      "text_generation"
     ],
     "source": {
       "url": "https://yunwu.ai/v1/models",
@@ -4982,7 +4965,7 @@
     "model_id": "qwq-32b",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -4997,7 +4980,7 @@
     "model_id": "qwq-32b-preview",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -5012,7 +4995,7 @@
     "model_id": "qwq-72b-preview",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -5027,7 +5010,7 @@
     "model_id": "qwq-plus",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -5042,7 +5025,7 @@
     "model_id": "qwq-plus-2025-03-05",
     "route_adapter_hint": "openai_compat",
     "capabilities": [
-      "text",
+      "text_generation",
       "reasoning"
     ],
     "source": {
@@ -5056,7 +5039,7 @@
     "lab": "doubao2api",
     "model_id": "doubao-image",
     "capabilities": [
-      "image"
+      "image_generation"
     ],
     "param_keys": [
       "aspect_ratio"
@@ -5072,7 +5055,7 @@
     "lab": "doubao2api",
     "model_id": "doubao-video",
     "capabilities": [
-      "video"
+      "video_generation"
     ],
     "param_keys": [
       "duration",

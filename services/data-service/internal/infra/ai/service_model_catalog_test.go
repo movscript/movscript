@@ -50,11 +50,11 @@ func TestAIServiceModelCatalogContractMergesLogicalModels(t *testing.T) {
 		&persistencemodel.AIModelCatalogEntry{},
 		&persistencemodel.AIModelRouteBinding{},
 	)
-	createCatalogRouteVariant(t, db, 1, "Busy provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-busy", 10, CapabilityText)
-	createCatalogRouteVariant(t, db, 2, "Healthy provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-healthy", 20, CapabilityText)
+	createCatalogRouteVariant(t, db, 1, "Busy provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-busy", 10, CapabilityFamilyTextGeneration)
+	createCatalogRouteVariant(t, db, 2, "Healthy provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-healthy", 20, CapabilityFamilyTextGeneration)
 	service := NewAIService(db, NewRegistry(db, nil))
 
-	models, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityText})
+	models, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityFamilyTextGeneration})
 	if err != nil {
 		t.Fatalf("ListModels() error = %v", err)
 	}
@@ -65,7 +65,7 @@ func TestAIServiceModelCatalogContractMergesLogicalModels(t *testing.T) {
 		t.Fatalf("catalog model descriptor = %#v, want merged gpt-5.2 without provider name", models[0])
 	}
 
-	variants, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityText, ProviderVariants: true})
+	variants, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityFamilyTextGeneration, ProviderVariants: true})
 	if err != nil {
 		t.Fatalf("ListModels(provider variants) error = %v", err)
 	}
@@ -81,11 +81,11 @@ func TestAIServiceModelCatalogFiltersRoutesByAPIKind(t *testing.T) {
 		&persistencemodel.AIModelCatalogEntry{},
 		&persistencemodel.AIModelRouteBinding{},
 	)
-	createCatalogRouteVariant(t, db, 1, "OpenAI provider", AdapterOpenAICompat, "agent-writer", "openai-writer", 10, CapabilityText)
-	createCatalogRouteVariant(t, db, 2, "Anthropic provider", AdapterAnthropic, "agent-writer", "claude-writer", 20, CapabilityText)
+	createCatalogRouteVariant(t, db, 1, "OpenAI provider", AdapterOpenAICompat, "agent-writer", "openai-writer", 10, CapabilityFamilyTextGeneration)
+	createCatalogRouteVariant(t, db, 2, "Anthropic provider", AdapterAnthropic, "agent-writer", "claude-writer", 20, CapabilityFamilyTextGeneration)
 	service := NewAIService(db, NewRegistry(db, nil))
 
-	allModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityText})
+	allModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityFamilyTextGeneration})
 	if err != nil {
 		t.Fatalf("ListModels(all) error = %v", err)
 	}
@@ -97,7 +97,7 @@ func TestAIServiceModelCatalogFiltersRoutesByAPIKind(t *testing.T) {
 	}
 
 	claudeModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{
-		Capability: CapabilityText,
+		Capability: CapabilityFamilyTextGeneration,
 		APIKind:    ModelAPIKindAnthropicMessages,
 	})
 	if err != nil {
@@ -108,7 +108,7 @@ func TestAIServiceModelCatalogFiltersRoutesByAPIKind(t *testing.T) {
 	}
 
 	responsesModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{
-		Capability: CapabilityText,
+		Capability: CapabilityFamilyTextGeneration,
 		APIKind:    ModelAPIKindOpenAIResponses,
 	})
 	if err != nil {
@@ -120,7 +120,7 @@ func TestAIServiceModelCatalogFiltersRoutesByAPIKind(t *testing.T) {
 
 	anthropicRoute, err := service.ResolveModelRoute(ModelRouteRequest{
 		ModelID:    "agent-writer",
-		Capability: CapabilityText,
+		Capability: CapabilityFamilyTextGeneration,
 		APIKind:    ModelAPIKindAnthropicMessages,
 	})
 	if err != nil {
@@ -132,7 +132,7 @@ func TestAIServiceModelCatalogFiltersRoutesByAPIKind(t *testing.T) {
 
 	responsesRoute, err := service.ResolveModelRoute(ModelRouteRequest{
 		ModelID:    "agent-writer",
-		Capability: CapabilityText,
+		Capability: CapabilityFamilyTextGeneration,
 		APIKind:    ModelAPIKindOpenAIResponses,
 	})
 	if err != nil {
@@ -148,38 +148,41 @@ func TestAIServiceModelCatalogUsesCatalogEntriesAndRouteBindings(t *testing.T) {
 		&persistencemodel.AIModelCatalogEntry{},
 		&persistencemodel.AIModelRouteBinding{},
 	)
+	videoParamProfile := `{"version":2,"common":{"allow":["duration"],"override":{"duration":{"key":"duration","label":"Duration","type":"number","min":1,"max":10,"step":1,"default":5}}}}`
 	defaultEntry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID:   "video-fast",
-		DisplayName:     "Video Fast",
-		ShortName:       "Fast",
-		IsEnabled:       true,
-		Capabilities:    CapabilityVideo,
-		SupportedParams: `[{"key":"duration","type":"number"}]`,
+		PublicModelID:         "video-fast",
+		DisplayName:           "Video Fast",
+		ShortName:             "Fast",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyVideoGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyVideoGeneration),
+		SupportedParams:       videoParamProfile,
 	}
 	if err := db.Create(&defaultEntry).Error; err != nil {
 		t.Fatalf("create default catalog entry: %v", err)
 	}
 	priorityEntry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID:   "video-fast",
-		DisplayName:     "Video Fast",
-		ShortName:       "Fast",
-		IsEnabled:       true,
-		Capabilities:    CapabilityVideo,
-		SupportedParams: `[{"key":"duration","type":"number"}]`,
+		PublicModelID:         "video-fast",
+		DisplayName:           "Video Fast",
+		ShortName:             "Fast",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyVideoGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyVideoGeneration),
+		SupportedParams:       videoParamProfile,
 	}
 	if err := db.Create(&priorityEntry).Error; err != nil {
 		t.Fatalf("create priority catalog entry: %v", err)
 	}
 	bindings := []persistencemodel.AIModelRouteBinding{
-		{CatalogEntryID: defaultEntry.ID, SourceType: persistencemodel.ModelRouteSourceRelayGateway, RouteGroup: "default", ProviderID: persistencemodel.ModelRouteSourceRelayGateway, ProviderModelID: "kling-v2", IsEnabled: true, Priority: 1, CapacityWeight: 1},
-		{CatalogEntryID: priorityEntry.ID, SourceType: persistencemodel.ModelRouteSourceRelayGateway, RouteGroup: "priority", ProviderID: persistencemodel.ModelRouteSourceRelayGateway, ProviderModelID: "kling-v2-master", IsEnabled: true, Priority: 10, CapacityWeight: 2},
+		{CatalogEntryID: defaultEntry.ID, SourceType: persistencemodel.ModelRouteSourceRelayGateway, RouteGroup: "default", ProviderID: persistencemodel.ModelRouteSourceRelayGateway, AdapterType: AdapterVolcen, ProviderModelID: "kling-v2", IsEnabled: true, Priority: 1, CapacityWeight: 1},
+		{CatalogEntryID: priorityEntry.ID, SourceType: persistencemodel.ModelRouteSourceRelayGateway, RouteGroup: "priority", ProviderID: persistencemodel.ModelRouteSourceRelayGateway, AdapterType: AdapterVolcen, ProviderModelID: "kling-v2-master", IsEnabled: true, Priority: 10, CapacityWeight: 2},
 	}
 	if err := db.Create(&bindings).Error; err != nil {
 		t.Fatalf("create route bindings: %v", err)
 	}
 	service := NewAIService(db, NewRegistry(db, nil))
 
-	allModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityVideo})
+	allModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityFamilyVideoGeneration})
 	if err != nil {
 		t.Fatalf("ListModels(all route groups) error = %v", err)
 	}
@@ -187,7 +190,7 @@ func TestAIServiceModelCatalogUsesCatalogEntriesAndRouteBindings(t *testing.T) {
 		t.Fatalf("merged catalog models = %#v, want one public model with two provider variants", allModels)
 	}
 
-	defaultModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityVideo, RouteGroup: "default"})
+	defaultModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityFamilyVideoGeneration, RouteGroup: "default"})
 	if err != nil {
 		t.Fatalf("ListModels(default route group) error = %v", err)
 	}
@@ -198,7 +201,7 @@ func TestAIServiceModelCatalogUsesCatalogEntriesAndRouteBindings(t *testing.T) {
 		t.Fatalf("default model alias = %#v, want stable public id with default provider id", defaultModels[0])
 	}
 
-	models, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityVideo, RouteGroup: "priority"})
+	models, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityFamilyVideoGeneration, RouteGroup: "priority"})
 	if err != nil {
 		t.Fatalf("ListModels(route group) error = %v", err)
 	}
@@ -209,28 +212,38 @@ func TestAIServiceModelCatalogUsesCatalogEntriesAndRouteBindings(t *testing.T) {
 	if model.ModelID != "video-fast" || model.CatalogEntryID != priorityEntry.ID || model.ProviderModelID != "kling-v2-master" || model.ModelIDOverride != "kling-v2-master" {
 		t.Fatalf("model alias = %#v, want stable MovScript id with priority provider id", model)
 	}
-	if len(model.SupportedParams) != 1 || model.SupportedParams[0]["key"] != "duration" {
-		t.Fatalf("supported params = %#v, want catalog params", model.SupportedParams)
+	if model.ContractVersion != 2 {
+		t.Fatalf("contract version = %d, want 2", model.ContractVersion)
+	}
+	if !containsTrimmed(model.Operations, VideoOperationPromptToVideo) || !containsTrimmed(model.Operations, VideoOperationImageToVideo) {
+		t.Fatalf("operations = %#v, want video operation contract", model.Operations)
+	}
+	promptParams := model.SupportedParamsByOperation[VideoOperationPromptToVideo]
+	if len(promptParams) != 1 || promptParams[0]["key"] != "duration" {
+		t.Fatalf("supported params by operation = %#v, want params for %s", model.SupportedParamsByOperation, VideoOperationPromptToVideo)
+	}
+	if schema := model.ParamsSchemaByOperation[VideoOperationPromptToVideo]; schema["type"] != "object" {
+		t.Fatalf("params schema by operation = %#v, want object schema for %s", model.ParamsSchemaByOperation, VideoOperationPromptToVideo)
 	}
 
-	route, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "video-fast", Capability: CapabilityVideo, RouteGroup: "priority"})
+	route, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "video-fast", Capability: CapabilityFamilyVideoGeneration, RouteGroup: "priority"})
 	if err != nil {
 		t.Fatalf("ResolveModelRoute(catalog route group) error = %v", err)
 	}
 	if route.ModelID != "video-fast" || route.ProviderModelID != "kling-v2-master" || route.SelectionReason != "catalog_route_group" {
 		t.Fatalf("catalog route = %#v, want public id resolved to priority provider id", route)
 	}
-	anyGroupRoute, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "video-fast", Capability: CapabilityVideo})
+	anyGroupRoute, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "video-fast", Capability: CapabilityFamilyVideoGeneration})
 	if err != nil {
 		t.Fatalf("ResolveModelRoute(catalog public id) error = %v", err)
 	}
 	if anyGroupRoute.ProviderModelID != "kling-v2-master" {
 		t.Fatalf("catalog public-id route = %#v, want highest-priority provider id", anyGroupRoute)
 	}
-	if _, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "kling-v2-master", Capability: CapabilityVideo, RouteGroup: "priority"}); err == nil {
+	if _, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "kling-v2-master", Capability: CapabilityFamilyVideoGeneration, RouteGroup: "priority"}); err == nil {
 		t.Fatal("ResolveModelRoute(provider model id) succeeded, want provider_model_id hidden behind public model id")
 	}
-	routeByEntryID, err := service.ResolveModelRoute(ModelRouteRequest{CatalogEntryID: priorityEntry.ID, Capability: CapabilityVideo, RouteGroup: "priority"})
+	routeByEntryID, err := service.ResolveModelRoute(ModelRouteRequest{CatalogEntryID: priorityEntry.ID, Capability: CapabilityFamilyVideoGeneration, RouteGroup: "priority"})
 	if err != nil {
 		t.Fatalf("ResolveModelRoute(catalog entry id) error = %v", err)
 	}
@@ -245,10 +258,11 @@ func TestAIServiceListModelsDoesNotFallbackToLegacyConfigsWhenCatalogExists(t *t
 		&persistencemodel.AIModelRouteBinding{},
 	)
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "catalog-writer",
-		DisplayName:   "Catalog Writer",
-		IsEnabled:     true,
-		Capabilities:  CapabilityText,
+		PublicModelID:         "catalog-writer",
+		DisplayName:           "Catalog Writer",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyTextGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -258,13 +272,12 @@ func TestAIServiceListModelsDoesNotFallbackToLegacyConfigsWhenCatalogExists(t *t
 		SourceType:     persistencemodel.ModelRouteSourceRelayGateway,
 		RouteGroup:     "default",
 		IsEnabled:      true,
-		CapacityWeight: 1,
-	}).Error; err != nil {
+		CapacityWeight: 1}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
 	service := NewAIService(db, NewRegistry(db, nil))
 
-	models, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityText})
+	models, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityFamilyTextGeneration})
 	if err != nil {
 		t.Fatalf("ListModels() error = %v", err)
 	}
@@ -275,7 +288,7 @@ func TestAIServiceListModelsDoesNotFallbackToLegacyConfigsWhenCatalogExists(t *t
 		t.Fatalf("models = %#v, leaked legacy ai_model_configs fallback", models)
 	}
 
-	imageModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityImage})
+	imageModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityFamilyImageGeneration})
 	if err != nil {
 		t.Fatalf("ListModels(image) error = %v", err)
 	}
@@ -293,10 +306,11 @@ func TestAIServiceGetAnyTextModelUsesCatalogRoutesWithoutLegacyModelConfigTable(
 		t.Fatal("catalog-only get-any-text test should not create legacy ai_model_configs")
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "catalog-writer",
-		DisplayName:   "Catalog Writer",
-		IsEnabled:     true,
-		Capabilities:  CapabilityText,
+		PublicModelID:         "catalog-writer",
+		DisplayName:           "Catalog Writer",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyTextGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -307,8 +321,7 @@ func TestAIServiceGetAnyTextModelUsesCatalogRoutesWithoutLegacyModelConfigTable(
 		RouteGroup:     "default",
 		IsEnabled:      true,
 		Priority:       10,
-		CapacityWeight: 1,
-	}).Error; err != nil {
+		CapacityWeight: 1}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
 	service := NewAIService(db, NewRegistry(db, nil))
@@ -328,10 +341,11 @@ func TestAIServiceGetAnyTextModelDoesNotFallbackToLegacyConfigsWhenCatalogExists
 		&persistencemodel.AIModelRouteBinding{},
 	)
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "catalog-writer",
-		DisplayName:   "Catalog Writer",
-		IsEnabled:     true,
-		Capabilities:  CapabilityText,
+		PublicModelID:         "catalog-writer",
+		DisplayName:           "Catalog Writer",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyTextGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -342,8 +356,7 @@ func TestAIServiceGetAnyTextModelDoesNotFallbackToLegacyConfigsWhenCatalogExists
 		RouteGroup:     "default",
 		IsEnabled:      true,
 		Priority:       1,
-		CapacityWeight: 1,
-	}).Error; err != nil {
+		CapacityWeight: 1}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
 	service := NewAIService(db, NewRegistry(db, nil))
@@ -368,10 +381,11 @@ func TestAIServiceResolveModelRouteByRouteBindingID(t *testing.T) {
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "image-fast",
-		DisplayName:   "Image Fast",
-		IsEnabled:     true,
-		Capabilities:  CapabilityImage,
+		PublicModelID:         "image-fast",
+		DisplayName:           "Image Fast",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyImageGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyImageGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -381,18 +395,18 @@ func TestAIServiceResolveModelRouteByRouteBindingID(t *testing.T) {
 		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
 		RouteGroup:      "priority",
 		ProviderID:      fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		AdapterType:     cred.AdapterType,
 		ProviderModelID: "provider-image-v2",
 		CredentialID:    &cred.ID,
 		IsEnabled:       true,
 		Priority:        1,
-		CapacityWeight:  1,
-	}
+		CapacityWeight:  1}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
 
 	service := NewAIService(db, NewRegistry(db, nil))
-	route, err := service.ResolveModelRoute(ModelRouteRequest{RouteBindingID: binding.ID, Capability: CapabilityImage})
+	route, err := service.ResolveModelRoute(ModelRouteRequest{RouteBindingID: binding.ID, Capability: CapabilityFamilyImageGeneration})
 	if err != nil {
 		t.Fatalf("ResolveModelRoute(route binding) error = %v", err)
 	}
@@ -460,10 +474,11 @@ func TestAIServiceResolveModelRouteIncludesProviderFacts(t *testing.T) {
 		&persistencemodel.AIProvider{},
 	)
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "seedance-2-0",
-		DisplayName:   "Seedance 2.0",
-		IsEnabled:     true,
-		Capabilities:  CapabilityVideoI2V,
+		PublicModelID:         "seedance-2-0",
+		DisplayName:           "Seedance 2.0",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyVideoGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyVideoGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -483,18 +498,18 @@ func TestAIServiceResolveModelRouteIncludesProviderFacts(t *testing.T) {
 		CatalogEntryID:  entry.ID,
 		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
 		ProviderID:      providerID,
+		AdapterType:     AdapterVolcen,
 		ProviderModelID: "doubao-seedance-2-0-260128",
 		APIKinds:        "video,async_task",
 		IsEnabled:       true,
-		CapacityWeight:  1,
-	}
+		CapacityWeight:  1}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
 
 	route, err := NewAIService(db, NewRegistry(db, nil)).ResolveModelRoute(ModelRouteRequest{
 		CatalogEntryID: entry.ID,
-		Capability:     CapabilityVideoI2V,
+		Capability:     CapabilityFamilyVideoGeneration,
 	})
 	if err != nil {
 		t.Fatalf("ResolveModelRoute() error = %v", err)
@@ -522,10 +537,11 @@ func TestAIServiceCatalogRouteUsesCredentialAdapterForVolcenVideoTasks(t *testin
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "seedance-2-0",
-		DisplayName:   "Seedance 2.0",
-		IsEnabled:     true,
-		Capabilities:  strings.Join([]string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V}, ","),
+		PublicModelID:         "seedance-2-0",
+		DisplayName:           "Seedance 2.0",
+		IsEnabled:             true,
+		Capabilities:          strings.Join([]string{CapabilityFamilyVideoGeneration}, ","),
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyVideoGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -534,17 +550,17 @@ func TestAIServiceCatalogRouteUsesCredentialAdapterForVolcenVideoTasks(t *testin
 		CatalogEntryID:  entry.ID,
 		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
 		ProviderID:      fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		AdapterType:     cred.AdapterType,
 		ProviderModelID: "doubao-seedance-2-0-260128",
 		CredentialID:    &cred.ID,
 		IsEnabled:       true,
-		CapacityWeight:  1,
-	}
+		CapacityWeight:  1}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
 	service := NewAIService(db, NewRegistry(db, nil))
 
-	route, err := service.ResolveModelRoute(ModelRouteRequest{RouteBindingID: binding.ID, Capability: CapabilityVideoI2V})
+	route, err := service.ResolveModelRoute(ModelRouteRequest{RouteBindingID: binding.ID, Capability: CapabilityFamilyVideoGeneration})
 	if err != nil {
 		t.Fatalf("ResolveModelRoute() error = %v", err)
 	}
@@ -562,7 +578,7 @@ func TestCatalogRouteDefinitionUsesCatalogRuntimeModel(t *testing.T) {
 		DisplayName:     "Writer",
 		ShortName:       "write",
 		IsEnabled:       true,
-		Capabilities:    CapabilityText,
+		Capabilities:    CapabilityFamilyTextGeneration,
 		SupportedParams: `[{"key":"temperature","type":"number"}]`,
 	}
 	if err := db.Create(&entry).Error; err != nil {
@@ -574,7 +590,7 @@ func TestCatalogRouteDefinitionUsesCatalogRuntimeModel(t *testing.T) {
 		CatalogEntryID:  entry.ID,
 		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
 		ProviderModelID: "provider-writer-v2",
-	}, CapabilityText)
+	}, CapabilityFamilyTextGeneration)
 	if err != nil {
 		t.Fatalf("catalogRouteDefinition() error = %v", err)
 	}
@@ -603,10 +619,11 @@ func TestAIServiceCatalogRouteCanCallLocalProviderWithProviderModelID(t *testing
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "writer",
-		DisplayName:   "Writer",
-		IsEnabled:     true,
-		Capabilities:  CapabilityText,
+		PublicModelID:         "writer",
+		DisplayName:           "Writer",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyTextGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -615,11 +632,11 @@ func TestAIServiceCatalogRouteCanCallLocalProviderWithProviderModelID(t *testing
 		CatalogEntryID:  entry.ID,
 		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
 		ProviderID:      fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		AdapterType:     cred.AdapterType,
 		ProviderModelID: "provider-writer-v2",
 		CredentialID:    &cred.ID,
 		IsEnabled:       true,
-		CapacityWeight:  1,
-	}
+		CapacityWeight:  1}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
@@ -630,7 +647,7 @@ func TestAIServiceCatalogRouteCanCallLocalProviderWithProviderModelID(t *testing
 	}
 	service := NewAIService(db, registry)
 
-	route, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "writer", Capability: CapabilityText})
+	route, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "writer", Capability: CapabilityFamilyTextGeneration})
 	if err != nil {
 		t.Fatalf("ResolveModelRoute() error = %v", err)
 	}
@@ -688,10 +705,11 @@ func TestAIServiceCatalogRouteAppliesEndpointOverrideToProviderCredential(t *tes
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "video-ali",
-		DisplayName:   "Video Ali",
-		IsEnabled:     true,
-		Capabilities:  CapabilityVideo,
+		PublicModelID:         "video-ali",
+		DisplayName:           "Video Ali",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyVideoGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyVideoGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -706,8 +724,7 @@ func TestAIServiceCatalogRouteAppliesEndpointOverrideToProviderCredential(t *tes
 		EndpointMode:       RouteEndpointModeReplacePath,
 		CredentialID:       &cred.ID,
 		IsEnabled:          true,
-		CapacityWeight:     1,
-	}
+		CapacityWeight:     1}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
@@ -720,7 +737,7 @@ func TestAIServiceCatalogRouteAppliesEndpointOverrideToProviderCredential(t *tes
 	}
 	service := NewAIService(db, registry)
 
-	route, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "video-ali", Capability: CapabilityVideo})
+	route, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "video-ali", Capability: CapabilityFamilyVideoGeneration})
 	if err != nil {
 		t.Fatalf("ResolveModelRoute() error = %v", err)
 	}
@@ -756,10 +773,11 @@ func TestAIServiceCatalogRouteEndpointCanBeLoadedFromRouteBindingID(t *testing.T
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "writer",
-		DisplayName:   "Writer",
-		IsEnabled:     true,
-		Capabilities:  CapabilityText,
+		PublicModelID:         "writer",
+		DisplayName:           "Writer",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyTextGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -773,8 +791,7 @@ func TestAIServiceCatalogRouteEndpointCanBeLoadedFromRouteBindingID(t *testing.T
 		EndpointMode:       RouteEndpointModeReplacePath,
 		CredentialID:       &cred.ID,
 		IsEnabled:          true,
-		CapacityWeight:     1,
-	}
+		CapacityWeight:     1}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
@@ -840,56 +857,19 @@ func TestAIServiceStructuredCapabilityRoutesByOperationAndInputRoles(t *testing.
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
-	imageOnlyRoute := persistencemodel.AIModelRouteBinding{
+	routeBinding := persistencemodel.AIModelRouteBinding{
 		CatalogEntryID:  entry.ID,
 		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
 		RouteGroup:      "default",
 		ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
-		ProviderModelID: "provider-image-video",
-		IsEnabled:       true,
-		Priority:        20,
-		CapacityWeight:  1,
-		RouteCapabilitiesJSON: `{
-			"video_generation": {
-				"operations": ["image_to_video"],
-				"reference_assets": {
-					"min": 1,
-					"max": 1,
-					"modalities": ["image"],
-					"roles": ["generic"]
-				}
-			}
-		}`,
-	}
-	firstLastRoute := persistencemodel.AIModelRouteBinding{
-		CatalogEntryID:  entry.ID,
-		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
-		RouteGroup:      "default",
-		ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
-		ProviderModelID: "provider-first-last-video",
+		AdapterType:     AdapterVolcen,
+		ProviderModelID: "provider-structured-video",
 		IsEnabled:       true,
 		Priority:        10,
 		CapacityWeight:  1,
-		RouteCapabilitiesJSON: `{
-			"video_generation": {
-				"operations": ["first_last_frame_to_video"],
-				"reference_assets": {
-					"min": 2,
-					"max": 2,
-					"modalities": ["image"],
-					"roles": ["first_frame", "last_frame"]
-				},
-				"asset_transport": {
-					"input_media": ["public_url"]
-				}
-			}
-		}`,
 	}
-	if err := db.Create(&imageOnlyRoute).Error; err != nil {
-		t.Fatalf("create image-only route: %v", err)
-	}
-	if err := db.Create(&firstLastRoute).Error; err != nil {
-		t.Fatalf("create first-last route: %v", err)
+	if err := db.Create(&routeBinding).Error; err != nil {
+		t.Fatalf("create structured route: %v", err)
 	}
 	service := NewAIService(db, NewRegistry(db, nil))
 
@@ -908,8 +888,8 @@ func TestAIServiceStructuredCapabilityRoutesByOperationAndInputRoles(t *testing.
 	if err != nil {
 		t.Fatalf("ListModels(first-last operation) error = %v", err)
 	}
-	if len(firstLastModels) != 1 || firstLastModels[0].ProviderModelID != "provider-first-last-video" {
-		t.Fatalf("first-last models = %#v, want first-last provider route", firstLastModels)
+	if len(firstLastModels) != 1 || firstLastModels[0].ProviderModelID != "provider-structured-video" {
+		t.Fatalf("first-last models = %#v, want structured provider route", firstLastModels)
 	}
 
 	imageToVideoModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{
@@ -919,8 +899,8 @@ func TestAIServiceStructuredCapabilityRoutesByOperationAndInputRoles(t *testing.
 	if err != nil {
 		t.Fatalf("ListModels(image-to-video operation) error = %v", err)
 	}
-	if len(imageToVideoModels) != 1 || imageToVideoModels[0].ProviderModelID != "provider-image-video" {
-		t.Fatalf("image-to-video models = %#v, want image-to-video provider route", imageToVideoModels)
+	if len(imageToVideoModels) != 1 || imageToVideoModels[0].ProviderModelID != "provider-structured-video" {
+		t.Fatalf("image-to-video models = %#v, want structured provider route", imageToVideoModels)
 	}
 
 	inferredFirstLastModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{
@@ -936,9 +916,9 @@ func TestAIServiceStructuredCapabilityRoutesByOperationAndInputRoles(t *testing.
 		t.Fatalf("ListModels(inferred first-last intent) error = %v", err)
 	}
 	if len(inferredFirstLastModels) != 1 ||
-		inferredFirstLastModels[0].ProviderModelID != "provider-first-last-video" ||
+		inferredFirstLastModels[0].ProviderModelID != "provider-structured-video" ||
 		inferredFirstLastModels[0].InferredOperation != VideoOperationFirstLastFrameToVideo {
-		t.Fatalf("inferred first-last models = %#v, want first-last provider route", inferredFirstLastModels)
+		t.Fatalf("inferred first-last models = %#v, want structured provider route", inferredFirstLastModels)
 	}
 
 	inferredImageModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{
@@ -953,9 +933,9 @@ func TestAIServiceStructuredCapabilityRoutesByOperationAndInputRoles(t *testing.
 		t.Fatalf("ListModels(inferred image-to-video intent) error = %v", err)
 	}
 	if len(inferredImageModels) != 1 ||
-		inferredImageModels[0].ProviderModelID != "provider-image-video" ||
+		inferredImageModels[0].ProviderModelID != "provider-structured-video" ||
 		inferredImageModels[0].InferredOperation != VideoOperationImageToVideo {
-		t.Fatalf("inferred image models = %#v, want image-to-video provider route", inferredImageModels)
+		t.Fatalf("inferred image models = %#v, want structured provider route", inferredImageModels)
 	}
 
 	missingRoleModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{
@@ -986,8 +966,8 @@ func TestAIServiceStructuredCapabilityRoutesByOperationAndInputRoles(t *testing.
 	if err != nil {
 		t.Fatalf("ResolveModelRoute() error = %v", err)
 	}
-	if route.RouteBindingID != firstLastRoute.ID || route.ProviderModelID != "provider-first-last-video" {
-		t.Fatalf("route = %#v, want first-last route despite lower priority", route)
+	if route.RouteBindingID != routeBinding.ID || route.ProviderModelID != "provider-structured-video" {
+		t.Fatalf("route = %#v, want structured route", route)
 	}
 
 	inferredRoute, err := service.ResolveModelRoute(ModelRouteRequest{
@@ -1002,7 +982,7 @@ func TestAIServiceStructuredCapabilityRoutesByOperationAndInputRoles(t *testing.
 	if err != nil {
 		t.Fatalf("ResolveModelRoute(inferred operation) error = %v", err)
 	}
-	if inferredRoute.RouteBindingID != firstLastRoute.ID || inferredRoute.Operation != VideoOperationFirstLastFrameToVideo {
+	if inferredRoute.RouteBindingID != routeBinding.ID || inferredRoute.Operation != VideoOperationFirstLastFrameToVideo {
 		t.Fatalf("inferred route = %#v, want first-last route and operation", inferredRoute)
 	}
 
@@ -1019,8 +999,8 @@ func TestAIServiceStructuredCapabilityRoutesByOperationAndInputRoles(t *testing.
 	if err != nil {
 		t.Fatalf("DiagnoseModelRoute() error = %v", err)
 	}
-	if diagnosis.SelectedRouteID != firstLastRoute.ID {
-		t.Fatalf("selected route id = %d, want %d", diagnosis.SelectedRouteID, firstLastRoute.ID)
+	if diagnosis.SelectedRouteID != routeBinding.ID {
+		t.Fatalf("selected route id = %d, want %d", diagnosis.SelectedRouteID, routeBinding.ID)
 	}
 	if diagnosis.SelectedRoute == nil ||
 		diagnosis.SelectedRoute.ResourceAccess == nil ||
@@ -1030,20 +1010,6 @@ func TestAIServiceStructuredCapabilityRoutesByOperationAndInputRoles(t *testing.
 		!hasString(diagnosis.SelectedRoute.ResourceAccess.InputMedia, "image") {
 		t.Fatalf("selected route resource access = %#v, want ResourceAccessProfile public URL dependency", diagnosis.SelectedRoute)
 	}
-	var rejectedImageOnly *ModelRouteDiagnosticCandidate
-	for i := range diagnosis.Candidates {
-		if diagnosis.Candidates[i].RouteBindingID == imageOnlyRoute.ID {
-			rejectedImageOnly = &diagnosis.Candidates[i]
-			break
-		}
-	}
-	if rejectedImageOnly == nil {
-		t.Fatalf("diagnosis candidates = %#v, want image-only route candidate", diagnosis.Candidates)
-	}
-	if rejectedImageOnly.Status != ModelRouteDiagnosticStatusRejected || !hasString(rejectedImageOnly.Reasons, "missing_route_capability:missing_operation:first_last_frame_to_video") {
-		t.Fatalf("image-only route diagnosis = %#v, want rejected missing_operation reason", rejectedImageOnly)
-	}
-
 	_, err = service.ResolveModelRoute(ModelRouteRequest{
 		ModelID:    "story-video",
 		Capability: CapabilityFamilyVideoGeneration,
@@ -1093,16 +1059,15 @@ func TestAIServiceStructuredCapabilityUsesOperationSlotSchema(t *testing.T) {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	route := persistencemodel.AIModelRouteBinding{
-		CatalogEntryID:        entry.ID,
-		SourceType:            persistencemodel.ModelRouteSourceRelayGateway,
-		RouteGroup:            "default",
-		ProviderID:            persistencemodel.ModelRouteSourceRelayGateway,
-		ProviderModelID:       "provider-slot-video",
-		IsEnabled:             true,
-		Priority:              10,
-		CapacityWeight:        1,
-		RouteCapabilitiesJSON: capabilitiesJSON,
-	}
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
+		RouteGroup:      "default",
+		ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
+		AdapterType:     AdapterVolcen,
+		ProviderModelID: "provider-slot-video",
+		IsEnabled:       true,
+		Priority:        10,
+		CapacityWeight:  1}
 	if err := db.Create(&route).Error; err != nil {
 		t.Fatalf("create route: %v", err)
 	}
@@ -1154,8 +1119,7 @@ func TestAIServiceStructuredCapabilityUsesOperationSlotSchema(t *testing.T) {
 		t.Fatalf("DiagnoseModelRoute() error = %v", err)
 	}
 	if len(diagnosis.Candidates) != 1 ||
-		!hasString(diagnosis.Candidates[0].Reasons, "missing_model_capability:unsupported_operation_input:reference_image:image") ||
-		!hasString(diagnosis.Candidates[0].Reasons, "missing_route_capability:unsupported_operation_input:reference_image:image") {
+		!hasString(diagnosis.Candidates[0].Reasons, "missing_model_capability:unsupported_operation_input:reference_image:image") {
 		t.Fatalf("diagnosis = %#v, want operation slot reasons", diagnosis.Candidates)
 	}
 }
@@ -1170,7 +1134,7 @@ func TestAIServiceCatalogRouteRejectsUnsupportedSourceWithoutLegacyFallback(t *t
 		PublicModelID: "writer",
 		DisplayName:   "Writer",
 		IsEnabled:     true,
-		Capabilities:  CapabilityText,
+		Capabilities:  CapabilityFamilyTextGeneration,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -1211,10 +1175,11 @@ func TestAIServiceCatalogRouteCanCallImageProviderWithProviderModelID(t *testing
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "image-fast",
-		DisplayName:   "Image Fast",
-		IsEnabled:     true,
-		Capabilities:  CapabilityImage,
+		PublicModelID:         "image-fast",
+		DisplayName:           "Image Fast",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyImageGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyImageGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -1223,11 +1188,11 @@ func TestAIServiceCatalogRouteCanCallImageProviderWithProviderModelID(t *testing
 		CatalogEntryID:  entry.ID,
 		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
 		ProviderID:      fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		AdapterType:     cred.AdapterType,
 		ProviderModelID: "provider-image-v2",
 		CredentialID:    &cred.ID,
 		IsEnabled:       true,
-		CapacityWeight:  1,
-	}).Error; err != nil {
+		CapacityWeight:  1}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
 	probe := &catalogRuntimeProbeProvider{}
@@ -1235,7 +1200,7 @@ func TestAIServiceCatalogRouteCanCallImageProviderWithProviderModelID(t *testing
 	registry.providerFactory = func(persistencemodel.AICredential, *ModelDef) (Provider, error) { return probe, nil }
 	service := NewAIService(db, registry)
 
-	route, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "image-fast", Capability: CapabilityImage})
+	route, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "image-fast", Capability: CapabilityFamilyImageGeneration})
 	if err != nil {
 		t.Fatalf("ResolveModelRoute() error = %v", err)
 	}
@@ -1261,10 +1226,11 @@ func TestAIServiceCatalogRouteCanCallTTSProviderWithProviderModelID(t *testing.T
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "voice-main",
-		DisplayName:   "Voice Main",
-		IsEnabled:     true,
-		Capabilities:  CapabilityAudioTTS,
+		PublicModelID:         "voice-main",
+		DisplayName:           "Voice Main",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyAudioGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyAudioGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -1273,11 +1239,11 @@ func TestAIServiceCatalogRouteCanCallTTSProviderWithProviderModelID(t *testing.T
 		CatalogEntryID:  entry.ID,
 		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
 		ProviderID:      fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		AdapterType:     cred.AdapterType,
 		ProviderModelID: "provider-voice-v2",
 		CredentialID:    &cred.ID,
 		IsEnabled:       true,
-		CapacityWeight:  1,
-	}).Error; err != nil {
+		CapacityWeight:  1}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
 	probe := &catalogRuntimeProbeProvider{}
@@ -1285,7 +1251,7 @@ func TestAIServiceCatalogRouteCanCallTTSProviderWithProviderModelID(t *testing.T
 	registry.providerFactory = func(persistencemodel.AICredential, *ModelDef) (Provider, error) { return probe, nil }
 	service := NewAIService(db, registry)
 
-	route, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "voice-main", Capability: CapabilityAudioTTS})
+	route, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "voice-main", Capability: CapabilityFamilyAudioGeneration})
 	if err != nil {
 		t.Fatalf("ResolveModelRoute() error = %v", err)
 	}
@@ -1304,7 +1270,7 @@ func TestAIServiceModelCatalogDefaultFilterIncludesSubtitleAlign(t *testing.T) {
 		&persistencemodel.AIModelCatalogEntry{},
 		&persistencemodel.AIModelRouteBinding{},
 	)
-	createCatalogRouteVariant(t, db, 1, "Align provider", AdapterOpenAICompat, "align-model", "provider-align-model", 10, CapabilitySubAlign)
+	createCatalogRouteVariant(t, db, 1, "Align provider", AdapterOpenAICompat, "align-model", "provider-align-model", 10, CapabilityFamilyAudioGeneration)
 	service := NewAIService(db, NewRegistry(db, nil))
 
 	models, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{})
@@ -1316,7 +1282,7 @@ func TestAIServiceModelCatalogDefaultFilterIncludesSubtitleAlign(t *testing.T) {
 			return
 		}
 	}
-	t.Fatalf("ListModels(default) = %#v, want subtitle_align model", models)
+	t.Fatalf("ListModels(default) = %#v, want forced-alignment audio_generation model", models)
 }
 
 func TestAIServiceModelCatalogContractResolvesCatalogProviderBinding(t *testing.T) {
@@ -1326,13 +1292,13 @@ func TestAIServiceModelCatalogContractResolvesCatalogProviderBinding(t *testing.
 		&persistencemodel.AIModelCatalogEntry{},
 		&persistencemodel.AIModelRouteBinding{},
 	)
-	createCatalogRouteVariant(t, db, 1, "Primary provider", AdapterOpenAICompat, "writer", "provider-gpt-5.2", 10, CapabilityText)
-	createCatalogRouteVariant(t, db, 2, "Image provider", AdapterOpenAICompat, "image-main", "provider-image-1", 10, CapabilityImage)
+	createCatalogRouteVariant(t, db, 1, "Primary provider", AdapterOpenAICompat, "writer", "provider-gpt-5.2", 10, CapabilityFamilyTextGeneration)
+	createCatalogRouteVariant(t, db, 2, "Image provider", AdapterOpenAICompat, "image-main", "provider-image-1", 10, CapabilityFamilyImageGeneration)
 	service := NewAIService(db, NewRegistry(db, nil))
 
 	binding, err := service.ResolveModel(context.Background(), providercontract.AIModelResolveRequest{
 		ModelID:    "writer",
-		Capability: CapabilityText,
+		Capability: CapabilityFamilyTextGeneration,
 	})
 	if err != nil {
 		t.Fatalf("ResolveModel() error = %v", err)
@@ -1343,7 +1309,7 @@ func TestAIServiceModelCatalogContractResolvesCatalogProviderBinding(t *testing.
 
 	if _, err := service.ResolveModel(context.Background(), providercontract.AIModelResolveRequest{
 		ModelID:    "writer",
-		Capability: CapabilityImage,
+		Capability: CapabilityFamilyImageGeneration,
 	}); err == nil {
 		t.Fatal("ResolveModel() for unsupported capability succeeded, want error")
 	}
@@ -1367,16 +1333,18 @@ func TestAIServiceResolveModelUsesCatalogRouteWithoutLegacyModelConfigTable(t *t
 		t.Fatalf("create credential: %v", err)
 	}
 	localEntry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "writer",
-		DisplayName:   "Writer",
-		IsEnabled:     true,
-		Capabilities:  CapabilityText,
+		PublicModelID:         "writer",
+		DisplayName:           "Writer",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyTextGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
 	}
 	relayGatewayEntry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "priority-writer",
-		DisplayName:   "Priority Writer",
-		IsEnabled:     true,
-		Capabilities:  CapabilityText,
+		PublicModelID:         "priority-writer",
+		DisplayName:           "Priority Writer",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyTextGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
 	}
 	if err := db.Create(&localEntry).Error; err != nil {
 		t.Fatalf("create local catalog entry: %v", err)
@@ -1388,11 +1356,11 @@ func TestAIServiceResolveModelUsesCatalogRouteWithoutLegacyModelConfigTable(t *t
 		CatalogEntryID:  localEntry.ID,
 		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
 		ProviderID:      fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		AdapterType:     cred.AdapterType,
 		ProviderModelID: "provider-writer-v2",
 		CredentialID:    &cred.ID,
 		IsEnabled:       true,
-		CapacityWeight:  1,
-	}).Error; err != nil {
+		CapacityWeight:  1}).Error; err != nil {
 		t.Fatalf("create local route binding: %v", err)
 	}
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
@@ -1400,17 +1368,17 @@ func TestAIServiceResolveModelUsesCatalogRouteWithoutLegacyModelConfigTable(t *t
 		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
 		RouteGroup:      "priority",
 		ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
+		AdapterType:     AdapterOpenAICompat,
 		ProviderModelID: "relay-writer-v2",
 		IsEnabled:       true,
-		CapacityWeight:  1,
-	}).Error; err != nil {
+		CapacityWeight:  1}).Error; err != nil {
 		t.Fatalf("create relay gateway route binding: %v", err)
 	}
 	service := NewAIService(db, NewRegistry(db, nil))
 
 	localBinding, err := service.ResolveModel(context.Background(), providercontract.AIModelResolveRequest{
 		ModelID:    "writer",
-		Capability: CapabilityText,
+		Capability: CapabilityFamilyTextGeneration,
 	})
 	if err != nil {
 		t.Fatalf("ResolveModel(local catalog route) error = %v", err)
@@ -1421,12 +1389,12 @@ func TestAIServiceResolveModelUsesCatalogRouteWithoutLegacyModelConfigTable(t *t
 
 	relayGatewayBinding, err := service.ResolveModel(WithProviderRouteGroup(context.Background(), "priority"), providercontract.AIModelResolveRequest{
 		ModelID:    "priority-writer",
-		Capability: CapabilityText,
+		Capability: CapabilityFamilyTextGeneration,
 	})
 	if err != nil {
 		t.Fatalf("ResolveModel(relay gateway catalog route) error = %v", err)
 	}
-	if relayGatewayBinding.CatalogEntryID != relayGatewayEntry.ID || relayGatewayBinding.ProviderModelID != "relay-writer-v2" || relayGatewayBinding.AdapterType != persistencemodel.ModelRouteSourceRelayGateway || relayGatewayBinding.ProviderName != "priority" {
+	if relayGatewayBinding.CatalogEntryID != relayGatewayEntry.ID || relayGatewayBinding.ProviderModelID != "relay-writer-v2" || relayGatewayBinding.AdapterType != AdapterOpenAICompat || relayGatewayBinding.ProviderName != "priority" {
 		t.Fatalf("relay gateway catalog binding = %#v, want route source/group without legacy config", relayGatewayBinding)
 	}
 }

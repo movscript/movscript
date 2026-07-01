@@ -67,6 +67,245 @@ func TestProviderAssetSettingsUpdateMasksSecretsAndAudits(t *testing.T) {
 	}
 }
 
+func TestUsagePolicySettingsUpdateAuditsAndRejectsInvalidPolicy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := testutil.OpenSQLite(t, "handler-usage-policy-settings.db", &persistencemodel.AdminSetting{}, &persistencemodel.AuditLog{})
+	handler := NewAdminSettingsHandler(db, "")
+	router := gin.New()
+	router.GET("/admin/settings/usage-policy", handler.GetUsagePolicySettings)
+	router.GET("/admin/settings/usage-policy/diagnose", handler.DiagnoseUsagePolicy)
+	router.PUT("/admin/settings/usage-policy", handler.UpdateUsagePolicySettings)
+
+	getDefaults := httptest.NewRecorder()
+	router.ServeHTTP(getDefaults, httptest.NewRequest(http.MethodGet, "/admin/settings/usage-policy", nil))
+	if getDefaults.Code != http.StatusOK {
+		t.Fatalf("expected usage policy defaults, got %d: %s", getDefaults.Code, getDefaults.Body.String())
+	}
+	if !strings.Contains(getDefaults.Body.String(), `"mode":"off"`) {
+		t.Fatalf("unexpected usage policy defaults: %s", getDefaults.Body.String())
+	}
+
+	updateReq := httptest.NewRequest(http.MethodPut, "/admin/settings/usage-policy", strings.NewReader(`{
+		"mode":"observe",
+		"default_usage_credit_limit":1000,
+		"default_monthly_credit_limit":250,
+		"default_daily_credit_limit":25,
+		"alert_thresholds":[50,80,100],
+		"gateway":{
+			"max_requests_per_minute":60,
+			"max_concurrent_requests":4,
+			"max_estimated_cost_per_call":3.5
+		},
+		"notes":"rollout"
+	}`))
+	updateReq.Header.Set("Content-Type", "application/json")
+	updateRes := httptest.NewRecorder()
+	router.ServeHTTP(updateRes, updateReq)
+	if updateRes.Code != http.StatusOK {
+		t.Fatalf("expected usage policy update, got %d: %s", updateRes.Code, updateRes.Body.String())
+	}
+	if !strings.Contains(updateRes.Body.String(), `"mode":"observe"`) ||
+		!strings.Contains(updateRes.Body.String(), `"max_requests_per_minute":60`) {
+		t.Fatalf("unexpected usage policy update response: %s", updateRes.Body.String())
+	}
+	if countAuditAction(t, db, "settings.usage_policy.admin_updated") != 1 {
+		t.Fatalf("expected usage policy update audit log")
+	}
+
+	diagnoseRes := httptest.NewRecorder()
+	router.ServeHTTP(diagnoseRes, httptest.NewRequest(http.MethodGet, "/admin/settings/usage-policy/diagnose", nil))
+	if diagnoseRes.Code != http.StatusOK {
+		t.Fatalf("expected usage policy diagnose, got %d: %s", diagnoseRes.Code, diagnoseRes.Body.String())
+	}
+	if !strings.Contains(diagnoseRes.Body.String(), `"status":"observe"`) ||
+		!strings.Contains(diagnoseRes.Body.String(), `"enforcement_ready":false`) ||
+		!strings.Contains(diagnoseRes.Body.String(), `"usage_policy_observe_mode"`) {
+		t.Fatalf("unexpected usage policy observe diagnosis: %s", diagnoseRes.Body.String())
+	}
+
+	invalidReq := httptest.NewRequest(http.MethodPut, "/admin/settings/usage-policy", strings.NewReader(`{
+		"mode":"enforce",
+		"alert_thresholds":[150]
+	}`))
+	invalidReq.Header.Set("Content-Type", "application/json")
+	invalidRes := httptest.NewRecorder()
+	router.ServeHTTP(invalidRes, invalidReq)
+	if invalidRes.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid usage policy to return 400, got %d: %s", invalidRes.Code, invalidRes.Body.String())
+	}
+	if countAuditAction(t, db, "settings.usage_policy.admin_updated") != 1 {
+		t.Fatalf("expected invalid usage policy not to write audit")
+	}
+}
+
+func TestUsagePolicySettingsDiagnoseReportsRuntimeEnforcementGaps(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := testutil.OpenSQLite(t, "handler-usage-policy-diagnose.db", &persistencemodel.AdminSetting{}, &persistencemodel.AuditLog{})
+	handler := NewAdminSettingsHandler(db, "")
+	router := gin.New()
+	router.GET("/admin/settings/usage-policy/diagnose", handler.DiagnoseUsagePolicy)
+	router.PUT("/admin/settings/usage-policy", handler.UpdateUsagePolicySettings)
+
+	defaultRes := httptest.NewRecorder()
+	router.ServeHTTP(defaultRes, httptest.NewRequest(http.MethodGet, "/admin/settings/usage-policy/diagnose", nil))
+	if defaultRes.Code != http.StatusOK {
+		t.Fatalf("expected default usage policy diagnose, got %d: %s", defaultRes.Code, defaultRes.Body.String())
+	}
+	if !strings.Contains(defaultRes.Body.String(), `"status":"disabled"`) ||
+		!strings.Contains(defaultRes.Body.String(), `"mode":"off"`) ||
+		!strings.Contains(defaultRes.Body.String(), `"enforcement_ready":false`) {
+		t.Fatalf("unexpected default usage policy diagnosis: %s", defaultRes.Body.String())
+	}
+
+	noLimitReq := httptest.NewRequest(http.MethodPut, "/admin/settings/usage-policy", strings.NewReader(`{"mode":"enforce"}`))
+	noLimitReq.Header.Set("Content-Type", "application/json")
+	noLimitUpdate := httptest.NewRecorder()
+	router.ServeHTTP(noLimitUpdate, noLimitReq)
+	if noLimitUpdate.Code != http.StatusOK {
+		t.Fatalf("expected enforce no-limit usage policy update, got %d: %s", noLimitUpdate.Code, noLimitUpdate.Body.String())
+	}
+	noLimitRes := httptest.NewRecorder()
+	router.ServeHTTP(noLimitRes, httptest.NewRequest(http.MethodGet, "/admin/settings/usage-policy/diagnose", nil))
+	if noLimitRes.Code != http.StatusOK {
+		t.Fatalf("expected no-limit usage policy diagnose, got %d: %s", noLimitRes.Code, noLimitRes.Body.String())
+	}
+	if !strings.Contains(noLimitRes.Body.String(), `"status":"blocked"`) ||
+		!strings.Contains(noLimitRes.Body.String(), `"missing_usage_policy_limits"`) {
+		t.Fatalf("unexpected enforce no-limit usage policy diagnosis: %s", noLimitRes.Body.String())
+	}
+
+	limitReq := httptest.NewRequest(http.MethodPut, "/admin/settings/usage-policy", strings.NewReader(`{
+		"mode":"enforce",
+		"gateway":{"max_requests_per_minute":60}
+	}`))
+	limitReq.Header.Set("Content-Type", "application/json")
+	limitUpdate := httptest.NewRecorder()
+	router.ServeHTTP(limitUpdate, limitReq)
+	if limitUpdate.Code != http.StatusOK {
+		t.Fatalf("expected enforce limited usage policy update, got %d: %s", limitUpdate.Code, limitUpdate.Body.String())
+	}
+	limitRes := httptest.NewRecorder()
+	router.ServeHTTP(limitRes, httptest.NewRequest(http.MethodGet, "/admin/settings/usage-policy/diagnose", nil))
+	if limitRes.Code != http.StatusOK {
+		t.Fatalf("expected limited usage policy diagnose, got %d: %s", limitRes.Code, limitRes.Body.String())
+	}
+	if !strings.Contains(limitRes.Body.String(), `"status":"degraded"`) ||
+		!strings.Contains(limitRes.Body.String(), `"gateway_runtime_enforcement_not_verified"`) ||
+		!strings.Contains(limitRes.Body.String(), `"gateway_runtime_enforcement_verified":false`) {
+		t.Fatalf("unexpected enforce limited usage policy diagnosis: %s", limitRes.Body.String())
+	}
+}
+
+func TestResourceAccessProfileAdminEndpointsMaskSecretsDiagnoseAndAudit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	healthServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/healthz" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	}))
+	t.Cleanup(healthServer.Close)
+
+	db := testutil.OpenSQLite(t, "handler-resource-access-profile-admin.db", &persistencemodel.AdminSetting{}, &persistencemodel.AuditLog{})
+	handler := NewAdminSettingsHandler(db, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	router := gin.New()
+	router.GET("/admin/settings/resource-access/profiles", handler.ListResourceAccessProfiles)
+	router.PUT("/admin/settings/resource-access/profiles/:profileID", handler.UpsertResourceAccessProfile)
+	router.DELETE("/admin/settings/resource-access/profiles/:profileID", handler.DeleteResourceAccessProfile)
+	router.POST("/admin/settings/resource-access/profiles/:profileID/test", handler.TestResourceAccessProfile)
+	router.POST("/admin/settings/resource-access/routes/diagnose", handler.DiagnoseResourceAccessRoute)
+
+	updateReq := httptest.NewRequest(http.MethodPut, "/admin/settings/resource-access/profiles/public-tunnel", strings.NewReader(`{
+		"name":"Local Tunnel",
+		"enabled":true,
+		"mode":"public_tunnel",
+		"public_base_url":"`+healthServer.URL+`",
+		"signing_enabled":true,
+		"signing_secret":"profile-secret",
+		"expires_seconds":120,
+		"health_check_path":"/healthz",
+		"default_profile_id":"public-tunnel"
+	}`))
+	updateReq.Header.Set("Content-Type", "application/json")
+	updateRes := httptest.NewRecorder()
+	router.ServeHTTP(updateRes, updateReq)
+	if updateRes.Code != http.StatusOK {
+		t.Fatalf("expected resource access profile upsert, got %d: %s", updateRes.Code, updateRes.Body.String())
+	}
+	if strings.Contains(updateRes.Body.String(), "profile-secret") ||
+		!strings.Contains(updateRes.Body.String(), `"signing_secret_set":true`) ||
+		!strings.Contains(updateRes.Body.String(), `"default_profile_id":"public-tunnel"`) {
+		t.Fatalf("unexpected resource access profile upsert response: %s", updateRes.Body.String())
+	}
+	if countAuditAction(t, db, "settings.resource_access_profile.admin_upserted") != 1 {
+		t.Fatalf("expected resource access profile upsert audit")
+	}
+	assertAuditMetadataDoesNotContain(t, db, "settings.resource_access_profile.admin_upserted", "profile-secret")
+
+	listRes := httptest.NewRecorder()
+	router.ServeHTTP(listRes, httptest.NewRequest(http.MethodGet, "/admin/settings/resource-access/profiles", nil))
+	if listRes.Code != http.StatusOK {
+		t.Fatalf("expected resource access profile list, got %d: %s", listRes.Code, listRes.Body.String())
+	}
+	if strings.Contains(listRes.Body.String(), "profile-secret") ||
+		!strings.Contains(listRes.Body.String(), `"public_base_url":"`+healthServer.URL+`"`) {
+		t.Fatalf("unexpected resource access profile list response: %s", listRes.Body.String())
+	}
+
+	testRes := httptest.NewRecorder()
+	router.ServeHTTP(testRes, httptest.NewRequest(http.MethodPost, "/admin/settings/resource-access/profiles/public-tunnel/test", strings.NewReader(`{}`)))
+	if testRes.Code != http.StatusOK {
+		t.Fatalf("expected resource access profile test, got %d: %s", testRes.Code, testRes.Body.String())
+	}
+	if strings.Contains(testRes.Body.String(), "profile-secret") ||
+		!strings.Contains(testRes.Body.String(), `"status":"ok"`) ||
+		!strings.Contains(testRes.Body.String(), `"reachable":true`) ||
+		!strings.Contains(testRes.Body.String(), `"health_url":"`+healthServer.URL+`/healthz"`) {
+		t.Fatalf("unexpected resource access profile test response: %s", testRes.Body.String())
+	}
+	if countAuditAction(t, db, "settings.resource_access_profile.admin_tested") != 1 {
+		t.Fatalf("expected resource access profile test audit")
+	}
+
+	diagnoseReq := httptest.NewRequest(http.MethodPost, "/admin/settings/resource-access/routes/diagnose", strings.NewReader(`{
+		"route_id": 99,
+		"profile_id":"public-tunnel",
+		"transport":"public_url",
+		"required_media_type":"image",
+		"purpose":"generation"
+	}`))
+	diagnoseReq.Header.Set("Content-Type", "application/json")
+	diagnoseRes := httptest.NewRecorder()
+	router.ServeHTTP(diagnoseRes, diagnoseReq)
+	if diagnoseRes.Code != http.StatusOK {
+		t.Fatalf("expected resource access route diagnose, got %d: %s", diagnoseRes.Code, diagnoseRes.Body.String())
+	}
+	if strings.Contains(diagnoseRes.Body.String(), "profile-secret") ||
+		!strings.Contains(diagnoseRes.Body.String(), `"ready":true`) ||
+		!strings.Contains(diagnoseRes.Body.String(), `"blockers":[]`) ||
+		!strings.Contains(diagnoseRes.Body.String(), `"id":"public-tunnel"`) {
+		t.Fatalf("unexpected resource access route diagnose response: %s", diagnoseRes.Body.String())
+	}
+	if countAuditAction(t, db, "settings.resource_access_route.admin_diagnosed") != 1 {
+		t.Fatalf("expected resource access route diagnose audit")
+	}
+
+	deleteRes := httptest.NewRecorder()
+	router.ServeHTTP(deleteRes, httptest.NewRequest(http.MethodDelete, "/admin/settings/resource-access/profiles/public-tunnel", nil))
+	if deleteRes.Code != http.StatusOK {
+		t.Fatalf("expected resource access profile delete, got %d: %s", deleteRes.Code, deleteRes.Body.String())
+	}
+	if strings.Contains(deleteRes.Body.String(), "profile-secret") ||
+		strings.Contains(deleteRes.Body.String(), `"id":"public-tunnel"`) {
+		t.Fatalf("unexpected resource access profile delete response: %s", deleteRes.Body.String())
+	}
+	if countAuditAction(t, db, "settings.resource_access_profile.admin_deleted") != 1 {
+		t.Fatalf("expected resource access profile delete audit")
+	}
+}
+
 func TestGenerationToolsRuntimeProxyUsesStoredSecretWithoutLeakingIt(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	var upstreamAuth string

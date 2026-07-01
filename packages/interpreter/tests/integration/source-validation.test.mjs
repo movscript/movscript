@@ -443,7 +443,7 @@ test('workspace source review validates production_ref and segment_ref as video 
   assert.equal(review.issues.some((issue) => issue.message.includes('segment_ref content_unit')), false)
 })
 
-test('workspace source review validates canonical timeline_assembly_ref targets', async () => {
+test('workspace source review rejects timeline_assembly_ref data', async () => {
   const files = new Map([
     ['content_units/episode_assembly/content_unit.json', JSON.stringify({
       schema: 'movscript.content_unit.v1',
@@ -464,8 +464,12 @@ test('workspace source review validates canonical timeline_assembly_ref targets'
     now: new Date('2026-06-07T00:00:00.000Z'),
   })
 
-  assert.equal(review.readyToInterpret, true)
-  assert.equal(review.issues.some((issue) => issue.message.includes('timeline_assembly_ref')), false)
+  assert.equal(review.readyToInterpret, false)
+  assert.equal(review.issues.some((issue) =>
+    issue.severity === 'error'
+    && issue.message.includes('timeline_assembly_ref')
+    && issue.message.includes('production editing workspace')
+  ), true)
 })
 
 test('workspace source review accepts custom timeline namespace paths driven by file kind and namespace vocabulary', async () => {
@@ -677,7 +681,7 @@ test('workspace source review rejects storyboard and keyframe owner refs that co
   assert.ok(review.issues.some((issue) => issue.message.includes('keyframe expression_unit_ref other conflicts with path parent expression_unit phone')))
 })
 
-test('workspace source review rejects malformed timeline_assembly_ref targets', async () => {
+test('workspace source review rejects malformed timeline_assembly_ref data as removed', async () => {
   const files = new Map([
     ['content_units/bad_assembly/content_unit.json', JSON.stringify({
       schema: 'movscript.content_unit.v1',
@@ -699,7 +703,7 @@ test('workspace source review rejects malformed timeline_assembly_ref targets', 
   })
 
   assert.equal(review.readyToInterpret, false)
-  assert.ok(review.issues.some((issue) => issue.message.includes('target_ref must use timeline_assembly:<scopeKind>:<scopeRef>')))
+  assert.ok(review.issues.some((issue) => issue.message.includes('timeline_assembly_ref is removed')))
 })
 
 test('workspace source review rejects namespace targets for generic content units', async () => {
@@ -840,10 +844,9 @@ test('workspace source review rejects unsupported namespace-like content unit pr
       kind: 'content_unit',
       id: 'episode_video',
       title: 'Episode video',
-      content_unit_type: 'timeline_assembly_ref',
+      content_unit_type: 'production_ref',
       output_kind: 'video',
-      target_kind: 'timeline_assembly',
-      target_ref: 'timeline_assembly:episode:episode_01',
+      production_ref: 'episode_01',
       edit_prompt: {
         text: 'Use {{episode::episode_01}} as a selected resource dependency.',
         structured: {

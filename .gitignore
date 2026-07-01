@@ -20,6 +20,7 @@ apps/desktop/playwright-report/
 release-artifacts/
 downloaded-artifacts/
 .movscript-dev
+timeline_assemblies/
 
 # Go
 services/data-service/uploads/

@@ -1,261 +1,262 @@
+---
 lab: deepseek
 templates:
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: DeepSeek V4 Flash
-      id: deepseek:deepseek-v4-flash
-      lab: deepseek
-      model_id: deepseek-v4-flash
-      order: 63
-      source:
-        status: verified
-        url: https://api-docs.deepseek.com/quick_start/pricing
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: DeepSeek Chat
-      id: deepseek:deepseek-chat
-      lab: deepseek
-      model_id: deepseek-chat
-      order: 64
-      source:
-        status: deprecated
-        url: https://api-docs.deepseek.com/quick_start/pricing
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: DeepSeek Reasoner
-      id: deepseek:deepseek-reasoner
-      lab: deepseek
-      model_id: deepseek-reasoner
-      order: 65
-      source:
-        status: deprecated
-        url: https://api-docs.deepseek.com/quick_start/pricing
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: DeepSeek R1
-      id: deepseek:deepseek-r1
-      lab: deepseek
-      model_id: deepseek-r1
-      order: 66
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: DeepSeek R1 2025 01 20
-      id: deepseek:deepseek-r1-2025-01-20
-      lab: deepseek
-      model_id: deepseek-r1-2025-01-20
-      order: 68
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: DeepSeek R1 250120
-      id: deepseek:deepseek-r1-250120
-      lab: deepseek
-      model_id: deepseek-r1-250120
-      order: 69
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: DeepSeek R1 250528
-      id: deepseek:deepseek-r1-250528
-      lab: deepseek
-      model_id: deepseek-r1-250528
-      order: 70
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: DeepSeek R1 Distill Qwen 32b
-      id: deepseek:deepseek-r1-distill-qwen-32b
-      lab: deepseek
-      model_id: deepseek-r1-distill-qwen-32b
-      order: 71
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: DeepSeek R1 Distill Qwen 7b
-      id: deepseek:deepseek-r1-distill-qwen-7b
-      lab: deepseek
-      model_id: deepseek-r1-distill-qwen-7b
-      order: 72
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: DeepSeek V3
-      id: deepseek:deepseek-v3
-      lab: deepseek
-      model_id: deepseek-v3
-      order: 73
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: DeepSeek V3 0324
-      id: deepseek:deepseek-v3-0324
-      lab: deepseek
-      model_id: deepseek-v3-0324
-      order: 74
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: DeepSeek V3 1
-      id: deepseek:deepseek-v3-dot-1
-      lab: deepseek
-      model_id: deepseek-v3-1
-      order: 75
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: DeepSeek V3 1 250821
-      id: deepseek:deepseek-v3-1-250821
-      lab: deepseek
-      model_id: deepseek-v3-1-250821
-      order: 76
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: DeepSeek V3 1 Think 250821
-      id: deepseek:deepseek-v3-1-think-250821
-      lab: deepseek
-      model_id: deepseek-v3-1-think-250821
-      order: 77
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: DeepSeek V3 250324
-      id: deepseek:deepseek-v3-250324
-      lab: deepseek
-      model_id: deepseek-v3-250324
-      order: 78
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: DeepSeek V3.1
-      id: deepseek:deepseek-v3-1
-      lab: deepseek
-      model_id: deepseek-v3.1
-      order: 79
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: DeepSeek V3.2
-      id: deepseek:deepseek-v3-2
-      lab: deepseek
-      model_id: deepseek-v3.2
-      order: 80
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: DeepSeek V3.2 Exp
-      id: deepseek:deepseek-v3-2-exp
-      lab: deepseek
-      model_id: deepseek-v3.2-exp
-      order: 81
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: DeepSeek V4 Pro
-      id: deepseek:deepseek-v4-pro
-      lab: deepseek
-      model_id: deepseek-v4-pro
-      order: 82
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: DeepSeek V4 Flash
+  id: deepseek:deepseek-v4-flash
+  lab: deepseek
+  model_id: deepseek-v4-flash
+  order: 63
+  source:
+    status: verified
+    url: https://api-docs.deepseek.com/quick_start/pricing
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: DeepSeek Chat
+  id: deepseek:deepseek-chat
+  lab: deepseek
+  model_id: deepseek-chat
+  order: 64
+  source:
+    status: deprecated
+    url: https://api-docs.deepseek.com/quick_start/pricing
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: DeepSeek Reasoner
+  id: deepseek:deepseek-reasoner
+  lab: deepseek
+  model_id: deepseek-reasoner
+  order: 65
+  source:
+    status: deprecated
+    url: https://api-docs.deepseek.com/quick_start/pricing
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: DeepSeek R1
+  id: deepseek:deepseek-r1
+  lab: deepseek
+  model_id: deepseek-r1
+  order: 66
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: DeepSeek R1 2025 01 20
+  id: deepseek:deepseek-r1-2025-01-20
+  lab: deepseek
+  model_id: deepseek-r1-2025-01-20
+  order: 68
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: DeepSeek R1 250120
+  id: deepseek:deepseek-r1-250120
+  lab: deepseek
+  model_id: deepseek-r1-250120
+  order: 69
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: DeepSeek R1 250528
+  id: deepseek:deepseek-r1-250528
+  lab: deepseek
+  model_id: deepseek-r1-250528
+  order: 70
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: DeepSeek R1 Distill Qwen 32b
+  id: deepseek:deepseek-r1-distill-qwen-32b
+  lab: deepseek
+  model_id: deepseek-r1-distill-qwen-32b
+  order: 71
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: DeepSeek R1 Distill Qwen 7b
+  id: deepseek:deepseek-r1-distill-qwen-7b
+  lab: deepseek
+  model_id: deepseek-r1-distill-qwen-7b
+  order: 72
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: DeepSeek V3
+  id: deepseek:deepseek-v3
+  lab: deepseek
+  model_id: deepseek-v3
+  order: 73
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: DeepSeek V3 0324
+  id: deepseek:deepseek-v3-0324
+  lab: deepseek
+  model_id: deepseek-v3-0324
+  order: 74
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: DeepSeek V3 1
+  id: deepseek:deepseek-v3-dot-1
+  lab: deepseek
+  model_id: deepseek-v3-1
+  order: 75
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: DeepSeek V3 1 250821
+  id: deepseek:deepseek-v3-1-250821
+  lab: deepseek
+  model_id: deepseek-v3-1-250821
+  order: 76
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: DeepSeek V3 1 Think 250821
+  id: deepseek:deepseek-v3-1-think-250821
+  lab: deepseek
+  model_id: deepseek-v3-1-think-250821
+  order: 77
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: DeepSeek V3 250324
+  id: deepseek:deepseek-v3-250324
+  lab: deepseek
+  model_id: deepseek-v3-250324
+  order: 78
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: DeepSeek V3.1
+  id: deepseek:deepseek-v3-1
+  lab: deepseek
+  model_id: deepseek-v3.1
+  order: 79
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: DeepSeek V3.2
+  id: deepseek:deepseek-v3-2
+  lab: deepseek
+  model_id: deepseek-v3.2
+  order: 80
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: DeepSeek V3.2 Exp
+  id: deepseek:deepseek-v3-2-exp
+  lab: deepseek
+  model_id: deepseek-v3.2-exp
+  order: 81
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: DeepSeek V4 Pro
+  id: deepseek:deepseek-v4-pro
+  lab: deepseek
+  model_id: deepseek-v4-pro
+  order: 82
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'

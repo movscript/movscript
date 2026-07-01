@@ -404,14 +404,14 @@ func (a *VolcenAdapter) Align(ctx context.Context, req media.AlignRequest) (medi
 	})
 }
 
-func (a *VolcenAdapter) ChatAudio(ctx context.Context, req media.AudioChatRequest) (media.AudioChatResponse, error) {
+func (a *VolcenAdapter) GenerateSpeechToSpeech(ctx context.Context, req media.SpeechToSpeechRequest) (media.SpeechToSpeechResponse, error) {
 	appID := strings.TrimSpace(a.speech.AppID)
 	token := strings.TrimSpace(a.speech.Token)
 	if appID == "" {
-		return media.AudioChatResponse{}, fmt.Errorf("volcen speech_app_id is required for realtime voice")
+		return media.SpeechToSpeechResponse{}, fmt.Errorf("volcen speech_app_id is required for realtime voice")
 	}
 	if token == "" {
-		return media.AudioChatResponse{}, fmt.Errorf("volcen speech_token is required for realtime voice")
+		return media.SpeechToSpeechResponse{}, fmt.Errorf("volcen speech_token is required for realtime voice")
 	}
 	endpoint := volcenRealtimeDialogueURL(a.speech.BaseURL, req.Params)
 	resourceID := firstNonEmptyAI(stringParam(req.Params, "resource_id", ""), volcenRealtimeDialogueResourceID)
@@ -443,7 +443,7 @@ func (a *VolcenAdapter) ChatAudio(ctx context.Context, req media.AudioChatReques
 			Success: false, ModelID: req.Model, Endpoint: endpoint, Method: "WEBSOCKET",
 			RequestHeaders: debugHeaders, ResponseStatus: status, LatencyMs: latency, Error: err.Error(),
 		})
-		return media.AudioChatResponse{}, fmt.Errorf("volcen realtime voice dial: %w", err)
+		return media.SpeechToSpeechResponse{}, fmt.Errorf("volcen realtime voice dial: %w", err)
 	}
 	defer conn.Close()
 	recordDebug(ctx, DebugCallResult{
@@ -452,51 +452,51 @@ func (a *VolcenAdapter) ChatAudio(ctx context.Context, req media.AudioChatReques
 	})
 
 	if err := conn.WriteMessage(websocket.BinaryMessage, volcenRealtimeJSONFrame(volcenRealtimeEventStartConnection, "", map[string]any{})); err != nil {
-		return media.AudioChatResponse{}, err
+		return media.SpeechToSpeechResponse{}, err
 	}
 	if err := volcenRealtimeWaitForEvent(ctx, conn, volcenRealtimeEventConnectionStarted, volcenRealtimeEventConnectionFailed); err != nil {
-		return media.AudioChatResponse{}, err
+		return media.SpeechToSpeechResponse{}, err
 	}
 	config := volcenRealtimeDialogueConfig(req)
 	if err := conn.WriteMessage(websocket.BinaryMessage, volcenRealtimeJSONFrame(volcenRealtimeEventStartSession, sessionID, config)); err != nil {
-		return media.AudioChatResponse{}, err
+		return media.SpeechToSpeechResponse{}, err
 	}
 	if err := volcenRealtimeWaitForEvent(ctx, conn, volcenRealtimeEventSessionStarted, volcenRealtimeEventSessionFailed); err != nil {
-		return media.AudioChatResponse{}, err
+		return media.SpeechToSpeechResponse{}, err
 	}
 
 	if len(req.Audio) > 0 {
 		if err := conn.WriteMessage(websocket.BinaryMessage, volcenRealtimeAudioFrame(sessionID, req.Audio)); err != nil {
-			return media.AudioChatResponse{}, err
+			return media.SpeechToSpeechResponse{}, err
 		}
 		if boolParamOrDefault(req.Params, "end_asr", true) {
 			if err := conn.WriteMessage(websocket.BinaryMessage, volcenRealtimeJSONFrame(volcenRealtimeEventEndASR, sessionID, map[string]any{})); err != nil {
-				return media.AudioChatResponse{}, err
+				return media.SpeechToSpeechResponse{}, err
 			}
 		}
 	} else if strings.TrimSpace(req.Prompt) != "" {
 		query := map[string]any{"content": strings.TrimSpace(req.Prompt)}
 		if err := conn.WriteMessage(websocket.BinaryMessage, volcenRealtimeJSONFrame(volcenRealtimeEventChatTextQuery, sessionID, query)); err != nil {
-			return media.AudioChatResponse{}, err
+			return media.SpeechToSpeechResponse{}, err
 		}
 	} else {
-		return media.AudioChatResponse{}, fmt.Errorf("audio or prompt is required")
+		return media.SpeechToSpeechResponse{}, fmt.Errorf("audio or prompt is required")
 	}
 
-	audio, text, providerRef, err := volcenRealtimeReadAudioChat(ctx, conn, sessionID, req.Params)
+	audio, text, providerRef, err := volcenRealtimeReadSpeechToSpeech(ctx, conn, sessionID, req.Params)
 	if err != nil {
-		return media.AudioChatResponse{}, err
+		return media.SpeechToSpeechResponse{}, err
 	}
 	_ = conn.WriteMessage(websocket.BinaryMessage, volcenRealtimeJSONFrame(volcenRealtimeEventFinishSession, sessionID, map[string]any{}))
 	_ = conn.WriteMessage(websocket.BinaryMessage, volcenRealtimeJSONFrame(volcenRealtimeEventFinishConnection, "", map[string]any{}))
 	if len(audio) == 0 && strings.TrimSpace(text) == "" {
-		return media.AudioChatResponse{}, fmt.Errorf("volcen realtime voice returned empty response")
+		return media.SpeechToSpeechResponse{}, fmt.Errorf("volcen realtime voice returned empty response")
 	}
 	format := stringParam(req.Params, "output_audio_format", "")
 	if format == "" {
 		format = stringParam(req.Params, "tts_audio_format", "ogg")
 	}
-	return media.AudioChatResponse{
+	return media.SpeechToSpeechResponse{
 		Audio:       audio,
 		Text:        text,
 		MimeType:    mimeTypeForVolcenRealtimeAudio(format),
@@ -1091,7 +1091,7 @@ func (a *VolcenAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (Im
 }
 
 func (a *VolcenAdapter) GenerateAudio(ctx context.Context, req media.AudioGenerationRequest) (media.AudioGenerationResponse, error) {
-	if req.Kind != media.AudioGenerationKindMusic && req.Kind != media.AudioGenerationKindSFX {
+	if req.Kind != media.AudioGenerationKindMusic && req.Kind != media.AudioGenerationKindSoundEffect {
 		return media.AudioGenerationResponse{}, fmt.Errorf("unsupported volcen audio generation kind %q", req.Kind)
 	}
 	prompt := strings.TrimSpace(req.Prompt)
@@ -2063,7 +2063,7 @@ func volcenRealtimeDialogueURL(baseURL string, params map[string]any) string {
 	return u.String()
 }
 
-func volcenRealtimeDialogueConfig(req media.AudioChatRequest) map[string]any {
+func volcenRealtimeDialogueConfig(req media.SpeechToSpeechRequest) map[string]any {
 	inputMode := stringParam(req.Params, "input_mod", "")
 	if inputMode == "" {
 		if len(req.Audio) > 0 {
@@ -2230,7 +2230,7 @@ func volcenRealtimeWaitForEvent(ctx context.Context, conn *websocket.Conn, succe
 	}
 }
 
-func volcenRealtimeReadAudioChat(ctx context.Context, conn *websocket.Conn, sessionID string, params map[string]any) ([]byte, string, string, error) {
+func volcenRealtimeReadSpeechToSpeech(ctx context.Context, conn *websocket.Conn, sessionID string, params map[string]any) ([]byte, string, string, error) {
 	timeout := time.Duration(intParamOrDefault(params, "read_timeout_ms", 2*60*1000)) * time.Millisecond
 	if timeout <= 0 {
 		timeout = 2 * time.Minute
@@ -2593,7 +2593,7 @@ func parseVolcenASRResult(raw map[string]any, language string) (media.TimingMeta
 		}
 	}
 	return media.TimingMetadata{
-		Source:     media.TimingSourceSTT,
+		Source:     media.TimingSourceSpeechToText,
 		Provider:   "volcen",
 		Language:   language,
 		DurationMs: durationMs,

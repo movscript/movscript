@@ -7,25 +7,12 @@ import { Header } from '@/features/app-shell/components/Header'
 import { Sidebar, clampSidebarWidth } from '@/features/app-shell/components/Sidebar'
 import { OrgGuard, RouteErrorBoundary, RouteSuspense } from '@/features/app-shell/application/AppRouteBoundaries'
 import {
-  AudioGenPage,
   AudioToolPage,
-  AudioChatPage,
-  AudioSfxPage,
-  AudioTranscribePage,
-  AudioTranslatePage,
-  MusicGenPage,
-  MotionImitationPage,
-  MultiAnglePage,
   PluginToolPage,
   ProviderAssetLibraryPage,
-  RefImageGenPage,
-  RefVideoGenPage,
   ImageToolPage,
-  StyleTransferPage,
   TextToolPage,
   VideoToolPage,
-  VoiceClonePage,
-  VoiceDesignPage,
 } from '@/features/app-shell/application/appRouteComponents'
 import {
   AppShellTerminalDock,
@@ -212,19 +199,6 @@ export function ToolShellRoute() {
                 <Route path="video" element={<VideoToolPage />} />
                 <Route path="audio" element={<AudioToolPage />} />
                 <Route path="text" element={<TextToolPage />} />
-                <Route path="ref-image-gen" element={<RefImageGenPage />} />
-                <Route path="ref-video-gen" element={<RefVideoGenPage />} />
-                <Route path="audio-gen" element={<AudioGenPage />} />
-                <Route path="audio-chat" element={<AudioChatPage />} />
-                <Route path="audio-transcribe" element={<AudioTranscribePage />} />
-                <Route path="audio-translate" element={<AudioTranslatePage />} />
-                <Route path="music-gen" element={<MusicGenPage />} />
-                <Route path="audio-sfx" element={<AudioSfxPage />} />
-                <Route path="voice-clone" element={<VoiceClonePage />} />
-                <Route path="voice-design" element={<VoiceDesignPage />} />
-                <Route path="motion-imitation" element={<MotionImitationPage />} />
-                <Route path="style-transfer" element={<StyleTransferPage />} />
-                <Route path="multi-angle" element={<MultiAnglePage />} />
                 <Route path="private-assets" element={<ProviderAssetLibraryPage />} />
                 <Route path="plugin/:pluginId" element={<PluginToolPage />} />
                 <Route path="*" element={<Navigate to={ROUTES.tools.image} replace />} />

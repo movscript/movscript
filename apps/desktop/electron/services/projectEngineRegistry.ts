@@ -1,6 +1,5 @@
 import { resolveMovScriptBackendSession } from '@movscript/core/backend/node'
 import { resolveDataServiceBaseUrl } from '@movscript/data-client'
-import { implicitTimelineAssemblyRef } from '@movscript/domain'
 import { readFileSync } from 'node:fs'
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
@@ -43,7 +42,6 @@ import type {
   ElectronMovScriptEngineContentUnitEnsureInput,
   ElectronMovScriptEngineContentUnitEditPromptInput,
   ElectronMovScriptEngineContentUnitGenerationPromptReadInput,
-  ElectronMovScriptEngineTimelineAssemblyContentUnitEnsureInput,
   ElectronMovScriptEngineEntityBasicsUpdateInput,
   ElectronMovScriptEngineExpressionUnitCreateInput,
   ElectronMovScriptEngineExpressionUnitInput,
@@ -333,20 +331,6 @@ export async function ensureMovScriptEngineContentUnitForEntity(
   input: ElectronMovScriptEngineContentUnitEnsureInput,
 ) {
   return workspaceMutation(input, (engine) => engine.ensureContentUnitForEntity(input.payload), 'source-updated')
-}
-
-export async function ensureMovScriptEngineTimelineAssemblyContentUnit(
-  input: ElectronMovScriptEngineTimelineAssemblyContentUnitEnsureInput,
-) {
-  return workspaceMutation(input, (engine) => engine.ensureContentUnitForEntity({
-    ...input.payload,
-    targetKind: 'timeline_assembly',
-    targetRef: implicitTimelineAssemblyRef(input.payload.scopeKind, String(input.payload.scopeRef)),
-    scopeKind: input.payload.scopeKind,
-    scopeRef: input.payload.scopeRef,
-    contentUnitType: 'timeline_assembly_ref',
-    outputKind: input.payload.outputKind ?? 'video',
-  }), 'source-updated')
 }
 
 export async function createMovScriptEngineSetting(
@@ -966,6 +950,7 @@ function projectContentCanvasRecordFromInput(
     name: title,
     scope: projectContentCanvasScope(record.scope),
     nodes: projectContentCanvasNodes(record.nodes),
+    groups: projectContentCanvasGroups(record.groups ?? record.group_nodes ?? record.groupNodes),
     layouts: projectContentCanvasLayouts(record.layouts ?? record.node_layouts ?? record.nodeLayouts),
     updated_at: updatedAt,
     created_at: stringValue(record.created_at ?? record.createdAt),
@@ -1020,6 +1005,32 @@ function projectContentCanvasNode(value: unknown): Record<string, unknown> | und
   })
 }
 
+function projectContentCanvasGroups(value: unknown): Array<Record<string, unknown>> {
+  const values = Array.isArray(value)
+    ? value
+    : Object.values(recordValue(value) ?? {})
+  return values
+    .map(projectContentCanvasGroup)
+    .filter((group): group is Record<string, unknown> => Boolean(group))
+    .sort((left, right) => String(left.id).localeCompare(String(right.id)))
+}
+
+function projectContentCanvasGroup(value: unknown): Record<string, unknown> | undefined {
+  const group = recordValue(value)
+  if (!group) return undefined
+  const id = stringValue(group.id ?? group.groupId ?? group.group_id)
+  if (!id) return undefined
+  const memberNodeIds = uniqueStringValues(group.member_node_ids ?? group.memberNodeIds ?? group.nodes ?? group.node_ids ?? group.nodeIds)
+  if (memberNodeIds.length < 2) return undefined
+  return pruneUndefinedRecord({
+    id,
+    title: stringValue(group.title ?? group.name ?? group.label),
+    member_node_ids: memberNodeIds,
+    created_at: stringValue(group.created_at ?? group.createdAt),
+    updated_at: stringValue(group.updated_at ?? group.updatedAt),
+  })
+}
+
 function projectContentCanvasLayouts(value: unknown): Record<string, unknown> {
   const layouts = recordValue(value)
   if (!layouts) return {}
@@ -1045,6 +1056,20 @@ function projectContentCanvasLayout(value: unknown): Record<string, unknown> | u
     source: stringValue(layout.source),
     updated_at: stringValue(layout.updated_at ?? layout.updatedAt),
   })
+}
+
+function uniqueStringValues(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const output: string[] = []
+  const seen = new Set<string>()
+  for (const item of value) {
+    if (typeof item !== 'string') continue
+    const next = item.trim()
+    if (!next || seen.has(next)) continue
+    seen.add(next)
+    output.push(next)
+  }
+  return output
 }
 
 function contentCanvasProjectFilePath(id: string): string {

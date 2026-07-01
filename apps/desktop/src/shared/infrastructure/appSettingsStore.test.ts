@@ -67,7 +67,13 @@ test('app settings persistence strips shot library source auth tokens', () => {
     defaultShotLibrarySourceId: 'external',
   }
 
-  assert.deepEqual(sanitizeAppSettingsForPersistence(settings).shotLibrarySources, [{
+  const sanitized = sanitizeAppSettingsForPersistence(settings)
+
+  assert.equal('apiBaseURL' in sanitized, false)
+  assert.equal('cloudAPIBaseURL' in sanitized, false)
+  assert.equal('daemonGatewayBaseURL' in sanitized, false)
+  assert.deepEqual(sanitized.dataConnection, { kind: 'cloud' })
+  assert.deepEqual(sanitized.shotLibrarySources, [{
     id: 'external',
     name: 'External',
     baseURL: 'https://shots.example',
@@ -123,16 +129,16 @@ test('app settings store remembers cloud API and daemon gateway separately', () 
   assert.equal(useAppSettingsStore.getState().settings.cloudAPIBaseURL, 'https://cloud.example')
 
   useAppSettingsStore.getState().setAPIBaseURL('http://localhost:9876/api/v1')
-  assert.equal(useAppSettingsStore.getState().settings.apiBaseURL, 'http://localhost:9876')
-  assert.deepEqual(useAppSettingsStore.getState().settings.dataConnection, { kind: 'local', url: 'http://localhost:9876' })
-  assert.equal(useAppSettingsStore.getState().settings.daemonGatewayBaseURL, 'http://localhost:9876')
+  assert.equal(useAppSettingsStore.getState().settings.apiBaseURL, 'http://localhost:8766')
+  assert.deepEqual(useAppSettingsStore.getState().settings.dataConnection, { kind: 'local', url: 'http://localhost:8766' })
+  assert.equal(useAppSettingsStore.getState().settings.daemonGatewayBaseURL, 'http://localhost:8766')
   assert.equal('localAPIBaseURL' in useAppSettingsStore.getState().settings, false)
   assert.equal(useAppSettingsStore.getState().settings.cloudAPIBaseURL, 'https://cloud.example')
 
   useAppSettingsStore.getState().setLaunchMode('cloud')
   assert.equal(useAppSettingsStore.getState().settings.apiBaseURL, 'https://cloud.example')
   assert.deepEqual(useAppSettingsStore.getState().settings.dataConnection, { kind: 'cloud', url: 'https://cloud.example' })
-  assert.equal(useAppSettingsStore.getState().settings.daemonGatewayBaseURL, 'http://localhost:9876')
+  assert.equal(useAppSettingsStore.getState().settings.daemonGatewayBaseURL, 'http://localhost:8766')
   assert.equal('localAPIBaseURL' in useAppSettingsStore.getState().settings, false)
 
   useAppSettingsStore.getState().setDataConnectionURL('https://team.example/api/v1')

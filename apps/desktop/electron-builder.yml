@@ -31,6 +31,8 @@ extraResources:
     to: trayTemplate.png
   - from: ../../assets/trayTemplate@2x.png
     to: trayTemplate@2x.png
+  - from: build/native/movscript-native-tray
+    to: native/movscript-native-tray
   - from: ../../surface/admin/dist
     to: admin
     filter:

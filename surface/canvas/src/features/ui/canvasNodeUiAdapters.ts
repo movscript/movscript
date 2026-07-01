@@ -1,11 +1,10 @@
-import type { CanvasNodeData, CanvasPortDef, PublicModel, RawResource } from '@movscript/shared'
+import type { CanvasNodeData, CanvasPortDef, CanvasPortValue, PublicModel, RawResource } from '@movscript/shared'
 import {
   publicAgentBackendModelId as publicModelId,
   publicAgentBackendModelLabel as publicModelLabel,
 } from '@movscript/core/agent'
 import { canvasGenerationParamDefs, canvasParamValue } from '../domain/canvasGenerationParams'
 import { CANVAS_NODE_META } from '../presentation/nodeCatalog'
-import { resourceIdsFromCanvasPrompt } from '../runtime/canvasRuntimeGraph'
 import type {
   CanvasIOState,
   CanvasToolActionCardLabels,
@@ -19,9 +18,11 @@ type CanvasTranslator = (key: string, options?: any) => string
 
 const TRANSLATABLE_LABEL_KEY = /^(?:agents|canvas|common|pages|plugins|shared)\.[A-Za-z0-9_.-]+$/
 
-type ResourceSelectionData = Pick<CanvasNodeData, 'inputResourceIds' | 'prompt'> & {
+type ResourceSelectionData = Pick<CanvasNodeData, 'inputResourceIds'> & {
   availableResources?: RawResource[]
+  prompt?: string
   referenceResources?: RawResource[]
+  runtimeInputValues?: Record<string, CanvasPortValue[]>
 }
 
 const MEDIA_NODE_TYPES = new Set(['text', 'image', 'video'])
@@ -213,22 +214,29 @@ export function selectedInputResources(data: ResourceSelectionData) {
   const byId = new Map((data.availableResources ?? []).map((resource) => [resource.ID, resource]))
   const seen = new Set<number>()
   const resources: RawResource[] = []
-  for (const id of data.inputResourceIds ?? []) {
+  const appendResourceId = (id: number | undefined) => {
+    if (!id || seen.has(id)) return
     const resource = byId.get(id)
-    if (!resource || seen.has(resource.ID)) continue
+    if (!resource) return
     seen.add(resource.ID)
     resources.push(resource)
   }
-  for (const id of resourceIdsFromCanvasPrompt(data.prompt)) {
-    const resource = byId.get(id)
-    if (!resource || seen.has(resource.ID)) continue
+  const appendResource = (resource: RawResource | undefined) => {
+    if (!resource || seen.has(resource.ID)) return
     seen.add(resource.ID)
     resources.push(resource)
+  }
+  for (const id of data.inputResourceIds ?? []) {
+    appendResourceId(id)
+  }
+  for (const values of Object.values(data.runtimeInputValues ?? {})) {
+    for (const value of values) {
+      appendResource(value.resource)
+      appendResourceId(value.resource_id)
+    }
   }
   for (const resource of data.referenceResources ?? []) {
-    if (seen.has(resource.ID)) continue
-    seen.add(resource.ID)
-    resources.push(resource)
+    appendResource(resource)
   }
   return resources
 }

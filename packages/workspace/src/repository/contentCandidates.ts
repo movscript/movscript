@@ -5,8 +5,9 @@ import {
 import type { MovScriptWorkspaceFileRepository } from './types.js'
 
 export interface MovScriptContentCandidateOutput {
-  kind: 'image' | 'video' | 'audio' | 'text' | 'metadata'
-  resource_id: number
+  kind: 'image' | 'video' | 'audio' | 'text' | 'metadata' | 'hls_stream'
+  resource_id?: number
+  stream_id?: string | number
   artifact_ref?: string
   mime_type?: string
   width?: number
@@ -68,18 +69,36 @@ function stableEntityId(value: unknown, prefix: string): string {
 
 function normalizeOutputs(outputs: MovScriptContentCandidateOutput[]): MovScriptContentCandidateOutput[] {
   return outputs.map((output, index) => {
-    const resourceId = requiredResourceId(output.resource_id, `outputs[${index}].resource_id`)
+    const streamId = streamIdField(output.stream_id)
+    const resourceId = streamId === undefined
+      ? requiredResourceId(output.resource_id, `outputs[${index}].resource_id`)
+      : optionalResourceId(output.resource_id, `outputs[${index}].resource_id`)
+    if (output.kind === 'hls_stream' && streamId === undefined) {
+      throw new Error(`outputs[${index}].stream_id is required for hls_stream candidates`)
+    }
     return pruneUndefined({
       ...output,
       resource_id: resourceId,
+      stream_id: streamId,
       artifact_ref: stringField(output.artifact_ref),
     })
   })
 }
 
+function optionalResourceId(value: unknown, name: string): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  return requiredResourceId(value, name)
+}
+
 function requiredResourceId(value: unknown, name: string): number {
   if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
   throw new Error(`${name} must be a positive integer RawResource ID`)
+}
+
+function streamIdField(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return undefined
 }
 
 function stringField(value: unknown): string | undefined {

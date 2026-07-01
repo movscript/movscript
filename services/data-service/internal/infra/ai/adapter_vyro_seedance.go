@@ -58,27 +58,27 @@ func (a *VyroSeedanceAdapter) GenerateVideo(ctx context.Context, req VideoReques
 }
 
 func (a *VyroSeedanceAdapter) VideoStart(ctx context.Context, req VideoRequest) (VideoResponse, error) {
-	var buf bytes.Buffer
-	w := multipart.NewWriter(&buf)
-	_ = w.WriteField("model", req.Model)
-	_ = w.WriteField("prompt", req.Prompt)
-	if req.AspectRatio != "" {
-		_ = w.WriteField("aspect_ratio", req.AspectRatio)
-	}
-	if req.Size != "" {
-		_ = w.WriteField("size", req.Size)
-	}
-	if req.ResolutionName != "" {
-		_ = w.WriteField("resolution", req.ResolutionName)
-	}
-	if req.Duration > 0 {
-		_ = w.WriteField("duration", fmt.Sprintf("%d", req.Duration))
-	}
-
 	refImages, err := vyroReferenceImages(ctx, req)
 	if err != nil {
 		return VideoResponse{}, err
 	}
+	mode := vyroSeedanceMode(req, len(refImages))
+
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	_ = w.WriteField("model", req.Model)
+	_ = w.WriteField("prompt", req.Prompt)
+	if mode != "" {
+		_ = w.WriteField("mode", mode)
+	}
+	if req.AspectRatio != "" {
+		_ = w.WriteField("aspect_ratio", req.AspectRatio)
+	}
+	if req.Duration > 0 {
+		_ = w.WriteField("duration", fmt.Sprintf("%d", req.Duration))
+	}
+	generateAudio := vyroSeedanceGenerateAudio(req)
+	_ = w.WriteField("generate_audio", vyroSeedanceBoolFormValue(generateAudio))
 	for i, md := range refImages {
 		mimeType := firstNonEmptyAI(md.MimeType, "image/png")
 		ext := imageExtFromMime(mimeType)
@@ -100,20 +100,19 @@ func (a *VyroSeedanceAdapter) VideoStart(ctx context.Context, req VideoRequest) 
 	}
 	httpReq.Header.Set("Content-Type", w.FormDataContentType())
 	httpReq.Header.Set("Authorization", "Bearer "+a.APIKey)
-	debugBody := map[string]any{"model": req.Model, "prompt": req.Prompt, "reference_images": len(refImages)}
-	attachReferenceAssetDebugBindings(debugBody, req.ReferenceAssets, staticReferenceAssetProviderField("reference_images"))
+	debugBody := vyroSeedanceDebugRequestBody(req, mode, generateAudio, len(refImages))
 
 	start := time.Now()
 	resp, err := a.client.Do(httpReq)
 	latency := time.Since(start).Milliseconds()
 	headers := map[string]string{"Content-Type": w.FormDataContentType(), "Authorization": "Bearer " + maskKey(a.APIKey)}
 	if err != nil {
-		recordDebug(ctx, DebugCallResult{ModelID: req.Model, Endpoint: endpoint, Method: http.MethodPost, RequestHeaders: headers, RequestBody: mustJSON(debugBody), LatencyMs: latency, Error: err.Error()})
+		recordDebug(ctx, DebugCallResult{ModelID: req.Model, Endpoint: endpoint, Method: http.MethodPost, RequestHeaders: headers, RequestBody: debugBody, LatencyMs: latency, Error: err.Error()})
 		return VideoResponse{}, err
 	}
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(resp.Body)
-	recordDebug(ctx, DebugCallResult{Success: resp.StatusCode < 400, ModelID: req.Model, Endpoint: endpoint, Method: http.MethodPost, RequestHeaders: headers, RequestBody: mustJSON(debugBody), ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: latency})
+	recordDebug(ctx, DebugCallResult{Success: resp.StatusCode < 400, ModelID: req.Model, Endpoint: endpoint, Method: http.MethodPost, RequestHeaders: headers, RequestBody: debugBody, ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: latency})
 	if resp.StatusCode >= 400 {
 		return VideoResponse{}, fmt.Errorf("vyro seedance API error %d: %s", resp.StatusCode, string(respBody))
 	}
@@ -210,6 +209,55 @@ func vyroReferenceImages(ctx context.Context, req VideoRequest) ([]MediaData, er
 		out = append(out, MediaData{Bytes: imgData, MimeType: mimeType})
 	}
 	return out, nil
+}
+
+func vyroSeedanceMode(req VideoRequest, referenceImageCount int) string {
+	switch strings.TrimSpace(req.Operation) {
+	case VideoOperationReferenceToVideo:
+		return VideoOperationReferenceToVideo
+	case VideoOperationImageToVideo, VideoOperationFirstFrameToVideo, VideoOperationFirstLastFrameToVideo:
+		return VideoOperationReferenceToVideo
+	case "", VideoOperationPromptToVideo:
+		if referenceImageCount > 0 {
+			return VideoOperationReferenceToVideo
+		}
+		return ""
+	default:
+		return strings.TrimSpace(req.Operation)
+	}
+}
+
+func vyroSeedanceBoolFormValue(value bool) string {
+	if value {
+		return "1"
+	}
+	return "0"
+}
+
+func vyroSeedanceGenerateAudio(req VideoRequest) bool {
+	if req.GenerateAudio == nil {
+		return true
+	}
+	return *req.GenerateAudio
+}
+
+func vyroSeedanceDebugRequestBody(req VideoRequest, mode string, generateAudio bool, referenceImageCount int) string {
+	fields := []string{
+		fmt.Sprintf("model=%s", req.Model),
+		fmt.Sprintf("prompt=%q", req.Prompt),
+	}
+	if mode != "" {
+		fields = append(fields, "mode="+mode)
+	}
+	if req.Duration > 0 {
+		fields = append(fields, fmt.Sprintf("duration=%d", req.Duration))
+	}
+	fields = append(fields, "generate_audio="+vyroSeedanceBoolFormValue(generateAudio))
+	if req.AspectRatio != "" {
+		fields = append(fields, "aspect_ratio="+req.AspectRatio)
+	}
+	fields = append(fields, fmt.Sprintf("reference_images=%d", referenceImageCount))
+	return "(multipart: " + strings.Join(fields, " ") + ")"
 }
 
 func vyroErrorMessage(raw map[string]any) string {

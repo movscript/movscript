@@ -444,7 +444,7 @@ func TestVolcenTranscribeSubmitsPollsAndParsesSeedASR(t *testing.T) {
 	}
 }
 
-func TestVolcenChatAudioRealtimeDialogueUsesOfficialBinaryFrames(t *testing.T) {
+func TestVolcenGenerateSpeechToSpeechRealtimeDialogueUsesOfficialBinaryFrames(t *testing.T) {
 	upgrader := websocket.Upgrader{}
 	var gotHeaders http.Header
 	var startSession map[string]any
@@ -528,7 +528,7 @@ func TestVolcenChatAudioRealtimeDialogueUsesOfficialBinaryFrames(t *testing.T) {
 		Token:   "speech-token",
 		BaseURL: server.URL,
 	})
-	resp, err := adapter.ChatAudio(context.Background(), media.AudioChatRequest{
+	resp, err := adapter.GenerateSpeechToSpeech(context.Background(), media.SpeechToSpeechRequest{
 		Audio:    []byte("pcm-in"),
 		MimeType: "audio/L16",
 		Model:    "Doubao-RealtimeVoice",
@@ -541,7 +541,7 @@ func TestVolcenChatAudioRealtimeDialogueUsesOfficialBinaryFrames(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("ChatAudio() error = %v", err)
+		t.Fatalf("GenerateSpeechToSpeech() error = %v", err)
 	}
 	if string(resp.Audio) != "pcm-out" || resp.Text != "你好" || resp.ProviderRef != "reply-1" || resp.MimeType != "audio/L16" {
 		t.Fatalf("resp = %+v", resp)

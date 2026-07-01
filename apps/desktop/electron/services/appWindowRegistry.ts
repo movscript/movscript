@@ -20,7 +20,7 @@ const EDITING_ROUTE = '/editing'
 const EDITING_PROJECT_ROUTE_PREFIX = '/editing'
 const CANVAS_ROUTE = '/canvases'
 const CANVAS_ROUTE_PREFIX = '/canvases'
-const TOOL_ROUTE = '/tools/ref-image-gen'
+const TOOL_ROUTE = '/tools/image'
 const PROJECT_DATA_ROUTE = '/project-data'
 const APP_SETTINGS_ROUTE = '/app/settings'
 

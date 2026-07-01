@@ -23,7 +23,7 @@ func (s *AIService) EstimateTextGatewayUsage(ctx context.Context, route provider
 }
 
 func (s *AIService) EstimateImageGatewayUsage(ctx context.Context, route providercontract.AIGatewayRouteRequest, request providercontract.ImageRequest) (providercontract.AIUsageEstimate, error) {
-	resolved, err := s.gatewayUsageModelRoute(ctx, route, CapabilityImage, CapabilityImageEdit)
+	resolved, err := s.gatewayUsageModelRoute(ctx, route, CapabilityFamilyImageGeneration)
 	if err != nil {
 		return providercontract.AIUsageEstimate{}, err
 	}
@@ -35,7 +35,7 @@ func (s *AIService) EstimateImageGatewayUsage(ctx context.Context, route provide
 }
 
 func (s *AIService) EstimateVideoGatewayUsage(ctx context.Context, route providercontract.AIGatewayRouteRequest, request providercontract.VideoRequest) (providercontract.AIUsageEstimate, error) {
-	resolved, err := s.gatewayUsageModelRoute(ctx, route, CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V)
+	resolved, err := s.gatewayUsageModelRoute(ctx, route, CapabilityFamilyVideoGeneration)
 	if err != nil {
 		return providercontract.AIUsageEstimate{}, err
 	}

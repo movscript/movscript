@@ -145,9 +145,6 @@ function mergeFocusSearchParams(
   if (focus.target?.targetCategory) next.set('targetCategory', focus.target.targetCategory)
   if (focus.target?.targetKind) next.set('targetKind', focus.target.targetKind)
   if (focus.target?.targetRef) next.set('targetRef', focus.target.targetRef)
-  if (focus.target?.targetKind === 'timeline_assembly' && focus.target.targetRef) {
-    next.set('timeline_assembly_ref', focus.target.targetRef)
-  }
   return next
 }
 
@@ -161,14 +158,10 @@ function focusFromRecord(record: Record<string, unknown> | undefined, projectId?
   const entityType = stringValue(record.entityType ?? record.entity_type ?? record.entityKind ?? record.entity_kind)
   const entityId = idValue(record.entityId ?? record.entity_id)
   const legacyScopeKind = entityType === 'production' || entityType === 'segment' ? entityType : undefined
-  const timelineAssemblyRef = idValue(record.timelineAssemblyRef ?? record.timeline_assembly_ref)
-  const targetKind = timelineAssemblyRef
-    ? 'timeline_assembly'
-    : stringValue(record.targetKind ?? record.target_kind ?? record.domainTargetKind ?? record.domain_target_kind)
-      ?? (entityType === 'timeline_assembly' || entityType === 'content_unit' ? entityType : undefined)
-  const targetRef = timelineAssemblyRef
-    ?? idValue(record.targetRef ?? record.target_ref ?? record.domainTargetRef ?? record.domain_target_ref)
-    ?? (targetKind === 'timeline_assembly' || targetKind === 'content_unit' ? entityId : undefined)
+  const targetKind = stringValue(record.targetKind ?? record.target_kind ?? record.domainTargetKind ?? record.domain_target_kind)
+      ?? (entityType === 'content_unit' ? entityType : undefined)
+  const targetRef = idValue(record.targetRef ?? record.target_ref ?? record.domainTargetRef ?? record.domain_target_ref)
+    ?? (targetKind === 'content_unit' ? entityId : undefined)
   const focus = normalizeDomainFocus({
     projectId: idValue(record.projectId ?? record.project_id) ?? projectId,
     productionId: idValue(record.productionId ?? record.production_id) ?? (entityType === 'production' ? entityId : undefined),

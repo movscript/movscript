@@ -93,9 +93,13 @@ type ExecutableSpec struct {
 }
 
 type ReferenceAsset struct {
-	ResourceID uint   `json:"resource_id,omitempty"`
-	MediaType  string `json:"media_type,omitempty"`
-	Role       string `json:"role"`
+	ReferenceID string `json:"reference_id,omitempty"`
+	SourceKind  string `json:"source_kind,omitempty"`
+	SourceID    any    `json:"source_id,omitempty"`
+	SourceRef   any    `json:"source_ref,omitempty"`
+	ResourceID  uint   `json:"resource_id,omitempty"`
+	MediaType   string `json:"media_type,omitempty"`
+	Role        string `json:"role"`
 }
 
 type PortValue struct {
@@ -495,16 +499,12 @@ func DefaultSourceHandle(nodeType string) string {
 		return "resource"
 	case "text", "text_gen":
 		return "text"
-	case "image", "ref_image_gen":
+	case "image", "reference_to_image":
 		return "image"
-	case "video", "ref_video_gen", "motion_imitation":
+	case "video", "reference_to_video":
 		return "video"
 	case "audio":
 		return "audio"
-	case "multi_angle":
-		return "multi_angle_image"
-	case "style_transfer":
-		return "styled_image"
 	default:
 		return "result"
 	}
@@ -532,9 +532,9 @@ func DefaultPortValueTypeForNode(nodeType string, nd NodeData) string {
 		return FirstNonEmptyString(nd.ParamType, "resource")
 	case "resource_sink":
 		return "resource"
-	case "image", "ref_image_gen", "multi_angle", "style_transfer":
+	case "image", "reference_to_image":
 		return "image"
-	case "video", "ref_video_gen", "motion_imitation":
+	case "video", "reference_to_video":
 		return "video"
 	case "audio":
 		return "audio"

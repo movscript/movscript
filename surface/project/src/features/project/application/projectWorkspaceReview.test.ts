@@ -40,7 +40,7 @@ test('project entry workspace review search prefers latest matching artifact and
 
   assert.equal(result?.workspaceId, 'latest-workspace')
   assert.equal(result?.artifact?.workspaceId, 'latest-workspace')
-  assert.equal(result?.searchParams.toString(), 'panel=review&view=review&workspaceId=latest-workspace&productionId=301&scopeKind=production&scopeRef=301&targetCategory=timeline_assembly&targetKind=timeline_assembly&targetRef=timeline_assembly%3Aproduction%3A301&timeline_assembly_ref=timeline_assembly%3Aproduction%3A301')
+  assert.equal(result?.searchParams.toString(), 'panel=review&view=review&workspaceId=latest-workspace&productionId=301&scopeKind=production&scopeRef=301')
 })
 
 test('project entry workspace review search preserves non-production timeline scope', () => {

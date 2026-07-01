@@ -24,6 +24,7 @@ export const PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT = '/v1/project/resources/vie
 export const PROJECT_SERVICE_LIFECYCLE_COMMAND_ENDPOINT = '/v1/project/lifecycle/command'
 export const PROJECT_SERVICE_SOURCE_INTERPRET_ENDPOINT = '/v1/project/source/interpret'
 export const PROJECT_SERVICE_SOURCE_REGENERATION_PLAN_ENDPOINT = '/v1/project/source/regeneration-plan'
+export const PROJECT_SERVICE_SOURCE_PRODUCTION_WORK_PLAN_ENDPOINT = '/v1/project/source/production-work-plan'
 export const PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT = '/v1/project/source/command'
 export const PROJECT_SERVICE_ENTITIES_QUERY_ENDPOINT = '/v1/project/entities/query'
 export const PROJECT_SERVICE_SETTINGS_QUERY_ENDPOINT = '/v1/project/settings/query'
@@ -39,13 +40,16 @@ export const PROJECT_SERVICE_SETTING_CREATE_ENDPOINT = '/v1/project/settings/cre
 export const PROJECT_SERVICE_SETTING_STATE_CREATE_ENDPOINT = '/v1/project/settings/states/create'
 export const PROJECT_SERVICE_ASSET_UPSERT_ENDPOINT = '/v1/project/assets/upsert'
 export const PROJECT_SERVICE_ASSET_CREATE_ENDPOINT = '/v1/project/assets/create'
+export const PROJECT_SERVICE_ASSET_PROVIDER_CERTIFICATION_PATCH_ENDPOINT = '/v1/project/assets/provider-certification/patch'
 export const PROJECT_SERVICE_PRODUCTION_SNAPSHOT_SAVE_ENDPOINT = '/v1/project/productions/snapshot/save'
 export const PROJECT_SERVICE_CONTENT_UNIT_UPSERT_ENDPOINT = '/v1/project/content-units/upsert'
 export const PROJECT_SERVICE_CONTENT_UNIT_CREATE_ENDPOINT = '/v1/project/content-units/create'
 export const PROJECT_SERVICE_CONTENT_UNIT_ENSURE_ENDPOINT = '/v1/project/content-units/ensure'
-export const PROJECT_SERVICE_TIMELINE_ASSEMBLY_CONTENT_UNIT_ENSURE_ENDPOINT = '/v1/project/timeline-assemblies/content-unit/ensure'
-export const PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT = '/v1/project/timeline-assemblies/drafts/read'
-export const PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_WRITE_ENDPOINT = '/v1/project/timeline-assemblies/drafts/write'
+export const PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_LIST_ENDPOINT = '/v1/project/productions/editing-workspaces/list'
+export const PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_CREATE_ENDPOINT = '/v1/project/productions/editing-workspaces/create'
+export const PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_OPEN_ENDPOINT = '/v1/project/productions/editing-workspaces/open'
+export const PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_DELETE_ENDPOINT = '/v1/project/productions/editing-workspaces/delete'
+export const PROJECT_SERVICE_PRODUCTION_EDITING_RESOURCES_REFRESH_ENDPOINT = '/v1/project/productions/editing-resources/refresh'
 export const PROJECT_SERVICE_CONTENT_UNIT_EDIT_PROMPT_UPDATE_ENDPOINT = '/v1/project/content-units/edit-prompt/update'
 export const PROJECT_SERVICE_PRODUCTION_CREATE_ENDPOINT = '/v1/project/productions/create'
 export const PROJECT_SERVICE_SEGMENT_CREATE_ENDPOINT = '/v1/project/segments/create'
@@ -92,8 +96,6 @@ export type ProjectSourceCommandName =
   | 'renameContentCanvas'
   | 'runContentCanvas'
   | 'deleteContentCanvas'
-  | 'readTimelineAssemblyDraft'
-  | 'writeTimelineAssemblyDraft'
   | 'upsertProjectStandards'
   | 'createSetting'
   | 'createSettingState'
@@ -102,7 +104,6 @@ export type ProjectSourceCommandName =
   | 'snapshotScriptVersionFromMarkdown'
   | 'createContentUnit'
   | 'ensureContentUnitForEntity'
-  | 'ensureTimelineAssemblyContentUnit'
   | 'createProduction'
   | 'createSegment'
   | 'createSceneMoment'
@@ -299,6 +300,10 @@ export type ProjectSourceRegenerationPlanResponse = ProjectServiceEnvelope<unkno
   regenerationPlan: unknown
 }
 
+export type ProjectSourceProductionWorkPlanResponse = ProjectServiceEnvelope<unknown> & {
+  productionWorkPlan: unknown
+}
+
 export type ProjectSourceCommandResponse = ProjectServiceEnvelope<unknown> & {
   command: ProjectSourceCommandName
   result: unknown
@@ -308,16 +313,15 @@ export type ProjectSourceOperationResponse = ProjectServiceEnvelope<unknown> & {
   result: unknown
 }
 
-export type ProjectTimelineAssemblyDraftResponse = ProjectServiceEnvelope<unknown> & {
-  status: 'ready' | 'missing' | 'written'
-  draftKind: 'timeline_assembly'
-  draft_kind: 'timeline_assembly'
-  targetRef?: string
-  target_ref?: string
-  path: string
-  version?: string
-  updatedAt?: string
-  record?: Record<string, unknown>
+export type ProjectProductionEditingWorkspaceResponse = ProjectServiceEnvelope<unknown> & {
+  status: 'ok' | 'created' | 'ready' | 'deleted' | 'not_found'
+  productionId?: string
+  production_id?: string
+  workspace?: Record<string, unknown>
+  workspaces?: Array<Record<string, unknown>>
+  resources?: Record<string, unknown>
+  open_action?: Record<string, unknown>
+  pagination?: Record<string, unknown>
 }
 
 export type ProjectLifecycleCommandResponse = ProjectServiceEnvelope<unknown> & {
@@ -331,9 +335,14 @@ export type ProjectLocatorResolveResponse = ProjectServiceEnvelope<unknown> & {
     projectDir: string
     projectPath: string
     workspaceDir?: string
+    localProjectId?: string
+    local_project_id?: string
     projectId?: string
+    project_id?: string
     projectUid?: string
+    project_uid?: string
     projectTitle?: string
+    project_title?: string
     description?: string
   }
 }
@@ -451,6 +460,10 @@ export class ProjectServiceClient {
     return this.request('POST', PROJECT_SERVICE_SOURCE_REGENERATION_PLAN_ENDPOINT, projectSourcePayload(request), signal)
   }
 
+  async productionWorkPlan(request: ProjectSourceRequest, signal?: AbortSignal): Promise<ProjectSourceProductionWorkPlanResponse> {
+    return this.request('POST', PROJECT_SERVICE_SOURCE_PRODUCTION_WORK_PLAN_ENDPOINT, projectSourcePayload(request), signal)
+  }
+
   async sourceCommand(request: ProjectSourceCommandRequest, signal?: AbortSignal): Promise<ProjectSourceCommandResponse> {
     return this.request('POST', PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT, {
       projectDir: request.projectDir,
@@ -479,12 +492,28 @@ export class ProjectServiceClient {
     return this.request('POST', endpoint, projectSourceOperationPayload(request), signal)
   }
 
-  async readTimelineAssemblyDraft(request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectTimelineAssemblyDraftResponse> {
-    return this.request('POST', PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT, projectSourceOperationPayload(request), signal)
+  async patchAssetProviderCertification(request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectSourceOperationResponse> {
+    return this.sourceOperation(PROJECT_SERVICE_ASSET_PROVIDER_CERTIFICATION_PATCH_ENDPOINT, request, signal)
   }
 
-  async writeTimelineAssemblyDraft(request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectTimelineAssemblyDraftResponse> {
-    return this.request('POST', PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_WRITE_ENDPOINT, projectSourceOperationPayload(request), signal)
+  async listProductionEditingWorkspaces(request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectProductionEditingWorkspaceResponse> {
+    return this.request('POST', PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_LIST_ENDPOINT, projectSourceOperationPayload(request), signal)
+  }
+
+  async createProductionEditingWorkspace(request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectProductionEditingWorkspaceResponse> {
+    return this.request('POST', PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_CREATE_ENDPOINT, projectSourceOperationPayload(request), signal)
+  }
+
+  async openProductionEditingWorkspace(request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectProductionEditingWorkspaceResponse> {
+    return this.request('POST', PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_OPEN_ENDPOINT, projectSourceOperationPayload(request), signal)
+  }
+
+  async deleteProductionEditingWorkspace(request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectProductionEditingWorkspaceResponse> {
+    return this.request('POST', PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_DELETE_ENDPOINT, projectSourceOperationPayload(request), signal)
+  }
+
+  async refreshProductionEditingResources(request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectProductionEditingWorkspaceResponse> {
+    return this.request('POST', PROJECT_SERVICE_PRODUCTION_EDITING_RESOURCES_REFRESH_ENDPOINT, projectSourceOperationPayload(request), signal)
   }
 
   async selectWorkspaceCandidate(request: ProjectSourceOperationRequest, signal?: AbortSignal): Promise<ProjectSourceOperationResponse> {

@@ -127,6 +127,7 @@
     "@movscript/language": "workspace:*",
     "@movscript/mcp-contracts": "workspace:*",
     "@movscript/project": "workspace:*",
+    "@movscript/runtime-contracts": "workspace:*",
     "@movscript/workspace": "workspace:*"
   },
   "devDependencies": {

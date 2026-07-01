@@ -150,7 +150,7 @@ func TestCatalogTemplatesIncludeGPT52(t *testing.T) {
 		if template.RouteAdapterHint != AdapterOpenAICompat {
 			t.Fatalf("route_adapter_hint = %q, want %q", template.RouteAdapterHint, AdapterOpenAICompat)
 		}
-		if !hasString(template.Capabilities, CapabilityText) || !hasString(template.Capabilities, CapabilityReasoning) {
+		if !hasString(template.Capabilities, CapabilityFamilyTextGeneration) || !hasString(template.Capabilities, CapabilityReasoning) {
 			t.Fatalf("capabilities = %#v, want text and reasoning", template.Capabilities)
 		}
 		return
@@ -177,8 +177,8 @@ func TestCatalogTemplatesIncludeElevenLabsAudioModels(t *testing.T) {
 			if template.RouteAdapterHint != AdapterElevenLabs {
 				t.Fatalf("%s route_adapter_hint = %q, want %q", template.ID, template.RouteAdapterHint, AdapterElevenLabs)
 			}
-			if !hasString(template.Capabilities, CapabilityAudioTTS) {
-				t.Fatalf("%s capabilities = %#v, want audio_tts", template.ID, template.Capabilities)
+			if !hasString(template.Capabilities, CapabilityFamilyAudioGeneration) {
+				t.Fatalf("%s capabilities = %#v, want audio_generation", template.ID, template.Capabilities)
 			}
 			if !hasParam(template.SupportedParams, "output_format") || !hasParam(template.SupportedParams, "stability") {
 				t.Fatalf("%s supported_params = %#v", template.ID, template.SupportedParams)
@@ -187,7 +187,7 @@ func TestCatalogTemplatesIncludeElevenLabsAudioModels(t *testing.T) {
 		if template.ID == "elevenlabs:scribe-v2" {
 			seenSTT = true
 			if template.ModelID != "scribe_v2" || template.RouteAdapterHint != AdapterElevenLabs ||
-				!hasString(template.Capabilities, CapabilityAudioSTT) ||
+				!hasString(template.Capabilities, CapabilityFamilyAudioGeneration) ||
 				!hasParam(template.SupportedParams, "diarize") {
 				t.Fatalf("scribe template = %#v", template)
 			}
@@ -205,28 +205,28 @@ func TestCatalogTemplatesIncludeElevenLabsAudioModels(t *testing.T) {
 }
 
 func TestOpenAICompatAdapterDefaultsIncludeAudioAndAlignParams(t *testing.T) {
-	ttsParams := DefaultParamsForAdapter(AdapterOpenAICompat, []string{CapabilityAudioTTS})
+	ttsParams := DefaultParamsForAdapter(AdapterOpenAICompat, []string{CapabilityFamilyAudioGeneration})
 	if !hasParam(ttsParams, "response_format") || !hasParam(ttsParams, "speed") || !hasParam(ttsParams, "instructions") {
 		t.Fatalf("openai-compatible TTS params = %#v, want response_format, speed, instructions", ttsParams)
 	}
 
-	transcribeParams := DefaultParamsForAdapter(AdapterOpenAICompat, []string{CapabilityAudioSTT})
+	transcribeParams := DefaultParamsForAdapter(AdapterOpenAICompat, []string{CapabilityFamilyAudioGeneration})
 	if !hasParam(transcribeParams, "response_format") || !hasParam(transcribeParams, "prompt") || !hasParam(transcribeParams, "temperature") {
 		t.Fatalf("openai-compatible STT params = %#v, want response_format, prompt, temperature", transcribeParams)
 	}
 
-	chatParams := DefaultParamsForAdapter(AdapterOpenAICompat, []string{CapabilityAudioChat})
+	chatParams := DefaultParamsForAdapter(AdapterOpenAICompat, []string{CapabilityFamilyAudioGeneration})
 	if !hasParam(chatParams, "voice") || !hasParam(chatParams, "response_format") || !hasParam(chatParams, "temperature") || !hasParam(chatParams, "max_tokens") {
-		t.Fatalf("openai-compatible audio chat params = %#v, want voice, response_format, temperature, max_tokens", chatParams)
+		t.Fatalf("openai-compatible speech-to-speech params = %#v, want voice, response_format, temperature, max_tokens", chatParams)
 	}
 
-	alignParams := DefaultParamsForAdapter(AdapterOpenAICompat, []string{CapabilitySubAlign})
+	alignParams := DefaultParamsForAdapter(AdapterOpenAICompat, []string{CapabilityFamilyAudioGeneration})
 	if !hasParam(alignParams, "response_format") || !hasParam(alignParams, "prompt") || !hasParam(alignParams, "temperature") {
 		t.Fatalf("openai-compatible align params = %#v, want transcription params", alignParams)
 	}
 }
 
-func TestDashScopeRealtimeTTSModelsAreNotClassifiedAsAudioChat(t *testing.T) {
+func TestDashScopeRealtimeTTSModelsAreNotClassifiedAsSpeechToSpeech(t *testing.T) {
 	want := map[string]bool{
 		"dashscope:qwen3-tts-flash-realtime":          false,
 		"dashscope:qwen3-tts-instruct-flash-realtime": false,
@@ -236,11 +236,11 @@ func TestDashScopeRealtimeTTSModelsAreNotClassifiedAsAudioChat(t *testing.T) {
 			continue
 		}
 		want[template.ID] = true
-		if !hasString(template.Capabilities, CapabilityAudioTTS) {
-			t.Fatalf("%s capabilities = %#v, want audio_tts", template.ID, template.Capabilities)
+		if !hasString(template.Capabilities, CapabilityFamilyAudioGeneration) {
+			t.Fatalf("%s capabilities = %#v, want audio_generation", template.ID, template.Capabilities)
 		}
-		if hasString(template.Capabilities, CapabilityAudioChat) {
-			t.Fatalf("%s capabilities = %#v, realtime TTS must not be listed as audio_chat", template.ID, template.Capabilities)
+		if len(template.Capabilities) != 1 {
+			t.Fatalf("%s capabilities = %#v, realtime TTS should stay within the audio_generation family", template.ID, template.Capabilities)
 		}
 	}
 	for id, found := range want {
@@ -251,12 +251,12 @@ func TestDashScopeRealtimeTTSModelsAreNotClassifiedAsAudioChat(t *testing.T) {
 }
 
 func TestLocalAdapterDefaultsIncludeAudioGenerationParams(t *testing.T) {
-	musicParams := DefaultParamsForAdapter(AdapterLocal, []string{CapabilityAudioMusic})
+	musicParams := DefaultParamsForAdapter(AdapterLocal, []string{CapabilityFamilyAudioGeneration})
 	if !hasParam(musicParams, "duration") || !hasParam(musicParams, "output_format") || !hasParam(musicParams, "negative_prompt") {
 		t.Fatalf("local music params = %#v, want duration, output_format, negative_prompt", musicParams)
 	}
 
-	sfxParams := DefaultParamsForAdapter(AdapterLocal, []string{CapabilityAudioSFX})
+	sfxParams := DefaultParamsForAdapter(AdapterLocal, []string{CapabilityFamilyAudioGeneration})
 	if !hasParam(sfxParams, "duration") || !hasParam(sfxParams, "output_format") || !hasParam(sfxParams, "negative_prompt") {
 		t.Fatalf("local sfx params = %#v, want duration, output_format, negative_prompt", sfxParams)
 	}
@@ -348,9 +348,9 @@ func TestImageCatalogTemplatesOmitKnownUnsupportedParams(t *testing.T) {
 
 func TestVideoCatalogTemplatesExposeDurationContractMatchingRuntimeLimits(t *testing.T) {
 	for _, template := range catalogTemplateSources {
-		if !hasString(template.Capabilities, CapabilityVideo) &&
-			!hasString(template.Capabilities, CapabilityVideoI2V) &&
-			!hasString(template.Capabilities, CapabilityVideoV2V) {
+		if !hasString(template.Capabilities, CapabilityFamilyVideoGeneration) &&
+			!hasString(template.Capabilities, CapabilityFamilyVideoGeneration) &&
+			!hasString(template.Capabilities, CapabilityFamilyVideoGeneration) {
 			continue
 		}
 		duration, ok := findTemplateParam(template.SupportedParams, "duration")
@@ -383,7 +383,7 @@ func TestVideoCatalogTemplatesExposeDurationContractMatchingRuntimeLimits(t *tes
 func TestResolveModelDefUsesAdapterDefaultParams(t *testing.T) {
 	def := ResolveModelDef(
 		"custom-video", AdapterVolcen,
-		"Custom Video", CapabilityVideo, "",
+		"Custom Video", CapabilityFamilyVideoGeneration, "",
 		false, 0, 0,
 		"", "",
 	)
@@ -398,7 +398,7 @@ func TestResolveModelDefUsesAdapterDefaultParams(t *testing.T) {
 func hasVisualGenerationCapability(capabilities []string) bool {
 	for _, cap := range capabilities {
 		switch cap {
-		case CapabilityImage, CapabilityImageEdit, CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V:
+		case CapabilityFamilyImageGeneration, CapabilityFamilyVideoGeneration:
 			return true
 		}
 	}
@@ -407,16 +407,16 @@ func hasVisualGenerationCapability(capabilities []string) bool {
 
 func defaultJobTypeForTemplateCapabilities(capabilities []string) string {
 	switch {
-	case hasString(capabilities, CapabilityImage):
-		return CapabilityImage
-	case hasString(capabilities, CapabilityImageEdit):
-		return CapabilityImageEdit
-	case hasString(capabilities, CapabilityVideo):
-		return CapabilityVideo
-	case hasString(capabilities, CapabilityVideoI2V):
-		return CapabilityVideoI2V
-	case hasString(capabilities, CapabilityVideoV2V):
-		return CapabilityVideoV2V
+	case hasString(capabilities, CapabilityFamilyImageGeneration):
+		return CapabilityFamilyImageGeneration
+	case hasString(capabilities, CapabilityFamilyImageGeneration):
+		return CapabilityFamilyImageGeneration
+	case hasString(capabilities, CapabilityFamilyVideoGeneration):
+		return CapabilityFamilyVideoGeneration
+	case hasString(capabilities, CapabilityFamilyVideoGeneration):
+		return CapabilityFamilyVideoGeneration
+	case hasString(capabilities, CapabilityFamilyVideoGeneration):
+		return CapabilityFamilyVideoGeneration
 	default:
 		return ""
 	}
@@ -474,7 +474,7 @@ func defaultDurationSeconds(t *testing.T, templateID string, value any) int {
 func TestResolveModelDefUsesAdapterDefaultTextParams(t *testing.T) {
 	def := ResolveModelDef(
 		"custom-text", AdapterOpenAICompat,
-		"Custom Text", CapabilityText, "",
+		"Custom Text", CapabilityFamilyTextGeneration, "",
 		false, 0, 0,
 		"", "",
 	)
@@ -483,42 +483,42 @@ func TestResolveModelDefUsesAdapterDefaultTextParams(t *testing.T) {
 			t.Fatalf("expected text params to include %s", key)
 		}
 	}
-	if err := ValidateGenerationParams(def, CapabilityText, `{"max_tokens":256,"temperature":0.7,"json_mode":true}`, "", 0); err != nil {
+	if err := ValidateGenerationParams(def, CapabilityFamilyTextGeneration, `{"max_tokens":256,"temperature":0.7,"json_mode":true}`, "", 0); err != nil {
 		t.Fatalf("expected text params to validate: %v", err)
 	}
 }
 
-func TestResolveModelDefDefaultsOpenAICompatImageEditField(t *testing.T) {
+func TestResolveModelDefDefaultsOpenAICompatInputImageField(t *testing.T) {
 	def := ResolveModelDef(
 		"custom-image-edit", AdapterOpenAICompat,
-		"Custom Image Edit", CapabilityImageEdit, "",
+		"Custom Image Edit", CapabilityFamilyImageGeneration, "",
 		false, 0, 0,
 		"", "",
 	)
 	if !def.AcceptsImageInput || def.MaxInputImages != 1 {
-		t.Fatalf("expected image_edit to imply accepts image input with max=1, got accepts=%v max=%d", def.AcceptsImageInput, def.MaxInputImages)
+		t.Fatalf("expected image_generation to allow one reference image by default, got accepts=%v max=%d", def.AcceptsImageInput, def.MaxInputImages)
 	}
-	if def.ImageEditField != "image[]" {
-		t.Fatalf("ImageEditField = %q, want image[]", def.ImageEditField)
+	if def.InputImageField != "image[]" {
+		t.Fatalf("InputImageField = %q, want image[]", def.InputImageField)
 	}
 }
 
-func TestResolveModelDefInfersImageInputFromI2VCapability(t *testing.T) {
+func TestResolveModelDefKeepsVideoGenerationInputsOptionalWithoutExplicitLimit(t *testing.T) {
 	def := ResolveModelDef(
-		"custom-i2v", AdapterVolcen,
-		"Custom I2V", CapabilityVideoI2V, "",
+		"custom-video", AdapterVolcen,
+		"Custom Video", CapabilityFamilyVideoGeneration, "",
 		false, 0, 0,
 		"", "",
 	)
 	if !def.AcceptsImageInput || def.MaxInputImages != 1 {
-		t.Fatalf("expected i2v to imply accepts image input with max=1, got accepts=%v max=%d", def.AcceptsImageInput, def.MaxInputImages)
+		t.Fatalf("expected video generation family to expose optional image references with max=1, got accepts=%v max=%d", def.AcceptsImageInput, def.MaxInputImages)
 	}
 }
 
 func TestResolveModelDefInfersImageInputFromCustomImageLimit(t *testing.T) {
 	def := ResolveModelDef(
 		"custom-image-model", AdapterVolcen,
-		"Custom Image Model", CapabilityImage, "",
+		"Custom Image Model", CapabilityFamilyImageGeneration, "",
 		false, 4, 0,
 		"", "",
 	)
@@ -527,15 +527,13 @@ func TestResolveModelDefInfersImageInputFromCustomImageLimit(t *testing.T) {
 	}
 }
 
-func TestVisualCatalogTemplatesExposeConsistentInputMetadata(t *testing.T) {
+func TestVisualCatalogTemplatesExposeSelfConsistentInputMetadata(t *testing.T) {
 	for _, template := range CatalogTemplates() {
-		if hasString(template.Capabilities, CapabilityImageEdit) || hasString(template.Capabilities, CapabilityVideoI2V) {
-			if !template.AcceptsImageInput || template.MaxInputImages == 0 {
-				t.Fatalf("template %s with image input capability must expose accepts_image_input and max_input_images, got accepts=%v max=%d", template.ID, template.AcceptsImageInput, template.MaxInputImages)
-			}
+		if template.MaxInputImages > 0 && !template.AcceptsImageInput {
+			t.Fatalf("template %s has max_input_images=%d but accepts_image_input=false", template.ID, template.MaxInputImages)
 		}
-		if hasString(template.Capabilities, CapabilityVideoV2V) && template.MaxInputVideos == 0 {
-			t.Fatalf("template %s with v2v capability must expose max_input_videos", template.ID)
+		if template.AcceptsImageInput && template.MaxInputImages == 0 {
+			t.Fatalf("template %s accepts image input but has no max_input_images", template.ID)
 		}
 	}
 }
@@ -543,14 +541,14 @@ func TestVisualCatalogTemplatesExposeConsistentInputMetadata(t *testing.T) {
 func TestResolveModelDefAllowsEmptyModelParamOverride(t *testing.T) {
 	def := ResolveModelDef(
 		"restricted-video", AdapterVolcen,
-		"Restricted Video", CapabilityVideo, "",
+		"Restricted Video", CapabilityFamilyVideoGeneration, "",
 		false, 0, 0,
 		"", "[]",
 	)
 	if len(def.SupportedParams) != 0 {
 		t.Fatalf("expected empty model override, got %d params", len(def.SupportedParams))
 	}
-	if err := ValidateGenerationParams(def, CapabilityVideo, `{"duration":"5"}`, "", 0); err == nil {
+	if err := ValidateGenerationParams(def, CapabilityFamilyVideoGeneration, `{"duration":"5"}`, "", 0); err == nil {
 		t.Fatal("expected explicit empty param override to reject generation params")
 	}
 }
@@ -558,14 +556,14 @@ func TestResolveModelDefAllowsEmptyModelParamOverride(t *testing.T) {
 func TestResolveModelDefCanRestrictTextParamsWithProfile(t *testing.T) {
 	def := ResolveModelDef(
 		"restricted-text", AdapterOpenAICompat,
-		"Restricted Text", CapabilityText, "",
+		"Restricted Text", CapabilityFamilyTextGeneration, "",
 		false, 0, 0,
 		"", `{"deny":["temperature"]}`,
 	)
-	if err := ValidateGenerationParams(def, CapabilityText, `{"max_tokens":256}`, "", 0); err != nil {
+	if err := ValidateGenerationParams(def, CapabilityFamilyTextGeneration, `{"max_tokens":256}`, "", 0); err != nil {
 		t.Fatalf("expected max_tokens to remain valid: %v", err)
 	}
-	if err := ValidateGenerationParams(def, CapabilityText, `{"temperature":0.7}`, "", 0); err == nil {
+	if err := ValidateGenerationParams(def, CapabilityFamilyTextGeneration, `{"temperature":0.7}`, "", 0); err == nil {
 		t.Fatal("expected denied temperature to be rejected")
 	}
 }
@@ -573,7 +571,7 @@ func TestResolveModelDefCanRestrictTextParamsWithProfile(t *testing.T) {
 func TestResolveModelDefAppliesModelParamProfile(t *testing.T) {
 	def := ResolveModelDef(
 		"profile-video", AdapterVolcen,
-		"Profile Video", CapabilityVideo, "",
+		"Profile Video", CapabilityFamilyVideoGeneration, "",
 		false, 0, 0,
 		"", `{
 			"allow": ["duration", "aspect_ratio", "resolution", "web_search"],
@@ -595,326 +593,326 @@ func TestResolveModelDefAppliesModelParamProfile(t *testing.T) {
 	if !hasParam(def.SupportedParams, "web_search") {
 		t.Fatal("expected added web_search param")
 	}
-	if err := ValidateGenerationParams(def, CapabilityVideo, `{"duration":"10","web_search":true}`, "", 0); err != nil {
+	if err := ValidateGenerationParams(def, CapabilityFamilyVideoGeneration, `{"duration":"10","web_search":true}`, "", 0); err != nil {
 		t.Fatalf("expected valid profile params: %v", err)
 	}
-	if err := ValidateGenerationParams(def, CapabilityVideo, `{"duration":"6"}`, "", 0); err == nil {
+	if err := ValidateGenerationParams(def, CapabilityFamilyVideoGeneration, `{"duration":"6"}`, "", 0); err == nil {
 		t.Fatal("expected overridden duration options to reject 6")
 	}
 }
 
 func TestValidateModelParamConfigRejectsBrokenContracts(t *testing.T) {
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"allow":["duration"]}`); err != nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"allow":["duration"]}`); err != nil {
 		t.Fatalf("expected valid profile to pass: %v", err)
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"allow":["custom_flag"],"add":[{"key":"custom_flag","label":"Custom Flag","type":"boolean"}]}`); err != nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"allow":["custom_flag"],"add":[{"key":"custom_flag","label":"Custom Flag","type":"boolean"}]}`); err != nil {
 		t.Fatalf("expected allow to reference added param: %v", err)
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"override":{"aspect_ratio":{"key":"ratio","type":"select","options":["16:9"]}}}`); err != nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"override":{"aspect_ratio":{"key":"ratio","type":"select","options":["16:9"]}}}`); err != nil {
 		t.Fatalf("expected override key aliases to match canonical key: %v", err)
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":[{"key":"web_search","label":"Web Search","type":"boolean"},{"key":"web_search","label":"Web Search 2","type":"boolean"}]}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"add":[{"key":"web_search","label":"Web Search","type":"boolean"},{"key":"web_search","label":"Web Search 2","type":"boolean"}]}`); err == nil {
 		t.Fatal("expected duplicate profile add key to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":[{"key":"duration","label":"Duration","type":"select","options":["5"]}]}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"add":[{"key":"duration","label":"Duration","type":"select","options":["5"]}]}`); err == nil {
 		t.Fatal("expected profile add existing adapter param to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":[{"key":"ratio","label":"Ratio","type":"select","options":["16:9"]}]}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"add":[{"key":"ratio","label":"Ratio","type":"select","options":["16:9"]}]}`); err == nil {
 		t.Fatal("expected profile add alias of existing adapter param to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"override":{"duration":{"type":"select","options":["5"]}},"add":[{"key":"duration","label":"Duration","type":"select","options":["10"]}]}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"override":{"duration":{"type":"select","options":["5"]}},"add":[{"key":"duration","label":"Duration","type":"select","options":["10"]}]}`); err == nil {
 		t.Fatal("expected profile add overridden param to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":[{"key":"","type":"boolean"}]}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"add":[{"key":"","type":"boolean"}]}`); err == nil {
 		t.Fatal("expected empty param key to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"alow":["duration"]}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"alow":["duration"]}`); err == nil {
 		t.Fatal("expected unknown profile field to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `["duration"]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `["duration"]`); err == nil {
 		t.Fatal("expected non-object legacy param item to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"negative_prompt","label":"Negative Prompt"}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"negative_prompt","label":"Negative Prompt"}]`); err == nil {
 		t.Fatal("expected missing param type to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":123,"label":"Negative Prompt","type":"string"}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":123,"label":"Negative Prompt","type":"string"}]`); err == nil {
 		t.Fatal("expected non-string param key to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"negative_prompt","label":123,"type":"string"}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"negative_prompt","label":123,"type":"string"}]`); err == nil {
 		t.Fatal("expected non-string param label to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"negative_prompt","label":"Negative Prompt","type":123}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"negative_prompt","label":"Negative Prompt","type":123}]`); err == nil {
 		t.Fatal("expected non-string param type to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"negative_prompt","label":"Negative Prompt","type":"string","defualt":"low quality"}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"negative_prompt","label":"Negative Prompt","type":"string","defualt":"low quality"}]`); err == nil {
 		t.Fatal("expected unknown param field to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"negative_prompt","type":"string"}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"negative_prompt","type":"string"}]`); err == nil {
 		t.Fatal("expected missing param label to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":[{"key":"negative_prompt","type":"string"}]}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"add":[{"key":"negative_prompt","type":"string"}]}`); err == nil {
 		t.Fatal("expected missing profile add label to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":[{"key":"negative_prompt","label":"Negative Prompt","type":"string","defualt":"low quality"}]}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"add":[{"key":"negative_prompt","label":"Negative Prompt","type":"string","defualt":"low quality"}]}`); err == nil {
 		t.Fatal("expected unknown profile add param field to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":[{"key":"frames","label":"Frames","type":"number","min":"1"}]}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"add":[{"key":"frames","label":"Frames","type":"number","min":"1"}]}`); err == nil {
 		t.Fatal("expected non-number profile add min to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"override":{"frames":{"type":"number","step":"1"}}}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"override":{"frames":{"type":"number","step":"1"}}}`); err == nil {
 		t.Fatal("expected non-number profile override step to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"seed","label":"Seed","type":"number","step":0}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"seed","label":"Seed","type":"number","step":0}]`); err == nil {
 		t.Fatal("expected explicit zero step to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"ratio","type":"select","options":["16:9"]}]`); err != nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"ratio","type":"select","options":["16:9"]}]`); err != nil {
 		t.Fatalf("expected known alias to receive normalized label: %v", err)
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"resolution","type":"select"}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"resolution","type":"select"}]`); err == nil {
 		t.Fatal("expected select without options to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"resolution","label":"Resolution","type":"select","options":"480p"}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"resolution","label":"Resolution","type":"select","options":"480p"}]`); err == nil {
 		t.Fatal("expected non-array options to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"resolution","label":"Resolution","type":"select","options":[480]}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"resolution","label":"Resolution","type":"select","options":[480]}]`); err == nil {
 		t.Fatal("expected non-string options item to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"frames","label":"Frames","type":"number","json_schema":[]}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"frames","label":"Frames","type":"number","json_schema":[]}]`); err == nil {
 		t.Fatal("expected non-object json_schema to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"resolution","type":"select","options":["720p","720p"]}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"resolution","type":"select","options":["720p","720p"]}]`); err == nil {
 		t.Fatal("expected duplicate select options to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"resolution","type":"select","options":[""]}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"resolution","type":"select","options":[""]}]`); err == nil {
 		t.Fatal("expected empty select option to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"duration","type":"select","options":["5"],"conflicts_with":["frames"]}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"duration","type":"select","options":["5"],"conflicts_with":["frames"]}]`); err == nil {
 		t.Fatal("expected unknown conflict target to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"duration","type":"select","options":["5"],"conflicts_with":[1]}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"duration","type":"select","options":["5"],"conflicts_with":[1]}]`); err == nil {
 		t.Fatal("expected non-string conflicts_with item to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"duration","type":"select","options":["5"],"default":"10"}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"duration","type":"select","options":["5"],"default":"10"}]`); err == nil {
 		t.Fatal("expected select default outside options to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"duration","type":"select","options":["5"],"default":5}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"duration","type":"select","options":["5"],"default":5}]`); err == nil {
 		t.Fatal("expected select default with number type to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"seed","label":"Seed","type":"number","min":0,"max":0,"default":1}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"seed","label":"Seed","type":"number","min":0,"max":0,"default":1}]`); err == nil {
 		t.Fatal("expected number default above explicit zero max to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"duration","type":"select","options":["5"],"default":null}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"duration","type":"select","options":["5"],"default":null}]`); err == nil {
 		t.Fatal("expected explicit null default in legacy array to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":[{"key":"web_search","type":"boolean","default":null}]}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"add":[{"key":"web_search","type":"boolean","default":null}]}`); err == nil {
 		t.Fatal("expected explicit null default in profile add to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"override":{"duration":{"type":"select","options":["5"],"default":null}}}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"override":{"duration":{"type":"select","options":["5"],"default":null}}}`); err == nil {
 		t.Fatal("expected explicit null default in profile override to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"allow":null}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"allow":null}`); err == nil {
 		t.Fatal("expected explicit null allow in profile to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"allow":"duration"}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"allow":"duration"}`); err == nil {
 		t.Fatal("expected non-array allow in profile to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"deny":[1]}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"deny":[1]}`); err == nil {
 		t.Fatal("expected non-string deny item in profile to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"override":null}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"override":null}`); err == nil {
 		t.Fatal("expected explicit null override in profile to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"override":[]}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"override":[]}`); err == nil {
 		t.Fatal("expected non-object override in profile to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"override":{"duration":"5"}}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"override":{"duration":"5"}}`); err == nil {
 		t.Fatal("expected non-object override param in profile to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"override":{"duration":{"key":"frames","type":"number"}}}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"override":{"duration":{"key":"frames","type":"number"}}}`); err == nil {
 		t.Fatal("expected override key mismatch to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":null}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"add":null}`); err == nil {
 		t.Fatal("expected explicit null add in profile to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":{"key":"web_search"}}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"add":{"key":"web_search"}}`); err == nil {
 		t.Fatal("expected non-array add in profile to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":["web_search"]}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"add":["web_search"]}`); err == nil {
 		t.Fatal("expected non-object add item in profile to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"frames","type":"number","min":null,"max":289}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"frames","type":"number","min":null,"max":289}]`); err == nil {
 		t.Fatal("expected explicit null min in legacy array to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":[{"key":"frames","type":"number","step":null}]}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"add":[{"key":"frames","type":"number","step":null}]}`); err == nil {
 		t.Fatal("expected explicit null step in profile add to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"override":{"frames":{"type":"number","max":null}}}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"override":{"frames":{"type":"number","max":null}}}`); err == nil {
 		t.Fatal("expected explicit null max in profile override to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"frames","type":"number","json_schema":null}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"frames","type":"number","json_schema":null}]`); err == nil {
 		t.Fatal("expected explicit null json_schema to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"duration","type":"select","options":["5"],"conflicts_with":null}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"duration","type":"select","options":["5"],"conflicts_with":null}]`); err == nil {
 		t.Fatal("expected explicit null conflicts_with to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":[{"key":"web_search","type":null}]}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"add":[{"key":"web_search","type":null}]}`); err == nil {
 		t.Fatal("expected explicit null type in profile add to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"frames","type":"number","step":-1}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"frames","type":"number","step":-1}]`); err == nil {
 		t.Fatal("expected negative step to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"frames","type":"number","min":29,"max":289,"default":10}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"frames","type":"number","min":29,"max":289,"default":10}]`); err == nil {
 		t.Fatal("expected number default outside range to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"frames","type":"number","min":29,"max":289,"default":"33"}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"frames","type":"number","min":29,"max":289,"default":"33"}]`); err == nil {
 		t.Fatal("expected number default with string type to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"workspace","type":"boolean","default":"false"}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"workspace","type":"boolean","default":"false"}]`); err == nil {
 		t.Fatal("expected boolean default with string type to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"negative_prompt","type":"string","default":123}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"negative_prompt","type":"string","default":123}]`); err == nil {
 		t.Fatal("expected string default with number type to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"frames","type":"number","json_schema":{"enum":"29"}}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"frames","type":"number","json_schema":{"enum":"29"}}]`); err == nil {
 		t.Fatal("expected invalid json_schema enum to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"frames","type":"number","json_schema":{"enum":[29,{"value":33}]}}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"frames","type":"number","json_schema":{"enum":[29,{"value":33}]}}]`); err == nil {
 		t.Fatal("expected non-scalar json_schema enum item to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"frames","type":"number","json_schema":{"pattern":"["}}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"frames","type":"number","json_schema":{"pattern":"["}}]`); err == nil {
 		t.Fatal("expected invalid json_schema pattern to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"image_size","type":"string","json_schema":{"x_movscript_image_size":{"width_multiple_of":0}}}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"image_size","type":"string","json_schema":{"x_movscript_image_size":{"width_multiple_of":0}}}]`); err == nil {
 		t.Fatal("expected invalid image size schema constraint to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"frames","type":"number","json_schema":{"minimum":100,"maximum":50}}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"frames","type":"number","json_schema":{"minimum":100,"maximum":50}}]`); err == nil {
 		t.Fatal("expected invalid json_schema range to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"frames","type":"number","default":31,"json_schema":{"enum":[29,33]}}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[{"key":"frames","type":"number","default":31,"json_schema":{"enum":[29,33]}}]`); err == nil {
 		t.Fatal("expected default outside json_schema enum to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[
 		{"key":"workspace","type":"boolean"},
 		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":"workspace","when_value":"true","options":["480p"]}]}
 	]`); err == nil {
 		t.Fatal("expected conditional when_value with wrong type to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[
 		{"key":"workspace","type":"boolean"},
 		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":{"when_param":"workspace","when_value":true,"options":["480p"]}}
 	]`); err == nil {
 		t.Fatal("expected non-array conditional_enum to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[
 		{"key":"workspace","type":"boolean"},
 		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":["workspace"]}
 	]`); err == nil {
 		t.Fatal("expected non-object conditional_enum item to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[
 		{"key":"workspace","type":"boolean"},
 		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"whenParam":"workspace","when_value":true,"options":["480p"]}]}
 	]`); err == nil {
 		t.Fatal("expected unknown conditional_enum field to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[
 		{"key":"workspace","type":"boolean"},
 		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":1,"when_value":true,"options":["480p"]}]}
 	]`); err == nil {
 		t.Fatal("expected non-string conditional_enum when_param to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[
 		{"key":"workspace","type":"boolean"},
 		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":null,"when_value":true,"options":["480p"]}]}
 	]`); err == nil {
 		t.Fatal("expected null conditional_enum when_param to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[
 		{"key":"workspace","type":"boolean"},
 		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":"workspace","when_value":true,"options":"480p"}]}
 	]`); err == nil {
 		t.Fatal("expected non-array conditional_enum options to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[
 		{"key":"workspace","type":"boolean"},
 		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":"workspace","when_value":true,"options":[480]}]}
 	]`); err == nil {
 		t.Fatal("expected non-string conditional_enum option to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[
 		{"key":"workspace","type":"boolean"},
 		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":"workspace","when_value":true,"options":["720p"]}]}
 	]`); err == nil {
 		t.Fatal("expected conditional enum option outside target options to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[
 		{"key":"workspace","type":"boolean"},
 		{"key":"return_last_frame","type":"boolean","conditional_const":[{"when_param":"workspace","when_value":true,"vale":false}]}
 	]`); err == nil {
 		t.Fatal("expected unknown conditional_const field to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[
 		{"key":"workspace","type":"boolean"},
 		{"key":"return_last_frame","type":"boolean","conditional_const":[{"when_param":1,"when_value":true,"value":false}]}
 	]`); err == nil {
 		t.Fatal("expected non-string conditional_const when_param to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[
 		{"key":"workspace","type":"boolean"},
 		{"key":"return_last_frame","type":"boolean","conditional_const":[{"when_param":"workspace","when_value":true,"value":null}]}
 	]`); err == nil {
 		t.Fatal("expected null conditional_const value to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[
 		{"key":"workspace","type":"boolean"},
 		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":"workspace","when_value":true,"options":["480p","480p"]}]}
 	]`); err == nil {
 		t.Fatal("expected duplicate conditional enum options to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[
 		{"key":"image_count","type":"number","min":1,"max":15},
 		{"key":"sequential_image_generation","type":"select","options":["disabled","auto"]},
 		{"key":"seed","type":"number","requires_value":[{"param":"sequential_image_generation","value":"enabled"}]}
 	]`); err == nil {
 		t.Fatal("expected requires_value with invalid target value to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[
 		{"key":"image_count","type":"number","min":1,"max":15},
 		{"key":"sequential_image_generation","type":"select","options":["disabled","auto"]},
 		{"key":"seed","type":"number","requires_value":[{"parameter":"sequential_image_generation","value":"auto"}]}
 	]`); err == nil {
 		t.Fatal("expected unknown requires_value field to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[
 		{"key":"image_count","type":"number","min":1,"max":15},
 		{"key":"sequential_image_generation","type":"select","options":["disabled","auto"]},
 		{"key":"seed","type":"number","requires_value":[{"param":1,"value":"auto"}]}
 	]`); err == nil {
 		t.Fatal("expected non-string requires_value param to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `[
 		{"key":"image_count","type":"number","min":1,"max":15},
 		{"key":"sequential_image_generation","type":"select","options":["disabled","auto"]},
 		{"key":"seed","type":"number","requires_value":[{"param":null,"value":"auto"}]}
 	]`); err == nil {
 		t.Fatal("expected null requires_value param to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"allow":["missing_param"]}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"allow":["missing_param"]}`); err == nil {
 		t.Fatal("expected unknown allow param to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"deny":["missing_param"]}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"deny":["missing_param"]}`); err == nil {
 		t.Fatal("expected unknown deny param to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"allow":["duration","duration"]}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"allow":["duration","duration"]}`); err == nil {
 		t.Fatal("expected duplicate allow param to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"allow":["duration"],"deny":["duration"]}`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"allow":["duration"],"deny":["duration"]}`); err == nil {
 		t.Fatal("expected allow and deny conflict to be rejected")
 	}
 }
 
 func TestModelParamProfilePrunesRulesForDeniedParams(t *testing.T) {
-	params, explicit := ResolveEffectiveParams(AdapterVolcen, []string{CapabilityVideo}, `{"allow":["duration"]}`)
+	params, explicit := ResolveEffectiveParams(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"allow":["duration"]}`)
 	if !explicit {
 		t.Fatal("expected profile to be explicit")
 	}
@@ -929,11 +927,11 @@ func TestModelParamProfilePrunesRulesForDeniedParams(t *testing.T) {
 func TestValidateGenerationParamsReturnsStructuredOptionError(t *testing.T) {
 	def := ResolveModelDef(
 		"profile-video", AdapterVolcen,
-		"Profile Video", CapabilityVideo, "",
+		"Profile Video", CapabilityFamilyVideoGeneration, "",
 		false, 0, 0,
 		"", `{"allow":["duration"],"override":{"duration":{"type":"select","options":["5","10"],"default":"5"}}}`,
 	)
-	err := ValidateGenerationParams(def, CapabilityVideo, `{"duration":"6"}`, "", 0)
+	err := ValidateGenerationParams(def, CapabilityFamilyVideoGeneration, `{"duration":"6"}`, "", 0)
 	var validationErr *ValidationError
 	if !errors.As(err, &validationErr) {
 		t.Fatalf("expected ValidationError, got %T %[1]v", err)
@@ -952,12 +950,12 @@ func TestValidateGenerationParamsReturnsStructuredOptionError(t *testing.T) {
 func TestValidateGenRequestReturnsStructuredInputCountError(t *testing.T) {
 	def := ResolveModelDef(
 		"custom-i2v", AdapterVolcen,
-		"Custom I2V", CapabilityVideoI2V, "",
+		"Custom I2V", CapabilityFamilyVideoGeneration, "",
 		true, 2, 0,
 		"", "",
 	)
 	err := ValidateGenRequest(def, GenRequest{
-		OutputType: CapabilityVideoI2V,
+		OutputType: CapabilityFamilyVideoGeneration,
 		ImageCount: 3,
 	})
 	var validationErr *ValidationError
@@ -967,8 +965,8 @@ func TestValidateGenRequestReturnsStructuredInputCountError(t *testing.T) {
 	if validationErr.Code != "INVALID_INPUT_COUNT" || validationErr.Field != "image" {
 		t.Fatalf("unexpected validation error: %#v", validationErr)
 	}
-	if validationErr.RequiredMin == nil || *validationErr.RequiredMin != 1 {
-		t.Fatalf("expected required_min=1, got %#v", validationErr.RequiredMin)
+	if validationErr.RequiredMin == nil || *validationErr.RequiredMin != 0 {
+		t.Fatalf("expected required_min=0, got %#v", validationErr.RequiredMin)
 	}
 	if validationErr.AllowedMax == nil || *validationErr.AllowedMax != 2 {
 		t.Fatalf("expected allowed_max=2, got %#v", validationErr.AllowedMax)
@@ -981,12 +979,12 @@ func TestValidateGenRequestReturnsStructuredInputCountError(t *testing.T) {
 func TestValidateGenRequestReturnsStructuredUnsupportedOutputTypeError(t *testing.T) {
 	def := ResolveModelDef(
 		"custom-image", AdapterVolcen,
-		"Custom Image", CapabilityImage, "",
+		"Custom Image", CapabilityFamilyImageGeneration, "",
 		false, 0, 0,
 		"", "",
 	)
 	err := ValidateGenRequest(def, GenRequest{
-		OutputType: CapabilityVideo,
+		OutputType: CapabilityFamilyVideoGeneration,
 	})
 	var validationErr *ValidationError
 	if !errors.As(err, &validationErr) {
@@ -995,7 +993,7 @@ func TestValidateGenRequestReturnsStructuredUnsupportedOutputTypeError(t *testin
 	if validationErr.Code != "UNSUPPORTED_OUTPUT_TYPE" || validationErr.Field != "output_type" {
 		t.Fatalf("unexpected validation error: %#v", validationErr)
 	}
-	if len(validationErr.AllowedValues) != 1 || validationErr.AllowedValues[0] != CapabilityImage {
+	if len(validationErr.AllowedValues) != 1 || validationErr.AllowedValues[0] != CapabilityFamilyImageGeneration {
 		t.Fatalf("expected allowed output types to preserve model capabilities, got %#v", validationErr.AllowedValues)
 	}
 }
@@ -1003,14 +1001,14 @@ func TestValidateGenRequestReturnsStructuredUnsupportedOutputTypeError(t *testin
 func TestValidateGenerationParamsValidatesStringParamType(t *testing.T) {
 	def := ResolveModelDef(
 		"profile-image", AdapterOpenAICompat,
-		"Profile Image", CapabilityImage, "",
+		"Profile Image", CapabilityFamilyImageGeneration, "",
 		false, 0, 0,
 		"", `{"allow":["negative_prompt"],"add":[{"key":"negative_prompt","label":"Negative Prompt","type":"string","default":""}]}`,
 	)
-	if err := ValidateGenerationParams(def, CapabilityImage, `{"negative_prompt":"low quality"}`, "", 0); err != nil {
+	if err := ValidateGenerationParams(def, CapabilityFamilyImageGeneration, `{"negative_prompt":"low quality"}`, "", 0); err != nil {
 		t.Fatalf("expected string param to validate: %v", err)
 	}
-	err := ValidateGenerationParams(def, CapabilityImage, `{"negative_prompt":123}`, "", 0)
+	err := ValidateGenerationParams(def, CapabilityFamilyImageGeneration, `{"negative_prompt":123}`, "", 0)
 	var validationErr *ValidationError
 	if !errors.As(err, &validationErr) {
 		t.Fatalf("expected ValidationError, got %T %[1]v", err)
@@ -1024,7 +1022,7 @@ func TestValidateGenerationParamsAppliesParamJSONSchemaKeywords(t *testing.T) {
 	def := &ModelDef{
 		ID:           "schema-video",
 		DisplayName:  "Schema Video",
-		Capabilities: []string{CapabilityVideo},
+		Capabilities: []string{CapabilityFamilyVideoGeneration},
 		SupportedParams: []ParamDef{
 			{
 				Key:  "frames",
@@ -1038,10 +1036,10 @@ func TestValidateGenerationParamsAppliesParamJSONSchemaKeywords(t *testing.T) {
 		},
 		SupportedParamsExplicit: true,
 	}
-	if err := ValidateGenerationParams(def, CapabilityVideo, `{"frames":33}`, "", 0); err != nil {
+	if err := ValidateGenerationParams(def, CapabilityFamilyVideoGeneration, `{"frames":33}`, "", 0); err != nil {
 		t.Fatalf("expected schema enum value to validate: %v", err)
 	}
-	err := ValidateGenerationParams(def, CapabilityVideo, `{"frames":31}`, "", 0)
+	err := ValidateGenerationParams(def, CapabilityFamilyVideoGeneration, `{"frames":31}`, "", 0)
 	var validationErr *ValidationError
 	if !errors.As(err, &validationErr) {
 		t.Fatalf("expected ValidationError, got %T %[1]v", err)
@@ -1061,7 +1059,7 @@ func TestValidateGenerationParamsAppliesImageSizeSchemaConstraints(t *testing.T)
 	def := &ModelDef{
 		ID:           "schema-image",
 		DisplayName:  "Schema Image",
-		Capabilities: []string{CapabilityImage},
+		Capabilities: []string{CapabilityFamilyImageGeneration},
 		SupportedParams: []ParamDef{
 			{
 				Key:     "image_size",
@@ -1083,16 +1081,16 @@ func TestValidateGenerationParamsAppliesImageSizeSchemaConstraints(t *testing.T)
 		},
 		SupportedParamsExplicit: true,
 	}
-	if err := ValidateGenerationParams(def, CapabilityImage, `{"image_size":"1536x864"}`, "", 0); err != nil {
+	if err := ValidateGenerationParams(def, CapabilityFamilyImageGeneration, `{"image_size":"1536x864"}`, "", 0); err != nil {
 		t.Fatalf("expected flexible image size to validate: %v", err)
 	}
-	if err := ValidateGenerationParams(def, CapabilityImage, `{"image_size":"auto"}`, "", 0); err != nil {
+	if err := ValidateGenerationParams(def, CapabilityFamilyImageGeneration, `{"image_size":"auto"}`, "", 0); err != nil {
 		t.Fatalf("expected auto image size to validate: %v", err)
 	}
-	if err := ValidateGenerationParams(def, CapabilityImage, `{"image_size":"1537x864"}`, "", 0); err == nil {
+	if err := ValidateGenerationParams(def, CapabilityFamilyImageGeneration, `{"image_size":"1537x864"}`, "", 0); err == nil {
 		t.Fatal("expected non-multiple image width to be rejected")
 	}
-	if err := ValidateGenerationParams(def, CapabilityImage, `{"image_size":"3840x1000"}`, "", 0); err == nil {
+	if err := ValidateGenerationParams(def, CapabilityFamilyImageGeneration, `{"image_size":"3840x1000"}`, "", 0); err == nil {
 		t.Fatal("expected out-of-range aspect ratio to be rejected")
 	}
 }
@@ -1100,11 +1098,11 @@ func TestValidateGenerationParamsAppliesImageSizeSchemaConstraints(t *testing.T)
 func TestValidateAndNormalizeGenerationParamsReturnsCanonicalKeys(t *testing.T) {
 	def := ResolveModelDef(
 		"custom-image", AdapterVolcen,
-		"Custom Image", CapabilityImage, "",
+		"Custom Image", CapabilityFamilyImageGeneration, "",
 		false, 0, 0,
 		"", "",
 	)
-	params, err := ValidateAndNormalizeGenerationParams(def, CapabilityImage, `{"size":"1024x1024","guidance_scale":2.5}`, "", 0)
+	params, err := ValidateAndNormalizeGenerationParams(def, CapabilityFamilyImageGeneration, `{"size":"1024x1024","guidance_scale":2.5}`, "", 0)
 	if err != nil {
 		t.Fatalf("expected params to validate: %v", err)
 	}
@@ -1130,7 +1128,7 @@ func TestValidateAndNormalizeGenerationParamsCanonicalizesAliases(t *testing.T) 
 
 		def := &ModelDef{
 			DisplayName:             "Alias Test",
-			Capabilities:            []string{CapabilityImage},
+			Capabilities:            []string{CapabilityFamilyImageGeneration},
 			SupportedParams:         []ParamDef{{Key: to, Type: paramType}},
 			SupportedParamsExplicit: true,
 		}
@@ -1138,7 +1136,7 @@ func TestValidateAndNormalizeGenerationParamsCanonicalizesAliases(t *testing.T) 
 		if err != nil {
 			t.Fatal(err)
 		}
-		normalized, err := ValidateAndNormalizeGenerationParams(def, CapabilityImage, string(body), "", 0)
+		normalized, err := ValidateAndNormalizeGenerationParams(def, CapabilityFamilyImageGeneration, string(body), "", 0)
 		if err != nil {
 			t.Fatalf("expected runtime alias %q to validate as %q: %v", from, to, err)
 		}
@@ -1179,14 +1177,14 @@ func TestNormalizeParamDefsForUICanonicalizesAliases(t *testing.T) {
 func TestValidateAndNormalizeGenerationParamsIgnoresJobMetadata(t *testing.T) {
 	def := ResolveModelDef(
 		"grok-imagine-image-edit", AdapterOpenAICompat,
-		"Grok Imagine Image Edit", CapabilityImageEdit, "",
+		"Grok Imagine Image Edit", CapabilityFamilyImageGeneration, "",
 		true, 1, 0,
 		"image[]", `[
 			{"key":"image_size","label":"尺寸","type":"select","options":["1024x1024"]},
 			{"key":"quality","label":"质量","type":"select","options":["standard"]}
 		]`,
 	)
-	params, err := ValidateAndNormalizeGenerationParams(def, CapabilityImageEdit, `{
+	params, err := ValidateAndNormalizeGenerationParams(def, CapabilityFamilyImageGeneration, `{
 		"source":"workspace_submit",
 		"resource_id":123,
 		"job_id":456,
@@ -1280,7 +1278,7 @@ func TestParamsSchemaExposesResolvedParamDefs(t *testing.T) {
 
 func TestParamDefPreservesExplicitZeroNumberBounds(t *testing.T) {
 	const raw = `[{"key":"prompt_strength","label":"Prompt Strength","type":"number","min":0,"max":0}]`
-	params, explicit := ResolveEffectiveParams(AdapterVolcen, []string{CapabilityImage}, raw)
+	params, explicit := ResolveEffectiveParams(AdapterVolcen, []string{CapabilityFamilyImageGeneration}, raw)
 	if !explicit || len(params) != 1 {
 		t.Fatalf("expected explicit custom params, got explicit=%v params=%#v", explicit, params)
 	}
@@ -1304,14 +1302,14 @@ func TestParamDefPreservesExplicitZeroNumberBounds(t *testing.T) {
 	def := &ModelDef{
 		ID:                      "zero-bound",
 		DisplayName:             "Zero Bound",
-		Capabilities:            []string{CapabilityImage},
+		Capabilities:            []string{CapabilityFamilyImageGeneration},
 		SupportedParams:         params,
 		SupportedParamsExplicit: true,
 	}
-	if err := ValidateGenerationParams(def, CapabilityImage, `{"prompt_strength":1}`, "", 0); err == nil {
+	if err := ValidateGenerationParams(def, CapabilityFamilyImageGeneration, `{"prompt_strength":1}`, "", 0); err == nil {
 		t.Fatal("expected explicit zero max to reject value above zero")
 	}
-	if err := ValidateGenerationParams(def, CapabilityImage, `{"prompt_strength":0}`, "", 0); err != nil {
+	if err := ValidateGenerationParams(def, CapabilityFamilyImageGeneration, `{"prompt_strength":0}`, "", 0); err != nil {
 		t.Fatalf("expected zero value to satisfy explicit zero bounds: %v", err)
 	}
 }
@@ -1320,7 +1318,7 @@ func TestDeclaredParamRulesValidateCombinations(t *testing.T) {
 	def := &ModelDef{
 		ID:           "declared-rules",
 		DisplayName:  "Declared Rules",
-		Capabilities: []string{CapabilityVideo},
+		Capabilities: []string{CapabilityFamilyVideoGeneration},
 		SupportedParams: []ParamDef{
 			{Key: "duration", Type: "select", Options: []string{"5", "10"}, ConflictsWith: []string{"frames"}},
 			{Key: "frames", Type: "number", Min: 29, Max: 289, Step: 4},
@@ -1333,28 +1331,28 @@ func TestDeclaredParamRulesValidateCombinations(t *testing.T) {
 		SupportedParamsExplicit: true,
 	}
 	var validationErr *ValidationError
-	if err := ValidateGenerationParams(def, CapabilityVideo, `{"duration":"5","frames":29}`, "", 0); err == nil {
+	if err := ValidateGenerationParams(def, CapabilityFamilyVideoGeneration, `{"duration":"5","frames":29}`, "", 0); err == nil {
 		t.Fatal("expected declared conflict rule to reject duration + frames")
 	} else if !errors.As(err, &validationErr) {
 		t.Fatalf("expected ValidationError for conflict, got %T %[1]v", err)
 	} else if value, ok := validationErr.SuggestedFix["frames"]; !ok || value != nil {
 		t.Fatalf("expected conflict suggested fix to remove frames, got %#v", validationErr.SuggestedFix)
 	}
-	err := ValidateGenerationParams(def, CapabilityVideo, `{"workspace":true,"resolution":"720p"}`, "", 0)
+	err := ValidateGenerationParams(def, CapabilityFamilyVideoGeneration, `{"workspace":true,"resolution":"720p"}`, "", 0)
 	if !errors.As(err, &validationErr) {
 		t.Fatalf("expected ValidationError, got %T %[1]v", err)
 	}
 	if validationErr.SuggestedFix["resolution"] != "480p" {
 		t.Fatalf("expected resolution suggested fix, got %#v", validationErr.SuggestedFix)
 	}
-	err = ValidateGenerationParams(def, CapabilityVideo, `{"workspace":true,"return_last_frame":true}`, "", 0)
+	err = ValidateGenerationParams(def, CapabilityFamilyVideoGeneration, `{"workspace":true,"return_last_frame":true}`, "", 0)
 	if !errors.As(err, &validationErr) {
 		t.Fatalf("expected ValidationError for conditional const, got %T %[1]v", err)
 	}
 	if validationErr.SuggestedFix["return_last_frame"] != false {
 		t.Fatalf("expected return_last_frame suggested fix, got %#v", validationErr.SuggestedFix)
 	}
-	err = ValidateGenerationParams(def, CapabilityVideo, `{"image_count":3,"sequential_image_generation":"disabled"}`, "", 0)
+	err = ValidateGenerationParams(def, CapabilityFamilyVideoGeneration, `{"image_count":3,"sequential_image_generation":"disabled"}`, "", 0)
 	if !errors.As(err, &validationErr) {
 		t.Fatalf("expected ValidationError for required value, got %T %[1]v", err)
 	}
@@ -1367,7 +1365,7 @@ func TestExplicitSupportedParamsDoNotInheritLegacyCrossParamRules(t *testing.T) 
 	def := &ModelDef{
 		ID:           "declared-rules-without-conflict",
 		DisplayName:  "Declared Rules Without Conflict",
-		Capabilities: []string{CapabilityVideo},
+		Capabilities: []string{CapabilityFamilyVideoGeneration},
 		SupportedParams: []ParamDef{
 			{Key: "duration", Type: "select", Options: []string{"5", "10"}},
 			{Key: "frames", Type: "number", Min: 29, Max: 289, Step: 4},
@@ -1379,13 +1377,13 @@ func TestExplicitSupportedParamsDoNotInheritLegacyCrossParamRules(t *testing.T) 
 		},
 		SupportedParamsExplicit: true,
 	}
-	if err := ValidateGenerationParams(def, CapabilityVideo, `{"duration":"5","frames":29}`, "", 0); err != nil {
+	if err := ValidateGenerationParams(def, CapabilityFamilyVideoGeneration, `{"duration":"5","frames":29}`, "", 0); err != nil {
 		t.Fatalf("expected explicit params without conflicts_with to allow duration + frames: %v", err)
 	}
-	if err := ValidateGenerationParams(def, CapabilityVideo, `{"workspace":true,"resolution":"720p","return_last_frame":true}`, "", 0); err != nil {
+	if err := ValidateGenerationParams(def, CapabilityFamilyVideoGeneration, `{"workspace":true,"resolution":"720p","return_last_frame":true}`, "", 0); err != nil {
 		t.Fatalf("expected explicit params without conditional rules to allow workspace combination: %v", err)
 	}
-	if err := ValidateGenerationParams(def, CapabilityVideo, `{"image_count":3,"sequential_image_generation":"disabled"}`, "", 0); err != nil {
+	if err := ValidateGenerationParams(def, CapabilityFamilyVideoGeneration, `{"image_count":3,"sequential_image_generation":"disabled"}`, "", 0); err != nil {
 		t.Fatalf("expected explicit params without requires_value to allow image_count combination: %v", err)
 	}
 }
@@ -1394,13 +1392,13 @@ func TestAdapterDefaultParamsKeepLegacyCrossParamRules(t *testing.T) {
 	def := &ModelDef{
 		ID:           "adapter-default-legacy-rules",
 		DisplayName:  "Adapter Default Legacy Rules",
-		Capabilities: []string{CapabilityVideo},
+		Capabilities: []string{CapabilityFamilyVideoGeneration},
 		SupportedParams: []ParamDef{
 			{Key: "duration", Type: "select", Options: []string{"5", "10"}},
 			{Key: "frames", Type: "number", Min: 29, Max: 289, Step: 4},
 		},
 	}
-	err := ValidateGenerationParams(def, CapabilityVideo, `{"duration":"5","frames":29}`, "", 0)
+	err := ValidateGenerationParams(def, CapabilityFamilyVideoGeneration, `{"duration":"5","frames":29}`, "", 0)
 	var validationErr *ValidationError
 	if !errors.As(err, &validationErr) {
 		t.Fatalf("expected legacy ValidationError, got %T %[1]v", err)
@@ -1413,13 +1411,13 @@ func TestAdapterDefaultParamsKeepLegacyCrossParamRules(t *testing.T) {
 func TestModelInputsForDefReflectsTaskRequirements(t *testing.T) {
 	def := ResolveModelDef(
 		"custom-i2v", AdapterVolcen,
-		"Custom I2V", CapabilityVideoI2V, "",
+		"Custom I2V", CapabilityFamilyVideoGeneration, "",
 		true, 2, 0,
 		"", "",
 	)
 	inputs := modelInputsForDef(def)
-	if inputs.Image.Min != 1 || inputs.Image.Max != 2 {
-		t.Fatalf("expected i2v image input min=1 max=2, got %#v", inputs.Image)
+	if inputs.Image.Min != 0 || inputs.Image.Max != 2 {
+		t.Fatalf("expected optional image input max=2, got %#v", inputs.Image)
 	}
 	if inputs.Video.Min != 0 || inputs.Video.Max != 0 {
 		t.Fatalf("expected no video input requirement, got %#v", inputs.Video)
@@ -1429,7 +1427,7 @@ func TestModelInputsForDefReflectsTaskRequirements(t *testing.T) {
 func TestModelInputsForDefReflectsOptionalCustomImageInputs(t *testing.T) {
 	def := ResolveModelDef(
 		"custom-image-model", AdapterVolcen,
-		"Custom Image Model", CapabilityImage, "",
+		"Custom Image Model", CapabilityFamilyImageGeneration, "",
 		false, 4, 0,
 		"", "",
 	)
@@ -1448,7 +1446,7 @@ func TestModelInputsForDefReflectsOptionalCustomImageInputs(t *testing.T) {
 func TestModelInputsForDefAllowsOptionalImageInputForMixedImageEditModels(t *testing.T) {
 	def := ResolveModelDef(
 		"custom-image-and-edit", AdapterGemini,
-		"Custom Image And Edit", strings.Join([]string{CapabilityImage, CapabilityImageEdit}, ","), "",
+		"Custom Image And Edit", strings.Join([]string{CapabilityFamilyImageGeneration}, ","), "",
 		true, -1, 0,
 		"", "",
 	)

@@ -33,6 +33,7 @@ function checkGeneratedPathClassification() {
     'plugins/movscript/release/movscript-agent-plugin.zip',
     'release-artifacts/Movscript.dmg',
     '.movscript-dev/user-data/state.json',
+    'timeline_assemblies/project_local-project/assembly.json',
   ]
   const sourceExamples = [
     'scripts/release/release-workflow.mjs',
@@ -78,6 +79,7 @@ function requiredDockerIgnorePatterns() {
     'release-artifacts/',
     'services/*/dist/',
     'surface/*/dist/',
+    'timeline_assemblies/',
   ]
 }
 

@@ -1,6 +1,7 @@
 import { app, BrowserWindow, shell } from 'electron'
 import electronUpdater from 'electron-updater'
 import type { ElectronAppUpdateStatus } from '../../src/shared/contracts/electronApi'
+import { prepareDaemonForDesktopUpdateInstall } from './appUpdateDaemon'
 
 const { autoUpdater } = electronUpdater
 
@@ -70,6 +71,7 @@ export async function installAppUpdate(): Promise<ElectronAppUpdateStatus> {
   configureUpdater()
   if (!status.downloaded) return status
   setStatus({ ...status, installing: true, error: undefined })
+  await prepareDaemonForDesktopUpdateInstall()
   autoUpdater.quitAndInstall(false, true)
   return status
 }

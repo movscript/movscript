@@ -102,7 +102,7 @@ func TestStabilityGenerateAudioStableAudio3PollsResult(t *testing.T) {
 	})}
 
 	resp, err := adapter.GenerateAudio(context.Background(), media.AudioGenerationRequest{
-		Kind:        media.AudioGenerationKindSFX,
+		Kind:        media.AudioGenerationKindSoundEffect,
 		Prompt:      "soft rain ambience",
 		Model:       "stable-audio-3",
 		DurationSec: 10,

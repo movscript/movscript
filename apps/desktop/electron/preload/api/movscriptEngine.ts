@@ -21,7 +21,6 @@ const PROJECT_PRODUCTION_SNAPSHOT_SAVE_ENDPOINT = '/v1/project/productions/snaps
 const PROJECT_CONTENT_UNIT_UPSERT_ENDPOINT = '/v1/project/content-units/upsert'
 const PROJECT_CONTENT_UNIT_CREATE_ENDPOINT = '/v1/project/content-units/create'
 const PROJECT_CONTENT_UNIT_ENSURE_ENDPOINT = '/v1/project/content-units/ensure'
-const PROJECT_TIMELINE_ASSEMBLY_CONTENT_UNIT_ENSURE_ENDPOINT = '/v1/project/timeline-assemblies/content-unit/ensure'
 const PROJECT_CONTENT_UNIT_EDIT_PROMPT_UPDATE_ENDPOINT = '/v1/project/content-units/edit-prompt/update'
 const PROJECT_PRODUCTION_CREATE_ENDPOINT = '/v1/project/productions/create'
 const PROJECT_SEGMENT_CREATE_ENDPOINT = '/v1/project/segments/create'
@@ -77,7 +76,6 @@ export function createMovScriptEngineAPI(ipcRenderer: IpcRenderer): Pick<
   | 'deleteMovScriptEngineContentCanvas'
   | 'createMovScriptEngineContentUnit'
   | 'ensureMovScriptEngineContentUnitForEntity'
-  | 'ensureMovScriptEngineTimelineAssemblyContentUnit'
   | 'createMovScriptEngineSetting'
   | 'createMovScriptEngineSettingState'
   | 'createMovScriptEngineAsset'
@@ -138,16 +136,7 @@ export function createMovScriptEngineAPI(ipcRenderer: IpcRenderer): Pick<
     runMovScriptEngineContentCanvas: (input) => daemonProjectContentCanvasRequest(ipcRenderer, PROJECT_CONTENT_CANVAS_RUN_ENDPOINT, input),
     deleteMovScriptEngineContentCanvas: (input) => daemonProjectContentCanvasRequest(ipcRenderer, PROJECT_CONTENT_CANVAS_DELETE_ENDPOINT, input),
     createMovScriptEngineContentUnit: (input) => daemonProjectSourceOperation(ipcRenderer, PROJECT_CONTENT_UNIT_CREATE_ENDPOINT, payloadInput(input), input),
-    ensureMovScriptEngineContentUnitForEntity: (input) => {
-      const payload = payloadInput(input)
-      return daemonProjectSourceOperation(
-        ipcRenderer,
-        isTimelineAssemblyContentUnitInput(payload) ? PROJECT_TIMELINE_ASSEMBLY_CONTENT_UNIT_ENSURE_ENDPOINT : PROJECT_CONTENT_UNIT_ENSURE_ENDPOINT,
-        payload,
-        input,
-      )
-    },
-    ensureMovScriptEngineTimelineAssemblyContentUnit: (input) => daemonProjectSourceOperation(ipcRenderer, PROJECT_TIMELINE_ASSEMBLY_CONTENT_UNIT_ENSURE_ENDPOINT, payloadInput(input), input),
+    ensureMovScriptEngineContentUnitForEntity: (input) => daemonProjectSourceOperation(ipcRenderer, PROJECT_CONTENT_UNIT_ENSURE_ENDPOINT, payloadInput(input), input),
     createMovScriptEngineSetting: (input) => daemonProjectSourceOperation(ipcRenderer, PROJECT_SETTING_CREATE_ENDPOINT, payloadInput(input), input),
     createMovScriptEngineSettingState: (input) => daemonProjectSourceOperation(ipcRenderer, PROJECT_SETTING_STATE_CREATE_ENDPOINT, payloadInput(input), input),
     createMovScriptEngineAsset: (input) => daemonProjectSourceOperation(ipcRenderer, PROJECT_ASSET_CREATE_ENDPOINT, payloadInput(input), input),
@@ -299,7 +288,12 @@ function projectCommandEnvelope(input: unknown, runtimeConfig: unknown): Record<
 
 function daemonGatewayBaseURL(runtimeConfig: unknown): string {
   const record = recordValue(runtimeConfig)
-  const baseURL = stringValue(record.gatewayBaseURL)
+  const runtimeConnection = recordValue(record.runtimeConnection)
+  const runtime = recordValue(record.runtime)
+  const runtimeGateway = recordValue(runtime.gateway)
+  const baseURL = stringValue(runtimeConnection.gatewayBaseURL)
+    ?? stringValue(runtimeGateway.baseURL)
+    ?? stringValue(record.gatewayBaseURL)
     ?? stringValue(record.daemonGatewayBaseURL)
     ?? stringValue(record.apiBaseURL)
   if (!baseURL) throw new Error('Daemon gateway endpoint is not available in Desktop runtime config')
@@ -372,15 +366,6 @@ function stripProjectEnvelope(input: unknown): Record<string, unknown> {
 function candidateRecordFromResult(result: unknown): unknown {
   const record = recordValue(result)
   return optionalRecordValue(record.record) ?? optionalRecordValue(record.candidate) ?? result
-}
-
-function isTimelineAssemblyContentUnitInput(input: Record<string, unknown>): boolean {
-  const targetKind = stringValue(input.targetKind ?? input.target_kind)
-  const contentUnitType = stringValue(input.contentUnitType ?? input.content_unit_type)
-  const targetRef = stringValue(input.targetRef ?? input.target_ref)
-  return targetKind === 'timeline_assembly'
-    || contentUnitType === 'timeline_assembly_ref'
-    || Boolean(targetRef?.startsWith('timeline_assembly:'))
 }
 
 function isNamespaceHierarchyNodeInput(input: Record<string, unknown>): boolean {

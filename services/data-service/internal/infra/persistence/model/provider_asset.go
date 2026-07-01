@@ -69,7 +69,7 @@ type ProviderAssetModelCertification struct {
 	ProviderID      string         `gorm:"not null;index" json:"provider_id"`
 	PublicModelID   string         `gorm:"not null;default:'';uniqueIndex:uidx_provider_asset_model_certs" json:"public_model_id"`
 	ProviderModelID string         `gorm:"not null;default:'';uniqueIndex:uidx_provider_asset_model_certs" json:"provider_model_id"`
-	Capability      string         `gorm:"not null;default:'video_i2v';index" json:"capability"`
+	Capability      string         `gorm:"not null;default:'video_generation';index" json:"capability"`
 	Status          string         `gorm:"not null;default:'active';index" json:"status"`
 	AssetURI        string         `gorm:"not null;default:''" json:"asset_uri"`
 	RemoteAssetID   string         `gorm:"not null;default:'';index" json:"remote_asset_id"`

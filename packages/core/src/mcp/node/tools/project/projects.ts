@@ -83,10 +83,18 @@ async function runProjectLifecycleCommand(
 }
 
 function lifecycleInputFromArgs(args: Record<string, unknown>): Record<string, unknown> {
+  const localProjectId = getOptionalString(args, 'localProjectId')
+    ?? getOptionalString(args, 'local_project_id')
+    ?? getOptionalString(args, 'projectId')
+    ?? getOptionalString(args, 'project_id')
   return {
     ...(getOptionalString(args, 'title') ? { title: getOptionalString(args, 'title') } : {}),
-    ...(getOptionalString(args, 'projectId') ? { projectId: getOptionalString(args, 'projectId') } : {}),
-    ...(getOptionalString(args, 'project_id') ? { project_id: getOptionalString(args, 'project_id') } : {}),
+    ...(localProjectId ? {
+      localProjectId,
+      local_project_id: localProjectId,
+      projectId: localProjectId,
+      project_id: localProjectId,
+    } : {}),
     ...(getOptionalString(args, 'projectUid') ? { projectUid: getOptionalString(args, 'projectUid') } : {}),
     ...(getOptionalString(args, 'project_uid') ? { project_uid: getOptionalString(args, 'project_uid') } : {}),
     ...(getOptionalString(args, 'language') ? { language: getOptionalString(args, 'language') } : {}),

@@ -74,7 +74,7 @@
               }
             }
           },
-          "image_edit_field": {
+          "input_image_field": {
             "type": "string"
           },
           "video": {

@@ -44,6 +44,11 @@ Target-specific desktop assets such as ffmpeg are downloaded and verified
 inside each `release full` / package job before packaging and smoke testing
 that target.
 
+The Agent Plugin package gate runs `pnpm run release -- smoke-plugin-package`
+after `movscript-agent-plugin-<version>.zip` is built. It extracts the zip into
+a temporary Home, starts the bundled daemon, checks `/v1/runtime/descriptor`,
+checks `/v1/mcp/health`, and verifies a minimal MCP `tools/list` response.
+
 The backend release gate runs data-service unit tests and the explicit model
 capability contract. Broader Go architecture checks are still available as
 `pnpm --filter @movscript/data-service run test:architecture`, but they track
@@ -54,7 +59,8 @@ Public GitHub Releases have two user-facing product tracks:
 - Agent Plugin only: `movscript-agent-plugin-<version>.zip`, installed through
   `install-plugin.sh` and usable without installing Desktop.
 - Desktop App: `movscript-desktop-<platform>-<arch>-*`, installed through
-  `install-desktop.sh` on macOS or downloaded as a desktop installer.
+  `install-desktop.sh` on macOS or downloaded as a Windows installer or Linux
+  AppImage.
 
 `movscript.local-node` is a shared runtime component behind those two packages,
 not a third public release track.

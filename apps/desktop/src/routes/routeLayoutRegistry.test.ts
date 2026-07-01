@@ -125,8 +125,6 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
   assert.equal(routeLayoutSpecForPathname('/project/content/canvas').routeId, 'project.content.canvas')
   assert.equal(routeLayoutSpecForPathname('/project/content/preview').routeId, 'project.content.preview')
   assert.equal(routeLayoutSpecForPathname('/project/settings/preview').routeId, 'project.setting.preview')
-  assert.equal(routeLayoutSpecForPathname('/studio/proj_uid_7/edit-desk').routeId, 'studio.editDesk')
-  assert.equal(routeLayoutSpecForPathname('/studio/proj_uid_7/edit-desk').scrollMode, 'workspace')
 
   assert.equal(routeLayoutSpecForPathname('/project/agent').surface, 'agent')
   assert.equal(routeLayoutSpecForPathname('/project/agent').scrollMode, 'workspace')
@@ -202,9 +200,8 @@ test('desktop route layout registry stays compatible with shared surface route c
     '/project/content/canvas',
     '/project/content/preview',
     '/project/settings/preview',
-    '/studio/proj_uid_7/edit-desk',
-    '/tools/ref-image-gen',
-    '/tools/audio-transcribe',
+    '/tools/image',
+    '/tools/text',
     '/tools/private-assets',
     '/canvases',
     '/canvases/42',
@@ -264,11 +261,6 @@ test('route layout registry declares shared tool workbench resource panes', () =
   for (const pathname of [
     '/tools/image',
     '/tools/video',
-    '/tools/ref-image-gen',
-    '/tools/ref-video-gen',
-    '/tools/motion-imitation',
-    '/tools/style-transfer',
-    '/tools/multi-angle',
   ]) {
     const route = routeLayoutSpecForPathname(pathname)
     assert.equal(route.surface, 'tool')
@@ -288,7 +280,7 @@ test('route layout registry declares shared tool workbench resource panes', () =
     assert.equal(resourcePane?.overlapMode, 'pane-surface')
   }
 
-  for (const pathname of ['/tools/audio', '/tools/text', '/tools/audio-gen', '/tools/audio-transcribe', '/tools/audio-translate', '/tools/music-gen', '/tools/audio-sfx', '/tools/voice-clone', '/tools/voice-design']) {
+  for (const pathname of ['/tools/audio', '/tools/text']) {
     const audioRoute = routeLayoutSpecForPathname(pathname)
     assert.equal(audioRoute.surface, 'tool')
     assert.equal(audioRoute.scrollMode, 'workspace')
@@ -433,7 +425,7 @@ test('route layout inventory declares high-risk drag surfaces and coordinate ada
       coordinateAdapter: 'existing',
     },
   ])
-  assert.deepEqual(routeLayoutInventoryItemForRouteId('tools.refImageGen')?.dragSurfaces, [
+  assert.deepEqual(routeLayoutInventoryItemForRouteId('tools.image')?.dragSurfaces, [
     {
       id: 'tools.resource-pane',
       payloadKinds: ['resource', 'file'],

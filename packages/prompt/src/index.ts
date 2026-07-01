@@ -13,7 +13,7 @@ import {
   primaryRefIdsForContentUnitRecord as domainPrimaryRefIdsForContentUnitRecord,
   primaryRefKindForContentUnitType as domainPrimaryRefKindForContentUnitType,
 } from '@movscript/domain'
-import { formatResourceMention } from '@movscript/workspace'
+import { formatResourceMention, parseResourceMentions } from '@movscript/workspace'
 import { queryMovScriptWorkspaceEntities } from '@movscript/workspace/indexer'
 import {
   entityPathSlug,
@@ -21,7 +21,8 @@ import {
 } from '@movscript/workspace/layout'
 
 export type MovScriptPromptOutputKind = MovScriptContentUnitOutputKind
-export type MovScriptPromptRefKind = MovScriptContentUnitPromptRefKind | 'candidate' | 'resource'
+export type MovScriptGenerationReferenceKind = MovScriptContentUnitPromptRefKind | 'candidate' | 'resource'
+export type MovScriptPromptRefKind = MovScriptGenerationReferenceKind | 'ref'
 export type MovScriptPromptRefRole =
   | 'input'
   | 'generic'
@@ -42,6 +43,7 @@ export interface MovScriptPromptRef {
   kind: MovScriptPromptRefKind
   id: string
   raw: string
+  reference_id?: string
   role?: MovScriptPromptRefRole
   media_type?: MovScriptPromptRefMediaType
   source: {
@@ -68,6 +70,9 @@ export interface MovScriptResolvedPromptRef extends MovScriptPromptRef {
   upstream_content_unit_ref?: string
   upstream_content_unit_id?: string | number
   resource_id?: number
+  reference_id?: string
+  source_kind?: MovScriptGenerationReferenceKind
+  source_ref?: string | number
   replacement?: string
   blocker?: MovScriptPromptBuildBlocker
 }
@@ -101,6 +106,7 @@ export type MovScriptPromptBuildBlockerCode =
   | 'upstream_selection_stale'
   | 'prompt_dependency_cycle'
   | 'unsupported_prompt_ref_kind'
+  | 'prompt_ref_not_in_generation_references'
 
 export interface MovScriptPromptBuildBlocker {
   code: MovScriptPromptBuildBlockerCode
@@ -119,10 +125,25 @@ export interface MovScriptPromptReplacement {
 }
 
 export interface MovScriptCompiledPromptReferenceAsset {
+  reference_id?: string
+  source_kind?: MovScriptGenerationReferenceKind
+  source_id?: string | number
   resource_id: number
   role: MovScriptPromptRefRole
   media_type: MovScriptPromptRefMediaType
   source_ref: string
+}
+
+export interface MovScriptContentUnitGenerationReference {
+  reference_id?: string
+  kind: MovScriptGenerationReferenceKind
+  id: string
+  raw: string
+  role?: MovScriptPromptRefRole
+  media_type?: MovScriptPromptRefMediaType
+  source_ref?: string
+  label?: string
+  source?: string
 }
 
 export interface MovScriptShotPlanItem {
@@ -159,6 +180,7 @@ export interface MovScriptCompiledContentUnitPrompt {
   reference_assets?: MovScriptCompiledPromptReferenceAsset[]
   replacements: MovScriptPromptReplacement[]
   refs: MovScriptResolvedPromptRef[]
+  generation_refs?: MovScriptResolvedPromptRef[]
   blockers?: MovScriptPromptBuildBlocker[]
 }
 
@@ -223,6 +245,7 @@ export async function buildContentUnitBackendPrompt(
   const outputKind = contentUnitOutputKind(input.contentUnit.record.output_kind)
   const editPrompt = contentUnitEditPrompt(input.contentUnit.record.edit_prompt, input.promptText)
   const refs = parseContentUnitEditPromptRefs(editPrompt)
+  const generationRefs = contentUnitGenerationReferences(input.contentUnit.record)
   const unsupportedRefs = parseUnsupportedContentUnitEditPromptRefs(editPrompt)
   const primaryKind = primaryRefKindForContentUnitType(contentUnitType)
   const primaryRefs = primaryKind ? primaryContentUnitRefs(input.contentUnit, primaryKind) : []
@@ -261,10 +284,45 @@ export async function buildContentUnitBackendPrompt(
     blockers.push(unsupportedPromptRefBlocker(ref))
   }
 
+  const explicitReferencePool = contentUnitHasExplicitReferencePool(input.contentUnit.record)
+    || refs.some((ref) => ref.kind === 'ref')
   const resolvedRefs: MovScriptResolvedPromptRef[] = []
   for (const ref of refs) {
+    const generationRef = explicitReferencePool ? generationReferenceForPromptRef(generationRefs, ref) : undefined
+    const effectiveRef = generationRef ? promptRefFromGenerationReference(generationRef, ref) : ref
+    const role: MovScriptPromptRefRole = effectiveRef.role ?? 'input'
+    if (explicitReferencePool && !generationRef) {
+      const blocker: MovScriptPromptBuildBlocker = {
+        code: 'prompt_ref_not_in_generation_references',
+        ref: ref.raw,
+        message: `prompt ref must first be added to generation_references: ${ref.raw}`,
+      }
+      blockers.push(blocker)
+      resolvedRefs.push({
+        ...ref,
+        role,
+        blocker,
+      })
+      continue
+    }
+    const resolvedRef = await resolveContentUnitPromptRef({
+      index: input.index,
+      ref: effectiveRef,
+      role,
+      contentUnit: input.contentUnit,
+      contentUnitRef,
+      decisionProvider: input.decisionProvider,
+      decisionCache,
+    })
+    if (resolvedRef.blocker) blockers.push(resolvedRef.blocker)
+    resolvedRefs.push(resolvedRef)
+  }
+  const resolvedGenerationRefs: MovScriptResolvedPromptRef[] = []
+  for (const generationRef of generationRefs) {
+    const ref = promptRefFromGenerationReference(generationRef)
     const role: MovScriptPromptRefRole = ref.role ?? 'input'
-    const directRef = await resolveDirectPromptResourceRef({
+    const resolvedRef = await resolveContentUnitPromptRef({
+      index: input.index,
       ref,
       role,
       contentUnit: input.contentUnit,
@@ -272,103 +330,8 @@ export async function buildContentUnitBackendPrompt(
       decisionProvider: input.decisionProvider,
       decisionCache,
     })
-    if (directRef) {
-      if (directRef.blocker) blockers.push(directRef.blocker)
-      resolvedRefs.push(directRef)
-      continue
-    }
-    const entity = resolvePromptRefEntity(input.index, ref)
-    const base: MovScriptResolvedPromptRef = {
-      ...ref,
-      role,
-      ...(entity ? {
-        resolved: {
-          entityKind: entity.entityKind,
-          ...(entity.id !== undefined ? { id: entity.id } : {}),
-          path: entity.path,
-        },
-      } : {}),
-    }
-    if (!entity) {
-      const blocker: MovScriptPromptBuildBlocker = {
-        code: 'ref_not_found',
-        ref: ref.raw,
-        message: `prompt ref does not resolve: ${ref.raw}`,
-      }
-      blockers.push(blocker)
-      resolvedRefs.push({ ...base, blocker })
-      continue
-    }
-    const upstream = resolveContentUnitForPromptRef(input.index, ref)
-    if (!upstream || upstream.id === undefined) {
-      const blocker: MovScriptPromptBuildBlocker = {
-        code: 'upstream_content_unit_not_found',
-        ref: ref.raw,
-        message: `prompt input has no ${ref.kind}_ref content unit: ${ref.raw}`,
-      }
-      blockers.push(blocker)
-      resolvedRefs.push({ ...base, blocker })
-      continue
-    }
-
-    const upstreamRef = entityDir(upstream.path)
-    if (upstreamRef === contentUnitRef) {
-      const blocker: MovScriptPromptBuildBlocker = {
-        code: 'prompt_dependency_cycle',
-        ref: ref.raw,
-        content_unit_ref: upstreamRef,
-        content_unit_id: upstream.id,
-        message: `prompt input forms a dependency cycle: ${ref.raw}`,
-      }
-      blockers.push(blocker)
-      resolvedRefs.push({
-        ...base,
-        upstream_content_unit_ref: upstreamRef,
-        upstream_content_unit_id: upstream.id,
-        blocker,
-      })
-      continue
-    }
-
-    const decision = await decisionFor(input.decisionProvider, decisionCache, upstream.id, upstreamRef)
-    const decisionBlocker = blockerForDecision(ref, upstream, upstreamRef, decision)
-    if (decisionBlocker) {
-      blockers.push(decisionBlocker)
-      resolvedRefs.push({
-        ...base,
-        upstream_content_unit_ref: upstreamRef,
-        upstream_content_unit_id: upstream.id,
-        blocker: decisionBlocker,
-      })
-      continue
-    }
-
-    const resourceId = promptInputResourceId(decision)
-    if (resourceId === undefined) {
-      const blocker: MovScriptPromptBuildBlocker = {
-        code: 'upstream_resource_missing',
-        ref: ref.raw,
-        content_unit_ref: upstreamRef,
-        content_unit_id: upstream.id,
-        message: `prompt input selected content unit has no resource_id: ${ref.raw}`,
-      }
-      blockers.push(blocker)
-      resolvedRefs.push({
-        ...base,
-        upstream_content_unit_ref: upstreamRef,
-        upstream_content_unit_id: upstream.id,
-        blocker,
-      })
-      continue
-    }
-
-    resolvedRefs.push({
-      ...base,
-      upstream_content_unit_ref: upstreamRef,
-      upstream_content_unit_id: upstream.id,
-      resource_id: resourceId,
-      replacement: resourceToken(resourceId, ref),
-    })
+    if (resolvedRef.blocker) blockers.push(resolvedRef.blocker)
+    resolvedGenerationRefs.push(resolvedRef)
   }
 
   const replacements = resolvedRefs.flatMap((ref): MovScriptPromptReplacement[] => {
@@ -382,7 +345,8 @@ export async function buildContentUnitBackendPrompt(
   })
   const structured = normalizedPromptStructured(editPrompt?.structured, contentUnitType, outputKind)
   const structuredText = structuredPromptText(structured, contentUnitType, outputKind)
-  const referenceAssets = referenceAssetsForResolvedRefs(resolvedRefs)
+  const resolvedReferenceInputs = explicitReferencePool ? resolvedGenerationRefs : resolvedRefs
+  const referenceAssets = referenceAssetsForResolvedRefs(resolvedReferenceInputs)
   const compiledText = compiledPromptTextWithStructured({
     text: compilePromptText(stringField(editPrompt?.text), resolvedRefs, 'edit_prompt.text'),
     structuredText: compilePromptText(structuredText, resolvedRefs, 'edit_prompt.structured'),
@@ -401,11 +365,13 @@ export async function buildContentUnitBackendPrompt(
     style_reference_resource_ids: styleReferenceResourceIds.length > 0 ? styleReferenceResourceIds : undefined,
     resource_ids: uniqueIds([
       ...replacements.map((replacement) => replacement.resource_id),
+      ...referenceAssets.map((referenceAsset) => referenceAsset.resource_id),
       ...styleReferenceResourceIds,
     ]),
     reference_assets: referenceAssets.length > 0 ? referenceAssets : undefined,
     replacements,
     refs: resolvedRefs,
+    generation_refs: resolvedGenerationRefs.length > 0 ? resolvedGenerationRefs : undefined,
     blockers: blockers.length > 0 ? dedupeBlockers(blockers) : undefined,
   })
 
@@ -444,6 +410,173 @@ export function parseUnsupportedContentUnitEditPromptRefs(editPrompt: unknown): 
     ...parseUnsupportedPromptRefsFromText(stringField(prompt?.notes), 'edit_prompt.notes'),
     ...parseUnsupportedPromptRefsFromText(structuredText, 'edit_prompt.structured'),
   ]
+}
+
+export function contentUnitGenerationReferences(record: unknown): MovScriptContentUnitGenerationReference[] {
+  const contentUnit = recordField(record)
+  if (!contentUnit) return []
+  return dedupeGenerationReferences([
+    ...generationReferencesFromValue(contentUnit.generation_references ?? contentUnit.generationReferences),
+    ...generationReferenceAssetsFromValue(contentUnit.reference_assets ?? contentUnit.referenceAssets),
+  ])
+}
+
+function contentUnitHasExplicitReferencePool(record: unknown): boolean {
+  const contentUnit = recordField(record)
+  if (!contentUnit) return false
+  return Array.isArray(contentUnit.generation_references)
+    || Array.isArray(contentUnit.generationReferences)
+    || Array.isArray(contentUnit.reference_assets)
+    || Array.isArray(contentUnit.referenceAssets)
+}
+
+function generationReferencesFromValue(value: unknown): MovScriptContentUnitGenerationReference[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item): MovScriptContentUnitGenerationReference[] => {
+    const record = recordField(item)
+    if (!record) return []
+    const sourceRef = stringField(record.source_ref ?? record.sourceRef)
+    const raw = stringField(record.raw) ?? sourceRef
+    const rawPromptRef = raw ? parsePromptRefsFromText(raw, 'edit_prompt.text')[0] : undefined
+    const rawResourceMention = raw ? parseResourceMentions(raw)[0] : undefined
+    const targetRef = record.ref ?? record.target_ref ?? record.targetRef
+    const explicitReferenceId = generationReferenceIdField(record, targetRef)
+    const resourceId = resourceReferenceIdField(record.resource_id ?? record.resourceId)
+      ?? resourceReferenceIdField(targetRef)
+      ?? resourceReferenceIdField(rawPromptRef?.kind === 'resource' ? rawPromptRef.id : undefined)
+      ?? resourceReferenceIdField(rawResourceMention?.id)
+      ?? resourceReferenceIdField(record.id)
+    const kind = promptRefKind(stringField(record.kind ?? record.ref_kind ?? record.refKind ?? record.type))
+      ?? rawPromptRef?.kind
+      ?? (resourceId !== undefined ? 'resource' : undefined)
+    if (!kind || kind === 'ref') return []
+    const id = kind === 'resource'
+      ? resourceId
+      : promptEntityReferenceIdField(targetRef, kind)
+        ?? (rawPromptRef?.kind === kind ? promptEntityReferenceIdField(rawPromptRef.id, kind) : undefined)
+        ?? promptEntityReferenceIdField(record.id, kind)
+    if (id === undefined) return []
+    const mediaType = promptRefMediaType(stringField(record.media_type ?? record.mediaType))
+      ?? rawPromptRef?.media_type
+      ?? promptRefMediaType(rawResourceMention?.mediaType)
+    const role = stringField(record.role) ?? rawPromptRef?.role ?? rawResourceMention?.role
+    return [{
+      ...(explicitReferenceId ? { reference_id: explicitReferenceId } : {}),
+      kind,
+      id: String(id),
+      raw: raw ?? formatGenerationReferenceRaw(kind, String(id), {
+        ...(mediaType ? { mediaType } : {}),
+        ...(role ? { role } : {}),
+      }),
+      ...(role ? { role } : {}),
+      ...(mediaType ? { media_type: mediaType } : {}),
+      ...(sourceRef ? { source_ref: sourceRef } : {}),
+      ...(stringField(record.label ?? record.title) ? { label: stringField(record.label ?? record.title) } : {}),
+      ...(stringField(record.source) ? { source: stringField(record.source) } : {}),
+    }]
+  })
+}
+
+function generationReferenceAssetsFromValue(value: unknown): MovScriptContentUnitGenerationReference[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item): MovScriptContentUnitGenerationReference[] => {
+    const record = recordField(item)
+    if (!record) return []
+    const sourceRef = stringField(record.source_ref ?? record.sourceRef)
+    const explicitReferenceId = generationReferenceIdField(record, record.ref ?? record.target_ref ?? record.targetRef ?? record.resource_id ?? record.resourceId)
+    const resourceId = resourceReferenceIdField(record.resource_id ?? record.resourceId)
+      ?? resourceReferenceIdField(record.ref ?? record.target_ref ?? record.targetRef)
+      ?? resourceReferenceIdField(sourceRef)
+      ?? resourceReferenceIdField(record.id)
+    if (resourceId === undefined) return []
+    const mediaType = promptRefMediaType(stringField(record.media_type ?? record.mediaType))
+    const role = stringField(record.role)
+    return [{
+      ...(explicitReferenceId ? { reference_id: explicitReferenceId } : {}),
+      kind: 'resource',
+      id: String(resourceId),
+      raw: sourceRef ?? formatResourceMention(resourceId, {
+        ...(mediaType ? { mediaType } : {}),
+        ...(role ? { role } : {}),
+      }),
+      ...(role ? { role } : {}),
+      ...(mediaType ? { media_type: mediaType } : {}),
+      ...(sourceRef ? { source_ref: sourceRef } : {}),
+    }]
+  })
+}
+
+function generationReferenceForPromptRef(
+  pool: readonly MovScriptContentUnitGenerationReference[],
+  ref: MovScriptPromptRef,
+): MovScriptContentUnitGenerationReference | undefined {
+  if (ref.kind === 'ref') {
+    return pool.find((item) => item.reference_id === ref.id || item.id === ref.id)
+  }
+  return pool.find((item) => {
+    if (item.raw === ref.raw || item.source_ref === ref.raw) return true
+    if (item.kind !== ref.kind) return false
+    if (ref.kind === 'resource') {
+      const itemResourceId = resourceReferenceIdField(item.id)
+      const refResourceId = resourceReferenceIdField(ref.id)
+      if (itemResourceId !== undefined && refResourceId !== undefined) return itemResourceId === refResourceId
+      return String(item.id) === String(ref.id)
+    }
+    if (ref.kind === 'candidate') return String(item.id) === String(ref.id)
+    return samePromptRefId(item.id, ref.id, ref.kind)
+  })
+}
+
+function promptRefFromGenerationReference(
+  ref: MovScriptContentUnitGenerationReference,
+  promptRef?: MovScriptPromptRef,
+): MovScriptPromptRef {
+  return {
+    kind: ref.kind,
+    id: ref.id,
+    raw: promptRef?.raw ?? ref.raw,
+    ...(ref.reference_id ? { reference_id: ref.reference_id } : {}),
+    ...(ref.role ? { role: ref.role } : {}),
+    ...(ref.media_type ? { media_type: ref.media_type } : {}),
+    source: promptRef?.source ?? {
+      field: 'edit_prompt.notes',
+    },
+  }
+}
+
+function dedupeGenerationReferences(refs: MovScriptContentUnitGenerationReference[]): MovScriptContentUnitGenerationReference[] {
+  const seen = new Set<string>()
+  const output: MovScriptContentUnitGenerationReference[] = []
+  for (const ref of refs) {
+    const key = `${ref.kind}:${ref.id}:${ref.media_type ?? ''}:${ref.role ?? ''}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    output.push(ref)
+  }
+  return output
+}
+
+function formatGenerationReferenceRaw(
+  kind: MovScriptGenerationReferenceKind,
+  id: string,
+  options: { mediaType?: string; role?: string } = {},
+): string {
+  if (kind === 'resource') {
+    return formatResourceMention(Number(id), {
+      ...(options.mediaType ? { mediaType: options.mediaType } : {}),
+      ...(options.role ? { role: options.role } : {}),
+    })
+  }
+  const metadata = [
+    options.role ? `role=${normalizePromptRefMetadataPart(options.role)}` : '',
+    options.mediaType ? `media=${normalizePromptRefMetadataPart(options.mediaType)}` : '',
+  ].filter(Boolean).join(' ')
+  return `{{${kind}::${id}${metadata ? ` ${metadata}` : ''}}}`
+}
+
+function promptRefMediaType(value: string | undefined): MovScriptPromptRefMediaType | undefined {
+  if (!value) return undefined
+  return normalizePromptRefMetadataPart(value)
 }
 
 export function parsePromptRefsFromText(
@@ -756,6 +889,103 @@ function blockerForDecision(
   return undefined
 }
 
+async function resolveContentUnitPromptRef(input: {
+  index: MovScriptWorkspaceDomainIndex
+  ref: MovScriptPromptRef
+  role: MovScriptPromptRefRole
+  contentUnit: MovScriptWorkspaceIndexedEntity
+  contentUnitRef: string
+  decisionProvider: MovScriptContentUnitDecisionProvider
+  decisionCache: Map<string, Promise<MovScriptPromptDecisionContext | undefined>>
+}): Promise<MovScriptResolvedPromptRef> {
+  const { ref, role } = input
+  const directRef = await resolveDirectPromptResourceRef(input)
+  if (directRef) return directRef
+
+  const entity = resolvePromptRefEntity(input.index, ref)
+  const base: MovScriptResolvedPromptRef = {
+    ...ref,
+    role,
+    ...(entity ? {
+      resolved: {
+        entityKind: entity.entityKind,
+        ...(entity.id !== undefined ? { id: entity.id } : {}),
+        path: entity.path,
+      },
+    } : {}),
+  }
+  if (!entity) {
+    const blocker: MovScriptPromptBuildBlocker = {
+      code: 'ref_not_found',
+      ref: ref.raw,
+      message: `prompt ref does not resolve: ${ref.raw}`,
+    }
+    return { ...base, blocker }
+  }
+  const upstream = resolveContentUnitForPromptRef(input.index, ref)
+  if (!upstream || upstream.id === undefined) {
+    const blocker: MovScriptPromptBuildBlocker = {
+      code: 'upstream_content_unit_not_found',
+      ref: ref.raw,
+      message: `prompt input has no ${ref.kind}_ref content unit: ${ref.raw}`,
+    }
+    return { ...base, blocker }
+  }
+
+  const upstreamRef = entityDir(upstream.path)
+  if (upstreamRef === input.contentUnitRef) {
+    const blocker: MovScriptPromptBuildBlocker = {
+      code: 'prompt_dependency_cycle',
+      ref: ref.raw,
+      content_unit_ref: upstreamRef,
+      content_unit_id: upstream.id,
+      message: `prompt input forms a dependency cycle: ${ref.raw}`,
+    }
+    return {
+      ...base,
+      upstream_content_unit_ref: upstreamRef,
+      upstream_content_unit_id: upstream.id,
+      blocker,
+    }
+  }
+
+  const decision = await decisionFor(input.decisionProvider, input.decisionCache, upstream.id, upstreamRef)
+  const decisionBlocker = blockerForDecision(ref, upstream, upstreamRef, decision)
+  if (decisionBlocker) {
+    return {
+      ...base,
+      upstream_content_unit_ref: upstreamRef,
+      upstream_content_unit_id: upstream.id,
+      blocker: decisionBlocker,
+    }
+  }
+
+  const resourceId = promptInputResourceId(decision)
+  if (resourceId === undefined) {
+    const blocker: MovScriptPromptBuildBlocker = {
+      code: 'upstream_resource_missing',
+      ref: ref.raw,
+      content_unit_ref: upstreamRef,
+      content_unit_id: upstream.id,
+      message: `prompt input selected content unit has no resource_id: ${ref.raw}`,
+    }
+    return {
+      ...base,
+      upstream_content_unit_ref: upstreamRef,
+      upstream_content_unit_id: upstream.id,
+      blocker,
+    }
+  }
+
+  return {
+    ...base,
+    upstream_content_unit_ref: upstreamRef,
+    upstream_content_unit_id: upstream.id,
+    resource_id: resourceId,
+    replacement: resourceToken(resourceId, ref),
+  }
+}
+
 async function resolveDirectPromptResourceRef(input: {
   ref: MovScriptPromptRef
   role: MovScriptPromptRefRole
@@ -925,7 +1155,7 @@ function resolvePromptRefEntity(
   index: MovScriptWorkspaceDomainIndex,
   ref: MovScriptPromptRef,
 ): MovScriptWorkspaceIndexedEntity | undefined {
-  if (ref.kind === 'candidate' || ref.kind === 'resource') return undefined
+  if (ref.kind === 'candidate' || ref.kind === 'resource' || ref.kind === 'ref') return undefined
   if (ref.kind === 'content_unit') {
     return queryMovScriptWorkspaceEntities(index, { entityKind: 'content_unit' })
       .find((entity) => entity.id !== undefined && sameEntityRef(entity.id, ref.id, 'content_unit')
@@ -938,7 +1168,7 @@ function resolveContentUnitForPromptRef(
   index: MovScriptWorkspaceDomainIndex,
   ref: MovScriptPromptRef,
 ): MovScriptWorkspaceIndexedEntity | undefined {
-  if (ref.kind === 'candidate' || ref.kind === 'resource') return undefined
+  if (ref.kind === 'candidate' || ref.kind === 'resource' || ref.kind === 'ref') return undefined
   if (ref.kind === 'content_unit') return resolvePromptRefEntity(index, ref)
   const kind = ref.kind
   const expectedTypes = contentUnitTypesForPromptRefKind(kind)
@@ -1003,7 +1233,7 @@ function findEntityByRef(
 }
 
 function promptRefKind(value: string | undefined): MovScriptPromptRefKind | undefined {
-  if (value === 'candidate' || value === 'resource') return value
+  if (value === 'candidate' || value === 'resource' || value === 'ref') return value
   return isContentUnitPromptRefKind(value) ? value : undefined
 }
 
@@ -1077,6 +1307,9 @@ function referenceAssetsForResolvedRefs(refs: MovScriptResolvedPromptRef[]): Mov
     if (seen.has(key)) continue
     seen.add(key)
     output.push({
+      ...(ref.reference_id ? { reference_id: ref.reference_id } : {}),
+      ...(ref.reference_id && ref.kind !== 'ref' ? { source_kind: ref.kind } : {}),
+      ...(ref.reference_id ? { source_id: ref.id } : {}),
       resource_id: ref.resource_id,
       media_type: mediaType,
       role,
@@ -1181,6 +1414,37 @@ function resourceIdField(value: unknown): number | undefined {
     if (Number.isInteger(parsed) && parsed > 0) return parsed
   }
   return undefined
+}
+
+function resourceReferenceIdField(value: unknown): number | undefined {
+  const direct = resourceIdField(value)
+  if (direct !== undefined) return direct
+  if (typeof value !== 'string') return undefined
+  const text = value.trim()
+  if (!text) return undefined
+  const mention = parseResourceMentions(text)[0]
+  if (mention) return mention.id
+  const match = text.match(/^resource(?:::|:)(\d+)$/i)
+  return match ? resourceIdField(match[1]) : undefined
+}
+
+function generationReferenceIdField(record: Record<string, unknown>, targetRef: unknown): string | undefined {
+  const explicit = stringField(record.reference_id ?? record.referenceId)
+  if (explicit) return explicit
+  const hasSeparateSourceRef = targetRef !== undefined
+    || record.resource_id !== undefined
+    || record.resourceId !== undefined
+    || record.source_ref !== undefined
+    || record.sourceRef !== undefined
+    || record.raw !== undefined
+  return hasSeparateSourceRef ? stringField(record.id) : undefined
+}
+
+function promptEntityReferenceIdField(value: unknown, kind: MovScriptGenerationReferenceKind): string | number | undefined {
+  const id = idField(value)
+  if (id === undefined) return undefined
+  if (kind === 'resource' || kind === 'candidate' || typeof id !== 'string') return id
+  return id.trim().replace(new RegExp(`^${kind}(?:::|:)`, 'i'), '')
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

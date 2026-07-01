@@ -86,7 +86,6 @@ function expectedRuntimeManifest(generatedAt = new Date().toISOString()) {
     mcpArgs: ['mcp', 'stdio'],
     daemonArgs: ['daemon', 'run'],
     cliEntrypoint: './bin/movscript',
-    legacyCliEntrypoint: './bin/movcli',
     legacyMcpEntrypoint: './bin/movscript-agent-mcp',
   }
 }
@@ -103,6 +102,9 @@ function validateRuntimeManifest(pluginDir, errors) {
   }
   const actual = readJSON(manifestPath)
   const expected = expectedRuntimeManifest(actual.generatedAt)
+  if (Object.hasOwn(actual, 'legacyCliEntrypoint')) {
+    errors.push('manifest.runtime.json must not declare legacyCliEntrypoint')
+  }
   const fields = [
     'appId',
     'applicationId',
@@ -112,7 +114,6 @@ function validateRuntimeManifest(pluginDir, errors) {
     'mcpServer',
     'entrypoint',
     'cliEntrypoint',
-    'legacyCliEntrypoint',
     'legacyMcpEntrypoint',
   ]
   for (const field of fields) {

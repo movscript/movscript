@@ -44,11 +44,11 @@ Use this skill when a user asks what changed, whether the project is ready, what
 - Missing upstream adoption/selection means downstream generation should stop until the user selects, confirms, or explicitly accepts an unstable draft path. `待定` and `放弃` candidates are still unresolved or rejected; they do not unblock stable downstream generation.
 - Do not modify source, select candidates, or regenerate media during review unless the user explicitly asks for that follow-up.
 - When reviewing generated candidates, distinguish the decision states: `采纳`/`adopt` is stable, `放弃`/`reject` is discarded, and `待定`/`defer` remains available but not stable.
-- When reviewing generation readiness, classify the focused scene_moment, expression unit, or assembly content unit as `缺规划`, `可补图`, `缺选择`, or `可生成`, and bind the recommendation to the user's goal.
+- When reviewing generation readiness, classify the focused scene_moment, expression unit, or content unit as `缺规划`, `可补图`, `缺选择`, or `可生成`, and bind the recommendation to the user's goal.
 
 ## Workflow
 
-1. Resolve the intended project and optional timeline scope/assembly/content-unit target from explicit user input, a passed locator, or Project Service context. Do not infer it from UI focus.
+1. Resolve the intended project and optional timeline namespace, production editing workspace, or content-unit target from explicit user input, a passed locator, or Project Service context. Do not infer it from UI focus.
 2. Call `domain_overview`.
 3. If source has pending edits, call `domain_inspect` and explain changed files, changed entities, business changes, blocking issues, and `readyToInterpret`.
 4. If the user asks to validate/refresh diagnostics and `domain_inspect` has no blocking errors, run `domain_interpret`; describe it as diagnostic/artifact refresh, not a publish, approval, commit, checkpoint, or product-state transition.

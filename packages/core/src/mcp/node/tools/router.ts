@@ -71,10 +71,9 @@ import {
   domainUpsertStoryboard,
 } from './domain/actions.js'
 import {
+  editingExternalNleOpen,
   editingProjectCreate,
   editingProjectAddAsset,
-  editingProjectCreateFromEditDecisions,
-  editingProjectCreateFromEditPlan,
   editingProjectGet,
   editingProjectRemoveAsset,
   editingProjectSave,
@@ -83,6 +82,14 @@ import {
   editingExportImportResource,
   editingExportPublishHls,
   editingExportSaveLocal,
+  editingResultGet,
+  editingResultList,
+  editingResultRecoverExternalNle,
+  editingResultRegister,
+  editingResultWatchCancel,
+  editingResultWatchExternalNleCreate,
+  editingResultWatchGet,
+  editingResultWatchList,
   editingRuntimeCapabilitiesGet,
   editingTaskCancel,
   editingTaskGet,
@@ -103,15 +110,13 @@ import {
   editingVideoCompose,
 } from './editing/actions.js'
 import {
-  timelineAssemblyCompile,
-  timelineAssemblyGet,
-  timelineAssemblyValidate,
-  timelineBackendCapabilityList,
-  timelineBackendConformanceReport,
-  timelineBackendProjectCreate,
-  timelineBackendSelect,
-  timelineCompileManifestCreate,
-} from './timeline/actions.js'
+  productionEditingResourcesRefresh,
+  productionEditingWorkspaceCreate,
+  productionEditingWorkspaceDelete,
+  productionEditingWorkspaceGet,
+  productionEditingWorkspaceList,
+  productionEditingWorkspaceOpen,
+} from './production-editing/actions.js'
 import { listModels } from './model/actions'
 import {
   getUnifiedGenerationJob,
@@ -381,28 +386,20 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return interpretToolText(await domainInterpret(args))
     case 'domain_regeneration_plan':
       return toolText(await domainRegenerationPlan(args))
-    case 'timeline_backend_capability_list':
-      return toolText(timelineBackendCapabilityList(args))
-    case 'timeline_assembly_get':
-      return toolText(timelineAssemblyGet(args))
-    case 'timeline_assembly_validate':
-      return toolText(timelineAssemblyValidate(args))
-    case 'timeline_compile_manifest_create':
-      return toolText(timelineCompileManifestCreate(args))
-    case 'timeline_backend_select':
-      return toolText(timelineBackendSelect(args))
-    case 'timeline_backend_project_create':
-      return toolText(timelineBackendProjectCreate(args))
-    case 'timeline_assembly_compile':
-      return toolText(timelineAssemblyCompile(args))
-    case 'timeline_backend_conformance_report':
-      return toolText(timelineBackendConformanceReport(args))
+    case 'production_editing_resources_refresh':
+      return toolText(await productionEditingResourcesRefresh(args))
+    case 'production_editing_workspace_list':
+      return toolText(await productionEditingWorkspaceList(args))
+    case 'production_editing_workspace_create':
+      return toolText(await productionEditingWorkspaceCreate(args))
+    case 'production_editing_workspace_get':
+      return toolText(await productionEditingWorkspaceGet(args))
+    case 'production_editing_workspace_open':
+      return toolText(await productionEditingWorkspaceOpen(args))
+    case 'production_editing_workspace_delete':
+      return toolText(await productionEditingWorkspaceDelete(args))
     case 'editing_project_create':
       return toolText(await editingProjectCreate(args))
-    case 'editing_project_create_from_edit_plan':
-      return toolText(await editingProjectCreateFromEditPlan(args))
-    case 'editing_project_create_from_edit_decisions':
-      return toolText(await editingProjectCreateFromEditDecisions(args))
     case 'editing_video_compose':
       return toolText(await editingVideoCompose(args))
     case 'editing_project_add_asset':
@@ -449,6 +446,24 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await editingTaskCancel(args))
     case 'editing_task_logs_get':
       return toolText(await editingTaskLogsGet(args))
+    case 'editing_result_register':
+      return toolText(await editingResultRegister(args))
+    case 'editing_result_recover_external_nle':
+      return toolText(await editingResultRecoverExternalNle(args))
+    case 'editing_result_watch_external_nle_create':
+      return toolText(await editingResultWatchExternalNleCreate(args))
+    case 'editing_result_watch_get':
+      return toolText(await editingResultWatchGet(args))
+    case 'editing_result_watch_list':
+      return toolText(await editingResultWatchList(args))
+    case 'editing_result_watch_cancel':
+      return toolText(await editingResultWatchCancel(args))
+    case 'editing_external_nle_open':
+      return toolText(await editingExternalNleOpen(args))
+    case 'editing_result_get':
+      return toolText(await editingResultGet(args))
+    case 'editing_result_list':
+      return toolText(await editingResultList(args))
     case 'editing_export_import_resource':
       return toolText(await editingExportImportResource(args))
     case 'editing_export_save_local':

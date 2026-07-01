@@ -17,7 +17,7 @@ func TestContentCandidateErrorReturnsModelRouteReason(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 
 	h := &ContentCandidateHandler{}
-	h.writeContentCandidateError(c, errors.New(`model "grok-imagine-video" is not available for capability video_i2v`))
+	h.writeContentCandidateError(c, errors.New(`model "grok-imagine-video" is not available for capability video_generation operation image_to_video`))
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for model route error, got %d: %s", w.Code, w.Body.String())
@@ -26,7 +26,7 @@ func TestContentCandidateErrorReturnsModelRouteReason(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if body["error"] != `model "grok-imagine-video" is not available for capability video_i2v` {
+	if body["error"] != `model "grok-imagine-video" is not available for capability video_generation operation image_to_video` {
 		t.Fatalf("expected concrete route error, got %#v", body)
 	}
 }

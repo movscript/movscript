@@ -132,10 +132,14 @@ export function runtimeResourceIdsForNode<TValue extends Pick<CoreCanvasPortValu
 ) {
   const inputResourceIds = Array.isArray(node.data?.inputResourceIds) ? node.data.inputResourceIds : []
   const prompt = typeof node.data?.prompt === 'string' ? node.data.prompt : undefined
-  const ordered = [
-    ...resourceIdsFromCanvasPrompt(prompt),
+  const pooled = [
     ...inputResourceIds,
     ...inputResourceIdsFromValues(inputs),
+  ].filter((id): id is number => typeof id === 'number' && Number.isInteger(id) && id > 0)
+  const pooledIds = new Set(pooled)
+  const ordered = [
+    ...resourceIdsFromCanvasPrompt(prompt).filter((id) => pooledIds.has(id)),
+    ...pooled,
   ]
   const seen = new Set<number>()
   return ordered.filter((id): id is number => {

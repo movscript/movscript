@@ -214,8 +214,18 @@ export function createMediaEditingProjectFromEditDecisions(
 ): MediaEditingProject {
   const now = options.now ?? new Date().toISOString()
   const projectId = options.projectId ?? composeProjectId(options, editDecisions)
+  const targetKind = options.targetKind ?? (options.productionId !== undefined ? 'production' : 'edit_decisions')
+  const targetRef = options.targetRef
+    ?? (options.productionId !== undefined
+      ? String(options.productionId)
+      : `edit_decisions:${safeId(options.scopeKind ?? 'project')}:${safeId(options.scopeRef ?? projectId)}`)
+  const normalizedOptions = {
+    ...options,
+    targetKind,
+    targetRef,
+  }
   const assets = new ComposeAssetRegistry(options.assetManifest)
-  const timeline = buildMediaTimelineRecipeFromEditDecisions(editDecisions, assets, options)
+  const timeline = buildMediaTimelineRecipeFromEditDecisions(editDecisions, assets, normalizedOptions)
   const inputResourceIds = [...new Set(assets.assets.flatMap((asset) => asset.resourceId === undefined ? [] : [asset.resourceId]))]
     .sort((left, right) => left - right)
   return {
@@ -225,8 +235,8 @@ export function createMediaEditingProjectFromEditDecisions(
     title: options.title ?? `Video compose ${String(options.targetRef ?? options.scopeRef ?? options.productionId ?? 'draft')}`,
     source: {
       kind: 'edit_decisions',
-      targetKind: options.targetKind ?? 'timeline_assembly',
-      targetRef: options.targetRef ?? `edit_decisions:${safeId(options.scopeKind ?? 'project')}:${safeId(options.scopeRef ?? projectId)}`,
+      targetKind,
+      targetRef,
       scopeKind: options.scopeKind,
       scopeRef: options.scopeRef === undefined ? undefined : String(options.scopeRef),
       ...(options.productionId !== undefined ? { productionId: String(options.productionId) } : {}),
@@ -236,8 +246,8 @@ export function createMediaEditingProjectFromEditDecisions(
     provenance: {
       sourceHash: options.sourceHash,
       inputResourceIds,
-      targetKind: options.targetKind ?? 'timeline_assembly',
-      targetRef: options.targetRef,
+      targetKind,
+      targetRef,
       scopeKind: options.scopeKind,
       scopeRef: options.scopeRef === undefined ? undefined : String(options.scopeRef),
       productionPath: options.productionPath,
@@ -389,7 +399,7 @@ function addAudioTracks(
 
   const music = recordValue(audio.music)
   if (music) {
-    const track = tracks.track('track_audio_music', 'audio', 10, 'music')
+    const track = tracks.track('track_music', 'audio', 10, 'music')
     const asset = assets.resolve(assetRef(music), 'audio')
     const startMs = secondsToMs(music.start_seconds ?? music.start_sec) ?? 0
     const durationMs = secondsToMs(music.duration_seconds ?? music.duration_sec)
@@ -406,7 +416,7 @@ function addAudioTracks(
   }
 
   addAudioSegments(
-    tracks.track('track_audio_sfx', 'audio', 40, 'sfx'),
+    tracks.track('track_sound_effects', 'audio', 40, 'sfx'),
     arrayValue(audio.sfx),
     assets,
     'sfx',

@@ -27,7 +27,7 @@ test('community desktop identity uses LocalAppData for Windows MovScript home', 
 
   assert.equal(identity.edition, 'community')
   assert.equal(identity.appName, 'Movscript')
-  assert.equal(identity.homeDir, 'C:\\Users\\me\\AppData\\Local\\Movscript\\Home')
+  assert.equal(identity.homeDir, 'C:\\Users\\me\\AppData\\Local\\MovScript\\Home')
   assert.equal(identity.userDataDir, undefined)
 })
 

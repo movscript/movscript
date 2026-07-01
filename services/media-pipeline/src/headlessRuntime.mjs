@@ -1,13 +1,19 @@
 import { spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { mkdir, readdir, stat, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
+import {
+  createInMemoryMediaPipelineResultRegistry,
+  mediaPipelineResultFromTask,
+} from './resultRegistry.mjs'
 
-const HEADLESS_SUPPORTED_TASK_TYPES = Object.freeze(['timeline_render', 'timeline_hls', 'media_transcode', 'media_reframe'])
+const HEADLESS_SUPPORTED_TASK_TYPES = Object.freeze(['timeline_render', 'timeline_hls', 'media_transcode', 'media_reframe', 'backend_project_render', 'backend_project_preview'])
 const HEADLESS_SUPPORTED_OUTPUTS = Object.freeze(['mp4', 'hls'])
 
 export function createHeadlessMediaPipelineRuntimePort(options = {}) {
   const env = options.env ?? process.env
+  const resultRegistry = options.resultRegistry ?? createInMemoryMediaPipelineResultRegistry()
   const tasks = new Map()
   let nextTaskId = 0
 
@@ -19,6 +25,26 @@ export function createHeadlessMediaPipelineRuntimePort(options = {}) {
         runtime: 'headless_media_pipeline',
         available: ffmpeg.available,
         ffmpeg,
+        backendProjectRender: {
+          available: true,
+          requiresCommand: true,
+          requiresOutputPath: true,
+        },
+        backendProjectPreview: {
+          available: true,
+          requiresCommand: true,
+          managedProcess: true,
+        },
+        backend_project_render: {
+          available: true,
+          requires_command: true,
+          requires_output_path: true,
+        },
+        backend_project_preview: {
+          available: true,
+          requires_command: true,
+          managed_process: true,
+        },
         supportedTaskTypes: [...HEADLESS_SUPPORTED_TASK_TYPES],
         supported_task_types: [...HEADLESS_SUPPORTED_TASK_TYPES],
         supportedOutputs: [...HEADLESS_SUPPORTED_OUTPUTS],
@@ -46,7 +72,7 @@ export function createHeadlessMediaPipelineRuntimePort(options = {}) {
       }
       const entry = { task, logs: [`${now} queued ${taskId}`], child: undefined }
       tasks.set(taskId, entry)
-      runHeadlessTask({ request, entry, env }).catch((error) => {
+      runHeadlessTask({ request, entry, env, resultRegistry }).catch((error) => {
         failTask(entry, 'HEADLESS_MEDIA_PIPELINE_ERROR', errorMessage(error))
       })
       return { ...task }
@@ -84,19 +110,36 @@ export function createHeadlessMediaPipelineRuntimePort(options = {}) {
         text: entry.logs.join('\n'),
       }
     },
+    async registerResult(input) {
+      return resultRegistry.registerResult(input)
+    },
+    async getResult(resultId) {
+      return resultRegistry.getResult(resultId)
+    },
+    async listResults(filter) {
+      return resultRegistry.listResults(filter)
+    },
   }
 }
 
-async function runHeadlessTask({ request, entry, env }) {
-  const capabilities = await probeFFmpeg(env)
-  if (!capabilities.available) {
-    failTask(entry, capabilities.code ?? 'FFMPEG_UNAVAILABLE', capabilities.error ?? 'ffmpeg is unavailable')
-    return
-  }
-
+async function runHeadlessTask({ request, entry, env, resultRegistry }) {
   const taskType = stringValue(request?.taskType)
   if (!HEADLESS_SUPPORTED_TASK_TYPES.includes(taskType)) {
     failTask(entry, 'HEADLESS_TASK_TYPE_UNSUPPORTED', `headless media pipeline does not support task type: ${taskType}`)
+    return
+  }
+  if (taskType === 'backend_project_render') {
+    await runBackendProjectRenderTask({ request, entry, env, resultRegistry })
+    return
+  }
+  if (taskType === 'backend_project_preview') {
+    await runBackendProjectPreviewTask({ request, entry })
+    return
+  }
+
+  const capabilities = await probeFFmpeg(env)
+  if (!capabilities.available) {
+    failTask(entry, capabilities.code ?? 'FFMPEG_UNAVAILABLE', capabilities.error ?? 'ffmpeg is unavailable')
     return
   }
 
@@ -128,7 +171,7 @@ async function runHeadlessTask({ request, entry, env }) {
   const outputPath = await resolveOutputPath({ request, task: entry.task, env })
   const variants = taskType === 'timeline_hls' ? hlsVariants(request?.output) : []
   if (variants.length > 0) {
-    await runHeadlessHlsVariantTask({ capabilities, sourcePath, outputPath, request, entry, variants })
+    await runHeadlessHlsVariantTask({ capabilities, sourcePath, outputPath, request, entry, variants, resultRegistry })
     return
   }
   const args = ffmpegArgsForTask({ taskType, sourcePath, outputPath, request })
@@ -145,9 +188,9 @@ async function runHeadlessTask({ request, entry, env }) {
   const result = await runProcess(capabilities.path, args, entry)
   if (result.code === 0) {
     updateTask(entry, {
-      status: 'succeeded',
-      progressPercent: 100,
-      currentStep: 'completed',
+      status: 'running',
+      progressPercent: 95,
+      currentStep: 'result-registry',
       outputPath,
       outputName: outputPath.split('/').at(-1),
       ...(taskType === 'timeline_hls' ? {
@@ -157,13 +200,146 @@ async function runHeadlessTask({ request, entry, env }) {
         hls_directory: outputPath.split('/').slice(0, -1).join('/'),
       } : {}),
     })
+    await registerTaskResult({ resultRegistry, task: entry.task, request, entry })
+    updateTask(entry, {
+      status: 'succeeded',
+      progressPercent: 100,
+      currentStep: 'completed',
+    })
     entry.logs.push(`${new Date().toISOString()} completed ${entry.task.taskId}`)
     return
   }
   failTask(entry, 'FFMPEG_FAILED', `ffmpeg exited with code ${result.code}`)
 }
 
-async function runHeadlessHlsVariantTask({ capabilities, sourcePath, outputPath, request, entry, variants }) {
+async function runBackendProjectRenderTask({ request, entry, env, resultRegistry }) {
+  const backendProject = recordValue(request?.backendProject) ?? recordValue(request?.backend_project)
+  const backend = stringValue(request?.backend)
+    ?? stringValue(backendProject?.backend)
+    ?? stringValue(backendProject?.adapter?.kind)
+    ?? 'backend_project'
+  const projectDirectory = resolveProjectDirectory(request, backendProject)
+  const outputPath = await resolveBackendRenderOutputPath({ request, task: entry.task, env, projectDirectory })
+  const command = backendRenderCommand(request, backendProject, outputPath)
+  if (!command) {
+    failTask(entry, 'BACKEND_RENDER_COMMAND_REQUIRED', 'backend_project_render requires renderCommand/render_command, command+args, or backendProject.adapter.render_command.')
+    return
+  }
+  if (!outputPath) {
+    failTask(entry, 'BACKEND_RENDER_OUTPUT_PATH_REQUIRED', 'backend_project_render requires output.outputPath/output_path or a resolvable output filename.')
+    return
+  }
+  updateTask(entry, {
+    status: 'running',
+    progressPercent: 5,
+    currentStep: 'backend-render',
+    backend,
+    projectDirectory,
+    project_directory: projectDirectory,
+    outputPath,
+    outputName: outputPath.split('/').at(-1),
+  })
+  entry.logs.push(`${new Date().toISOString()} backend ${backend} render ${command.log}`)
+  const result = await runBackendRenderProcess(command, projectDirectory, entry)
+  if (result.code !== 0) {
+    failTask(entry, 'BACKEND_RENDER_FAILED', `backend render exited with code ${result.code}`)
+    return
+  }
+  try {
+    const outputStat = await stat(outputPath)
+    if (!outputStat.isFile()) {
+      failTask(entry, 'BACKEND_RENDER_OUTPUT_NOT_FILE', `backend render output is not a file: ${outputPath}`)
+      return
+    }
+  } catch {
+    failTask(entry, 'BACKEND_RENDER_OUTPUT_NOT_FOUND', `backend render command succeeded but output file was not found: ${outputPath}`)
+    return
+  }
+  updateTask(entry, {
+    status: 'running',
+    progressPercent: 95,
+    currentStep: 'result-registry',
+    outputPath,
+    outputName: outputPath.split('/').at(-1),
+  })
+  await registerTaskResult({ resultRegistry, task: entry.task, request: {
+    ...request,
+    backend,
+    output: {
+      ...(recordValue(request?.output) ?? {}),
+      format: stringValue(request?.output?.format) ?? outputFormatFromPath(outputPath),
+      outputPath,
+      output_path: outputPath,
+    },
+  }, entry })
+  updateTask(entry, {
+    status: 'succeeded',
+    progressPercent: 100,
+    currentStep: 'completed',
+  })
+  entry.logs.push(`${new Date().toISOString()} completed ${entry.task.taskId}`)
+}
+
+async function runBackendProjectPreviewTask({ request, entry }) {
+  const backendProject = recordValue(request?.backendProject) ?? recordValue(request?.backend_project)
+  const backend = stringValue(request?.backend)
+    ?? stringValue(backendProject?.backend)
+    ?? stringValue(backendProject?.adapter?.kind)
+    ?? 'backend_project'
+  const projectDirectory = resolveProjectDirectory(request, backendProject)
+  const command = backendPreviewCommand(request, backendProject)
+  const previewUrl = stringValue(request?.previewUrl ?? request?.preview_url ?? request?.surface?.url)
+  if (!projectDirectory) {
+    failTask(entry, 'BACKEND_PREVIEW_PROJECT_DIRECTORY_REQUIRED', 'backend_project_preview requires projectDirectory/project_directory or backendProject.projectDirectory.')
+    return
+  }
+  try {
+    const projectStat = await stat(projectDirectory)
+    if (!projectStat.isDirectory()) {
+      failTask(entry, 'BACKEND_PREVIEW_PROJECT_DIRECTORY_NOT_DIRECTORY', `backend preview project directory is not a directory: ${projectDirectory}`)
+      return
+    }
+  } catch {
+    failTask(entry, 'BACKEND_PREVIEW_PROJECT_DIRECTORY_NOT_FOUND', `backend preview project directory was not found: ${projectDirectory}`)
+    return
+  }
+  if (!command) {
+    failTask(entry, 'BACKEND_PREVIEW_COMMAND_REQUIRED', 'backend_project_preview requires previewCommand/preview_command, command+args, or backendProject.adapter.preview_command.')
+    return
+  }
+  updateTask(entry, {
+    status: 'running',
+    progressPercent: 100,
+    currentStep: 'preview-running',
+    backend,
+    projectDirectory,
+    project_directory: projectDirectory,
+    ...(previewUrl ? {
+      previewUrl,
+      preview_url: previewUrl,
+      surface: { kind: 'browser_url', url: previewUrl },
+    } : {}),
+    rendered: false,
+    candidate_created: false,
+    adopted: false,
+    selected: false,
+  })
+  entry.logs.push(`${new Date().toISOString()} backend ${backend} preview ${command.log}`)
+  const result = await runBackendPreviewProcess(command, projectDirectory, entry)
+  if (entry.task.status === 'canceled') return
+  if (result.code === 0) {
+    updateTask(entry, {
+      status: 'succeeded',
+      progressPercent: 100,
+      currentStep: 'preview-stopped',
+    })
+    entry.logs.push(`${new Date().toISOString()} preview stopped ${entry.task.taskId}`)
+    return
+  }
+  failTask(entry, 'BACKEND_PREVIEW_FAILED', `backend preview exited with code ${result.code}`)
+}
+
+async function runHeadlessHlsVariantTask({ capabilities, sourcePath, outputPath, request, entry, variants, resultRegistry }) {
   updateTask(entry, {
     status: 'running',
     progressPercent: 5,
@@ -193,26 +369,139 @@ async function runHeadlessHlsVariantTask({ capabilities, sourcePath, outputPath,
   await writeFile(outputPath, masterHlsManifest(variantStates), 'utf8')
   const segmentPaths = await hlsOutputPaths(hlsDirectory, outputPath)
   updateTask(entry, {
-    status: 'succeeded',
-    progressPercent: 100,
-    currentStep: 'completed',
+    status: 'running',
+    progressPercent: 95,
+    currentStep: 'result-registry',
     hlsSegmentPaths: segmentPaths,
     hls_segment_paths: segmentPaths,
     hlsVariants: variantStates,
     hls_variants: variantStates,
   })
+  await registerTaskResult({ resultRegistry, task: entry.task, request, entry })
+  updateTask(entry, {
+    status: 'succeeded',
+    progressPercent: 100,
+    currentStep: 'completed',
+  })
   entry.logs.push(`${new Date().toISOString()} completed ${entry.task.taskId}`)
+}
+
+async function registerTaskResult({ resultRegistry, task, request, entry }) {
+  if (!resultRegistry?.registerResult) return
+  try {
+    const result = await resultRegistry.registerResult(mediaPipelineResultFromTask({ task, request }))
+    updateTask(entry, {
+      resultId: result.resultId,
+      result_id: result.resultId,
+      result,
+    })
+    entry.logs.push(`${new Date().toISOString()} registered result ${result.resultId}`)
+  } catch (error) {
+    entry.logs.push(`${new Date().toISOString()} result registration failed: ${errorMessage(error)}`)
+  }
 }
 
 async function resolveOutputPath({ request, task, env }) {
   const homeDir = stringValue(env.MOVSCRIPT_HOME)
-  const root = stringValue(env.MOVSCRIPT_MEDIA_PIPELINE_WORK_DIR)
-    ?? (homeDir ? join(homeDir, 'runtime', 'media-pipeline', 'tasks') : join(tmpdir(), 'movscript-media-pipeline'))
-  const taskDir = join(root, task.projectId, task.taskId)
+  const explicitRoot = stringValue(env.MOVSCRIPT_MEDIA_PIPELINE_WORK_DIR)
+  const taskDir = explicitRoot
+    ? join(explicitRoot, task.projectId, task.taskId)
+    : defaultTaskOutputsDir({ homeDir, task })
   await mkdir(taskDir, { recursive: true })
   const filename = stringValue(request?.output?.filename)
     ?? `${task.taskId}.${request?.output?.format === 'hls' ? 'm3u8' : 'mp4'}`
   return resolve(taskDir, filename)
+}
+
+function defaultTaskOutputsDir({ homeDir, task }) {
+  if (!homeDir) return join(tmpdir(), 'movscript-media-pipeline', task.projectId, task.taskId)
+  return join(
+    homeDir,
+    'media-workspaces',
+    stableMediaWorkspacePathPart(task.projectId),
+    'tasks',
+    stableMediaWorkspacePathPart(task.taskId),
+    'outputs',
+  )
+}
+
+async function resolveBackendRenderOutputPath({ request, task, env, projectDirectory }) {
+  const explicit = stringValue(request?.output?.outputPath ?? request?.output?.output_path ?? request?.outputPath ?? request?.output_path)
+  if (explicit) return resolve(projectDirectory ?? process.cwd(), explicit)
+  const filename = stringValue(request?.output?.filename)
+  if (filename && projectDirectory) return resolve(projectDirectory, filename)
+  return resolveOutputPath({ request, task, env })
+}
+
+function resolveProjectDirectory(request, backendProject) {
+  const explicit = stringValue(request?.projectDirectory ?? request?.project_directory ?? request?.cwd)
+  if (explicit) return resolve(explicit)
+  const projectPath = stringValue(backendProject?.projectDirectory ?? backendProject?.project_directory ?? backendProject?.exportDirectory ?? backendProject?.export_directory)
+  return projectPath ? resolve(projectPath) : undefined
+}
+
+function backendRenderCommand(request, backendProject, outputPath) {
+  const renderCommand = request?.renderCommand ?? request?.render_command ?? backendProject?.adapter?.render_command
+  if (Array.isArray(renderCommand)) {
+    const [command, ...args] = renderCommand.filter((item) => typeof item === 'string' && item.trim())
+    if (!command) return undefined
+    const replacedArgs = args.map((arg) => replaceRenderPlaceholders(arg, outputPath))
+    return { kind: 'argv', command, args: replacedArgs, log: [command, ...replacedArgs].join(' ') }
+  }
+  if (typeof renderCommand === 'string' && renderCommand.trim()) {
+    const command = replaceRenderPlaceholders(renderCommand, outputPath)
+    return { kind: 'shell', command, log: command }
+  }
+  const command = stringValue(request?.command)
+  if (command) {
+    const args = Array.isArray(request?.args)
+      ? request.args.filter((item) => typeof item === 'string' && item.trim()).map((arg) => replaceRenderPlaceholders(arg, outputPath))
+      : []
+    return { kind: 'argv', command, args, log: [command, ...args].join(' ') }
+  }
+  return undefined
+}
+
+function backendPreviewCommand(request, backendProject) {
+  const previewCommand = request?.previewCommand ?? request?.preview_command ?? backendProject?.adapter?.preview_command
+  if (Array.isArray(previewCommand)) {
+    const [command, ...args] = previewCommand.filter((item) => typeof item === 'string' && item.trim())
+    if (!command) return undefined
+    return { kind: 'argv', command, args, log: [command, ...args].join(' ') }
+  }
+  if (typeof previewCommand === 'string' && previewCommand.trim()) {
+    return { kind: 'shell', command: previewCommand, log: previewCommand }
+  }
+  const command = stringValue(request?.command)
+  if (command) {
+    const args = Array.isArray(request?.args)
+      ? request.args.filter((item) => typeof item === 'string' && item.trim())
+      : []
+    return { kind: 'argv', command, args, log: [command, ...args].join(' ') }
+  }
+  return undefined
+}
+
+function replaceRenderPlaceholders(value, outputPath) {
+  return value
+    .replaceAll('{outputPath}', outputPath)
+    .replaceAll('{output_path}', outputPath)
+}
+
+function runBackendRenderProcess(command, cwd, entry) {
+  if (command.kind === 'shell') return runShellProcess(command.command, cwd, entry)
+  return runProcess(command.command, command.args, entry, { cwd })
+}
+
+function runBackendPreviewProcess(command, cwd, entry) {
+  return runBackendRenderProcess(command, cwd, entry)
+}
+
+function runShellProcess(command, cwd, entry) {
+  if (process.platform === 'win32') {
+    return runProcess(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', command], entry, { cwd })
+  }
+  return runProcess('/bin/sh', ['-lc', command], entry, { cwd })
 }
 
 function ffmpegArgsForTask({ taskType, sourcePath, outputPath, request }) {
@@ -310,39 +599,93 @@ function safeVariantName(name) {
 }
 
 async function probeFFmpeg(env) {
-  const candidate = stringValue(env.MOVSCRIPT_FFMPEG_PATH) ?? stringValue(env.FFMPEG_PATH) ?? 'ffmpeg'
-  try {
-    const result = await runProcess(candidate, ['-version'])
-    if (result.code !== 0) {
-      return {
-        available: false,
+  const candidates = await ffmpegCandidatePaths(env)
+  let lastFailure
+  for (const candidate of candidates) {
+    try {
+      const result = await runProcess(candidate, ['-version'])
+      if (result.code === 0) {
+        return {
+          available: true,
+          path: candidate,
+          version: firstLine(result.stdout),
+          platform: process.platform,
+          arch: process.arch,
+        }
+      }
+      lastFailure = {
         path: candidate,
         code: 'FFMPEG_PROBE_FAILED',
         error: result.stderr || `ffmpeg exited with code ${result.code}`,
       }
+    } catch (error) {
+      lastFailure = {
+        path: candidate,
+        code: 'FFMPEG_NOT_FOUND',
+        error: errorMessage(error),
+      }
     }
-    return {
-      available: true,
-      path: candidate,
-      version: firstLine(result.stdout),
-      platform: process.platform,
-      arch: process.arch,
-    }
-  } catch (error) {
-    return {
-      available: false,
-      path: candidate,
-      code: 'FFMPEG_NOT_FOUND',
-      error: errorMessage(error),
-      platform: process.platform,
-      arch: process.arch,
-    }
+  }
+  return {
+    available: false,
+    path: lastFailure?.path ?? candidates[0] ?? 'ffmpeg',
+    candidates,
+    code: lastFailure?.code ?? 'FFMPEG_UNAVAILABLE',
+    error: lastFailure?.error ?? 'ffmpeg is unavailable',
+    platform: process.platform,
+    arch: process.arch,
   }
 }
 
-function runProcess(command, args, entry) {
+async function ffmpegCandidatePaths(env) {
+  const explicit = [
+    stringValue(env.MOVSCRIPT_FFMPEG_PATH),
+    stringValue(env.FFMPEG_PATH),
+  ].filter(Boolean)
+  if (explicit.length > 0) return uniqueStrings(explicit)
+  const homeCandidates = await homeFFmpegCandidatePaths(stringValue(env.MOVSCRIPT_HOME))
+  return uniqueStrings([
+    ...homeCandidates,
+    'ffmpeg',
+  ])
+}
+
+async function homeFFmpegCandidatePaths(homeDir) {
+  if (!homeDir) return []
+  const binary = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
+  const root = join(homeDir, 'tools', 'ffmpeg')
+  let versions = ['current']
+  try {
+    versions = uniqueStrings(['current', ...(await readdir(root))])
+  } catch {
+    // Optional shared cache. Missing directories simply fall through to system ffmpeg.
+  }
+  const sortedVersions = versions.sort((left, right) => {
+    if (left === 'current') return -1
+    if (right === 'current') return 1
+    return right.localeCompare(left)
+  })
+  return sortedVersions.flatMap((version) => [
+    join(root, version, process.platform, process.arch, binary),
+    join(root, version, process.platform, binary),
+  ])
+}
+
+function uniqueStrings(values) {
+  const seen = new Set()
+  const unique = []
+  for (const value of values) {
+    const text = stringValue(value)
+    if (!text || seen.has(text)) continue
+    seen.add(text)
+    unique.push(text)
+  }
+  return unique
+}
+
+function runProcess(command, args, entry, options = {}) {
   return new Promise((resolveProcess, rejectProcess) => {
-    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'], cwd: options.cwd })
     if (entry) entry.child = child
     let stderr = ''
     let stdout = ''
@@ -361,6 +704,12 @@ function runProcess(command, args, entry) {
       resolveProcess({ code: code ?? 0, stdout, stderr })
     })
   })
+}
+
+function outputFormatFromPath(outputPath) {
+  const extension = extname(outputPath).toLowerCase()
+  if (extension === '.m3u8') return 'hls'
+  return extension ? extension.slice(1) : 'mp4'
 }
 
 function updateTask(entry, patch) {
@@ -520,17 +869,28 @@ async function resourceDownloadCachePath({ resourceId, responseURL, resourceDown
     ?? stringValue(request?.resourceCache?.cacheDir ?? request?.resourceCache?.cache_dir)
     ?? stringValue(request?.resource_cache?.cacheDir ?? request?.resource_cache?.cache_dir)
     ?? stringValue(env.MOVSCRIPT_MEDIA_PIPELINE_RESOURCE_CACHE_DIR)
-    ?? defaultResourceCacheDir(env)
+    ?? defaultResourceCacheDir(env, request)
   await mkdir(cacheDir, { recursive: true })
   const extension = resourceExtension(resourceId, responseURL, resourceDownload)
   return join(cacheDir, `resource-${resourceId}${extension}`)
 }
 
-function defaultResourceCacheDir(env) {
+function defaultResourceCacheDir(env, request) {
   const homeDir = stringValue(env.MOVSCRIPT_HOME)
+  const projectId = stringValue(request?.projectId ?? request?.project_id) ?? 'default'
   return homeDir
-    ? join(homeDir, 'runtime', 'media-pipeline', 'resource-cache')
+    ? join(homeDir, 'media-workspaces', stableMediaWorkspacePathPart(projectId), 'cache', 'resources')
     : join(tmpdir(), 'movscript-media-pipeline', 'resource-cache')
+}
+
+function stableMediaWorkspacePathPart(value) {
+  const trimmed = String(value ?? '').trim()
+  const readable = trimmed
+    .replace(/[^\w.-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 72) || 'default'
+  const hash = createHash('sha256').update(trimmed || 'default').digest('hex').slice(0, 10)
+  return `${readable}--${hash}`
 }
 
 function resourceExtension(resourceId, responseURL, resourceDownload) {

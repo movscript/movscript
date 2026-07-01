@@ -56,11 +56,11 @@ func TestValidateRuntimeCapabilityCoverageRejectsUnimplementedAdapterCapability(
 		{
 			ID:           "minimax:mimo-v2-omni",
 			Lab:          "minimax",
-			Capabilities: []string{"audio_chat"},
+			Capabilities: []string{"audio_generation"},
 			Source:       sourceEvidence{Status: "verified"},
 		},
 	}, []comboRuleSource{
-		{Lab: "minimax", AdapterType: "minimax"},
+		{Lab: "minimax", AdapterType: "unsupported_audio_adapter"},
 	})
 	if err == nil || !strings.Contains(err.Error(), "no route template adapter implements runtime capability") {
 		t.Fatalf("validateRuntimeCapabilityCoverage() error = %v, want missing runtime capability rejection", err)
@@ -72,7 +72,7 @@ func TestValidateRuntimeCapabilityCoverageAllowsTemplateOnlyDiscovery(t *testing
 		{
 			ID:           "minimax:mimo-v2-omni",
 			Lab:          "minimax",
-			Capabilities: []string{"audio_chat"},
+			Capabilities: []string{"audio_generation"},
 			Source:       sourceEvidence{Status: "template_only"},
 		},
 	}, nil)
@@ -86,7 +86,7 @@ func TestValidateRuntimeCapabilityCoverageUsesRouteTemplateAdapter(t *testing.T)
 		{
 			ID:           "xai:grok-imagine-video",
 			Lab:          "xai",
-			Capabilities: []string{"video"},
+			Capabilities: []string{"video_generation"},
 			Source:       sourceEvidence{Status: "verified"},
 		},
 	}, []comboRuleSource{
@@ -105,13 +105,13 @@ func TestValidateRuntimeCapabilityCoverageAllowsDoubao2APIMedia(t *testing.T) {
 		{
 			ID:           "doubao2api:doubao-image",
 			Lab:          "doubao2api",
-			Capabilities: []string{"image"},
+			Capabilities: []string{"image_generation"},
 			Source:       sourceEvidence{Status: "unofficial"},
 		},
 		{
 			ID:           "doubao2api:doubao-video",
 			Lab:          "doubao2api",
-			Capabilities: []string{"video"},
+			Capabilities: []string{"video_generation"},
 			Source:       sourceEvidence{Status: "unofficial"},
 		},
 	}, []comboRuleSource{

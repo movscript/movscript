@@ -24,11 +24,11 @@ func (w *Worker) runImageJob(ctx context.Context, job *persistencemodel.Job, par
 		}
 	}
 	sm.enter(StateCallingProvider, "call image provider")
-	route, err := w.resolveJobModelRoute(ctx, job, ai.CapabilityImage)
+	route, err := w.resolveJobModelRoute(ctx, job, ai.CapabilityFamilyImageGeneration)
 	if err != nil {
 		return providerResult{}, err
 	}
-	annotateDebugRouteContext(debugResult, route, ai.CapabilityImage)
+	annotateDebugRouteContext(debugResult, route, ai.CapabilityFamilyImageGeneration)
 	resp, err := callProviderWithTimeout(ctx, providerCallTimeout, func(ctx context.Context) (ai.ImageResponse, error) {
 		return w.aiService.CallImageWithRouteUsage(ctx, job.UserID, route, req, w.usageContext(job))
 	})
@@ -44,7 +44,7 @@ func (w *Worker) runImageJob(ctx context.Context, job *persistencemodel.Job, par
 
 func (w *Worker) runImageEditJob(ctx context.Context, job *persistencemodel.Job, params generationParams, imageData []ai.MediaData, sm *jobStateMachine, debugResult *ai.DebugCallResult) (providerResult, error) {
 	if len(imageData) == 0 {
-		return providerResult{}, fmt.Errorf("image_edit job requires an image input but none was found (job #%d)", job.ID)
+		return providerResult{}, fmt.Errorf("reference image generation requires an image input but none was found (job #%d)", job.ID)
 	}
 	cloudFileID := w.prepareImageInputReferences(job, imageData)
 	req := w.buildImageRequest(job, params, imageData, cloudFileID)
@@ -58,11 +58,11 @@ func (w *Worker) runImageEditJob(ctx context.Context, job *persistencemodel.Job,
 		}
 	}
 	sm.enter(StateCallingProvider, "call image edit provider")
-	route, err := w.resolveJobModelRoute(ctx, job, ai.CapabilityImageEdit)
+	route, err := w.resolveJobModelRoute(ctx, job, ai.CapabilityFamilyImageGeneration)
 	if err != nil {
 		return providerResult{}, err
 	}
-	annotateDebugRouteContext(debugResult, route, ai.CapabilityImageEdit)
+	annotateDebugRouteContext(debugResult, route, ai.CapabilityFamilyImageGeneration)
 	resp, err := callProviderWithTimeout(ctx, providerCallTimeout, func(ctx context.Context) (ai.ImageResponse, error) {
 		return w.aiService.CallImageWithRouteUsage(ctx, job.UserID, route, req, w.usageContext(job))
 	})

@@ -23,11 +23,11 @@ func NewXiaomiMimoAdapter(apiKey, baseURL string) *XiaomiMimoAdapter {
 	return &XiaomiMimoAdapter{OpenAIAdapter: NewOpenAIAdapter(strings.TrimRight(baseURL, "/"), apiKey)}
 }
 
-func (a *XiaomiMimoAdapter) ChatAudio(ctx context.Context, req media.AudioChatRequest) (media.AudioChatResponse, error) {
+func (a *XiaomiMimoAdapter) GenerateSpeechToSpeech(ctx context.Context, req media.SpeechToSpeechRequest) (media.SpeechToSpeechResponse, error) {
 	model := firstNonEmptyAI(req.Model, "mimo-v2.5")
 	prompt := strings.TrimSpace(firstNonEmptyAI(req.Prompt, stringParam(req.Params, "prompt", "")))
 	if prompt == "" && len(req.Audio) == 0 {
-		return media.AudioChatResponse{}, fmt.Errorf("prompt or audio is required")
+		return media.SpeechToSpeechResponse{}, fmt.Errorf("prompt or audio is required")
 	}
 
 	content := make([]map[string]any, 0, 2)
@@ -67,38 +67,38 @@ func (a *XiaomiMimoAdapter) ChatAudio(ctx context.Context, req media.AudioChatRe
 		body["max_completion_tokens"] = maxTokens
 	}
 
-	raw, status, latency, err := a.postOpenAIJSONWithErrorLabel(ctx, "/chat/completions", body, "xiaomi mimo audio chat")
+	raw, status, latency, err := a.postOpenAIJSONWithErrorLabel(ctx, "/chat/completions", body, "xiaomi mimo speech-to-speech")
 	if err != nil {
 		recordDebugIfEmpty(ctx, DebugCallResult{
 			Success: false, ModelID: model, Endpoint: a.chatEndpoint(), Method: "POST",
-			RequestBody: mustJSON(redactXiaomiMimoAudioChatBody(body)), ResponseStatus: status, ResponseBody: string(raw),
+			RequestBody: mustJSON(redactXiaomiMimoSpeechToSpeechBody(body)), ResponseStatus: status, ResponseBody: string(raw),
 			LatencyMs: latency, Error: err.Error(),
 		})
-		return media.AudioChatResponse{}, err
+		return media.SpeechToSpeechResponse{}, err
 	}
 	var parsed openAIChatCompletionResponse
 	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return media.AudioChatResponse{}, fmt.Errorf("decode xiaomi mimo audio chat completion: %w", err)
+		return media.SpeechToSpeechResponse{}, fmt.Errorf("decode xiaomi mimo speech-to-speech completion: %w", err)
 	}
 	if len(parsed.Choices) == 0 {
-		return media.AudioChatResponse{}, fmt.Errorf("no choices returned")
+		return media.SpeechToSpeechResponse{}, fmt.Errorf("no choices returned")
 	}
 	message := parsed.Choices[0].Message
-	audio, err := decodeOpenAIChatAudio(message.Audio.Data)
+	audio, err := decodeOpenAIGenerateSpeechToSpeech(message.Audio.Data)
 	if err != nil {
-		return media.AudioChatResponse{}, err
+		return media.SpeechToSpeechResponse{}, err
 	}
 	text := firstNonEmptyAI(message.Audio.Transcript, stringPtrValue(message.Content))
 	if len(audio) == 0 && text == "" {
-		return media.AudioChatResponse{}, fmt.Errorf("xiaomi mimo audio chat response did not include audio or text")
+		return media.SpeechToSpeechResponse{}, fmt.Errorf("xiaomi mimo speech-to-speech response did not include audio or text")
 	}
 	recordDebugIfEmpty(ctx, DebugCallResult{
 		Success: true, ModelID: model, Endpoint: a.chatEndpoint(), Method: "POST",
-		RequestBody: mustJSON(redactXiaomiMimoAudioChatBody(body)), ResponseStatus: status,
-		ResponseBody: fmt.Sprintf("(xiaomi mimo audio chat response: audio_bytes=%d text_chars=%d)", len(audio), len(text)),
+		RequestBody: mustJSON(redactXiaomiMimoSpeechToSpeechBody(body)), ResponseStatus: status,
+		ResponseBody: fmt.Sprintf("(xiaomi mimo speech-to-speech response: audio_bytes=%d text_chars=%d)", len(audio), len(text)),
 		LatencyMs:    latency,
 	})
-	return media.AudioChatResponse{
+	return media.SpeechToSpeechResponse{
 		Audio:       audio,
 		Text:        text,
 		MimeType:    mimeTypeForOpenAIAudioFormat(openAIAudioResponseFormat(req.AudioFormat)),
@@ -114,7 +114,7 @@ func xiaomiMimoAudioDataURI(mimeType string, audio []byte) string {
 	return "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(audio)
 }
 
-func redactXiaomiMimoAudioChatBody(body map[string]any) map[string]any {
+func redactXiaomiMimoSpeechToSpeechBody(body map[string]any) map[string]any {
 	raw, _ := json.Marshal(body)
 	var out map[string]any
 	if err := json.Unmarshal(raw, &out); err != nil {

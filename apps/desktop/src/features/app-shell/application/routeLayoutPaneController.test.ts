@@ -46,7 +46,7 @@ import {
 } from './useRouteLayoutOverlapPaneController'
 
 test('route layout pane controller derives tool sidebar state contract from route spec', () => {
-  const routeLayout = routeLayoutSpecForPathname('/tools/ref-image-gen')
+  const routeLayout = routeLayoutSpecForPathname('/tools/image')
   const pane = routeLayoutPaneById(routeLayout, APP_SHELL_TOOL_SIDEBAR_PANE_ID)
 
   assert.equal(pane?.storageKey, APP_SIDEBAR_WIDTH_STORAGE_KEY)
@@ -392,7 +392,7 @@ test('workbench overlap pane controller options are derived from route pane spec
   assert.ok(!routeLayoutSpecForPathname('/project/scripts/workbench').panes.some((pane) => pane.owner === 'workbench'))
 
   const toolPane = routeLayoutPaneById(
-    routeLayoutSpecForPathname('/tools/ref-image-gen'),
+    routeLayoutSpecForPathname('/tools/image'),
     TOOL_WORKBENCH_RESOURCE_PANE_ID,
   )
   const toolOptions = routeLayoutOverlapPaneControllerOptionsForPane(toolPane, {
@@ -426,11 +426,8 @@ test('workbench pages consume overlap pane sizing through the route layout adapt
   const scriptsSource = readFileSync(resolve('../../surface/project/src/features/scripts/components/ScriptsPage.tsx'), 'utf8')
   const toolDialogSource = readToolDialogWorkbenchSource()
 
-  assert.ok(!routeLayoutSpecForPathname('/tools/audio-gen').panes.some((pane) => pane.id === TOOL_WORKBENCH_RESOURCE_PANE_ID))
-  assert.ok(!routeLayoutSpecForPathname('/tools/audio-translate').panes.some((pane) => pane.id === TOOL_WORKBENCH_RESOURCE_PANE_ID))
-  assert.ok(!routeLayoutSpecForPathname('/tools/audio-sfx').panes.some((pane) => pane.id === TOOL_WORKBENCH_RESOURCE_PANE_ID))
-  assert.ok(!routeLayoutSpecForPathname('/tools/voice-clone').panes.some((pane) => pane.id === TOOL_WORKBENCH_RESOURCE_PANE_ID))
-  assert.ok(!routeLayoutSpecForPathname('/tools/voice-design').panes.some((pane) => pane.id === TOOL_WORKBENCH_RESOURCE_PANE_ID))
+  assert.ok(!routeLayoutSpecForPathname('/tools/audio').panes.some((pane) => pane.id === TOOL_WORKBENCH_RESOURCE_PANE_ID))
+  assert.ok(!routeLayoutSpecForPathname('/tools/text').panes.some((pane) => pane.id === TOOL_WORKBENCH_RESOURCE_PANE_ID))
   assert.match(toolDialogSource, /useRouteLayoutOverlapPaneController\(\{[\s\S]*paneId: TOOL_WORKBENCH_RESOURCE_PANE_ID/)
   assert.match(toolDialogSource, /function ToolDialogReferenceWorkbench/)
   assert.doesNotMatch(scriptsSource, /useRouteLayoutOverlapPaneController/)

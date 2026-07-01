@@ -21,8 +21,6 @@ export const MEDIA_PIPELINE_TASK_ACTION_ENDPOINT = '/v1/media-pipeline/task/acti
 
 export type EditingServiceProjectCommandName =
   | 'createProject'
-  | 'createProjectFromEditPlan'
-  | 'createProjectFromEditDecisions'
   | 'createProjectFromPreviewTimeline'
   | 'saveProject'
   | 'getProject'
@@ -56,7 +54,6 @@ export type EditingServiceTimelineViewKind =
   | 'previewTimeline'
   | 'sceneMomentEditPlan'
   | 'sceneMomentTimelineBundle'
-  | 'timelineAssemblyBundle'
   | 'productionTimelineBundle'
 
 export interface EditingServiceTimelineViewRequest {
@@ -162,6 +159,10 @@ export interface MediaPipelineProbeResponse {
     code?: string
     error?: string
   }
+  backendProjectRender?: Record<string, unknown>
+  backend_project_render?: Record<string, unknown>
+  backendProjectPreview?: Record<string, unknown>
+  backend_project_preview?: Record<string, unknown>
 }
 
 export interface MediaPipelineTaskCreateRequest {

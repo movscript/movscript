@@ -1,233 +1,234 @@
+---
 lab: zai
 templates:
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: GLM-5.2
-      id: zai:glm-5.2
-      lab: zai
-      model_id: glm-5.2
-      order: 66
-      source:
-        status: verified
-        url: https://docs.z.ai/guides/llm/glm-5.2
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: GLM-5.1
-      id: zai:glm-5.1
-      lab: zai
-      model_id: glm-5.1
-      order: 67
-      source:
-        status: verified
-        url: https://docs.z.ai/guides/llm/glm-5.1
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: GLM-5
-      id: zai:glm-5
-      lab: zai
-      model_id: glm-5
-      order: 68
-      source:
-        status: verified
-        url: https://docs.z.ai/guides/llm/glm-5
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: GLM-4.7
-      id: zai:glm-4.7
-      lab: zai
-      model_id: glm-4.7
-      order: 69
-      source:
-        status: verified
-        url: https://docs.z.ai/guides/llm/glm-4.7
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: GLM-4.6
-      id: zai:glm-4.6
-      lab: zai
-      model_id: glm-4.6
-      order: 70
-      source:
-        status: verified
-        url: https://docs.z.ai/guides/llm/glm-4.6
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: GLM-4.5
-      id: zai:glm-4.5
-      lab: zai
-      model_id: glm-4.5
-      order: 71
-      source:
-        status: verified
-        url: https://docs.z.ai/guides/llm/glm-4.5
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: GLM-4.5 Air
-      id: zai:glm-4.5-air
-      lab: zai
-      model_id: glm-4.5-air
-      order: 72
-      source:
-        status: verified
-        url: https://docs.z.ai/guides/llm/glm-4.5
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: GLM-4.5 Flash
-      id: zai:glm-4.5-flash
-      lab: zai
-      model_id: glm-4.5-flash
-      order: 73
-      source:
-        status: verified
-        url: https://docs.z.ai/guides/llm/glm-4.5
-        verified_at: "2026-06-25"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: GLM 3 Turbo
-      id: zai:glm-3-turbo
-      lab: zai
-      model_id: glm-3-turbo
-      order: 74
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: GLM 4
-      id: zai:glm-4
-      lab: zai
-      model_id: glm-4
-      order: 75
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: GLM 4 Air
-      id: zai:glm-4-air
-      lab: zai
-      model_id: glm-4-air
-      order: 76
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: GLM 4 Airx
-      id: zai:glm-4-airx
-      lab: zai
-      model_id: glm-4-airx
-      order: 77
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: GLM 4 Flash
-      id: zai:glm-4-flash
-      lab: zai
-      model_id: glm-4-flash
-      order: 78
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: GLM 4 Long
-      id: zai:glm-4-long
-      lab: zai
-      model_id: glm-4-long
-      order: 79
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: GLM 4.5 Airx
-      id: zai:glm-4-5-airx
-      lab: zai
-      model_id: glm-4.5-airx
-      order: 80
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-        - reasoning
-      display_name: GLM 4.5 X
-      id: zai:glm-4-5-x
-      lab: zai
-      model_id: glm-4.5-x
-      order: 81
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
-    - route_adapter_hint: openai_compat
-      allow_model_id_override: true
-      capabilities:
-        - text
-      display_name: GLM 4.6v
-      id: zai:glm-4-6v
-      lab: zai
-      model_id: glm-4.6v
-      order: 82
-      source:
-        status: observed
-        url: https://yunwu.ai/v1/models
-        verified_at: "2026-06-26"
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: GLM-5.2
+  id: zai:glm-5.2
+  lab: zai
+  model_id: glm-5.2
+  order: 66
+  source:
+    status: verified
+    url: https://docs.z.ai/guides/llm/glm-5.2
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: GLM-5.1
+  id: zai:glm-5.1
+  lab: zai
+  model_id: glm-5.1
+  order: 67
+  source:
+    status: verified
+    url: https://docs.z.ai/guides/llm/glm-5.1
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: GLM-5
+  id: zai:glm-5
+  lab: zai
+  model_id: glm-5
+  order: 68
+  source:
+    status: verified
+    url: https://docs.z.ai/guides/llm/glm-5
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: GLM-4.7
+  id: zai:glm-4.7
+  lab: zai
+  model_id: glm-4.7
+  order: 69
+  source:
+    status: verified
+    url: https://docs.z.ai/guides/llm/glm-4.7
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: GLM-4.6
+  id: zai:glm-4.6
+  lab: zai
+  model_id: glm-4.6
+  order: 70
+  source:
+    status: verified
+    url: https://docs.z.ai/guides/llm/glm-4.6
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: GLM-4.5
+  id: zai:glm-4.5
+  lab: zai
+  model_id: glm-4.5
+  order: 71
+  source:
+    status: verified
+    url: https://docs.z.ai/guides/llm/glm-4.5
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: GLM-4.5 Air
+  id: zai:glm-4.5-air
+  lab: zai
+  model_id: glm-4.5-air
+  order: 72
+  source:
+    status: verified
+    url: https://docs.z.ai/guides/llm/glm-4.5
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: GLM-4.5 Flash
+  id: zai:glm-4.5-flash
+  lab: zai
+  model_id: glm-4.5-flash
+  order: 73
+  source:
+    status: verified
+    url: https://docs.z.ai/guides/llm/glm-4.5
+    verified_at: '2026-06-25'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: GLM 3 Turbo
+  id: zai:glm-3-turbo
+  lab: zai
+  model_id: glm-3-turbo
+  order: 74
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: GLM 4
+  id: zai:glm-4
+  lab: zai
+  model_id: glm-4
+  order: 75
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: GLM 4 Air
+  id: zai:glm-4-air
+  lab: zai
+  model_id: glm-4-air
+  order: 76
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: GLM 4 Airx
+  id: zai:glm-4-airx
+  lab: zai
+  model_id: glm-4-airx
+  order: 77
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: GLM 4 Flash
+  id: zai:glm-4-flash
+  lab: zai
+  model_id: glm-4-flash
+  order: 78
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: GLM 4 Long
+  id: zai:glm-4-long
+  lab: zai
+  model_id: glm-4-long
+  order: 79
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: GLM 4.5 Airx
+  id: zai:glm-4-5-airx
+  lab: zai
+  model_id: glm-4.5-airx
+  order: 80
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  - reasoning
+  display_name: GLM 4.5 X
+  id: zai:glm-4-5-x
+  lab: zai
+  model_id: glm-4.5-x
+  order: 81
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'
+- route_adapter_hint: openai_compat
+  allow_model_id_override: true
+  capabilities:
+  - text_generation
+  display_name: GLM 4.6v
+  id: zai:glm-4-6v
+  lab: zai
+  model_id: glm-4.6v
+  order: 82
+  source:
+    status: observed
+    url: https://yunwu.ai/v1/models
+    verified_at: '2026-06-26'

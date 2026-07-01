@@ -54,6 +54,55 @@ func TestSystemHealthThresholdsDefaultUpdateAndValidation(t *testing.T) {
 	}
 }
 
+func TestUsagePolicySettingsDefaultUpdateAndValidation(t *testing.T) {
+	db := testutil.OpenSQLite(t, "admin-usage-policy-settings.db", &persistencemodel.AdminSetting{})
+	service := NewService(db)
+
+	defaults, err := service.UsagePolicySettings(context.Background())
+	if err != nil {
+		t.Fatalf("UsagePolicySettings default returned error: %v", err)
+	}
+	if defaults.Mode != "off" || len(defaults.AlertThresholds) != 2 {
+		t.Fatalf("unexpected usage policy defaults: %#v", defaults)
+	}
+
+	updated, err := service.UpdateUsagePolicySettings(context.Background(), UsagePolicySettings{
+		Mode:                      "observe",
+		DefaultUsageCreditLimit:   1000,
+		DefaultMonthlyCreditLimit: 250,
+		DefaultDailyCreditLimit:   25,
+		AlertThresholds:           []float64{50, 80, 80, 100},
+		Gateway: UsagePolicyGatewaySettings{
+			MaxRequestsPerMinute:    60,
+			MaxConcurrentRequests:   4,
+			MaxEstimatedCostPerCall: 3.5,
+		},
+		Notes: " model gateway rollout ",
+	})
+	if err != nil {
+		t.Fatalf("UpdateUsagePolicySettings returned error: %v", err)
+	}
+	if updated.Mode != "observe" || updated.Notes != "model gateway rollout" || len(updated.AlertThresholds) != 3 {
+		t.Fatalf("unexpected normalized usage policy: %#v", updated)
+	}
+
+	loaded, err := service.UsagePolicySettings(context.Background())
+	if err != nil {
+		t.Fatalf("UsagePolicySettings loaded returned error: %v", err)
+	}
+	if loaded.Mode != updated.Mode || loaded.Gateway.MaxRequestsPerMinute != 60 || loaded.DefaultDailyCreditLimit != 25 {
+		t.Fatalf("loaded usage policy = %#v, want %#v", loaded, updated)
+	}
+
+	_, err = service.UpdateUsagePolicySettings(context.Background(), UsagePolicySettings{
+		Mode:            "enforce",
+		AlertThresholds: []float64{120},
+	})
+	if !errors.Is(err, ErrInvalidUsagePolicySettings) {
+		t.Fatalf("invalid usage policy error = %v, want ErrInvalidUsagePolicySettings", err)
+	}
+}
+
 func TestGenerationToolsSettingsDefaultUpdateEncryptionAndMasking(t *testing.T) {
 	db := testutil.OpenSQLite(t, "admin-generation-tools-settings.db", &persistencemodel.AdminSetting{})
 	service := NewService(db, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")

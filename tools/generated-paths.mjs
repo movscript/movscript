@@ -29,6 +29,7 @@ const generatedPathRules = Object.freeze({
   devState: Object.freeze([
     { kind: 'path', value: '.movscript-dev' },
     { kind: 'path', value: 'services/data-service/uploads' },
+    { kind: 'path', value: 'timeline_assemblies' },
   ]),
   vendorRuntime: Object.freeze([
     { kind: 'path', value: 'apps/desktop/sdk-runtime' },
@@ -77,6 +78,7 @@ export const generatedCleanTargets = Object.freeze({
   devState: Object.freeze([
     '.movscript-dev',
     'services/data-service/uploads',
+    'timeline_assemblies',
   ]),
   vendorRuntime: Object.freeze([
     'apps/desktop/sdk-runtime',
@@ -122,6 +124,7 @@ export const generatedIgnorePatterns = Object.freeze([
   'services/*/dist/',
   'surface/*/dist/',
   'surface/*/dist-lib/',
+  'timeline_assemblies/',
 ])
 
 export function isGeneratedPath(path, options = {}) {

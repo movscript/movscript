@@ -281,7 +281,7 @@ func (s *Service) ListChatModels(ctx context.Context, principal Principal) ([]Ch
 	}
 	ctx = s.providerRouteContextForPrincipal(ctx, principal)
 	descriptors, err := s.catalog.ListModels(ctx, providercontract.AIModelListFilter{
-		Capabilities: []string{ai.CapabilityText, ai.CapabilityReasoning},
+		Capabilities: []string{ai.CapabilityFamilyTextGeneration, ai.CapabilityReasoning},
 		APIKinds: []string{
 			ai.ModelAPIKindOpenAIChatCompletions,
 			ai.ModelAPIKindOpenAIResponses,
@@ -460,15 +460,15 @@ func aiRouteFromGateway(route providercontract.AIGatewayModelRoute) ai.ModelRout
 }
 
 func (s *Service) resolveRuntimeTextRoute(ctx context.Context, catalogEntryID uint) (providercontract.AIGatewayModelRoute, error) {
-	return s.resolveRuntimeRoute(ctx, catalogEntryID, ai.CapabilityText, ai.CapabilityReasoning)
+	return s.resolveRuntimeRoute(ctx, catalogEntryID, ai.CapabilityFamilyTextGeneration, ai.CapabilityReasoning)
 }
 
 func (s *Service) resolveRuntimeTextRouteForRequest(ctx context.Context, requestedModel string, catalogEntryID uint, apiKinds ...string) (providercontract.AIGatewayModelRoute, error) {
 	requested := strings.TrimSpace(requestedModel)
 	if requested != "" && requested != DefaultChatModel {
-		return s.resolveRuntimeModelIDRouteWithAPIKinds(ctx, requested, apiKinds, ai.CapabilityText, ai.CapabilityReasoning)
+		return s.resolveRuntimeModelIDRouteWithAPIKinds(ctx, requested, apiKinds, ai.CapabilityFamilyTextGeneration, ai.CapabilityReasoning)
 	}
-	return s.resolveRuntimeRouteWithAPIKinds(ctx, catalogEntryID, apiKinds, ai.CapabilityText, ai.CapabilityReasoning)
+	return s.resolveRuntimeRouteWithAPIKinds(ctx, catalogEntryID, apiKinds, ai.CapabilityFamilyTextGeneration, ai.CapabilityReasoning)
 }
 
 func (s *Service) resolveRuntimeRouteForProxyRequest(ctx context.Context, requestedModel string, catalogEntryID uint, capability string) (providercontract.AIGatewayModelRoute, error) {
@@ -609,7 +609,7 @@ func compactOpenAIProxyCapabilities(capabilities []string) []string {
 		out = append(out, capability)
 	}
 	if len(out) == 0 {
-		return []string{ai.CapabilityText, ai.CapabilityReasoning}
+		return []string{ai.CapabilityFamilyTextGeneration, ai.CapabilityReasoning}
 	}
 	return out
 }
@@ -619,7 +619,7 @@ func (s *Service) ResolveTextModel(ctx context.Context, modelID string, apiKinds
 		return 0, strings.TrimSpace(modelID), ErrModelUnavailable
 	}
 	descriptors, err := s.catalog.ListModels(ctx, providercontract.AIModelListFilter{
-		Capabilities: []string{ai.CapabilityText, ai.CapabilityReasoning},
+		Capabilities: []string{ai.CapabilityFamilyTextGeneration, ai.CapabilityReasoning},
 		APIKinds:     apiKinds,
 	})
 	if err != nil {

@@ -24,29 +24,27 @@ type ModelCatalogEntryInput struct {
 	AcceptsImage          bool   `json:"accepts_image"`
 	MaxInputImages        int    `json:"max_input_images"`
 	MaxInputVideos        int    `json:"max_input_videos"`
-	ImageEditField        string `json:"image_edit_field"`
+	InputImageField       string `json:"input_image_field"`
 	SupportedParams       string `json:"supported_params"`
 	ParamLimitsJSON       string `json:"param_limits_json"`
 	ModelCapabilitiesJSON string `json:"model_capabilities_json"`
 }
 
 type ModelRouteBindingInput struct {
-	ComboTemplateKey      string `json:"combo_template_key"`
-	TemplateVersion       string `json:"template_version"`
-	RouteGroup            string `json:"route_group"`
-	ProviderID            string `json:"provider_id"`
-	AdapterType           string `json:"adapter_type"`
-	ProviderModelID       string `json:"provider_model_id"`
-	APIKinds              string `json:"api_kinds"`
-	EndpointBaseURL       string `json:"endpoint_base_url"`
-	EndpointPathPrefix    string `json:"endpoint_path_prefix"`
-	EndpointMode          string `json:"endpoint_mode"`
-	OperationProfile      string `json:"operation_profile"`
-	RouteCapabilitiesJSON string `json:"route_capabilities_json"`
-	IsEnabled             *bool  `json:"is_enabled"`
-	Priority              int    `json:"priority"`
-	CapacityWeight        int    `json:"capacity_weight"`
-	MaxConcurrency        int    `json:"max_concurrency"`
+	ComboTemplateKey   string `json:"combo_template_key"`
+	TemplateVersion    string `json:"template_version"`
+	RouteGroup         string `json:"route_group"`
+	ProviderID         string `json:"provider_id"`
+	AdapterType        string `json:"adapter_type"`
+	ProviderModelID    string `json:"provider_model_id"`
+	APIKinds           string `json:"api_kinds"`
+	EndpointBaseURL    string `json:"endpoint_base_url"`
+	EndpointPathPrefix string `json:"endpoint_path_prefix"`
+	EndpointMode       string `json:"endpoint_mode"`
+	IsEnabled          *bool  `json:"is_enabled"`
+	Priority           int    `json:"priority"`
+	CapacityWeight     int    `json:"capacity_weight"`
+	MaxConcurrency     int    `json:"max_concurrency"`
 }
 
 type EnableComboTemplateInput struct {
@@ -78,7 +76,7 @@ type ModelCatalogTemplate struct {
 	AcceptsImageInput    bool               `json:"accepts_image_input"`
 	MaxInputImages       int                `json:"max_input_images"`
 	MaxInputVideos       int                `json:"max_input_videos"`
-	ImageEditField       string             `json:"image_edit_field,omitempty"`
+	InputImageField      string             `json:"input_image_field,omitempty"`
 	SupportedParams      []infraai.ParamDef `json:"supported_params,omitempty"`
 }
 
@@ -105,7 +103,7 @@ func modelCatalogTemplateFromInfra(template infraai.CatalogTemplate) ModelCatalo
 		AcceptsImageInput:    template.AcceptsImageInput,
 		MaxInputImages:       template.MaxInputImages,
 		MaxInputVideos:       template.MaxInputVideos,
-		ImageEditField:       template.ImageEditField,
+		InputImageField:      template.InputImageField,
 		SupportedParams:      append([]infraai.ParamDef(nil), template.SupportedParams...),
 	}
 }
@@ -139,7 +137,7 @@ func (s *Service) CreateModelCatalogEntry(ctx context.Context, input ModelCatalo
 		entry.DisplayName = entry.PublicModelID
 	}
 	if entry.Capabilities == "" {
-		entry.Capabilities = infraai.CapabilityText
+		entry.Capabilities = infraai.CapabilityFamilyTextGeneration
 	}
 	if err := validateModelCatalogEntry(&entry); err != nil {
 		return modelCatalogEntryFromModel(entry), err
@@ -305,12 +303,6 @@ func (s *Service) UpdateModelRouteBinding(ctx context.Context, id string, input 
 	if next.EndpointPathPrefix == "" {
 		next.EndpointPathPrefix = binding.EndpointPathPrefix
 	}
-	if next.OperationProfile == "" {
-		next.OperationProfile = binding.OperationProfile
-	}
-	if next.RouteCapabilitiesJSON == "" {
-		next.RouteCapabilitiesJSON = binding.RouteCapabilitiesJSON
-	}
 	if err := validateModelRouteBinding(next); err != nil {
 		return modelRouteBindingFromModel(next), err
 	}
@@ -412,6 +404,7 @@ func (s *Service) EnableComboTemplate(ctx context.Context, comboTemplateKey stri
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
 				return err
 			}
+			modelCapabilitiesJSON := legacyModelCapabilitiesAsStructuredJSON(strings.Join(template.Capabilities, ","))
 			entry = persistencemodel.AIModelCatalogEntry{
 				ModelTemplateKey: template.ID,
 				TemplateVersion:  modelCatalogTemplateVersion(template),
@@ -423,8 +416,14 @@ func (s *Service) EnableComboTemplate(ctx context.Context, comboTemplateKey stri
 				AcceptsImage:     template.AcceptsImageInput,
 				MaxInputImages:   template.MaxInputImages,
 				MaxInputVideos:   template.MaxInputVideos,
-				ImageEditField:   template.ImageEditField,
-				SupportedParams:  paramDefsJSON(template.SupportedParams),
+				InputImageField:  template.InputImageField,
+				SupportedParams: modelOperationParamProfileJSON(
+					template.RouteAdapterHint,
+					template.Capabilities,
+					modelCapabilitiesJSON,
+					template.SupportedParams,
+				),
+				ModelCapabilitiesJSON: modelCapabilitiesJSON,
 			}
 			if strings.TrimSpace(entry.DisplayName) == "" {
 				entry.DisplayName = publicModelID
@@ -477,9 +476,6 @@ func (s *Service) EnableComboTemplate(ctx context.Context, comboTemplateKey stri
 				IsEnabled:        &enabled,
 				Priority:         combo.Priority,
 				CapacityWeight:   combo.CapacityWeight,
-				RouteCapabilitiesJSON: legacyModelCapabilitiesAsStructuredJSON(
-					strings.Join(template.Capabilities, ","),
-				),
 			})
 			if err != nil {
 				return err
@@ -617,6 +613,71 @@ func paramDefsJSON(params []infraai.ParamDef) string {
 	return string(raw)
 }
 
+func modelOperationParamProfileJSON(adapterType string, capabilities []string, modelCapabilitiesJSON string, params []infraai.ParamDef) string {
+	params = infraai.NormalizeParamDefsForUI(params)
+	if len(params) == 0 {
+		return ""
+	}
+	modelCapabilitiesJSON = strings.TrimSpace(modelCapabilitiesJSON)
+	if modelCapabilitiesJSON == "" {
+		modelCapabilitiesJSON = legacyModelCapabilitiesAsStructuredJSON(strings.Join(capabilities, ","))
+	}
+	operationsByCapability, err := parseRouteCapabilityOperations(modelCapabilitiesJSON)
+	if err != nil || len(operationsByCapability) == 0 {
+		return ""
+	}
+	templateParams := make(map[string]infraai.ParamDef, len(params))
+	for _, param := range params {
+		key := strings.TrimSpace(param.Key)
+		if key == "" {
+			continue
+		}
+		templateParams[key] = param
+	}
+	profile := infraai.ModelOperationParamProfile{
+		Version:     2,
+		ByOperation: map[string]infraai.ModelParamProfile{},
+	}
+	for capability, operations := range operationsByCapability {
+		for operation := range operations {
+			operation = strings.TrimSpace(operation)
+			if operation == "" {
+				continue
+			}
+			baseParams := infraai.DefaultParamsForAdapterOperation(adapterType, capability, operation)
+			allow := make([]string, 0, len(baseParams))
+			overrides := map[string]infraai.ParamDef{}
+			for _, baseParam := range baseParams {
+				key := strings.TrimSpace(baseParam.Key)
+				if key == "" {
+					continue
+				}
+				param, ok := templateParams[key]
+				if !ok {
+					continue
+				}
+				allow = appendUniqueString(allow, key)
+				overrides[key] = param
+			}
+			if len(allow) == 0 && len(overrides) == 0 {
+				continue
+			}
+			profile.ByOperation[operation] = infraai.ModelParamProfile{
+				Allow:    allow,
+				Override: overrides,
+			}
+		}
+	}
+	if len(profile.ByOperation) == 0 {
+		return ""
+	}
+	raw, err := json.Marshal(profile)
+	if err != nil {
+		return ""
+	}
+	return string(raw)
+}
+
 func modelCatalogTemplateVersion(template infraai.CatalogTemplate) string {
 	_ = template
 	return "builtin.v1"
@@ -638,7 +699,7 @@ func modelCatalogEntryFromInput(input ModelCatalogEntryInput) persistencemodel.A
 		AcceptsImage:          input.AcceptsImage,
 		MaxInputImages:        input.MaxInputImages,
 		MaxInputVideos:        input.MaxInputVideos,
-		ImageEditField:        strings.TrimSpace(input.ImageEditField),
+		InputImageField:       strings.TrimSpace(input.InputImageField),
 		SupportedParams:       strings.TrimSpace(input.SupportedParams),
 		ParamLimitsJSON:       strings.TrimSpace(input.ParamLimitsJSON),
 		ModelCapabilitiesJSON: strings.TrimSpace(input.ModelCapabilitiesJSON),
@@ -670,19 +731,17 @@ func validateModelCatalogEntry(entry *persistencemodel.AIModelCatalogEntry) erro
 }
 
 func normalizeModelCatalogEntrySupportedParams(entry *persistencemodel.AIModelCatalogEntry) error {
+	modelCapabilitiesJSON := strings.TrimSpace(entry.ModelCapabilitiesJSON)
+	if modelCapabilitiesJSON == "" {
+		modelCapabilitiesJSON = legacyModelCapabilitiesAsStructuredJSON(entry.Capabilities)
+	}
 	if template, ok := catalogTemplateForCatalogEntry(*entry); ok {
-		baseParams := template.SupportedParams
-		if len(baseParams) == 0 {
-			baseParams = infraai.DefaultParamsForAdapter(template.RouteAdapterHint, template.Capabilities)
-		}
-		if err := infraai.ValidateModelParamConfigWithBaseParams(baseParams, entry.SupportedParams); err != nil {
+		if err := infraai.ValidateModelOperationParamConfig(template.RouteAdapterHint, infraai.SplitCapabilities(entry.Capabilities), modelCapabilitiesJSON, entry.SupportedParams); err != nil {
 			return fmt.Errorf("%w: %v", ErrInvalidModelCatalog, err)
 		}
-		params, _ := infraai.ResolveEffectiveParamsWithBaseParams(baseParams, entry.SupportedParams)
-		entry.SupportedParams = paramDefsJSON(params)
 		return nil
 	}
-	if err := infraai.ValidateModelParamConfigWithBaseParams(nil, entry.SupportedParams); err != nil {
+	if err := infraai.ValidateModelOperationParamConfigShape(entry.SupportedParams); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidModelCatalog, err)
 	}
 	return nil
@@ -690,24 +749,14 @@ func normalizeModelCatalogEntrySupportedParams(entry *persistencemodel.AIModelCa
 
 func normalizeModelCatalogCapabilities(value string) (string, error) {
 	allowed := map[string]bool{
-		infraai.CapabilityText:           true,
-		infraai.CapabilityReasoning:      true,
-		infraai.CapabilityImage:          true,
-		infraai.CapabilityImageEdit:      true,
-		infraai.CapabilityVideo:          true,
-		infraai.CapabilityVideoI2V:       true,
-		infraai.CapabilityVideoV2V:       true,
-		infraai.CapabilityAudio:          true,
-		infraai.CapabilityAudioTTS:       true,
-		infraai.CapabilityAudioSTT:       true,
-		infraai.CapabilityAudioMusic:     true,
-		infraai.CapabilityAudioSFX:       true,
-		infraai.CapabilityAudioChat:      true,
-		infraai.CapabilityVoiceClone:     true,
-		infraai.CapabilityVoiceDesign:    true,
-		infraai.CapabilityAudioTranslate: true,
-		infraai.CapabilitySubAlign:       true,
-		infraai.CapabilitySubTranslate:   true,
+		infraai.CapabilityFamilyTextGeneration:  true,
+		infraai.CapabilityReasoning:             true,
+		infraai.CapabilityFamilyImageGeneration: true,
+		infraai.CapabilityFamilyVideoGeneration: true,
+		infraai.CapabilityFamilyAudioGeneration: true,
+		infraai.CapabilityFamilyEmbedding:       true,
+		infraai.CapabilityFamilyRerank:          true,
+		infraai.CapabilityFamilyModeration:      true,
 	}
 	seen := make(map[string]bool)
 	out := make([]string, 0)
@@ -722,7 +771,7 @@ func normalizeModelCatalogCapabilities(value string) (string, error) {
 		out = append(out, capability)
 	}
 	if len(out) == 0 {
-		out = append(out, infraai.CapabilityText)
+		out = append(out, infraai.CapabilityFamilyTextGeneration)
 	}
 	return strings.Join(out, ","), nil
 }
@@ -755,27 +804,10 @@ func validateModelRouteEndpointFields(binding persistencemodel.AIModelRouteBindi
 	default:
 		return fmt.Errorf("%w: endpoint_mode %q is not supported", ErrInvalidModelCatalog, strings.TrimSpace(binding.EndpointMode))
 	}
-	if value := strings.TrimSpace(binding.RouteCapabilitiesJSON); value != "" && !json.Valid([]byte(value)) {
-		return fmt.Errorf("%w: route_capabilities_json must be valid JSON", ErrInvalidModelCatalog)
-	}
 	return nil
 }
 
 func validateModelRouteBindingCapabilities(entry persistencemodel.AIModelCatalogEntry, binding persistencemodel.AIModelRouteBinding) error {
-	routeRaw := strings.TrimSpace(binding.RouteCapabilitiesJSON)
-	if !binding.IsEnabled && routeRaw == "" {
-		return nil
-	}
-	if routeRaw == "" {
-		return fmt.Errorf("%w: route_capabilities_json is required for enabled route bindings", ErrInvalidModelCatalog)
-	}
-	routeOps, err := parseRouteCapabilityOperations(routeRaw)
-	if err != nil {
-		return fmt.Errorf("%w: route_capabilities_json must be valid JSON", ErrInvalidModelCatalog)
-	}
-	if binding.IsEnabled && len(routeOps) == 0 {
-		return fmt.Errorf("%w: route_capabilities_json must declare at least one operation for enabled route bindings", ErrInvalidModelCatalog)
-	}
 	modelRaw := strings.TrimSpace(entry.ModelCapabilitiesJSON)
 	if modelRaw == "" {
 		modelRaw = legacyModelCapabilitiesAsStructuredJSON(entry.Capabilities)
@@ -787,16 +819,25 @@ func validateModelRouteBindingCapabilities(entry persistencemodel.AIModelCatalog
 	if len(modelOps) == 0 {
 		return fmt.Errorf("%w: model_capabilities_json must declare catalog operations before enabling route bindings", ErrInvalidModelCatalog)
 	}
-	for capability, operations := range routeOps {
-		allowed := modelOps[capability]
-		if len(allowed) == 0 {
-			return fmt.Errorf("%w: route capability %q is not declared by catalog model capabilities", ErrInvalidModelCatalog, capability)
-		}
-		for operation := range operations {
-			if !allowed[operation] {
-				return fmt.Errorf("%w: route operation %q is not declared by catalog capability %q", ErrInvalidModelCatalog, operation, capability)
-			}
-		}
+	def := infraai.ResolveModelDef(
+		strings.TrimSpace(entry.PublicModelID),
+		strings.TrimSpace(binding.AdapterType),
+		entry.DisplayName,
+		entry.Capabilities,
+		modelRaw,
+		entry.AcceptsImage,
+		entry.MaxInputImages,
+		entry.MaxInputVideos,
+		entry.InputImageField,
+		entry.SupportedParams,
+	)
+	if err := infraai.AdapterSupportsModelContract(
+		binding.AdapterType,
+		infraai.SplitCapabilities(entry.Capabilities),
+		modelRaw,
+		def.SupportedParamsByOperation,
+	); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidModelCatalog, err)
 	}
 	return nil
 }
@@ -942,44 +983,17 @@ func legacyModelCapabilitiesAsStructuredJSON(capabilities string) string {
 			seen[operation] = true
 		}
 	}
-	if has(infraai.CapabilityText) || has(infraai.CapabilityReasoning) {
+	if has(infraai.CapabilityFamilyTextGeneration) || has(infraai.CapabilityReasoning) {
 		add(infraai.CapabilityFamilyTextGeneration, "chat", "responses")
 	}
-	if has(infraai.CapabilityImage) {
-		add(infraai.CapabilityFamilyImageGeneration, infraai.ImageOperationTextToImage)
+	if has(infraai.CapabilityFamilyImageGeneration) {
+		add(infraai.CapabilityFamilyImageGeneration, infraai.ImageOperationTextToImage, infraai.ImageOperationReferenceToImage, infraai.ImageOperationEditImage)
 	}
-	if has(infraai.CapabilityImageEdit) {
-		add(infraai.CapabilityFamilyImageGeneration, infraai.ImageOperationImageToImage, infraai.ImageOperationImageEdit)
+	if has(infraai.CapabilityFamilyVideoGeneration) {
+		add(infraai.CapabilityFamilyVideoGeneration, infraai.VideoOperationPromptToVideo, infraai.VideoOperationImageToVideo, infraai.VideoOperationFirstFrameToVideo, infraai.VideoOperationFirstLastFrameToVideo, infraai.VideoOperationReferenceToVideo)
 	}
-	if has(infraai.CapabilityVideo) {
-		add(infraai.CapabilityFamilyVideoGeneration, infraai.VideoOperationPromptToVideo)
-	}
-	if has(infraai.CapabilityVideoI2V) {
-		add(infraai.CapabilityFamilyVideoGeneration, infraai.VideoOperationImageToVideo, infraai.VideoOperationFirstFrameToVideo)
-	}
-	if has(infraai.CapabilityVideoV2V) {
-		add(infraai.CapabilityFamilyVideoGeneration, infraai.VideoOperationReferenceToVideo, infraai.VideoOperationVideoToVideo)
-	}
-	if has(infraai.CapabilityAudioTTS) {
-		add(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationTTS)
-	}
-	if has(infraai.CapabilityAudioSTT) {
-		add(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationSTT)
-	}
-	if has(infraai.CapabilityAudioMusic) {
-		add(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationMusic)
-	}
-	if has(infraai.CapabilityAudioSFX) {
-		add(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationSFX)
-	}
-	if has(infraai.CapabilityAudioChat) || has(infraai.CapabilityAudio) {
-		add(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationAudioChat)
-	}
-	if has(infraai.CapabilityVoiceClone) {
-		add(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationVoiceClone)
-	}
-	if has(infraai.CapabilityVoiceDesign) {
-		add(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationVoiceDesign)
+	if has(infraai.CapabilityFamilyAudioGeneration) {
+		add(infraai.CapabilityFamilyAudioGeneration, infraai.AudioOperationTextToSpeech, infraai.AudioOperationSpeechToText, infraai.AudioOperationSpeechTranslate, infraai.AudioOperationSpeechToSpeech, infraai.AudioOperationVoiceClone, infraai.AudioOperationVoiceDesign, infraai.AudioOperationDubbing, infraai.AudioOperationMusicGeneration, infraai.AudioOperationSoundEffectGeneration, infraai.AudioOperationVoiceIsolation, infraai.AudioOperationForcedAlignment)
 	}
 	if len(domains) == 0 {
 		return ""
@@ -1022,8 +1036,6 @@ func normalizeModelRouteBindingProviderID(binding *persistencemodel.AIModelRoute
 	if binding.EndpointMode == "" {
 		binding.EndpointMode = "inherit"
 	}
-	binding.OperationProfile = strings.TrimSpace(binding.OperationProfile)
-	binding.RouteCapabilitiesJSON = strings.TrimSpace(binding.RouteCapabilitiesJSON)
 	if binding.SourceType == "" {
 		binding.SourceType = sourceTypeFromRouteProviderID(binding.ProviderID)
 	}
@@ -1172,22 +1184,20 @@ func modelRouteBindingFromInput(catalogEntryID uint, input ModelRouteBindingInpu
 		enabled = *input.IsEnabled
 	}
 	return persistencemodel.AIModelRouteBinding{
-		CatalogEntryID:        catalogEntryID,
-		ComboTemplateKey:      strings.TrimSpace(input.ComboTemplateKey),
-		TemplateVersion:       strings.TrimSpace(input.TemplateVersion),
-		RouteGroup:            strings.TrimSpace(input.RouteGroup),
-		ProviderID:            strings.TrimSpace(input.ProviderID),
-		AdapterType:           strings.TrimSpace(input.AdapterType),
-		ProviderModelID:       strings.TrimSpace(input.ProviderModelID),
-		APIKinds:              strings.TrimSpace(input.APIKinds),
-		EndpointBaseURL:       strings.TrimSpace(input.EndpointBaseURL),
-		EndpointPathPrefix:    strings.TrimSpace(input.EndpointPathPrefix),
-		EndpointMode:          strings.TrimSpace(input.EndpointMode),
-		OperationProfile:      strings.TrimSpace(input.OperationProfile),
-		RouteCapabilitiesJSON: strings.TrimSpace(input.RouteCapabilitiesJSON),
-		IsEnabled:             enabled,
-		Priority:              input.Priority,
-		CapacityWeight:        input.CapacityWeight,
-		MaxConcurrency:        input.MaxConcurrency,
+		CatalogEntryID:     catalogEntryID,
+		ComboTemplateKey:   strings.TrimSpace(input.ComboTemplateKey),
+		TemplateVersion:    strings.TrimSpace(input.TemplateVersion),
+		RouteGroup:         strings.TrimSpace(input.RouteGroup),
+		ProviderID:         strings.TrimSpace(input.ProviderID),
+		AdapterType:        strings.TrimSpace(input.AdapterType),
+		ProviderModelID:    strings.TrimSpace(input.ProviderModelID),
+		APIKinds:           strings.TrimSpace(input.APIKinds),
+		EndpointBaseURL:    strings.TrimSpace(input.EndpointBaseURL),
+		EndpointPathPrefix: strings.TrimSpace(input.EndpointPathPrefix),
+		EndpointMode:       strings.TrimSpace(input.EndpointMode),
+		IsEnabled:          enabled,
+		Priority:           input.Priority,
+		CapacityWeight:     input.CapacityWeight,
+		MaxConcurrency:     input.MaxConcurrency,
 	}
 }

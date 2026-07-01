@@ -25,7 +25,7 @@ func TestModelsHandlerListByCapabilityHidesRouteDetails(t *testing.T) {
 			ProviderName:      "Yunwu",
 			AdapterType:       "yunwu_unified_video",
 			Capabilities:      []string{"video_generation"},
-			SupportedAPIKinds: []string{"video_i2v"},
+			SupportedAPIKinds: []string{"openai_responses"},
 			AcceptsImageInput: true,
 			Priority:          10,
 			CapacityWeight:    2,

@@ -133,7 +133,7 @@ test('core content workbench activity state separates focus, review blockers, an
     generationContextLoading: false,
     generationContextError: false,
     pendingReviewWorkspaceCount: 1,
-    jobs: [{ id: 7, type: 'video_i2v', status: 'running' }],
+    jobs: [{ id: 7, type: 'video', status: 'running' }],
   })
 
   assert.equal(blocked.state, 'needs_attention')
@@ -335,58 +335,21 @@ test('core content write model builds timeline move task graphs', () => {
     status: 'workspace',
   })
 
-  const assemblyTaskGraph = buildContentUnitTimelineMoveTaskGraph({
-    row: {
-      moment: { ID: 20 },
-      productionIds: [],
-      timelineScope: {
-        targetKind: 'timeline_assembly',
-        targetRef: 'timeline_assembly:beat:opening',
-        scopeKind: 'beat',
-        scopeRef: 'opening',
-        scopePath: 'timeline/episode_01/beats/opening',
+  assert.throws(
+    () => buildContentUnitTimelineMoveTaskGraph({
+      row: {
+        moment: { ID: 20 },
+        productionIds: [],
+        units: [{ ID: 51, content_unit_type: 'segment_ref', segment_ref: 'opening', duration_sec: 5, order: 3 }],
+        previewTimelineItems: [],
       },
-      units: [{ ID: 51, target_kind: 'timeline_assembly', target_ref: 'timeline_assembly:beat:opening', duration_sec: 5, order: 3 }],
-      previewTimelineItems: [],
-    },
-    unitId: 51,
-    startSec: 3.2,
-    previewTimelines: [{
-      ID: 71,
-      target_ref: 'timeline_assembly:beat:opening',
-      scope_kind: 'beat',
-      scope_ref: 'opening',
-      status: 'workspace',
-    }],
-    unitTitle: 'Opening beat assembly',
-  })
-
-  assert.equal(assemblyTaskGraph.kind, 'create_item')
-  assert.equal(assemblyTaskGraph.productionId, undefined)
-  assert.deepEqual(assemblyTaskGraph.timelineScope, {
-    targetKind: 'timeline_assembly',
-    targetRef: 'timeline_assembly:beat:opening',
-    scopeKind: 'beat',
-    scopeRef: 'opening',
-    scopePath: 'timeline/episode_01/beats/opening',
-  })
-  assert.equal(assemblyTaskGraph.timelineId, 71)
-  assert.equal(assemblyTaskGraph.timelinePayload, undefined)
-  assert.deepEqual(assemblyTaskGraph.itemPayload, {
-    target_kind: 'timeline_assembly',
-    target_ref: 'timeline_assembly:beat:opening',
-    scope_kind: 'beat',
-    scope_ref: 'opening',
-    scope_path: 'timeline/episode_01/beats/opening',
-    scene_moment_id: 20,
-    content_unit_id: 51,
-    kind: 'content_unit',
-    label: 'Opening beat assembly',
-    start_sec: 3.2,
-    duration_sec: 5,
-    order: 3,
-    status: 'workspace',
-  })
+      unitId: 51,
+      startSec: 3.2,
+      previewTimelines: [],
+      unitTitle: 'Opening beat reference',
+    }),
+    /content_unit_missing_production_id/,
+  )
 })
 
 test('core content write model builds candidate attachment payloads', () => {
@@ -738,11 +701,11 @@ test('core content source workspace exposes production MediaEditingProject timel
   assert.equal(track?.type, 'video')
   assert.equal(track?.clips[0]?.asset?.id, 'movscript_resource_612')
   assert.equal(track?.clips[0]?.durationMs, 7000)
-  assert.equal(track?.clips[0]?.metadata?.movscript?.targetKind, 'timeline_assembly')
-  assert.equal(track?.clips[0]?.metadata?.movscript?.legacyTargetKind, 'production')
+  assert.equal(track?.clips[0]?.metadata?.movscript?.targetKind, 'production')
+  assert.equal(track?.clips[0]?.metadata?.movscript?.targetRef, 'pilot')
 })
 
-test('core content source workspace exposes timeline assembly MediaEditingProject timelines from namespace scopes', async () => {
+test('core content source workspace does not expose namespace scope MediaEditingProject timelines', async () => {
   const production = entity('production', 'pilot', 'productions/pilot/production.json', {
     title: 'Pilot episode',
     namespace_kind: 'episode',
@@ -760,12 +723,11 @@ test('core content source workspace exposes timeline assembly MediaEditingProjec
     output_kind: 'video',
     scene_moment_ref: 'rain_call',
   })
-  const assemblyContentUnit = entity('content_unit', 'cu_episode_cut', 'content_units/cu_episode_cut/content_unit.json', {
-    title: 'Pilot episode cut',
-    content_unit_type: 'timeline_assembly_ref',
+  const namespaceContentUnit = entity('content_unit', 'cu_opening_cut', 'content_units/cu_opening_cut/content_unit.json', {
+    title: 'Opening cut',
+    content_unit_type: 'segment_ref',
     output_kind: 'video',
-    target_kind: 'timeline_assembly',
-    target_ref: 'timeline_assembly:episode:pilot',
+    segment_ref: 'opening',
   })
   const candidate = {
     schema: 'movscript.content_candidate.v1',
@@ -782,7 +744,7 @@ test('core content source workspace exposes timeline assembly MediaEditingProjec
           { path: segment.path, data: segment.record },
           { path: moment.path, data: moment.record },
           { path: sceneContentUnit.path, data: sceneContentUnit.record },
-          { path: assemblyContentUnit.path, data: assemblyContentUnit.record },
+          { path: namespaceContentUnit.path, data: namespaceContentUnit.record },
           { path: 'content_units/cu_rain_call/candidates/cand_scene/content_candidate.json', data: candidate },
           {
             path: '.movscript/decisions/content_units/cu_rain_call/decision_context.json',
@@ -803,53 +765,20 @@ test('core content source workspace exposes timeline assembly MediaEditingProjec
         storyboards: [],
         audio_cues: [],
         expression_units: [],
-        content_units: [sceneContentUnit, assemblyContentUnit],
+        content_units: [sceneContentUnit, namespaceContentUnit],
         keyframes: [],
       }),
       readPreviewTimeline: async () => undefined,
-      readTimelineAssemblyPreviewTimeline: async (scope) => {
-        assert.deepEqual(scope, {
-          scopeKind: 'episode',
-          scopeRef: 'pilot',
-          targetRef: 'timeline_assembly:episode:pilot',
-        })
-        return {
-          schema: 'movscript.preview_timeline.v1',
-          targetKind: 'timeline_assembly',
-          targetRef: 'timeline_assembly:episode:pilot',
-          scopeKind: 'episode',
-          scopeRef: 'pilot',
-          scopePath: 'productions/pilot',
-          scopeTitle: 'Pilot episode',
-          items: [
-            timelineItem('timeline_namespace:opening', 'timeline_namespace', segment, 0),
-            timelineItem('scene_moment:rain_call', 'scene_moment', moment, 1, 'timeline_namespace:opening'),
-          ],
-        }
-      },
       readSceneMomentEditPlan: async () => undefined,
     },
     review: async () => ({ productionWorkPlan: undefined }),
   }
 
   const snapshot = await loadContentSourceWorkspaceSnapshotFromEngine(fakeEngine)
-  const assemblyTimeline = snapshot.editingTimelines?.find((timeline) => timeline.targetKind === 'timeline_assembly')
+  const namespaceTimeline = snapshot.editingTimelines?.find((timeline) => timeline.targetKind === 'segment')
 
-  assert.equal(snapshot.previewTimelines.some((timeline) => timeline.targetRef === 'timeline_assembly:episode:pilot'), true)
-  assert.equal(assemblyTimeline?.targetId, 'timeline_assembly:episode:pilot')
-  assert.equal(assemblyTimeline?.targetRef, 'timeline_assembly:episode:pilot')
-  assert.equal(assemblyTimeline?.scopeKind, 'episode')
-  assert.equal(assemblyTimeline?.scopeRef, 'pilot')
-  assert.equal(assemblyTimeline?.status, 'ready_to_compose')
-  assert.equal(assemblyTimeline?.mediaEditingProject.source.productionId, undefined)
-  assert.equal(assemblyTimeline?.mediaEditingProject.source.targetKind, 'timeline_assembly')
-  assert.equal(assemblyTimeline?.mediaEditingProject.source.scopeKind, 'episode')
-  assert.equal(assemblyTimeline?.mediaEditingProject.provenance?.legacyTargetKind, undefined)
-  const clip = assemblyTimeline?.mediaEditingProject.timeline.tracks[0]?.clips[0]
-  assert.equal(clip?.asset?.resourceId, 612)
-  assert.equal(clip?.metadata?.movscript?.targetKind, 'timeline_assembly')
-  assert.equal(clip?.metadata?.movscript?.targetRef, 'timeline_assembly:episode:pilot')
-  assert.equal(clip?.metadata?.movscript?.scopeKind, 'episode')
+  assert.equal(snapshot.previewTimelines.some((timeline) => timeline.targetKind === 'segment' && timeline.targetRef === 'opening'), false)
+  assert.equal(namespaceTimeline, undefined)
 })
 
 test('core content source workspace exposes scene moment candidates through content unit index', () => {

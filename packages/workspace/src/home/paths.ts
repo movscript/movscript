@@ -1,13 +1,13 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { dirname, join, resolve, win32 as pathWin32 } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { resolveMovScriptHomeDir as resolveRuntimeMovScriptHomeDir } from '@movscript/runtime-contracts'
 export {
   MOVSCRIPT_DEFAULT_USER_WORKSPACE_DIR_NAME,
   MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME,
   MOVSCRIPT_WORKSPACE_BIN_DIR_NAME,
   MOVSCRIPT_WORKSPACE_CONFIG_TOML_FILE_NAME,
-  MOVSCRIPT_WORKSPACE_DIR_NAME,
+  MOVSCRIPT_WORKSPACE_LOGS_DIR_NAME,
   MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME,
   MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA,
   MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME,
@@ -26,6 +26,7 @@ import {
   MOVSCRIPT_WORKSPACE_BIN_DIR_NAME,
   MOVSCRIPT_WORKSPACE_CONFIG_TOML_FILE_NAME,
   MOVSCRIPT_WORKSPACE_DIR_NAME,
+  MOVSCRIPT_WORKSPACE_LOGS_DIR_NAME,
   MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME,
   MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA,
   MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME,
@@ -69,6 +70,7 @@ export function resolveMovScriptWorkspaceRootPaths(workspaceDir?: string): MovSc
     providersDir: join(realmsDir, 'local', MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME),
     backendDir: join(controlDir, MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME),
     binDir: join(controlDir, MOVSCRIPT_WORKSPACE_BIN_DIR_NAME),
+    logsDir: join(controlDir, MOVSCRIPT_WORKSPACE_LOGS_DIR_NAME),
   }
 }
 
@@ -89,6 +91,7 @@ export function ensureMovScriptWorkspaceRoot(paths: MovScriptWorkspaceRootPaths)
   mkdirSync(paths.providersDir, { recursive: true })
   mkdirSync(paths.backendDir, { recursive: true })
   mkdirSync(paths.binDir, { recursive: true })
+  mkdirSync(paths.logsDir, { recursive: true })
   const current = readMovScriptWorkspaceRootManifest(paths.manifestPath)
   if (current) return current
   const manifest = defaultMovScriptWorkspaceRootManifest()
@@ -202,14 +205,11 @@ export function resolveMovScriptWorkspaceRealmDir(
 }
 
 export function fallbackUserMovScriptHomeDir(options: MovScriptUserHomeDirOptions = {}): string {
-  const platform = options.platform ?? process.platform
-  const userHomeDir = options.userHomeDir ?? homedir()
-  if (platform === 'win32') {
-    const env = options.env ?? process.env
-    const localAppData = env.LOCALAPPDATA?.trim() || pathWin32.join(userHomeDir, 'AppData', 'Local')
-    return pathWin32.join(localAppData, 'Movscript', 'Home')
-  }
-  return join(userHomeDir, MOVSCRIPT_WORKSPACE_DIR_NAME)
+  return resolveRuntimeMovScriptHomeDir({
+    env: fallbackOnlyEnv(options.env ?? process.env),
+    platform: options.platform,
+    userHomeDir: options.userHomeDir,
+  })
 }
 
 export function ensureMovScriptWorkspaceContext(paths: MovScriptWorkspaceContextPaths): MovScriptWorkspaceContextPaths {
@@ -222,6 +222,13 @@ function normalizeWorkspaceLayout(_value: unknown): MovScriptWorkspaceRootManife
   return {
     providerConfigRoot: MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME,
   }
+}
+
+function fallbackOnlyEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const next = { ...env }
+  delete next.MOVSCRIPT_HOME
+  delete next.MOVSCRIPT_WORKSPACE_DIR
+  return next
 }
 
 function inferredWorkspaceScope(input: MovScriptWorkspaceContextInput): MovScriptWorkspaceScope {

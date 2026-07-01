@@ -1,4 +1,4 @@
-import type { AdapterDef, ModelParamProfile, ParamConditionalConst, ParamConditionalEnum, ParamDef, ParamRequiresValue } from '@admin/types'
+import type { AdapterDef, ModelOperationParamProfile, ModelParamProfile, ParamConditionalConst, ParamConditionalEnum, ParamDef, ParamRequiresValue } from '@admin/types'
 
 export type ParamContractAudit = {
   mode: 'inherit' | 'profile' | 'override' | 'none'
@@ -256,6 +256,108 @@ export function serializeModelParamProfile(profile: ModelParamProfile): string {
   return JSON.stringify(next)
 }
 
+export function emptyModelOperationParamProfile(): ModelOperationParamProfile {
+  return { version: 2, by_operation: {} }
+}
+
+export function parseModelOperationParamProfile(value: string): ModelOperationParamProfile {
+  if (!value.trim()) return emptyModelOperationParamProfile()
+  try {
+    const parsed = JSON.parse(value)
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') return emptyModelOperationParamProfile()
+    const raw = parsed as Partial<ModelOperationParamProfile>
+    if (raw.version !== 2) return emptyModelOperationParamProfile()
+    const profile: ModelOperationParamProfile = { version: 2 }
+    if (raw.common && typeof raw.common === 'object' && !Array.isArray(raw.common)) {
+      profile.common = normalizeModelParamProfile(raw.common)
+    }
+    if (raw.by_operation && typeof raw.by_operation === 'object' && !Array.isArray(raw.by_operation)) {
+      profile.by_operation = {}
+      Object.entries(raw.by_operation).forEach(([operation, operationProfile]) => {
+        if (!operation.trim() || !operationProfile || typeof operationProfile !== 'object' || Array.isArray(operationProfile)) return
+        profile.by_operation![operation.trim()] = normalizeModelParamProfile(operationProfile as ModelParamProfile)
+      })
+    }
+    return profile
+  } catch {
+    return emptyModelOperationParamProfile()
+  }
+}
+
+export function serializeModelOperationParamProfile(profile: ModelOperationParamProfile): string {
+  const next: ModelOperationParamProfile = { version: 2 }
+  const common = normalizeModelParamProfile(profile.common ?? {})
+  if (modelParamProfileHasContent(common)) next.common = common
+  const byOperation: Record<string, ModelParamProfile> = {}
+  Object.entries(profile.by_operation ?? {}).forEach(([operation, operationProfile]) => {
+    const key = operation.trim()
+    if (!key) return
+    const normalized = normalizeModelParamProfile(operationProfile)
+    if (modelParamProfileHasContent(normalized)) byOperation[key] = normalized
+  })
+  if (Object.keys(byOperation).length > 0) next.by_operation = byOperation
+  return JSON.stringify(next)
+}
+
+function normalizeModelParamProfile(profile: ModelParamProfile): ModelParamProfile {
+  const next: ModelParamProfile = {}
+  const allow = (profile.allow ?? []).map(normalizeAdminParamKey).filter(Boolean)
+  const deny = (profile.deny ?? []).map(normalizeAdminParamKey).filter(Boolean)
+  const add = parseParamDefs(serializeParamDefs(profile.add ?? []))
+  const overrideEntries = Object.entries(profile.override ?? {})
+    .map(([key, param]) => [normalizeAdminParamKey(key), parseParamDefs(serializeParamDefs([{ ...param, key: param.key || key }]))[0]] as const)
+    .filter(([key, param]) => key && param)
+  if (allow.length > 0) next.allow = Array.from(new Set(allow))
+  if (deny.length > 0) next.deny = Array.from(new Set(deny))
+  if (overrideEntries.length > 0) {
+    next.override = {}
+    overrideEntries.forEach(([key, param]) => { next.override![key] = { ...param, key } })
+  }
+  if (add.length > 0) next.add = add
+  return next
+}
+
+function modelParamProfileHasContent(profile: ModelParamProfile): boolean {
+  return Boolean(
+    profile.allow?.length ||
+    profile.deny?.length ||
+    Object.keys(profile.override ?? {}).length ||
+    profile.add?.length,
+  )
+}
+
+export function operationProfileParams(profile: ModelOperationParamProfile, operation: string): ParamDef[] {
+  const operationProfile = profile.by_operation?.[operation.trim()]
+  if (!operationProfile) return []
+  const params = [
+    ...Object.entries(operationProfile.override ?? {}).map(([key, param]) => ({ ...param, key: param.key || key })),
+    ...(operationProfile.add ?? []),
+  ]
+  return parseParamDefs(serializeParamDefs(params))
+}
+
+export function setOperationProfileParams(profile: ModelOperationParamProfile, operation: string, params: ParamDef[]): ModelOperationParamProfile {
+  const key = operation.trim()
+  if (!key) return profile
+  const normalized = parseParamDefs(serializeParamDefs(params))
+  const next: ModelOperationParamProfile = {
+    version: 2,
+    common: profile.common,
+    by_operation: { ...(profile.by_operation ?? {}) },
+  }
+  if (normalized.length === 0) {
+    delete next.by_operation![key]
+    return next
+  }
+  const override: Record<string, ParamDef> = {}
+  normalized.forEach((param) => { override[param.key] = param })
+  next.by_operation![key] = {
+    allow: normalized.map((param) => param.key),
+    override,
+  }
+  return next
+}
+
 export function buildParamContractAudit(value: string, adapterParams: ParamDef[]): ParamContractAudit {
   const mode: ParamContractAudit['mode'] = !value.trim()
     ? 'inherit'
@@ -350,6 +452,45 @@ export function adapterParamsForCapabilities(adapter: AdapterDef | undefined, ca
     }
   }
   return params
+}
+
+export function adapterParamsForOperation(adapter: AdapterDef | undefined, capability: string, operation: string): ParamDef[] {
+  const capabilityParams = adapterParamsForCapabilities(adapter, [capability])
+  if (!adapter?.operation_param_sets?.length) return capabilityParams
+  const out = [...capabilityParams]
+  const byKey = new Map(out.map((param, index) => [normalizeAdminParamKey(param.key), index] as const).filter(([key]) => !!key))
+  adapter.operation_param_sets
+    .filter((set) => set.capability === capability && set.operation === operation)
+    .forEach((set) => {
+      for (const raw of set.params ?? []) {
+        const param = normalizeParamDefForAdmin(raw)
+        const key = normalizeAdminParamKey(param.key)
+        if (!key) continue
+        if (byKey.has(key)) out[byKey.get(key)!] = { ...param, key }
+        else {
+          byKey.set(key, out.length)
+          out.push({ ...param, key })
+        }
+      }
+    })
+  return out
+}
+
+export function operationParamProfileFromTemplateParams(params: ParamDef[], operations: Array<{ capability: string; operation: string }>, adapter?: AdapterDef): string {
+  const templateParams = new Map(parseParamDefs(serializeParamDefs(params)).map((param) => [normalizeAdminParamKey(param.key), param] as const).filter(([key]) => !!key))
+  if (templateParams.size === 0 || operations.length === 0) return ''
+  let profile = emptyModelOperationParamProfile()
+  operations.forEach(({ capability, operation }) => {
+    const adapterParams = adapterParamsForOperation(adapter, capability, operation)
+    const allowed = adapterParams.length > 0
+      ? adapterParams.map((param) => normalizeAdminParamKey(param.key)).filter((key) => key && templateParams.has(key)).map((key) => templateParams.get(key)!)
+      : []
+    if (allowed.length > 0) {
+      profile = setOperationProfileParams(profile, operation, allowed)
+    }
+  })
+  const serialized = serializeModelOperationParamProfile(profile)
+  return Object.keys(profile.by_operation ?? {}).length > 0 ? serialized : ''
 }
 
 export function paramTemplateFor(key: string): ParamDef | null {

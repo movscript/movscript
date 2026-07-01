@@ -107,7 +107,7 @@ export async function openToolWindow(input: ElectronOpenToolWindowInput = {}): P
     return
   }
   useAppSettingsStore.getState().setWorkMode('tool')
-  window.location.assign(input.route ?? '/tools/ref-image-gen')
+  window.location.assign(input.route ?? '/tools/image')
 }
 
 export async function openProjectDataWindow(input: ElectronOpenProjectDataWindowInput = {}): Promise<void> {

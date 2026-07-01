@@ -65,14 +65,13 @@ function buildCurlCommand(method: string, url: string, headers: Record<string, s
 function inferCapabilityFromURL(url: string): string {
   const lower = url.toLowerCase()
   if (lower.includes('image')) {
-    if (lower.includes('edit')) return 'image_edit'
-    return 'image'
+    return 'image_generation'
   }
   if (lower.includes('video')) {
-    if (lower.includes('i2v') || lower.includes('image-to-video')) return 'video_i2v'
-    return 'video'
+    return 'video_generation'
   }
-  return 'text'
+  if (lower.includes('audio') || lower.includes('speech')) return 'audio_generation'
+  return 'text_generation'
 }
 
 // Walk a parsed JSON value and collect base64 image data URIs.
@@ -1154,7 +1153,7 @@ function RouteTraceBlock({ trace }: { trace?: DebugRouteTrace }) {
     [t('admin.debug.jobs.fields.routeBinding', { defaultValue: 'Route binding' }), trace.route_binding_id ? `#${trace.route_binding_id}` : '—'],
     [t('admin.debug.jobs.fields.providerModel', { defaultValue: 'Provider model' }), trace.provider_model_id || '—'],
     [t('admin.debug.jobs.fields.adapter', { defaultValue: 'Adapter' }), trace.adapter_type || trace.adapter_key || '—'],
-    [t('admin.debug.jobs.fields.endpointProfile', { defaultValue: 'Endpoint profile' }), [trace.endpoint_mode, trace.endpoint_path_prefix, trace.operation_profile].filter(Boolean).join(' · ') || '—'],
+    [t('admin.debug.jobs.fields.endpointProfile', { defaultValue: 'Endpoint profile' }), [trace.endpoint_mode, trace.endpoint_path_prefix].filter(Boolean).join(' · ') || '—'],
     [t('admin.debug.jobs.fields.selectionReason', { defaultValue: 'Selection' }), trace.selection_reason || '—'],
   ]
   return (
@@ -1444,7 +1443,7 @@ function jobStatusHref(status: string): string {
 }
 
 function isVideoJobType(jobType: string): boolean {
-  return jobType === 'video' || jobType === 'video_i2v' || jobType === 'video_v2v'
+  return jobType === 'video'
 }
 
 function JobMonitorSection() {
@@ -1578,8 +1577,8 @@ function JobMonitorSection() {
           <JobFilterField label={t('admin.debug.jobs.filters.orgId')} value={filters.orgId} onChange={(value) => updateFilter('orgId', value.replace(/\D/g, ''))} placeholder="1" />
           <JobFilterField label={t('admin.debug.jobs.filters.projectId')} value={filters.projectId} onChange={(value) => updateFilter('projectId', value.replace(/\D/g, ''))} placeholder="128" />
           <JobFilterField label={t('admin.debug.jobs.filters.modelId')} value={filters.modelId} onChange={(value) => updateFilter('modelId', value)} placeholder="video.fast" />
-          <JobFilterField label={t('admin.debug.jobs.filters.jobType')} value={filters.jobType} onChange={(value) => updateFilter('jobType', value)} placeholder="video_i2v" />
-          <JobFilterField label={t('admin.debug.jobs.filters.featureKey')} value={filters.featureKey} onChange={(value) => updateFilter('featureKey', value)} placeholder="ref_video_gen" />
+          <JobFilterField label={t('admin.debug.jobs.filters.jobType')} value={filters.jobType} onChange={(value) => updateFilter('jobType', value)} placeholder="video" />
+          <JobFilterField label={t('admin.debug.jobs.filters.featureKey')} value={filters.featureKey} onChange={(value) => updateFilter('featureKey', value)} placeholder="reference_to_video" />
         </div>
         <div className="mt-3 flex justify-end">
           <Button type="button" variant="ghost" size="sm" onClick={clearFilters} disabled={!hasFilters}>
@@ -1842,11 +1841,10 @@ function JobFilterField({ label, value, onChange, placeholder }: { label: string
 // ── Section 4: Provider Sandbox ───────────────────────────────────────────────
 
 const CAPABILITY_LABEL_KEYS: Record<string, string> = {
-  text: 'admin.debug.capabilities.text',
-  image: 'admin.debug.capabilities.image',
-  image_edit: 'admin.capabilities.imageEdit',
-  video: 'admin.capabilities.video',
-  video_i2v: 'admin.capabilities.videoI2V',
+  text_generation: 'admin.capabilities.textGeneration',
+  image_generation: 'admin.capabilities.imageGeneration',
+  video_generation: 'admin.capabilities.videoGeneration',
+  audio_generation: 'admin.capabilities.audioGeneration',
 }
 
 // Quick endpoint URL suggestions per adapter type.
@@ -1854,7 +1852,6 @@ const ADAPTER_ENDPOINT_SUGGESTIONS: Record<string, { labelKey: string; url: stri
   openai_compat: [
     { labelKey: 'admin.debug.capabilities.text', url: '/v1/chat/completions' },
     { labelKey: 'admin.debug.capabilities.image', url: '/v1/images/generations' },
-    { labelKey: 'admin.capabilities.imageEdit', url: '/v1/images/edits' },
   ],
   anthropic: [
     { labelKey: 'admin.debug.capabilities.text', url: 'https://api.anthropic.com/v1/messages' },
@@ -1867,34 +1864,27 @@ const ADAPTER_ENDPOINT_SUGGESTIONS: Record<string, { labelKey: string; url: stri
   ],
   kling: [
     { labelKey: 'admin.debug.capabilities.image', url: 'https://api.klingai.com/v1/images/generations' },
-    { labelKey: 'admin.capabilities.video', url: 'https://api.klingai.com/v1/videos/text2video' },
-    { labelKey: 'admin.capabilities.videoI2V', url: 'https://api.klingai.com/v1/videos/image2video' },
+    { labelKey: 'admin.capabilities.videoGeneration', url: 'https://api.klingai.com/v1/videos/text2video' },
+    { labelKey: 'admin.capabilities.videoGeneration', url: 'https://api.klingai.com/v1/videos/image2video' },
   ],
   volcen: [
     { labelKey: 'admin.debug.capabilities.text', url: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions' },
     { labelKey: 'admin.debug.capabilities.image', url: 'https://ark.cn-beijing.volces.com/api/v3/images/generations' },
-    { labelKey: 'admin.capabilities.video', url: 'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks' },
+    { labelKey: 'admin.capabilities.videoGeneration', url: 'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks' },
   ],
 }
 
 // Default param schemas for each capability, used in direct debug calls.
 const DEFAULT_PARAMS: Record<string, ParamDef[]> = {
-  text: [
+  text_generation: [
     { key: 'max_tokens', label: 'admin.debug.params.maxTokens', type: 'number', default: 200000, min: 1, max: 200000 },
     { key: 'temperature', label: 'admin.debug.params.temperature', type: 'number', default: 0.7, min: 0, max: 2, step: 0.1 },
   ],
-  image: [
+  image_generation: [
     { key: 'aspect_ratio', label: 'admin.params.templates.aspect_ratio', type: 'select', options: ['1:1', '16:9', '9:16', '4:3', '3:4'], default: '1:1' },
     { key: 'quality', label: 'admin.params.templates.quality', type: 'select', options: ['auto', 'standard', 'hd', 'high', 'medium', 'low'], default: 'standard' },
   ],
-  image_edit: [
-    { key: 'aspect_ratio', label: 'admin.params.templates.aspect_ratio', type: 'select', options: ['1:1', '16:9', '9:16'], default: '1:1' },
-  ],
-  video: [
-    { key: 'duration', label: 'admin.params.templates.duration', type: 'select', options: ['5', '6', '8', '10', '15', '20'], default: '5' },
-    { key: 'aspect_ratio', label: 'admin.params.templates.aspect_ratio', type: 'select', options: ['16:9', '9:16', '1:1', '4:3', '3:4'], default: '16:9' },
-  ],
-  video_i2v: [
+  video_generation: [
     { key: 'duration', label: 'admin.params.templates.duration', type: 'select', options: ['5', '6', '8', '10', '15'], default: '5' },
     { key: 'aspect_ratio', label: 'admin.params.templates.aspect_ratio', type: 'select', options: ['16:9', '9:16', '1:1'], default: '16:9' },
   ],

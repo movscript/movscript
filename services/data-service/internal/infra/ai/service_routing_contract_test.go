@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -19,18 +20,18 @@ func TestAIServiceRoutingPolicyContractResolvesProviderBackedRoute(t *testing.T)
 		&persistencemodel.AIModelCatalogEntry{},
 		&persistencemodel.AIModelRouteBinding{},
 	)
-	createCatalogRouteVariant(t, db, 1, "Primary provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-primary", 20, CapabilityText)
-	createCatalogRouteVariant(t, db, 2, "Secondary provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-secondary", 10, CapabilityText)
+	createCatalogRouteVariant(t, db, 1, "Primary provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-primary", 20, CapabilityFamilyTextGeneration)
+	createCatalogRouteVariant(t, db, 2, "Secondary provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-secondary", 10, CapabilityFamilyTextGeneration)
 	service := NewAIService(db, NewRegistry(db, nil))
 
 	route, err := service.ResolveGatewayModelRoute(context.Background(), providercontract.AIGatewayRouteRequest{
 		ModelID:    "gpt-5.2",
-		Capability: CapabilityText,
+		Capability: CapabilityFamilyTextGeneration,
 	})
 	if err != nil {
 		t.Fatalf("ResolveGatewayModelRoute() error = %v", err)
 	}
-	if route.ModelID != "gpt-5.2" || route.ProviderID != "local_provider:1" || route.ProviderModelID != "gpt-5.2-primary" || route.Capability != CapabilityText || route.SourceType != persistencemodel.ModelRouteSourceLocalProvider {
+	if route.ModelID != "gpt-5.2" || route.ProviderID != "local_provider:1" || route.ProviderModelID != "gpt-5.2-primary" || route.Capability != CapabilityFamilyTextGeneration || route.SourceType != persistencemodel.ModelRouteSourceLocalProvider {
 		t.Fatalf("route = %#v, want catalog-backed text route", route)
 	}
 	if route.SelectionReason != "catalog_model_id" {
@@ -45,14 +46,14 @@ func TestAIServiceRoutingPolicyContractResolvesGenerationRoute(t *testing.T) {
 		&persistencemodel.AIModelCatalogEntry{},
 		&persistencemodel.AIModelRouteBinding{},
 	)
-	createCatalogRouteVariant(t, db, 1, "Image provider", AdapterOpenAICompat, "gpt-image-1", "gpt-image-provider", 10, CapabilityImage)
+	createCatalogRouteVariant(t, db, 1, "Image provider", AdapterOpenAICompat, "gpt-image-1", "gpt-image-provider", 10, CapabilityFamilyImageGeneration)
 	service := NewAIService(db, NewRegistry(db, nil))
 
-	route, err := service.ResolveGatewayGenerationModelRoute(context.Background(), "gpt-image-1", CapabilityImage)
+	route, err := service.ResolveGatewayGenerationModelRoute(context.Background(), "gpt-image-1", CapabilityFamilyImageGeneration)
 	if err != nil {
 		t.Fatalf("ResolveGatewayGenerationModelRoute() error = %v", err)
 	}
-	if route.ModelID != "gpt-image-1" || route.ProviderID != "local_provider:1" || route.ProviderModelID != "gpt-image-provider" || route.Capability != CapabilityImage || route.SourceType != persistencemodel.ModelRouteSourceLocalProvider {
+	if route.ModelID != "gpt-image-1" || route.ProviderID != "local_provider:1" || route.ProviderModelID != "gpt-image-provider" || route.Capability != CapabilityFamilyImageGeneration || route.SourceType != persistencemodel.ModelRouteSourceLocalProvider {
 		t.Fatalf("route = %#v, want image route through catalog binding", route)
 	}
 }
@@ -85,21 +86,11 @@ func TestAIServiceRoutingPolicyContractRoutesStructuredOperation(t *testing.T) {
 		CatalogEntryID:  entry.ID,
 		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
 		ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
+		AdapterType:     AdapterVolcen,
 		ProviderModelID: "provider-first-last-video",
 		IsEnabled:       true,
 		Priority:        1,
 		CapacityWeight:  1,
-		RouteCapabilitiesJSON: `{
-			"video_generation": {
-				"operations": ["first_last_frame_to_video"],
-				"reference_assets": {
-					"min": 2,
-					"max": 2,
-					"modalities": ["image"],
-					"roles": ["first_frame", "last_frame"]
-				}
-			}
-		}`,
 	}
 	if err := db.Create(&firstLastRoute).Error; err != nil {
 		t.Fatalf("create route: %v", err)
@@ -151,21 +142,11 @@ func TestAIServiceRoutingPolicyContractRoutesOmniReferenceVideoOperation(t *test
 		CatalogEntryID:  entry.ID,
 		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
 		ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
+		AdapterType:     AdapterVolcen,
 		ProviderModelID: "provider-omni-reference-video",
 		IsEnabled:       true,
 		Priority:        1,
 		CapacityWeight:  1,
-		RouteCapabilitiesJSON: `{
-			"video_generation": {
-				"operations": ["reference_to_video"],
-				"reference_assets": {
-					"min": 1,
-					"max": 8,
-					"modalities": ["image", "video", "audio"],
-					"roles": ["generic", "reference_image", "reference_video", "reference_audio"]
-				}
-			}
-		}`,
 	}
 	if err := db.Create(&omniRoute).Error; err != nil {
 		t.Fatalf("create route: %v", err)
@@ -197,13 +178,13 @@ func TestAIServiceRoutingPolicyContractExposesFallbackRoutePlan(t *testing.T) {
 		&persistencemodel.AIModelCatalogEntry{},
 		&persistencemodel.AIModelRouteBinding{},
 	)
-	createCatalogRouteVariant(t, db, 30, "Primary provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-primary", 20, CapabilityText)
-	createCatalogRouteVariant(t, db, 31, "Fallback provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-fallback", 10, CapabilityText)
+	createCatalogRouteVariant(t, db, 30, "Primary provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-primary", 20, CapabilityFamilyTextGeneration)
+	createCatalogRouteVariant(t, db, 31, "Fallback provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-fallback", 10, CapabilityFamilyTextGeneration)
 	service := NewAIService(db, NewRegistry(db, nil))
 
 	plan, err := service.ResolveGatewayModelRoutePlan(context.Background(), providercontract.AIGatewayRouteRequest{
 		ModelID:    "gpt-5.2",
-		Capability: CapabilityText,
+		Capability: CapabilityFamilyTextGeneration,
 	})
 	if err != nil {
 		t.Fatalf("ResolveGatewayModelRoutePlan() error = %v", err)
@@ -211,7 +192,7 @@ func TestAIServiceRoutingPolicyContractExposesFallbackRoutePlan(t *testing.T) {
 	if !plan.FallbackEnabled || len(plan.Routes) != 2 {
 		t.Fatalf("plan = %#v, want two fallback routes", plan)
 	}
-	if plan.ModelID != "gpt-5.2" || plan.Capability != CapabilityText || plan.SelectionReason != "catalog_model_id" {
+	if plan.ModelID != "gpt-5.2" || plan.Capability != CapabilityFamilyTextGeneration || plan.SelectionReason != "catalog_model_id" {
 		t.Fatalf("plan metadata = %#v, want text route plan", plan)
 	}
 	if plan.Routes[0].ProviderModelID != "gpt-5.2-primary" || plan.Routes[0].SelectionReason != "catalog_model_id" {
@@ -229,14 +210,14 @@ func TestAIServiceRoutingPolicyContractUsesRouteGroup(t *testing.T) {
 		&persistencemodel.AIModelCatalogEntry{},
 		&persistencemodel.AIModelRouteBinding{},
 	)
-	createCatalogRouteVariantWithGroup(t, db, 10, "Default provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-default", 20, "default", CapabilityText)
-	createCatalogRouteVariantWithGroup(t, db, 11, "Batch provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-batch", 1, "batch", CapabilityText)
+	createCatalogRouteVariantWithGroup(t, db, 10, "Default provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-default", 20, "default", CapabilityFamilyTextGeneration)
+	createCatalogRouteVariantWithGroup(t, db, 11, "Batch provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-batch", 1, "batch", CapabilityFamilyTextGeneration)
 	service := NewAIService(db, NewRegistry(db, nil))
 
 	ctx := WithProviderRouteGroup(context.Background(), "batch")
 	route, err := service.ResolveGatewayModelRoute(ctx, providercontract.AIGatewayRouteRequest{
 		ModelID:    "gpt-5.2",
-		Capability: CapabilityText,
+		Capability: CapabilityFamilyTextGeneration,
 	})
 	if err != nil {
 		t.Fatalf("ResolveGatewayModelRoute() error = %v", err)
@@ -253,15 +234,15 @@ func TestAIServiceRoutingPolicyContractFiltersRoutesByEstimatedBudget(t *testing
 		&persistencemodel.AIModelCatalogEntry{},
 		&persistencemodel.AIModelRouteBinding{},
 	)
-	createCatalogRouteVariantWithCost(t, db, 40, "Expensive provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-expensive", 20, 10, 0, CapabilityText)
-	createCatalogRouteVariantWithCost(t, db, 41, "Budget provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-budget", 1, 1, 0, CapabilityText)
+	createCatalogRouteVariantWithCost(t, db, 40, "Expensive provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-expensive", 20, 10, 0, CapabilityFamilyTextGeneration)
+	createCatalogRouteVariantWithCost(t, db, 41, "Budget provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-budget", 1, 1, 0, CapabilityFamilyTextGeneration)
 	service := NewAIService(db, NewRegistry(db, nil))
 
 	plan, err := service.ResolveGatewayModelRoutePlan(context.Background(), providercontract.AIGatewayRouteRequest{
 		ModelID:    "gpt-5.2",
-		Capability: CapabilityText,
+		Capability: CapabilityFamilyTextGeneration,
 		EstimatedUsage: providercontract.AIUsageEstimate{
-			OperationType: CapabilityText,
+			OperationType: CapabilityFamilyTextGeneration,
 			InputTokens:   1_000_000,
 		},
 	})
@@ -300,11 +281,12 @@ func createCatalogRouteVariantWithGroupAndCost(t *testing.T, db *gorm.DB, id uin
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		Model:         gorm.Model{ID: id},
-		PublicModelID: publicModelID,
-		DisplayName:   publicModelID,
-		IsEnabled:     true,
-		Capabilities:  strings.Join(capabilities, ","),
+		Model:                 gorm.Model{ID: id},
+		PublicModelID:         publicModelID,
+		DisplayName:           publicModelID,
+		IsEnabled:             true,
+		Capabilities:          strings.Join(capabilities, ","),
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(capabilities...),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -316,12 +298,57 @@ func createCatalogRouteVariantWithGroupAndCost(t *testing.T, db *gorm.DB, id uin
 		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
 		RouteGroup:      routeGroup,
 		ProviderID:      fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, credentialID),
+		AdapterType:     adapterType,
 		ProviderModelID: providerModelID,
 		IsEnabled:       true,
 		Priority:        priority,
-		CapacityWeight:  1,
-	}
+		CapacityWeight:  1}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
+}
+
+func testStructuredCapabilitiesJSON(capabilities ...string) string {
+	domains := map[string]map[string][]string{}
+	add := func(capability string, operations ...string) {
+		domains[capability] = map[string][]string{"operations": operations}
+	}
+	for _, capability := range capabilities {
+		switch strings.TrimSpace(capability) {
+		case CapabilityFamilyTextGeneration:
+			add(CapabilityFamilyTextGeneration, "chat", "responses")
+		case CapabilityFamilyImageGeneration:
+			add(CapabilityFamilyImageGeneration, ImageOperationTextToImage, ImageOperationReferenceToImage, ImageOperationEditImage)
+		case CapabilityFamilyVideoGeneration:
+			add(CapabilityFamilyVideoGeneration,
+				VideoOperationPromptToVideo,
+				VideoOperationImageToVideo,
+				VideoOperationFirstFrameToVideo,
+				VideoOperationFirstLastFrameToVideo,
+				VideoOperationReferenceToVideo,
+				VideoOperationEditVideo,
+				VideoOperationExtendVideo,
+				VideoOperationUpscaleVideo,
+			)
+		case CapabilityFamilyAudioGeneration:
+			add(CapabilityFamilyAudioGeneration,
+				AudioOperationTextToSpeech,
+				AudioOperationSpeechToText,
+				AudioOperationSpeechTranslate,
+				AudioOperationSpeechToSpeech,
+				AudioOperationVoiceClone,
+				AudioOperationVoiceDesign,
+				AudioOperationDubbing,
+				AudioOperationMusicGeneration,
+				AudioOperationSoundEffectGeneration,
+				AudioOperationVoiceIsolation,
+				AudioOperationForcedAlignment,
+			)
+		}
+	}
+	if len(domains) == 0 {
+		return ""
+	}
+	raw, _ := json.Marshal(domains)
+	return string(raw)
 }

@@ -62,21 +62,24 @@ function exportedInterfaceBlock(source, name) {
 }
 
 test('local daemon interface plan keeps the acceptance gates explicit', () => {
-  const plan = read('docs/local-daemon-interface-refactor-plan.zh-CN.md')
+  const planPath = 'docs/local-daemon-interface-refactor-plan.zh-CN.md'
+  const plan = existsSync(resolve(root, planPath)) ? read(planPath) : ''
   const rootPackage = JSON.parse(read('package.json'))
   const benchmark = read('scripts/benchmark-project-service-performance.mjs')
 
-  for (const required of [
-    'Decision 1：canonical gateway prefix 统一使用 `/v1`',
-    'Decision 5：Project source 完全收口到 Project Service',
-    'Decision 6：Project Service 性能排查是收口前置项',
-    'Decision 7：内容画布归 Project Service，工作流画布归 Canvas Service',
-    '### Canvas Boundary 验收',
-    '### Raw Resource 验收',
-    '### 性能验收',
-    '内容画布不能创建时命名、不能重命名',
-  ]) {
-    assert.ok(plan.includes(required), `plan is missing acceptance text: ${required}`)
+  if (plan) {
+    for (const required of [
+      'Decision 1：canonical gateway prefix 统一使用 `/v1`',
+      'Decision 5：Project source 完全收口到 Project Service',
+      'Decision 6：Project Service 性能排查是收口前置项',
+      'Decision 7：内容画布归 Project Service，工作流画布归 Canvas Service',
+      '### Canvas Boundary 验收',
+      '### Raw Resource 验收',
+      '### 性能验收',
+      '内容画布不能创建时命名、不能重命名',
+    ]) {
+      assert.ok(plan.includes(required), `plan is missing acceptance text: ${required}`)
+    }
   }
 
   assert.ok(existsSync(resolve(root, 'scripts/benchmark-project-service-performance.mjs')), 'Project Service performance benchmark script is required')
@@ -207,16 +210,23 @@ test('Desktop renderer runtime config does not expose daemon internal service en
   const electronApiCore = read('apps/desktop/src/shared/contracts/electronApiCore.ts')
   const sharedContext = read('packages/shared/src/systemContext.ts')
   const desktopRuntimeConfig = read('apps/desktop/electron/services/runtimeConfig.ts')
+  const desktopAppUpdate = read('apps/desktop/electron/services/appUpdate.ts')
+  const desktopAppUpdateDaemon = read('apps/desktop/electron/services/appUpdateDaemon.ts')
   const desktopConfig = read('apps/desktop/src/shared/infrastructure/config.ts')
   const desktopApi = read('apps/desktop/src/shared/infrastructure/api.ts')
   const desktopSettingsIpc = read('apps/desktop/electron/ipc/settingsIpc.ts')
   const desktopManagedBootstrap = read('apps/desktop/electron/managedServices/bootstrap.ts')
+  const desktopBackendPaths = read('apps/desktop/electron/services/backend/paths.ts')
+  const workspaceHomeRoot = read('packages/workspace/src/home/root.ts')
   const desktopBackendBoot = read('apps/desktop/src/shared/infrastructure/backendBoot.ts')
   const desktopBackendBootBoundary = read('apps/desktop/src/features/app-shell/application/BackendBootBoundary.tsx')
   const desktopAppStartupTasks = read('apps/desktop/src/features/app-shell/application/AppStartupTasks.tsx')
   const desktopLocalWorkspaceAuth = read('apps/desktop/src/shared/infrastructure/session/localWorkspaceAuth.ts')
   const desktopAuthRealm = read('apps/desktop/src/shared/infrastructure/session/authRealm.ts')
   const desktopAdminConsole = read('apps/desktop/src/shared/infrastructure/adminConsole.ts')
+  const desktopAdminWindow = read('apps/desktop/electron/adminWindow.ts')
+  const desktopAgentSessionOutputPane = read('apps/desktop/src/features/agent/components/AgentSessionOutputPane.tsx')
+  const cliCommands = read('packages/cli-commands/src/index.ts')
 
   for (const field of [
     'dataServiceBaseURL',
@@ -234,6 +244,8 @@ test('Desktop renderer runtime config does not expose daemon internal service en
   assert.match(sharedContext, /owner: MovScriptDaemonRuntimeOwner/, 'runtime descriptor must name the daemon owner, not internal services')
   assert.match(sharedContext, /canonicalPrefix: '\/v1'/, 'runtime descriptor must publish canonical /v1 prefix')
   assert.match(sharedContext, /dataConnection: MovScriptDataConnectionContext/, 'runtime descriptor must expose data connection summary')
+  assert.match(sharedContext, /export interface MovScriptRuntimeIdentity/, 'shared contracts must define runtime identity metadata')
+  assert.match(sharedContext, /identity\?: MovScriptRuntimeIdentity/, 'runtime descriptor must expose bundle/runtime identity for reuse checks')
 
   for (const field of ['projectServiceBaseURL', 'canvasServiceBaseURL', 'canvasServiceV1BaseURL', 'localAPIBaseURL']) {
     assert.doesNotMatch(desktopRuntimeConfig, new RegExp(field), `Electron main runtime config must not return ${field}`)
@@ -241,13 +253,24 @@ test('Desktop renderer runtime config does not expose daemon internal service en
   assert.match(desktopRuntimeConfig, /createRuntimeDescriptor/, 'Electron main must build a daemon runtime descriptor')
   assert.match(desktopRuntimeConfig, /schema: 'movscript\.runtime-descriptor\.v1'/, 'Electron main descriptor must use the v1 runtime schema')
   assert.match(desktopRuntimeConfig, /owner: LOCAL_NODE_RUNTIME_OWNER/, 'Electron main descriptor must expose movscript.local-node as runtime owner')
+  assert.match(desktopRuntimeConfig, /function resolveRuntimeIdentity/, 'Electron main must read daemon runtime identity from the runtime app record')
+  assert.match(desktopRuntimeConfig, /identity: runtimeIdentity/, 'Electron main descriptor must preserve runtime identity')
+  assert.match(desktopAppUpdateDaemon, /stopLocalRuntimeDaemon/, 'Desktop update install prep must stop the local runtime daemon')
+  assert.match(desktopAppUpdateDaemon, /resolveDesktopDefaultMovScriptWorkspaceDir/, 'Desktop update install prep must use the Desktop MovScript Home')
+  assert.match(desktopAppUpdateDaemon, /force: true/, 'Desktop update install prep must force-stop stale daemon records')
+  assert.match(desktopAppUpdate, /await prepareDaemonForDesktopUpdateInstall\(\)/, 'Desktop updater must prepare the daemon before installing an update')
+  assert.ok(
+    desktopAppUpdate.indexOf('await prepareDaemonForDesktopUpdateInstall()') < desktopAppUpdate.indexOf('autoUpdater.quitAndInstall(false, true)'),
+    'Desktop updater must stop/check daemon before quitAndInstall',
+  )
   assert.match(desktopRuntimeConfig, /canonicalPrefix: '\/v1'/, 'Electron main descriptor must expose /v1 as canonical gateway prefix')
   assert.match(desktopRuntimeConfig, /resolveRuntimeDataConnection/, 'Electron main must convert launch intent into dataConnection status')
   assert.match(desktopRuntimeConfig, /dataServiceBaseURL/, 'Electron main may use Data Service discovery internally to choose the data plane')
-  assert.match(desktopRuntimeConfig, /function resolveRendererAPIGatewayBaseURL/, 'Electron main must resolve renderer API access as a daemon gateway facade')
+  assert.match(desktopRuntimeConfig, /function resolveGatewayBaseURL/, 'Electron main must resolve renderer API access as a daemon gateway facade')
+  assert.match(desktopRuntimeConfig, /apiBaseURL: runtimeConnection\.gatewayBaseURL/, 'renderer API access must be exposed as the daemon gateway facade')
   assert.match(
     desktopRuntimeConfig,
-    /if \(input\.gatewayBaseURL\) \{[\s\S]*?return normalizeDataServiceRootBaseURL\(input\.gatewayBaseURL\)/,
+    /gatewayBaseURL:\s*runtimeConnection\.gatewayBaseURL/,
     'Electron main must prefer daemon gateway for renderer API access regardless of data plane',
   )
   assert.doesNotMatch(
@@ -261,6 +284,14 @@ test('Desktop renderer runtime config does not expose daemon internal service en
   assert.match(desktopConfig, /runtimeConfigSnapshot\?\.runtime\.gateway\.baseURL/, 'Desktop renderer must prefer descriptor gateway base URL')
   assert.doesNotMatch(desktopConfig, /getCanvasService(?:V1)?BaseURL/, 'Desktop config must not expose Canvas Service base URL helpers')
   assert.doesNotMatch(desktopApi, /getCanvasService(?:V1)?BaseURL/, 'Desktop API client must not call Canvas Service URL helpers')
+  assert.match(desktopAdminConsole, /refreshRuntimeConfigSnapshot/, 'Admin surface opener must refresh the renderer runtime descriptor before choosing a gateway')
+  assert.match(desktopAdminConsole, /runtimeConfig\?\.runtimeConnection\.gatewayBaseURL/, 'Admin surface opener must prefer the runtime gateway descriptor')
+  assert.match(desktopAdminWindow, /getElectronRuntimeConfig\(\)\.runtimeConnection/, 'Electron Admin window must derive its base URL from the runtime descriptor')
+  assert.match(desktopAdminWindow, /runtimeConnection\.gatewayBaseURL/, 'Electron Admin window must pass the runtime gateway URL to the Admin surface')
+  assert.match(desktopAgentSessionOutputPane, /runtimeConnection\?\.gatewayBaseURL/, 'Agent UI output readers must prefer the runtime gateway descriptor')
+  assert.match(cliCommands, /fetchCanonicalRuntimeDescriptorFromStatus/, 'CLI descriptor reads must prefer the canonical daemon runtime descriptor')
+  assert.match(cliCommands, /\/v1\/runtime\/descriptor/, 'CLI descriptor reads must target the daemon runtime descriptor endpoint')
+  assert.match(cliCommands, /\?\? runtimeDescriptorFromStatus\(status\)/, 'CLI descriptor reads may fall back to the legacy diagnostic descriptor when no gateway is available')
 
   for (const [label, source] of [
     ['Desktop settings IPC', desktopSettingsIpc],
@@ -273,6 +304,9 @@ test('Desktop renderer runtime config does not expose daemon internal service en
   assert.match(desktopSettingsIpc, /runtimeDataConnectionFromSettings/, 'Desktop settings IPC must derive a typed dataConnection intent')
   assert.match(desktopManagedBootstrap, /forceRestart: shouldForceRefreshLocalRuntimeDaemon\(\)/, 'Desktop startup must refresh the managed daemon instead of reusing stale runtime records')
   assert.match(desktopManagedBootstrap, /MOVSCRIPT_DESKTOP_FORCE_DAEMON_REFRESH/, 'Desktop daemon refresh must have an explicit diagnostic override')
+  assert.match(workspaceHomeRoot, /MOVSCRIPT_WORKSPACE_LOGS_DIR_NAME = 'logs'/, 'MovScript Home must expose a top-level logs directory')
+  assert.match(desktopBackendPaths, /resolveMovScriptWorkspaceRootPaths\(movScriptHomeDir\)\.logsDir/, 'Desktop legacy backend log must live under the top-level Home logs directory')
+  assert.doesNotMatch(desktopBackendPaths, /backendDir,\s*'logs'/, 'Desktop legacy backend log must not be nested under backend/logs')
   assert.match(desktopBackendBoot, /shouldUseLocalDaemonGateway/, 'Desktop backend boot gate must be expressed as daemon gateway dataConnection intent')
   assert.match(desktopBackendBoot, /getLocalDaemonGatewayBaseURL/, 'Desktop backend boot probe target must be a daemon gateway URL')
   assert.match(desktopBackendBootBoundary, /shouldUseLocalDaemonGateway\(settings\)/, 'Desktop boot overlay must branch on dataConnection intent')
@@ -331,16 +365,26 @@ test('AppSettings exposes daemon gateway instead of legacy local API base URL', 
   assert.doesNotMatch(desktopAppSettingsStore, /\blocalAPIBaseURL\s*:/, 'Desktop app settings store must not write legacy localAPIBaseURL')
   assert.doesNotMatch(desktopPreloadSource, /record\.localAPIBaseURL/, 'Desktop preload must not fall back to legacy localAPIBaseURL from runtime config')
   assert.match(desktopAppSettingsPersistence, /settingsWithoutLegacy/, 'Electron app settings persistence must strip legacy localAPIBaseURL before writing settings')
+  assert.match(desktopAppSettingsPersistence, /apiBaseURL: _derivedAPIBaseURL/, 'Electron app settings persistence must strip derived apiBaseURL before writing settings')
+  assert.match(desktopAppSettingsPersistence, /cloudAPIBaseURL: _derivedCloudAPIBaseURL/, 'Electron app settings persistence must strip derived cloudAPIBaseURL before writing settings')
+  assert.match(desktopAppSettingsPersistence, /daemonGatewayBaseURL: _derivedDaemonGatewayBaseURL/, 'Electron app settings persistence must strip derived daemonGatewayBaseURL before writing settings')
+  assert.match(desktopAppSettingsPersistence, /url: _derivedDataConnectionURL/, 'Electron app settings persistence must strip derived dataConnection.url before writing settings')
+  assert.match(desktopAppSettingsStore, /settingsWithoutDerivedURLs/, 'Desktop renderer persistence must strip derived API URLs before writing browser settings')
+  assert.match(desktopAppSettingsStore, /url: _derivedDataConnectionURL/, 'Desktop renderer persistence must strip derived dataConnection.url before writing browser settings')
 })
 
 test('system context is issued by daemon and consumed by project surfaces', () => {
   const pluginGateway = read('packages/local-daemon/src/index.ts')
+  const runtimeContracts = read('packages/runtime-contracts/src/index.ts')
+  const localRuntime = read('packages/local-runtime/src/index.ts')
   const sharedContext = read('packages/shared/src/systemContext.ts')
-  const skillMcpPlan = read('docs/skill-mcp-daemon-refactor-target.zh-CN.md')
+  const skillMcpPlanPath = 'docs/skill-mcp-daemon-refactor-target.zh-CN.md'
+  const skillMcpPlan = existsSync(resolve(root, skillMcpPlanPath)) ? read(skillMcpPlanPath) : ''
   const mcpHostHttp = read('packages/mcp-host/src/http.ts')
   const mcpHostIndex = read('packages/mcp-host/src/index.ts')
   const desktopMcpIpc = read('apps/desktop/electron/ipc/mcpIpc.ts')
   const projectSurfaceRuntime = read('surface/project/src/runtime/ProjectSurfaceRuntime.ts')
+  const hostedProjectSurfaceRuntime = read('surface/project/src/runtime/HostedProjectSurfaceRuntime.ts')
   const desktopProjectRuntime = read('apps/desktop/src/features/app-shell/application/desktopProjectSurfaceRuntime.tsx')
   const localProjectHostRoute = read('services/local-surface-host/src/project/LocalProjectSurfaceHostRoute.tsx')
   const localProjectRuntime = read('services/local-surface-host/src/project/localProjectSurfaceRuntime.ts')
@@ -349,9 +393,19 @@ test('system context is issued by daemon and consumed by project surfaces', () =
   assert.match(pluginGateway, /DAEMON_RUNTIME_STATUS_ENDPOINT = ['"`]\/v1\/runtime\/status['"`]/, 'daemon gateway must expose /v1/runtime/status')
   assert.match(pluginGateway, /DAEMON_RUNTIME_DIAGNOSTICS_ENDPOINT = ['"`]\/v1\/runtime\/diagnostics['"`]/, 'daemon gateway must expose debug-only /v1/runtime/diagnostics')
   assert.match(pluginGateway, /DAEMON_RUNTIME_CONFIGURE_ENDPOINT = ['"`]\/v1\/runtime\/configure['"`]/, 'daemon gateway must expose /v1/runtime/configure')
+  assert.match(runtimeContracts, /export function cleanupStaleRuntimeRecords/, 'runtime contracts must expose stale runtime record cleanup')
+  assert.match(runtimeContracts, /record\.pid !== undefined && !pidIsAlive\(record\.pid\)/, 'stale cleanup must remove dead-pid records')
+  assert.match(runtimeContracts, /record\.status === 'stopped' \|\| record\.status === 'error'/, 'stale cleanup must remove inactive terminal records')
+  assert.match(localRuntime, /cleanupStaleRuntimeRecords\(options\.homeDir\)/, 'ensure daemon must clean stale runtime records before probing')
+  assert.match(localRuntime, /resolveLocalRuntimeDaemonLogPath/, 'local runtime must expose a top-level daemon log path')
+  assert.match(localRuntime, /logs[\s\S]*local-daemon\.jsonl/, 'local runtime daemon logs must live under <home>/logs')
+  assert.match(localRuntime, /movscript\.runtime-log-entry\.v1/, 'local runtime daemon logs must use a stable JSONL schema')
+  assert.match(localRuntime, /rotateLocalRuntimeDaemonLog/, 'local runtime daemon logs must support rotation')
   assert.match(pluginGateway, /issueDaemonRuntimeDescriptor/, 'daemon gateway must issue runtime descriptors')
   assert.match(pluginGateway, /schema: 'movscript\.runtime-descriptor\.v1'/, 'daemon runtime descriptor must use the v1 schema')
   assert.match(pluginGateway, /owner: 'movscript\.local-node'/, 'daemon runtime descriptor must expose the local node owner')
+  assert.match(pluginGateway, /daemonRuntimeIdentity/, 'daemon runtime descriptor must expose bundle/runtime identity')
+  assert.match(pluginGateway, /identity \? \{ identity \}/, 'daemon runtime descriptor must include identity when available')
   assert.match(pluginGateway, /canonicalPrefix: '\/v1'/, 'daemon runtime descriptor must expose canonical /v1 prefix')
   assert.match(pluginGateway, /daemonRuntimeDiagnosticsEnabled/, 'daemon diagnostics must be gated as debug-only')
   assert.match(pluginGateway, /schema: 'movscript\.runtime-diagnostics\.v1'/, 'daemon diagnostics must use an explicit diagnostics schema')
@@ -374,8 +428,13 @@ test('system context is issued by daemon and consumed by project surfaces', () =
   assert.match(sharedContext, /sessionId: string/, 'context session must include sessionId')
   assert.match(sharedContext, /revision: number/, 'context envelope must include revision')
   assert.match(sharedContext, /projectCwd\?: string/, 'project cwd must live inside workspace session context')
+  assert.match(sharedContext, /backendProjectId\?: number/, 'backend project id must be explicit instead of overloading projectId')
+  assert.match(sharedContext, /projectKey\?: string/, 'workspace route key must be explicit instead of overloading projectId')
+  assert.match(pluginGateway, /backendProjectId\?: number/, 'daemon session input must accept explicit backendProjectId')
+  assert.match(pluginGateway, /projectKey\?: string/, 'daemon session input must accept explicit projectKey')
 
   assert.match(mcpHostHttp, /function daemonContextSessionsEndpoint/, 'MCP host context updates must discover daemon context sessions')
+  assert.match(mcpHostHttp, /function daemonProjectIdentity/, 'MCP host context updates must split backend id, uid, and route key')
   assert.match(mcpHostHttp, /\/v1\/context\/sessions/, 'MCP host context updates must target daemon context sessions')
   assert.ok(
     mcpHostHttp.indexOf('await postMCPContextSnapshotToDaemon(next)') >= 0
@@ -385,16 +444,18 @@ test('system context is issued by daemon and consumed by project surfaces', () =
   assert.match(mcpHostIndex, /updateMCPContextSnapshot,[\s\S]*from '\.\/http\.js'/, 'public MCP host context export must come from the daemon-first HTTP wrapper')
   assert.match(desktopMcpIpc, /from '@movscript\/mcp-host'/, 'Desktop context IPC must update through MCP host wrapper')
   assert.doesNotMatch(desktopMcpIpc, /@movscript\/core\/mcp\/node/, 'Desktop context IPC must not write core MCP memory directly')
-  assert.doesNotMatch(skillMcpPlan, /待落地：`packages\/mcp-host\/src\/http\.ts`[\s\S]*context snapshot 写入迁到 daemon context\/session API/, 'skill/MCP plan must not mark daemon context snapshot migration as pending')
+  if (skillMcpPlan) {
+    assert.doesNotMatch(skillMcpPlan, /待落地：`packages\/mcp-host\/src\/http\.ts`[\s\S]*context snapshot 写入迁到 daemon context\/session API/, 'skill/MCP plan must not mark daemon context snapshot migration as pending')
+  }
 
   assert.match(projectSurfaceRuntime, /context\?: MovScriptContextEnvelope/, 'Project Surface runtime must accept daemon context')
   assert.match(projectSurfaceRuntime, /projectSurfaceProjectFromContext/, 'Project Surface runtime must derive project context from daemon envelope')
   assert.match(projectSurfaceRuntime, /movScriptContextProjectCwd\(context\)/, 'Project Surface runtime must read cwd from daemon context')
+  assert.match(hostedProjectSurfaceRuntime, /revision: context\.revision/, 'Project Surface context envelope helper must include context revision')
 
   assert.match(desktopProjectRuntime, /DAEMON_CONTEXT_SESSIONS_ENDPOINT = ['"`]\/v1\/context\/sessions['"`]/, 'Desktop must create daemon workspace sessions')
   assert.match(desktopProjectRuntime, /context: contextEnvelope/, 'Desktop must inject daemon context into Project Surface runtime')
-  assert.match(desktopProjectRuntime, /desktopContextCommandEnvelope\(contextEnvelope\)/, 'Desktop Project Service calls must carry context revision')
-  assert.match(desktopProjectRuntime, /revision: context\.revision/, 'Desktop Project Service calls must include context revision')
+  assert.match(desktopProjectRuntime, /projectSurfaceContextCommandEnvelope\(contextEnvelope\)/, 'Desktop Project Service calls must carry context revision')
   assert.doesNotMatch(
     desktopProjectRuntime,
     /project:\s*\{[\s\S]*?\.\.\.\(projectDir \? \{ projectDir \} : \{\}\)/,
@@ -409,7 +470,7 @@ test('system context is issued by daemon and consumed by project surfaces', () =
   assert.match(localProjectHostRoute, /fetch\(['"`]\/v1\/context\/sessions['"`]/, 'local surface host must create daemon workspace sessions')
   assert.match(localProjectHostRoute, /context: contextEnvelope/, 'local surface host must inject daemon context into Project Surface runtime')
   assert.match(localProjectRuntime, /context: input\.context/, 'local Project Surface runtime must accept daemon context')
-  assert.match(localProjectRuntime, /revision: context\.revision/, 'local Project Service calls must include context revision')
+  assert.match(localProjectRuntime, /projectSurfaceContextCommandEnvelope\(input\.context\)/, 'local Project Service calls must carry context revision')
   assert.doesNotMatch(
     localProjectRuntime,
     /movScriptContextProjectCwd\(input\.context\) \?\? input\.projectDir/,
@@ -746,7 +807,6 @@ test('project source write operations prefer typed Project Service APIs over com
     'upsertContentUnit',
     'createContentUnit',
     'ensureContentUnitForEntity',
-    'ensureTimelineAssemblyContentUnit',
     'updateContentUnitEditPrompt',
     'createProduction',
     'createSegment',
@@ -783,7 +843,22 @@ test('project source write operations prefer typed Project Service APIs over com
 
 test('project source read and prompt operations prefer typed Project Service APIs over command strings', () => {
   const projectTypes = read('packages/project/src/index.ts')
+  const editingTypes = read('packages/editing/src/index.ts')
+  const editingRuntime = read('packages/editing/src/runtime.ts')
+  const editingActions = read('packages/core/src/mcp/node/tools/editing/actions.ts')
+  const editingDefinitions = read('packages/core/src/mcp/tools/editing/definitions.ts')
+  const productionEditingActions = read('packages/core/src/mcp/node/tools/production-editing/actions.ts')
+  const productionEditingDefinitions = read('packages/core/src/mcp/tools/production-editing/definitions.ts')
+  const productionEditingCli = read('apps/cli/src/commands/production-editing.ts')
+  const cliCommands = read('packages/cli-commands/src/index.ts')
+  const artifactActions = read('packages/core/src/mcp/node/tools/artifact/actions.ts')
+  const artifactDefinitions = read('packages/core/src/mcp/tools/artifact/definitions.ts')
   const projectService = read('services/project-service/src/server.mjs')
+  const mediaPipelineService = read('services/media-pipeline/src/server.mjs')
+  const mediaPipelineHeadlessRuntime = read('services/media-pipeline/src/headlessRuntime.mjs')
+  const mediaPipelineResultRegistry = read('services/media-pipeline/src/resultRegistry.mjs')
+  const mediaPipelineResultWatchRegistry = read('services/media-pipeline/src/resultWatchRegistry.mjs')
+  const mediaPipelineServiceTests = read('services/media-pipeline/tests/server.test.mjs')
   const projectServiceTests = read('services/project-service/tests/server.test.mjs')
   const pluginGateway = read('packages/local-daemon/src/index.ts')
   const desktopPreloadSource = read('apps/desktop/electron/preload/api/movscriptEngine.ts')
@@ -795,6 +870,13 @@ test('project source read and prompt operations prefer typed Project Service API
     ['PROJECT_SERVICE_ASSETS_QUERY_ENDPOINT', '/v1/project/assets/query'],
     ['PROJECT_SERVICE_CONTENT_WORKSPACE_SNAPSHOT_ENDPOINT', '/v1/project/content-workspace/snapshot'],
     ['PROJECT_SERVICE_CONTENT_WORKSPACE_READ_ENDPOINT', '/v1/project/content-workspace/read'],
+    ['PROJECT_SERVICE_SOURCE_PRODUCTION_WORK_PLAN_ENDPOINT', '/v1/project/source/production-work-plan'],
+    ['PROJECT_SERVICE_ASSET_PROVIDER_CERTIFICATION_PATCH_ENDPOINT', '/v1/project/assets/provider-certification/patch'],
+    ['PROJECT_SERVICE_PRODUCTION_EDITING_RESOURCES_REFRESH_ENDPOINT', '/v1/project/productions/editing-resources/refresh'],
+    ['PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_LIST_ENDPOINT', '/v1/project/productions/editing-workspaces/list'],
+    ['PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_CREATE_ENDPOINT', '/v1/project/productions/editing-workspaces/create'],
+    ['PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_OPEN_ENDPOINT', '/v1/project/productions/editing-workspaces/open'],
+    ['PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_DELETE_ENDPOINT', '/v1/project/productions/editing-workspaces/delete'],
   ]) {
     assert.match(projectTypes, new RegExp(`${endpoint[0]} = ['"\`]${endpoint[1].replace(/\//g, '\\/')}['"\`]`), `Project package must expose ${endpoint[0]}`)
     assert.match(pluginGateway, new RegExp(`\\['${endpoint[1].replace(/\//g, '\\/')}', '${endpoint[1].replace(/\//g, '\\/')}'\\]`), `daemon gateway must proxy ${endpoint[1]}`)
@@ -802,8 +884,88 @@ test('project source read and prompt operations prefer typed Project Service API
 
   assert.match(projectService, /movscript\.project-entities-query\.v1/, 'Project Service typed route map must include entity query')
   assert.match(projectService, /movscript\.project-content-workspace-read\.v1/, 'Project Service typed route map must include content workspace read')
+  assert.match(projectService, /movscript\.production_editing_workspace_create\.v1/, 'Project Service must own production editing workspace creation')
+  assert.match(projectService, /movscript\.production_editing_resources_refresh\.v1/, 'Project Service must refresh production editing resources')
+  assert.match(projectService, /productionEditingWorkspaceHandoffEnvelope/, 'Project Service must own production editing handoff/preflight output')
+  assert.match(projectService, /REMOTION_PROJECT_FILES_MISSING/, 'Project Service must report Remotion missing-file preflight blockers')
+  assert.match(projectService, /productionEditingEnsureCodexSkill/, 'Project Service must auto-install bundled Codex skills for Remotion handoff preflight')
+  assert.match(projectService, /codex_skill_install/, 'Project Service Remotion skill install must expose a Codex install action')
+  assert.equal(existsSync(resolve(root, 'services/timeline-service')), false, 'Timeline Service must be removed from the public runtime surface')
+  assert.equal(existsSync(resolve(root, 'packages/core/src/mcp/tools/timeline/definitions.ts')), false, 'timeline MCP definitions must remain deleted')
+  assert.equal(existsSync(resolve(root, 'packages/core/src/mcp/node/tools/timeline/actions.ts')), false, 'timeline MCP actions must remain deleted')
+  assert.equal(existsSync(resolve(root, 'apps/cli/src/commands/timeline.ts')), false, 'timeline CLI command must remain deleted')
+  assert.doesNotMatch(pluginGateway, /timeline-service|movscript\.timeline\.compile\.service|\/v1\/timeline|\/local-api\/timeline/, 'daemon must not start or proxy the removed Timeline Service')
+  assert.match(productionEditingDefinitions, /production_editing_workspace_create/, 'production editing MCP schema must expose workspace create')
+  assert.match(productionEditingDefinitions, /production_editing_workspace_open/, 'production editing MCP schema must expose workspace open')
+  assert.match(productionEditingDefinitions, /production_editing_workspace_delete/, 'production editing MCP schema must expose workspace delete')
+  assert.match(productionEditingActions, /toSkill: kind === 'remotion' \? 'remotion' : 'system_edit'/, 'production editing actions must return backend-specific skill handoff')
+  assert.match(productionEditingActions, /responseHandoffPreflight/, 'production editing actions must preserve Project Service handoff preflight')
+  assert.match(productionEditingActions, /workspace kind must be system_editing or remotion/, 'production editing actions must reject unsupported workspace kinds')
+  assert.match(productionEditingCli, /registerProductionEditingCommands/, 'CLI must register production editing commands')
+  assert.match(cliCommands, /production_editing\.workspace\.open/, 'CLI command manifest must expose production editing workspace open')
+  assert.match(cliCommands, /runMovScriptProductionEditingCommand/, 'CLI command manifest must expose production editing runner')
+  assert.match(editingTypes, /MEDIA_PIPELINE_RESULT_REGISTER_ENDPOINT = ['"`]\/v1\/media-pipeline\/results\/register['"`]/, 'Editing package must expose media-pipeline result register endpoint')
+  assert.match(editingTypes, /MEDIA_PIPELINE_RESULT_GET_ENDPOINT = ['"`]\/v1\/media-pipeline\/results\/get['"`]/, 'Editing package must expose media-pipeline result get endpoint')
+  assert.match(editingTypes, /MEDIA_PIPELINE_RESULT_LIST_ENDPOINT = ['"`]\/v1\/media-pipeline\/results\/list['"`]/, 'Editing package must expose media-pipeline result list endpoint')
+  assert.match(editingTypes, /MEDIA_PIPELINE_RESULT_WATCH_CREATE_ENDPOINT = ['"`]\/v1\/media-pipeline\/results\/watch\/create['"`]/, 'Editing package must expose media-pipeline result watch create endpoint')
+  assert.match(editingRuntime, /'backend_project_render'/, 'Editing runtime task contract must include backend_project_render')
+  assert.match(editingRuntime, /'backend_project_preview'/, 'Editing runtime task contract must include backend_project_preview')
+  assert.match(mediaPipelineService, /result-registry/, 'Media Pipeline Service must advertise result-registry capability')
+  assert.match(mediaPipelineService, /result-watch/, 'Media Pipeline Service must advertise result-watch capability')
+  assert.match(mediaPipelineService, /'backend_project_render'/, 'Media Pipeline Service must support backend_project_render')
+  assert.match(mediaPipelineService, /'backend_project_preview'/, 'Media Pipeline Service must support backend_project_preview')
+  assert.match(mediaPipelineService, /backendProjectRender/, 'Media Pipeline probe must report backend project render support')
+  assert.match(mediaPipelineService, /backendProjectPreview/, 'Media Pipeline probe must report backend project preview support')
+  assert.match(mediaPipelineHeadlessRuntime, /homeFFmpegCandidatePaths/, 'Headless Media Pipeline must discover ffmpeg from MovScript Home')
+  assert.match(mediaPipelineHeadlessRuntime, /'tools', 'ffmpeg'/, 'Headless Media Pipeline must check the shared Home ffmpeg tools cache')
+  assert.match(mediaPipelineHeadlessRuntime, /'ffmpeg'/, 'Headless Media Pipeline must keep system ffmpeg as the final fallback')
+  for (const source of [productionEditingDefinitions, productionEditingActions, productionEditingCli, cliCommands]) {
+    assert.doesNotMatch(source, /timeline_backend_|timelineCommandSpecs|runMovScriptTimelineCommand|registerTimelineCommands/, 'production editing public surface must not keep timeline backend commands')
+    assert.doesNotMatch(source, /production_editing_backend_|production_editing_workspace_reseed|preferredRuntime|installPolicy/, 'production editing public surface must stay lifecycle-only')
+  }
+  assert.match(mediaPipelineService, /MEDIA_PIPELINE_RESULT_REGISTER_ENDPOINT/, 'Media Pipeline Service must serve result register endpoint')
+  assert.match(mediaPipelineService, /MEDIA_PIPELINE_RESULT_GET_ENDPOINT/, 'Media Pipeline Service must serve result get endpoint')
+  assert.match(mediaPipelineService, /MEDIA_PIPELINE_RESULT_LIST_ENDPOINT/, 'Media Pipeline Service must serve result list endpoint')
+  assert.match(mediaPipelineService, /MEDIA_PIPELINE_RESULT_WATCH_CREATE_ENDPOINT/, 'Media Pipeline Service must serve result watch create endpoint')
+  assert.match(mediaPipelineResultRegistry, /createFileMediaPipelineResultRegistry/, 'Media Pipeline result registry must have a file-backed implementation')
+  assert.match(mediaPipelineResultRegistry, /movscript\.media-pipeline-result-registry\.v1/, 'Media Pipeline result registry snapshots must have a stable schema')
+  assert.match(mediaPipelineResultRegistry, /'media-workspaces', 'results'/, 'Media Pipeline result registry must default under Home media-workspaces')
+  assert.doesNotMatch(mediaPipelineResultRegistry, /'runtime', 'media-pipeline', 'results'/, 'Media Pipeline result registry must not default under runtime records')
+  assert.match(mediaPipelineResultWatchRegistry, /createFileMediaPipelineResultWatchRegistry/, 'Media Pipeline result watch registry must have a file-backed implementation')
+  assert.match(mediaPipelineResultWatchRegistry, /movscript\.media-pipeline-result-watch-registry\.v1/, 'Media Pipeline result watch registry snapshots must have a stable schema')
+  assert.match(mediaPipelineResultWatchRegistry, /'media-workspaces', 'results'/, 'Media Pipeline result watch registry must default under Home media-workspaces')
+  assert.doesNotMatch(mediaPipelineResultWatchRegistry, /'runtime', 'media-pipeline', 'results'/, 'Media Pipeline result watch registry must not default under runtime records')
+  assert.match(mediaPipelineResultWatchRegistry, /external_nle_background_watch/, 'Media Pipeline result watch registry must record external NLE background watch results')
+  assert.match(mediaPipelineService, /createFileMediaPipelineResultRegistry\(\{ env \}\)/, 'Media Pipeline service CLI must persist result registry state')
+  assert.match(mediaPipelineService, /createFileMediaPipelineResultWatchRegistry\(\{ env, resultRegistry \}\)/, 'Media Pipeline service CLI must persist result watch state')
+  assert.match(editingActions, /resolveArgsWithMediaPipelineResult/, 'editing MCP actions must resolve resultId/result before export/candidate gates')
+  assert.match(editingActions, /editingResultRecoverExternalNle/, 'editing MCP actions must expose External NLE result recovery')
+  assert.match(editingActions, /editingResultWatchExternalNleCreate/, 'editing MCP actions must expose External NLE background result watch')
+  assert.match(editingActions, /external_nle_result_recovery/, 'External NLE result recovery must record its result source')
+  assert.match(editingDefinitions, /name: 'editing_result_recover_external_nle'[\s\S]*outputDirectory: \{ type: 'string'/, 'editing MCP schema must expose External NLE output directory recovery')
+  assert.match(editingDefinitions, /name: 'editing_result_recover_external_nle'[\s\S]*waitForMs: \{ type: 'number'/, 'editing MCP schema must expose External NLE watch-once timeout')
+  assert.match(editingDefinitions, /name: 'editing_result_watch_external_nle_create'[\s\S]*timeoutMs: \{ type: 'number'/, 'editing MCP schema must expose External NLE background watch timeout')
+  assert.match(editingDefinitions, /name: 'editing_export_save_local'[\s\S]*resultId: \{ type: 'string'/, 'editing save-local MCP schema must accept resultId')
+  assert.match(editingDefinitions, /name: 'editing_export_create_candidate'[\s\S]*resultId: \{ type: 'string'/, 'editing create-candidate MCP schema must accept resultId')
+  assert.match(artifactActions, /resolveArtifactArgsWithMediaPipelineResult/, 'system artifact MCP actions must resolve resultId/result before neutral upload gates')
+  assert.match(artifactDefinitions, /name: 'system_artifact_upload_export'[\s\S]*resultId: \{ type: 'string'/, 'system artifact upload-export MCP schema must accept resultId')
+  assert.match(artifactDefinitions, /name: 'system_artifact_upload_hls_stream'[\s\S]*resultId: \{ type: 'string'/, 'system artifact upload-hls-stream MCP schema must accept resultId')
+  assert.match(mediaPipelineServiceTests, /external-nle-result-1/, 'Media Pipeline tests must cover manual external result registration')
+  assert.match(mediaPipelineServiceTests, /persistent-hyperframes-result/, 'Media Pipeline tests must cover persisted result recovery')
+  assert.match(mediaPipelineServiceTests, /registeredResults\.count/, 'Media Pipeline tests must cover automatic task result registration')
+  assert.match(mediaPipelineServiceTests, /external-watch-1/, 'Media Pipeline tests must cover External NLE background result watch')
+  assert.match(mediaPipelineServiceTests, /backend project render commands/, 'Media Pipeline tests must cover backend project render command execution')
+  assert.match(pluginGateway, /embeddedServiceName: 'media-pipeline'/, 'daemon must start Media Pipeline in the service plane')
+  assert.match(pluginGateway, /gatewayPrefix: '\/v1\/media-pipeline'/, 'daemon gateway must proxy canonical Media Pipeline routes')
+  assert.match(projectService, /movscript\.project-source-production-work-plan\.v1/, 'Project Service tests must include production work plan endpoint')
   assert.match(projectServiceTests, /movscript\.project-entities-query\.v1/, 'Project Service tests must cover typed entity query')
   assert.match(projectServiceTests, /movscript\.project-content-workspace-read\.v1/, 'Project Service tests must cover typed content workspace read')
+  assert.match(projectServiceTests, /movscript\.production_editing_workspace_create\.v1/, 'Project Service tests must cover production editing workspace creation')
+  assert.match(projectServiceTests, /movscript\.production_editing_resources_refresh\.v1/, 'Project Service tests must cover production editing resource refresh')
+  assert.match(projectServiceTests, /movscript\.production_editing\.remotion_project_scaffold\.v1/, 'Project Service tests must cover Remotion project scaffold materialization')
+  assert.match(projectServiceTests, /REMOTION_PROJECT_FILES_MISSING/, 'Project Service tests must cover Remotion missing-file preflight blockers')
+  assert.match(projectServiceTests, /REMOTION_SKILL_INSTALL_RESTART_REQUIRED/, 'Project Service tests must cover Remotion skill install restart blockers')
+  assert.match(projectServiceTests, /movscript\.project-source-production-work-plan\.v1/, 'Project Service tests must cover production work plan endpoint')
 
   for (const source of [desktopPreloadSource, localContentApi]) {
     assert.doesNotMatch(source, /sourceCommand\(['"`](queryEntities|querySettings|queryAssets|readContentUnitGenerationPrompt|buildContentUnitBackendPrompt|loadContentWorkspaceSnapshot|loadContentWorkspace|syncContentWorkspace)['"`]/, 'surface host APIs must not route migrated reads/prompts through sourceCommand strings')

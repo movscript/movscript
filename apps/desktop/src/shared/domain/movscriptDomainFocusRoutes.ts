@@ -17,10 +17,8 @@ export function movScriptDomainFocusFromSearch(
     scopeKind: params.get('scopeKind') ?? params.get('scope_kind') ?? params.get('namespaceKind') ?? params.get('namespace_kind') ?? fallback.scopeKind ?? fallback.scope_kind,
     scopeRef: params.get('scopeRef') ?? params.get('scope_ref') ?? params.get('namespaceRef') ?? params.get('namespace_ref') ?? params.get('namespacePath') ?? params.get('namespace_path') ?? fallback.scopeRef ?? fallback.scope_ref,
     targetCategory: params.get('targetCategory') ?? params.get('target_category') ?? params.get('domainTargetCategory') ?? params.get('domain_target_category') ?? fallback.targetCategory ?? fallback.target_category,
-    targetKind: params.get('timelineAssemblyRef') || params.get('timeline_assembly_ref')
-      ? 'timeline_assembly'
-      : params.get('targetKind') ?? params.get('target_kind') ?? params.get('domainTargetKind') ?? params.get('domain_target_kind') ?? fallback.targetKind ?? fallback.target_kind,
-    targetRef: params.get('timelineAssemblyRef') ?? params.get('timeline_assembly_ref') ?? params.get('targetRef') ?? params.get('target_ref') ?? params.get('domainTargetRef') ?? params.get('domain_target_ref') ?? fallback.targetRef ?? fallback.target_ref,
+    targetKind: params.get('targetKind') ?? params.get('target_kind') ?? params.get('domainTargetKind') ?? params.get('domain_target_kind') ?? fallback.targetKind ?? fallback.target_kind,
+    targetRef: params.get('targetRef') ?? params.get('target_ref') ?? params.get('domainTargetRef') ?? params.get('domain_target_ref') ?? fallback.targetRef ?? fallback.target_ref,
     entityKind: params.get('entityKind') ?? params.get('entity_kind') ?? fallback.entityKind ?? fallback.entity_kind,
     entityId: params.get('entityId') ?? params.get('entity_id') ?? fallback.entityId ?? fallback.entity_id,
     path: params.get('path') ?? fallback.path,
@@ -33,15 +31,11 @@ export function movScriptDomainFocusFromRecord(
 ): MovScriptNormalizedFocus | undefined {
   const entityKind = stringValue(record?.entityKind ?? record?.entity_kind ?? record?.entityType ?? record?.entity_type)
   const entityId = idValue(record?.entityId ?? record?.entity_id)
-  const timelineAssemblyRef = idValue(record?.timelineAssemblyRef ?? record?.timeline_assembly_ref)
   const legacyTimelineScopeKind = entityKind === 'production' || entityKind === 'segment' ? entityKind : undefined
-  const targetKind = timelineAssemblyRef
-    ? 'timeline_assembly'
-    : stringValue(record?.targetKind ?? record?.target_kind ?? record?.domainTargetKind ?? record?.domain_target_kind)
-      ?? (entityKind === 'timeline_assembly' || entityKind === 'content_unit' ? entityKind : undefined)
-  const targetRef = timelineAssemblyRef
-    ?? idValue(record?.targetRef ?? record?.target_ref ?? record?.domainTargetRef ?? record?.domain_target_ref)
-    ?? (targetKind === 'timeline_assembly' || targetKind === 'content_unit' ? entityId : undefined)
+  const targetKind = stringValue(record?.targetKind ?? record?.target_kind ?? record?.domainTargetKind ?? record?.domain_target_kind)
+      ?? (entityKind === 'content_unit' ? entityKind : undefined)
+  const targetRef = idValue(record?.targetRef ?? record?.target_ref ?? record?.domainTargetRef ?? record?.domain_target_ref)
+    ?? (targetKind === 'content_unit' ? entityId : undefined)
   const focus = normalizeDomainFocus({
     ...fallback,
     projectId: idValue(record?.projectId ?? record?.project_id) ?? fallback.projectId ?? fallback.project_id,
@@ -76,9 +70,6 @@ export function movScriptRouteParamsForDomainFocus(
       targetCategory: focus.target.targetCategory,
       targetKind: focus.target.targetKind,
       ...(targetRef !== undefined ? { targetRef } : {}),
-    } : {}),
-    ...(includeTarget && focus.target?.targetKind === 'timeline_assembly' && targetRef !== undefined ? {
-      timeline_assembly_ref: targetRef,
     } : {}),
     ...(includeTarget && focus.target?.targetKind === 'content_unit' && targetRef !== undefined ? {
       content_unit_id: targetRef,

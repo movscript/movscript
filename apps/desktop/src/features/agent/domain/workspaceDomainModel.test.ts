@@ -110,7 +110,7 @@ test('workspace review path is resolved from the shared frontend workspace model
       kind: 'content_unit_workspace',
       target: { entityType: 'production', entityId: 301 },
     })),
-    '/project/content/preview?workspaceId=workspace-content-unit-production&scopeKind=production&scopeRef=301&productionId=301&targetCategory=timeline_assembly&targetKind=timeline_assembly&targetRef=timeline_assembly%3Aproduction%3A301&timeline_assembly_ref=timeline_assembly%3Aproduction%3A301',
+    '/project/scripts/workbench?workspaceId=workspace-content-unit-production&productionId=301',
   )
   assert.equal(
     buildWorkspaceReviewPath(workspace({

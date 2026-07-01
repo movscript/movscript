@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve, win32 as pathWin32 } from 'node:path'
 
 export const MOVSCRIPT_DEFAULT_HOME_DIR_NAME = '.movscript'
 export const MOVSCRIPT_RUNTIME_DIR_NAME = 'runtime'
@@ -71,6 +71,7 @@ export interface ManifestValidationResult<T> {
 
 export interface ResolveMovScriptHomeOptions {
   env?: NodeJS.ProcessEnv
+  platform?: NodeJS.Platform
   userHomeDir?: string
 }
 
@@ -131,6 +132,21 @@ export interface RuntimeHomeSnapshot {
   apps: RuntimeAppRecord[]
   services: RuntimeServiceRecord[]
   endpoints: RuntimeEndpointRecord[]
+}
+
+export type RuntimeStaleRecordKind = 'app' | 'service' | 'endpoint'
+export type RuntimeStaleRecordReason = 'inactive' | 'dead_pid'
+
+export interface RuntimeStaleRecordCleanupItem {
+  kind: RuntimeStaleRecordKind
+  path: string
+  reason: RuntimeStaleRecordReason
+  pid?: number
+}
+
+export interface RuntimeStaleRecordCleanupResult {
+  homeDir: string
+  removed: RuntimeStaleRecordCleanupItem[]
 }
 
 export interface RuntimeEndpointRecordInput {
@@ -288,7 +304,12 @@ export function resolveMovScriptHomeDir(options: ResolveMovScriptHomeOptions = {
   if (explicit) return resolve(explicit)
   const legacy = stringValue(env.MOVSCRIPT_WORKSPACE_DIR)
   if (legacy) return resolve(legacy)
-  return resolve(options.userHomeDir ?? homedir(), MOVSCRIPT_DEFAULT_HOME_DIR_NAME)
+  const userHomeDir = options.userHomeDir ?? homedir()
+  if ((options.platform ?? process.platform) === 'win32') {
+    const localAppData = stringValue(env.LOCALAPPDATA) ?? pathWin32.join(userHomeDir, 'AppData', 'Local')
+    return pathWin32.resolve(localAppData, 'MovScript', 'Home')
+  }
+  return resolve(userHomeDir, MOVSCRIPT_DEFAULT_HOME_DIR_NAME)
 }
 
 export function resolveRuntimeHomePaths(homeDir = resolveMovScriptHomeDir()): MovScriptRuntimeHomePaths {
@@ -401,6 +422,45 @@ export function findRuntimeEndpoint(snapshot: RuntimeHomeSnapshot, serviceName: 
   return activeEndpointRecords(snapshot).find((record) => record.serviceName === serviceName)
 }
 
+export function cleanupStaleRuntimeRecords(homeDir = resolveMovScriptHomeDir()): RuntimeStaleRecordCleanupResult {
+  const snapshot = readRuntimeHomeSnapshot(homeDir)
+  const removed: RuntimeStaleRecordCleanupItem[] = []
+  for (const record of snapshot.apps) {
+    const reason = staleRuntimeRecordReason(record)
+    if (!reason) continue
+    removeRuntimeRecordFile(record.path)
+    removed.push({
+      kind: 'app',
+      path: record.path,
+      reason,
+      ...(record.pid !== undefined ? { pid: record.pid } : {}),
+    })
+  }
+  for (const record of snapshot.services) {
+    const reason = staleRuntimeRecordReason(record)
+    if (!reason) continue
+    removeRuntimeRecordFile(record.path)
+    removed.push({
+      kind: 'service',
+      path: record.path,
+      reason,
+      ...(record.pid !== undefined ? { pid: record.pid } : {}),
+    })
+  }
+  for (const record of snapshot.endpoints) {
+    const reason = staleRuntimeRecordReason(record)
+    if (!reason) continue
+    removeRuntimeRecordFile(record.path)
+    removed.push({
+      kind: 'endpoint',
+      path: record.path,
+      reason,
+      ...(record.pid !== undefined ? { pid: record.pid } : {}),
+    })
+  }
+  return { homeDir: snapshot.homeDir, removed }
+}
+
 export function pidIsAlive(pid: number | undefined): boolean {
   if (pid === undefined) return true
   if (!Number.isInteger(pid) || pid <= 0) return false
@@ -410,6 +470,22 @@ export function pidIsAlive(pid: number | undefined): boolean {
   } catch {
     return false
   }
+}
+
+function staleRuntimeRecordReason(record: { ready: boolean; status: RuntimeRecordStatus; pid?: number }): RuntimeStaleRecordReason | undefined {
+  if (!record.ready || record.status === 'stopped' || record.status === 'error') return 'inactive'
+  if (record.pid !== undefined && !pidIsAlive(record.pid)) return 'dead_pid'
+  return undefined
+}
+
+function removeRuntimeRecordFile(path: string): void {
+  rmSync(path, { force: true })
+  pruneEmptyRuntimeRecordDir(dirname(path))
+}
+
+function pruneEmptyRuntimeRecordDir(dir: string): void {
+  if (safeReaddir(dir).length > 0) return
+  rmSync(dir, { recursive: true, force: true })
 }
 
 function readAppRecords(appsDir: string): RuntimeAppRecord[] {

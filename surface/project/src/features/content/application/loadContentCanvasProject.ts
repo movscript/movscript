@@ -151,11 +151,10 @@ function editingProjectsByNodeIdFromWorkspace(
     }
     if (timeline.scopeKind !== undefined && timeline.scopeRef !== undefined) {
       output[`${timeline.scopeKind}:${String(timeline.scopeRef)}`] = editingProject
-      output[`timeline_assembly:${timeline.scopeKind}:${String(timeline.scopeRef)}`] = editingProject
     }
     const targets = timeline.targetKind === 'scene_moment'
       ? sceneMoments
-      : timeline.targetKind === 'timeline_assembly'
+      : timeline.scopeKind !== undefined && timeline.scopeRef !== undefined
         ? timelineNamespaceTargets
         : productions
     const target = targets.find((item) =>

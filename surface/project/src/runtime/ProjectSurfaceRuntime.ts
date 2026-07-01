@@ -144,8 +144,11 @@ export interface ProjectServiceGateway {
   readScriptSource?(input: ProjectSurfaceWorkspaceOperationInput): Promise<unknown>
   upsertScript?(input: ProjectSurfaceWorkspaceOperationInput): Promise<unknown>
   snapshotScriptVersionFromMarkdown?(input: ProjectSurfaceWorkspaceOperationInput): Promise<unknown>
-  readTimelineAssemblyDraft?(input: ProjectSurfaceWorkspaceOperationInput): Promise<unknown>
-  writeTimelineAssemblyDraft?(input: ProjectSurfaceWorkspaceOperationInput): Promise<unknown>
+  listProductionEditingWorkspaces?(input: ProjectSurfaceWorkspaceOperationInput): Promise<unknown>
+  createProductionEditingWorkspace?(input: ProjectSurfaceWorkspaceOperationInput): Promise<unknown>
+  openProductionEditingWorkspace?(input: ProjectSurfaceWorkspaceOperationInput): Promise<unknown>
+  deleteProductionEditingWorkspace?(input: ProjectSurfaceWorkspaceOperationInput): Promise<unknown>
+  refreshProductionEditingResources?(input: ProjectSurfaceWorkspaceOperationInput): Promise<unknown>
   /** Debug/compat gateway. Product surfaces should prefer page-level read-model gateways. */
   resourceView?(input: ProjectSurfaceResourceViewInput): Promise<unknown>
   candidateView?(input: ProjectSurfaceCandidateViewInput): Promise<unknown>

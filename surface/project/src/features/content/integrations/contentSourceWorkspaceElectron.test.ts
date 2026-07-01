@@ -254,6 +254,7 @@ test('content source workspace editors write patches through the Electron engine
         intent: 'The hand pauses before the call.',
         speaker: 'hero',
         note: 'Keep it tiny.',
+        slotKind: undefined,
       },
     },
   })
@@ -299,6 +300,65 @@ test('content source workspace editors write patches through the Electron engine
         duration_sec: 3,
       },
     },
+  })
+})
+
+test('content source workspace prompt updates preserve generation reference pool metadata', async () => {
+  const calls: Record<string, unknown>[] = []
+  await withElectronAPI({
+    updateMovScriptEngineContentUnitEditPrompt: async (input) => {
+      calls.push(input)
+    },
+  }, async () => {
+    const port = createContentSourceWorkspaceRuntimePort()
+    await port.updateContentUnitEditPrompt({
+      projectId: 789,
+      targetPath: 'content_units/cu_scene/content_unit.json',
+      editPrompt: { text: 'Use {{ref:asset:phone}}.' },
+      generationReferences: [{
+        id: 'asset:phone',
+        kind: 'asset',
+        ref: 'phone',
+        media_type: 'image',
+        role: 'first_frame',
+        label: '湿润手机',
+        source: 'content_canvas',
+      }],
+      referenceAssets: [{
+        resource_id: 9101,
+        media_type: 'image',
+        role: 'first_frame',
+      }],
+	      modelIntent: {
+	        capability: 'image_generation',
+	        operation: 'reference_to_image',
+	      },
+    })
+  })
+
+  assert.deepEqual(calls[0], {
+    projectId: 789,
+    expectedWorkspaceVersions: {},
+    targetPath: 'content_units/cu_scene/content_unit.json',
+    editPrompt: { text: 'Use {{ref:asset:phone}}.' },
+    generationReferences: [{
+      id: 'asset:phone',
+      kind: 'asset',
+      ref: 'phone',
+      media_type: 'image',
+      role: 'first_frame',
+      label: '湿润手机',
+      source: 'content_canvas',
+    }],
+    referenceAssets: [{
+      resource_id: 9101,
+      media_type: 'image',
+      role: 'first_frame',
+    }],
+	    modelIntent: {
+	      capability: 'image_generation',
+	      operation: 'reference_to_image',
+	    },
   })
 })
 

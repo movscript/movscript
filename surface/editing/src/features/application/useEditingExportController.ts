@@ -90,6 +90,9 @@ export function useEditingExportController({
         output: {
           format,
           filename,
+          ...(format === 'mp4' && shouldAutoImportRenderResult(savedProject)
+            ? { importToResource: true, import_to_resource: true }
+            : {}),
         },
       })
       upsertEditingTaskState(task)
@@ -130,4 +133,20 @@ export function useEditingExportController({
     setExportDialog,
     updateExportDialog,
   }
+}
+
+function shouldAutoImportRenderResult(project: ElectronMediaPipelineEditingProject): boolean {
+  const workspace = recordValue(project.workspace)
+  const provenance = recordValue(project.provenance)
+  if (workspace?.autoImportRenderResult === true || workspace?.auto_import_render_result === true) return true
+  return stringValue(provenance?.targetKind ?? provenance?.target_kind) === 'production'
+    || stringValue(provenance?.scopeKind ?? provenance?.scope_kind) === 'production'
+}
+
+function recordValue(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }

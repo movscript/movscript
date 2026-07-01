@@ -59,18 +59,9 @@ function buildGenerationJobTitle(jobType: string, label?: string): string {
   if (label?.trim()) return `${label.trim()}-${Math.floor(1000 + Math.random() * 9000)}`
   const labels: Record<string, string> = {
     image: '文生图',
-    image_edit: '参考生图',
     video: '文生视频',
-    video_i2v: '参考生视频',
-    video_v2v: '视频迁移',
-    audio_tts: '语音生成',
-    audio_transcribe: '语音转写',
-    audio_translate: '音频翻译',
-    audio_chat: '语音对话',
-    audio_music: '音乐生成',
-    audio_sfx: '音效生成',
-    voice_clone: '声音克隆',
-    voice_design: '声音设计',
+    audio: '音频生成',
+    text: '文本生成',
   }
   return `${labels[jobType] ?? '生成任务'}-${Math.floor(1000 + Math.random() * 9000)}`
 }
@@ -86,9 +77,10 @@ function generationIntentForTool(
   operation: string | undefined,
   attachments: readonly RawResource[],
   inputSlots: readonly InputSlotDef[] | undefined,
+  referenceRoleOverrides: Readonly<Record<number, string>> = {},
 ): GenerationIntentPayload | undefined {
   if (outputType !== 'image' && outputType !== 'video' && !operation) return undefined
-  const refs = referenceAssetsForTool(attachments, inputSlots)
+  const refs = referenceAssetsForTool(attachments, inputSlots, referenceRoleOverrides)
   if (outputType === 'image') {
     const resolvedOperation = operation ?? generationDefaultOperationForOutputKind('image', refs) ?? 'text_to_image'
     return {
@@ -114,16 +106,17 @@ function generationIntentForTool(
 }
 
 function isAudioGenerationOperation(operation: string | undefined): boolean {
-  return operation === 'tts' ||
-    operation === 'stt' ||
+  return operation === 'text_to_speech' ||
+    operation === 'speech_to_text' ||
     operation === 'speech_translate' ||
-    operation === 'audio_chat' ||
+    operation === 'speech_to_speech' ||
     operation === 'voice_clone' ||
     operation === 'voice_design' ||
     operation === 'dubbing' ||
-    operation === 'music' ||
-    operation === 'sfx' ||
-    operation === 'speech_enhancement'
+    operation === 'music_generation' ||
+    operation === 'sound_effect_generation' ||
+    operation === 'voice_isolation' ||
+    operation === 'forced_alignment'
 }
 
 function generationCapabilityForTool(
@@ -153,9 +146,10 @@ function referenceAssetRoleForToolResource(resource: RawResource): string {
 function referenceAssetsForTool(
   attachments: readonly RawResource[],
   inputSlots: readonly InputSlotDef[] | undefined,
+  referenceRoleOverrides: Readonly<Record<number, string>> = {},
 ): NonNullable<GenerationIntentPayload['reference_assets']> {
   if (!inputSlots || inputSlots.length === 0) {
-    return attachments.map((resource) => referenceAssetForToolResource(resource))
+    return attachments.map((resource) => referenceAssetForToolResource(resource, undefined, referenceRoleOverrides[resource.ID]))
   }
   const used = new Set<number>()
   const refs: NonNullable<GenerationIntentPayload['reference_assets']> = []
@@ -168,20 +162,20 @@ function referenceAssetsForTool(
       if (slot.maxCount > 0 && slotCount >= slot.maxCount) continue
       used.add(index)
       slotCount += 1
-      refs.push(referenceAssetForToolResource(resource, slot.key))
+      refs.push(referenceAssetForToolResource(resource, slot.key, referenceRoleOverrides[resource.ID]))
     }
   }
   attachments.forEach((resource, index) => {
-    if (!used.has(index)) refs.push(referenceAssetForToolResource(resource))
+    if (!used.has(index)) refs.push(referenceAssetForToolResource(resource, undefined, referenceRoleOverrides[resource.ID]))
   })
   return refs
 }
 
-function referenceAssetForToolResource(resource: RawResource, slotKey?: string): NonNullable<GenerationIntentPayload['reference_assets']>[number] {
+function referenceAssetForToolResource(resource: RawResource, slotKey?: string, roleOverride?: string): NonNullable<GenerationIntentPayload['reference_assets']>[number] {
   const mediaType = referenceAssetMediaTypeForToolResource(resource)
   if (!mediaType) throw new Error('unsupported_tool_reference_media_type')
   return {
-    role: referenceAssetRoleForToolSlot(slotKey, resource),
+    role: roleOverride?.trim() || referenceAssetRoleForToolSlot(slotKey, resource),
     media_type: mediaType,
     resource_id: resource.ID,
   }
@@ -263,6 +257,7 @@ export function ToolDialog({
   const qc = useQueryClient()
   const [prompt, setPrompt] = useState('')
   const [attachments, setAttachments] = useState<RawResource[]>([])
+  const [referenceRoleOverrides, setReferenceRoleOverrides] = useState<Record<number, string>>({})
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
   const [selectedModel, setSelectedModel] = useState<PublicModel | null>(null)
   const [extraParams, setExtraParams] = useState<Record<string, string | number | boolean>>({})
@@ -331,6 +326,21 @@ export function ToolDialog({
         group.indexes.forEach((i) => assigned.add(i))
       }
       return assigned.has(next.length - 1) ? next : current
+    })
+  }
+
+  function removeAttachment(index: number) {
+    setAttachments((current) => {
+      const removed = current[index]
+      if (removed) {
+        setReferenceRoleOverrides((roles) => {
+          if (!(removed.ID in roles)) return roles
+          const next = { ...roles }
+          delete next[removed.ID]
+          return next
+        })
+      }
+      return current.filter((_, itemIndex) => itemIndex !== index)
     })
   }
 
@@ -415,6 +425,7 @@ export function ToolDialog({
       setHistoryPage(1)
       setPrompt('')
       setAttachments([])
+      setReferenceRoleOverrides({})
       invalidateJobMutationResult(qc, toolJobsChangedResult({ nodeType: _nodeType, changedIds: [job.ID] }))
     } catch (err) {
       setGenerationDiagnostic(toolResourceAccessDiagnosticMessage(err, t))
@@ -428,7 +439,20 @@ export function ToolDialog({
   const slotGroups = inputSlots ? slotGroupsFor(attachments) : []
   const supportedParams = selectedModel?.supported_params ?? []
   const selectedResourceIds = attachments.map((a) => a.ID)
-  const currentGenerationIntent = generationIntentForTool(outputType, modelOperation, attachments, inputSlots)
+  const currentGenerationIntent = generationIntentForTool(outputType, modelOperation, attachments, inputSlots, referenceRoleOverrides)
+  function changeReferenceAssetRole(resourceId: number, role: string) {
+    setReferenceRoleOverrides((current) => {
+      const next = { ...current, [resourceId]: role }
+      if (role === 'first_frame') {
+        for (const ref of currentGenerationIntent?.reference_assets ?? []) {
+          if (!ref.resource_id || ref.resource_id === resourceId || ref.role !== 'first_frame') continue
+          const resource = attachments.find((item) => item.ID === ref.resource_id)
+          next[ref.resource_id] = resource ? referenceAssetRoleForToolResource(resource) : 'reference_image'
+        }
+      }
+      return next
+    })
+  }
   const effectiveJobType = selectedModel
     ? currentGenerationIntent
       ? generationExecutionJobTypeForIntent(currentGenerationIntent, outputType === 'image' ? 'image' : outputType === 'audio' ? 'audio' : 'video')
@@ -516,15 +540,15 @@ export function ToolDialog({
   const modelQueryCapabilityList = modelOperation && (outputType === 'image' || outputType === 'video' || isAudioGenerationOperation(modelOperation))
     ? [modelCapability]
     : modelQueryCapabilities
-  const displayCapability: 'image' | 'video' | 'audio' = capability === 'video'
+  const displayCapability: 'image' | 'video' | 'audio' = capability === 'video_generation'
     ? 'video'
-    : capability === 'audio' || String(capability).startsWith('audio_') || String(capability).startsWith('voice_')
+    : capability === 'audio_generation'
       ? 'audio'
       : 'image'
-  const capabilityLabel = capability === 'video'
+  const capabilityLabel = capability === 'video_generation'
     ? t('tools.capabilities.video', { defaultValue: 'Video tool' })
-    : capability === 'audio' || String(capability).startsWith('audio_') || String(capability).startsWith('voice_')
-      ? t(`tools.capabilities.${capability}`, { defaultValue: t('tools.capabilities.audio', { defaultValue: 'Audio tool' }) })
+    : capability === 'audio_generation'
+      ? t('tools.capabilities.audio', { defaultValue: 'Audio tool' })
       : t('tools.capabilities.image', { defaultValue: 'Image tool' })
   const inputOutputLabel = t('tools.page.inputOutputLabel', {
     defaultValue: '{{input}} to {{output}}',
@@ -613,7 +637,8 @@ export function ToolDialog({
             prompt={prompt}
             onPromptChange={setPrompt}
             attachments={attachments}
-            onRemoveAttachment={(i) => setAttachments((a) => a.filter((_, j) => j !== i))}
+            onRemoveAttachment={removeAttachment}
+            onReferenceAssetRoleChange={changeReferenceAssetRole}
             inputSlots={inputSlots}
             params={supportedParams}
             paramValues={extraParams}
@@ -626,7 +651,6 @@ export function ToolDialog({
             inputType={mediaInputType}
             promptPlaceholder={promptPlaceholder}
             uploading={uploading}
-            imageEditRequired={modelAcceptsImageInput}
             referenceAssets={currentGenerationIntent?.reference_assets}
             intentLabel={generationIntentLabel}
             outputLabel={generationOutputLabel}

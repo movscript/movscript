@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -36,10 +37,14 @@ test('MCP artifact hosting tools are registered as system tools', () => {
   assert.equal(names.has('system_artifact_get_stream'), true)
   assert.match(String(toolsByName.get('system_artifact_upload_export')?.description), /HLS manifests must use system_artifact_upload_hls_stream/)
   assert.match(String(toolsByName.get('system_artifact_upload_export')?.description), /MediaStreamArtifact/)
-  assert.match(String(toolsByName.get('system_artifact_upload_export')?.description), /projectId/)
+  assert.match(String(toolsByName.get('system_artifact_upload_export')?.description), /mediaProjectId/)
+  assert.ok(toolsByName.get('system_artifact_upload_export')?.inputSchema?.properties?.mediaProjectId)
+  assert.ok(toolsByName.get('system_artifact_upload_export')?.inputSchema?.properties?.media_project_id)
   assert.ok(toolsByName.get('system_artifact_upload_export')?.inputSchema?.properties?.projectId)
   assert.ok(toolsByName.get('system_artifact_upload_export')?.inputSchema?.properties?.project_id)
-  assert.match(String(toolsByName.get('system_artifact_upload_hls_stream')?.description), /projectId/)
+  assert.match(String(toolsByName.get('system_artifact_upload_hls_stream')?.description), /mediaProjectId/)
+  assert.ok(toolsByName.get('system_artifact_upload_hls_stream')?.inputSchema?.properties?.mediaProjectId)
+  assert.ok(toolsByName.get('system_artifact_upload_hls_stream')?.inputSchema?.properties?.media_project_id)
   assert.ok(toolsByName.get('system_artifact_upload_hls_stream')?.inputSchema?.properties?.projectId)
   assert.ok(toolsByName.get('system_artifact_upload_hls_stream')?.inputSchema?.properties?.project_id)
 })
@@ -96,6 +101,82 @@ test('system_artifact_upload_export uploads explicit local export artifact to Ra
   }
 })
 
+test('system_artifact_upload_export resolves Media Pipeline resultId before RawResource upload', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'movscript-artifact-result-export-'))
+  const requests = []
+  const outputPath = join(dir, 'result-output.mp4')
+  await writeFile(outputPath, 'mp4 bytes from result')
+  const server = createServer((req, res) => {
+    if (req.url === '/v1/media-pipeline/results/get' && req.method === 'POST') {
+      let body = ''
+      req.setEncoding('utf8')
+      req.on('data', (chunk) => { body += chunk })
+      req.on('end', () => {
+        requests.push(String(req.url))
+        assert.deepEqual(JSON.parse(body || '{}'), { resultId: 'result_mp4_1' })
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({
+          schema: 'movscript.media-pipeline-result-get.v1',
+          status: 'found',
+          result: {
+            schema: 'movscript.media-pipeline-result.v1',
+            resultId: 'result_mp4_1',
+            result_id: 'result_mp4_1',
+            projectId: 'project-artifact',
+            project_id: 'project-artifact',
+            taskId: 'task-render-1',
+            task_id: 'task-render-1',
+            backend: 'media_editing_project',
+            kind: 'mp4',
+            outputPath,
+            output_path: outputPath,
+            outputName: 'result-output.mp4',
+            output_name: 'result-output.mp4',
+          },
+        }))
+      })
+      return
+    }
+    if (req.url === '/api/v1/resources/upload' && req.method === 'POST') {
+      requests.push(String(req.url))
+      req.resume()
+      req.on('end', () => {
+        res.writeHead(201, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({
+          ID: 56,
+          name: 'result-output.mp4',
+          mime_type: 'video/mp4',
+        }))
+      })
+      return
+    }
+    res.writeHead(404)
+    res.end()
+  })
+  await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen))
+  const address = server.address()
+  const baseURL = `http://127.0.0.1:${address.port}`
+  setMovScriptBackendAPIBaseURL(`${baseURL}/api/v1`)
+  try {
+    const result = await callTool('system_artifact_upload_export', {
+      resultId: 'result_mp4_1',
+      mediaPipelineServiceURL: baseURL,
+    })
+    assert.equal(result.status, 'ok')
+    assert.equal(result.resource_id, 56)
+    assert.equal(result.output_path, outputPath)
+    assert.equal(result.result_id, 'result_mp4_1')
+    assert.deepEqual(requests, [
+      '/v1/media-pipeline/results/get',
+      '/api/v1/resources/upload',
+    ])
+  } finally {
+    setMovScriptBackendAPIBaseURL('http://localhost:8765')
+    await new Promise((resolveClose) => server.close(resolveClose))
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test('system_artifact_upload_export returns structured diagnostics for task output lookup mode', async () => {
   const originalFetch = globalThis.fetch
   globalThis.fetch = async () => {
@@ -136,11 +217,11 @@ test('system_artifact_upload_export returns structured diagnostics for task outp
   try {
     const missing = await callTool('system_artifact_upload_export', {
       taskId: 'missing_render_task',
-      projectId: 'project-1',
+      mediaProjectId: 'project-1',
     })
     assert.equal(missing.status, 'not_found')
     assert.equal(missing.task_id, 'missing_render_task')
-    assert.match(missing.message, /projectId/)
+    assert.match(missing.message, /mediaProjectId/)
     assert.deepEqual(capturedLookups.at(-1), {
       taskId: 'missing_render_task',
       options: { projectId: 'project-1' },
@@ -148,7 +229,7 @@ test('system_artifact_upload_export returns structured diagnostics for task outp
 
     const pending = await callTool('system_artifact_upload_export', {
       taskId: 'render_task_pending',
-      projectId: 'project-1',
+      mediaProjectId: 'project-1',
     })
     assert.equal(pending.status, 'pending_output')
     assert.equal(pending.task_id, 'render_task_pending')
@@ -274,7 +355,85 @@ test('system_artifact_upload_hls_stream uploads explicit local HLS artifacts to 
   }
 })
 
-test('system_artifact_upload_hls_stream passes projectId when resolving task artifacts through editing runtime', async () => {
+test('system_artifact_upload_hls_stream resolves Media Pipeline resultId before MediaStreamArtifact upload', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'movscript-artifact-result-hls-'))
+  const requests = []
+  const manifestPath = join(dir, 'index.m3u8')
+  const segmentPath = join(dir, 'segment-00000.ts')
+  await writeFile(manifestPath, '#EXTM3U\n#EXTINF:1,\nsegment-00000.ts\n')
+  await writeFile(segmentPath, 'segment bytes')
+  const server = createServer((req, res) => {
+    if (req.url === '/v1/media-pipeline/results/get' && req.method === 'POST') {
+      let body = ''
+      req.setEncoding('utf8')
+      req.on('data', (chunk) => { body += chunk })
+      req.on('end', () => {
+        requests.push(String(req.url))
+        assert.deepEqual(JSON.parse(body || '{}'), { resultId: 'result_hls_1' })
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({
+          schema: 'movscript.media-pipeline-result-get.v1',
+          status: 'found',
+          result: {
+            schema: 'movscript.media-pipeline-result.v1',
+            resultId: 'result_hls_1',
+            result_id: 'result_hls_1',
+            projectId: 'project-artifact',
+            project_id: 'project-artifact',
+            taskId: 'task-hls-1',
+            task_id: 'task-hls-1',
+            backend: 'media_editing_project',
+            kind: 'hls',
+            hlsManifestPath: manifestPath,
+            hls_manifest_path: manifestPath,
+            hlsSegmentPaths: [segmentPath],
+            hls_segment_paths: [segmentPath],
+          },
+        }))
+      })
+      return
+    }
+    if (req.url === '/api/v1/media/streams/uploads' && req.method === 'POST') {
+      requests.push(String(req.url))
+      req.resume()
+      req.on('end', () => {
+        res.writeHead(201, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({
+          stream_id: 57,
+          manifest_url: '/api/v1/media/streams/57/manifest.m3u8',
+          segment_base_url: '/api/v1/media/streams/57/segments/',
+          stream: { ID: 57, title: 'result hls' },
+        }))
+      })
+      return
+    }
+    res.writeHead(404)
+    res.end()
+  })
+  await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen))
+  const address = server.address()
+  const baseURL = `http://127.0.0.1:${address.port}`
+  setMovScriptBackendAPIBaseURL(`${baseURL}/api/v1`)
+  try {
+    const result = await callTool('system_artifact_upload_hls_stream', {
+      resultId: 'result_hls_1',
+      mediaPipelineServiceURL: baseURL,
+    })
+    assert.equal(result.status, 'ok')
+    assert.equal(result.stream_id, 57)
+    assert.equal(result.result_id, 'result_hls_1')
+    assert.deepEqual(requests, [
+      '/v1/media-pipeline/results/get',
+      '/api/v1/media/streams/uploads',
+    ])
+  } finally {
+    setMovScriptBackendAPIBaseURL('http://localhost:8765')
+    await new Promise((resolveClose) => server.close(resolveClose))
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('system_artifact_upload_hls_stream maps mediaProjectId when resolving task artifacts through editing runtime', async () => {
   const capturedLookups = []
   const capturedPublishes = []
   const previous = setEditingRuntimePort({
@@ -315,7 +474,7 @@ test('system_artifact_upload_hls_stream passes projectId when resolving task art
   try {
     const result = await callTool('system_artifact_upload_hls_stream', {
       taskId: 'timeline_hls_1',
-      projectId: 'project-1',
+      mediaProjectId: 'project-1',
       title: 'Preview HLS',
     })
 
@@ -360,12 +519,12 @@ test('system_artifact_upload_hls_stream returns structured diagnostics for missi
   try {
     const missing = await callTool('system_artifact_upload_hls_stream', {
       taskId: 'missing_hls_task',
-      projectId: 'project-1',
+      mediaProjectId: 'project-1',
       title: 'Missing HLS',
     })
     assert.equal(missing.status, 'not_found')
     assert.equal(missing.task_id, 'missing_hls_task')
-    assert.match(missing.message, /projectId/)
+    assert.match(missing.message, /mediaProjectId/)
     assert.deepEqual(capturedLookups.at(-1), {
       taskId: 'missing_hls_task',
       options: { projectId: 'project-1' },
@@ -373,7 +532,7 @@ test('system_artifact_upload_hls_stream returns structured diagnostics for missi
 
     const pending = await callTool('system_artifact_upload_hls_stream', {
       taskId: 'timeline_render_1',
-      projectId: 'project-1',
+      mediaProjectId: 'project-1',
       title: 'Pending HLS',
     })
     assert.equal(pending.status, 'pending_output')

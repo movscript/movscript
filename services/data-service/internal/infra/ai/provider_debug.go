@@ -15,7 +15,7 @@ type ProviderDebugCallRequest struct {
 	// EndpointURL is the full API endpoint URL (e.g. https://api.openai.com/v1/images/generations).
 	// When set, Capability is inferred from the URL path. Takes precedence over Capability.
 	EndpointURL string
-	Capability  string // text | image | image_edit | video | video_i2v | video_v2v; inferred from EndpointURL if empty
+	Capability  string // text_generation | image_generation | video_generation | audio_generation; inferred from EndpointURL if empty
 	Model       string
 	Prompt      string
 	Params      map[string]any // capability-specific extra params (size, duration, aspect_ratio, etc.)
@@ -27,17 +27,17 @@ func inferCapabilityFromURL(rawURL string) string {
 	lower := strings.ToLower(rawURL)
 	if strings.Contains(lower, "image") {
 		if strings.Contains(lower, "edit") {
-			return CapabilityImageEdit
+			return CapabilityFamilyImageGeneration
 		}
-		return CapabilityImage
+		return CapabilityFamilyImageGeneration
 	}
 	if strings.Contains(lower, "video") {
 		if strings.Contains(lower, "i2v") || strings.Contains(lower, "image-to-video") {
-			return CapabilityVideoI2V
+			return CapabilityFamilyVideoGeneration
 		}
-		return CapabilityVideo
+		return CapabilityFamilyVideoGeneration
 	}
-	return CapabilityText
+	return CapabilityFamilyTextGeneration
 }
 
 // ProviderDebugCall executes a direct API call using caller-supplied credentials.
@@ -49,7 +49,7 @@ func ProviderDebugCall(ctx context.Context, req ProviderDebugCallRequest) DebugC
 		req.Capability = inferCapabilityFromURL(req.EndpointURL)
 	}
 	if req.Capability == "" {
-		req.Capability = CapabilityText
+		req.Capability = CapabilityFamilyTextGeneration
 	}
 
 	baseURL := req.BaseURL
@@ -85,7 +85,7 @@ func ProviderDebugCall(ctx context.Context, req ProviderDebugCallRequest) DebugC
 	dryRun := newDryRunProvider(req.AdapterType, req.APIKey, baseURL)
 
 	switch req.Capability {
-	case CapabilityImage, CapabilityImageEdit:
+	case CapabilityFamilyImageGeneration:
 		ireq := ImageRequest{
 			Model:              model,
 			Prompt:             prompt,
@@ -120,7 +120,7 @@ func ProviderDebugCall(ctx context.Context, req ProviderDebugCallRequest) DebugC
 		synthetic.Success = true
 		return synthetic
 
-	case CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V:
+	case CapabilityFamilyVideoGeneration:
 		vreq := VideoRequest{
 			Model:             model,
 			Prompt:            prompt,
@@ -217,6 +217,9 @@ func buildDebugAdapter(adapterType, apiKey, baseURL string) (Provider, error) {
 
 	case AdapterDashScope:
 		return NewDashScopeAdapter(apiKey, baseURL), nil
+
+	case AdapterVyroSeedance:
+		return NewVyroSeedanceAdapter(apiKey, baseURL), nil
 
 	case AdapterVidu:
 		return NewViduAdapter(apiKey, baseURL), nil

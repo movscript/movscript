@@ -3,18 +3,12 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   createMediaEditingProjectFromProductionTimelineClips,
-  createMediaEditingProjectFromTimelineAssemblyClips,
   createMediaEditingProjectFromMovScriptEditPlan,
   type MovScriptEditPlanArtifact,
 } from '@movscript/editing'
 import {
-  implicitTimelineAssemblyRef,
-  timelineAssemblyScopeFromContentUnitRecord,
-} from '@movscript/domain'
-import {
   MOVSCRIPT_INTERPRET_CURRENT_DIR,
   deriveMovScriptWorkspacePreviewTimelines,
-  deriveMovScriptWorkspaceTimelineAssemblyPreviewTimeline,
   queryMovScriptWorkspaceAssets,
   queryMovScriptWorkspaceEntities,
   queryMovScriptWorkspaceProductionContext,
@@ -52,16 +46,7 @@ export async function loadContentSourceWorkspaceSnapshotFromEngine(
   const legacyPreviewTimelines = deriveMovScriptWorkspacePreviewTimelines(index)
     .filter((timeline) => productionIds.has(String(timeline.productionId ?? timeline.productionPath)))
     .filter(isDefined) as WorkspacePreviewTimelineArtifact[]
-  const timelineAssemblyScopes = timelineAssemblyScopesFromContentUnits(contentUnits)
-  const assemblyPreviewTimelines = timelineAssemblyScopes
-    .map((scope) =>
-      deriveMovScriptWorkspaceTimelineAssemblyPreviewTimeline(index, {
-        scopeKind: scope.kind,
-        scopeRef: scope.ref,
-        targetRef: implicitTimelineAssemblyRef(scope.kind, scope.ref),
-      }) as WorkspacePreviewTimelineArtifact | undefined)
-    .filter(isDefined)
-  const previewTimelines = uniquePreviewTimelines([...legacyPreviewTimelines, ...assemblyPreviewTimelines])
+  const previewTimelines = uniquePreviewTimelines(legacyPreviewTimelines)
   const editingTimelines = (await Promise.all(
     sceneMoments.map(async (sceneMoment): Promise<ContentSourceWorkspaceEditingTimeline | undefined> => {
       const sceneMomentId = idField(sceneMoment.id ?? sceneMoment.record.id ?? sceneMoment.record.ID)
@@ -90,14 +75,6 @@ export async function loadContentSourceWorkspaceSnapshotFromEngine(
       productions,
     }),
   )
-  const assemblyEditingTimelines = assemblyPreviewTimelines.map((timeline) =>
-    timelineAssemblyTimelineFromPreview({
-      previewTimeline: timeline,
-      contentUnits,
-      documents: index.documents,
-    }),
-  )
-
   return {
     indexDocuments: index.documents,
     namespaceVocabulary: index.namespaceVocabulary,
@@ -115,7 +92,7 @@ export async function loadContentSourceWorkspaceSnapshotFromEngine(
     audioCues: context.audio_cues ?? [],
     contentUnits,
     previewTimelines,
-    editingTimelines: [...productionEditingTimelines, ...assemblyEditingTimelines, ...editingTimelines],
+    editingTimelines: [...productionEditingTimelines, ...editingTimelines],
     productionWorkPlan: productionWorkPlanFromReview(review),
   }
 }
@@ -203,100 +180,6 @@ function productionTimelineFromPreview(input: {
       clips,
     }),
   }
-}
-
-function timelineAssemblyTimelineFromPreview(input: {
-  previewTimeline: WorkspacePreviewTimelineArtifact
-  contentUnits: MovScriptWorkspaceIndexedEntity[]
-  documents: WorkspaceDocument[]
-}): ContentSourceWorkspaceEditingTimeline {
-  const candidateRecords = contentCandidateRecordsByContentUnitId(input.documents)
-  const selections = selectionRecordsByContentUnitId(input.documents)
-  const contentUnitsById = new Map(input.contentUnits.map((unit) => [String(unit.id ?? pathSegmentAfter(unit.path, 'content_units') ?? unit.path), unit]))
-  const blockers: unknown[] = []
-  const clips = input.previewTimeline.items
-    .filter((item) => item.itemType === 'scene_moment')
-    .sort((left, right) => left.order - right.order)
-    .flatMap((item, index) => {
-      const contentUnitIds = productionSceneMomentContentUnitIds(input.contentUnits, item)
-      if (contentUnitIds.length === 0) {
-        blockers.push({
-          code: 'scene_moment_content_unit_missing',
-          scene_moment_id: item.entity.id,
-          scene_moment_path: item.entity.path,
-        })
-        return []
-      }
-      for (const contentUnitId of contentUnitIds) {
-        const selection = selections.get(String(contentUnitId))
-        const candidate = selection?.candidate_id !== undefined
-          ? candidateRecords.get(String(contentUnitId))?.find((entry) => sameId(entry.id, selection.candidate_id))
-          : undefined
-        const output = firstCandidateOutput(candidate)
-        const resourceId = numberField(output?.resource_id)
-        if (resourceId !== undefined && (stringField(output?.kind) ?? 'video') === 'video') {
-          return [{
-            id: `assembly_clip_${safeId(String(item.entity.id ?? index))}_${safeId(String(contentUnitId))}`,
-            title: previewTimelineItemTitle(item) ?? stringField(item.entity.id) ?? `Scene ${index + 1}`,
-            sceneMomentId: item.entity.id,
-            sceneMomentPath: item.entity.path,
-            contentUnitId,
-            candidateId: selection?.candidate_id,
-            resourceId,
-            durationSec: numberField(output?.duration_sec) ?? 4,
-          }]
-        }
-        blockers.push({
-          code: selection?.candidate_id === undefined ? 'scene_moment_selection_missing' : 'scene_moment_resource_missing',
-          scene_moment_id: item.entity.id,
-          scene_moment_path: item.entity.path,
-          content_unit_id: contentUnitId,
-          candidate_id: selection?.candidate_id,
-          output_kind: stringField(contentUnitsById.get(String(contentUnitId))?.record.output_kind),
-        })
-      }
-      return []
-    })
-  const scopeKind = stringField(input.previewTimeline.scopeKind) ?? 'timeline'
-  const scopeRef = idField(input.previewTimeline.scopeRef) ?? input.previewTimeline.scopePath ?? input.previewTimeline.targetRef ?? 'unknown'
-  const targetRef = stringField(input.previewTimeline.targetRef) ?? implicitTimelineAssemblyRef(scopeKind, String(scopeRef))
-  const scopePath = stringField(input.previewTimeline.scopePath)
-  return {
-    targetKind: 'timeline_assembly',
-    targetId: targetRef,
-    targetRef,
-    targetPath: scopePath,
-    scopeKind,
-    scopeRef,
-    scopePath,
-    status: blockers.length > 0 ? 'blocked' : 'ready_to_compose',
-    blockers,
-    mediaEditingProject: createMediaEditingProjectFromTimelineAssemblyClips({
-      targetRef,
-      scopeKind,
-      scopeRef,
-      scopePath,
-      title: stringField(input.previewTimeline.scopeTitle) ?? `Timeline assembly ${scopeKind}:${String(scopeRef)}`,
-      clips,
-    }),
-  }
-}
-
-function timelineAssemblyScopesFromContentUnits(
-  contentUnits: MovScriptWorkspaceIndexedEntity[],
-): Array<{ kind: string; ref: string }> {
-  const seen = new Set<string>()
-  const output: Array<{ kind: string; ref: string }> = []
-  for (const contentUnit of contentUnits) {
-    const scope = timelineAssemblyScopeFromContentUnitRecord(contentUnit.record)
-    if (!scope) continue
-    const ref = String(scope.ref)
-    const key = `${scope.kind}:${ref}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    output.push({ kind: scope.kind, ref })
-  }
-  return output
 }
 
 function uniquePreviewTimelines(timelines: WorkspacePreviewTimelineArtifact[]): WorkspacePreviewTimelineArtifact[] {

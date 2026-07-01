@@ -5,7 +5,6 @@ import {
 } from '../layout/index.js'
 import {
   contentUnitTargetValidationDiagnostics,
-  implicitTimelineAssemblyRef,
   isContentUnitPromptRefKind,
   outputKindForContentUnitType,
   primaryRefFieldNameForKind,
@@ -69,11 +68,7 @@ function normalizeContentUnitRecord(
   const scopeKind = stringValue(unit.scope_kind ?? unit.scopeKind ?? current.scope_kind)
   const scopeRef = stringValue(unit.scope_ref ?? unit.scopeRef ?? current.scope_ref)
   const targetKind = stringValue(unit.target_kind ?? unit.targetKind ?? current.target_kind)
-    ?? (contentUnitType === 'timeline_assembly_ref' ? 'timeline_assembly' : undefined)
   const targetRef = stringValue(unit.target_ref ?? unit.targetRef ?? current.target_ref)
-    ?? (contentUnitType === 'timeline_assembly_ref' && scopeKind && scopeRef
-      ? implicitTimelineAssemblyRef(scopeKind, scopeRef)
-      : undefined)
 
   return pruneUndefined({
     ...stripWorkspacePrivateFields(current),
@@ -101,6 +96,8 @@ function normalizeContentUnitRecord(
     content_unit_ref: stringValue(unit.content_unit_ref ?? unit.contentUnitRef ?? current.content_unit_ref),
     voice_profile_ref: stringValue(unit.voice_profile_ref ?? unit.voiceProfileRef ?? current.voice_profile_ref),
     edit_prompt: normalizeEditPrompt(unit.edit_prompt ?? unit.editPrompt ?? unit.prompt ?? current.edit_prompt),
+    generation_references: normalizeGenerationReferences(unit.generation_references ?? unit.generationReferences ?? current.generation_references),
+    reference_assets: normalizeReferenceAssets(unit.reference_assets ?? unit.referenceAssets ?? current.reference_assets),
     model_intent: isRecord(unit.model_intent ?? unit.modelIntent) ? unit.model_intent ?? unit.modelIntent : current.model_intent,
     ...(unit.__delete === true ? { __delete: true } : {}),
   })
@@ -150,6 +147,42 @@ function parseContentUnitEditPromptRefs(value: unknown): PromptRef[] {
     ...parsePromptRefsFromText(stringValue(editPrompt.negative_text)),
     ...parsePromptRefsFromText(stringValue(editPrompt.notes)),
   ]
+}
+
+function normalizeGenerationReferences(value: unknown): Record<string, unknown>[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const refs = value.flatMap((item): Record<string, unknown>[] => {
+    if (!isRecord(item)) return []
+    const ref = pruneUndefined({
+      id: stringValue(item.id),
+      kind: stringValue(item.kind ?? item.ref_kind ?? item.refKind ?? item.type),
+      ref: stringValue(item.ref ?? item.target_ref ?? item.targetRef ?? item.source_ref ?? item.sourceRef) ?? finiteNumber(item.ref),
+      raw: stringValue(item.raw),
+      resource_id: finiteNumber(item.resource_id ?? item.resourceId),
+      media_type: stringValue(item.media_type ?? item.mediaType),
+      role: stringValue(item.role),
+      source_ref: stringValue(item.source_ref ?? item.sourceRef),
+      label: stringValue(item.label ?? item.title),
+      source: stringValue(item.source),
+    })
+    return Object.keys(ref).length > 0 ? [ref] : []
+  })
+  return refs.length > 0 ? refs : undefined
+}
+
+function normalizeReferenceAssets(value: unknown): Record<string, unknown>[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const refs = value.flatMap((item): Record<string, unknown>[] => {
+    if (!isRecord(item)) return []
+    const ref = pruneUndefined({
+      role: stringValue(item.role),
+      media_type: stringValue(item.media_type ?? item.mediaType),
+      resource_id: finiteNumber(item.resource_id ?? item.resourceId),
+      source_ref: stringValue(item.source_ref ?? item.sourceRef),
+    })
+    return ref.role && ref.media_type && ref.resource_id ? [ref] : []
+  })
+  return refs.length > 0 ? refs : undefined
 }
 
 function parsePromptRefsFromText(text: string | undefined): PromptRef[] {

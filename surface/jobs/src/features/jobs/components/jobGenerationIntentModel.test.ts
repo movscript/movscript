@@ -10,9 +10,9 @@ import {
 } from './jobGenerationIntentModel'
 
 test('job generation category prefers explicit capability operation intent', () => {
-  const firstLast = job({
-    ID: 1,
-    job_type: 'videoI2V',
+	const firstLast = job({
+		ID: 1,
+		job_type: 'video',
     request_context: JSON.stringify({
       intent: {
         capability: 'video_generation',
@@ -20,9 +20,9 @@ test('job generation category prefers explicit capability operation intent', () 
       },
     }),
   })
-  const reference = job({
-    ID: 2,
-    job_type: 'videoI2V',
+	const reference = job({
+		ID: 2,
+		job_type: 'video',
     request_context: JSON.stringify({
       intent: {
         capability: 'video_generation',
@@ -30,14 +30,14 @@ test('job generation category prefers explicit capability operation intent', () 
       },
     }),
   })
-  const legacy = job({ ID: 3, job_type: 'videoI2V' })
+	const legacy = job({ ID: 3, job_type: 'video' })
 
   assert.deepEqual(jobGenerationIntent(firstLast), {
     capability: 'video_generation',
     operation: 'first_last_frame_to_video',
   })
   assert.equal(jobGenerationCategory(firstLast), 'video_generation:first_last_frame_to_video')
-  assert.equal(jobGenerationCategory(legacy), 'videoI2V')
+	assert.equal(jobGenerationCategory(legacy), 'video')
   assert.deepEqual(
     filterJobs([firstLast, reference, legacy], 'video_generation:first_last_frame_to_video').map((item) => item.ID),
     [1],
@@ -49,15 +49,15 @@ test('job generation category prefers explicit capability operation intent', () 
 })
 
 test('job generation display and cancellation use capability semantics', () => {
-  const imageTypedAsVideo = job({
-    job_type: 'videoI2V',
-    request_context: JSON.stringify({
-      intent: {
-        capability: 'image_generation',
-        operation: 'image_to_image',
-      },
-    }),
-  })
+	const imageTypedAsVideo = job({
+		job_type: 'video',
+		request_context: JSON.stringify({
+			intent: {
+				capability: 'image_generation',
+				operation: 'reference_to_image',
+			},
+		}),
+	})
   const videoTypedAsImage = job({
     job_type: 'image',
     request_context: JSON.stringify({
@@ -67,14 +67,14 @@ test('job generation display and cancellation use capability semantics', () => {
       },
     }),
   })
-  const t = ((key: string, options?: { defaultValue?: string }) => {
-    if (key === 'pages.jobs.operations.reference_to_video') return '全能参考生视频'
-    if (key === 'pages.jobs.operations.image_to_image') return '图生图'
-    return options?.defaultValue ?? key
-  }) as Parameters<typeof jobGenerationDisplay>[1]
+	const t = ((key: string, options?: { defaultValue?: string }) => {
+		if (key === 'pages.jobs.operations.reference_to_video') return '全能参考生视频'
+		if (key === 'pages.jobs.operations.reference_to_image') return '参考生图'
+		return options?.defaultValue ?? key
+	}) as Parameters<typeof jobGenerationDisplay>[1]
 
-  assert.equal(jobGenerationDisplay(videoTypedAsImage, t), '全能参考生视频')
-  assert.equal(jobGenerationDisplay(imageTypedAsVideo, t), '图生图')
+	assert.equal(jobGenerationDisplay(videoTypedAsImage, t), '全能参考生视频')
+	assert.equal(jobGenerationDisplay(imageTypedAsVideo, t), '参考生图')
   assert.equal(jobIsVideoGeneration(videoTypedAsImage), true)
   assert.equal(jobIsVideoGeneration(imageTypedAsVideo), false)
 })

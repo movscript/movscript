@@ -24,10 +24,11 @@ func TestAIServiceUsageGovernorContractSettlesReservation(t *testing.T) {
 	seedEnterpriseUsageWallet(t, db, 7)
 	createTextProviderVariant(t, db, 1, "Usage provider")
 	usageEntry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "usage-writer",
-		DisplayName:   "Usage Writer",
-		IsEnabled:     true,
-		Capabilities:  CapabilityText,
+		PublicModelID:         "usage-writer",
+		DisplayName:           "Usage Writer",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyTextGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
 	}
 	if err := db.Create(&usageEntry).Error; err != nil {
 		t.Fatalf("create usage catalog entry: %v", err)
@@ -36,16 +37,16 @@ func TestAIServiceUsageGovernorContractSettlesReservation(t *testing.T) {
 		CatalogEntryID: usageEntry.ID,
 		SourceType:     persistencemodel.ModelRouteSourceRelayGateway,
 		RouteGroup:     "default",
+		AdapterType:    AdapterOpenAICompat,
 		IsEnabled:      true,
-		CapacityWeight: 1,
-	}).Error; err != nil {
+		CapacityWeight: 1}).Error; err != nil {
 		t.Fatalf("create usage route binding: %v", err)
 	}
 	service := NewAIService(db, NewRegistry(db, nil))
 
 	estimate, err := service.EstimateTextGatewayUsage(context.Background(), providercontract.AIGatewayRouteRequest{
 		ModelID:    "usage-writer",
-		Capability: CapabilityText,
+		Capability: CapabilityFamilyTextGeneration,
 	}, providercontract.TextRequest{
 		Messages:  []providercontract.Message{{Role: "user", Content: "hello"}},
 		MaxTokens: 8,
@@ -138,10 +139,11 @@ func TestAIServiceUsageGovernorEstimateUsesCatalogRouteWithoutLegacyModelConfigT
 		t.Fatal("catalog route usage estimate test should not create legacy provider tables")
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "writer",
-		DisplayName:   "Writer",
-		IsEnabled:     true,
-		Capabilities:  CapabilityText,
+		PublicModelID:         "writer",
+		DisplayName:           "Writer",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyTextGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -150,16 +152,16 @@ func TestAIServiceUsageGovernorEstimateUsesCatalogRouteWithoutLegacyModelConfigT
 		CatalogEntryID: entry.ID,
 		SourceType:     persistencemodel.ModelRouteSourceRelayGateway,
 		RouteGroup:     "default",
+		AdapterType:    AdapterOpenAICompat,
 		IsEnabled:      true,
-		CapacityWeight: 1,
-	}).Error; err != nil {
+		CapacityWeight: 1}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
 	service := NewAIService(db, NewRegistry(db, nil))
 
 	estimate, err := service.EstimateTextGatewayUsage(context.Background(), providercontract.AIGatewayRouteRequest{
 		ModelID:    "writer",
-		Capability: CapabilityText,
+		Capability: CapabilityFamilyTextGeneration,
 	}, providercontract.TextRequest{
 		Messages:  []providercontract.Message{{Role: "user", Content: "hello"}},
 		MaxTokens: 100,
@@ -262,17 +264,17 @@ func TestAIServiceGovernancePolicyContractEvaluatesBudgetedRoute(t *testing.T) {
 		&persistencemodel.AIModelCatalogEntry{},
 		&persistencemodel.AIModelRouteBinding{},
 	)
-	createCatalogRouteVariantWithCost(t, db, 40, "Expensive provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-expensive", 20, 10, 0, CapabilityText)
-	createCatalogRouteVariantWithCost(t, db, 41, "Budget provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-budget", 1, 1, 0, CapabilityText)
+	createCatalogRouteVariantWithCost(t, db, 40, "Expensive provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-expensive", 20, 10, 0, CapabilityFamilyTextGeneration)
+	createCatalogRouteVariantWithCost(t, db, 41, "Budget provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-budget", 1, 1, 0, CapabilityFamilyTextGeneration)
 	service := NewAIService(db, NewRegistry(db, nil))
 
 	decision, err := service.EvaluateGatewayGovernance(context.Background(), providercontract.AIGatewayGovernanceRequest{
 		UserID: 7,
 		Route: providercontract.AIGatewayRouteRequest{
 			ModelID:    "gpt-5.2",
-			Capability: CapabilityText,
+			Capability: CapabilityFamilyTextGeneration,
 			EstimatedUsage: providercontract.AIUsageEstimate{
-				OperationType: CapabilityText,
+				OperationType: CapabilityFamilyTextGeneration,
 				InputTokens:   1_000_000,
 			},
 		},
@@ -406,11 +408,12 @@ func TestAIServiceHealthProbeContractPingsProviderAndListsRuntimeHealth(t *testi
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		Model:         gorm.Model{ID: 2},
-		PublicModelID: "writer",
-		DisplayName:   "Writer",
-		IsEnabled:     true,
-		Capabilities:  CapabilityText,
+		Model:                 gorm.Model{ID: 2},
+		PublicModelID:         "writer",
+		DisplayName:           "Writer",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyTextGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -418,11 +421,11 @@ func TestAIServiceHealthProbeContractPingsProviderAndListsRuntimeHealth(t *testi
 	binding := persistencemodel.AIModelRouteBinding{
 		CatalogEntryID: entry.ID,
 		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
+		AdapterType:    cred.AdapterType,
 		CredentialID:   &cred.ID,
 		IsEnabled:      true,
 		Priority:       10,
-		CapacityWeight: 1,
-	}
+		CapacityWeight: 1}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
@@ -465,10 +468,11 @@ func TestAIServiceHealthProbeUsesCatalogRouteWithoutLegacyModelConfigTable(t *te
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "writer",
-		DisplayName:   "Writer",
-		IsEnabled:     true,
-		Capabilities:  CapabilityText,
+		PublicModelID:         "writer",
+		DisplayName:           "Writer",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyTextGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -476,11 +480,11 @@ func TestAIServiceHealthProbeUsesCatalogRouteWithoutLegacyModelConfigTable(t *te
 	binding := persistencemodel.AIModelRouteBinding{
 		CatalogEntryID: entry.ID,
 		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
+		AdapterType:    cred.AdapterType,
 		CredentialID:   &cred.ID,
 		IsEnabled:      true,
 		Priority:       10,
-		CapacityWeight: 1,
-	}
+		CapacityWeight: 1}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
@@ -489,7 +493,7 @@ func TestAIServiceHealthProbeUsesCatalogRouteWithoutLegacyModelConfigTable(t *te
 	probe, err := service.ProbeGatewayProvider(context.Background(), providercontract.AIGatewayProviderProbeRequest{
 		Route: providercontract.AIGatewayRouteRequest{
 			ModelID:    "writer",
-			Capability: CapabilityText,
+			Capability: CapabilityFamilyTextGeneration,
 		},
 	})
 	if err != nil {
@@ -498,7 +502,7 @@ func TestAIServiceHealthProbeUsesCatalogRouteWithoutLegacyModelConfigTable(t *te
 	if !probe.Success || probe.Health.Status != providercontract.HealthStatusOK || probe.Health.Adapter != AdapterLocal {
 		t.Fatalf("probe = %#v, want successful catalog route local provider ping", probe)
 	}
-	if len(probe.Health.Capabilities) != 1 || probe.Health.Capabilities[0] != CapabilityText {
+	if len(probe.Health.Capabilities) != 1 || probe.Health.Capabilities[0] != CapabilityFamilyTextGeneration {
 		t.Fatalf("probe capabilities = %#v, want catalog route text capability", probe.Health.Capabilities)
 	}
 }
@@ -518,7 +522,7 @@ func TestAIServiceHealthProbeDoesNotUseLegacyModelConfigRoute(t *testing.T) {
 	service := NewAIService(db, NewRegistry(db, nil))
 
 	probe, err := service.ProbeGatewayProvider(context.Background(), providercontract.AIGatewayProviderProbeRequest{
-		Route: providercontract.AIGatewayRouteRequest{Capability: CapabilityText},
+		Route: providercontract.AIGatewayRouteRequest{Capability: CapabilityFamilyTextGeneration},
 	})
 	if err != nil {
 		t.Fatalf("ProbeGatewayProvider(legacy route) returned hard error = %v", err)
@@ -547,16 +551,18 @@ func TestAIServiceRuntimeHealthUsesCatalogRoutesWithoutLegacyModelConfigTable(t 
 		t.Fatalf("create credential: %v", err)
 	}
 	localEntry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "writer",
-		DisplayName:   "Writer",
-		IsEnabled:     true,
-		Capabilities:  CapabilityText,
+		PublicModelID:         "writer",
+		DisplayName:           "Writer",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyTextGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
 	}
 	relayGatewayEntry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "priority-writer",
-		DisplayName:   "Priority Writer",
-		IsEnabled:     true,
-		Capabilities:  CapabilityText,
+		PublicModelID:         "priority-writer",
+		DisplayName:           "Priority Writer",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyTextGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
 	}
 	if err := db.Create(&localEntry).Error; err != nil {
 		t.Fatalf("create local entry: %v", err)
@@ -567,23 +573,23 @@ func TestAIServiceRuntimeHealthUsesCatalogRoutesWithoutLegacyModelConfigTable(t 
 	localBinding := persistencemodel.AIModelRouteBinding{
 		CatalogEntryID:  localEntry.ID,
 		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		AdapterType:     cred.AdapterType,
 		ProviderModelID: "provider-writer-v2",
 		CredentialID:    &cred.ID,
 		IsEnabled:       true,
 		Priority:        5,
 		CapacityWeight:  2,
-		MaxConcurrency:  3,
-	}
+		MaxConcurrency:  3}
 	relayGatewayBinding := persistencemodel.AIModelRouteBinding{
 		CatalogEntryID:  relayGatewayEntry.ID,
 		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
 		RouteGroup:      "priority",
+		AdapterType:     AdapterOpenAICompat,
 		ProviderModelID: "relay-writer-v2",
 		IsEnabled:       true,
 		Priority:        10,
 		CapacityWeight:  4,
-		MaxConcurrency:  0,
-	}
+		MaxConcurrency:  0}
 	if err := db.Create(&localBinding).Error; err != nil {
 		t.Fatalf("create local binding: %v", err)
 	}
@@ -604,8 +610,8 @@ func TestAIServiceRuntimeHealthUsesCatalogRoutesWithoutLegacyModelConfigTable(t 
 	if health[0].CatalogEntryID != relayGatewayEntry.ID || health[0].RouteBindingID != relayGatewayBinding.ID || health[0].ModelID != "priority-writer" || health[0].ModelDefID != "relay-writer-v2" {
 		t.Fatalf("relay gateway health = %#v, want catalog route row first by priority", health[0])
 	}
-	if health[0].AdapterType != persistencemodel.ModelRouteSourceRelayGateway || health[0].ProviderName != "priority" || health[0].CapacityWeight != 4 || health[0].Successes != 1 {
-		t.Fatalf("relay gateway health metadata = %#v, want route group/source/capacity/state", health[0])
+	if health[0].AdapterType != AdapterOpenAICompat || health[0].ProviderName != "priority" || health[0].CapacityWeight != 4 || health[0].Successes != 1 {
+		t.Fatalf("relay gateway health metadata = %#v, want route adapter/group/capacity/state", health[0])
 	}
 	if health[1].CatalogEntryID != localEntry.ID || health[1].RouteBindingID != localBinding.ID || health[1].AdapterType != AdapterOpenAICompat || health[1].ProviderName != "Local catalog provider" {
 		t.Fatalf("local provider health = %#v, want credential-backed catalog route", health[1])

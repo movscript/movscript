@@ -201,50 +201,6 @@ export async function createContentUnitFromSceneMoment(
   }
 }
 
-export async function createTimelineAssemblyFromNamespace(
-  projectId: number,
-  namespaceNode: ContentCanvasNode,
-  gateway: ContentCanvasWorkspaceGateway,
-): Promise<ContentCanvasCommandResult> {
-  void projectId
-  if (namespaceNode.domainCategory !== 'timeline_namespace') {
-    throw new Error('只有时间线 namespace 节点可以创建剪辑聚合')
-  }
-  const scopeKind = timelineScopeKindForNode(namespaceNode)
-  const scopeRef = namespaceNode.entityKey
-  const safeScopeKind = safeToken(scopeKind)
-  const safeScopeRef = safeToken(scopeRef)
-  const id = `cu_assembly_${safeScopeKind}_${safeScopeRef}`
-  const result = await gateway.ensureContentUnitForEntity({
-    targetKind: 'timeline_assembly',
-    scopeKind,
-    scopeRef,
-    id,
-    title: `${namespaceNode.title} 剪辑聚合`,
-    contentUnitType: 'timeline_assembly_ref',
-    outputKind: 'video',
-    description: `从时间线范围「${namespaceNode.title}」创建剪辑聚合。`,
-    prompt: `汇总时间线范围「${namespaceNode.title}」下已确认的情节与素材，生成可审阅的剪辑聚合视频。`,
-    modelIntent: {
-      source: 'content_canvas',
-      namespace_node_id: namespaceNode.id,
-      namespace_node_kind: namespaceNode.domainKind ?? namespaceNode.kind,
-      namespace_node_path: namespaceNode.sourcePath,
-      scope_kind: scopeKind,
-      scope_ref: scopeRef,
-    },
-  })
-  const contentUnitId = String(result.record.id ?? id)
-  const createdId = `content_unit:${contentUnitId}`
-  return {
-    changedNodeIds: [createdId],
-    affectedNodeIds: [namespaceNode.id, createdId],
-    focusNodeId: createdId,
-    nodePositions: { [createdId]: suggestedContentCanvasChildNodePosition(namespaceNode, 1) },
-    message: '已确保剪辑聚合创作片段',
-  }
-}
-
 export type DefaultContentCanvasContentUnitDraft = {
   id: string
   refKind: 'asset' | 'scene_moment' | 'expression_unit' | 'keyframe' | 'storyboard'
@@ -370,6 +326,11 @@ export async function updateContentUnitPromptFromCanvas(
   contentUnitNode: ContentCanvasNode,
   promptText: string,
   gateway: ContentCanvasWorkspaceGateway,
+  options: {
+    generationReferences?: Array<Record<string, unknown>>
+    referenceAssets?: Array<Record<string, unknown>>
+    modelIntent?: Record<string, unknown>
+  } = {},
 ): Promise<ContentCanvasCommandResult> {
   assertNodeKind(contentUnitNode, 'content_unit', '创作片段')
   if (!contentUnitNode.sourcePath) {
@@ -378,6 +339,9 @@ export async function updateContentUnitPromptFromCanvas(
   await gateway.service.updateContentUnitEditPrompt({
     targetPath: contentUnitNode.sourcePath,
     editPrompt: { text: promptText },
+    ...(options.generationReferences !== undefined ? { generationReferences: options.generationReferences } : {}),
+    ...(options.referenceAssets !== undefined ? { referenceAssets: options.referenceAssets } : {}),
+    ...(options.modelIntent !== undefined ? { modelIntent: options.modelIntent } : {}),
   })
   await syncContentCanvasWorkspaceAfterContentUnitPromptUpdate(projectId, gateway)
   return {

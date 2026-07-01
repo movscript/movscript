@@ -18,7 +18,6 @@ test('agent model contract summary strips route provider and adapter details', (
     adapter_type: 'yunwu_unified_video',
     endpoint_base_url: 'https://yunwu.ai',
     endpoint_path_prefix: '/v1',
-    operation_profile: 'generation',
     credential_id: 56,
     route_bindings: [
       {
@@ -41,9 +40,45 @@ test('agent model contract summary strips route provider and adapter details', (
     'adapter_type',
     'endpoint_base_url',
     'endpoint_path_prefix',
-    'operation_profile',
     'credential_id',
   ]) {
     assert.equal(serialized.includes(forbidden), false, `summary leaked ${forbidden}: ${serialized}`)
   }
+})
+
+test('agent model contract summary exposes v2 operation-scoped params', () => {
+  const summary = summarizeModelContractForAgent({
+    model_id: 'video-public',
+    capabilities: ['video_generation'],
+    operations: ['prompt_to_video', 'image_to_video'],
+    supported_params_by_operation: {
+      prompt_to_video: [{ key: 'duration', label: 'Duration', type: 'number', min: 1, max: 10 }],
+      image_to_video: [{ key: 'prompt_strength', label: 'Prompt strength', type: 'number', min: 0, max: 1 }],
+    },
+    params_schema_by_operation: {
+      prompt_to_video: {
+        type: 'object',
+        properties: {
+          duration: { type: 'number', minimum: 1, maximum: 10 },
+        },
+      },
+      image_to_video: {
+        type: 'object',
+        properties: {
+          prompt_strength: { type: 'number', minimum: 0, maximum: 1 },
+        },
+      },
+    },
+  })
+
+  assert.equal(summary.contract_version, 2)
+  assert.deepEqual(summary.operations, ['image_to_video', 'prompt_to_video'])
+  assert.deepEqual(summary.supported_param_keys_by_operation, {
+    image_to_video: ['prompt_strength'],
+    prompt_to_video: ['duration'],
+  })
+  assert.deepEqual(summary.params_schema_loaded_by_operation, {
+    image_to_video: true,
+    prompt_to_video: true,
+  })
 })

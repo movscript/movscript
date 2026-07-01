@@ -3,17 +3,20 @@ import type { JSONValue } from './protocolJson.js'
 export const MEDIA_ARTIFACTS_V1_SCHEMA = 'movscript.media.artifacts.v1'
 export const MEDIA_PROVIDER_CONTRACT_V1_SCHEMA = 'movscript.media.provider_contract.v1'
 
-export type MediaTimingSource = 'tts_timing' | 'forced_align' | 'stt' | 'manual'
-export type MediaPipelineCapability =
-  | 'audio_tts'
-  | 'audio_transcribe'
-  | 'audio_translate'
-  | 'audio_music'
-  | 'audio_sfx'
+export type MediaTimingSource = 'speech_timing' | 'forced_alignment' | 'speech_to_text' | 'manual'
+export type MediaPipelineCapability = 'audio_generation'
+export type AudioGenerationOperation =
+  | 'text_to_speech'
+  | 'speech_to_text'
+  | 'speech_translate'
+  | 'speech_to_speech'
   | 'voice_clone'
   | 'voice_design'
-  | 'subtitle_align'
-  | 'subtitle_translate'
+  | 'dubbing'
+  | 'music_generation'
+  | 'sound_effect_generation'
+  | 'voice_isolation'
+  | 'forced_alignment'
 export type SubtitleFormat = 'srt' | 'vtt' | 'ass' | 'json'
 export type AudioFormat = 'mp3' | 'wav' | 'aac' | 'opus' | 'flac'
 export type RenderOutputFormat = 'mp4' | 'mov' | 'webm'
@@ -54,6 +57,7 @@ export interface MediaModelContract {
 
 export interface MediaCapabilityContract {
   capability: MediaPipelineCapability
+  operation?: AudioGenerationOperation
   models: MediaModelContract[]
 }
 

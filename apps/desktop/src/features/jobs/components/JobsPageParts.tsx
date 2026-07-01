@@ -34,10 +34,8 @@ type Category = {
 export const CATEGORIES: Category[] = [
   { key: 'all', labelKey: 'common.all', icon: <Wand2 size={14} /> },
   { key: 'image', labelKey: 'pages.jobs.categories.image', icon: <ImageIcon size={14} /> },
-  { key: 'image_edit', labelKey: 'pages.jobs.categories.imageEdit', icon: <ImageIcon size={14} /> },
   { key: 'video', labelKey: 'pages.jobs.categories.video', icon: <Video size={14} /> },
-  { key: 'video_i2v', labelKey: 'pages.jobs.categories.videoI2V', icon: <Video size={14} /> },
-  { key: 'video_v2v', labelKey: 'pages.jobs.categories.videoV2V', icon: <Video size={14} /> },
+  { key: 'audio', labelKey: 'pages.jobs.categories.audio', icon: <Wand2 size={14} /> },
   { key: 'canvas', labelKey: 'header.titles.canvases', icon: <LayoutGrid size={14} /> },
 ]
 

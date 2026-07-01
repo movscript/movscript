@@ -20,7 +20,7 @@ type ModelInputs struct {
 }
 
 func textRuntimeCapabilities() []string {
-	return []string{CapabilityText, CapabilityReasoning}
+	return []string{CapabilityFamilyTextGeneration, CapabilityReasoning}
 }
 
 func modelInputsForDef(def *ModelDef) ModelInputs {
@@ -155,7 +155,7 @@ func (s *AIService) PreflightGenerationRoute(ctx context.Context, userID uint, r
 	}); err != nil {
 		return GenerationPreflightResult{}, err
 	}
-	params, err := ValidateAndNormalizeGenerationParams(definition.def, req.OutputType, req.ExtraParams, req.AspectRatio, req.Duration)
+	params, err := ValidateAndNormalizeGenerationParamsForOperation(definition.def, req.OutputType, req.Route.Operation, req.ExtraParams, req.AspectRatio, req.Duration)
 	if err != nil {
 		return GenerationPreflightResult{}, err
 	}

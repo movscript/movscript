@@ -178,7 +178,7 @@
     "cloudApiTitle": "Service API",
     "cloudApiHint": "Login, assets, projects, and agent requests will use this service.",
     "apiBaseURL": "Service API URL",
-    "apiBaseURLHelp": "Cloud or external services can use https://api.example.com. Frontend-managed local mode uses http://localhost:8766.",
+    "apiBaseURLHelp": "Cloud or team services can use https://api.example.com. Desktop local mode uses the daemon gateway automatically.",
     "currentApi": "Current API",
     "effectiveEndpoint": "Effective endpoint",
     "invalidURL": "Enter a URL that starts with http:// or https://.",
@@ -803,11 +803,9 @@
     },
     "jobs": {
       "categories": {
-        "image": "Text to Image",
-        "imageEdit": "Reference Image",
-        "video": "Text to Video",
-        "videoI2V": "Reference Video",
-        "videoV2V": "Video Transfer"
+        "image": "Image",
+        "video": "Video",
+        "audio": "Audio"
       },
       "status": {
         "pending": "Queued",
@@ -1625,11 +1623,8 @@
       "video": "Video",
       "audio": "Audio",
       "canvas": "Canvas Reference",
-      "ref_image_gen": "Reference Image",
-      "ref_video_gen": "Reference Video",
-      "multi_angle": "Multi-angle Image",
-      "style_transfer": "Style Transfer",
-      "motion_imitation": "Motion Imitation",
+      "reference_to_image": "Reference to Image",
+      "reference_to_video": "Reference to Video",
       "input": "Input",
       "output": "Output",
       "resource_sink": "Save Resource",
@@ -1720,25 +1715,13 @@
           "label": "AI Text Generation",
           "description": "Expand, summarize, or rewrite from upstream content."
         },
-        "ref_image_gen": {
-          "label": "Reference Image",
-          "description": "Generate a new visual direction from reference images."
+        "reference_to_image": {
+          "label": "Reference to Image",
+          "description": "Generate or edit an image from reference media."
         },
-        "ref_video_gen": {
-          "label": "Reference Video",
-          "description": "Generate video from reference media."
-        },
-        "multi_angle": {
-          "label": "Multi-angle Image",
-          "description": "Generate multi-angle views from a character or object image."
-        },
-        "style_transfer": {
-          "label": "Style Transfer",
-          "description": "Transfer a reference style to target media."
-        },
-        "motion_imitation": {
-          "label": "Motion Imitation",
-          "description": "Make the target character imitate reference motion."
+        "reference_to_video": {
+          "label": "Reference to Video",
+          "description": "Generate or edit a video from reference media."
         },
         "canvas": {
           "label": "Canvas Reference",
@@ -1956,12 +1939,8 @@
       "selectOrUploadHint": "Select from the resource library on the left, or upload below",
       "slots": {
         "ref_images": "Reference images (optional)",
-        "ref_video": "Reference video (optional)",
         "target_images": "Target images",
-        "motion_video": "Motion video",
-        "target_image": "Image to edit",
-        "style_images": "Style images",
-        "source_image": "Multi-angle image"
+        "target_image": "Image to edit"
       }
     },
     "genResult": {
@@ -2038,31 +2017,16 @@
       "response": "Response",
       "adapterError": "Adapter Error"
     },
-    "defs": {
-      "refImageGen": {
-        "name": "Reference Image",
-        "description": "Generate a new image from a reference image.",
-        "promptPlaceholder": "Describe the image you want to generate... Type @ to reference images from the resource library"
+    "operations": {
+      "referenceToImage": {
+        "name": "Reference to Image",
+        "description": "Generate a new image from one or more reference images.",
+        "promptPlaceholder": "Describe what to preserve and what should change... Type @ to reference images from the resource library"
       },
-      "refVideoGen": {
-        "name": "Reference Video",
-        "description": "Generate a new video from reference video.",
-        "promptPlaceholder": "Describe the video you want to generate... Type @ to reference images or videos from the resource library"
-      },
-      "motionImitation": {
-        "name": "Motion Imitation",
-        "description": "Transfer motion from a reference video to the target character and generate a new motion video.",
-        "promptPlaceholder": "(Optional) Describe the target character's appearance. AI will transfer the reference video's motion to that character... Type @ to reference images or videos from the resource library"
-      },
-      "multiAngle": {
-        "name": "Multi-angle",
-        "description": "Generate multiple angle views of a character or object from a single image.",
-        "promptPlaceholder": "Describe the angles or viewpoints you want to generate... Type @ to reference images from the resource library"
-      },
-      "styleTransfer": {
-        "name": "Style Transfer",
-        "description": "Transfer the reference image's art style onto the content image and generate a new stylized image.",
-        "promptPlaceholder": "Describe the target content. AI will redraw it using the reference image's style... Type @ to reference images from the resource library"
+      "referenceToVideo": {
+        "name": "Reference to Video",
+        "description": "Generate video using images, video, or audio as references.",
+        "promptPlaceholder": "Describe the clip, character action, camera, and sound references... Type @ to reference images, videos, or audio"
       }
     }
   },
@@ -2272,26 +2236,57 @@
       "text": "Text",
       "reasoning": "Reasoning",
       "image": "Image",
-      "imageEdit": "Image Edit",
-      "video": "Text to Video",
-      "videoI2V": "Image to Video",
-      "videoV2V": "Video to Video",
+      "video": "Video",
       "audio": "Audio",
-      "audioTTS": "Text to Speech",
-      "audioTranscribe": "Transcription",
-      "audioTranslate": "Audio Translation",
-      "audioMusic": "Music",
-      "audioSfx": "Sound Effects",
-      "audioChat": "Voice Chat / Omni",
-      "voiceClone": "Voice Clone",
-      "voiceDesign": "Voice Design",
-      "subtitleAlign": "Subtitle Alignment",
-      "subtitleTranslate": "Subtitle Translation"
+      "textGeneration": "Text Generation",
+      "imageGeneration": "Image Generation",
+      "videoGeneration": "Video Generation",
+      "audioGeneration": "Audio Generation",
+      "embedding": "Embedding",
+      "rerank": "Rerank",
+      "moderation": "Moderation"
+    },
+    "modelOperations": {
+      "chat": "Chat",
+      "responses": "Responses",
+      "agent_task": "Agent Task",
+      "text_to_image": "Text to Image",
+      "reference_to_image": "Reference to Image",
+      "edit_image": "Edit Image",
+      "inpaint": "Inpaint",
+      "outpaint": "Outpaint",
+      "variation": "Variation",
+      "upscale_image": "Upscale Image",
+      "prompt_to_video": "Text to Video",
+      "image_to_video": "Image to Video",
+      "first_frame_to_video": "First Frame to Video",
+      "first_last_frame_to_video": "First and Last Frame to Video",
+      "reference_to_video": "Reference to Video",
+      "edit_video": "Edit Video",
+      "extend_video": "Extend Video",
+      "upscale_video": "Upscale Video",
+      "text_to_speech": "Text to Speech",
+      "speech_to_text": "Speech to Text",
+      "speech_translate": "Speech Translate",
+      "speech_to_speech": "Speech to Speech",
+      "voice_clone": "Voice Clone",
+      "voice_design": "Voice Design",
+      "dubbing": "Dubbing",
+      "music_generation": "Music Generation",
+      "sound_effect_generation": "Sound Effect Generation",
+      "voice_isolation": "Voice Isolation",
+      "forced_alignment": "Forced Alignment",
+      "embed": "Embed",
+      "rerank": "Rerank",
+      "moderate": "Moderation"
     },
     "params": {
       "title": "Generation Parameters",
       "add": "Add Parameter",
       "empty": "No generation parameters configured. After adding them, users will see matching selects, number inputs, or toggles in the generation panel.",
+      "operationBuilderHint": "Maintain model parameter contracts per operation. The adapter translates canonical params into provider requests.",
+      "noOperations": "Select operations in model capabilities first.",
+      "emptyOperation": "This operation has no model parameter overrides. Leaving it empty inherits adapter defaults for the operation.",
       "abstractParam": "Abstract Parameter",
       "displayName": "Display Name",
       "displayNamePlaceholder": "Video duration",
@@ -2404,13 +2399,16 @@
       "viewCatalog": "Models",
       "providersHint": "Manage Provider instances, Base URL prefixes, keys, capabilities, and connection tests here; model identity and route policy are maintained outside Provider.",
       "relayGatewayProvidersHint": "Commercial relay gateway forwarding is active. Enterprise Admin only displays relay access status; provider setup stays in the external gateway, model identity stays in Catalog, and route policy stays in Route.",
-      "catalogHint": "Catalog Entries are the model records MovScript recognizes. Catalog can import model IDs from Provider and maintains capabilities, parameters, and input constraints, not route bindings.",
+      "catalogHint": "Catalog Entries are the model records MovScript recognizes. Catalog can import model IDs from Provider and maintains capabilities and parameter contracts, not route bindings.",
       "routesHint": "Maintain route policy for the Catalog layer here. Provider and relay gateway candidates at the same priority rotate, avoid saturated routes, and fail over on errors.",
-      "routeMatrixTitle": "Route Resolution Table",
-      "routeMatrixHint": "Grouped by Public Model ID + Route Group, showing the provider candidates the runtime can choose from.",
+      "routePoolTitle": "Route Pools",
+      "routeMatrixTitle": "Route Pools",
+      "routeMatrixHint": "Grouped by Public Model ID + Route Group. Open a pool to inspect its route table.",
       "routeMatrixEnabledEntries": "{{count}} enabled entries",
       "routeMatrixGroups": "{{count}} model+group rows",
       "routeMatrixCandidates": "{{count}} enabled candidates",
+      "routeCandidatesSummary": "{{enabled}} enabled / {{total}} total",
+      "routeDisabledSummary": "{{count}} disabled",
       "routeMatrixUnmapped": "{{count}} unmapped",
       "routeMatrixNoCandidates": "This model+group has no provider candidates yet.",
       "routeMatrixActivePool": "Active pool",
@@ -2421,10 +2419,18 @@
       "routeMatrixUnconfigured": "Unconfigured",
       "routeEditorTitle": "Route Binding Editor",
       "routeEditorHint": "Select a Catalog Entry and maintain its provider target, provider model id, route group, priority, capacity, and concurrency.",
+      "routeTableTitle": "Route Table",
+      "routeCandidatesTitle": "Route Candidates",
+      "viewRouteTable": "View route table",
+      "routeParamsAction": "Params",
+      "routeBasicInfo": "Basic info",
+      "routeSchedulingTitle": "Scheduling",
       "addRouteCandidate": "Add candidate",
       "providerLane": "Provider Lane",
       "createRouteBindingTitle": "Add Route Binding",
+      "editRouteBindingTitle": "Edit Route Binding",
       "createRouteBindingHint": "Map a Public Model ID to a provider target and the actual provider model id.",
+      "confirmDeleteRouteBinding": "Delete this route?",
       "providerModelIdHint": "This is the model field sent to the Provider API. It can differ from the Public Model ID.",
       "defaultRouteGroupPlaceholder": "Leave blank for the default group",
       "routeGroupHint": "When a request specifies this route group, routing only chooses from candidates in the same group.",
@@ -2509,6 +2515,8 @@
       "acceptsImageInput": "Accepts image input",
       "maxImages": "Max images",
       "maxVideos": "Max videos",
+      "maxInputImages": "Max input images",
+      "maxInputVideos": "Max input videos",
       "inputLimitHint": "-1 means unlimited. A non-zero max image limit also exposes image input support.",
       "maxImagesInvalid": "Max images must be -1 or greater.",
       "maxVideosInvalid": "Max videos must be -1 or greater.",
@@ -2519,7 +2527,63 @@
       "noRelayGatewayRoutesHint": "No model routes configured yet. Click \"Add Model Route\" in the top right to start.",
       "relayGatewayRouteAuth": "Relay gateway forwarding",
       "relayGatewayRouteAuthHint": "This route does not store local provider secrets. At runtime, MovScript selects the relay gateway group from the current user, subscription plan, or recharge balance and forwards the request.",
-      "modelIdOverrideShortPlaceholder": "e.g. ep-xxx"
+      "modelIdOverrideShortPlaceholder": "e.g. ep-xxx",
+      "modelCapabilitiesTitle": "Model capability config",
+      "modelCapabilitiesHint": "Declare model contracts per operation. Input assets come from the operation; upload and output behavior comes from the adapter contract; generation parameters are maintained below.",
+      "fillFromCapabilityTags": "Generate from tags",
+      "addModelCapability": "Add capability",
+      "modelCapabilityEmpty": "No structured capability config yet. Generate from capability tags, then tune it to match the model.",
+      "advancedModelCapabilitiesJson": "Advanced: view or edit raw JSON",
+      "modelCapabilityNeedsOperation": "Each capability needs at least one operation.",
+      "notSpecified": "Not specified",
+      "operationContractTitle": "Operation Contract Preview",
+      "operationContractHint": "Shows input assets, upload transport, and output behavior per operation. Generation parameters are maintained below.",
+      "adapterDerived": "Derived from adapter contract",
+      "noAdapterContract": "No adapter contract summary",
+      "adapterContractReady": "Adapter declared",
+      "systemOperationRule": "System operation rule",
+      "inputSlotsTitle": "Input Assets",
+      "noReferenceInputs": "No reference assets required",
+      "orderedInput": "Ordered",
+      "countUnlimited": "Unlimited",
+      "inputCountMin": "At least {{min}}",
+      "inputCountExact": "{{count}} item",
+      "inputCountRange": "{{min}}-{{max}} items",
+      "transportTitle": "Upload Transport",
+      "resultModeTitle": "Result Mode",
+      "outputMediaTitle": "Output",
+      "noMediaTransport": "No media upload requirement",
+      "unspecifiedByAdapter": "Not declared by adapter",
+      "inputSlots": {
+        "firstFrame": "First frame image",
+        "lastFrame": "Last frame image",
+        "referenceImages": "Reference images",
+        "referenceImagesHint": "Upload reference images in order, for example environment, subject, then other references.",
+        "targetVideo": "Video to edit",
+        "targetImage": "Image to edit"
+      },
+      "mediaTypes": {
+        "image": "Image",
+        "video": "Video",
+        "audio": "Audio"
+      },
+      "transports": {
+        "multipart": "File upload",
+        "public_url": "Public URL",
+        "provider_file_id": "Provider file ID",
+        "inline_bytes": "Inline bytes"
+      },
+      "resultModes": {
+        "sync": "Synchronous",
+        "async": "Async task",
+        "async_task": "Async task",
+        "streaming": "Streaming"
+      },
+      "outputMedia": {
+        "provider_url": "Provider URL",
+        "artifact_url": "MovScript Artifact URL",
+        "inline_bytes": "Inline bytes"
+      }
     },
     "credentials": {
       "selectAdapter": "Select Adapter",
@@ -2715,7 +2779,7 @@
     "modelCatalog": {
       "createTitle": "Create Catalog Entry",
       "editTitle": "Edit Catalog Entry",
-      "formHint": "Define the semantic model identity, supported params, and input limits. Routes below bind it to a real provider or group.",
+      "formHint": "Define the semantic model identity, capability config, and supported params. Routes bind it to a real provider or group.",
       "publicModelId": "Public Model ID",
       "providerModelId": "Provider Model ID",
       "displayName": "Display name",
@@ -2724,7 +2788,7 @@
       "enabled": "Enabled",
       "disabled": "Disabled",
       "acceptsImage": "Accepts image input",
-      "imageEditField": "Image edit field",
+      "inputImageField": "Input image field",
       "create": "Create Entry",
       "save": "Save Entry",
       "empty": "No Catalog Entries yet.",
@@ -2788,6 +2852,7 @@
       "searchPlaceholder": "Project name or description",
       "id": "ID",
       "name": "Project",
+      "projectId": "Project ID",
       "owner": "Owner",
       "ownerId": "Owner ID",
       "orgId": "Org ID",
@@ -3068,11 +3133,6 @@
       "openRegistrationHint": "When disabled, new accounts must be created manually by an admin.",
       "requireEmailVerification": "Require email verification",
       "requireEmailVerificationHint": "Forced on while registration is open so accounts cannot register without a verified mailbox.",
-      "providerAssets": "Provider Asset Library",
-      "providerAssetsHint": "Configure provider asset-library access. Official Ark uses per-Provider OpenAPI credentials; Yunwu private portraits reuse the Provider base URL and API key.",
-      "providerAssetsMovedHint": "Asset library, asset:// inputs, and original artifact trust are now managed by Provider.",
-      "providerAssetsMovedDetail": "System settings only keep deployment-level status. The Provider page shows asset capability, missing configuration, global group state, and certification diagnostics.",
-      "openProviderManagement": "Open Provider management",
       "providerAssetPublicBaseUrl": "Public backend URL",
       "providerAssetSigningSecret": "Temporary resource signing secret",
       "providerAssetSecretSet": "Saved; leave blank to keep unchanged",
@@ -3423,11 +3483,10 @@
       "shots": "Shots",
       "finalVideos": "Final Videos",
       "canvas": "Canvas",
-      "refImageGen": "Reference Image",
-      "refVideoGen": "Reference Video",
-      "motionImitation": "Motion Imitation",
-      "styleTransfer": "Style Transfer",
-      "multiAngle": "Multi-angle",
+      "toolImage": "Image Generation",
+      "toolVideo": "Video Generation",
+      "toolAudio": "Audio Generation",
+      "toolText": "Text Output",
       "resources": "Resources",
       "jobs": "Generation Jobs",
       "plugins": "Plugins",

@@ -199,23 +199,6 @@ export interface MediaProductionTimelineClip {
 export interface MediaProductionTimelineProjectOptions extends MediaEditingProjectOptions {
   productionId: string | number
   productionPath?: string
-  targetKind?: string
-  targetRef?: string
-  scopeKind?: string
-  scopeRef?: string
-  clips: MediaProductionTimelineClip[]
-}
-
-export interface MediaTimelineAssemblyProjectOptions extends MediaEditingProjectOptions {
-  targetKind?: string
-  targetRef?: string
-  scopeKind: string
-  scopeRef: string | number
-  scopePath?: string
-  productionId?: string | number
-  productionPath?: string
-  legacyTargetKind?: string
-  legacyTargetRef?: string | number
   clips: MediaProductionTimelineClip[]
 }
 
@@ -459,27 +442,9 @@ export function createMediaEditingProjectFromMovScriptEditPlan(
 export function createMediaEditingProjectFromProductionTimelineClips(
   options: MediaProductionTimelineProjectOptions,
 ): MediaEditingProject {
-  const productionId = String(options.productionId)
-  return createMediaEditingProjectFromTimelineAssemblyClips({
-    ...options,
-    productionId,
-    productionPath: options.productionPath,
-    targetKind: options.targetKind ?? 'timeline_assembly',
-    targetRef: options.targetRef,
-    scopeKind: options.scopeKind ?? 'production',
-    scopeRef: options.scopeRef ?? productionId,
-    legacyTargetKind: options.targetKind === undefined || options.targetKind === 'timeline_assembly' ? 'production' : undefined,
-    legacyTargetRef: options.targetKind === undefined || options.targetKind === 'timeline_assembly' ? productionId : undefined,
-  })
-}
-
-export function createMediaEditingProjectFromTimelineAssemblyClips(
-  options: MediaTimelineAssemblyProjectOptions,
-): MediaEditingProject {
   const now = options.now ?? new Date().toISOString()
-  const scopeKind = options.scopeKind
-  const scopeRef = String(options.scopeRef)
-  const target = timelineAssemblyTarget(options)
+  const productionId = String(options.productionId)
+  const targetRef = productionId
   const defaultDurationMs = options.defaultDurationMs ?? 4000
   let cursorMs = 0
   const assets: MediaAssetDescriptor[] = []
@@ -500,12 +465,8 @@ export function createMediaEditingProjectFromTimelineAssemblyClips(
           resourceId: clip.resourceId,
           outputKind: 'video',
           trackType: 'video',
-          targetKind: target.targetKind,
-          targetRef: target.targetRef,
-          scopeKind: target.scopeKind,
-          scopeRef: target.scopeRef,
-          legacyTargetKind: target.legacyTargetKind,
-          legacyTargetRef: target.legacyTargetRef,
+          targetKind: 'production',
+          targetRef,
           selected: true,
           stale: false,
         },
@@ -513,7 +474,7 @@ export function createMediaEditingProjectFromTimelineAssemblyClips(
     }
     assets.push(asset)
     const mediaClip: MediaClip = {
-      id: clip.id || `assembly_clip_${safeId(scopeKind)}_${safeId(scopeRef)}_${assets.length}`,
+      id: clip.id || `production_clip_${safeId(productionId)}_${assets.length}`,
       assetType: 'video',
       asset,
       timelineStartMs: cursorMs,
@@ -531,29 +492,27 @@ export function createMediaEditingProjectFromTimelineAssemblyClips(
 
   return {
     version: 1,
-    id: options.id ?? `editing_project_${safeId(scopeKind)}_${safeId(scopeRef)}`,
-    projectId: options.projectId ?? `movscript_${safeId(scopeKind)}_${safeId(scopeRef)}`,
-    title: options.title ?? `Timeline assembly ${scopeKind}:${scopeRef}`,
+    id: options.id ?? `editing_project_production_${safeId(productionId)}`,
+    projectId: options.projectId ?? `movscript_production_${safeId(productionId)}`,
+    title: options.title ?? `Production ${productionId}`,
     source: {
       kind: 'movscript_edit_plan',
-      targetKind: target.targetKind,
-      targetRef: target.targetRef,
-      scopeKind: target.scopeKind,
-      scopeRef: target.scopeRef,
-      ...(options.productionId !== undefined ? { productionId: String(options.productionId) } : {}),
+      targetKind: 'production',
+      targetRef,
+      productionId,
       contentUnitIds: options.clips.map((clip) => String(clip.contentUnitId)),
     },
     timeline: {
       version: 1,
-      id: `timeline_${safeId(scopeKind)}_${safeId(scopeRef)}`,
+      id: `timeline_production_${safeId(productionId)}`,
       fps: options.fps ?? 30,
       width: options.width ?? 1920,
       height: options.height ?? 1080,
       background: options.background ?? '#000000',
       durationMs: cursorMs,
       tracks: [{
-        id: 'track_timeline_assembly_video_0',
-        name: 'timeline assembly video',
+        id: 'track_production_video_0',
+        name: 'production video',
         type: 'video',
         zIndex: 0,
         muted: false,
@@ -561,25 +520,16 @@ export function createMediaEditingProjectFromTimelineAssemblyClips(
         clips,
       }],
       metadata: {
-        targetKind: target.targetKind,
-        targetRef: target.targetRef,
-        scopeKind: target.scopeKind,
-        scopeRef: target.scopeRef,
-        legacyTargetKind: target.legacyTargetKind,
-        legacyTargetRef: target.legacyTargetRef,
-        ...(options.scopePath ? { scopePath: options.scopePath } : {}),
+        targetKind: 'production',
+        targetRef,
+        productionId,
         ...(options.productionPath ? { productionPath: options.productionPath } : {}),
       },
     },
     assets: { assets },
     provenance: {
-      targetKind: target.targetKind,
-      targetRef: target.targetRef,
-      scopeKind: target.scopeKind,
-      scopeRef: target.scopeRef,
-      legacyTargetKind: target.legacyTargetKind,
-      legacyTargetRef: target.legacyTargetRef,
-      ...(options.scopePath ? { scopePath: options.scopePath } : {}),
+      targetKind: 'production',
+      targetRef,
       ...(options.productionPath ? { productionPath: options.productionPath } : {}),
       selectedCandidateIds: options.clips.flatMap((clip) => clip.candidateId === undefined ? [] : [String(clip.candidateId)]),
       inputResourceIds: options.clips.map((clip) => clip.resourceId),
@@ -587,31 +537,6 @@ export function createMediaEditingProjectFromTimelineAssemblyClips(
     createdAt: now,
     updatedAt: now,
     revision: 1,
-  }
-}
-
-function timelineAssemblyTarget(options: MediaTimelineAssemblyProjectOptions): {
-  targetKind: string
-  targetRef: string
-  scopeKind?: string
-  scopeRef?: string
-  legacyTargetKind?: string
-  legacyTargetRef?: string
-} {
-  const targetKind = options.targetKind ?? 'timeline_assembly'
-  const scopeKind = options.scopeKind
-  const scopeRef = String(options.scopeRef)
-  const targetRef = options.targetRef
-    ?? (targetKind === 'timeline_assembly' ? `timeline_assembly:${scopeKind}:${scopeRef}` : scopeRef)
-  return {
-    targetKind,
-    targetRef,
-    ...(scopeKind ? { scopeKind } : {}),
-    ...(scopeRef ? { scopeRef } : {}),
-    ...(options.legacyTargetKind && options.legacyTargetRef !== undefined ? {
-      legacyTargetKind: options.legacyTargetKind,
-      legacyTargetRef: String(options.legacyTargetRef),
-    } : {}),
   }
 }
 

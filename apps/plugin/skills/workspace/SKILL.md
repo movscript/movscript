@@ -41,7 +41,7 @@ Project/source tools now depend on runtime-discovered Project Service and Data S
 ## Rules
 
 - Do not use workspace namespaces.
-- MCP does not infer project from session, cwd, route, or focus. Every project-scoped workspace/domain call must include the intended `projectId`/`project_id`.
+- MCP does not infer project from session, cwd, route, or focus. Every project-scoped workspace/domain call must include the intended `projectDir`/`project_dir` or `cwd`; include `projectUid`/`project_uid` when backend decision metadata is involved.
 - User and organization identity are handled by MovScript app/frontend state and the MCP service. Do not pass `userId`, `user_id`, `orgId`, or `org_id` to MCP tools.
 - Do not create legacy sync, materialize, submit, or semantic apply payloads.
 - Do not read or edit `.interpret/` for normal product work; it is debug output.

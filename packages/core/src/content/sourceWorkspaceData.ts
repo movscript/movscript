@@ -13,7 +13,6 @@ import {
   primaryRefIdsForContentUnitRecord as domainPrimaryRefIdsForContentUnitRecord,
   primaryRefKindForContentUnitType as domainPrimaryRefKindForContentUnitType,
   projectMovScriptDomainNodeKind,
-  timelineAssemblyScopeFromContentUnitRecord,
   type MovScriptDomainEdge,
   type MovScriptDomainNode,
   type MovScriptDomainRef,
@@ -90,7 +89,7 @@ export interface WorkspacePreviewTimelineArtifact {
   schema: 'movscript.preview_timeline.v1'
   productionId?: string | number
   productionPath?: string
-  targetKind?: 'timeline_assembly' | string
+  targetKind?: string
   targetRef?: string
   scopeKind?: string
   scopeRef?: string | number
@@ -112,7 +111,7 @@ export interface WorkspacePreviewTimelineItem {
 }
 
 export interface ContentSourceWorkspaceEditingTimeline {
-  targetKind: 'scene_moment' | 'production' | 'timeline_assembly'
+  targetKind: 'scene_moment' | 'production'
   targetId: string | number
   targetRef?: string
   targetPath?: string
@@ -147,6 +146,7 @@ export interface ContentCandidateRecord {
 export interface ContentSelectionRecord {
   candidate_id?: string | number
   resource_id?: number
+  stream_id?: string | number
   artifact_ref?: string
   stale_policy?: string
   reason?: string
@@ -187,8 +187,9 @@ export interface ContentSourceWorkspaceCandidateCreatePlan {
 }
 
 export interface ContentSourceWorkspaceCandidateOutput {
-  kind: 'image' | 'video' | 'audio' | 'text' | 'metadata'
-  resource_id: number
+  kind: 'image' | 'video' | 'audio' | 'text' | 'metadata' | 'hls_stream'
+  resource_id?: number
+  stream_id?: string | number
   artifact_ref?: string
   mime_type?: string
   width?: number
@@ -200,6 +201,12 @@ export interface ContentSourceWorkspaceCandidateOutput {
 export interface ContentSourceWorkspaceEditPromptPatch {
   targetPath: string
   editPrompt: ContentSourceWorkspaceEditPrompt
+  generationReferences?: ContentSourceWorkspaceGenerationReference[]
+  generation_references?: ContentSourceWorkspaceGenerationReference[]
+  referenceAssets?: ContentSourceWorkspaceReferenceAsset[]
+  reference_assets?: ContentSourceWorkspaceReferenceAsset[]
+  modelIntent?: Record<string, unknown>
+  model_intent?: Record<string, unknown>
 }
 
 export interface ContentSourceWorkspaceEditPrompt {
@@ -207,6 +214,26 @@ export interface ContentSourceWorkspaceEditPrompt {
   negative_text?: string
   notes?: string
   structured?: Record<string, unknown>
+}
+
+export interface ContentSourceWorkspaceGenerationReference {
+  id?: string
+  kind?: string
+  ref?: string | number
+  raw?: string
+  resource_id?: number
+  media_type?: string
+  role?: string
+  source_ref?: string
+  label?: string
+  source?: string
+}
+
+export interface ContentSourceWorkspaceReferenceAsset {
+  role?: string
+  media_type?: string
+  resource_id?: number
+  source_ref?: string
 }
 
 export interface ContentSourceWorkspaceExpressionUnitPatch {
@@ -775,6 +802,12 @@ export function buildContentSourceWorkspaceEditPromptPatch(input: {
   targetPath: string
   text?: string
   editPrompt?: ContentSourceWorkspaceEditPrompt
+  generationReferences?: ContentSourceWorkspaceGenerationReference[]
+  generation_references?: ContentSourceWorkspaceGenerationReference[]
+  referenceAssets?: ContentSourceWorkspaceReferenceAsset[]
+  reference_assets?: ContentSourceWorkspaceReferenceAsset[]
+  modelIntent?: Record<string, unknown>
+  model_intent?: Record<string, unknown>
 }): ContentSourceWorkspaceEditPromptPatch {
   const editPrompt = input.editPrompt ?? { text: input.text ?? '' }
   return {
@@ -785,6 +818,15 @@ export function buildContentSourceWorkspaceEditPromptPatch(input: {
       notes: editPrompt.notes,
       structured: editPrompt.structured,
     }),
+    ...(input.generationReferences !== undefined || input.generation_references !== undefined
+      ? { generationReferences: input.generationReferences ?? input.generation_references }
+      : {}),
+    ...(input.referenceAssets !== undefined || input.reference_assets !== undefined
+      ? { referenceAssets: input.referenceAssets ?? input.reference_assets }
+      : {}),
+    ...(input.modelIntent !== undefined || input.model_intent !== undefined
+      ? { modelIntent: input.modelIntent ?? input.model_intent }
+      : {}),
   }
 }
 
@@ -1774,12 +1816,6 @@ function buildContentUnitCandidates(input: {
 function groupContentUnitsByPrimaryRef(contentUnits: MovScriptWorkspaceIndexedEntity[]): Map<string, MovScriptWorkspaceIndexedEntity[]> {
   const output = new Map<string, MovScriptWorkspaceIndexedEntity[]>()
   for (const contentUnit of contentUnits) {
-    const assemblyScope = timelineAssemblyScopeFromContentUnitRecord(contentUnit.record)
-    if (assemblyScope) {
-      for (const key of primaryRefKeys(assemblyScope.kind, assemblyScope.ref)) {
-        output.set(key, [...(output.get(key) ?? []), contentUnit])
-      }
-    }
     const type = stringField(contentUnit.record.content_unit_type)
     const primaryKind = primaryKindForContentUnitType(type)
     if (!primaryKind) continue
@@ -1893,6 +1929,7 @@ function previewCandidatesForContentUnit(
       selected: selectionCandidateMatches(selection, id),
       note: candidateNote(candidate),
       resourceId: resourceIdValue(output?.resource_id),
+      streamId: streamIdValue(output?.stream_id),
       resourceKind: stringField(output?.kind),
       artifactRef: stringField(output?.artifact_ref),
       status: stringField(candidate.status),
@@ -1923,6 +1960,7 @@ function previewAssetCandidatesForContentUnit(
       selected: selectionCandidateMatches(selection, id),
       note: candidateNote(candidate),
       resourceId: resourceIdValue(output?.resource_id),
+      streamId: streamIdValue(output?.stream_id),
       resourceKind: stringField(output?.kind),
       artifactRef: stringField(output?.artifact_ref),
       status: stringField(candidate.status),
@@ -2484,11 +2522,18 @@ function normalizeContentSelectionRecord(value: Record<string, unknown>): Conten
   return {
     candidate_id: value.candidate_id as never,
     resource_id: resourceIdValue(value.resource_id),
+    stream_id: streamIdValue(value.stream_id),
     artifact_ref: stringField(value.artifact_ref),
     stale_policy: value.stale_policy as never,
     reason: value.reason as never,
     selected_at: value.selected_at as never,
   }
+}
+
+function streamIdValue(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return undefined
 }
 
 function resourceIdValue(value: unknown): number | undefined {

@@ -1,17 +1,19 @@
 import { projectSurfacePath } from '@movscript/project-surface/routes'
 import {
+  createMediaEditingProjectFromEditDecisions,
   EditingServiceClient,
   MediaPipelineServiceClient,
   type EditingMediaPipelineTaskRequest,
 } from '@movscript/editing/browser'
 import type { MovScriptContextEnvelope } from '@movscript/shared'
-import { movScriptContextProjectCwd, movScriptContextProjectId } from '@movscript/shared'
+import { movScriptContextProjectCwd, movScriptContextProjectKey } from '@movscript/shared'
 import {
   recordValue,
   stringValue,
 } from '@movscript/project-surface/data'
 import {
   createHostedProjectSurfaceRuntime,
+  projectSurfaceContextCommandEnvelope,
   type ProjectSurfaceRouteKey,
   type ProjectSurfaceRouteParams,
   type ProjectSurfaceRuntime,
@@ -35,11 +37,15 @@ export const LOCAL_PROJECT_SCRIPT_SOURCE_READ_ENDPOINT = '/v1/project/scripts/so
 export const LOCAL_PROJECT_SCRIPT_UPSERT_ENDPOINT = '/v1/project/scripts/upsert'
 export const LOCAL_PROJECT_SCRIPT_VERSION_SNAPSHOT_ENDPOINT = '/v1/project/scripts/versions/snapshot'
 export const LOCAL_PROJECT_RESOURCE_VIEW_ENDPOINT = '/v1/project/resources/view'
-export const LOCAL_PROJECT_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT = '/v1/project/timeline-assemblies/drafts/read'
-export const LOCAL_PROJECT_TIMELINE_ASSEMBLY_DRAFT_WRITE_ENDPOINT = '/v1/project/timeline-assemblies/drafts/write'
+export const LOCAL_PROJECT_PRODUCTION_EDITING_WORKSPACES_LIST_ENDPOINT = '/v1/project/productions/editing-workspaces/list'
+export const LOCAL_PROJECT_PRODUCTION_EDITING_WORKSPACES_CREATE_ENDPOINT = '/v1/project/productions/editing-workspaces/create'
+export const LOCAL_PROJECT_PRODUCTION_EDITING_WORKSPACES_OPEN_ENDPOINT = '/v1/project/productions/editing-workspaces/open'
+export const LOCAL_PROJECT_PRODUCTION_EDITING_WORKSPACES_DELETE_ENDPOINT = '/v1/project/productions/editing-workspaces/delete'
+export const LOCAL_PROJECT_PRODUCTION_EDITING_RESOURCES_REFRESH_ENDPOINT = '/v1/project/productions/editing-resources/refresh'
 
 export interface LocalHostProjectSurfaceRuntimeInput {
-  projectId: string
+  projectKey?: string
+  projectId?: string
   projectDir?: string
   projectUid?: string
   productionId?: string
@@ -56,7 +62,7 @@ export interface ProjectReadModelResponse {
 }
 
 export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurfaceRuntimeInput): ProjectSurfaceRuntime {
-  const projectId = (movScriptContextProjectId(input.context) ?? input.projectId) || 'sample-project'
+  const projectKey = (movScriptContextProjectKey(input.context) ?? input.projectKey ?? input.projectId) || 'sample-project'
   const contextProjectDir = movScriptContextProjectCwd(input.context)
   const projectDir = contextProjectDir ?? (input.context ? undefined : input.projectDir)
   const editingService = typeof window === 'undefined'
@@ -73,18 +79,64 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
           endpoint,
           body: {
             projectDir: projectDir ?? '',
-            ...localProjectContextCommandEnvelope(input.context),
+            ...projectSurfaceContextCommandEnvelope(input.context),
             ...(recordValue(request.input) ?? {}),
         ...localProjectDecisionConfig(input, request),
       },
     })
     return unwrapProjectSurfaceGatewayResult(payload)
   }
+  const runProductionEditingOpenAction = async (
+    openResult: unknown,
+    request: { projectId?: string | number; input?: unknown } = {},
+  ): Promise<unknown> => {
+    const resultRecord = recordValue(openResult)
+    const openAction = recordValue(resultRecord?.open_action)
+    if (stringValue(openAction?.kind) === 'desktop_route') {
+      if (!editingService) throw new Error('当前环境不支持 Editing Service')
+      const mediaEditingProject = recordValue(resultRecord?.mediaEditingProject ?? resultRecord?.media_editing_project)
+      if (!mediaEditingProject) return openResult
+      const saved = await editingService.projectCommand({
+        command: 'saveProject',
+        input: { editingProject: mediaEditingProject },
+      })
+      return {
+        ...resultRecord,
+        open_action_result: saved.result,
+        editing_project_saved: true,
+      }
+    }
+    if (stringValue(openAction?.kind) !== 'media_pipeline_task_request') return openResult
+    if (!mediaPipeline) throw new Error('当前环境不支持 MediaPipeline')
+    const projectDirectory = stringValue(openAction?.projectDirectory ?? openAction?.project_directory)
+    if (!projectDirectory) throw new Error('Remotion open action requires projectDirectory.')
+    const taskType = stringValue(openAction?.taskType ?? openAction?.task_type) ?? 'backend_project_preview'
+    const backend = stringValue(openAction?.backend) ?? 'remotion'
+    const previewCommand = rendererCommandValue(openAction?.previewCommand ?? openAction?.preview_command)
+    const task = await mediaPipeline.createTask({
+      request: {
+        projectId: request.projectId ?? projectKey,
+        taskType,
+        task_type: taskType,
+        backend,
+        projectDirectory,
+        project_directory: projectDirectory,
+        ...(previewCommand ? { previewCommand, preview_command: previewCommand } : {}),
+      } as EditingMediaPipelineTaskRequest,
+    })
+    return {
+      ...resultRecord,
+      open_action_result: task,
+      task: task.task,
+      media_pipeline_task: task.task,
+      preview_started: true,
+    }
+  }
 
   return createHostedProjectSurfaceRuntime({
     context: input.context,
-    project: {
-      projectId,
+      project: {
+      projectId: projectKey,
       location: projectDir ? 'local' : 'remote',
       ...(projectDir ? { projectDir } : {}),
       ...(input.context?.session?.project?.uid ?? input.projectUid ? { projectUid: input.context?.session?.project?.uid ?? input.projectUid } : {}),
@@ -104,7 +156,7 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
     },
     href: (route, params, runtimeProject) => localProjectSurfaceHref({
       route,
-      projectId: runtimeProject.projectId,
+      projectKey: runtimeProject.projectId,
       projectDir: runtimeProject.projectDir,
       productionId: input.productionId,
       search: input.search,
@@ -133,61 +185,67 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
               endpoint: LOCAL_PROJECT_STANDARDS_READ_MODEL_ENDPOINT,
               body: {
                 projectDir: projectDir ?? '',
-                projectId: request.projectId ?? projectId,
+                projectId: request.projectId ?? projectKey,
             projectUid: request.projectUid ?? input.context?.session?.project?.uid ?? input.projectUid,
-            ...localProjectContextCommandEnvelope(input.context),
+            ...projectSurfaceContextCommandEnvelope(input.context),
           },
         }),
         scriptsReadModel: (request = {}) => fetchProjectServiceEndpoint({
               endpoint: LOCAL_PROJECT_SCRIPTS_READ_MODEL_ENDPOINT,
               body: {
                 projectDir: projectDir ?? '',
-                projectId: request.projectId ?? projectId,
+                projectId: request.projectId ?? projectKey,
             projectUid: request.projectUid ?? input.context?.session?.project?.uid ?? input.projectUid,
-            ...localProjectContextCommandEnvelope(input.context),
+            ...projectSurfaceContextCommandEnvelope(input.context),
           },
         }),
         sourceSnapshot: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_SNAPSHOT_ENDPOINT,
-          body: { projectDir: projectDir ?? '', ...localProjectContextCommandEnvelope(input.context) },
+          body: { projectDir: projectDir ?? '', ...projectSurfaceContextCommandEnvelope(input.context) },
         }),
         readSource: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_SNAPSHOT_ENDPOINT,
-          body: { projectDir: projectDir ?? '', ...localProjectContextCommandEnvelope(input.context) },
+          body: { projectDir: projectDir ?? '', ...projectSurfaceContextCommandEnvelope(input.context) },
         }),
         inspectSource: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_INSPECT_ENDPOINT,
-          body: { projectDir: projectDir ?? '', ...localProjectContextCommandEnvelope(input.context) },
+          body: { projectDir: projectDir ?? '', ...projectSurfaceContextCommandEnvelope(input.context) },
         }),
         overviewSource: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_OVERVIEW_ENDPOINT,
-          body: { projectDir: projectDir ?? '', ...localProjectContextCommandEnvelope(input.context) },
+          body: { projectDir: projectDir ?? '', ...projectSurfaceContextCommandEnvelope(input.context) },
         }),
         interpretSource: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_INTERPRET_ENDPOINT,
-          body: { projectDir: projectDir ?? '', ...localProjectContextCommandEnvelope(input.context) },
+          body: { projectDir: projectDir ?? '', ...projectSurfaceContextCommandEnvelope(input.context) },
         }),
         interpret: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_INTERPRET_ENDPOINT,
-          body: { projectDir: projectDir ?? '', ...localProjectContextCommandEnvelope(input.context) },
+          body: { projectDir: projectDir ?? '', ...projectSurfaceContextCommandEnvelope(input.context) },
         }),
         regenerationPlan: () => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_SOURCE_REGENERATION_PLAN_ENDPOINT,
-          body: { projectDir: projectDir ?? '', ...localProjectContextCommandEnvelope(input.context) },
+          body: { projectDir: projectDir ?? '', ...projectSurfaceContextCommandEnvelope(input.context) },
         }),
         upsertProjectStandards: (request) => postProjectWorkspaceOperation(LOCAL_PROJECT_STANDARDS_UPSERT_ENDPOINT, request),
         readScriptSource: (request) => postProjectWorkspaceOperation(LOCAL_PROJECT_SCRIPT_SOURCE_READ_ENDPOINT, request),
         upsertScript: (request) => postProjectWorkspaceOperation(LOCAL_PROJECT_SCRIPT_UPSERT_ENDPOINT, request),
         snapshotScriptVersionFromMarkdown: (request) => postProjectWorkspaceOperation(LOCAL_PROJECT_SCRIPT_VERSION_SNAPSHOT_ENDPOINT, request),
-        readTimelineAssemblyDraft: (request) => postProjectWorkspaceOperation(LOCAL_PROJECT_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT, request),
-        writeTimelineAssemblyDraft: (request) => postProjectWorkspaceOperation(LOCAL_PROJECT_TIMELINE_ASSEMBLY_DRAFT_WRITE_ENDPOINT, request),
+        listProductionEditingWorkspaces: (request) => postProjectWorkspaceOperation(LOCAL_PROJECT_PRODUCTION_EDITING_WORKSPACES_LIST_ENDPOINT, request),
+        createProductionEditingWorkspace: (request) => postProjectWorkspaceOperation(LOCAL_PROJECT_PRODUCTION_EDITING_WORKSPACES_CREATE_ENDPOINT, request),
+        refreshProductionEditingResources: (request) => postProjectWorkspaceOperation(LOCAL_PROJECT_PRODUCTION_EDITING_RESOURCES_REFRESH_ENDPOINT, request),
+        deleteProductionEditingWorkspace: (request) => postProjectWorkspaceOperation(LOCAL_PROJECT_PRODUCTION_EDITING_WORKSPACES_DELETE_ENDPOINT, request),
+        openProductionEditingWorkspace: async (request) => {
+          const openResult = await postProjectWorkspaceOperation(LOCAL_PROJECT_PRODUCTION_EDITING_WORKSPACES_OPEN_ENDPOINT, request)
+          return runProductionEditingOpenAction(openResult, request)
+        },
         resourceView: (request) => fetchProjectServiceEndpoint({
           endpoint: LOCAL_PROJECT_RESOURCE_VIEW_ENDPOINT,
           body: {
             projectDir: projectDir ?? '',
             kind: request.kind,
             input: request.input,
-            ...localProjectContextCommandEnvelope(input.context),
+            ...projectSurfaceContextCommandEnvelope(input.context),
           },
         }),
       },
@@ -217,20 +275,25 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
             }
           }
           const resourceDownload = localMediaPipelineResourceDownload(payload)
-          const created = await editingService.projectCommand({
-            command: 'createProjectFromEditDecisions',
-            input: {
-              ...payload,
-              editDecisions,
-              assetManifest,
-              projectId,
-              renderRuntime,
-            },
+          const editingProject = createMediaEditingProjectFromEditDecisions(editDecisions, {
+            assetManifest,
+            id: stringValue(payload.id ?? payload.editingProjectId ?? payload.editing_project_id),
+            projectId: projectKey,
+            title: stringValue(payload.title),
+            now: stringValue(payload.now),
+            width: numberValue(payload.width),
+            height: numberValue(payload.height),
+            fps: numberValue(payload.fps),
+            background: stringValue(payload.background),
+            defaultDurationMs: numberValue(payload.defaultDurationMs ?? payload.default_duration_ms),
+            productionId: stringOrNumberValue(payload.productionId ?? payload.production_id),
+            productionPath: stringValue(payload.productionPath ?? payload.production_path),
+            targetKind: stringValue(payload.targetKind ?? payload.target_kind),
+            targetRef: stringValue(payload.targetRef ?? payload.target_ref),
+            scopeKind: stringValue(payload.scopeKind ?? payload.scope_kind),
+            scopeRef: stringOrNumberValue(payload.scopeRef ?? payload.scope_ref),
+            sourceHash: stringValue(payload.sourceHash ?? payload.source_hash),
           })
-          const createdResult = recordValue(created.result) ?? {}
-          if (createdResult.status === 'blocked') return createdResult
-          const editingProject = recordValue(createdResult.editing_project ?? createdResult.editingProject)
-          if (!editingProject) throw new Error('Editing Service did not return a MediaEditingProject')
           const saved = await editingService.projectCommand({
             command: 'saveProject',
             input: { editingProject },
@@ -250,12 +313,10 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
             return {
               status: 'blocked',
               code: 'VIDEO_COMPOSE_TIMELINE_INVALID',
-              message: 'TimelineAssembly 已编译成 MediaEditingProject，但编辑时间线验证未通过，因此没有创建成片任务。',
+              message: '剪辑工作区已生成 MediaEditingProject，但编辑时间线验证未通过，因此没有创建成片任务。',
               render_runtime: renderRuntime,
               editing_project: savedProject,
               saved_project: savedResult,
-              compile_manifest: createdResult.compile_manifest,
-              compile_result: createdResult.compile_result,
               validation,
               render_report: {
                 schema: 'movscript.render_report.v1',
@@ -264,8 +325,6 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
                 render_runtime_used: renderRuntime === 'ffmpeg' ? 'movscript_media_pipeline_ffmpeg' : renderRuntime,
                 project_id: stringValue(savedProject.projectId),
                 editing_project_id: stringValue(savedProject.id),
-                compile_manifest_id: stringValue(recordValue(createdResult.compile_manifest)?.id),
-                compile_input_hash: stringValue(recordValue(createdResult.compile_manifest)?.input_hash),
                 candidate_created: false,
                 adopted: false,
                 selected: false,
@@ -281,7 +340,7 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
             taskType: format === 'hls' ? 'timeline_hls' : 'timeline_render',
             input: {
               ...payload,
-              projectId,
+              projectId: projectKey,
               editingProject: savedProject,
               editing_project: savedProject,
               resourceDownload,
@@ -304,8 +363,6 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
             saved_project: savedResult,
             task: task.task,
             media_pipeline_task: task.task,
-            compile_manifest: createdResult.compile_manifest,
-            compile_result: createdResult.compile_result,
             validation,
             render_report: {
               schema: 'movscript.render_report.v1',
@@ -315,8 +372,6 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
               format,
               project_id: stringValue(savedProject.projectId),
               editing_project_id: stringValue(savedProject.id),
-              compile_manifest_id: stringValue(recordValue(createdResult.compile_manifest)?.id),
-              compile_input_hash: stringValue(recordValue(createdResult.compile_manifest)?.input_hash),
               task_id: task.task.taskId,
               output_path: stringValue(task.task.outputPath),
               output_resource_id: task.task.outputResourceId,
@@ -368,6 +423,21 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
   })
 }
 
+function numberValue(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const numeric = Number(value)
+    if (Number.isFinite(numeric)) return numeric
+  }
+  return undefined
+}
+
+function stringOrNumberValue(value: unknown): string | number | undefined {
+  if (typeof value === 'string' && value.trim()) return value
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  return undefined
+}
+
 function localProjectDecisionStoreConfig(
   input: LocalHostProjectSurfaceRuntimeInput,
   request?: { projectUid?: string },
@@ -408,15 +478,11 @@ function localMediaPipelineResourceDownload(payload: Record<string, unknown>): R
   }
 }
 
-function localProjectContextCommandEnvelope(context: MovScriptContextEnvelope | undefined): Record<string, unknown> {
-  const sessionId = context?.session?.sessionId
-  if (!sessionId) return {}
-  return {
-    context: {
-      sessionId,
-      revision: context.revision,
-    },
-  }
+function rendererCommandValue(value: unknown): string | string[] | undefined {
+  if (typeof value === 'string') return value.trim() ? value.trim() : undefined
+  if (!Array.isArray(value)) return undefined
+  const items = value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+  return items.length > 0 ? items : undefined
 }
 
 export async function fetchProjectReadModel({
@@ -434,8 +500,8 @@ export async function fetchProjectReadModel({
       projectDir,
       includeSource: false,
       includeInspection: false,
-      ...localProjectContextCommandEnvelope(context),
-      ...localProjectDecisionConfig({ projectId: '', projectDir, projectUid, context }),
+      ...projectSurfaceContextCommandEnvelope(context),
+      ...localProjectDecisionConfig({ projectKey: '', projectDir, projectUid, context }),
     },
   }) as Promise<ProjectReadModelResponse>
 }
@@ -464,14 +530,14 @@ async function fetchProjectServiceEndpoint({
 
 function localProjectSurfaceHref({
   route,
-  projectId,
+  projectKey,
   projectDir,
   productionId,
   search,
   params,
 }: {
   route: ProjectSurfaceRouteKey
-  projectId: string
+  projectKey: string
   projectDir?: string
   productionId?: string
   search?: URLSearchParams
@@ -480,6 +546,11 @@ function localProjectSurfaceHref({
   const next = new URLSearchParams(search)
   removeProjectServiceBaseURLQuery(next)
   if (projectDir) next.set('projectDir', projectDir)
+  if (projectKey) {
+    next.set('projectKey', projectKey)
+    next.set('routeProjectKey', projectKey)
+    if (!next.get('projectId')) next.set('projectId', projectKey)
+  }
   if (productionId) next.set('productionId', productionId)
   for (const [key, value] of Object.entries(params ?? {})) {
     if (value === undefined) continue
@@ -487,7 +558,7 @@ function localProjectSurfaceHref({
   }
   normalizeTimelineFocusQuery(next)
 
-  const pathname = projectSurfacePath(route, projectId)
+  const pathname = projectSurfacePath(route, projectKey)
   const query = next.toString()
   return query ? `${pathname}?${query}` : pathname
 }

@@ -9,7 +9,7 @@ test('agent tool display labels dedicated editing tools and MovScript MCP-prefix
   assert.equal(agentToolNameLabel('system_resource_video_trim_to_resource'), '中立裁剪视频资源')
   assert.equal(agentToolNameLabel('mcp__movscript__system_resource_video_compose_to_resource'), '资源级合成视频')
   assert.equal(agentToolNameLabel('movscript_resource_video_concat_to_resource'), '资源级拼接视频')
-  assert.equal(agentToolNameLabel('editing_project_create_from_edit_plan'), '从剪辑计划创建项目')
+  assert.equal(agentToolNameLabel('editing_project_create'), '创建剪辑项目')
   assert.equal(agentToolNameLabel('editing_runtime_capabilities_get'), '检查本地剪辑能力')
   assert.equal(agentToolNameLabel('editing_task_render_create'), '创建剪辑渲染任务')
   assert.equal(agentToolNameLabel('editing_export_save_local'), '保存本地剪辑导出')

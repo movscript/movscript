@@ -18,24 +18,24 @@ export function listProjectResources(): MCPResource[] {
   ]
 
   if (snapshot.project) {
-    const id = snapshot.project.id
+    const key = projectResourceKey(snapshot.project)
     resources.push(
-      resource(`movscript://project/${id}/summary`, 'Project summary'),
-      resource(`movscript://project/${id}/scripts`, 'Scripts'),
-      resource(`movscript://project/${id}/settings`, 'Settings', 'Legacy setting source records with namespace projection fields.'),
-      resource(`movscript://project/${id}/setting-states`, 'Setting states', 'Legacy setting-state alias; prefer setting-namespaces for namespace-aware work.'),
-      resource(`movscript://project/${id}/assets`, 'Assets', 'System primitive asset records.'),
-      resource(`movscript://project/${id}/project-context`, 'Project context', 'Project standards, namespace vocabulary, hash, and agent guidance from Project Service.'),
-      resource(`movscript://project/${id}/namespace-vocabulary`, 'Namespace vocabulary', 'Project namespace vocabulary, templates, aliases, and diagnostics.'),
-      resource(`movscript://project/${id}/timeline-namespaces`, 'Timeline namespaces', 'Canonical timeline namespace nodes using project vocabulary.'),
-      resource(`movscript://project/${id}/setting-namespaces`, 'Setting namespaces', 'Canonical setting namespace nodes using project vocabulary.'),
-      resource(`movscript://project/${id}/system-primitives`, 'System primitives', 'Scene moments, expression units, storyboards, keyframes, audio cues, assets, and assemblies.'),
-      resource(`movscript://project/${id}/domain-nodes`, 'Domain nodes', 'All normalized MovScript domain nodes.'),
-      resource(`movscript://project/${id}/domain-edges`, 'Domain edges', 'Normalized parent, scope, target, uses, and selection edges.'),
-      resource(`movscript://project/${id}/episodes`, 'Episodes', 'Legacy production alias; prefer timeline-namespaces for new namespace-aware work.'),
-      resource(`movscript://project/${id}/scenes`, 'Scenes', 'Legacy segment alias; prefer timeline-namespaces and system-primitives for new work.'),
-      resource(`movscript://project/${id}/storyboards`, 'Storyboards', 'System primitive storyboard records.'),
-      resource(`movscript://project/${id}/content-units`, 'Content units', 'Production tasks, candidates, and generation target refs.'),
+      resource(`movscript://project/${key}/summary`, 'Project summary'),
+      resource(`movscript://project/${key}/scripts`, 'Scripts'),
+      resource(`movscript://project/${key}/settings`, 'Settings', 'Legacy setting source records with namespace projection fields.'),
+      resource(`movscript://project/${key}/setting-states`, 'Setting states', 'Legacy setting-state alias; prefer setting-namespaces for namespace-aware work.'),
+      resource(`movscript://project/${key}/assets`, 'Assets', 'System primitive asset records.'),
+      resource(`movscript://project/${key}/project-context`, 'Project context', 'Project standards, namespace vocabulary, hash, and agent guidance from Project Service.'),
+      resource(`movscript://project/${key}/namespace-vocabulary`, 'Namespace vocabulary', 'Project namespace vocabulary, templates, aliases, and diagnostics.'),
+      resource(`movscript://project/${key}/timeline-namespaces`, 'Timeline namespaces', 'Canonical timeline namespace nodes using project vocabulary.'),
+      resource(`movscript://project/${key}/setting-namespaces`, 'Setting namespaces', 'Canonical setting namespace nodes using project vocabulary.'),
+      resource(`movscript://project/${key}/system-primitives`, 'System primitives', 'Scene moments, expression units, storyboards, keyframes, audio cues, assets, and assemblies.'),
+      resource(`movscript://project/${key}/domain-nodes`, 'Domain nodes', 'All normalized MovScript domain nodes.'),
+      resource(`movscript://project/${key}/domain-edges`, 'Domain edges', 'Normalized parent, scope, target, uses, and selection edges.'),
+      resource(`movscript://project/${key}/episodes`, 'Episodes', 'Legacy production alias; prefer timeline-namespaces for new namespace-aware work.'),
+      resource(`movscript://project/${key}/scenes`, 'Scenes', 'Legacy segment alias; prefer timeline-namespaces and system-primitives for new work.'),
+      resource(`movscript://project/${key}/storyboards`, 'Storyboards', 'System primitive storyboard records.'),
+      resource(`movscript://project/${key}/content-units`, 'Content units', 'Production tasks, candidates, and generation target refs.'),
     )
   }
 
@@ -52,7 +52,7 @@ async function readProjectResource(uri: string): Promise<MCPJSONValue | null> {
   const projectResource = parseProjectResourceURI(uri)
   if (!projectResource) return null
 
-  const data = await readWorkspaceProjectResource(projectResource.projectId, projectResource.kind)
+  const data = await readWorkspaceProjectResource(projectResource.projectKey, projectResource.kind)
   return resourceContent(uri, summarizeResource(data))
 }
 
@@ -60,10 +60,10 @@ function resource(uri: string, name: string, description?: string): MCPResource 
   return { uri, name, ...(description ? { description } : {}), mimeType: 'text/markdown' }
 }
 
-async function readWorkspaceProjectResource(projectId: number, kind: string): Promise<unknown[]> {
+async function readWorkspaceProjectResource(projectKey: string, kind: string): Promise<unknown[]> {
   const snapshot = getMCPContextSnapshot()
-  const projectDir = snapshot.project && snapshot.project.id === projectId
-    ? snapshot.project.projectDir ?? snapshot.project.projectPath ?? snapshot.project.workspacePath ?? snapshot.project.project_path ?? snapshot.project.workspace_path
+  const projectDir = snapshot.project && projectResourceMatches(snapshot.project, projectKey)
+    ? projectDirectoryFromContextProject(snapshot.project)
     : undefined
   const locator = resolveMCPProjectWorkspaceLocator({ projectDir })
   const response = await createProjectServiceClientFromRuntime().resourceView({
@@ -116,11 +116,59 @@ function projectResourceViewKind(kind: string): ProjectResourceViewKind {
   }
 }
 
-function parseProjectResourceURI(uri: string): { projectId: number; kind: string } | null {
-  const match = uri.match(/^movscript:\/\/project\/(\d+)\/([a-z-]+)$/)
+function parseProjectResourceURI(uri: string): { projectKey: string; kind: string } | null {
+  const match = uri.match(/^movscript:\/\/project\/([^/]+)\/([a-z-]+)$/)
   if (!match) return null
   return {
-    projectId: Number(match[1]),
+    projectKey: decodeURIComponent(match[1] ?? ''),
     kind: match[2] ?? '',
   }
+}
+
+function projectResourceKey(project: NonNullable<ReturnType<typeof getMCPContextSnapshot>['project']>): string {
+  const key = stringValue(project.projectKey)
+    ?? stringValue(project.project_key)
+    ?? stringValue(project.routeProjectKey)
+    ?? stringValue(project.route_project_key)
+    ?? stringValue(project.projectUid)
+    ?? stringValue(project.project_uid)
+    ?? stringValue(project.uid)
+    ?? stringValue(project.id)
+    ?? stringValue(project.backendProjectId)
+    ?? stringValue(project.backend_project_id)
+    ?? 'current'
+  return encodeURIComponent(key)
+}
+
+function projectResourceMatches(project: NonNullable<ReturnType<typeof getMCPContextSnapshot>['project']>, key: string): boolean {
+  if (key === 'current') return true
+  const values = [
+    project.projectKey,
+    project.project_key,
+    project.routeProjectKey,
+    project.route_project_key,
+    project.projectUid,
+    project.project_uid,
+    project.uid,
+    project.id,
+    project.backendProjectId,
+    project.backend_project_id,
+  ].flatMap((value) => {
+    const stringified = stringValue(value)
+    return stringified ? [stringified] : []
+  })
+  return values.includes(key)
+}
+
+function projectDirectoryFromContextProject(project: NonNullable<ReturnType<typeof getMCPContextSnapshot>['project']>): string | undefined {
+  return project.projectDir
+    ?? project.projectPath
+    ?? project.workspacePath
+    ?? project.project_path
+    ?? project.workspace_path
+}
+
+function stringValue(value: unknown): string | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }

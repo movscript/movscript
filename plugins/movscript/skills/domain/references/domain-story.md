@@ -14,7 +14,7 @@ request
 -> interpreter review and stale checks
 ```
 
-MovScript planning should first ask what is being made: a single output, visual material inside a scene moment, a complete scene moment, several scene moments, or a timeline namespace scope that needs an assembly output. Most video work should then center on a `scene_moment`; shot-like visual intent lives under that scene moment as an `expression_unit` with `modality=visual` and `role=shot`.
+MovScript planning should first ask what is being made: a single output, visual material inside a scene moment, a complete scene moment, several scene moments, or a timeline namespace scope that needs production editing playback. Most video work should then center on a `scene_moment`; shot-like visual intent lives under that scene moment as an `expression_unit` with `modality=visual` and `role=shot`.
 
 Settings, assets, keyframes, storyboards, expression units, and audio cues are evidence or scaffolding for that center. Add them when they protect consistency, reuse, or generation quality; skip them when the user wants a quick low-stakes draft.
 
@@ -42,16 +42,14 @@ The current tracked specialized types are:
 - `keyframe_ref`: image output for shot/keyframe visual anchor candidates.
 - `storyboard_ref`: image output for storyboard panel/image candidates.
 - `audio_cue_ref`: audio output for sound effect, music, ambience, dialogue cue, or foley candidates.
-- `timeline_assembly_ref`: video output for a timeline namespace scope assembly, such as an episode, act, sequence, legacy production, or legacy segment.
-- `production_ref`: legacy video alias for a production-scoped `timeline_assembly_ref`.
-- `segment_ref`: legacy video alias for a segment-scoped `timeline_assembly_ref`.
+- Legacy namespace-scope video output records may exist in old projects. Recognize them as historical data, but do not create them for new work.
 - `scence_moment_ref`: video output for directly generating one complete scene moment.
 - `scene_moment_ref`: video output for directly generating one complete scene moment.
 - `expression_unit_ref`: output kind depends on the material role.
 
 Unknown content unit types may be valid generic slots, but they are not fully tracked by interpreter dependency, hash, stale-selection, or regeneration artifacts.
 
-Do not add user namespace-specific content unit types such as `episode_ref` or `beat_ref`. Namespace nodes organize structure; `timeline_assembly_ref` is the production target for a namespace scope that needs an output video.
+Do not add user namespace-specific content unit types such as `episode_ref` or `beat_ref`. Namespace nodes organize story structure; production editing workspaces own namespace-scope playback and finishing.
 
 Legacy source may still contain `shot` or `shot_ref` records. Do not create them for new plans; represent camera-unit work as `expression_unit_ref` content units targeting visual expression units.
 

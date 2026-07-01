@@ -36,11 +36,10 @@ const navigationGroups: NavigationMenuGroup[] = [
     label: 'Tools',
     items: [
       { label: 'Canvas', route: '/canvases', accelerator: 'CmdOrCtrl+3' },
-      { label: 'Reference Image', route: '/tools/ref-image-gen' },
-      { label: 'Reference Video', route: '/tools/ref-video-gen' },
-      { label: 'Motion Imitation', route: '/tools/motion-imitation' },
-      { label: 'Style Transfer', route: '/tools/style-transfer' },
-      { label: 'Multi-angle', route: '/tools/multi-angle' },
+      { label: 'Image Generation', route: '/tools/image' },
+      { label: 'Video Generation', route: '/tools/video' },
+      { label: 'Audio Generation', route: '/tools/audio' },
+      { label: 'Text Output', route: '/tools/text' },
     ],
   },
   {

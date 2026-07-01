@@ -2,7 +2,7 @@ import { type ReactNode, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { projectSurfacePath } from '@movscript/project-surface/routes'
 import type { MovScriptContextEnvelope } from '@movscript/shared'
-import { movScriptContextProjectCwd, movScriptContextProjectId } from '@movscript/shared'
+import { movScriptContextProjectCwd, movScriptContextProjectKey } from '@movscript/shared'
 import {
   ProjectSurfaceProvider,
   useProjectSurfaceRuntime,
@@ -10,6 +10,7 @@ import {
 import type { ProjectSurfaceReadModelStatus } from '@movscript/project-surface/react'
 import {
   createHostedProjectSurfaceRuntime,
+  projectSurfaceContextCommandEnvelope,
   type ProjectSurfaceGitAction,
   type ProjectSurfaceRouteKey,
   type ProjectSurfaceRouteParams,
@@ -40,6 +41,13 @@ const PROJECT_SERVICE_STANDARDS_UPSERT_ENDPOINT = '/v1/project/standards/upsert'
 const PROJECT_SERVICE_SCRIPT_SOURCE_READ_ENDPOINT = '/v1/project/scripts/source/read'
 const PROJECT_SERVICE_SCRIPT_UPSERT_ENDPOINT = '/v1/project/scripts/upsert'
 const PROJECT_SERVICE_SCRIPT_VERSION_SNAPSHOT_ENDPOINT = '/v1/project/scripts/versions/snapshot'
+const PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_LIST_ENDPOINT = '/v1/project/productions/editing-workspaces/list'
+const PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_CREATE_ENDPOINT = '/v1/project/productions/editing-workspaces/create'
+const PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_OPEN_ENDPOINT = '/v1/project/productions/editing-workspaces/open'
+const PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_DELETE_ENDPOINT = '/v1/project/productions/editing-workspaces/delete'
+const PROJECT_SERVICE_PRODUCTION_EDITING_RESOURCES_REFRESH_ENDPOINT = '/v1/project/productions/editing-resources/refresh'
+const EDITING_SERVICE_PROJECT_COMMAND_ENDPOINT = '/v1/editing/project/command'
+const MEDIA_PIPELINE_TASK_CREATE_ENDPOINT = '/v1/media-pipeline/task/create'
 const DAEMON_CONTEXT_SESSIONS_ENDPOINT = '/v1/context/sessions'
 
 export interface DesktopProjectSurfaceProviderProps {
@@ -63,7 +71,8 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
   const currentOrgID = useUserStore((state) => state.currentOrgID)
   const orgMemberships = useUserStore((state) => state.orgMemberships)
   const projectDir = project?.workspace_path ?? project?.project_path ?? workspaceRoot ?? undefined
-  const projectId = String(project?.project_uid ?? project?.ID ?? 'current-project')
+  const backendProjectId = project && Number.isInteger(project.ID) && project.ID > 0 ? project.ID : undefined
+  const projectKey = String(project?.project_uid ?? backendProjectId ?? 'current-project')
   const owner = useMemo(
     () => workspaceOwnerContext({ currentUser, currentOrgID, orgMemberships }),
     [currentOrgID, currentUser, orgMemberships],
@@ -80,7 +89,7 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
       'desktop-project-surface',
       'context',
       daemonGatewayBaseURL,
-      projectId,
+      projectKey,
       projectDir,
       project?.project_uid,
       project?.name,
@@ -95,7 +104,10 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
         gatewayBaseURL,
         DAEMON_CONTEXT_SESSIONS_ENDPOINT,
         {
-          projectId,
+          projectKey,
+          routeProjectKey: projectKey,
+          projectId: projectKey,
+          ...(backendProjectId !== undefined ? { backendProjectId, backend_project_id: backendProjectId } : {}),
           ...(projectDir ? { projectDir } : {}),
           ...(project?.project_uid ? { projectUid: project.project_uid } : {}),
           ...(project?.name ? { projectTitle: project.name } : {}),
@@ -111,10 +123,10 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
     enabled: Boolean(daemonGatewayBaseURL),
     staleTime: 5_000,
   })
-  const contextEnvelope = contextQuery.data
-  const contextProjectDir = movScriptContextProjectCwd(contextEnvelope)
-  const contextProjectId = movScriptContextProjectId(contextEnvelope) ?? projectId
-  const contextProjectUid = contextEnvelope?.session?.project?.uid ?? project?.project_uid
+	  const contextEnvelope = contextQuery.data
+	  const contextProjectDir = movScriptContextProjectCwd(contextEnvelope)
+	  const contextProjectKey = movScriptContextProjectKey(contextEnvelope) ?? projectKey
+	  const contextProjectUid = contextEnvelope?.session?.project?.uid ?? project?.project_uid
 
   return useMemo(() => {
     const postProjectWorkspaceOperation = async (
@@ -138,7 +150,7 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
         endpoint,
         {
           projectDir: nextProjectDir,
-          ...desktopContextCommandEnvelope(contextEnvelope),
+          ...projectSurfaceContextCommandEnvelope(contextEnvelope),
           ...(recordValue(input.input) ?? {}),
           ...(decisionStore ? { decisionStore } : {}),
         },
@@ -146,10 +158,68 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
       return unwrapProjectSurfaceGatewayResult(payload)
     }
 
+    const runProductionEditingOpenAction = async (
+      openResult: unknown,
+      input: { projectId?: string | number; projectDir?: string; projectUid?: string; input?: unknown } = {},
+    ): Promise<unknown> => {
+      const resultRecord = recordValue(openResult)
+      const openAction = recordValue(resultRecord?.open_action)
+      const openActionKind = readString(openAction?.kind)
+      if (openActionKind !== 'desktop_route' && openActionKind !== 'media_pipeline_task_request') return openResult
+      const latestConfig = await refreshRuntimeConfigSnapshot()
+      const daemonGatewayBaseURL = readDesktopDaemonGatewayBaseURL(latestConfig ?? runtimeConfig)
+      if (!daemonGatewayBaseURL) throw new Error('Daemon gateway endpoint is not available in Desktop runtime config.')
+      if (openActionKind === 'desktop_route') {
+        const mediaEditingProject = recordValue(resultRecord?.mediaEditingProject ?? resultRecord?.media_editing_project)
+        if (!mediaEditingProject) return openResult
+        const saved = await postDaemonGateway(
+          daemonGatewayBaseURL,
+          EDITING_SERVICE_PROJECT_COMMAND_ENDPOINT,
+          {
+            command: 'saveProject',
+            input: { editingProject: mediaEditingProject },
+          },
+        )
+        return {
+          ...resultRecord,
+          open_action_result: recordValue(saved.result) ?? saved,
+          editing_project_saved: true,
+        }
+      }
+      const projectDirectory = readString(openAction?.projectDirectory ?? openAction?.project_directory)
+      if (!projectDirectory) throw new Error('Remotion open action requires projectDirectory.')
+      const taskType = readString(openAction?.taskType ?? openAction?.task_type) ?? 'backend_project_preview'
+      const backend = readString(openAction?.backend) ?? 'remotion'
+      const previewCommand = rendererCommandValue(openAction?.previewCommand ?? openAction?.preview_command)
+      const taskResult = await postDaemonGateway(
+        daemonGatewayBaseURL,
+        MEDIA_PIPELINE_TASK_CREATE_ENDPOINT,
+        {
+          request: {
+	            projectId: String(input.projectId ?? contextProjectKey),
+            taskType,
+            task_type: taskType,
+            backend,
+            projectDirectory,
+            project_directory: projectDirectory,
+            ...(previewCommand ? { previewCommand, preview_command: previewCommand } : {}),
+          },
+        },
+      )
+      const task = recordValue(taskResult.task)
+      return {
+        ...resultRecord,
+        open_action_result: taskResult,
+        task,
+        media_pipeline_task: task,
+        preview_started: true,
+      }
+    }
+
     return createHostedProjectSurfaceRuntime({
       context: contextEnvelope,
-      project: {
-        projectId: contextProjectId,
+	      project: {
+	        projectId: contextProjectKey,
         location: contextProjectDir ? 'local' : 'remote',
         ...(contextProjectDir ? { projectDir: contextProjectDir } : {}),
         ...(contextProjectUid ? { projectUid: contextProjectUid } : {}),
@@ -170,7 +240,7 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
         editing: true,
         mediaPipeline: true,
       },
-      href: (route, params, runtimeProject) => desktopProjectSurfaceHref(route, runtimeProject.projectId, params),
+	      href: (route, params, runtimeProject) => desktopProjectSurfaceHref(route, runtimeProject.projectId, params),
       openHref: (href) => {
         window.location.assign(href)
       },
@@ -204,7 +274,7 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
                 projectDir: contextProjectDir,
                 includeSource: false,
                 includeInspection: false,
-                ...desktopContextCommandEnvelope(contextEnvelope),
+                ...projectSurfaceContextCommandEnvelope(contextEnvelope),
                 ...(decisionStore ? { decisionStore } : {}),
               },
             )
@@ -228,9 +298,10 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
               PROJECT_SERVICE_HOME_READ_MODEL_ENDPOINT,
               {
                 projectDir: nextProjectDir,
-                projectId: input.projectId ?? contextProjectId,
+	                projectKey: input.projectId ?? contextProjectKey,
+	                projectId: input.projectId ?? contextProjectKey,
                 ...(nextProjectUid ? { projectUid: nextProjectUid } : {}),
-                ...desktopContextCommandEnvelope(contextEnvelope),
+                ...projectSurfaceContextCommandEnvelope(contextEnvelope),
                 ...(decisionStore ? { decisionStore } : {}),
               },
             )
@@ -254,9 +325,10 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
               PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT,
               {
                 projectDir: nextProjectDir,
-                projectId: input.projectId ?? contextProjectId,
+	                projectKey: input.projectId ?? contextProjectKey,
+	                projectId: input.projectId ?? contextProjectKey,
                 ...(nextProjectUid ? { projectUid: nextProjectUid } : {}),
-                ...desktopContextCommandEnvelope(contextEnvelope),
+                ...projectSurfaceContextCommandEnvelope(contextEnvelope),
                 ...(decisionStore ? { decisionStore } : {}),
               },
             )
@@ -280,9 +352,10 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
               PROJECT_SERVICE_SCRIPTS_READ_MODEL_ENDPOINT,
               {
                 projectDir: nextProjectDir,
-                projectId: input.projectId ?? contextProjectId,
+	                projectKey: input.projectId ?? contextProjectKey,
+	                projectId: input.projectId ?? contextProjectKey,
                 ...(nextProjectUid ? { projectUid: nextProjectUid } : {}),
-                ...desktopContextCommandEnvelope(contextEnvelope),
+                ...projectSurfaceContextCommandEnvelope(contextEnvelope),
                 ...(decisionStore ? { decisionStore } : {}),
               },
             )
@@ -299,7 +372,7 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
             {
               projectDir: nextProjectDir,
               kind: input.kind,
-              ...desktopContextCommandEnvelope(contextEnvelope),
+              ...projectSurfaceContextCommandEnvelope(contextEnvelope),
               ...(input.input !== undefined ? { input: input.input } : {}),
             },
           )
@@ -324,7 +397,7 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
               projectDir: nextProjectDir,
               contentUnitIds: input.contentUnitIds,
               ...(input.projectUid ?? contextProjectUid ? { projectUid: input.projectUid ?? contextProjectUid } : {}),
-              ...desktopContextCommandEnvelope(contextEnvelope),
+              ...projectSurfaceContextCommandEnvelope(contextEnvelope),
               ...(recordValue(input.input) ?? {}),
               ...(decisionStore ? { decisionStore } : {}),
             },
@@ -334,6 +407,14 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
           readScriptSource: (input) => postProjectWorkspaceOperation(PROJECT_SERVICE_SCRIPT_SOURCE_READ_ENDPOINT, input),
           upsertScript: (input) => postProjectWorkspaceOperation(PROJECT_SERVICE_SCRIPT_UPSERT_ENDPOINT, input),
           snapshotScriptVersionFromMarkdown: (input) => postProjectWorkspaceOperation(PROJECT_SERVICE_SCRIPT_VERSION_SNAPSHOT_ENDPOINT, input),
+          listProductionEditingWorkspaces: (input) => postProjectWorkspaceOperation(PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_LIST_ENDPOINT, input),
+          createProductionEditingWorkspace: (input) => postProjectWorkspaceOperation(PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_CREATE_ENDPOINT, input),
+          refreshProductionEditingResources: (input) => postProjectWorkspaceOperation(PROJECT_SERVICE_PRODUCTION_EDITING_RESOURCES_REFRESH_ENDPOINT, input),
+          deleteProductionEditingWorkspace: (input) => postProjectWorkspaceOperation(PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_DELETE_ENDPOINT, input),
+          openProductionEditingWorkspace: async (input) => {
+          const openResult = await postProjectWorkspaceOperation(PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_OPEN_ENDPOINT, input)
+          return runProductionEditingOpenAction(openResult, input)
+          },
           gitStatus: async () => {
           if (!contextProjectDir) throw new Error('Daemon context does not expose a local project workspace for this Desktop project.')
           const result = await readElectronApi()?.getProjectGitWorkspaceStatus?.({
@@ -381,14 +462,14 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
   }, [
     contextEnvelope,
     contextProjectDir,
-    contextProjectId,
+    contextProjectKey,
     contextProjectUid,
     currentOrgID,
     currentUser,
     orgMemberships,
     owner,
     project,
-    projectId,
+    projectKey,
     runtimeConfig?.gatewayBaseURL,
     runtimeConfig?.apiBaseURL,
     workspaceRoot,
@@ -427,17 +508,6 @@ function desktopPrincipalHint(owner: ReturnType<typeof workspaceOwnerContext>): 
     return { scopeKind: 'user', scopeId: owner.userId, userId: String(owner.userId) }
   }
   return {}
-}
-
-function desktopContextCommandEnvelope(context: MovScriptContextEnvelope | undefined): Record<string, unknown> {
-  const sessionId = context?.session?.sessionId
-  if (!sessionId) return {}
-  return {
-    context: {
-      sessionId,
-      revision: context.revision,
-    },
-  }
 }
 
 function desktopDataScopeFromContext(context: MovScriptContextEnvelope | undefined): { scopeKind: 'user' | 'org'; scopeId: string | number } | undefined {
@@ -487,10 +557,10 @@ export function useDesktopProjectReadModel() {
 
 export function desktopProjectSurfaceHref(
   route: ProjectSurfaceRouteKey,
-  projectId: string,
+  projectKey: string,
   params?: ProjectSurfaceRouteParams,
 ): string {
-  const pathname = desktopProjectSurfacePath(route, projectId)
+  const pathname = desktopProjectSurfacePath(route, projectKey)
   const query = new URLSearchParams()
   for (const [key, value] of Object.entries(params ?? {})) {
     if (value === undefined) continue
@@ -500,7 +570,7 @@ export function desktopProjectSurfaceHref(
   return search ? `${pathname}?${search}` : pathname
 }
 
-export function desktopProjectSurfacePath(route: ProjectSurfaceRouteKey, projectId: string): string {
+export function desktopProjectSurfacePath(route: ProjectSurfaceRouteKey, projectKey: string): string {
   if (route === 'overview') return ROUTES.project.home
   if (route === 'settings') return ROUTES.project.settings
   if (route === 'scripts') return ROUTES.project.scripts
@@ -509,7 +579,7 @@ export function desktopProjectSurfacePath(route: ProjectSurfaceRouteKey, project
   if (route === 'contentCanvas') return ROUTES.project.contentCanvas
   if (route === 'contentPreview') return ROUTES.project.contentPreview
   if (route === 'settingPreview') return ROUTES.project.settingPreview
-  return projectSurfacePath(route, projectId)
+  return projectSurfacePath(route, projectKey)
 }
 
 async function runDesktopGitAction(
@@ -544,8 +614,18 @@ async function postDaemonGateway(
   return recordValue(payload) ?? {}
 }
 
-function readDesktopDaemonGatewayBaseURL(config: { gatewayBaseURL?: string; apiBaseURL?: string } | null | undefined): string | undefined {
-  return config?.gatewayBaseURL ?? config?.apiBaseURL
+function readDesktopDaemonGatewayBaseURL(
+  config: {
+    runtimeConnection?: { gatewayBaseURL?: string }
+    runtime?: { gateway?: { baseURL?: string } }
+    gatewayBaseURL?: string
+    apiBaseURL?: string
+  } | null | undefined,
+): string | undefined {
+  return config?.runtimeConnection?.gatewayBaseURL
+    ?? config?.runtime?.gateway?.baseURL
+    ?? config?.gatewayBaseURL
+    ?? config?.apiBaseURL
 }
 
 function resolveBackendGitRemoteURL(value: string | undefined): string | undefined {
@@ -564,4 +644,11 @@ function recordValue(value: unknown): Record<string, unknown> | undefined {
 
 function readString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function rendererCommandValue(value: unknown): string | string[] | undefined {
+  if (typeof value === 'string') return value.trim() ? value.trim() : undefined
+  if (!Array.isArray(value)) return undefined
+  const items = value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+  return items.length > 0 ? items : undefined
 }

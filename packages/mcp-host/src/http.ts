@@ -139,12 +139,13 @@ function daemonContextSessionsEndpoint(): string | undefined {
 
 function daemonContextPayload(next: MCPContextUpdate): Record<string, unknown> {
   const projectDir = mcpContextProjectDir(next)
+  const projectIdentity = daemonProjectIdentity(next)
   return {
     schema: 'movscript.daemon-context-session-update.v1',
     sessionId: 'desktop-current',
     windowId: 'desktop-main',
     ...(next.project ? {
-      projectId: next.project.id,
+      ...projectIdentity,
       projectTitle: next.project.name,
     } : {}),
     ...(projectDir ? {
@@ -167,6 +168,27 @@ function daemonContextPayload(next: MCPContextUpdate): Record<string, unknown> {
       },
     } : {}),
     mcpContext: next,
+  }
+}
+
+function daemonProjectIdentity(next: MCPContextUpdate): Record<string, unknown> {
+  const project = next.project
+  if (!project) return {}
+  const backendProjectId = project.backendProjectId
+    ?? project.backend_project_id
+    ?? (typeof project.id === 'number' ? project.id : undefined)
+  const projectUid = project.projectUid ?? project.project_uid ?? project.uid
+  const projectKey = project.projectKey
+    ?? project.project_key
+    ?? project.routeProjectKey
+    ?? project.route_project_key
+    ?? (typeof project.id === 'string' ? project.id : undefined)
+    ?? projectUid
+    ?? (backendProjectId !== undefined ? String(backendProjectId) : undefined)
+  return {
+    ...(backendProjectId !== undefined ? { backendProjectId, backend_project_id: backendProjectId } : {}),
+    ...(projectUid ? { projectUid, project_uid: projectUid } : {}),
+    ...(projectKey ? { projectKey, project_key: projectKey, projectId: projectKey } : backendProjectId !== undefined ? { projectId: backendProjectId } : {}),
   }
 }
 

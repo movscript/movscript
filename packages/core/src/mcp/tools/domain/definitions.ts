@@ -161,7 +161,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_read_production_edit_plan',
-      description: 'Read a production-level edit plan handoff from selected scene_moment outputs. This returns a MovScript edit_plan-shaped artifact for editing_project_create_from_edit_plan; it does not render or write candidates.',
+      description: 'Read a production-level edit plan handoff from selected scene_moment outputs. This returns a MovScript edit_plan-shaped context artifact; it does not create a production editing workspace, render, or write candidates.',
       inputSchema: projectSchema({
         ...workspaceLocator,
         productionId: { type: ['string', 'number'] },
@@ -174,7 +174,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_create_editing_project_context',
-      description: 'Return domain-to-editing handoff context for a scene_moment or production: selected content units, candidates, resources, provenance, blockers, and an edit_plan when available. Creation of the MediaEditingProject remains the responsibility of editing_project_create_from_edit_plan.',
+      description: 'Return domain-to-editing handoff context for a scene_moment or production: selected content units, candidates, resources, provenance, blockers, and an edit_plan when available. Concrete playback/editing structure belongs in a production_editing workspace or an explicit MediaEditingProject.',
       inputSchema: projectSchema({
         ...workspaceLocator,
         sceneMomentId: { type: ['string', 'number'] },
@@ -189,7 +189,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_read_scene_moment_timeline',
-      description: 'Convert a scene_moment edit plan into a MediaEditingProject handoff. Product editing should use editing_project_create_from_edit_plan for new workflows. Returns media_editing_project plus compose_inputs.',
+      description: 'Convert a scene_moment edit plan into a MediaEditingProject handoff. Product editing should create/open a production editing workspace for production-bound cuts, or use editing_project_create for direct system editing projects. Returns media_editing_project plus compose_inputs.',
       inputSchema: projectSchema({
         ...workspaceLocator,
         sceneMomentId: { type: ['string', 'number'] },
@@ -265,7 +265,13 @@ export function domainTools(): MCPTool[] {
         assetGroupId: { type: 'string', description: 'Alias for asset_group_id.' },
         asset_group_name: { type: 'string', description: 'Optional display name for the explicit remote provider asset group.' },
         assetGroupName: { type: 'string', description: 'Alias for asset_group_name.' },
-        projectName: { type: 'string', description: 'Optional provider project label for the managed asset group. Defaults to projectId when available.' },
+        providerScopeId: { type: 'string', description: 'Optional provider asset-library project/group scope id. This is not a MovScript source project locator.' },
+        provider_scope_id: { type: 'string', description: 'Alias for providerScopeId.' },
+        providerProjectId: { type: 'string', description: 'Alias for providerScopeId.' },
+        provider_project_id: { type: 'string', description: 'Alias for providerScopeId.' },
+        projectId: { type: 'string', description: 'Deprecated alias for providerScopeId; not a MovScript source project locator.' },
+        project_id: { type: 'string', description: 'Deprecated alias for providerScopeId; not a MovScript source project locator.' },
+        projectName: { type: 'string', description: 'Optional provider scope label for the managed asset group. Defaults to providerScopeId when available.' },
         project_name: { type: 'string', description: 'Alias for projectName.' },
         settingId: { type: 'string', description: 'Optional setting scope for the managed asset group. Defaults to the asset path setting segment when available.' },
         setting_id: { type: 'string', description: 'Alias for settingId.' },
@@ -287,6 +293,12 @@ export function domainTools(): MCPTool[] {
         provider_id: { type: 'string', description: 'Alias for provider.' },
         model: { type: 'string', description: 'Optional target model id for model-scoped groups.' },
         model_id: { type: 'string', description: 'Alias for model.' },
+        providerScopeId: { type: 'string', description: 'Optional provider asset-library project/group scope id. This is not a MovScript source project locator.' },
+        provider_scope_id: { type: 'string', description: 'Alias for providerScopeId.' },
+        providerProjectId: { type: 'string', description: 'Alias for providerScopeId.' },
+        provider_project_id: { type: 'string', description: 'Alias for providerScopeId.' },
+        projectId: { type: 'string', description: 'Deprecated alias for providerScopeId; not a MovScript source project locator.' },
+        project_id: { type: 'string', description: 'Deprecated alias for providerScopeId; not a MovScript source project locator.' },
       }),
     },
     {
@@ -342,12 +354,12 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_upsert_content_unit',
-      description: 'Create or update a project-level content unit source record. Content units are independent production tasks and never target namespace nodes directly. For namespace-scope video output, use content_unit_type=timeline_assembly_ref with target_kind=timeline_assembly plus target_ref=timeline_assembly:<scopeKind>:<scopeRef>, or pass scope_kind/scope_ref so the writer derives that target_ref. Legacy production_ref/segment_ref remain compatibility aliases for timeline assemblies; do not invent episode_ref, beat_ref, or other namespace ref types.',
+      description: 'Create or update a project-level content unit source record. Content units are independent production tasks for system primitives such as scene_moment, expression_unit, asset, keyframe, storyboard, or audio_cue. They do not target namespace nodes. Production-level assembled playback belongs in a production editing workspace.',
       inputSchema: projectSchema({ ...workspaceLocator, unit: { type: 'object', additionalProperties: true } }),
     },
     {
       name: 'domain_upsert_timeline_namespace_tree',
-      description: 'Merge-write a path-first timeline namespace tree under timeline/. Namespace vocabulary supplies labels/templates only; instance parent-child structure comes from targetPath and nested tree placement. Nodes are namespace labels over legacy production/segment projections and must not carry content-unit refs, candidates, selections, resources, production_ref, or segment_ref. Put scene_moments and their expression_units/storyboards/keyframes/audio_cues under namespace nodes when the tree needs production primitives. For namespace-scope video output, put explicit content_units on a namespace node; they are written as timeline_assembly_ref content units with target_kind=timeline_assembly and target_ref=timeline_assembly:<namespace_kind>:<id>.',
+      description: 'Merge-write a path-first timeline namespace tree under timeline/. Namespace vocabulary supplies labels/templates only; instance parent-child structure comes from targetPath and nested tree placement. Nodes own story structure only and must not carry content-unit refs, candidates, selections, resources, production_ref, or segment_ref. Put scene_moments and their expression_units/storyboards/keyframes/audio_cues under namespace nodes when the tree needs production primitives. For production-level playback, create or open a production editing workspace.',
       inputSchema: projectSchema({
         ...workspaceLocator,
         namespace: { type: 'object', additionalProperties: true },
@@ -368,7 +380,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_upsert_production_tree',
-      description: 'Merge-write one legacy production-projection tree plus nested segments, scene_moments, expression_units, storyboards, keyframes, audio_cues, and content_units in one structured operation. This is an upsert/patch tree: records are matched by id and updated; omitted existing children are not deleted. Use explicit delete flows for removals. Candidate writes still belong to content-unit candidate tools. For new namespace-scope video output, prefer explicit timeline_assembly_ref content units through domain_upsert_content_unit instead of relying on legacy production_ref/segment_ref tree defaults.',
+      description: 'Merge-write one production story tree plus nested segments, scene_moments, expression_units, storyboards, keyframes, audio_cues, and primitive-scoped content_units in one structured operation. This is an upsert/patch tree: records are matched by id and updated; omitted existing children are not deleted. Use explicit delete flows for removals. Candidate writes still belong to content-unit candidate tools. For production-level playback, create or open a production editing workspace instead of writing namespace-scope content units.',
       inputSchema: projectSchema({
         ...workspaceLocator,
         productionId: { type: ['string', 'number'] },
@@ -471,7 +483,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_append_candidate',
-      description: 'Append an inline candidate to an asset or keyframe source entity. Content-unit candidates are backend decision records; use domain_create_content_candidate instead. Generated resources become stable domain dependencies only after candidate/selection writes and explicit adoption/selection.',
+      description: 'Migration-only temporary fallback: append an inline candidate to an asset, keyframe, or legacy source entity. New work must use content-unit candidate tools such as domain_create_content_candidate and domain_decide_content_unit_candidate. Generated resources become stable domain dependencies only after explicit adoption/selection.',
       inputSchema: candidateSchema(),
     },
     {
@@ -522,12 +534,12 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_create_asset_slot_candidate',
-      description: 'Create an asset-slot candidate using the MovScript workspace candidate service. If targetRecord carries a workspace path, this appends an inline candidate to that asset source entity.',
+      description: 'Migration-only temporary fallback: create an inline asset-slot candidate using the MovScript workspace candidate service. New asset generation must use asset_ref content units and content-unit candidate tools.',
       inputSchema: projectSchema(candidateWriteSchema()),
     },
     {
       name: 'domain_create_keyframe_candidate',
-      description: 'Create a keyframe candidate using the MovScript workspace candidate service. If keyframes are represented as content units in the active model, use the content-unit candidate flow instead.',
+      description: 'Migration-only temporary fallback: create an inline keyframe candidate using the MovScript workspace candidate service. New keyframe or storyboard outputs must use content-unit candidate tools.',
       inputSchema: projectSchema(candidateWriteSchema()),
     },
     {
@@ -578,17 +590,17 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_select_candidate',
-      description: 'Select and lock an inline candidate on an asset or keyframe source entity. Content-unit selections are backend decision records; use domain_select_content_unit_candidate instead.',
+      description: 'Migration-only temporary fallback: select and lock an inline candidate on an asset, keyframe, or legacy source entity. Content-unit selections are backend decision records; use domain_decide_content_unit_candidate or domain_select_content_unit_candidate instead.',
       inputSchema: candidateSchema({ candidateId: { type: 'string' }, candidate_id: { type: 'string' }, reason: { type: 'string' } }),
     },
     {
       name: 'domain_update_candidate',
-      description: 'Update an inline candidate on an asset or keyframe source entity. Content-unit candidates are backend decision records; use domain_create_content_candidate or domain_decide_content_unit_candidate instead.',
+      description: 'Migration-only temporary fallback: update an inline candidate on an asset, keyframe, or legacy source entity. Content-unit candidates are backend decision records; use domain_create_content_candidate or domain_decide_content_unit_candidate instead.',
       inputSchema: candidateSchema({ candidateId: { type: 'string' }, candidate_id: { type: 'string' } }),
     },
     {
       name: 'domain_unlock_candidate',
-      description: 'Remove an inline candidate lock from an asset or keyframe source entity. Content-unit selections are backend decision records; use domain_select_content_unit_candidate/domain_decide_content_unit_candidate instead.',
+      description: 'Migration-only temporary fallback: remove an inline candidate lock from an asset, keyframe, or legacy source entity. Content-unit selections are backend decision records; use domain_select_content_unit_candidate or domain_decide_content_unit_candidate instead.',
       inputSchema: candidateSchema(),
     },
     {

@@ -42,8 +42,6 @@ export function localTerminalEnv(input: LocalTerminalEnvInput): NodeJS.ProcessEn
   }
   delete next.MOVSCRIPT_API_BASE_URL
   delete next.MOVSCRIPT_BACKEND_AUTH_TOKEN
-  delete next.MOVCLI_TOKEN
-  delete next.MOVCLI_USER_ID
   return next
 }
 

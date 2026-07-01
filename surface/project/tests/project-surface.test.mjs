@@ -19,11 +19,7 @@ import {
   contentCanvasNodeCanUseCandidateFlow,
   contentCanvasNodeIsNamespace,
 } from '../dist/data.js'
-import {
-  agentImpactPreviewTimelineHref,
-  buildTimelineAssemblyState,
-  buildWorkflowArtifactDebugView,
-} from '../dist/react.js'
+import { agentImpactPreviewTimelineHref } from '../dist/react.js'
 import {
   createHostedProjectSurfaceRuntime,
   projectSurfaceContextCommandEnvelope,
@@ -31,14 +27,14 @@ import {
 } from '../dist/runtime.js'
 
 test('project surface exposes studio routes independent of legacy agent routes', () => {
-  assert.equal(PROJECT_SURFACE_ROUTES.overview, '/studio/:projectId/overview')
-  assert.equal(PROJECT_SURFACE_ROUTES.progress, '/studio/:projectId/progress')
-  assert.equal(PROJECT_SURFACE_ROUTES.dailies, '/studio/:projectId/dailies')
-  assert.equal(PROJECT_SURFACE_ROUTES.scripts, '/studio/:projectId/scripts')
-  assert.equal(PROJECT_SURFACE_ROUTES.standards, '/studio/:projectId/standards')
-  assert.equal(PROJECT_SURFACE_ROUTES.content, '/studio/:projectId/content')
-  assert.equal(PROJECT_SURFACE_ROUTES.contentCanvas, '/studio/:projectId/content/canvas')
-  assert.equal(PROJECT_SURFACE_ROUTES.contentPreview, '/studio/:projectId/content/preview')
+  assert.equal(PROJECT_SURFACE_ROUTES.overview, '/studio/:projectKey/overview')
+  assert.equal(PROJECT_SURFACE_ROUTES.progress, '/studio/:projectKey/progress')
+  assert.equal(PROJECT_SURFACE_ROUTES.dailies, '/studio/:projectKey/dailies')
+  assert.equal(PROJECT_SURFACE_ROUTES.scripts, '/studio/:projectKey/scripts')
+  assert.equal(PROJECT_SURFACE_ROUTES.standards, '/studio/:projectKey/standards')
+  assert.equal(PROJECT_SURFACE_ROUTES.content, '/studio/:projectKey/content')
+  assert.equal(PROJECT_SURFACE_ROUTES.contentCanvas, '/studio/:projectKey/content/canvas')
+  assert.equal(PROJECT_SURFACE_ROUTES.contentPreview, '/studio/:projectKey/content/preview')
   assert.equal(projectSurfacePath('overview', 'rain/night'), '/studio/rain%2Fnight/overview')
   assert.equal(projectSurfacePath('scripts', 'rain/night'), '/studio/rain%2Fnight/scripts')
   assert.equal(projectSurfacePath('standards', 'rain/night'), '/studio/rain%2Fnight/standards')
@@ -126,481 +122,6 @@ test('project scripts surface reads script selection from router search params',
   assert.doesNotMatch(source, /window\.location\.search/)
 })
 
-test('project edit desk exposes a draggable timeline assembly workbench', () => {
-  const source = readFileSync(new URL('../src/components/edit-desk/ProjectEditDeskSurface.tsx', import.meta.url), 'utf8')
-  const css = readFileSync(new URL('../src/components/edit-desk/ProjectEditDeskSurface.css', import.meta.url), 'utf8')
-
-  assert.match(source, /ProjectEditDeskWorkbench/)
-  assert.match(source, /compileTimelineAssemblyToFinishingProject/)
-  assert.match(source, /TimelineAssemblyState/)
-  assert.match(source, /TimelineAssemblySourceNamespace/)
-  assert.match(source, /TimelineAssemblyCoverageMap/)
-  assert.match(source, /TimelineAssemblyDecisionLogEntry/)
-  assert.match(source, /TimelineAssemblyEditActionPlan/)
-  assert.match(source, /TimelineAssemblyClipEditIntent/)
-  assert.match(source, /DEFAULT_EDIT_PROFILE/)
-  assert.match(source, /buildTimelineAssemblyState/)
-  assert.match(source, /buildTimelineAssemblySourceNamespace/)
-  assert.match(source, /ContentUnitIntentPanel/)
-  assert.match(source, /ContentUnitIntentCard/)
-  assert.match(source, /ContentUnitPreviewStrip/)
-  assert.match(source, /contentUnitIntentSummary/)
-  assert.match(source, /candidatePreviewsFromRecord/)
-  assert.match(source, /selectedPreviewFromAsset/)
-  assert.match(source, /filterEditDeskAssetsForSourceNamespace/)
-  assert.match(source, /editDeskAssetScopeMatch/)
-  assert.match(source, /assetStatusOrder/)
-  assert.match(source, /FinishingBackendPicker/)
-  assert.match(source, /selectedBackends/)
-  assert.match(source, /onToggleBackend/)
-  assert.match(source, /buildEditDecisionHandoff/)
-  assert.match(source, /buildTimelineAssemblyEditActionPlan/)
-  assert.match(source, /buildOpenMontageEditDecisions/)
-  assert.match(source, /buildOpenMontageAssetManifest/)
-  assert.match(source, /openMontageTransitionsFromClips/)
-  assert.match(source, /timelineAssemblyCoverage/)
-  assert.match(source, /timelineAssemblyDecisionLog/)
-  assert.match(source, /intentRefFromAsset/)
-  assert.match(source, /editing_project_create_from_edit_decisions/)
-  assert.match(source, /compile_manifest/)
-  assert.match(source, /compile_result/)
-  assert.match(source, /compile_diagnostics/)
-  assert.match(source, /backend_options/)
-  assert.match(source, /finishing_projects/)
-  assert.match(source, /video_compose_request/)
-  assert.match(source, /editing_video_compose/)
-  assert.match(source, /ProjectServiceGateway/)
-  assert.match(source, /readTimelineAssemblyDraft/)
-  assert.match(source, /writeTimelineAssemblyDraft/)
-  assert.match(source, /timelineAssemblyDraftPayload/)
-  assert.match(source, /timelineAssemblyStateFromDraftRecord/)
-  assert.match(source, /edit-desk-editor-picker/)
-  assert.match(source, /type="checkbox"/)
-  assert.match(source, /FINISHING_BACKEND_LABELS/)
-  assert.match(source, /selected_output/)
-  assert.match(source, /selectedClipId: active\?\.id/)
-  assert.match(source, /edit-desk-preview__candidate-grid/)
-  assert.match(source, /edit-desk-preview__black/)
-  assert.doesNotMatch(source, /<strong>\{asset\.semanticRef/)
-  assert.match(source, /mediaLocalPathFromRecord/)
-  assert.match(source, /local_path/)
-  assert.match(source, /CompileManifest/)
-  assert.match(source, /source_namespace/)
-  assert.match(source, /coverage_map/)
-  assert.match(source, /decision_log/)
-  assert.match(source, /edit_action_plan/)
-  assert.match(source, /intent_ref/)
-  assert.match(source, /OpenMontage 动作/)
-  assert.match(source, /transition_in/)
-  assert.match(source, /ducking/)
-  assert.match(source, /subtitle_style/)
-  assert.match(source, /render_contract/)
-  assert.match(source, /runtime: 'video_compose'/)
-  assert.match(source, /fallback_policy: 'no_implicit_fallback'/)
-  assert.match(source, /draggable/)
-  assert.match(source, /onDropPayload/)
-  assert.match(source, /edit_decisions/)
-  assert.doesNotMatch(source, /NamespaceSpinePanel/)
-  assert.doesNotMatch(source, /HandoffPanel/)
-  assert.doesNotMatch(source, /ComposeResultCard/)
-  assert.doesNotMatch(source, /edit-desk-toolbar/)
-  assert.doesNotMatch(source, /edit-desk-backend-selector/)
-  assert.doesNotMatch(source, /复制项目草案/)
-  assert.match(css, /\.edit-desk-main/)
-  assert.match(css, /\.edit-desk-left-rail/)
-  assert.match(css, /\.edit-desk-content-unit-list/)
-  assert.match(css, /\.edit-desk-content-unit-list__items/)
-  assert.match(css, /\.edit-desk-content-unit-previews/)
-  assert.match(css, /\.edit-desk-preview-tile/)
-  assert.match(css, /\.edit-desk-preview__candidate-grid/)
-  assert.match(css, /\.edit-desk-preview__black/)
-  assert.match(css, /\.edit-desk-editor-picker/)
-  assert.match(css, /\.edit-desk-editor-checkbox/)
-  assert.match(css, /\.edit-desk-inspector-section/)
-  assert.match(css, /\.edit-desk-timeline/)
-  assert.match(css, /\.edit-desk-clip/)
-  assert.doesNotMatch(css, /\.edit-desk-toolbar/)
-  assert.doesNotMatch(css, /\.edit-desk-backend-selector/)
-  assert.doesNotMatch(css, /\.edit-desk-namespace-spine/)
-  assert.match(css, /max-height: 310px/)
-})
-
-test('project edit desk reads timeline namespace and ContentUnit output refs from read models', () => {
-  const debugView = buildWorkflowArtifactDebugView({
-    readModel: {
-      projectReadModel: {
-        schema: 'movscript.project-read-model.v1',
-        productions: [{
-          id: 'ep01_rebirth_refusal',
-          title: 'Rebirth Refusal',
-        }],
-        domainGraph: {
-          nodes: [{
-            category: 'timeline_namespace',
-            kind: 'production',
-            id: 'ep01_rebirth_refusal',
-            title: 'Rebirth Refusal',
-            path: 'productions/ep01_rebirth_refusal/production.json',
-            metadata: { entityKind: 'production' },
-          }],
-        },
-        contentUnits: [{
-          id: 'cu_refusal_opening_shot',
-          title: 'Opening shot',
-          content_unit_type: 'expression_unit_ref',
-          output_kind: 'video',
-          content_unit_ref: 'content_units/cu_refusal_opening_shot',
-          expression_unit_ref: 'productions/ep01_rebirth_refusal/segments/opening/scene_moments/refusal/expression_units/opening_shot',
-          candidate_count: 1,
-          selected_output: {
-            candidate_id: 'cand_opening_shot',
-            resource_id: 812,
-          },
-        }],
-      },
-    },
-  })
-  const assembly = buildTimelineAssemblyState({
-    debugView,
-    productionId: 'ep01_rebirth_refusal',
-    targetRef: 'timeline_assembly:production:ep01_rebirth_refusal',
-    focusLabel: 'production: ep01_rebirth_refusal',
-  })
-
-  assert.equal(debugView.timelineNamespaces.length, 1)
-  assert.equal(assembly.sourceNamespace.root.title, 'Rebirth Refusal')
-  assert.equal(debugView.assetManifest[0].semanticRef, '{{content_unit::cu_refusal_opening_shot}}')
-  assert.equal(debugView.assetManifest[0].targetEntityRef, 'productions/ep01_rebirth_refusal/segments/opening/scene_moments/refusal/expression_units/opening_shot')
-  assert.equal(debugView.assetManifest[0].resourceId, '812')
-  assert.equal(assembly.clips[0].intentRef.contentUnitId, 'cu_refusal_opening_shot')
-})
-
-test('project edit desk scopes assembly clips to the focused timeline target', () => {
-  const debugView = buildWorkflowArtifactDebugView({
-    readModel: {
-      projectReadModel: {
-        schema: 'movscript.project-read-model.v1',
-        projectTimelineStatus: {
-          timeline_namespaces: [{
-            id: 'pilot',
-            kind: 'production',
-            title: 'Pilot',
-            path: 'timeline/pilot',
-          }, {
-            id: 'other',
-            kind: 'production',
-            title: 'Other',
-            path: 'timeline/other',
-          }],
-        },
-        contentUnits: [{
-          id: 'cu_pilot',
-          title: 'Pilot shot',
-          output_kind: 'video',
-          target_ref: 'timeline_assembly:production:pilot',
-          selected_output: { candidate_id: 'cand_pilot', resource_id: 11 },
-        }, {
-          id: 'cu_other',
-          title: 'Other shot',
-          output_kind: 'video',
-          target_ref: 'timeline_assembly:production:other',
-          selected_output: { candidate_id: 'cand_other', resource_id: 12 },
-        }],
-      },
-    },
-  })
-
-  const assembly = buildTimelineAssemblyState({
-    debugView,
-    productionId: 'pilot',
-    targetRef: 'timeline_assembly:production:pilot',
-    focusLabel: 'production: pilot',
-  })
-
-  assert.equal(debugView.requiredAssets.length, 2)
-  assert.equal(assembly.clips.length, 1)
-  assert.equal(assembly.clips[0].source.contentUnitId, 'cu_pilot')
-})
-
-test('project edit desk keeps production path scoped content units visible', () => {
-  const debugView = buildWorkflowArtifactDebugView({
-    readModel: {
-      projectReadModel: {
-        schema: 'movscript.project-read-model.v1',
-        domainGraph: {
-          nodes: [{
-            category: 'timeline_namespace',
-            kind: 'production',
-            id: 'pilot',
-            title: 'Pilot',
-            path: 'productions/pilot/production.json',
-            metadata: { entityKind: 'production' },
-          }, {
-            category: 'timeline_namespace',
-            kind: 'production',
-            id: 'other',
-            title: 'Other',
-            path: 'productions/other/production.json',
-            metadata: { entityKind: 'production' },
-          }],
-        },
-        contentUnits: [{
-          id: 'cu_pilot_path',
-          title: 'Pilot path shot',
-          output_kind: 'video',
-          production_ref: 'productions/pilot',
-          selected_output: { candidate_id: 'cand_pilot_path', resource_id: 21 },
-        }, {
-          id: 'cu_other_path',
-          title: 'Other path shot',
-          output_kind: 'video',
-          production_ref: 'productions/other',
-          selected_output: { candidate_id: 'cand_other_path', resource_id: 22 },
-        }],
-      },
-    },
-  })
-
-  const assembly = buildTimelineAssemblyState({
-    debugView,
-    productionId: 'pilot',
-    targetRef: 'timeline_assembly:production:pilot',
-    focusLabel: 'production: pilot',
-  })
-
-  assert.equal(debugView.requiredAssets.length, 2)
-  assert.equal(assembly.clips.length, 1)
-  assert.equal(assembly.clips[0].source.contentUnitId, 'cu_pilot_path')
-})
-
-test('project edit desk scopes production container content units to their parent production', () => {
-  const debugView = buildWorkflowArtifactDebugView({
-    readModel: {
-      projectReadModel: {
-        schema: 'movscript.project-read-model.v1',
-        projectTimelineStatus: {
-          timeline_namespaces: [{
-            id: 'pilot',
-            kind: 'production',
-            title: 'Pilot',
-            path: 'timeline/pilot',
-          }, {
-            id: 'other',
-            kind: 'production',
-            title: 'Other',
-            path: 'timeline/other',
-          }],
-        },
-        productions: [{
-          id: 'pilot',
-          title: 'Pilot',
-          content_units: [{
-            id: 'cu_pilot_container',
-            title: 'Pilot container shot',
-            output_kind: 'video',
-            selected_output: { candidate_id: 'cand_pilot_container', resource_id: 31 },
-          }],
-        }, {
-          id: 'other',
-          title: 'Other',
-          content_units: [{
-            id: 'cu_other_container',
-            title: 'Other container shot',
-            output_kind: 'video',
-            selected_output: { candidate_id: 'cand_other_container', resource_id: 32 },
-          }],
-        }],
-      },
-    },
-  })
-
-  const assembly = buildTimelineAssemblyState({
-    debugView,
-    productionId: 'pilot',
-    targetRef: 'timeline_assembly:production:pilot',
-    focusLabel: 'production: pilot',
-  })
-
-  assert.equal(debugView.requiredAssets.length, 2)
-  assert.equal(assembly.clips.length, 1)
-  assert.equal(assembly.clips[0].source.contentUnitId, 'cu_pilot_container')
-})
-
-test('project edit desk falls back to unscoped content units instead of showing an empty desk', () => {
-  const debugView = buildWorkflowArtifactDebugView({
-    readModel: {
-      projectReadModel: {
-        schema: 'movscript.project-read-model.v1',
-        projectTimelineStatus: {
-          timeline_namespaces: [{
-            id: 'pilot',
-            kind: 'production',
-            title: 'Pilot',
-            path: 'timeline/pilot',
-          }],
-        },
-        contentUnits: [{
-          id: 'cu_unscoped',
-          title: 'Unscoped candidate shot',
-          output_kind: 'video',
-          content_unit_ref: 'content_units/cu_unscoped',
-          selected_output: { candidate_id: 'cand_unscoped', resource_id: 41 },
-        }],
-      },
-    },
-  })
-
-  const assembly = buildTimelineAssemblyState({
-    debugView,
-    productionId: 'pilot',
-    targetRef: 'timeline_assembly:production:pilot',
-    focusLabel: 'production: pilot',
-  })
-
-  assert.equal(debugView.requiredAssets.length, 1)
-  assert.equal(assembly.clips.length, 1)
-  assert.equal(assembly.clips[0].source.contentUnitId, 'cu_unscoped')
-})
-
-test('project edit desk keeps candidate previews separate from selected preview', () => {
-  const debugView = buildWorkflowArtifactDebugView({
-    readModel: {
-      projectReadModel: {
-        schema: 'movscript.project-read-model.v1',
-        projectTimelineStatus: {
-          timeline_namespaces: [{
-            id: 'pilot',
-            kind: 'production',
-            title: 'Pilot',
-            path: 'timeline/pilot',
-          }],
-        },
-        contentUnits: [{
-          id: 'cu_candidate_only',
-          title: 'Candidate only shot',
-          output_kind: 'video',
-          target_ref: 'timeline_assembly:production:pilot',
-          candidate_count: 2,
-          candidates: [{
-            id: 'cand_a',
-            preview_url: 'https://example.test/a.jpg',
-            resource_id: 101,
-          }, {
-            id: 'cand_b',
-            preview_url: 'https://example.test/b.jpg',
-            resource_id: 102,
-          }],
-        }],
-      },
-    },
-  })
-
-  const assembly = buildTimelineAssemblyState({
-    debugView,
-    productionId: 'pilot',
-    targetRef: 'timeline_assembly:production:pilot',
-    focusLabel: 'production: pilot',
-  })
-
-  assert.equal(assembly.clips.length, 1)
-  assert.equal(assembly.clips[0].source.status, 'needs_selection')
-  assert.equal(assembly.clips[0].source.mediaUrl, undefined)
-  assert.deepEqual(
-    assembly.clips[0].source.candidatePreviews?.map((preview) => [preview.candidateId, preview.mediaUrl, preview.selected]),
-    [
-      ['cand_a', 'https://example.test/a.jpg', false],
-      ['cand_b', 'https://example.test/b.jpg', false],
-    ],
-  )
-})
-
-test('project edit desk derives ContentUnits from timeline summaries and candidate maps', () => {
-  const debugView = buildWorkflowArtifactDebugView({
-    readModel: {
-      projectReadModel: {
-        schema: 'movscript.project-read-model.v1',
-        projectTimelineStatus: {
-          timeline_namespaces: [{
-            id: 'pilot',
-            kind: 'production',
-            title: 'Pilot',
-            path: 'productions/pilot/production.json',
-          }],
-          timeline_assemblies: [{
-            content_unit_id: 'cu_pilot_assembly',
-            title: 'Pilot assembly',
-            content_unit_type: 'timeline_assembly_ref',
-            output_kind: 'video',
-            target_kind: 'timeline_assembly',
-            target_ref: 'timeline_assembly:production:pilot',
-            candidate_count: 2,
-          }],
-        },
-        contentUnitCandidates: {
-          cu_pilot_assembly: [{
-            id: 'cand_selected',
-            title: 'Selected take',
-            resourceId: 101,
-            selected: true,
-            outputs: [{ kind: 'video', resource_id: 101, preview_url: 'https://example.test/selected.mp4' }],
-          }, {
-            id: 'cand_alt',
-            title: 'Alt take',
-            resourceId: 102,
-            outputs: [{ kind: 'video', resource_id: 102, preview_url: 'https://example.test/alt.mp4' }],
-          }],
-        },
-      },
-    },
-  })
-  const assembly = buildTimelineAssemblyState({
-    debugView,
-    productionId: 'pilot',
-    targetRef: 'timeline_assembly:production:pilot',
-    focusLabel: 'production: pilot',
-  })
-
-  assert.equal(debugView.requiredAssets.length, 1)
-  assert.equal(debugView.requiredAssets[0].contentUnitId, 'cu_pilot_assembly')
-  assert.equal(debugView.requiredAssets[0].candidateCount, 2)
-  assert.equal(debugView.requiredAssets[0].selectedCandidate, 'cand_selected')
-  assert.equal(debugView.requiredAssets[0].selectedResource, '101')
-  assert.equal(debugView.assetManifest[0].status, 'selected')
-  assert.equal(assembly.clips.length, 1)
-  assert.equal(assembly.clips[0].source.contentUnitId, 'cu_pilot_assembly')
-  assert.equal(assembly.clips[0].source.selectedPreview?.mediaUrl, 'https://example.test/selected.mp4')
-})
-
-test('project edit desk keeps ContentUnits visible before candidate output exists', () => {
-  const debugView = buildWorkflowArtifactDebugView({
-    readModel: {
-      projectReadModel: {
-        schema: 'movscript.project-read-model.v1',
-        overview: {
-          contentUnits: [{
-            id: 'content_unit:cu_nested_opening_shot',
-            path: 'content_units/cu_nested_opening_shot/content_unit.json',
-            record: {
-              id: 'cu_nested_opening_shot',
-              title: 'Nested opening shot',
-              content_unit_type: 'expression_unit_ref',
-              output_kind: 'video',
-              expression_unit_ref: 'productions/ep01/segments/opening/scene_moments/wakeup/expression_units/opening_shot',
-            },
-          }],
-        },
-      },
-    },
-  })
-
-  assert.equal(debugView.requiredAssets.length, 1)
-  assert.equal(debugView.requiredAssets[0].contentUnitId, 'cu_nested_opening_shot')
-  assert.equal(debugView.requiredAssets[0].targetEntityRef, 'productions/ep01/segments/opening/scene_moments/wakeup/expression_units/opening_shot')
-  assert.equal(debugView.assetManifest.length, 1)
-  assert.equal(debugView.assetManifest[0].semanticRef, '{{content_unit::cu_nested_opening_shot}}')
-  assert.equal(debugView.assetManifest[0].status, 'missing_candidate')
-})
-
 test('project surface descriptor carries host-neutral project intent', () => {
   assert.deepEqual(
     projectSurfaceDescriptor({
@@ -613,6 +134,7 @@ test('project surface descriptor carries host-neutral project intent', () => {
     {
       scope: 'project',
       surface: 'dailies',
+      projectKey: 'chang-an-rain-night',
       projectId: 'chang-an-rain-night',
       params: { contentUnitId: '04_chase_video' },
       reason: 'review candidates',
@@ -621,10 +143,9 @@ test('project surface descriptor carries host-neutral project intent', () => {
   )
 })
 
-test('agent surface params carry normalized focus while preserving legacy production compatibility', () => {
+test('agent surface params carry normalized production scope focus', () => {
   const params = new URLSearchParams({
     projectId: 'project-a',
-    targetKind: 'timeline_assembly',
     scopeKind: 'production',
     scopeRef: 'pilot',
   })
@@ -633,18 +154,16 @@ test('agent surface params carry normalized focus while preserving legacy produc
   assert.equal(query.productionId, 'pilot')
 
   const focus = agentSurfaceDomainFocus(query)
-  assert.equal(focus.target?.targetCategory, 'timeline_assembly')
-  assert.equal(focus.target?.targetRef, 'timeline_assembly:production:pilot')
+  assert.equal(focus.target, undefined)
   assert.equal(focus.scope?.kind, 'production')
   assert.equal(agentSurfaceFocusLabel(focus), 'production: pilot')
   assert.equal(agentSurfaceLegacyProductionId(focus), 'pilot')
   assert.equal(agentSurfaceHasTimelineFocus(focus), true)
 })
 
-test('agent surface params keep non-production timeline scopes out of legacy production projection', () => {
+test('agent surface params keep non-production scopes out of legacy production projection', () => {
   const params = new URLSearchParams({
     projectId: 'project-a',
-    targetKind: 'timeline_assembly',
     scopeKind: 'episode',
     scopeRef: 'ep01',
   })
@@ -653,8 +172,7 @@ test('agent surface params keep non-production timeline scopes out of legacy pro
   assert.equal(query.productionId, undefined)
 
   const focus = agentSurfaceDomainFocus(query)
-  assert.equal(focus.target?.targetCategory, 'timeline_assembly')
-  assert.equal(focus.target?.targetRef, 'timeline_assembly:episode:ep01')
+  assert.equal(focus.target, undefined)
   assert.equal(focus.scope?.kind, 'episode')
   assert.equal(agentSurfaceFocusLabel(focus), 'episode: ep01')
   assert.equal(agentSurfaceLegacyProductionId(focus), undefined)
@@ -677,8 +195,8 @@ test('agent surface timeline focus href replaces stale legacy production query',
   assert.equal(query.get('projectId'), 'project-a')
   assert.equal(query.get('scopeKind'), 'episode')
   assert.equal(query.get('scopeRef'), 'ep01')
-  assert.equal(query.get('targetKind'), 'timeline_assembly')
-  assert.equal(query.get('targetRef'), 'timeline_assembly:episode:ep01')
+  assert.equal(query.get('targetKind'), null)
+  assert.equal(query.get('targetRef'), null)
 })
 
 test('impact preview links use timeline scope before legacy production path', () => {
@@ -686,8 +204,6 @@ test('impact preview links use timeline scope before legacy production path', ()
     item: {
       scope_kind: 'episode',
       scope_ref: 'ep02',
-      target_kind: 'timeline_assembly',
-      target_ref: 'timeline_assembly:episode:ep02',
     },
     params: new URLSearchParams('productionId=pilot'),
     fallbackProjectId: 'project-a',
@@ -697,7 +213,7 @@ test('impact preview links use timeline scope before legacy production path', ()
   assert.equal(scopedQuery.get('productionId'), null)
   assert.equal(scopedQuery.get('scopeKind'), 'episode')
   assert.equal(scopedQuery.get('scopeRef'), 'ep02')
-  assert.equal(scopedQuery.get('targetRef'), 'timeline_assembly:episode:ep02')
+  assert.equal(scopedQuery.get('targetRef'), null)
 
   const legacyHref = agentImpactPreviewTimelineHref({
     item: {
@@ -711,7 +227,7 @@ test('impact preview links use timeline scope before legacy production path', ()
   assert.equal(legacyQuery.get('productionId'), 'pilot')
   assert.equal(legacyQuery.get('scopeKind'), 'production')
   assert.equal(legacyQuery.get('scopeRef'), 'pilot')
-  assert.equal(legacyQuery.get('targetRef'), 'timeline_assembly:production:pilot')
+  assert.equal(legacyQuery.get('targetRef'), null)
 })
 
 test('content canvas domain graph treats namespaces as structure, not candidate targets', () => {
@@ -800,7 +316,7 @@ test('content prompt canvas does not recompile generation prompt on node drag id
   assert.doesNotMatch(css, /transition: width 180ms ease, transform 180ms ease/)
 })
 
-test('content prompt reference drops require choosing reference role before inserting typed token', () => {
+test('content prompt reference drops add reference pool entries instead of inserting prompt tokens', () => {
   const panelSource = readFileSync(new URL('../src/features/content/components/ContentPromptCanvasPanel.tsx', import.meta.url), 'utf8')
   const editorSource = readFileSync(new URL('../src/features/content/components/ContentCanvasPromptReferences.tsx', import.meta.url), 'utf8')
   const nodeModelSource = readFileSync(new URL('../src/features/content/components/contentCanvasWorkspaceNodeModel.ts', import.meta.url), 'utf8')
@@ -808,10 +324,13 @@ test('content prompt reference drops require choosing reference role before inse
   assert.match(panelSource, /GenerationReferenceRoleMenu/)
   assert.match(panelSource, /onReferenceDrop\(node, sourceNodeId, \{ x: event\.clientX, y: event\.clientY \}\)/)
   assert.match(panelSource, /appendReferenceToPromptTargetWithRole/)
-  assert.match(editorSource, /PromptReferenceDropRoleMenu/)
-  assert.match(editorSource, /insertAt: \{\s*value: dropRoleMenu\.promptValue/)
-  assert.match(nodeModelSource, /role=\$\{normalizePromptReferenceMetadataValue\(options\.role\)\}/)
-  assert.match(nodeModelSource, /media=\$\{normalizePromptReferenceMetadataValue\(options\.mediaType\)\}/)
+  assert.match(panelSource, /onGenerationReferenceAppend\(targetNode, sourceNode/)
+  assert.doesNotMatch(panelSource, /appendContentNodeReferenceToPrompt/)
+  assert.match(editorSource, /referenceItems/)
+  assert.match(editorSource, /filterPromptMentionOptions/)
+  assert.doesNotMatch(editorSource, /insertAt: \{\s*value: dropRoleMenu\.promptValue/)
+  assert.match(nodeModelSource, /generationReferencesFromContentNode/)
+  assert.match(nodeModelSource, /upsertContentNodeGenerationReference/)
 })
 
 test('content prompt and candidate generation use the shared call composer layout', () => {
@@ -831,8 +350,8 @@ test('content prompt and candidate generation use the shared call composer layou
   assert.match(promptPanelSource, /content-prompt-flow-node__generation-composer/)
   assert.match(promptPanelSource, /content-prompt-flow-node__generation-grid/)
   assert.match(promptCss, /\.content-prompt-flow-node__generation-composer/)
-  assert.match(promptCss, /\.content-prompt-flow-node__generation-grid[\s\S]*grid-template-columns: minmax\(92px, 0\.75fr\) minmax\(82px, 0\.55fr\) minmax\(132px, 1\.15fr\)/)
-  assert.match(promptCss, /\.content-prompt-flow-node__generation-params[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/)
+  assert.match(promptCss, /\.content-prompt-flow-node__generation-grid[\s\S]*display: flex/)
+  assert.match(promptCss, /\.content-prompt-flow-node__generation-params[\s\S]*flex-wrap: wrap/)
 
   assert.match(inspectorSource, /\bGenerationCallComposerRoot\b/)
   assert.match(inspectorSource, /\bGenerationCallPromptBlock\b/)

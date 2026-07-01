@@ -129,53 +129,21 @@ const localSurfaceHostI18nResources = {
           },
         },
         tools: {
-          refImageGen: {
-            title: '参考生图',
-            description: '基于图片参考生成或改写图像资产。',
+          image: {
+            title: '图片生成',
+            description: '文生图、参考生图和图片编辑都在同一个图片工作台中选择。',
           },
-          refVideoGen: {
-            title: '参考生视频',
-            description: '用图片或视频参考生成运动镜头。',
+          video: {
+            title: '视频生成',
+            description: '文生视频、首尾帧、全能参考和视频编辑都作为视频 operation 选择。',
           },
-          audioGen: {
-            title: '语音生成',
-            description: '将文字合成为旁白、台词或声音草稿。',
+          audio: {
+            title: '音频生成',
+            description: '语音、音乐、音效、配音和声音档案都作为音频 operation 选择。',
           },
-          audioTranscribe: {
-            title: '语音转写',
-            description: '将音频转写为文本，便于字幕、台词和素材整理。',
-          },
-          audioTranslate: {
-            title: '音频翻译',
-            description: '将音频翻译为目标语言文本，便于跨语种字幕和整理。',
-          },
-          musicGen: {
-            title: '音乐生成',
-            description: '用提示词生成配乐、氛围音乐或音乐草稿。',
-          },
-          audioSfx: {
-            title: '音效生成',
-            description: '生成 Foley、环境声、转场声和短音效素材。',
-          },
-          voiceClone: {
-            title: '声音克隆',
-            description: '用样本音频创建可复用的角色声音或旁白声音。',
-          },
-          voiceDesign: {
-            title: '声音设计',
-            description: '用文字描述生成新的声音人设和可用 voice profile。',
-          },
-          motionImitation: {
-            title: '动作模仿',
-            description: '从参考视频迁移动作与运动节奏。',
-          },
-          styleTransfer: {
-            title: '风格迁移',
-            description: '把视觉风格应用到目标素材或镜头。',
-          },
-          multiAngle: {
-            title: '多角度',
-            description: '围绕同一主体探索多个镜头角度。',
+          text: {
+            title: '文本输出',
+            description: '语音转写、音频翻译等文本输出在统一文本工作台中选择。',
           },
         },
         jobs: {
@@ -202,12 +170,9 @@ const localSurfaceHostI18nResources = {
           },
           categories: {
             all: '全部类型',
-            image: '文生图',
-            imageEdit: '参考生图',
-            video: '文生视频',
-            videoI2V: '参考生视频',
-            videoV2V: '视频迁移',
-            audio: '音频/字幕',
+            image: '图片',
+            video: '视频',
+            audio: '音频',
             canvas: '工作流画布',
           },
           status: {
@@ -239,7 +204,6 @@ const localSurfaceHostI18nResources = {
             progress: '进度',
             dailies: '样片间',
             liveRoom: 'Live Room',
-            editDesk: '剪辑台',
             impact: '影响分析',
             timeline: '时间线',
             resources: '资源',
@@ -448,53 +412,21 @@ const localSurfaceHostI18nResources = {
           },
         },
         tools: {
-          refImageGen: {
-            title: 'Reference Image',
-            description: 'Generate or revise image assets from visual references.',
+          image: {
+            title: 'Image Generation',
+            description: 'Text-to-image, reference-to-image, and image editing live in one image workspace.',
           },
-          refVideoGen: {
-            title: 'Reference Video',
-            description: 'Generate motion shots from image or video references.',
+          video: {
+            title: 'Video Generation',
+            description: 'Prompt, first/last-frame, reference, and edit modes are video operations.',
           },
-          audioGen: {
-            title: 'Text to Speech',
-            description: 'Synthesize text into voiceover, dialogue, or spoken drafts.',
+          audio: {
+            title: 'Audio Generation',
+            description: 'Speech, music, sound effects, dubbing, and voice profiles are audio operations.',
           },
-          audioTranscribe: {
-            title: 'Transcription',
-            description: 'Transcribe audio into text for subtitles, dialogue, and asset review.',
-          },
-          audioTranslate: {
-            title: 'Audio Translation',
-            description: 'Translate audio into target-language text for multilingual subtitles and review.',
-          },
-          musicGen: {
-            title: 'Music Generation',
-            description: 'Generate scores, ambient beds, or music drafts from prompts.',
-          },
-          audioSfx: {
-            title: 'Sound Effects',
-            description: 'Generate Foley, ambience, transitions, and short sound effect assets.',
-          },
-          voiceClone: {
-            title: 'Voice Clone',
-            description: 'Create reusable character or narrator voices from audio samples.',
-          },
-          voiceDesign: {
-            title: 'Voice Design',
-            description: 'Generate a new voice profile from a text description.',
-          },
-          motionImitation: {
-            title: 'Motion Imitation',
-            description: 'Transfer action and movement rhythm from reference footage.',
-          },
-          styleTransfer: {
-            title: 'Style Transfer',
-            description: 'Apply a visual style to target media or shots.',
-          },
-          multiAngle: {
-            title: 'Multi Angle',
-            description: 'Explore multiple shot angles around the same subject.',
+          text: {
+            title: 'Text Output',
+            description: 'Speech transcription and speech translation live in one text output workspace.',
           },
         },
         jobs: {
@@ -521,12 +453,9 @@ const localSurfaceHostI18nResources = {
           },
           categories: {
             all: 'All types',
-            image: 'Text to Image',
-            imageEdit: 'Reference Image',
-            video: 'Text to Video',
-            videoI2V: 'Reference Video',
-            videoV2V: 'Video Transfer',
-            audio: 'Audio/Subtitles',
+            image: 'Image',
+            video: 'Video',
+            audio: 'Audio',
             canvas: 'Workflow Canvas',
           },
           status: {
@@ -558,7 +487,6 @@ const localSurfaceHostI18nResources = {
             progress: 'Progress',
             dailies: 'Dailies',
             liveRoom: 'Live room',
-            editDesk: 'Edit desk',
             impact: 'Impact',
             timeline: 'Timeline',
             resources: 'Resources',

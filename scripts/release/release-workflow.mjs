@@ -33,6 +33,7 @@ const releaseCommands = new Map([
   ['prepare', ['builtin:prepare']],
   ['sign-macos-app', ['scripts/release/sign-macos-app.mjs']],
   ['smoke-desktop-package', ['scripts/release/smoke-desktop-package.mjs']],
+  ['smoke-plugin-package', ['scripts/release/smoke-plugin-package.mjs']],
   ['stage-ffmpeg', ['scripts/release/stage-ffmpeg.mjs']],
   ['typecheck', ['builtin:typecheck']],
   ['verify', ['builtin:verify']],
@@ -46,9 +47,10 @@ const appTargets = new Set(['desktop', 'plugin'])
 const collectAppTargets = new Set(['desktop', 'plugin', 'all'])
 const prepareDesktopSteps = [
   ['Build workspace packages', pnpmCommand, ['--workspace-concurrency=1', '--filter', './packages/*', 'build']],
-  ['Build movcli', pnpmCommand, ['--filter', '@movscript/cli', 'build']],
+  ['Build movscript CLI', pnpmCommand, ['--filter', '@movscript/cli', 'build']],
   ['Build admin surface', pnpmCommand, ['--filter', '@movscript/admin-surface', 'build']],
   ['Build agent plugin app', pnpmCommand, ['--filter', '@movscript/plugin-movscript', 'build']],
+  ['Build local surface host', pnpmCommand, ['--filter', '@movscript/local-surface-host', 'build']],
 ]
 const releaseAssetExtensions = new Set([
   '.dmg',
@@ -89,6 +91,7 @@ export function releaseWorkflowSteps(mode, args = []) {
       ['Build desktop package', 'node', ['scripts/release/release-workflow.mjs', 'package', '--app', 'desktop', ...packageArgs]],
       ['Smoke test desktop package', 'node', ['scripts/release/release-workflow.mjs', 'smoke-desktop-package', ...targetArgs]],
       ['Build agent plugin package', 'node', ['scripts/release/release-workflow.mjs', 'package', '--app', 'plugin']],
+      ['Smoke test agent plugin package', 'node', ['scripts/release/release-workflow.mjs', 'smoke-plugin-package']],
       ['Collect desktop and plugin release artifacts', 'node', ['scripts/release/release-workflow.mjs', 'collect', '--app', 'all']],
     ]
   }
@@ -615,6 +618,10 @@ export function packagePluginArtifact(root = repoRoot, options = {}) {
 
   log('[package-plugin] Build local full-node runtime prerequisites')
   for (const [filter, script] of [
+    ['@movscript/runtime-contracts', 'build'],
+    ['@movscript/app-runner', 'build'],
+    ['@movscript/local-runtime', 'build'],
+    ['@movscript/local-daemon', 'build'],
     ['@movscript/cli', 'build'],
     ['@movscript/mcp-host', 'build'],
     ['@movscript/data-service', 'build'],
@@ -641,7 +648,6 @@ export function packagePluginArtifact(root = repoRoot, options = {}) {
     '.provider-plugin',
     '.mcp.json',
     'assets',
-    'bin/movcli',
     'bin/movscript',
     'bin/movscript.mjs',
     'bin/movscript-agent-mcp',
@@ -696,7 +702,6 @@ function writePluginRuntimeManifest(pluginDir, input) {
     mcpArgs: ['mcp', 'stdio'],
     daemonArgs: ['daemon', 'run'],
     cliEntrypoint: './bin/movscript',
-    legacyCliEntrypoint: './bin/movcli',
     legacyMcpEntrypoint: './bin/movscript-agent-mcp',
   }, null, 2)}\n`, 'utf8')
 }
@@ -751,7 +756,6 @@ function validatePluginArtifactInputs(pluginDir) {
     '.codex-plugin/plugin.json',
     '.provider-plugin/plugin.json',
     '.mcp.json',
-    'bin/movcli',
     'bin/movscript',
     'bin/movscript.mjs',
     'bin/movscript-agent-mcp',
@@ -999,6 +1003,18 @@ export function prepareDesktopPackage(root = repoRoot, options = {}) {
   const targetSteps = [
     ...prepareDesktopSteps.slice(0, 4),
     ['Build data-service binary', pnpmCommand, ['--filter', '@movscript/data-service', 'build'], { env: buildEnv }],
+    ...(platform === 'darwin'
+      ? [
+          ['Prepare native macOS tray helper directory', 'mkdir', ['-p', 'apps/desktop/build/native']],
+          ['Build native macOS tray helper', 'swiftc', [
+            '-target',
+            swiftTargetForDesktopArch(arch),
+            'apps/desktop/native/macTrayStatusItem.swift',
+            '-o',
+            'apps/desktop/build/native/movscript-native-tray',
+          ]],
+        ]
+      : []),
     ...prepareDesktopSteps.slice(4),
   ]
 
@@ -1009,6 +1025,12 @@ export function prepareDesktopPackage(root = repoRoot, options = {}) {
   prepareProviderPluginResources(root, { log: (message) => console.log(`[prepare-desktop] ${message}`) })
   console.log('[prepare-desktop] Desktop package prerequisites are ready')
   return true
+}
+
+function swiftTargetForDesktopArch(arch) {
+  if (arch === 'arm64') return 'arm64-apple-macosx11.0'
+  if (arch === 'x64') return 'x86_64-apple-macosx11.0'
+  throw new Error(`Unsupported macOS Swift helper arch: ${arch}`)
 }
 
 export function runPrepareStep(stepName, command, args, options = {}) {

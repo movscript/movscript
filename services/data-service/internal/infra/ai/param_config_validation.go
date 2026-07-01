@@ -14,6 +14,75 @@ func ValidateModelParamConfig(adapterType string, capabilities []string, modelPa
 	return validateModelParamConfigWithBaseParams(DefaultParamsForAdapter(adapterType, capabilities), modelParamConfig)
 }
 
+// ValidateModelOperationParamConfig verifies the v2 operation-scoped model
+// parameter contract. A non-empty config must be a ModelOperationParamProfile
+// object with version=2.
+func ValidateModelOperationParamConfig(adapterType string, capabilities []string, modelCapabilitiesJSON string, modelParamConfig string) error {
+	if err := ValidateModelOperationParamConfigShape(modelParamConfig); err != nil {
+		return err
+	}
+	if strings.TrimSpace(modelParamConfig) == "" {
+		return nil
+	}
+	var profile ModelOperationParamProfile
+	if err := json.Unmarshal([]byte(modelParamConfig), &profile); err != nil {
+		return fmt.Errorf("custom_supported_params operation profile is invalid: %w", err)
+	}
+	operationsByCapability := capabilityJSONOperationsByCapability(modelCapabilitiesJSON, capabilities)
+	operationCapability := make(map[string]string)
+	for capability, operations := range operationsByCapability {
+		for _, operation := range operations {
+			operation = strings.TrimSpace(operation)
+			if operation != "" {
+				operationCapability[operation] = capability
+			}
+		}
+	}
+	for operation, capability := range operationCapability {
+		baseParams := DefaultParamsForAdapterOperation(adapterType, capability, operation)
+		if err := validateProfileParamReferencesWithBaseParams(baseParams, profile.Common); err != nil {
+			return fmt.Errorf("custom_supported_params.common for operation %q: %w", operation, err)
+		}
+	}
+	for operation, operationProfile := range profile.ByOperation {
+		operation = strings.TrimSpace(operation)
+		capability := operationCapability[operation]
+		if operation == "" || capability == "" {
+			return fmt.Errorf("custom_supported_params.by_operation contains unknown operation %q", operation)
+		}
+		baseParams := DefaultParamsForAdapterOperation(adapterType, capability, operation)
+		baseParams = applyModelParamProfile(baseParams, profile.Common)
+		if err := validateProfileParamReferencesWithBaseParams(baseParams, operationProfile); err != nil {
+			return fmt.Errorf("custom_supported_params.by_operation.%s: %w", operation, err)
+		}
+	}
+	return nil
+}
+
+// ValidateModelOperationParamConfigShape verifies only the v2 profile envelope and
+// parameter definitions. Use this when the catalog entry has not yet been bound to
+// an adapter; route binding validation performs adapter reference checks later.
+func ValidateModelOperationParamConfigShape(modelParamConfig string) error {
+	if strings.TrimSpace(modelParamConfig) == "" {
+		return nil
+	}
+	var raw map[string]any
+	if err := json.Unmarshal([]byte(modelParamConfig), &raw); err != nil {
+		return fmt.Errorf("custom_supported_params must be a valid ModelOperationParamProfile object: %w", err)
+	}
+	if err := validateRawOperationProfileShape(raw); err != nil {
+		return err
+	}
+	var profile ModelOperationParamProfile
+	if err := json.Unmarshal([]byte(modelParamConfig), &profile); err != nil {
+		return fmt.Errorf("custom_supported_params operation profile is invalid: %w", err)
+	}
+	if err := validateOperationProfileParamDefs(profile); err != nil {
+		return err
+	}
+	return nil
+}
+
 func ValidateModelParamConfigWithBaseParams(baseParams []ParamDef, modelParamConfig string) error {
 	return validateModelParamConfigWithBaseParams(baseParams, modelParamConfig)
 }
@@ -188,6 +257,50 @@ func validateRawProfileShape(profile map[string]any) error {
 		for i, item := range items {
 			if _, ok := item.(map[string]any); !ok {
 				return fmt.Errorf("custom_supported_params.add[%d] must be a parameter definition object", i)
+			}
+		}
+	}
+	return nil
+}
+
+func validateRawOperationProfileShape(profile map[string]any) error {
+	allowedFields := map[string]bool{"version": true, "common": true, "by_operation": true}
+	for field := range profile {
+		if !allowedFields[field] {
+			return fmt.Errorf("custom_supported_params operation profile contains unknown field %q", field)
+		}
+	}
+	version, ok := profile["version"].(float64)
+	if !ok || version != 2 {
+		return fmt.Errorf("custom_supported_params.version must be 2")
+	}
+	if rawCommon, exists := profile["common"]; exists {
+		common, ok := rawCommon.(map[string]any)
+		if !ok {
+			return fmt.Errorf("custom_supported_params.common must be a ModelParamProfile object")
+		}
+		if err := validateRawParamNullFields(common); err != nil {
+			return err
+		}
+		if err := validateRawProfileShape(common); err != nil {
+			return err
+		}
+	}
+	if rawByOperation, exists := profile["by_operation"]; exists {
+		byOperation, ok := rawByOperation.(map[string]any)
+		if !ok {
+			return fmt.Errorf("custom_supported_params.by_operation must be an object keyed by operation")
+		}
+		for operation, rawOperationProfile := range byOperation {
+			operationProfile, ok := rawOperationProfile.(map[string]any)
+			if !ok {
+				return fmt.Errorf("custom_supported_params.by_operation.%s must be a ModelParamProfile object", operation)
+			}
+			if err := validateRawParamNullFields(operationProfile); err != nil {
+				return err
+			}
+			if err := validateRawProfileShape(operationProfile); err != nil {
+				return err
 			}
 		}
 	}
@@ -403,6 +516,18 @@ func validateProfileParamDefs(profile ModelParamProfile) error {
 		}
 		if strings.TrimSpace(param.Label) == "" {
 			return fmt.Errorf("custom_supported_params.add[%d]: parameter %q label is required", i, param.Key)
+		}
+	}
+	return nil
+}
+
+func validateOperationProfileParamDefs(profile ModelOperationParamProfile) error {
+	if err := validateProfileParamDefs(profile.Common); err != nil {
+		return fmt.Errorf("custom_supported_params.common: %w", err)
+	}
+	for operation, operationProfile := range profile.ByOperation {
+		if err := validateProfileParamDefs(operationProfile); err != nil {
+			return fmt.Errorf("custom_supported_params.by_operation.%s: %w", strings.TrimSpace(operation), err)
 		}
 	}
 	return nil

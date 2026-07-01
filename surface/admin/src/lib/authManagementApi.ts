@@ -1,20 +1,26 @@
 import axios from 'axios'
 import { useUserStore } from '@admin/store/userStore'
 import { toast } from '@admin/store/toastStore'
+import { getAPIBaseURL } from '@admin/lib/config'
 import { translateApiError, type APIErrorBody } from '@admin/lib/apiError'
 import type { Organization, OrganizationMember, PaginatedResponse, User } from '@admin/types'
 
 export const authManagementApi = axios.create({
-  baseURL: '/api/admin/auth',
+  baseURL: authManagementBaseURL(),
 })
 
 authManagementApi.interceptors.request.use((config) => {
   const { token } = useUserStore.getState()
+  config.baseURL = authManagementBaseURL()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
+
+function authManagementBaseURL(): string {
+  return `${getAPIBaseURL()}/api/admin/auth`
+}
 
 authManagementApi.interceptors.response.use(
   (response) => response,

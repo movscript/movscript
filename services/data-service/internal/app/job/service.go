@@ -171,9 +171,13 @@ type GenerationIntentInput struct {
 }
 
 type GenerationReferenceAssetInput struct {
-	Role       string `json:"role"`
-	MediaType  string `json:"media_type,omitempty"`
-	ResourceID uint   `json:"resource_id,omitempty"`
+	ReferenceID string `json:"reference_id,omitempty"`
+	SourceKind  string `json:"source_kind,omitempty"`
+	SourceID    any    `json:"source_id,omitempty"`
+	SourceRef   any    `json:"source_ref,omitempty"`
+	Role        string `json:"role"`
+	MediaType   string `json:"media_type,omitempty"`
+	ResourceID  uint   `json:"resource_id,omitempty"`
 }
 
 func (s *Service) List(ctx context.Context, filter ListFilter) (ListResult, error) {
@@ -328,7 +332,7 @@ func (s *Service) PreflightGeneration(ctx context.Context, input EnqueueInput) (
 	return GenerationPreflightResult{
 		Ready:            true,
 		JobType:          state.input.JobType,
-		OutputType:       executionJobTypeForIntent(state.input.JobType),
+		OutputType:       generationCapabilityForJobType(state.input.JobType),
 		ModelID:          state.route.ModelID,
 		RuntimeModelID:   state.aiRoute.RuntimeModelID,
 		CatalogEntryID:   state.route.CatalogEntryID,
@@ -356,12 +360,7 @@ func (s *Service) prepareGenerationPreflight(ctx context.Context, input EnqueueI
 		return generationPreflightState{}, ErrJobTypeRequired
 	}
 	switch input.JobType {
-	case ai.CapabilityImage, ai.CapabilityImageEdit,
-		ai.CapabilityVideo, ai.CapabilityVideoI2V, ai.CapabilityVideoV2V,
-		ai.CapabilityAudioTTS, ai.CapabilityAudioSTT, ai.CapabilityAudioTranslate, ai.CapabilityAudioChat,
-		ai.CapabilityAudioMusic, ai.CapabilityAudioSFX,
-		ai.CapabilityVoiceClone, ai.CapabilityVoiceDesign,
-		ai.CapabilitySubAlign, ai.CapabilitySubTranslate:
+	case domainjob.JobTypeImage, domainjob.JobTypeVideo, domainjob.JobTypeAudio:
 	default:
 		if input.GenerationIntent == nil {
 			return generationPreflightState{}, InvalidJobTypeError{JobType: input.JobType}
@@ -387,7 +386,7 @@ func (s *Service) prepareGenerationPreflight(ctx context.Context, input EnqueueI
 	aiRoute := aiRouteFromGateway(route)
 	preflight, err := s.ai.PreflightGenerationRoute(ctx, input.UserID, ai.GenerationRoutePreflightRequest{
 		Route:       aiRoute,
-		OutputType:  executionJobTypeForIntent(input.JobType),
+		OutputType:  generationCapabilityForJobType(input.JobType),
 		ExtraParams: input.ExtraParams,
 		AspectRatio: input.AspectRatio,
 		Duration:    input.Duration,
@@ -404,7 +403,7 @@ func (s *Service) prepareGenerationPreflight(ctx context.Context, input EnqueueI
 	if err != nil {
 		return generationPreflightState{}, err
 	}
-	estimate, err := s.estimateJobRouteCost(ctx, input.UserID, aiRoute, executionJobTypeForIntent(input.JobType), input.Duration, input.ExtraParams, input.AspectRatio)
+	estimate, err := s.estimateJobRouteCost(ctx, input.UserID, aiRoute, input.JobType, input.Duration, input.ExtraParams, input.AspectRatio)
 	if err != nil {
 		return generationPreflightState{}, err
 	}
@@ -423,13 +422,26 @@ func (s *Service) prepareGenerationPreflight(ctx context.Context, input EnqueueI
 func executionJobTypeForIntent(capability string) string {
 	switch strings.TrimSpace(capability) {
 	case ai.CapabilityFamilyVideoGeneration:
-		return ai.CapabilityVideo
+		return domainjob.JobTypeVideo
 	case ai.CapabilityFamilyImageGeneration:
-		return ai.CapabilityImage
+		return domainjob.JobTypeImage
 	case ai.CapabilityFamilyAudioGeneration:
-		return ai.CapabilityAudioTTS
+		return domainjob.JobTypeAudio
 	default:
 		return strings.TrimSpace(capability)
+	}
+}
+
+func generationCapabilityForJobType(jobType string) string {
+	switch strings.TrimSpace(jobType) {
+	case domainjob.JobTypeImage:
+		return ai.CapabilityFamilyImageGeneration
+	case domainjob.JobTypeVideo:
+		return ai.CapabilityFamilyVideoGeneration
+	case domainjob.JobTypeAudio:
+		return ai.CapabilityFamilyAudioGeneration
+	default:
+		return strings.TrimSpace(jobType)
 	}
 }
 
@@ -439,29 +451,11 @@ func executionJobTypeForGenerationIntent(intent *GenerationIntentInput) string {
 	}
 	switch strings.TrimSpace(intent.Capability) {
 	case ai.CapabilityFamilyImageGeneration:
-		if strings.TrimSpace(intent.Operation) == ai.ImageOperationImageToImage {
-			return ai.CapabilityImageEdit
-		}
-		return ai.CapabilityImage
+		return domainjob.JobTypeImage
 	case ai.CapabilityFamilyAudioGeneration:
-		switch strings.TrimSpace(intent.Operation) {
-		case ai.AudioOperationMusic:
-			return ai.CapabilityAudioMusic
-		case ai.AudioOperationSFX:
-			return ai.CapabilityAudioSFX
-		case ai.AudioOperationSTT:
-			return ai.CapabilityAudioSTT
-		case ai.AudioOperationSpeechTranslate:
-			return ai.CapabilityAudioTranslate
-		case ai.AudioOperationAudioChat:
-			return ai.CapabilityAudioChat
-		case ai.AudioOperationVoiceClone:
-			return ai.CapabilityVoiceClone
-		case ai.AudioOperationVoiceDesign:
-			return ai.CapabilityVoiceDesign
-		default:
-			return ai.CapabilityAudioTTS
-		}
+		return domainjob.JobTypeAudio
+	case ai.CapabilityFamilyVideoGeneration:
+		return domainjob.JobTypeVideo
 	}
 	return executionJobTypeForIntent(intent.Capability)
 }
@@ -538,12 +532,7 @@ func normalizedInputResourceMediaType(resource domainjob.InputResource) string {
 
 func requiresGenerationIntent(jobType string) bool {
 	switch strings.TrimSpace(jobType) {
-	case ai.CapabilityImage, ai.CapabilityImageEdit, ai.CapabilityVideo, ai.CapabilityVideoI2V, ai.CapabilityVideoV2V:
-		return true
-	case ai.CapabilityAudioTTS, ai.CapabilityAudioSTT, ai.CapabilityAudioTranslate, ai.CapabilityAudioChat,
-		ai.CapabilityAudioMusic, ai.CapabilityAudioSFX,
-		ai.CapabilityVoiceClone, ai.CapabilityVoiceDesign,
-		ai.CapabilitySubAlign, ai.CapabilitySubTranslate:
+	case domainjob.JobTypeImage, domainjob.JobTypeVideo, domainjob.JobTypeAudio:
 		return true
 	default:
 		return false
@@ -556,7 +545,7 @@ func generationIntentError(code, message, field string) error {
 
 func routeRequestForGenerationInput(input EnqueueInput) providercontract.AIGatewayRouteRequest {
 	request := providercontract.AIGatewayRouteRequest{
-		Capability: input.JobType,
+		Capability: generationCapabilityForJobType(input.JobType),
 	}
 	if input.GenerationIntent != nil {
 		request.Capability = strings.TrimSpace(input.GenerationIntent.Capability)
@@ -598,9 +587,13 @@ func generationIntentReferenceSnapshots(values []GenerationReferenceAssetInput) 
 	out := make([]domainjob.GenerationReferenceAssetRole, 0, len(values))
 	for _, value := range values {
 		out = append(out, domainjob.GenerationReferenceAssetRole{
-			Role:       strings.TrimSpace(value.Role),
-			MediaType:  strings.TrimSpace(value.MediaType),
-			ResourceID: value.ResourceID,
+			ReferenceID: strings.TrimSpace(value.ReferenceID),
+			SourceKind:  strings.TrimSpace(value.SourceKind),
+			SourceID:    value.SourceID,
+			SourceRef:   value.SourceRef,
+			Role:        strings.TrimSpace(value.Role),
+			MediaType:   strings.TrimSpace(value.MediaType),
+			ResourceID:  value.ResourceID,
 		})
 	}
 	return out
@@ -636,7 +629,7 @@ func (s *Service) resolveGenerationModelRoute(ctx context.Context, input Enqueue
 			request.ModelID = modelID
 			return s.routing.ResolveGatewayModelRoute(ctx, request)
 		}
-		return s.routing.ResolveGatewayGenerationModelRoute(ctx, modelID, input.JobType)
+		return s.routing.ResolveGatewayGenerationModelRoute(ctx, modelID, generationCapabilityForJobType(input.JobType))
 	}
 	return providercontract.AIGatewayModelRoute{}, errors.New("model_id is required")
 }
@@ -667,6 +660,7 @@ func aiRouteFromGateway(route providercontract.AIGatewayModelRoute) ai.ModelRout
 		ProviderID:      route.ProviderID,
 		ProviderKind:    route.ProviderKind,
 		AdapterKey:      route.AdapterKey,
+		AdapterType:     route.AdapterType,
 		ProviderModelID: route.ProviderModelID,
 		Capability:      route.Capability,
 		APIKind:         route.APIKind,
@@ -748,26 +742,24 @@ func (s *Service) requireImageVerification(def *ai.ModelDef, resources []domainj
 }
 
 func (s *Service) estimateJobRouteCost(ctx context.Context, userID uint, route ai.ModelRoute, jobType string, duration int, extraParams, aspectRatio string) (ai.UsageEstimate, error) {
-	if jobType == ai.CapabilityAudioTTS {
+	if jobType == domainjob.JobTypeAudio {
 		return s.ai.EstimateAudioTTSRouteCost(ctx, userID, route)
 	}
-	if jobType == ai.CapabilityAudioMusic || jobType == ai.CapabilityAudioSFX {
-		return s.ai.EstimateAudioGenerateRouteCost(ctx, userID, route, jobType, duration)
-	}
-	if jobType == ai.CapabilityAudioSTT || jobType == ai.CapabilityAudioTranslate || jobType == ai.CapabilityAudioChat ||
-		jobType == ai.CapabilityVoiceClone || jobType == ai.CapabilityVoiceDesign ||
-		jobType == ai.CapabilitySubAlign || jobType == ai.CapabilitySubTranslate {
-		return s.ai.EstimateCapabilityPerCallRouteCost(ctx, userID, route, jobType)
-	}
-	kind, imageReq, videoReq, err := CostRequest(route.RuntimeModelID, jobType, duration, extraParams, aspectRatio)
+	kind, imageReq, videoReq, err := domainjob.CostRequest(route.RuntimeModelID, jobType, duration, extraParams, aspectRatio)
 	if err != nil {
 		return ai.UsageEstimate{}, err
 	}
 	switch kind {
 	case domainjob.CostRequestImage:
-		return s.ai.EstimateImageRouteCost(ctx, userID, route, imageReq)
+		return s.ai.EstimateImageRouteCost(ctx, userID, route, ai.ImageRequest{
+			N:           imageReq.Count,
+			AspectRatio: imageReq.AspectRatio,
+		})
 	case domainjob.CostRequestVideo:
-		return s.ai.EstimateVideoRouteCost(ctx, userID, route, videoReq)
+		return s.ai.EstimateVideoRouteCost(ctx, userID, route, ai.VideoRequest{
+			Duration:    videoReq.Duration,
+			AspectRatio: videoReq.AspectRatio,
+		})
 	default:
 		return ai.UsageEstimate{}, err
 	}

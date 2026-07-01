@@ -26,6 +26,8 @@ import { resolveMediaPipelineHomeDir, resolveMediaPipelineReadHomeDirs } from '.
 import type {
   MediaPipelineAssetDescriptor,
   MediaPipelineEditingProject,
+  MediaPipelineOutputSpec,
+  MediaPipelineTaskType,
   MediaPipelineTimelineRecipe,
 } from './mediaPipeline/types'
 
@@ -170,9 +172,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function toMediaPipelineTaskRequest(input: EditingMediaPipelineTaskRequest): MediaPipelineTaskRequest {
+  const taskType = toLocalMediaPipelineTaskType(input.taskType)
   return {
     projectId: input.projectId,
-    taskType: input.taskType,
+    taskType,
     editingProject: input.editingProject as unknown as MediaPipelineEditingProject | undefined,
     timeline: input.timeline as unknown as MediaPipelineTimelineRecipe | undefined,
     source: input.source as MediaPipelineAssetDescriptor | undefined,
@@ -184,6 +187,26 @@ function toMediaPipelineTaskRequest(input: EditingMediaPipelineTaskRequest): Med
     resource_cache: input.resource_cache,
     resourceDownload: input.resourceDownload,
     resource_download: input.resource_download,
-    output: input.output,
+    output: toMediaPipelineOutputSpec(input.output, taskType),
   }
+}
+
+function toLocalMediaPipelineTaskType(taskType: EditingMediaPipelineTaskRequest['taskType']): MediaPipelineTaskType {
+  switch (taskType) {
+    case 'timeline_render':
+    case 'timeline_hls':
+    case 'media_transcode':
+    case 'media_reframe':
+      return taskType
+    default:
+      throw new Error(`Unsupported local media pipeline task type: ${taskType}`)
+  }
+}
+
+function toMediaPipelineOutputSpec(
+  output: EditingMediaPipelineTaskRequest['output'],
+  taskType: MediaPipelineTaskType,
+): MediaPipelineOutputSpec {
+  if (output) return output as MediaPipelineOutputSpec
+  return { format: taskType === 'timeline_hls' ? 'hls' : 'mp4' }
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { AppContentLayout } from '@movscript/ui/layout'
 
 import { readMediaAPI } from '../features/application/browser'
@@ -48,6 +48,8 @@ import './EditingWorkspacePage.css'
 
 export default function EditingWorkspacePage() {
   const { editingProjectId } = useParams<{ editingProjectId: string }>()
+  const [searchParams] = useSearchParams()
+  const editingProjectProjectId = searchParams.get('projectId')?.trim() || STANDALONE_EDITING_PROJECT_ID
   const [clipForm, setClipForm] = useState<ClipForm>(emptyClipForm)
   const resetTimelineViewStateRef = useRef<() => void>(() => {})
   const mediaAPI = readMediaAPI()
@@ -59,7 +61,7 @@ export default function EditingWorkspacePage() {
   const setSelectedClipId = useEditingSessionStore((state) => state.setSelectedClipId)
   const setPlayheadMs = useEditingSessionStore((state) => state.setPlayheadMs)
   const setSaveState = useEditingSessionStore((state) => state.setSaveState)
-  const { taskStates, upsertTaskState: upsertEditingTaskState } = useEditingTaskStates(mediaAPI, STANDALONE_EDITING_PROJECT_ID)
+  const { taskStates, upsertTaskState: upsertEditingTaskState } = useEditingTaskStates(mediaAPI, editingProjectProjectId)
   const { inspectorResize, layoutStyle, libraryResize, timelineResize } = useEditingWorkspaceLayout()
   const setEditingHeader = useEditingHeaderStore((s) => s.setHeader)
   const resetEditingHeader = useEditingHeaderStore((s) => s.reset)
@@ -117,6 +119,7 @@ export default function EditingWorkspacePage() {
   }, [resetPreviewState, setPlayheadMs, setSelectedClipId])
   const { commitProjectChange, saveProject, setActiveEditingProject } = useEditingProjectPersistence({
     editingProjectId,
+    editingProjectProjectId,
     mediaAPI,
     resetWorkspaceViewState,
   })

@@ -463,8 +463,6 @@ export interface AIModelRouteBinding {
   endpoint_base_url?: string
   endpoint_path_prefix?: string
   endpoint_mode?: 'inherit' | 'replace_path' | 'absolute' | string
-  operation_profile?: string
-  route_capabilities_json?: string
   is_enabled: boolean
   priority: number
   capacity_weight: number
@@ -502,7 +500,6 @@ export interface AIModelRouteDiagnosticEndpoint {
   base_url?: string
   path_prefix?: string
   mode?: string
-  operation_profile?: string
   effective_base_url?: string
 }
 
@@ -555,7 +552,7 @@ export interface AIModelCatalogEntry {
   accepts_image: boolean
   max_input_images: number
   max_input_videos: number
-  image_edit_field: string
+  input_image_field: string
   supported_params: string
   param_limits_json?: string
   model_capabilities_json?: string
@@ -571,11 +568,12 @@ export interface AIModelCatalogTemplate {
   model_id: string
   display_name: string
   capabilities: string[]
+  route_adapter_hint?: string
   source_status?: string
   accepts_image_input: boolean
   max_input_images: number
   max_input_videos: number
-  image_edit_field?: string
+  input_image_field?: string
   supported_params?: ParamDef[]
 }
 
@@ -654,12 +652,28 @@ export interface AdapterDef {
   cred_fields: CredField[]
   supports_files_api: boolean  // true = provider has a Files API for pre-uploading media
   param_sets?: AdapterParamSet[]
+  operation_param_sets?: AdapterOperationParamSet[]
+  operation_contracts?: AdapterOperationContract[]
 }
 
 // AdapterParamSet is the adapter-level default generation parameter schema for a capability.
 export interface AdapterParamSet {
   capability: string
   params: ParamDef[]
+}
+
+export interface AdapterOperationParamSet {
+  capability: string
+  operation: string
+  params: ParamDef[]
+}
+
+export interface AdapterOperationContract {
+  capability: string
+  operation: string
+  input_media_transport?: string[]
+  result_mode?: string
+  output_media?: string[]
 }
 
 // ParamDef describes a user-configurable generation parameter for a model.
@@ -703,6 +717,12 @@ export interface ModelParamProfile {
   add?: ParamDef[]
 }
 
+export interface ModelOperationParamProfile {
+  version: 2
+  common?: ModelParamProfile
+  by_operation?: Record<string, ModelParamProfile>
+}
+
 export interface ModelInputRequirement {
   min: number
   max: number
@@ -722,17 +742,17 @@ export interface PublicModel {
   provider_name?: string       // admin/debug only; product UI should not expose providers
   logical_model_id?: string
   provider_variant_count?: number
-  capabilities: string[]       // e.g. ["text"], ["image"], ["video"], ["image_edit"]
-  accepts_image_input: boolean // true for image_edit and i2v models
+  capabilities: string[]       // e.g. ["text_generation"], ["image_generation"], ["video_generation"], ["audio_generation"]
+  accepts_image_input: boolean // true when the model declares image input slots
   is_default?: boolean         // true when admin-pinned as the default for this capability
   model_def_id?: string
   model_id_override?: string   // actual model ID sent to API if overridden
   priority?: number
   capacity_weight?: number
   max_concurrency?: number
-  supported_params?: ParamDef[]
+  supported_params_by_operation?: Record<string, ParamDef[]>
   input_requirements?: ModelInputRequirements
-  params_schema?: Record<string, unknown>
+  params_schema_by_operation?: Record<string, Record<string, unknown>>
 }
 
 export interface PaginatedResponse<T> {
@@ -779,7 +799,6 @@ export interface DebugRouteTrace {
   endpoint_base_url?: string
   endpoint_path_prefix?: string
   endpoint_mode?: string
-  operation_profile?: string
   selection_reason?: string
 }
 
@@ -921,7 +940,7 @@ export interface Job {
   provider_name?: string
   model_display?: string
   model_identifier?: string
-  job_type: string  // image | image_edit | video | video_i2v | video_v2v | audio_tts | audio_transcribe | audio_translate | audio_music | audio_sfx | audio_chat | voice_clone | voice_design | subtitle_align | subtitle_translate
+  job_type: string  // image | video | audio | text
   feature_key?: string  // source/audit key supplied by the caller
   title?: string
   status: JobStatus
@@ -954,7 +973,7 @@ export interface Job {
 
 // Canvas
 export type MediaNodeType = 'text' | 'image' | 'video' | 'audio'
-export type ToolNodeType = 'canvas' | 'ref_image_gen' | 'ref_video_gen' | 'multi_angle' | 'style_transfer' | 'motion_imitation'
+export type ToolNodeType = 'canvas' | 'reference_to_image' | 'reference_to_video'
 export type CanvasEntityKind = 'script' | 'segment' | 'scene_moment' | 'setting' | 'asset_slot' | 'content_unit'
 export type SpecialNodeType = 'input' | 'output' | 'resource_sink' | 'approval' | 'text_gen' | 'ai_gen' | 'group' | 'plugin_card' | 'entity_card'
 export type PluginNodeType = string & { readonly __pluginNodeType?: unique symbol }
@@ -1153,7 +1172,7 @@ export interface CanvasPortValue {
 
 export type CanvasStage = 'script_analysis' | 'asset_prep' | 'storyboard' | 'generation' | 'editing'
 
-export type CanvasExecutableCapability = 'text' | 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v' | 'audio' | 'audio_tts' | 'audio_transcribe' | 'audio_translate' | 'audio_music' | 'audio_sfx' | 'audio_chat' | 'voice_clone' | 'voice_design' | 'subtitle_align' | 'subtitle_translate'
+export type CanvasExecutableCapability = 'text_generation' | 'image_generation' | 'video_generation' | 'audio_generation' | 'embedding' | 'rerank' | 'moderation'
 
 export interface CanvasExecutableSpec {
   executor: 'ai_model' | 'plugin_http'

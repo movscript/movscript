@@ -336,9 +336,13 @@ type VideoRequest struct {
 }
 
 type ReferenceAsset struct {
-	Role       string `json:"role"`
-	MediaType  string `json:"media_type,omitempty"`
-	ResourceID uint   `json:"resource_id,omitempty"`
+	ReferenceID string `json:"reference_id,omitempty"`
+	SourceKind  string `json:"source_kind,omitempty"`
+	SourceID    any    `json:"source_id,omitempty"`
+	SourceRef   any    `json:"source_ref,omitempty"`
+	Role        string `json:"role"`
+	MediaType   string `json:"media_type,omitempty"`
+	ResourceID  uint   `json:"resource_id,omitempty"`
 }
 
 type MediaData struct {
@@ -446,7 +450,6 @@ type DebugRouteTrace struct {
 	EndpointBaseURL    string `json:"endpoint_base_url,omitempty"`
 	EndpointPathPrefix string `json:"endpoint_path_prefix,omitempty"`
 	EndpointMode       string `json:"endpoint_mode,omitempty"`
-	OperationProfile   string `json:"operation_profile,omitempty"`
 	SelectionReason    string `json:"selection_reason,omitempty"`
 }
 
@@ -502,31 +505,33 @@ type AIModelListFilter struct {
 }
 
 type AIModelDescriptor struct {
-	ModelID            string                   `json:"model_id"`
-	CatalogEntryID     uint                     `json:"catalog_entry_id,omitempty"`
-	CredentialID       uint                     `json:"-"`
-	ProviderID         string                   `json:"provider_id,omitempty"`
-	ProviderModelID    string                   `json:"provider_model_id,omitempty"`
-	ModelDefID         string                   `json:"model_def_id,omitempty"`
-	ModelIDOverride    string                   `json:"model_id_override,omitempty"`
-	DisplayName        string                   `json:"display_name"`
-	ShortName          string                   `json:"short_name,omitempty"`
-	ProviderName       string                   `json:"provider_name,omitempty"`
-	AdapterType        string                   `json:"adapter_type,omitempty"`
-	Capabilities       []string                 `json:"capabilities,omitempty"`
-	SupportedAPIKinds  []string                 `json:"supported_api_kinds,omitempty"`
-	AcceptsImageInput  bool                     `json:"accepts_image_input,omitempty"`
-	InferredOperation  string                   `json:"inferred_operation,omitempty"`
-	ResolverOperations []string                 `json:"resolver_operations,omitempty"`
-	IsDefault          bool                     `json:"is_default,omitempty"`
-	LogicalModelID     string                   `json:"logical_model_id,omitempty"`
-	ProviderVariants   int                      `json:"provider_variant_count,omitempty"`
-	Priority           int                      `json:"priority,omitempty"`
-	CapacityWeight     int                      `json:"capacity_weight,omitempty"`
-	MaxConcurrency     int                      `json:"max_concurrency,omitempty"`
-	SupportedParams    []map[string]any         `json:"supported_params,omitempty"`
-	InputRequirements  AIModelInputRequirements `json:"input_requirements,omitempty"`
-	ParamsSchema       map[string]any           `json:"params_schema,omitempty"`
+	ContractVersion            int                         `json:"contract_version,omitempty"`
+	ModelID                    string                      `json:"model_id"`
+	CatalogEntryID             uint                        `json:"catalog_entry_id,omitempty"`
+	CredentialID               uint                        `json:"-"`
+	ProviderID                 string                      `json:"provider_id,omitempty"`
+	ProviderModelID            string                      `json:"provider_model_id,omitempty"`
+	ModelDefID                 string                      `json:"model_def_id,omitempty"`
+	ModelIDOverride            string                      `json:"model_id_override,omitempty"`
+	DisplayName                string                      `json:"display_name"`
+	ShortName                  string                      `json:"short_name,omitempty"`
+	ProviderName               string                      `json:"provider_name,omitempty"`
+	AdapterType                string                      `json:"adapter_type,omitempty"`
+	Capabilities               []string                    `json:"capabilities,omitempty"`
+	Operations                 []string                    `json:"operations,omitempty"`
+	SupportedAPIKinds          []string                    `json:"supported_api_kinds,omitempty"`
+	AcceptsImageInput          bool                        `json:"accepts_image_input,omitempty"`
+	InferredOperation          string                      `json:"inferred_operation,omitempty"`
+	ResolverOperations         []string                    `json:"resolver_operations,omitempty"`
+	IsDefault                  bool                        `json:"is_default,omitempty"`
+	LogicalModelID             string                      `json:"logical_model_id,omitempty"`
+	ProviderVariants           int                         `json:"provider_variant_count,omitempty"`
+	Priority                   int                         `json:"priority,omitempty"`
+	CapacityWeight             int                         `json:"capacity_weight,omitempty"`
+	MaxConcurrency             int                         `json:"max_concurrency,omitempty"`
+	SupportedParamsByOperation map[string][]map[string]any `json:"supported_params_by_operation,omitempty"`
+	InputRequirements          AIModelInputRequirements    `json:"input_requirements,omitempty"`
+	ParamsSchemaByOperation    map[string]map[string]any   `json:"params_schema_by_operation,omitempty"`
 }
 
 type AIModelResolveRequest struct {
@@ -581,6 +586,7 @@ type AIGatewayModelRoute struct {
 	ProviderID      string `json:"provider_id,omitempty"`
 	ProviderKind    string `json:"provider_kind,omitempty"`
 	AdapterKey      string `json:"adapter_key,omitempty"`
+	AdapterType     string `json:"adapter_type,omitempty"`
 	ProviderModelID string `json:"provider_model_id"`
 	Capability      string `json:"capability,omitempty"`
 	Operation       string `json:"operation,omitempty"`

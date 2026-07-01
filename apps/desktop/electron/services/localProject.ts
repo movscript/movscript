@@ -65,7 +65,11 @@ export async function createLocalMovScriptProject(input: ElectronLocalProjectCre
     command: 'createProject',
     input: {
       title,
-      ...(stringValue(input.projectId) ? { projectId: stringValue(input.projectId) } : {}),
+      ...(localProjectIdValue(input) ? {
+        localProjectId: localProjectIdValue(input),
+        local_project_id: localProjectIdValue(input),
+        projectId: localProjectIdValue(input),
+      } : {}),
       ...(stringValue(input.description) ? { description: stringValue(input.description) } : {}),
       ...(input.overwrite !== undefined ? { overwrite: input.overwrite } : {}),
     },
@@ -114,10 +118,12 @@ export async function bindLocalMovScriptProject(input: ElectronLocalProjectBindI
   return openLocalMovScriptProject({ projectDir })
 }
 
-async function resolveProjectMetadata(projectDir: string): Promise<{ projectId?: string; projectUid?: string; title?: string; description?: string; updatedAt?: string }> {
+async function resolveProjectMetadata(projectDir: string): Promise<{ localProjectId?: string; projectId?: string; projectUid?: string; title?: string; description?: string; updatedAt?: string }> {
   const result = await projectService().resolveLocator({ projectDir })
+  const localProjectId = stringValue(result.locator.localProjectId ?? result.locator.local_project_id ?? result.locator.projectId)
   return {
-    projectId: stringValue(result.locator.projectId),
+    localProjectId,
+    projectId: localProjectId,
     projectUid: stringValue(result.locator.projectUid),
     title: stringValue(result.locator.projectTitle),
     description: stringValue(result.locator.description),
@@ -144,9 +150,10 @@ function projectImpacts(input: {
 
 function localProjectResult(
   projectDir: string,
-  metadata: { projectId?: string; projectUid?: string; title?: string; description?: string; updatedAt?: string; initializedFiles?: string[]; backendProjectId?: number },
+  metadata: { localProjectId?: string; projectId?: string; projectUid?: string; title?: string; description?: string; updatedAt?: string; initializedFiles?: string[]; backendProjectId?: number },
 ): ElectronLocalProjectResult {
   const now = new Date().toISOString()
+  const localProjectId = metadata.localProjectId ?? metadata.projectId
   const project = {
     ID: metadata.backendProjectId ?? 0,
     owner_id: 0,
@@ -163,7 +170,7 @@ function localProjectResult(
     projectDir,
     projectPath: projectDir,
     ...(metadata.projectUid ? { projectUid: metadata.projectUid } : {}),
-    ...(metadata.projectId ? { projectId: metadata.projectId } : {}),
+    ...(localProjectId ? { localProjectId, local_project_id: localProjectId, projectId: localProjectId } : {}),
     project,
     ...(metadata.initializedFiles ? { initializedFiles: metadata.initializedFiles } : {}),
   }
@@ -183,7 +190,17 @@ function localProjectResultFromService(
       .filter((file): file is string => Boolean(file))
     : undefined
   return localProjectResult(projectDir, {
-    projectId: stringValue(result.projectId ?? result.project_id ?? locator.projectId ?? locator.project_id ?? project.id),
+    localProjectId: stringValue(
+      result.localProjectId
+        ?? result.local_project_id
+        ?? locator.localProjectId
+        ?? locator.local_project_id
+        ?? result.projectId
+        ?? result.project_id
+        ?? locator.projectId
+        ?? locator.project_id
+        ?? project.id,
+    ),
     projectUid: stringValue(result.projectUid ?? result.project_uid ?? locator.projectUid ?? locator.project_uid ?? project.projectUid ?? project.project_uid ?? project.uid),
     title: stringValue(project.name ?? project.title ?? result.title) ?? fallback.title,
     description: stringValue(project.description ?? result.description) ?? fallback.description,
@@ -191,6 +208,10 @@ function localProjectResultFromService(
     initializedFiles,
     backendProjectId: fallback.backendProjectId,
   })
+}
+
+function localProjectIdValue(input: ElectronLocalProjectCreateInput): string | undefined {
+  return stringValue(input.localProjectId ?? input.local_project_id ?? input.projectId)
 }
 
 function normalizeProjectDir(value: unknown): string {

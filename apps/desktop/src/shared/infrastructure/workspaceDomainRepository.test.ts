@@ -14,6 +14,16 @@ test('workspace domain repository routes project source reads and writes through
       movScriptHomeDir: '/tmp/movscript-home',
       workspaceDir: '/tmp/movscript-home',
       gatewayBaseURL: 'http://127.0.0.1:8766',
+      runtimeConnection: {
+        schema: 'movscript.runtime-connection.v1',
+        mode: 'local',
+        gatewayBaseURL: 'http://127.0.0.1:8766',
+        apiV1BaseURL: 'http://127.0.0.1:8766/api/v1',
+        authMode: 'local-owner',
+        displayName: 'Local daemon gateway',
+        status: 'connected',
+        source: 'daemon',
+      },
       runtime: {
         schema: 'movscript.runtime-descriptor.v1',
         runtime: {

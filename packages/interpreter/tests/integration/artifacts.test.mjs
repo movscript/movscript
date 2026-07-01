@@ -26,10 +26,9 @@ test('workspace domain indexes hierarchical source entities', () => {
       kind: 'content_unit',
       id: 'cu_opening_assembly',
       title: 'Opening assembly',
-      content_unit_type: 'timeline_assembly_ref',
+      content_unit_type: 'segment_ref',
       output_kind: 'video',
-      target_kind: 'timeline_assembly',
-      target_ref: 'timeline_assembly:segment:a19d',
+      segment_ref: 'a19d',
       edit_prompt: { text: 'Compose the opening assembly.' },
     },
   })
@@ -59,20 +58,15 @@ test('workspace domain indexes hierarchical source entities', () => {
     && edge.relation === 'parent'
     && edge.source.path === 'settings/hero/states/rain/assets/wet_hair/asset.json'
     && edge.target.path === 'settings/hero/states/rain/setting_state.json'))
-  assert.ok(index.domainEdges.some((edge) => edge.origin === 'explicit_ref'
-    && edge.relation === 'target'
-    && edge.source.id === 'cu_opening_assembly'
-    && edge.target.category === 'timeline_assembly'
-    && edge.target.kind === 'timeline_assembly'
-    && edge.target.id === 'timeline_assembly:segment:a19d'
-    && edge.field === 'target_ref'))
+  assert.equal(index.domainEdges.some((edge) => edge.relation === 'target'
+    && edge.source.id === 'cu_opening_assembly'), false)
   assert.ok(index.domainEdges.some((edge) => edge.origin === 'explicit_ref'
     && edge.relation === 'scope'
     && edge.source.id === 'cu_opening_assembly'
     && edge.target.category === 'timeline_namespace'
     && edge.target.id === 'a19d'
     && edge.target.kind === 'segment'
-    && edge.field === 'target_ref'))
+    && edge.field === 'segment_ref'))
 
   const assets = queryMovScriptWorkspaceAssets(index, {
     settingId: 'hero',
@@ -105,26 +99,22 @@ test('relation graph fallback derives content unit target and scope through doma
       kind: 'content_unit',
       id: 'cu_opening_assembly',
       title: 'Opening assembly',
-      content_unit_type: 'timeline_assembly_ref',
+      content_unit_type: 'segment_ref',
       output_kind: 'video',
-      target_kind: 'timeline_assembly',
-      target_ref: 'timeline_assembly:segment:a19d',
+      segment_ref: 'a19d',
       edit_prompt: { text: 'Compose the opening assembly.' },
     },
   })
   const index = deriveMovScriptWorkspaceDomainIndex(documents)
   const graph = deriveRelationGraph({ ...index, domainEdges: [] })
 
-  assert.ok(graph.relations.some((relation) => relation.type === 'targets'
-    && relation.from.id === 'cu_opening_assembly'
-    && relation.to.entityKind === 'timeline_assembly'
-    && relation.to.id === 'timeline_assembly:segment:a19d'
-    && relation.field === 'target_ref'))
+  assert.equal(graph.relations.some((relation) => relation.type === 'targets'
+    && relation.from.id === 'cu_opening_assembly'), false)
   assert.ok(graph.relations.some((relation) => relation.type === 'uses'
     && relation.from.id === 'cu_opening_assembly'
     && relation.to.entityKind === 'segment'
     && relation.to.id === 'a19d'
-    && relation.field === 'target_ref'))
+    && relation.field === 'segment_ref'))
 })
 
 test('interpreter derived artifacts are derived from canonical source only', () => {
@@ -345,23 +335,19 @@ test('interpreter tracks production_ref and segment_ref content units as video o
     && relation.from.id === 'cu_episode_final'
     && relation.to.entityKind === 'production'
     && relation.to.id === 'p8f3'))
-  assert.ok(artifacts.relationGraph.relations.some((relation) => relation.type === 'targets'
-    && relation.from.id === 'cu_episode_final'
-    && relation.to.entityKind === 'timeline_assembly'
-    && relation.to.id === 'timeline_assembly:production:p8f3'))
+  assert.equal(artifacts.relationGraph.relations.some((relation) => relation.type === 'targets'
+    && relation.from.id === 'cu_episode_final'), false)
   assert.ok(artifacts.relationGraph.relations.some((relation) => relation.type === 'uses'
     && relation.from.id === 'cu_episode_final'
     && relation.to.entityKind === 'segment'
     && relation.to.id === 'a19d'))
-  assert.ok(artifacts.relationGraph.relations.some((relation) => relation.type === 'targets'
-    && relation.from.id === 'cu_opening_video'
-    && relation.to.entityKind === 'timeline_assembly'
-    && relation.to.id === 'timeline_assembly:segment:a19d'))
+  assert.equal(artifacts.relationGraph.relations.some((relation) => relation.type === 'targets'
+    && relation.from.id === 'cu_opening_video'), false)
   const changedProduction = artifacts.impactReport.changedEntities.find((entity) => entity.entityKind === 'production' && entity.id === 'p8f3')
   assert.equal(changedProduction?.affectedContentUnits.some((entity) => entity.id === 'cu_episode_final'), true)
 })
 
-test('interpreter tracks timeline_assembly_ref as canonical namespace scope video output', () => {
+test('interpreter marks timeline_assembly_ref artifacts as removed without target relations', () => {
   const documents = sourceDocuments()
   documents.push({
     path: 'content_units/cu_opening_video/content_unit.json',
@@ -404,27 +390,14 @@ test('interpreter tracks timeline_assembly_ref as canonical namespace scope vide
   const segmentArtifact = artifacts.contentUnitArtifacts.find((artifact) => artifact.contentUnitId === 'cu_opening_video')
   assert.equal(productionArtifact?.runtimePanel.content_unit_type, 'timeline_assembly_ref')
   assert.equal(productionArtifact?.runtimePanel.output_kind, 'video')
-  assert.equal(productionArtifact?.runtimePanel.status, 'blocked')
-  assert.equal(productionArtifact?.dependencyReport.blockers?.some((blocker) => blocker.code === 'upstream_selection_missing'), true)
+  assert.equal(productionArtifact?.dependencyReport.issues?.some((issue) => issue.severity === 'error'
+    && issue.message.includes('timeline_assembly_ref is removed')), true)
   assert.equal(segmentArtifact?.runtimePanel.content_unit_type, 'timeline_assembly_ref')
   assert.equal(segmentArtifact?.runtimePanel.output_kind, 'video')
-  assert.equal(segmentArtifact?.runtimePanel.status, 'ready')
-  assert.ok(artifacts.relationGraph.relations.some((relation) => relation.type === 'targets'
-    && relation.from.id === 'cu_episode_final'
-    && relation.to.entityKind === 'timeline_assembly'
-    && relation.to.id === 'timeline_assembly:production:p8f3'))
-  assert.ok(artifacts.relationGraph.relations.some((relation) => relation.type === 'uses'
-    && relation.from.id === 'cu_episode_final'
-    && relation.to.entityKind === 'production'
-    && relation.to.id === 'p8f3'))
-  assert.ok(artifacts.relationGraph.relations.some((relation) => relation.type === 'targets'
-    && relation.from.id === 'cu_opening_video'
-    && relation.to.entityKind === 'timeline_assembly'
-    && relation.to.id === 'timeline_assembly:segment:a19d'))
-  assert.ok(artifacts.relationGraph.relations.some((relation) => relation.type === 'uses'
-    && relation.from.id === 'cu_opening_video'
-    && relation.to.entityKind === 'segment'
-    && relation.to.id === 'a19d'))
+  assert.equal(segmentArtifact?.dependencyReport.issues?.some((issue) => issue.severity === 'error'
+    && issue.message.includes('timeline_assembly_ref is removed')), true)
+  assert.equal(artifacts.relationGraph.relations.some((relation) => relation.from.id === 'cu_episode_final'
+    || relation.from.id === 'cu_opening_video'), false)
 })
 
 test('generic content unit artifacts report namespace target issues', () => {
@@ -587,10 +560,9 @@ test('interpreter impact report propagates namespace context changes through rel
       kind: 'content_unit',
       id: 'cu_opening_assembly',
       title: 'Opening assembly',
-      content_unit_type: 'timeline_assembly_ref',
+      content_unit_type: 'segment_ref',
       output_kind: 'video',
-      target_kind: 'timeline_assembly',
-      target_ref: 'timeline_assembly:segment:a19d',
+      segment_ref: 'a19d',
       edit_prompt: { text: 'Compose the opening assembly.' },
     },
   })

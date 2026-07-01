@@ -22,11 +22,11 @@ import {
   externalResourceTools,
   generationTools,
   modelTools,
+  productionEditingTools,
   projectTools,
   resourceLibraryTools,
   resourceMediaTools,
   shotLibraryTools,
-  timelineTools,
 } from '@movscript/core/mcp'
 import {
   artifactGetStream,
@@ -38,21 +38,89 @@ import {
   analyzeVideoShotCuts,
   createShotGroup,
   createProject,
+  domainAppendCandidate,
+  domainBuildContentUnitBackendPrompt,
+  domainCertifyAssetProvider,
+  domainCreateEditingProjectContext,
+  domainCreateAssetSlotCandidate,
+  domainCreateContentCandidate,
+  domainCreateContentCandidateBatch,
+  domainCreateKeyframeCandidate,
   domainGetModel,
   domainInspect,
   domainInterpret,
+  domainDecideContentUnitCandidate,
+  domainInterpretContentUnitArtifact,
+  domainOverview,
+  domainProductionStatusSummary,
+  domainQueryAssets,
+  domainQueryEntities,
+  domainQueryProductionContext,
+  domainQueryRemoteAssetGroups,
+  domainQueryRemoteAssets,
+  domainQuerySettings,
+  domainRegisterRawResourceAsContentUnitCandidate,
+  domainRegenerationPlan,
+  domainReview,
+  domainReadContentUnitDependencyReport,
+  domainReadContentUnitGenerationPrompt,
+  domainReadContentUnitRuntimePanel,
+  domainReadContentUnitSelectionValidity,
+  domainReadContentWorkspace,
+  domainReadContentWorkspaceSnapshot,
+  domainReadPreviewTimeline,
+  domainReadProductionEditPlan,
+  domainReadProductionTimeline,
+  domainReadProductionWorkPlan,
+  domainReadProjectContextSnapshot,
+  domainReadSceneMomentEditPlan,
+  domainReadSceneMomentTimeline,
+  domainReadScriptSource,
+  domainSnapshotScriptVersion,
+  domainSelectCandidate,
+  domainSelectContentUnitCandidate,
+  domainSelectContentUnitCandidateBatch,
+  domainDeleteEntity,
+  domainUnlockCandidate,
+  domainUpdateCandidate,
+  domainUpdateContentUnitPrompt,
+  domainUpdateEntityTransition,
+  domainUpdateStoryboardTimeline,
+  domainUpsertAsset,
+  domainUpsertAudioCue,
+  domainUpsertContentUnit,
+  domainUpsertExpressionUnit,
+  domainUpsertKeyframe,
+  domainUpsertProduction,
+  domainUpsertProductionTree,
+  domainUpsertProjectStandards,
+  domainUpsertSceneMoment,
+  domainUpsertScript,
+  domainUpsertSegment,
+  domainUpsertSetting,
+  domainUpsertSettingState,
+  domainUpsertSettingTree,
+  domainUpsertStoryboard,
+  domainUpsertTimelineNamespaceTree,
   editingExportCreateCandidate,
   editingExportImportResource,
   editingExportPublishHls,
   editingExportSaveLocal,
+  editingExternalNleOpen,
   editingProjectAddAsset,
   editingProjectCreate,
-  editingProjectCreateFromEditDecisions,
-  editingProjectCreateFromEditPlan,
   editingProjectGet,
   editingProjectRemoveAsset,
   editingProjectSave,
   editingProjectUpdateSettings,
+  editingResultGet,
+  editingResultList,
+  editingResultRecoverExternalNle,
+  editingResultRegister,
+  editingResultWatchCancel,
+  editingResultWatchExternalNleCreate,
+  editingResultWatchGet,
+  editingResultWatchList,
   editingRuntimeCapabilitiesGet,
   editingTaskCancel,
   editingTaskGet,
@@ -71,6 +139,12 @@ import {
   editingTimelineUpdateClip,
   editingTimelineValidate,
   editingVideoCompose,
+  productionEditingResourcesRefresh,
+  productionEditingWorkspaceCreate,
+  productionEditingWorkspaceDelete,
+  productionEditingWorkspaceGet,
+  productionEditingWorkspaceList,
+  productionEditingWorkspaceOpen,
   createResourceVideoContactSheetToResource,
   extractResourceVideoAudioToResource,
   extractResourceVideoFrameToResource,
@@ -95,14 +169,6 @@ import {
   searchExternalResources,
   setMCPDefaultWorkspaceDir,
   submitUnifiedGeneration,
-  timelineAssemblyCompile,
-  timelineAssemblyGet,
-  timelineAssemblyValidate,
-  timelineBackendCapabilityList,
-  timelineBackendConformanceReport,
-  timelineBackendProjectCreate,
-  timelineBackendSelect,
-  timelineCompileManifestCreate,
   transformResourceImageToResource,
   trimResourceVideoToResource,
   uploadAgentImageResource,
@@ -123,6 +189,7 @@ import {
   findRuntimeService,
   readRuntimeHomeSnapshot,
   resolveMovScriptHomeDir,
+  writeRuntimeEndpointRecord,
   type RuntimeEndpointRecord,
   type RuntimeHomeSnapshot,
 } from '@movscript/runtime-contracts'
@@ -143,7 +210,7 @@ const MOVSCRIPT_SOURCE_ROOT_FILES = new Set([
 
 export type JSONSchemaObject = Record<string, unknown>
 export type AdminCommandMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
-export type MovScriptCommandFamily = 'runtime' | 'context' | 'admin' | 'system' | 'editing' | 'timeline' | 'workspace'
+export type MovScriptCommandFamily = 'runtime' | 'context' | 'admin' | 'system' | 'domain' | 'editing' | 'production-editing' | 'workspace'
 export type MovScriptCommandStability = 'stable' | 'temporary_fallback'
 
 export interface MovScriptCommandExample {
@@ -197,9 +264,20 @@ export interface SystemCommandSpec extends MovScriptCommandContract {
   mcpToolName: string
   mcpAliases?: string[]
   cliPath: string[]
+  productCliPath?: string[]
   description: string
   inputSchema: JSONSchemaObject
   run: (args: Record<string, unknown>) => Promise<unknown>
+}
+
+export interface DomainCommandSpec extends MovScriptCommandContract {
+  commandId: string
+  mcpToolName: string
+  mcpAliases?: string[]
+  cliPath: string[]
+  description: string
+  inputSchema: JSONSchemaObject
+  run: (args: Record<string, unknown>) => Promise<unknown> | unknown
 }
 
 export interface EditingCommandSpec extends MovScriptCommandContract {
@@ -211,7 +289,7 @@ export interface EditingCommandSpec extends MovScriptCommandContract {
   run: (args: Record<string, unknown>) => Promise<unknown> | unknown
 }
 
-export interface TimelineCommandSpec extends MovScriptCommandContract {
+export interface ProductionEditingCommandSpec extends MovScriptCommandContract {
   commandId: string
   mcpToolName: string
   cliPath: string[]
@@ -255,8 +333,10 @@ const PROJECT_SERVICE = 'movscript.project.service'
 const EDITING_SERVICE = 'movscript.editing.service'
 const LOCAL_SURFACE_HOST_SERVICE = 'movscript.local-surface.host'
 const MEDIA_PIPELINE_SERVICE = 'movscript.media.pipeline'
+const RUNTIME_GATEWAY_SERVICE = 'movscript.runtime.gateway'
+const CLOUD_RUNTIME_GATEWAY_SERVICE = 'movscript.cloud-runtime.gateway'
+const EXTERNAL_RUNTIME_GATEWAY_SERVICE = 'movscript.external-runtime.gateway'
 const COMMAND_RUNNER_SERVICE = 'movscript.cli.command-runner'
-const TIMELINE_COMPILER_SERVICE = 'movscript.timeline.compiler'
 
 type CommandContractOverride = Partial<Pick<
   MovScriptCommandContract,
@@ -267,8 +347,9 @@ type AdminCommandDraft = CommandDraft<AdminCommandSpec>
 type RuntimeCommandDraft = CommandDraft<RuntimeCommandSpec>
 type ContextCommandDraft = CommandDraft<ContextCommandSpec>
 type SystemCommandDraft = CommandDraft<SystemCommandSpec>
+type DomainCommandDraft = CommandDraft<DomainCommandSpec>
 type EditingCommandDraft = CommandDraft<EditingCommandSpec>
-type TimelineCommandDraft = CommandDraft<TimelineCommandSpec>
+type ProductionEditingCommandDraft = CommandDraft<ProductionEditingCommandSpec>
 type WorkspaceCommandDraft = CommandDraft<WorkspaceCommandSpec>
 
 function commandContractDefaults(family: MovScriptCommandFamily): Omit<MovScriptCommandContract, 'examples'> {
@@ -309,6 +390,15 @@ function commandContractDefaults(family: MovScriptCommandFamily): Omit<MovScript
         permissions: ['system:read', 'system:write'],
         outputSchema: commandResultOutputSchema(),
       }
+    case 'domain':
+      return {
+        family,
+        stability: 'stable',
+        ownerService: PROJECT_SERVICE,
+        requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, PROJECT_SERVICE],
+        permissions: ['project:read', 'project:write', 'candidate:write', 'candidate:decide'],
+        outputSchema: commandResultOutputSchema(),
+      }
     case 'editing':
       return {
         family,
@@ -318,13 +408,13 @@ function commandContractDefaults(family: MovScriptCommandFamily): Omit<MovScript
         permissions: ['editing:read'],
         outputSchema: commandResultOutputSchema(),
       }
-    case 'timeline':
+    case 'production-editing':
       return {
         family,
         stability: 'stable',
-        ownerService: TIMELINE_COMPILER_SERVICE,
-        requiredRuntime: [COMMAND_RUNNER_SERVICE],
-        permissions: ['timeline:compile'],
+        ownerService: PROJECT_SERVICE,
+        requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, PROJECT_SERVICE],
+        permissions: ['project:read', 'project:write'],
         outputSchema: commandResultOutputSchema(),
       }
     case 'workspace':
@@ -351,16 +441,19 @@ function withCommandContract<T extends {
 ): Array<T & MovScriptCommandContract> {
   return commands.map((command) => {
     const overrides = command as CommandContractOverride
+    const stability = overrides.stability ?? defaults.stability
     return {
       ...command,
       family: defaults.family,
-      stability: overrides.stability ?? defaults.stability,
+      stability,
       ownerService: overrides.ownerService ?? defaults.ownerService,
       outputSchema: cloneJSONSchema(overrides.outputSchema ?? defaults.outputSchema),
       requiredRuntime: [...(overrides.requiredRuntime ?? defaults.requiredRuntime)],
       permissions: [...(overrides.permissions ?? defaults.permissions)],
       examples: [{
-        description: `Run ${command.commandId} through the stable MovScript CLI contract.`,
+        description: stability === 'temporary_fallback'
+          ? `Run ${command.commandId} through the migration-only temporary MovScript CLI fallback contract.`
+          : `Run ${command.commandId} through the stable MovScript CLI contract.`,
         argv: commandExampleArgv(defaults.family, command),
       }],
     }
@@ -388,6 +481,8 @@ function commandExampleArgv(
 ): string[] {
   const argv = command.productCliPath
     ? ['movscript', ...command.productCliPath]
+    : family === 'production-editing'
+      ? ['movscript', 'production', 'editing', ...command.cliPath]
     : ['movscript', family, ...command.cliPath]
   if (command.commandId === 'workspace.get_model') argv.push('project')
   argv.push('--json')
@@ -422,6 +517,19 @@ function cloneJSONSchema(schema: JSONSchemaObject): JSONSchemaObject {
 
 export const runtimeCommandSpecs: RuntimeCommandSpec[] = withCommandContract<RuntimeCommandDraft>([
   {
+    commandId: 'runtime.doctor',
+    mcpToolName: 'runtime_doctor',
+    mcpAliases: ['movscript_runtime_doctor'],
+    cliPath: ['doctor'],
+    productCliPath: ['doctor'],
+    description: 'Runtime: run the top-level MovScript CLI doctor for daemon, backend, project, surface, and media readiness.',
+    inputSchema: runtimeReadinessSchema({
+      requireProject: { type: 'boolean', description: 'When false, do not treat a missing project source as a blocker.' },
+      require_project: { type: 'boolean', description: 'Alias for requireProject.' },
+    }),
+    run: runtimeDoctor,
+  },
+  {
     commandId: 'runtime.status',
     mcpToolName: 'movscript_runtime_status',
     cliPath: ['status'],
@@ -445,6 +553,28 @@ export const runtimeCommandSpecs: RuntimeCommandSpec[] = withCommandContract<Run
     description: 'Runtime daemon: configure backend binding from the daemon command surface.',
     inputSchema: runtimeConfigureSchema(),
     run: runtimeConfigure,
+  },
+  {
+    commandId: 'runtime.gateway.configure',
+    mcpToolName: 'runtime_gateway_configure',
+    cliPath: ['gateway', 'configure'],
+    description: 'Runtime gateway: register a daemon/cloud/external gateway endpoint in MovScript Home.',
+    inputSchema: runtimeGatewayConfigureSchema(),
+    ownerService: RUNTIME_GATEWAY_SERVICE,
+    requiredRuntime: [COMMAND_RUNNER_SERVICE],
+    permissions: ['runtime:read', 'runtime:configure'],
+    run: runtimeGatewayConfigure,
+  },
+  {
+    commandId: 'runtime.gateway.status',
+    mcpToolName: 'runtime_gateway_status',
+    cliPath: ['gateway', 'status'],
+    description: 'Runtime gateway: read configured daemon/cloud/external runtime gateway endpoint records.',
+    inputSchema: localDaemonControlSchema(),
+    ownerService: RUNTIME_GATEWAY_SERVICE,
+    requiredRuntime: [COMMAND_RUNNER_SERVICE],
+    permissions: ['runtime:read'],
+    run: runtimeGatewayStatus,
   },
   {
     commandId: 'runtime.daemon.discover',
@@ -555,6 +685,51 @@ export const adminCommandSpecs: AdminCommandSpec[] = withCommandContract<AdminCo
     method: 'GET',
     inputSchema: adminReadSchema(),
     path: (args) => adminPathWithQuery('/admin/providers', args),
+  },
+  {
+    commandId: 'admin.provider.connection_test',
+    mcpToolName: 'admin_provider_connection_test',
+    cliPath: ['provider', 'connection-test'],
+    description: 'Admin-only: test a provider instance connection and return sanitized diagnostics without exposing secrets.',
+    method: 'POST',
+    inputSchema: adminProviderInstanceSchema(),
+    path: (args) => `/admin/provider-instances/${adminRequiredPathArg(args, ['providerInstanceID', 'providerInstanceId', 'provider_instance_id', 'id'])}/test`,
+  },
+  {
+    commandId: 'admin.provider_instance.config.get',
+    mcpToolName: 'admin_provider_instance_config_get',
+    cliPath: ['provider', 'instance', 'config', 'get'],
+    description: 'Admin-only: read a provider instance configuration draft with secrets masked.',
+    method: 'GET',
+    inputSchema: adminProviderInstanceSchema(),
+    path: (args) => `/admin/provider-instances/${adminRequiredPathArg(args, ['providerInstanceID', 'providerInstanceId', 'provider_instance_id', 'id'])}/config`,
+  },
+  {
+    commandId: 'admin.provider_instance.config.update',
+    mcpToolName: 'admin_provider_instance_config_update',
+    cliPath: ['provider', 'instance', 'config', 'update'],
+    description: 'Admin-only: update a provider instance configuration draft; backend validation, audit, and secret masking remain in Data Service.',
+    method: 'PUT',
+    inputSchema: adminProviderInstanceSchema(true),
+    path: (args) => `/admin/provider-instances/${adminRequiredPathArg(args, ['providerInstanceID', 'providerInstanceId', 'provider_instance_id', 'id'])}/config`,
+  },
+  {
+    commandId: 'admin.provider_instance.config.apply',
+    mcpToolName: 'admin_provider_instance_config_apply',
+    cliPath: ['provider', 'instance', 'config', 'apply'],
+    description: 'Admin-only: apply a provider instance configuration draft to the configured runtime target without exposing secrets.',
+    method: 'POST',
+    inputSchema: adminProviderInstanceSchema(),
+    path: (args) => `/admin/provider-instances/${adminRequiredPathArg(args, ['providerInstanceID', 'providerInstanceId', 'provider_instance_id', 'id'])}/config/apply`,
+  },
+  {
+    commandId: 'admin.provider_instance.config.activate',
+    mcpToolName: 'admin_provider_instance_config_activate',
+    cliPath: ['provider', 'instance', 'config', 'activate'],
+    description: 'Admin-only: activate an applied provider instance configuration through the backend deployment plan.',
+    method: 'POST',
+    inputSchema: adminProviderInstanceSchema(),
+    path: (args) => `/admin/provider-instances/${adminRequiredPathArg(args, ['providerInstanceID', 'providerInstanceId', 'provider_instance_id', 'id'])}/config/activate`,
   },
   {
     commandId: 'admin.provider.create',
@@ -728,6 +903,16 @@ export const adminCommandSpecs: AdminCommandSpec[] = withCommandContract<AdminCo
     path: () => '/admin/settings/generation-tools',
   },
   {
+    commandId: 'admin.generation_tools.call_test',
+    mcpToolName: 'admin_generation_tool_call_test',
+    cliPath: ['generation-tools', 'call-test'],
+    description: 'Admin-only: call a configured generation tool server through the fixed runtime proxy and return sanitized diagnostics.',
+    method: 'POST',
+    inputSchema: adminGenerationToolCallSchema(),
+    path: () => '/generation-tools/call',
+    payload: adminGenerationToolCallPayload,
+  },
+  {
     commandId: 'admin.resource_access.settings.get',
     mcpToolName: 'admin_resource_access_settings_get',
     cliPath: ['resource-access', 'settings', 'get'],
@@ -746,6 +931,52 @@ export const adminCommandSpecs: AdminCommandSpec[] = withCommandContract<AdminCo
     path: () => '/admin/settings/resource-access',
   },
   {
+    commandId: 'admin.resource_access.profile.list',
+    mcpToolName: 'admin_resource_access_profile_list',
+    cliPath: ['resource-access', 'profile', 'list'],
+    description: 'Admin-only: list ResourceAccessProfile entries for public tunnel, public backend, and object relay configuration.',
+    method: 'GET',
+    inputSchema: adminReadSchema(),
+    path: () => '/admin/settings/resource-access/profiles',
+  },
+  {
+    commandId: 'admin.resource_access.profile.upsert',
+    mcpToolName: 'admin_resource_access_profile_upsert',
+    cliPath: ['resource-access', 'profile', 'upsert'],
+    description: 'Admin-only: create or update one ResourceAccessProfile through the backend fixed endpoint.',
+    method: 'PUT',
+    inputSchema: adminResourceAccessProfileSchema(true),
+    path: (args) => `/admin/settings/resource-access/profiles/${adminRequiredPathArg(args, ['profileID', 'profileId', 'profile_id', 'id'])}`,
+  },
+  {
+    commandId: 'admin.resource_access.profile.delete',
+    mcpToolName: 'admin_resource_access_profile_delete',
+    cliPath: ['resource-access', 'profile', 'delete'],
+    description: 'Admin-only: delete one ResourceAccessProfile through the backend fixed endpoint.',
+    method: 'DELETE',
+    inputSchema: adminResourceAccessProfileSchema(false),
+    path: (args) => `/admin/settings/resource-access/profiles/${adminRequiredPathArg(args, ['profileID', 'profileId', 'profile_id', 'id'])}`,
+  },
+  {
+    commandId: 'admin.resource_access.profile.test',
+    mcpToolName: 'admin_resource_access_profile_test',
+    cliPath: ['resource-access', 'profile', 'test'],
+    description: 'Admin-only: test a ResourceAccessProfile public health endpoint without exposing secrets.',
+    method: 'POST',
+    inputSchema: adminResourceAccessProfileSchema(false),
+    path: (args) => `/admin/settings/resource-access/profiles/${adminRequiredPathArg(args, ['profileID', 'profileId', 'profile_id', 'id'])}/test`,
+  },
+  {
+    commandId: 'admin.resource_access.route_diagnose',
+    mcpToolName: 'admin_resource_access_route_diagnose',
+    cliPath: ['resource-access', 'route', 'diagnose'],
+    description: 'Admin-only: diagnose resource access route/profile readiness for public URL transport.',
+    method: 'POST',
+    inputSchema: adminResourceAccessRouteDiagnoseSchema(),
+    path: () => '/admin/settings/resource-access/routes/diagnose',
+    payload: adminResourceAccessRouteDiagnosePayload,
+  },
+  {
     commandId: 'admin.public_tunnel.config.get',
     mcpToolName: 'admin_public_tunnel_config_get',
     cliPath: ['public-tunnel', 'config', 'get'],
@@ -762,6 +993,78 @@ export const adminCommandSpecs: AdminCommandSpec[] = withCommandContract<AdminCo
     method: 'PUT',
     inputSchema: adminWriteSchema(),
     path: () => '/admin/settings/resource-access',
+  },
+  {
+    commandId: 'admin.cloud_file_config.list',
+    mcpToolName: 'admin_cloud_file_config_list',
+    cliPath: ['cloud-file-config', 'list'],
+    description: 'Admin-only: list object relay and cloud file storage configurations.',
+    method: 'GET',
+    inputSchema: adminReadSchema(),
+    path: () => '/admin/cloud-file-configs',
+  },
+  {
+    commandId: 'admin.cloud_file_config.create',
+    mcpToolName: 'admin_cloud_file_config_create',
+    cliPath: ['cloud-file-config', 'create'],
+    description: 'Admin-only: create an object relay or cloud file storage configuration.',
+    method: 'POST',
+    inputSchema: adminWriteSchema(),
+    path: () => '/admin/cloud-file-configs',
+  },
+  {
+    commandId: 'admin.cloud_file_config.update',
+    mcpToolName: 'admin_cloud_file_config_update',
+    cliPath: ['cloud-file-config', 'update'],
+    description: 'Admin-only: update an object relay or cloud file storage configuration.',
+    method: 'PUT',
+    inputSchema: adminCloudFileConfigSchema(true),
+    path: (args) => `/admin/cloud-file-configs/${adminRequiredPathArg(args, ['cloudFileConfigID', 'cloudFileConfigId', 'cloud_file_config_id', 'id'])}`,
+  },
+  {
+    commandId: 'admin.cloud_file_config.test',
+    mcpToolName: 'admin_cloud_file_config_test',
+    cliPath: ['cloud-file-config', 'test'],
+    description: 'Admin-only: test an object relay or cloud file storage configuration without exposing secrets.',
+    method: 'POST',
+    inputSchema: adminCloudFileConfigSchema(false),
+    path: (args) => `/admin/cloud-file-configs/${adminRequiredPathArg(args, ['cloudFileConfigID', 'cloudFileConfigId', 'cloud_file_config_id', 'id'])}/test`,
+  },
+  {
+    commandId: 'admin.cloud_file_config.delete',
+    mcpToolName: 'admin_cloud_file_config_delete',
+    cliPath: ['cloud-file-config', 'delete'],
+    description: 'Admin-only: delete an object relay or cloud file storage configuration.',
+    method: 'DELETE',
+    inputSchema: adminCloudFileConfigSchema(false),
+    path: (args) => `/admin/cloud-file-configs/${adminRequiredPathArg(args, ['cloudFileConfigID', 'cloudFileConfigId', 'cloud_file_config_id', 'id'])}`,
+  },
+  {
+    commandId: 'admin.usage_policy.get',
+    mcpToolName: 'admin_usage_policy_get',
+    cliPath: ['usage-policy', 'get'],
+    description: 'Admin-only: read usage governance policy settings for model gateway and generation usage.',
+    method: 'GET',
+    inputSchema: adminReadSchema(),
+    path: () => '/admin/settings/usage-policy',
+  },
+  {
+    commandId: 'admin.usage_policy.update',
+    mcpToolName: 'admin_usage_policy_update',
+    cliPath: ['usage-policy', 'update'],
+    description: 'Admin-only: update usage governance policy settings for model gateway and generation usage.',
+    method: 'PUT',
+    inputSchema: adminWriteSchema(),
+    path: () => '/admin/settings/usage-policy',
+  },
+  {
+    commandId: 'admin.usage_policy.diagnose',
+    mcpToolName: 'admin_usage_policy_diagnose',
+    cliPath: ['usage-policy', 'diagnose'],
+    description: 'Admin-only: diagnose usage policy configuration, limits, and runtime enforcement readiness.',
+    method: 'GET',
+    inputSchema: adminReadSchema(),
+    path: () => '/admin/settings/usage-policy/diagnose',
   },
   {
     commandId: 'admin.resource_access.resolve_test',
@@ -822,6 +1125,18 @@ export const adminCommandSpecs: AdminCommandSpec[] = withCommandContract<AdminCo
 ], commandContractDefaults('admin'))
 
 export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<SystemCommandDraft>([
+  {
+    commandId: 'system.production.workflow',
+    mcpToolName: 'system_production_workflow',
+    cliPath: ['production', 'workflow'],
+    productCliPath: ['production', 'workflow'],
+    description: 'System: describe the CLI-only MovScript production workflow, review gates, blockers, and command handoffs.',
+    ownerService: COMMAND_RUNNER_SERVICE,
+    requiredRuntime: [COMMAND_RUNNER_SERVICE],
+    permissions: ['system:read'],
+    inputSchema: objectSchema({}),
+    run: async () => productionWorkflowContract(),
+  },
   {
     commandId: 'system.model.list',
     mcpToolName: 'system_model_list',
@@ -884,6 +1199,10 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_project_create',
     mcpAliases: ['movscript_project_create'],
     cliPath: ['project', 'create'],
+    productCliPath: ['project', 'create'],
+    ownerService: PROJECT_SERVICE,
+    requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, PROJECT_SERVICE],
+    permissions: ['project:read', 'project:write'],
     description: 'System: create a formal MovScript backend project after explicit user intent.',
     inputSchema: toolInputSchema(projectTools(), 'movscript_project_create'),
     run: createProject,
@@ -893,6 +1212,10 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_project_init',
     mcpAliases: ['movscript_project_init'],
     cliPath: ['project', 'init'],
+    productCliPath: ['project', 'init'],
+    ownerService: PROJECT_SERVICE,
+    requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, PROJECT_SERVICE],
+    permissions: ['project:read', 'project:write'],
     description: 'System: initialize a local MovScript project and bind it to backend project data.',
     inputSchema: toolInputSchema(projectTools(), 'movscript_project_init'),
     run: initLocalProject,
@@ -902,6 +1225,10 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_project_open',
     mcpAliases: ['movscript_project_open'],
     cliPath: ['project', 'open'],
+    productCliPath: ['project', 'open'],
+    ownerService: PROJECT_SERVICE,
+    requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, PROJECT_SERVICE],
+    permissions: ['project:read', 'project:interpret'],
     description: 'System: open a local MovScript project and bind it to backend project data when metadata exists.',
     inputSchema: toolInputSchema(projectTools(), 'movscript_project_open'),
     run: fetchLocalProject,
@@ -911,6 +1238,10 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_project_fetch',
     mcpAliases: ['movscript_project_fetch'],
     cliPath: ['project', 'fetch'],
+    productCliPath: ['project', 'fetch'],
+    ownerService: PROJECT_SERVICE,
+    requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, PROJECT_SERVICE],
+    permissions: ['project:read', 'project:interpret'],
     description: 'System: compatibility alias for opening a local MovScript project.',
     inputSchema: toolInputSchema(projectTools(), 'movscript_project_fetch'),
     run: fetchLocalProject,
@@ -920,6 +1251,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_resource_library_query',
     mcpAliases: ['movscript_resource_library_query'],
     cliPath: ['resource', 'library', 'query'],
+    productCliPath: ['resource', 'library', 'query'],
     description: 'System: query MovScript RawResources from the internal resource library.',
     inputSchema: toolInputSchema(resourceLibraryTools(), 'movscript_resource_library_query'),
     run: queryResourceLibrary,
@@ -929,6 +1261,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_resource_library_open',
     mcpAliases: ['movscript_resource_library_open'],
     cliPath: ['resource', 'library', 'open'],
+    productCliPath: ['resource', 'library', 'open'],
     description: 'System: return an agent-openable surface URL for the MovScript resource library.',
     inputSchema: toolInputSchema(resourceLibraryTools(), 'movscript_resource_library_open'),
     run: async (args) => openResourceLibrary(args),
@@ -937,6 +1270,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     commandId: 'system.artifact.upload_export',
     mcpToolName: 'system_artifact_upload_export',
     cliPath: ['artifact', 'upload-export'],
+    productCliPath: ['artifact', 'upload-export'],
     description: 'System: upload a completed local export artifact as a neutral RawResource.',
     inputSchema: toolInputSchema(artifactTools(), 'system_artifact_upload_export'),
     run: artifactUploadExport,
@@ -945,6 +1279,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     commandId: 'system.artifact.upload_hls_stream',
     mcpToolName: 'system_artifact_upload_hls_stream',
     cliPath: ['artifact', 'upload-hls-stream'],
+    productCliPath: ['artifact', 'upload-hls-stream'],
     description: 'System: upload completed HLS manifest and segments as a neutral MediaStreamArtifact.',
     inputSchema: toolInputSchema(artifactTools(), 'system_artifact_upload_hls_stream'),
     run: artifactUploadHlsStream,
@@ -953,6 +1288,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     commandId: 'system.artifact.get_stream',
     mcpToolName: 'system_artifact_get_stream',
     cliPath: ['artifact', 'get-stream'],
+    productCliPath: ['artifact', 'get-stream'],
     description: 'System: read MediaStreamArtifact metadata and playback URLs from backend hosting.',
     inputSchema: toolInputSchema(artifactTools(), 'system_artifact_get_stream'),
     run: artifactGetStream,
@@ -962,6 +1298,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_resource_image_read',
     mcpAliases: ['movscript_resource_image_read'],
     cliPath: ['resource', 'image', 'read'],
+    productCliPath: ['resource', 'image', 'read'],
     description: 'System: read a MovScript image RawResource for agent vision.',
     inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_image_read'),
     run: readResourceImageForVision,
@@ -971,6 +1308,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_resource_image_transform_to_resource',
     mcpAliases: ['movscript_resource_image_transform_to_resource'],
     cliPath: ['resource', 'image', 'transform-to-resource'],
+    productCliPath: ['resource', 'image', 'transform-to-resource'],
     description: 'System: transform a MovScript image RawResource and upload the result as a RawResource.',
     inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_image_transform_to_resource'),
     run: transformResourceImageToResource,
@@ -980,6 +1318,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_resource_image_annotate',
     mcpAliases: ['movscript_resource_image_annotate'],
     cliPath: ['resource', 'image', 'annotate'],
+    productCliPath: ['resource', 'image', 'annotate'],
     description: 'System: create a local annotated image artifact for agent guidance.',
     inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_image_annotate'),
     run: annotateResourceImage,
@@ -989,6 +1328,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_resource_video_extract_frames',
     mcpAliases: ['movscript_resource_video_extract_frames'],
     cliPath: ['resource', 'video', 'extract-frames'],
+    productCliPath: ['resource', 'video', 'extract-frames'],
     description: 'System: extract representative video frames for agent vision.',
     inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_video_extract_frames'),
     run: extractResourceVideoFramesForVision,
@@ -998,6 +1338,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_resource_video_probe',
     mcpAliases: ['movscript_resource_video_probe'],
     cliPath: ['resource', 'video', 'probe'],
+    productCliPath: ['resource', 'video', 'probe'],
     description: 'System: probe a MovScript video RawResource and return media metadata.',
     inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_video_probe'),
     run: probeResourceVideo,
@@ -1007,6 +1348,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_resource_video_extract_frame_to_resource',
     mcpAliases: ['movscript_resource_video_extract_frame_to_resource'],
     cliPath: ['resource', 'video', 'extract-frame-to-resource'],
+    productCliPath: ['resource', 'video', 'extract-frame-to-resource'],
     description: 'System: extract one video frame and upload it as an image RawResource.',
     inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_video_extract_frame_to_resource'),
     run: extractResourceVideoFrameToResource,
@@ -1016,6 +1358,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_resource_video_extract_frames_to_resources',
     mcpAliases: ['movscript_resource_video_extract_frames_to_resources'],
     cliPath: ['resource', 'video', 'extract-frames-to-resources'],
+    productCliPath: ['resource', 'video', 'extract-frames-to-resources'],
     description: 'System: extract multiple video frames and upload them as image RawResources.',
     inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_video_extract_frames_to_resources'),
     run: extractResourceVideoFramesToResources,
@@ -1025,6 +1368,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_resource_video_trim_to_resource',
     mcpAliases: ['movscript_resource_video_trim_to_resource'],
     cliPath: ['resource', 'video', 'trim-to-resource'],
+    productCliPath: ['resource', 'video', 'trim-to-resource'],
     description: 'System: trim a video RawResource into a new video RawResource.',
     inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_video_trim_to_resource'),
     run: trimResourceVideoToResource,
@@ -1034,6 +1378,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_resource_video_compose_to_resource',
     mcpAliases: ['movscript_resource_video_compose_to_resource'],
     cliPath: ['resource', 'video', 'compose-to-resource'],
+    productCliPath: ['resource', 'video', 'compose-to-resource'],
     description: 'System: compose video RawResources in sequence into a new video RawResource.',
     inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_video_compose_to_resource'),
     run: composeResourceVideosToResource,
@@ -1043,6 +1388,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_resource_video_concat_to_resource',
     mcpAliases: ['movscript_resource_video_concat_to_resource'],
     cliPath: ['resource', 'video', 'concat-to-resource'],
+    productCliPath: ['resource', 'video', 'concat-to-resource'],
     description: 'System: concat video RawResources into a new video RawResource.',
     inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_video_concat_to_resource'),
     run: composeResourceVideosToResource,
@@ -1052,6 +1398,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_resource_video_contact_sheet_to_resource',
     mcpAliases: ['movscript_resource_video_contact_sheet_to_resource'],
     cliPath: ['resource', 'video', 'contact-sheet-to-resource'],
+    productCliPath: ['resource', 'video', 'contact-sheet-to-resource'],
     description: 'System: create a contact sheet image RawResource from a video RawResource.',
     inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_video_contact_sheet_to_resource'),
     run: createResourceVideoContactSheetToResource,
@@ -1061,6 +1408,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_resource_video_extract_audio_to_resource',
     mcpAliases: ['movscript_resource_video_extract_audio_to_resource'],
     cliPath: ['resource', 'video', 'extract-audio-to-resource'],
+    productCliPath: ['resource', 'video', 'extract-audio-to-resource'],
     description: 'System: extract audio from a video RawResource into an audio RawResource.',
     inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_video_extract_audio_to_resource'),
     run: extractResourceVideoAudioToResource,
@@ -1070,6 +1418,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_resource_upload',
     mcpAliases: ['movscript_resource_upload'],
     cliPath: ['resource', 'upload'],
+    productCliPath: ['resource', 'upload'],
     description: 'System: upload an agent-accessible artifact to the MovScript RawResource library.',
     inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_upload'),
     run: uploadAgentImageResource,
@@ -1079,6 +1428,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_resource_upload_batch',
     mcpAliases: ['movscript_resource_upload_batch'],
     cliPath: ['resource', 'upload-batch'],
+    productCliPath: ['resource', 'upload-batch'],
     description: 'System: upload multiple agent-accessible artifacts to the MovScript RawResource library.',
     inputSchema: toolInputSchema(resourceMediaTools(), 'movscript_resource_upload_batch'),
     run: uploadAgentImageResources,
@@ -1088,6 +1438,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_external_resource_source_list',
     mcpAliases: ['movscript_external_resource_source_list'],
     cliPath: ['external-resource', 'source', 'list'],
+    productCliPath: ['external-resource', 'source', 'list'],
     description: 'System: list configured external media search sources.',
     inputSchema: toolInputSchema(externalResourceTools(), 'movscript_external_resource_source_list'),
     run: listExternalResourceSources,
@@ -1097,6 +1448,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_external_resource_search',
     mcpAliases: ['movscript_external_resource_search'],
     cliPath: ['external-resource', 'search'],
+    productCliPath: ['external-resource', 'search'],
     description: 'System: search configured external image/video providers.',
     inputSchema: toolInputSchema(externalResourceTools(), 'movscript_external_resource_search'),
     run: searchExternalResources,
@@ -1106,6 +1458,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_shot_library_query',
     mcpAliases: ['movscript_shot_library_query'],
     cliPath: ['shot', 'library', 'query'],
+    productCliPath: ['shot', 'library', 'query'],
     description: 'System: query the reusable MovScript shot reference library.',
     inputSchema: toolInputSchema(shotLibraryTools(), 'movscript_shot_library_query'),
     run: queryShotLibrary,
@@ -1115,6 +1468,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_shot_group_get',
     mcpAliases: ['movscript_shot_group_get'],
     cliPath: ['shot', 'group', 'get'],
+    productCliPath: ['shot', 'group', 'get'],
     description: 'System: read a MovScript shot reference group and its ordered shots.',
     inputSchema: toolInputSchema(shotLibraryTools(), 'movscript_shot_group_get'),
     run: getShotGroup,
@@ -1124,6 +1478,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_shot_group_create',
     mcpAliases: ['movscript_shot_group_create'],
     cliPath: ['shot', 'group', 'create'],
+    productCliPath: ['shot', 'group', 'create'],
     description: 'System: create a MovScript shot reference group for a video RawResource.',
     inputSchema: toolInputSchema(shotLibraryTools(), 'movscript_shot_group_create'),
     run: createShotGroup,
@@ -1133,6 +1488,7 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_shot_group_add_shots',
     mcpAliases: ['movscript_shot_group_add_shots'],
     cliPath: ['shot', 'group', 'add-shots'],
+    productCliPath: ['shot', 'group', 'add-shots'],
     description: 'System: append shot references to an existing shot reference group.',
     inputSchema: toolInputSchema(shotLibraryTools(), 'movscript_shot_group_add_shots'),
     run: addShotsToGroup,
@@ -1142,11 +1498,566 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
     mcpToolName: 'system_video_shot_cuts_analyze',
     mcpAliases: ['movscript_video_shot_cuts_analyze'],
     cliPath: ['video', 'shot-cuts', 'analyze'],
+    productCliPath: ['video', 'shot-cuts', 'analyze'],
     description: 'System: analyze a video RawResource with ffmpeg scene detection and return shot ranges.',
     inputSchema: toolInputSchema(shotLibraryTools(), 'movscript_video_shot_cuts_analyze'),
     run: analyzeVideoShotCuts,
   },
 ], commandContractDefaults('system'))
+
+export const domainCommandSpecs: DomainCommandSpec[] = withCommandContract<DomainCommandDraft>([
+  {
+    commandId: 'domain.overview',
+    mcpToolName: 'domain_overview',
+    cliPath: ['overview'],
+    description: 'Domain: show source state, backend decisions, diagnostics, stale outputs, and next actions.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_overview'),
+    permissions: ['project:read'],
+    run: domainOverview,
+  },
+  {
+    commandId: 'domain.query.entities',
+    mcpToolName: 'domain_query_entities',
+    cliPath: ['query', 'entities'],
+    description: 'Domain: query indexed source entities by kind, ids, path context, or free text.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_query_entities'),
+    permissions: ['project:read'],
+    run: domainQueryEntities,
+  },
+  {
+    commandId: 'domain.query.settings',
+    mcpToolName: 'domain_query_settings',
+    cliPath: ['query', 'settings'],
+    description: 'Domain: query concrete setting entities.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_query_settings'),
+    permissions: ['project:read'],
+    run: domainQuerySettings,
+  },
+  {
+    commandId: 'domain.query.assets',
+    mcpToolName: 'domain_query_assets',
+    cliPath: ['query', 'assets'],
+    description: 'Domain: query setting-state-owned asset slots.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_query_assets'),
+    permissions: ['project:read'],
+    run: domainQueryAssets,
+  },
+  {
+    commandId: 'domain.query.production_context',
+    mcpToolName: 'domain_query_production_context',
+    cliPath: ['query', 'production-context'],
+    description: 'Domain: query production planning context and candidate-bearing production slots.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_query_production_context'),
+    permissions: ['project:read'],
+    run: domainQueryProductionContext,
+  },
+  {
+    commandId: 'domain.read.content_workspace',
+    mcpToolName: 'domain_read_content_workspace',
+    cliPath: ['read', 'content-workspace'],
+    description: 'Domain: read the normalized content workspace view model through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_read_content_workspace'),
+    permissions: ['project:read'],
+    run: domainReadContentWorkspace,
+  },
+  {
+    commandId: 'domain.read.content_workspace_snapshot',
+    mcpToolName: 'domain_read_content_workspace_snapshot',
+    cliPath: ['read', 'content-workspace-snapshot'],
+    description: 'Domain: read the raw content workspace snapshot through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_read_content_workspace_snapshot'),
+    permissions: ['project:read'],
+    run: domainReadContentWorkspaceSnapshot,
+  },
+  {
+    commandId: 'domain.read.project_context_snapshot',
+    mcpToolName: 'domain_read_project_context_snapshot',
+    cliPath: ['read', 'project-context'],
+    description: 'Domain: read the project context snapshot agents need before planning or generation.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_read_project_context_snapshot'),
+    permissions: ['project:read'],
+    run: domainReadProjectContextSnapshot,
+  },
+  {
+    commandId: 'domain.read.content_unit.artifact',
+    mcpToolName: 'domain_derive_content_unit_artifact',
+    cliPath: ['read', 'content-unit', 'artifact'],
+    description: 'Domain: derive the artifact bundle for a content unit.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_derive_content_unit_artifact'),
+    permissions: ['project:read'],
+    run: domainInterpretContentUnitArtifact,
+  },
+  {
+    commandId: 'domain.read.content_unit.backend_prompt',
+    mcpToolName: 'domain_build_content_unit_backend_prompt',
+    cliPath: ['read', 'content-unit', 'backend-prompt'],
+    description: 'Domain: build a backend-ready prompt by resolving selected upstream resources.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_build_content_unit_backend_prompt'),
+    permissions: ['project:read'],
+    run: domainBuildContentUnitBackendPrompt,
+  },
+  {
+    commandId: 'domain.read.content_unit.runtime_panel',
+    mcpToolName: 'domain_read_content_unit_runtime_panel',
+    cliPath: ['read', 'content-unit', 'runtime-panel'],
+    description: 'Domain: read the derived content-unit runtime panel.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_read_content_unit_runtime_panel'),
+    permissions: ['project:read'],
+    run: domainReadContentUnitRuntimePanel,
+  },
+  {
+    commandId: 'domain.read.content_unit.generation_prompt',
+    mcpToolName: 'domain_read_content_unit_generation_prompt',
+    mcpAliases: ['domain_read_content_unit_input_version'],
+    cliPath: ['read', 'content-unit', 'generation-prompt'],
+    description: 'Domain: read the derived normalized content-unit generation prompt.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_read_content_unit_generation_prompt'),
+    permissions: ['project:read'],
+    run: domainReadContentUnitGenerationPrompt,
+  },
+  {
+    commandId: 'domain.read.content_unit.dependency_report',
+    mcpToolName: 'domain_read_content_unit_dependency_report',
+    cliPath: ['read', 'content-unit', 'dependency-report'],
+    description: 'Domain: read the derived content-unit dependency report.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_read_content_unit_dependency_report'),
+    permissions: ['project:read'],
+    run: domainReadContentUnitDependencyReport,
+  },
+  {
+    commandId: 'domain.read.content_unit.selection_validity',
+    mcpToolName: 'domain_read_content_unit_selection_validity',
+    cliPath: ['read', 'content-unit', 'selection-validity'],
+    description: 'Domain: read the derived content-unit selection validity report.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_read_content_unit_selection_validity'),
+    permissions: ['project:read'],
+    run: domainReadContentUnitSelectionValidity,
+  },
+  {
+    commandId: 'domain.read.preview_timeline',
+    mcpToolName: 'domain_read_preview_timeline',
+    cliPath: ['read', 'preview-timeline'],
+    description: 'Domain: read the derived production preview timeline.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_read_preview_timeline'),
+    permissions: ['project:read'],
+    run: domainReadPreviewTimeline,
+  },
+  {
+    commandId: 'domain.read.production_timeline',
+    mcpToolName: 'domain_read_production_timeline',
+    cliPath: ['read', 'production-timeline'],
+    description: 'Domain: convert a production preview timeline into an editing handoff.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_read_production_timeline'),
+    permissions: ['project:read'],
+    run: domainReadProductionTimeline,
+  },
+  {
+    commandId: 'domain.read.scene_moment_edit_plan',
+    mcpToolName: 'domain_read_scene_moment_edit_plan',
+    cliPath: ['read', 'scene-moment', 'edit-plan'],
+    description: 'Domain: read the derived scene_moment edit plan.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_read_scene_moment_edit_plan'),
+    permissions: ['project:read'],
+    run: domainReadSceneMomentEditPlan,
+  },
+  {
+    commandId: 'domain.read.production_edit_plan',
+    mcpToolName: 'domain_read_production_edit_plan',
+    cliPath: ['read', 'production', 'edit-plan'],
+    description: 'Domain: read a production-level edit plan handoff.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_read_production_edit_plan'),
+    permissions: ['project:read'],
+    run: domainReadProductionEditPlan,
+  },
+  {
+    commandId: 'domain.read.editing_project_context',
+    mcpToolName: 'domain_create_editing_project_context',
+    cliPath: ['read', 'editing-project-context'],
+    description: 'Domain: read a domain-to-editing handoff context without creating an editing project.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_create_editing_project_context'),
+    permissions: ['project:read'],
+    run: domainCreateEditingProjectContext,
+  },
+  {
+    commandId: 'domain.read.scene_moment_timeline',
+    mcpToolName: 'domain_read_scene_moment_timeline',
+    cliPath: ['read', 'scene-moment-timeline'],
+    description: 'Domain: convert a scene_moment edit plan into an editing handoff.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_read_scene_moment_timeline'),
+    permissions: ['project:read'],
+    run: domainReadSceneMomentTimeline,
+  },
+  {
+    commandId: 'domain.read.production_work_plan',
+    mcpToolName: 'domain_read_production_work_plan',
+    cliPath: ['read', 'production-work-plan'],
+    description: 'Domain: derive the current in-memory production work plan.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_read_production_work_plan'),
+    permissions: ['project:read'],
+    run: domainReadProductionWorkPlan,
+  },
+  {
+    commandId: 'domain.production.status_summary',
+    mcpToolName: 'domain_production_status_summary',
+    cliPath: ['production', 'status-summary'],
+    description: 'Domain: summarize current production progress, blockers, stale hints, and candidate counts.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_production_status_summary'),
+    permissions: ['project:read'],
+    run: domainProductionStatusSummary,
+  },
+  {
+    commandId: 'domain.regeneration.plan',
+    mcpToolName: 'domain_regeneration_plan',
+    cliPath: ['regeneration', 'plan'],
+    description: 'Domain: read downstream review targets after interpret refreshes diagnostic context.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_regeneration_plan'),
+    permissions: ['project:read'],
+    run: domainRegenerationPlan,
+  },
+  {
+    commandId: 'domain.source.project_standards.upsert',
+    mcpToolName: 'domain_upsert_project_standards',
+    cliPath: ['source', 'project-standards', 'upsert'],
+    description: 'Domain source: create or update project-wide creative standards through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_upsert_project_standards'),
+    permissions: ['project:read', 'project:write'],
+    run: domainUpsertProjectStandards,
+  },
+  {
+    commandId: 'domain.source.setting.upsert',
+    mcpToolName: 'domain_upsert_setting',
+    cliPath: ['source', 'setting', 'upsert'],
+    description: 'Domain source: create or update one concrete setting entity through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_upsert_setting'),
+    permissions: ['project:read', 'project:write'],
+    run: domainUpsertSetting,
+  },
+  {
+    commandId: 'domain.source.setting_state.upsert',
+    mcpToolName: 'domain_upsert_setting_state',
+    cliPath: ['source', 'setting-state', 'upsert'],
+    description: 'Domain source: create or update one setting_state entity through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_upsert_setting_state'),
+    permissions: ['project:read', 'project:write'],
+    run: domainUpsertSettingState,
+  },
+  {
+    commandId: 'domain.source.asset.upsert',
+    mcpToolName: 'domain_upsert_asset',
+    cliPath: ['source', 'asset', 'upsert'],
+    description: 'Domain source: create or update one setting-state asset slot through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_upsert_asset'),
+    permissions: ['project:read', 'project:write'],
+    run: domainUpsertAsset,
+  },
+  {
+    commandId: 'domain.source.setting_tree.upsert',
+    mcpToolName: 'domain_upsert_setting_tree',
+    cliPath: ['source', 'setting-tree', 'upsert'],
+    description: 'Domain source: create or update one setting tree with states and asset slots through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_upsert_setting_tree'),
+    permissions: ['project:read', 'project:write'],
+    run: domainUpsertSettingTree,
+  },
+  {
+    commandId: 'domain.source.script.upsert',
+    mcpToolName: 'domain_upsert_script',
+    cliPath: ['source', 'script', 'upsert'],
+    description: 'Domain source: create or update script metadata plus Markdown source through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_upsert_script'),
+    permissions: ['project:read', 'project:write'],
+    run: domainUpsertScript,
+  },
+  {
+    commandId: 'domain.source.script.read',
+    mcpToolName: 'domain_read_script_source',
+    cliPath: ['source', 'script', 'read'],
+    description: 'Domain source: read script Markdown source through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_read_script_source'),
+    permissions: ['project:read'],
+    run: domainReadScriptSource,
+  },
+  {
+    commandId: 'domain.source.script.snapshot_version',
+    mcpToolName: 'domain_snapshot_script_version',
+    cliPath: ['source', 'script', 'snapshot-version'],
+    description: 'Domain source: snapshot a script Markdown source into a stable script version through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_snapshot_script_version'),
+    permissions: ['project:read', 'project:write'],
+    run: domainSnapshotScriptVersion,
+  },
+  {
+    commandId: 'domain.source.content_unit.upsert',
+    mcpToolName: 'domain_upsert_content_unit',
+    cliPath: ['source', 'content-unit', 'upsert'],
+    description: 'Domain source: create or update a project-level content unit through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_upsert_content_unit'),
+    permissions: ['project:read', 'project:write'],
+    run: domainUpsertContentUnit,
+  },
+  {
+    commandId: 'domain.source.timeline_namespace_tree.upsert',
+    mcpToolName: 'domain_upsert_timeline_namespace_tree',
+    cliPath: ['source', 'timeline-namespace-tree', 'upsert'],
+    description: 'Domain source: create or update a path-first timeline namespace tree through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_upsert_timeline_namespace_tree'),
+    permissions: ['project:read', 'project:write'],
+    run: domainUpsertTimelineNamespaceTree,
+  },
+  {
+    commandId: 'domain.source.production.upsert',
+    mcpToolName: 'domain_upsert_production',
+    cliPath: ['source', 'production', 'upsert'],
+    description: 'Domain source: create or update one production entity through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_upsert_production'),
+    permissions: ['project:read', 'project:write'],
+    run: domainUpsertProduction,
+  },
+  {
+    commandId: 'domain.source.production_tree.upsert',
+    mcpToolName: 'domain_upsert_production_tree',
+    cliPath: ['source', 'production-tree', 'upsert'],
+    description: 'Domain source: create or update one production tree through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_upsert_production_tree'),
+    permissions: ['project:read', 'project:write'],
+    run: domainUpsertProductionTree,
+  },
+  {
+    commandId: 'domain.source.segment.upsert',
+    mcpToolName: 'domain_upsert_segment',
+    cliPath: ['source', 'segment', 'upsert'],
+    description: 'Domain source: create or update one segment entity through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_upsert_segment'),
+    permissions: ['project:read', 'project:write'],
+    run: domainUpsertSegment,
+  },
+  {
+    commandId: 'domain.source.scene_moment.upsert',
+    mcpToolName: 'domain_upsert_scene_moment',
+    cliPath: ['source', 'scene-moment', 'upsert'],
+    description: 'Domain source: create or update one scene_moment entity through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_upsert_scene_moment'),
+    permissions: ['project:read', 'project:write'],
+    run: domainUpsertSceneMoment,
+  },
+  {
+    commandId: 'domain.source.keyframe.upsert',
+    mcpToolName: 'domain_upsert_keyframe',
+    cliPath: ['source', 'keyframe', 'upsert'],
+    description: 'Domain source: create or update one keyframe entity through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_upsert_keyframe'),
+    permissions: ['project:read', 'project:write'],
+    run: domainUpsertKeyframe,
+  },
+  {
+    commandId: 'domain.source.storyboard.upsert',
+    mcpToolName: 'domain_upsert_storyboard',
+    cliPath: ['source', 'storyboard', 'upsert'],
+    description: 'Domain source: create or update one storyboard entity through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_upsert_storyboard'),
+    permissions: ['project:read', 'project:write'],
+    run: domainUpsertStoryboard,
+  },
+  {
+    commandId: 'domain.source.audio_cue.upsert',
+    mcpToolName: 'domain_upsert_audio_cue',
+    cliPath: ['source', 'audio-cue', 'upsert'],
+    description: 'Domain source: create or update one audio_cue entity through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_upsert_audio_cue'),
+    permissions: ['project:read', 'project:write'],
+    run: domainUpsertAudioCue,
+  },
+  {
+    commandId: 'domain.source.expression_unit.upsert',
+    mcpToolName: 'domain_upsert_expression_unit',
+    cliPath: ['source', 'expression-unit', 'upsert'],
+    description: 'Domain source: create or update one expression_unit entity through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_upsert_expression_unit'),
+    permissions: ['project:read', 'project:write'],
+    run: domainUpsertExpressionUnit,
+  },
+  {
+    commandId: 'domain.source.content_unit.prompt.update',
+    mcpToolName: 'domain_update_content_unit_prompt',
+    cliPath: ['source', 'content-unit', 'prompt', 'update'],
+    description: 'Domain source: update a content unit edit_prompt through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_update_content_unit_prompt'),
+    permissions: ['project:read', 'project:write'],
+    run: domainUpdateContentUnitPrompt,
+  },
+  {
+    commandId: 'domain.source.entity.transition.update',
+    mcpToolName: 'domain_update_entity_transition',
+    cliPath: ['source', 'entity', 'transition', 'update'],
+    description: 'Domain source: update transition metadata on a source entity through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_update_entity_transition'),
+    permissions: ['project:read', 'project:write'],
+    run: domainUpdateEntityTransition,
+  },
+  {
+    commandId: 'domain.source.storyboard.timeline.update',
+    mcpToolName: 'domain_update_storyboard_timeline',
+    cliPath: ['source', 'storyboard', 'timeline', 'update'],
+    description: 'Domain source: update storyboard timeline metadata through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_update_storyboard_timeline'),
+    permissions: ['project:read', 'project:write'],
+    run: domainUpdateStoryboardTimeline,
+  },
+  {
+    commandId: 'domain.source.entity.delete',
+    mcpToolName: 'domain_delete_entity',
+    cliPath: ['source', 'entity', 'delete'],
+    description: 'Domain source: delete a source entity through Project Service.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_delete_entity'),
+    permissions: ['project:read', 'project:write'],
+    run: domainDeleteEntity,
+  },
+  {
+    commandId: 'domain.provider.remote_asset_groups.query',
+    mcpToolName: 'domain_query_remote_asset_groups',
+    cliPath: ['provider', 'remote-asset-groups', 'query'],
+    description: 'Domain provider: list mirrored remote asset-library groups for an explicit provider account.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_query_remote_asset_groups'),
+    permissions: ['project:read', 'provider:read'],
+    run: domainQueryRemoteAssetGroups,
+  },
+  {
+    commandId: 'domain.provider.remote_assets.query',
+    mcpToolName: 'domain_query_remote_assets',
+    cliPath: ['provider', 'remote-assets', 'query'],
+    description: 'Domain provider: list remote provider assets inside an explicit remote asset group.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_query_remote_assets'),
+    permissions: ['project:read', 'provider:read'],
+    run: domainQueryRemoteAssets,
+  },
+  {
+    commandId: 'domain.provider.asset.certify',
+    mcpToolName: 'domain_certify_asset_provider',
+    mcpAliases: ['domain_certify_asset_seedance2'],
+    cliPath: ['provider', 'asset', 'certify'],
+    description: 'Domain provider: certify a selected asset RawResource in a provider asset library as an explicit legacy/provider gate.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_certify_asset_provider'),
+    permissions: ['project:read', 'project:write', 'provider:write'],
+    run: domainCertifyAssetProvider,
+  },
+  {
+    commandId: 'domain.candidate.legacy.append',
+    mcpToolName: 'domain_append_candidate',
+    cliPath: ['candidate', 'legacy', 'append'],
+    description: 'Domain legacy candidate migration fallback: append an inline source candidate only for old project migration; new work must use content-unit candidate tools.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_append_candidate'),
+    stability: 'temporary_fallback',
+    permissions: ['project:read', 'project:write'],
+    run: domainAppendCandidate,
+  },
+  {
+    commandId: 'domain.candidate.create_content',
+    mcpToolName: 'domain_create_content_candidate',
+    cliPath: ['candidate', 'create-content'],
+    description: 'Domain: create a content-unit candidate through Project Service without selecting or adopting it.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_create_content_candidate'),
+    run: domainCreateContentCandidate,
+  },
+  {
+    commandId: 'domain.candidate.register_raw_resource',
+    mcpToolName: 'domain_register_raw_resource_as_content_unit_candidate',
+    cliPath: ['candidate', 'register-raw-resource'],
+    description: 'Domain: register an existing RawResource as a content-unit candidate without selecting or adopting it.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_register_raw_resource_as_content_unit_candidate'),
+    run: domainRegisterRawResourceAsContentUnitCandidate,
+  },
+  {
+    commandId: 'domain.candidate.create_content_batch',
+    mcpToolName: 'domain_create_content_candidate_batch',
+    cliPath: ['candidate', 'create-content-batch'],
+    description: 'Domain: create multiple content-unit candidates through Project Service with per-item results.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_create_content_candidate_batch'),
+    run: domainCreateContentCandidateBatch,
+  },
+  {
+    commandId: 'domain.candidate.legacy.create_asset_slot',
+    mcpToolName: 'domain_create_asset_slot_candidate',
+    cliPath: ['candidate', 'legacy', 'create-asset-slot'],
+    description: 'Domain legacy candidate migration fallback: create an inline asset-slot candidate only for old project migration; new work must use asset_ref content-unit candidates.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_create_asset_slot_candidate'),
+    stability: 'temporary_fallback',
+    permissions: ['project:read', 'project:write'],
+    run: domainCreateAssetSlotCandidate,
+  },
+  {
+    commandId: 'domain.candidate.legacy.create_keyframe',
+    mcpToolName: 'domain_create_keyframe_candidate',
+    cliPath: ['candidate', 'legacy', 'create-keyframe'],
+    description: 'Domain legacy candidate migration fallback: create an inline keyframe candidate only for old project migration; new work must use content-unit candidates.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_create_keyframe_candidate'),
+    stability: 'temporary_fallback',
+    permissions: ['project:read', 'project:write'],
+    run: domainCreateKeyframeCandidate,
+  },
+  {
+    commandId: 'domain.candidate.select_content_unit',
+    mcpToolName: 'domain_select_content_unit_candidate',
+    cliPath: ['candidate', 'select-content-unit'],
+    description: 'Domain: explicitly select a content-unit candidate through Project Service decision metadata.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_select_content_unit_candidate'),
+    run: domainSelectContentUnitCandidate,
+  },
+  {
+    commandId: 'domain.candidate.select_content_unit_batch',
+    mcpToolName: 'domain_select_content_unit_candidate_batch',
+    cliPath: ['candidate', 'select-content-unit-batch'],
+    description: 'Domain: explicitly select content-unit candidates in batch through Project Service decision metadata.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_select_content_unit_candidate_batch'),
+    run: domainSelectContentUnitCandidateBatch,
+  },
+  {
+    commandId: 'domain.candidate.decide_content_unit',
+    mcpToolName: 'domain_decide_content_unit_candidate',
+    cliPath: ['candidate', 'decide-content-unit'],
+    description: 'Domain: apply a human review decision to a content-unit candidate; adopt writes selection, reject/defer does not.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_decide_content_unit_candidate'),
+    run: domainDecideContentUnitCandidate,
+  },
+  {
+    commandId: 'domain.candidate.legacy.select',
+    mcpToolName: 'domain_select_candidate',
+    cliPath: ['candidate', 'legacy', 'select'],
+    description: 'Domain legacy candidate migration fallback: select and lock an inline source candidate only for old project migration; new work must use content-unit decision gates.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_select_candidate'),
+    stability: 'temporary_fallback',
+    permissions: ['project:read', 'project:write'],
+    run: domainSelectCandidate,
+  },
+  {
+    commandId: 'domain.candidate.legacy.update',
+    mcpToolName: 'domain_update_candidate',
+    cliPath: ['candidate', 'legacy', 'update'],
+    description: 'Domain legacy candidate migration fallback: update an inline source candidate only for old project migration; new work must use content-unit candidate tools.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_update_candidate'),
+    stability: 'temporary_fallback',
+    permissions: ['project:read', 'project:write'],
+    run: domainUpdateCandidate,
+  },
+  {
+    commandId: 'domain.candidate.legacy.unlock',
+    mcpToolName: 'domain_unlock_candidate',
+    cliPath: ['candidate', 'legacy', 'unlock'],
+    description: 'Domain legacy candidate migration fallback: remove an inline candidate lock only for old project migration; new work must use content-unit decision gates.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_unlock_candidate'),
+    stability: 'temporary_fallback',
+    permissions: ['project:read', 'project:write'],
+    run: domainUnlockCandidate,
+  },
+  {
+    commandId: 'domain.diagnostics.review',
+    mcpToolName: 'domain_review',
+    cliPath: ['diagnostics', 'review'],
+    description: 'Domain diagnostics: compatibility review-shaped source diagnostics; prefer domain_inspect for new workflows.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_review'),
+    permissions: ['project:read'],
+    run: domainReview,
+  },
+], commandContractDefaults('domain'))
 
 export const editingCommandSpecs: EditingCommandSpec[] = withCommandContract<EditingCommandDraft>([
   {
@@ -1161,7 +2072,7 @@ export const editingCommandSpecs: EditingCommandSpec[] = withCommandContract<Edi
     commandId: 'editing.video.compose',
     mcpToolName: 'editing_video_compose',
     cliPath: ['video', 'compose'],
-    description: 'Editing backend: compile/resolve a MediaEditingProject, validate it, and create a render or HLS Media Pipeline task without creating candidates.',
+    description: 'Editing backend: validate an existing MediaEditingProject and create a render or HLS Media Pipeline task without creating candidates.',
     inputSchema: toolInputSchema(editingTools(), 'editing_video_compose'),
     ownerService: MEDIA_PIPELINE_SERVICE,
     requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, EDITING_SERVICE, MEDIA_PIPELINE_SERVICE],
@@ -1318,6 +2229,101 @@ export const editingCommandSpecs: EditingCommandSpec[] = withCommandContract<Edi
     run: editingTaskReframeCreate,
   },
   {
+    commandId: 'editing.result.register',
+    mcpToolName: 'editing_result_register',
+    cliPath: ['result', 'register'],
+    description: 'Editing backend: register a Media Pipeline render/export result without uploading, adopting, selecting, or creating candidates.',
+    inputSchema: toolInputSchema(editingTools(), 'editing_result_register'),
+    ownerService: MEDIA_PIPELINE_SERVICE,
+    requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, MEDIA_PIPELINE_SERVICE],
+    permissions: ['editing:read', 'editing:write'],
+    run: editingResultRegister,
+  },
+  {
+    commandId: 'editing.result.recover_external_nle',
+    mcpToolName: 'editing_result_recover_external_nle',
+    cliPath: ['result', 'recover-external-nle'],
+    description: 'Editing backend: detect an External NLE export directory or explicit artifact path and register the result without uploading or creating candidates.',
+    inputSchema: toolInputSchema(editingTools(), 'editing_result_recover_external_nle'),
+    ownerService: MEDIA_PIPELINE_SERVICE,
+    requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, MEDIA_PIPELINE_SERVICE],
+    permissions: ['editing:read', 'editing:write'],
+    run: editingResultRecoverExternalNle,
+  },
+  {
+    commandId: 'editing.result.watch_external_nle_create',
+    mcpToolName: 'editing_result_watch_external_nle_create',
+    cliPath: ['result', 'watch', 'external-nle', 'create'],
+    description: 'Editing backend: create a daemon-owned background watch for an External NLE export and register the result when it appears.',
+    inputSchema: toolInputSchema(editingTools(), 'editing_result_watch_external_nle_create'),
+    ownerService: MEDIA_PIPELINE_SERVICE,
+    requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, MEDIA_PIPELINE_SERVICE],
+    permissions: ['editing:read', 'editing:write'],
+    run: editingResultWatchExternalNleCreate,
+  },
+  {
+    commandId: 'editing.result.watch_get',
+    mcpToolName: 'editing_result_watch_get',
+    cliPath: ['result', 'watch', 'get'],
+    description: 'Editing backend: read one daemon-owned Media Pipeline result watch by watchId.',
+    inputSchema: toolInputSchema(editingTools(), 'editing_result_watch_get'),
+    ownerService: MEDIA_PIPELINE_SERVICE,
+    requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, MEDIA_PIPELINE_SERVICE],
+    run: editingResultWatchGet,
+  },
+  {
+    commandId: 'editing.result.watch_list',
+    mcpToolName: 'editing_result_watch_list',
+    cliPath: ['result', 'watch', 'list'],
+    description: 'Editing backend: list daemon-owned Media Pipeline result watches.',
+    inputSchema: toolInputSchema(editingTools(), 'editing_result_watch_list'),
+    ownerService: MEDIA_PIPELINE_SERVICE,
+    requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, MEDIA_PIPELINE_SERVICE],
+    run: editingResultWatchList,
+  },
+  {
+    commandId: 'editing.result.watch_cancel',
+    mcpToolName: 'editing_result_watch_cancel',
+    cliPath: ['result', 'watch', 'cancel'],
+    description: 'Editing backend: cancel one daemon-owned Media Pipeline result watch.',
+    inputSchema: toolInputSchema(editingTools(), 'editing_result_watch_cancel'),
+    ownerService: MEDIA_PIPELINE_SERVICE,
+    requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, MEDIA_PIPELINE_SERVICE],
+    permissions: ['editing:read', 'editing:write'],
+    run: editingResultWatchCancel,
+  },
+  {
+    commandId: 'editing.external_nle.open',
+    mcpToolName: 'editing_external_nle_open',
+    cliPath: ['external-nle', 'open'],
+    description: 'Editing backend: open an External NLE exchange project in the local OS or named editor without watching, uploading, or creating candidates.',
+    inputSchema: toolInputSchema(editingTools(), 'editing_external_nle_open'),
+    ownerService: 'local.os',
+    requiredRuntime: ['local.os'],
+    permissions: ['editing:read'],
+    run: editingExternalNleOpen,
+  },
+  {
+    commandId: 'editing.result.get',
+    mcpToolName: 'editing_result_get',
+    cliPath: ['result', 'get'],
+    description: 'Editing backend: read one Media Pipeline render/export result by resultId.',
+    inputSchema: toolInputSchema(editingTools(), 'editing_result_get'),
+    ownerService: MEDIA_PIPELINE_SERVICE,
+    requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, MEDIA_PIPELINE_SERVICE],
+    run: editingResultGet,
+  },
+  {
+    commandId: 'editing.result.list',
+    mcpToolName: 'editing_result_list',
+    cliPath: ['result', 'list'],
+    description: 'Editing backend: list Media Pipeline render/export results for task recovery and cross-backend handoff.',
+    inputSchema: toolInputSchema(editingTools(), 'editing_result_list'),
+    ownerService: MEDIA_PIPELINE_SERVICE,
+    requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, MEDIA_PIPELINE_SERVICE],
+    run: editingResultList,
+  },
+  {
     commandId: 'editing.export.import_resource',
     mcpToolName: 'editing_export_import_resource',
     cliPath: ['export', 'import-resource'],
@@ -1369,24 +2375,6 @@ export const editingCommandSpecs: EditingCommandSpec[] = withCommandContract<Edi
     run: editingProjectCreate,
   },
   {
-    commandId: 'editing.project.create_from_edit_plan',
-    mcpToolName: 'editing_project_create_from_edit_plan',
-    cliPath: ['project', 'create-from-edit-plan'],
-    description: 'Editing backend: create and persist a MediaEditingProject from a MovScript edit_plan without rendering or creating candidates.',
-    inputSchema: toolInputSchema(editingTools(), 'editing_project_create_from_edit_plan'),
-    permissions: ['editing:read', 'editing:write'],
-    run: editingProjectCreateFromEditPlan,
-  },
-  {
-    commandId: 'editing.project.create_from_edit_decisions',
-    mcpToolName: 'editing_project_create_from_edit_decisions',
-    cliPath: ['project', 'create-from-edit-decisions'],
-    description: 'Editing backend: create and persist a MediaEditingProject from edit decisions without rendering or creating candidates.',
-    inputSchema: toolInputSchema(editingTools(), 'editing_project_create_from_edit_decisions'),
-    permissions: ['editing:read', 'editing:write'],
-    run: editingProjectCreateFromEditDecisions,
-  },
-  {
     commandId: 'editing.project.get',
     mcpToolName: 'editing_project_get',
     cliPath: ['project', 'get'],
@@ -1432,72 +2420,74 @@ export const editingCommandSpecs: EditingCommandSpec[] = withCommandContract<Edi
   },
 ], commandContractDefaults('editing'))
 
-export const timelineCommandSpecs: TimelineCommandSpec[] = withCommandContract<TimelineCommandDraft>([
+export const productionEditingCommandSpecs: ProductionEditingCommandSpec[] = withCommandContract<ProductionEditingCommandDraft>([
   {
-    commandId: 'timeline.backend.capability.list',
-    mcpToolName: 'timeline_backend_capability_list',
-    cliPath: ['backend', 'capability', 'list'],
-    description: 'Timeline: list TimelineAssembly compile backends and their execution project contracts.',
-    inputSchema: toolInputSchema(timelineTools(), 'timeline_backend_capability_list'),
-    run: timelineBackendCapabilityList,
+    commandId: 'production_editing.resources.refresh',
+    mcpToolName: 'production_editing_resources_refresh',
+    cliPath: ['resources', 'refresh'],
+    description: 'Production editing: refresh the production resource index without mutating editing workspaces or candidates.',
+    inputSchema: toolInputSchema(productionEditingTools(), 'production_editing_resources_refresh'),
+    ownerService: PROJECT_SERVICE,
+    requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, PROJECT_SERVICE],
+    permissions: ['project:read', 'project:write'],
+    run: productionEditingResourcesRefresh,
   },
   {
-    commandId: 'timeline.assembly.get',
-    mcpToolName: 'timeline_assembly_get',
-    cliPath: ['assembly', 'get'],
-    description: 'Timeline: inspect a supplied TimelineAssembly intent envelope without inferring UI focus.',
-    inputSchema: toolInputSchema(timelineTools(), 'timeline_assembly_get'),
-    run: timelineAssemblyGet,
+    commandId: 'production_editing.workspace.list',
+    mcpToolName: 'production_editing_workspace_list',
+    cliPath: ['workspace', 'list'],
+    description: 'Production editing: list system_editing and remotion workspaces for a production.',
+    inputSchema: toolInputSchema(productionEditingTools(), 'production_editing_workspace_list'),
+    ownerService: PROJECT_SERVICE,
+    requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, PROJECT_SERVICE],
+    permissions: ['project:read'],
+    run: productionEditingWorkspaceList,
   },
   {
-    commandId: 'timeline.assembly.validate',
-    mcpToolName: 'timeline_assembly_validate',
-    cliPath: ['assembly', 'validate'],
-    description: 'Timeline: validate TimelineAssembly compile readiness and return conformance diagnostics.',
-    inputSchema: toolInputSchema(timelineTools(), 'timeline_assembly_validate'),
-    run: timelineAssemblyValidate,
+    commandId: 'production_editing.workspace.create',
+    mcpToolName: 'production_editing_workspace_create',
+    cliPath: ['workspace', 'create'],
+    description: 'Production editing: create a system_editing or remotion workspace and return the next skill handoff.',
+    inputSchema: toolInputSchema(productionEditingTools(), 'production_editing_workspace_create'),
+    ownerService: PROJECT_SERVICE,
+    requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, PROJECT_SERVICE],
+    permissions: ['project:read', 'project:write'],
+    run: productionEditingWorkspaceCreate,
   },
   {
-    commandId: 'timeline.compile_manifest.create',
-    mcpToolName: 'timeline_compile_manifest_create',
-    cliPath: ['compile', 'manifest', 'create'],
-    description: 'Timeline: create a deterministic CompileManifest from TimelineAssembly and edit decisions.',
-    inputSchema: toolInputSchema(timelineTools(), 'timeline_compile_manifest_create'),
-    run: timelineCompileManifestCreate,
+    commandId: 'production_editing.workspace.get',
+    mcpToolName: 'production_editing_workspace_get',
+    cliPath: ['workspace', 'get'],
+    description: 'Production editing: read one production editing workspace by id without opening it.',
+    inputSchema: toolInputSchema(productionEditingTools(), 'production_editing_workspace_get'),
+    ownerService: PROJECT_SERVICE,
+    requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, PROJECT_SERVICE],
+    permissions: ['project:read'],
+    run: productionEditingWorkspaceGet,
   },
   {
-    commandId: 'timeline.backend.select',
-    mcpToolName: 'timeline_backend_select',
-    cliPath: ['backend', 'select'],
-    description: 'Timeline: select a backend and return review-gated conformance when compile inputs are supplied.',
-    inputSchema: toolInputSchema(timelineTools(), 'timeline_backend_select'),
-    run: timelineBackendSelect,
+    commandId: 'production_editing.workspace.open',
+    mcpToolName: 'production_editing_workspace_open',
+    cliPath: ['workspace', 'open'],
+    description: 'Production editing: open a workspace, refresh resources, and return the system_edit or remotion handoff.',
+    inputSchema: toolInputSchema(productionEditingTools(), 'production_editing_workspace_open'),
+    ownerService: PROJECT_SERVICE,
+    requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, PROJECT_SERVICE],
+    permissions: ['project:read', 'project:write'],
+    run: productionEditingWorkspaceOpen,
   },
   {
-    commandId: 'timeline.backend.project.create',
-    mcpToolName: 'timeline_backend_project_create',
-    cliPath: ['backend', 'project', 'create'],
-    description: 'Timeline: compile TimelineAssembly into a no-persist backend execution project.',
-    inputSchema: toolInputSchema(timelineTools(), 'timeline_backend_project_create'),
-    run: timelineBackendProjectCreate,
+    commandId: 'production_editing.workspace.delete',
+    mcpToolName: 'production_editing_workspace_delete',
+    cliPath: ['workspace', 'delete'],
+    description: 'Production editing: delete one production editing workspace without changing candidates.',
+    inputSchema: toolInputSchema(productionEditingTools(), 'production_editing_workspace_delete'),
+    ownerService: PROJECT_SERVICE,
+    requiredRuntime: [LOCAL_NODE_GATEWAY_SERVICE, PROJECT_SERVICE],
+    permissions: ['project:read', 'project:write'],
+    run: productionEditingWorkspaceDelete,
   },
-  {
-    commandId: 'timeline.assembly.compile',
-    mcpToolName: 'timeline_assembly_compile',
-    cliPath: ['assembly', 'compile'],
-    description: 'Timeline: compile TimelineAssembly through the selected backend without rendering or persisting.',
-    inputSchema: toolInputSchema(timelineTools(), 'timeline_assembly_compile'),
-    run: timelineAssemblyCompile,
-  },
-  {
-    commandId: 'timeline.backend.conformance.report',
-    mcpToolName: 'timeline_backend_conformance_report',
-    cliPath: ['backend', 'conformance', 'report'],
-    description: 'Timeline: report backend conformance blockers and degradations for a CompileManifest or compile input.',
-    inputSchema: toolInputSchema(timelineTools(), 'timeline_backend_conformance_report'),
-    run: timelineBackendConformanceReport,
-  },
-], commandContractDefaults('timeline'))
+], commandContractDefaults('production-editing'))
 
 export const workspaceCommandSpecs: WorkspaceCommandSpec[] = withCommandContract<WorkspaceCommandDraft>([
   {
@@ -1540,10 +2530,15 @@ export const systemCommandByMCPToolName = new Map(systemCommandSpecs.flatMap((sp
   ...(spec.mcpAliases ?? []).map((alias) => [alias, spec] as const),
 ] as const))
 export const systemCommandById = new Map(systemCommandSpecs.map((spec) => [spec.commandId, spec]))
+export const domainCommandByMCPToolName = new Map(domainCommandSpecs.flatMap((spec) => [
+  [spec.mcpToolName, spec],
+  ...(spec.mcpAliases ?? []).map((alias) => [alias, spec] as const),
+] as const))
+export const domainCommandById = new Map(domainCommandSpecs.map((spec) => [spec.commandId, spec]))
 export const editingCommandByMCPToolName = new Map(editingCommandSpecs.map((spec) => [spec.mcpToolName, spec]))
 export const editingCommandById = new Map(editingCommandSpecs.map((spec) => [spec.commandId, spec]))
-export const timelineCommandByMCPToolName = new Map(timelineCommandSpecs.map((spec) => [spec.mcpToolName, spec]))
-export const timelineCommandById = new Map(timelineCommandSpecs.map((spec) => [spec.commandId, spec]))
+export const productionEditingCommandByMCPToolName = new Map(productionEditingCommandSpecs.map((spec) => [spec.mcpToolName, spec]))
+export const productionEditingCommandById = new Map(productionEditingCommandSpecs.map((spec) => [spec.commandId, spec]))
 export const workspaceCommandByMCPToolName = new Map(workspaceCommandSpecs.map((spec) => [spec.mcpToolName, spec]))
 export const workspaceCommandById = new Map(workspaceCommandSpecs.map((spec) => [spec.commandId, spec]))
 
@@ -1563,12 +2558,16 @@ export function isSystemMCPToolName(name: string | undefined): boolean {
   return Boolean(name && systemCommandByMCPToolName.has(name))
 }
 
+export function isDomainMCPToolName(name: string | undefined): boolean {
+  return Boolean(name && domainCommandByMCPToolName.has(name))
+}
+
 export function isEditingMCPToolName(name: string | undefined): boolean {
   return Boolean(name && editingCommandByMCPToolName.has(name))
 }
 
-export function isTimelineMCPToolName(name: string | undefined): boolean {
-  return Boolean(name && timelineCommandByMCPToolName.has(name))
+export function isProductionEditingMCPToolName(name: string | undefined): boolean {
+  return Boolean(name && productionEditingCommandByMCPToolName.has(name))
 }
 
 export function isWorkspaceMCPToolName(name: string | undefined): boolean {
@@ -1620,6 +2619,172 @@ export async function runMovScriptContextCommand(
       cli_argv: contextDebugCliArgv(spec, args),
       cwd: process.cwd(),
     },
+  }
+}
+
+function productionWorkflowContract(): Record<string, unknown> {
+  return {
+    schema: 'movscript.production_workflow.v1',
+    status: 'ready',
+    mode: 'cli_only',
+    summary: 'Plan content, plan timeline, generate candidates, then export artifacts. Each stage is explicit and review-gated; generated or rendered outputs do not become stable project state until a candidate decision records adoption.',
+    stages: [
+      {
+        stage_id: 'plan_content',
+        order: 1,
+        title: 'Plan content',
+        purpose: 'Turn the user intent into project source, production structure, scene moments, expression units, content units, and reusable assets.',
+        owner_services: [PROJECT_SERVICE, DATA_SERVICE],
+        primary_cli: [
+          ['movscript', 'domain', 'source', 'production-tree', 'upsert', '--json'],
+          ['movscript', 'domain', 'source', 'content-unit', 'upsert', '--json'],
+          ['movscript', 'workspace', 'review', '--json'],
+          ['movscript', 'domain', 'read', 'production-work-plan', '--json'],
+        ],
+        mcp_tools: [
+          'domain_upsert_production_tree',
+          'domain_upsert_content_unit',
+          'domain_inspect',
+          'domain_read_production_work_plan',
+          'domain_production_status_summary',
+        ],
+        blockers: [
+          'missing_project_dir',
+          'missing_project_source',
+          'unresolved_content_unit_prompt_refs',
+          'missing_upstream_candidate_adoption',
+          'domain_inspect_blockers',
+        ],
+        human_review: [
+          'Review production scope, source entities, prompt blockers, and dependency report before generation.',
+          'Adopt or defer upstream candidate choices before using them as stable downstream references.',
+        ],
+        does_not: [
+          'Does not submit generation jobs.',
+          'Does not select candidates or make generated outputs stable.',
+        ],
+      },
+      {
+        stage_id: 'production_editing',
+        order: 2,
+        title: 'Open production editing workspace',
+        purpose: 'Create or open a production-bound editing workspace, then hand off to system_edit or remotion for concrete playback/editing structure.',
+        owner_services: [PROJECT_SERVICE],
+        primary_cli: [
+          ['movscript', 'production', 'editing', 'resources', 'refresh', '--json'],
+          ['movscript', 'production', 'editing', 'workspace', 'list', '--json'],
+          ['movscript', 'production', 'editing', 'workspace', 'create', '--json'],
+          ['movscript', 'production', 'editing', 'workspace', 'open', '--json'],
+        ],
+        mcp_tools: [
+          'production_editing_resources_refresh',
+          'production_editing_workspace_list',
+          'production_editing_workspace_create',
+          'production_editing_workspace_open',
+        ],
+        blockers: [
+          'missing_selected_content_units',
+          'missing_production_id',
+          'workspace_kind_missing',
+          'workspace_stale',
+          'handoff_skill_unavailable',
+        ],
+        human_review: [
+          'Choose system_editing or remotion for the concrete workspace.',
+          'Review the opened workspace handoff before concrete edits, preview, render, or candidate creation.',
+        ],
+        does_not: [
+          'Does not mutate concrete clips or Remotion files.',
+          'Does not render, upload artifacts, or create candidates.',
+        ],
+      },
+      {
+        stage_id: 'generate',
+        order: 3,
+        title: 'Generate',
+        purpose: 'Use model gateway and generation jobs to create RawResources and content-unit candidates while preserving adoption gates.',
+        owner_services: [DATA_SERVICE, PROJECT_SERVICE],
+        primary_cli: [
+          ['movscript', 'system', 'generation', 'prepare', '--json'],
+          ['movscript', 'system', 'generation', 'submit', '--json'],
+          ['movscript', 'system', 'generation', 'job', 'get', '--json'],
+          ['movscript', 'domain', 'candidate', 'decide-content-unit', '--json'],
+        ],
+        mcp_tools: [
+          'generation_prepare',
+          'generation_submit',
+          'generation_job_get',
+          'generation_result_register',
+          'domain_decide_content_unit_candidate',
+          'domain_select_content_unit_candidate',
+        ],
+        blockers: [
+          'provider_not_configured',
+          'model_route_missing',
+          'credential_missing',
+          'resource_access_unavailable',
+          'prompt_compile_blocked',
+          'generation_job_failed',
+        ],
+        human_review: [
+          'Review generated candidate outputs before adoption.',
+          'Record adopt, reject, or defer; generation success alone must not unlock stable downstream dependencies.',
+        ],
+        does_not: [
+          'Does not automatically adopt or select candidates.',
+          'Does not publish generated RawResources as final project state.',
+        ],
+      },
+      {
+        stage_id: 'export',
+        order: 4,
+        title: 'Export',
+        purpose: 'Run the opened editing workspace through its concrete skill/backend, then upload or register final artifacts explicitly.',
+        owner_services: [EDITING_SERVICE, MEDIA_PIPELINE_SERVICE, PROJECT_SERVICE],
+        primary_cli: [
+          ['movscript', 'editing', 'task', 'render', 'create', '--json'],
+          ['movscript', 'editing', 'result', 'recover-external-nle', '--json'],
+          ['movscript', 'system', 'artifact', 'upload-export', '--json'],
+          ['movscript', 'editing', 'export', 'create-candidate', '--json'],
+        ],
+        mcp_tools: [
+          'editing_task_render_create',
+          'editing_result_recover_external_nle',
+          'system_artifact_upload_export',
+          'system_artifact_upload_hls_stream',
+          'editing_export_create_candidate',
+        ],
+        blockers: [
+          'media_pipeline_unavailable',
+          'renderer_dependency_missing',
+          'external_nle_output_missing',
+          'render_task_failed',
+          'artifact_upload_failed',
+          'candidate_decision_missing',
+        ],
+        human_review: [
+          'Review exported media or preview URL before upload/candidate creation.',
+          'Create or adopt an export candidate only after the user or workflow explicitly approves the result.',
+        ],
+        does_not: [
+          'Does not publish automatically.',
+          'Does not mark export artifacts as stable choices without candidate/adoption commands.',
+        ],
+      },
+    ],
+    global_gates: [
+      'runtime readiness must name the missing owner: daemon, Data Service, Project Service, Editing Service, Media Pipeline, provider key, resource access, or renderer dependency',
+      'model/provider/admin configuration stays in movscript admin commands',
+      'render success, artifact upload success, and generation success are separate from adoption',
+      'stable downstream work requires adopted or explicitly selected content-unit candidates',
+    ],
+    recommended_preflight_cli: [
+      ['movscript', 'doctor', '--json'],
+      ['movscript', 'runtime', 'preflight', 'check', '--json'],
+      ['movscript', 'admin', 'model', 'route', 'diagnose', '--json'],
+      ['movscript', 'admin', 'resource-access', 'route', 'diagnose', '--json'],
+      ['movscript', 'production', 'editing', 'workspace', 'list', '--json'],
+    ],
   }
 }
 
@@ -1678,6 +2843,37 @@ export async function runMovScriptSystemCommand(
   }
 }
 
+export async function runMovScriptDomainCommand(
+  specOrName: DomainCommandSpec | string,
+  args: Record<string, unknown> = {},
+): Promise<MovScriptCommandExecution> {
+  const spec = typeof specOrName === 'string'
+    ? domainCommandByMCPToolName.get(specOrName) ?? domainCommandById.get(specOrName)
+    : specOrName
+  if (!spec) throw new Error(`Unknown domain command: ${specOrName}`)
+
+  const binding = bindWorkspaceRuntime(args)
+  try {
+    const data = await spec.run(args)
+    return {
+      schema: 'movscript.command_result.v1',
+      status: 'ok',
+      commandId: spec.commandId,
+      mcpToolName: spec.mcpToolName,
+      contract: commandExecutionContract(spec),
+      data,
+      debug: {
+        cli_argv: domainDebugCliArgv(spec, args),
+        cwd: process.cwd(),
+        ...(binding.backendEndpoint ? { runtime_endpoint: binding.backendEndpoint } : {}),
+        ...(binding.projectServiceEndpoint ? { project_service_endpoint: binding.projectServiceEndpoint } : {}),
+      },
+    }
+  } finally {
+    binding.restore?.()
+  }
+}
+
 export async function runMovScriptEditingCommand(
   specOrName: EditingCommandSpec | string,
   args: Record<string, unknown> = {},
@@ -1702,6 +2898,8 @@ export async function runMovScriptEditingCommand(
         cwd: process.cwd(),
         ...(binding.backendEndpoint ? { runtime_endpoint: binding.backendEndpoint } : {}),
         ...(binding.editingServiceEndpoint ? { editing_service_endpoint: binding.editingServiceEndpoint } : {}),
+        ...(binding.mediaPipelineServiceEndpoint ? { media_pipeline_service_endpoint: binding.mediaPipelineServiceEndpoint } : {}),
+        ...(binding.projectServiceEndpoint ? { project_service_endpoint: binding.projectServiceEndpoint } : {}),
       },
     }
   } finally {
@@ -1709,29 +2907,34 @@ export async function runMovScriptEditingCommand(
   }
 }
 
-export async function runMovScriptTimelineCommand(
-  specOrName: TimelineCommandSpec | string,
+export async function runMovScriptProductionEditingCommand(
+  specOrName: ProductionEditingCommandSpec | string,
   args: Record<string, unknown> = {},
 ): Promise<MovScriptCommandExecution> {
   const spec = typeof specOrName === 'string'
-    ? timelineCommandByMCPToolName.get(specOrName) ?? timelineCommandById.get(specOrName)
+    ? productionEditingCommandByMCPToolName.get(specOrName) ?? productionEditingCommandById.get(specOrName)
     : specOrName
-  if (!spec) throw new Error(`Unknown timeline command: ${specOrName}`)
+  if (!spec) throw new Error(`Unknown production editing command: ${specOrName}`)
 
-  const binding = bindBackendRuntime(args)
-  const data = await spec.run(args)
-  return {
-    schema: 'movscript.command_result.v1',
-    status: 'ok',
-    commandId: spec.commandId,
-    mcpToolName: spec.mcpToolName,
-    contract: commandExecutionContract(spec),
-    data,
-    debug: {
-      cli_argv: timelineDebugCliArgv(spec, args),
-      cwd: process.cwd(),
-      ...(binding.backendEndpoint ? { runtime_endpoint: binding.backendEndpoint } : {}),
-    },
+  const binding = bindWorkspaceRuntime(args)
+  try {
+    const data = await spec.run(args)
+    return {
+      schema: 'movscript.command_result.v1',
+      status: 'ok',
+      commandId: spec.commandId,
+      mcpToolName: spec.mcpToolName,
+      contract: commandExecutionContract(spec),
+      data,
+      debug: {
+        cli_argv: productionEditingDebugCliArgv(spec, args),
+        cwd: process.cwd(),
+        ...(binding.backendEndpoint ? { runtime_endpoint: binding.backendEndpoint } : {}),
+        ...(binding.projectServiceEndpoint ? { project_service_endpoint: binding.projectServiceEndpoint } : {}),
+      },
+    }
+  } finally {
+    binding.restore?.()
   }
 }
 
@@ -1847,6 +3050,14 @@ export async function runtimeStatus(args: Record<string, unknown> = {}): Promise
     findRuntimeEndpoint(runtimeHome, LOCAL_NODE_GATEWAY_SERVICE)
       ?? findRuntimeService(runtimeHome, LOCAL_NODE_GATEWAY_SERVICE)?.endpoint,
   )
+  const homeRuntimeGatewayEndpoint = endpointURL(
+    findRuntimeEndpoint(runtimeHome, RUNTIME_GATEWAY_SERVICE)
+      ?? findRuntimeService(runtimeHome, RUNTIME_GATEWAY_SERVICE)?.endpoint
+      ?? findRuntimeEndpoint(runtimeHome, CLOUD_RUNTIME_GATEWAY_SERVICE)
+      ?? findRuntimeService(runtimeHome, CLOUD_RUNTIME_GATEWAY_SERVICE)?.endpoint
+      ?? findRuntimeEndpoint(runtimeHome, EXTERNAL_RUNTIME_GATEWAY_SERVICE)
+      ?? findRuntimeService(runtimeHome, EXTERNAL_RUNTIME_GATEWAY_SERVICE)?.endpoint,
+  )
   const homeDataEndpoint = endpointURL(
     findRuntimeEndpoint(runtimeHome, DATA_SERVICE)
       ?? findRuntimeService(runtimeHome, DATA_SERVICE)?.endpoint,
@@ -1859,12 +3070,13 @@ export async function runtimeStatus(args: Record<string, unknown> = {}): Promise
   })
   const configuredBaseURL = normalizeBaseURL(configuredSession.baseURL)
   const configuredIsLocal = isLocalBackendURL(configuredBaseURL)
+  const runtimeGatewayBaseURL = homeRuntimeGatewayEndpoint ? normalizeBaseURL(homeRuntimeGatewayEndpoint) : undefined
   const localProbe = await probeBackend(localBackendURL, timeoutMs)
   const configuredProbe = configuredBaseURL === localBackendURL
     ? localProbe
     : await probeBackend(configuredBaseURL, timeoutMs)
   const cloudAuth = findCloudAuth(workspaceDir)
-  const cloudBaseURL = configuredIsLocal ? cloudAuth.baseURL : configuredBaseURL
+  const cloudBaseURL = configuredIsLocal ? cloudAuth.baseURL ?? runtimeGatewayBaseURL : configuredBaseURL
   const cloudProbe = cloudBaseURL && cloudBaseURL !== localBackendURL && cloudBaseURL !== configuredBaseURL
     ? await probeBackend(cloudBaseURL, timeoutMs)
     : configuredIsLocal ? { available: false } : configuredProbe
@@ -1874,7 +3086,7 @@ export async function runtimeStatus(args: Record<string, unknown> = {}): Promise
   const surfaceHost = surfaceHostRuntimeStatus(runtimeHome)
   const desktop = await probeDesktop(timeoutMs, runtimeHome)
   const localAvailable = localProbe.available
-  const cloudConfigured = Boolean(cloudBaseURL || cloudAuth.authenticated || (!configuredIsLocal && configuredSession.token))
+  const cloudConfigured = Boolean(cloudBaseURL || runtimeGatewayBaseURL || cloudAuth.authenticated || (!configuredIsLocal && configuredSession.token))
   const cloudAvailable = Boolean(cloudBaseURL && isRecord(cloudProbe) && cloudProbe.available === true)
   const selected = selectedBackendMode({
     configuredIsLocal,
@@ -1903,7 +3115,16 @@ export async function runtimeStatus(args: Record<string, unknown> = {}): Promise
     surfaceHost,
     project,
     projectDir,
-    projectId: stringValue(args.projectId ?? args.project_id),
+    surfaceProjectKey: stringValue(
+      args.surfaceProjectKey
+      ?? args.surface_project_key
+      ?? args.routeProjectKey
+      ?? args.route_project_key
+      ?? args.projectKey
+      ?? args.project_key
+      ?? args.projectId
+      ?? args.project_id,
+    ),
     productionId: stringValue(args.productionId ?? args.production_id),
     focusQuery: runtimeFocusQuery(args),
     runtimeOwner,
@@ -1926,6 +3147,7 @@ export async function runtimeStatus(args: Record<string, unknown> = {}): Promise
         available: cloudAvailable,
         configured: cloudConfigured,
         ...(cloudBaseURL ? { baseURL: cloudBaseURL } : {}),
+        ...(runtimeGatewayBaseURL ? { runtimeGatewayBaseURL } : {}),
         authenticated: Boolean(cloudAuth.authenticated || (!configuredIsLocal && configuredSession.token)),
         ...(isRecord(cloudProbe) && typeof cloudProbe.error === 'string' ? { error: cloudProbe.error } : {}),
       },
@@ -1968,6 +3190,11 @@ function runtimeDaemonDiscover(args: Record<string, unknown> = {}): Record<strin
       ...(endpoints.gateway ? { gatewayEndpoint: endpoints.gateway } : {}),
       ...(endpoints.gateway ? { mcpEndpoint: runtimeMcpEndpoint(endpoints.gateway) } : {}),
     },
+    runtimeGateway: {
+      available: Boolean(endpoints.mcp),
+      gateways: runtimeGatewaySummaries(endpoints),
+      ...(endpoints.mcp ? { mcpEndpoint: endpoints.mcp } : {}),
+    },
     endpoints,
     home: runtimeHomeSummary(runtimeHome),
     recommendedNextTool: daemonAvailable ? 'runtime_descriptor_get' : 'runtime_daemon_ensure',
@@ -1976,7 +3203,7 @@ function runtimeDaemonDiscover(args: Record<string, unknown> = {}): Record<strin
 
 async function runtimeDescriptorGet(args: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
   const status = await runtimeStatus(args)
-  return runtimeDescriptorFromStatus(status)
+  return await fetchCanonicalRuntimeDescriptorFromStatus(status) ?? runtimeDescriptorFromStatus(status)
 }
 
 async function runtimePreflightCheck(args: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
@@ -1996,6 +3223,35 @@ async function runtimePreflightCheck(args: Record<string, unknown> = {}): Promis
   }
 }
 
+async function runtimeDoctor(args: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+  const preflight = await runtimePreflightCheck(args)
+  const recommendedNextCommands = runtimeDoctorRecommendedNextCommands(preflight)
+  return {
+    schema: 'movscript.runtime_doctor.v1',
+    status: preflight.status,
+    ready: preflight.ready,
+    blockers: preflight.blockers,
+    warnings: preflight.warnings,
+    checks: preflight.checks,
+    descriptor: preflight.descriptor,
+    recommendedNextCommands,
+    recommended_next_commands: recommendedNextCommands,
+  }
+}
+
+function runtimeDoctorRecommendedNextCommands(preflight: Record<string, unknown>): string[][] {
+  const checks = Array.isArray(preflight.checks) ? preflight.checks.filter(isRecord) : []
+  const blocked = new Set(checks.filter((check) => check.status === 'blocked').map((check) => stringValue(check.id)).filter(Boolean))
+  const warnings = new Set(checks.filter((check) => check.status === 'warning').map((check) => stringValue(check.id)).filter(Boolean))
+  const commands: string[][] = []
+  if (blocked.has('backend') || warnings.has('daemon')) commands.push(['movscript', 'daemon', 'ensure', '--json'])
+  if (blocked.has('project_source')) commands.push(['movscript', 'project', 'init', '--json'])
+  if (warnings.has('surface_host')) commands.push(['movscript', 'runtime', 'status', '--json'])
+  if (warnings.has('media_pipeline')) commands.push(['movscript', 'editing', 'runtime', 'capabilities', 'get', '--json'])
+  if (commands.length === 0) commands.push(['movscript', 'system', 'production', 'workflow', '--json'])
+  return commands
+}
+
 function runtimeDescriptorFromStatus(status: Record<string, unknown>): Record<string, unknown> {
   const backend = recordValue(status.backend)
   const localBackend = recordValue(backend.local)
@@ -2007,6 +3263,7 @@ function runtimeDescriptorFromStatus(status: Record<string, unknown>): Record<st
   const surfaceHost = recordValue(status.surfaceHost)
   const surfaces = recordValue(status.surfaces)
   const gatewayEndpoint = stringValue(localBackend.gatewayBaseURL)
+    ?? stringValue(cloudBackend.runtimeGatewayBaseURL)
   const dataServiceEndpoint = stringValue(localBackend.dataServiceBaseURL)
     ?? (localBackend.discoveredFromHome === true ? stringValue(localBackend.baseURL) : undefined)
   const selected = stringValue(backend.selected)
@@ -2041,6 +3298,30 @@ function runtimeDescriptorFromStatus(status: Record<string, unknown>): Record<st
     recommendedMode: status.recommendedMode,
     requiresUserChoice: status.requiresUserChoice,
     missing: Array.isArray(status.missing) ? status.missing : [],
+  }
+}
+
+async function fetchCanonicalRuntimeDescriptorFromStatus(status: Record<string, unknown>): Promise<Record<string, unknown> | undefined> {
+  const backend = recordValue(status.backend)
+  const localBackend = recordValue(backend.local)
+  const cloudBackend = recordValue(backend.cloud)
+  const gatewayEndpoint = stringValue(localBackend.gatewayBaseURL)
+    ?? stringValue(cloudBackend.runtimeGatewayBaseURL)
+  if (!gatewayEndpoint) return undefined
+  return fetchCanonicalRuntimeDescriptor(gatewayEndpoint)
+}
+
+async function fetchCanonicalRuntimeDescriptor(gatewayBaseURL: string): Promise<Record<string, unknown> | undefined> {
+  try {
+    const response = await fetch(`${normalizeBaseURL(gatewayBaseURL)}/v1/runtime/descriptor`, {
+      signal: AbortSignal.timeout(3000),
+    })
+    if (!response.ok) return undefined
+    const payload = await response.json().catch(() => undefined)
+    if (!isRecord(payload) || payload.schema !== 'movscript.runtime-descriptor.v1') return undefined
+    return payload
+  } catch {
+    return undefined
   }
 }
 
@@ -2141,13 +3422,20 @@ function runtimeCheck(input: {
 function runtimeDiscoveredEndpoints(runtimeHome: RuntimeHomeSnapshot): Record<string, string> {
   const endpoints: Record<string, string> = {}
   setEndpoint(endpoints, 'control', runtimeHome, LOCAL_NODE_CONTROL_SERVICE)
+  setEndpoint(endpoints, 'runtimeGateway', runtimeHome, RUNTIME_GATEWAY_SERVICE)
+  setEndpoint(endpoints, 'cloudRuntimeGateway', runtimeHome, CLOUD_RUNTIME_GATEWAY_SERVICE)
+  setEndpoint(endpoints, 'externalRuntimeGateway', runtimeHome, EXTERNAL_RUNTIME_GATEWAY_SERVICE)
   setEndpoint(endpoints, 'gateway', runtimeHome, LOCAL_NODE_GATEWAY_SERVICE)
   setEndpoint(endpoints, 'dataService', runtimeHome, DATA_SERVICE)
   setEndpoint(endpoints, 'projectService', runtimeHome, PROJECT_SERVICE)
   setEndpoint(endpoints, 'editingService', runtimeHome, EDITING_SERVICE)
   setEndpoint(endpoints, 'surfaceHost', runtimeHome, LOCAL_SURFACE_HOST_SERVICE)
   setEndpoint(endpoints, 'mediaPipeline', runtimeHome, MEDIA_PIPELINE_SERVICE)
-  if (endpoints.gateway) endpoints.mcp = runtimeMcpEndpoint(endpoints.gateway)
+  const gateway = endpoints.runtimeGateway
+    ?? endpoints.cloudRuntimeGateway
+    ?? endpoints.externalRuntimeGateway
+    ?? endpoints.gateway
+  if (gateway) endpoints.mcp = runtimeMcpEndpoint(gateway)
   return endpoints
 }
 
@@ -2160,6 +3448,9 @@ function setEndpoint(output: Record<string, string>, key: string, runtimeHome: R
 }
 
 function runtimeMcpEndpoint(baseURL: string): string {
+  const trimmed = baseURL.trim()
+  if (trimmed.endsWith('/v1/mcp')) return trimmed
+  if (trimmed.endsWith('/mcp')) return trimmed
   const normalized = normalizeBaseURL(baseURL)
   return `${normalized}/v1/mcp`
 }
@@ -2216,6 +3507,119 @@ export function runtimeConfigure(args: Record<string, unknown> = {}): Record<str
     remembered: Boolean(persisted),
     tokenConfigured: Boolean(token),
     tokenCleared: clearToken,
+  }
+}
+
+type RuntimeGatewayKind = 'runtime' | 'cloud' | 'external'
+
+function runtimeGatewayConfigure(args: Record<string, unknown> = {}): Record<string, unknown> {
+  const homeDir = resolveRuntimeHomeArg(args)
+  const gatewayBaseURL = stringValue(
+    args.gatewayBaseURL
+      ?? args.gateway_base_url
+      ?? args.baseURL
+      ?? args.base_url
+      ?? args.backendBaseURL
+      ?? args.backend_base_url,
+  )
+  if (!gatewayBaseURL) throw new Error('runtime gateway configure requires gatewayBaseURL')
+  const kind = runtimeGatewayKind(args)
+  const serviceName = runtimeGatewayServiceName(kind)
+  const baseURL = normalizeBaseURL(gatewayBaseURL)
+  const mcpEndpoint = runtimeMcpEndpoint(baseURL)
+  const healthURL = stringValue(args.healthURL ?? args.health_url) ?? `${baseURL}/v1/mcp/health`
+  const instanceId = stringValue(args.instanceId ?? args.instance_id) ?? `${serviceName}.default`
+  const path = writeRuntimeEndpointRecord(homeDir, {
+    serviceName,
+    applicationId: runtimeGatewayApplicationId(kind),
+    instanceId,
+    baseURL,
+    healthURL,
+    protocol: urlProtocol(baseURL),
+    status: 'ready',
+    ready: true,
+    metadata: {
+      kind,
+      role: 'runtime-gateway',
+      mcpEndpoint,
+    },
+  })
+
+  return {
+    schema: 'movscript.runtime_gateway_config.v1',
+    status: 'configured',
+    homeDir,
+    gateway: {
+      kind,
+      serviceName,
+      instanceId,
+      baseURL,
+      mcpEndpoint,
+      healthURL,
+      recordPath: path,
+    },
+  }
+}
+
+function runtimeGatewayStatus(args: Record<string, unknown> = {}): Record<string, unknown> {
+  const homeDir = resolveRuntimeHomeArg(args)
+  const runtimeHome = readRuntimeHomeSnapshot(homeDir)
+  const endpoints = runtimeDiscoveredEndpoints(runtimeHome)
+  const gateways = runtimeGatewaySummaries(endpoints)
+
+  return {
+    schema: 'movscript.runtime_gateway_status.v1',
+    status: gateways.length > 0 ? 'ready' : 'missing',
+    homeDir,
+    gateways,
+    endpoints,
+    home: runtimeHomeSummary(runtimeHome),
+  }
+}
+
+function runtimeGatewayKind(args: Record<string, unknown>): RuntimeGatewayKind {
+  const value = stringValue(args.gatewayKind ?? args.gateway_kind ?? args.dataPlane ?? args.data_plane) ?? 'runtime'
+  if (value === 'runtime' || value === 'cloud' || value === 'external') return value
+  throw new Error(`invalid runtime gateway kind: ${value}`)
+}
+
+function runtimeGatewayServiceName(kind: RuntimeGatewayKind): string {
+  if (kind === 'cloud') return CLOUD_RUNTIME_GATEWAY_SERVICE
+  if (kind === 'external') return EXTERNAL_RUNTIME_GATEWAY_SERVICE
+  return RUNTIME_GATEWAY_SERVICE
+}
+
+function runtimeGatewayApplicationId(kind: RuntimeGatewayKind): string {
+  if (kind === 'cloud') return 'movscript.cloud-runtime'
+  if (kind === 'external') return 'movscript.external-runtime'
+  return 'movscript.runtime'
+}
+
+function runtimeGatewaySummaries(endpoints: Record<string, string>): Array<Record<string, unknown>> {
+  return [
+    runtimeGatewaySummary('runtime', RUNTIME_GATEWAY_SERVICE, endpoints.runtimeGateway),
+    runtimeGatewaySummary('cloud', CLOUD_RUNTIME_GATEWAY_SERVICE, endpoints.cloudRuntimeGateway),
+    runtimeGatewaySummary('external', EXTERNAL_RUNTIME_GATEWAY_SERVICE, endpoints.externalRuntimeGateway),
+    runtimeGatewaySummary('local-daemon', LOCAL_NODE_GATEWAY_SERVICE, endpoints.gateway),
+  ].filter((item): item is Record<string, unknown> => Boolean(item))
+}
+
+function runtimeGatewaySummary(kind: string, serviceName: string, endpoint: string | undefined): Record<string, unknown> | undefined {
+  if (!endpoint) return undefined
+  return {
+    kind,
+    serviceName,
+    endpoint,
+    mcpEndpoint: runtimeMcpEndpoint(endpoint),
+  }
+}
+
+function urlProtocol(value: string): 'http' | 'https' | undefined {
+  try {
+    const protocol = new URL(value).protocol.replace(/:$/, '')
+    return protocol === 'http' || protocol === 'https' ? protocol : undefined
+  } catch {
+    return undefined
   }
 }
 
@@ -2350,7 +3754,7 @@ function localSurfaceURLs(input: {
   surfaceHost: Record<string, unknown> & { available: boolean; endpoint?: string }
   project: Record<string, unknown> & { isMovScriptProject: boolean }
   projectDir: string
-  projectId?: string
+  surfaceProjectKey?: string
   productionId?: string
   focusQuery?: Record<string, string>
   runtimeOwner: Record<string, unknown>
@@ -2376,12 +3780,13 @@ function localSurfaceURLs(input: {
   }
 
   const baseURL = normalizeBaseURL(input.surfaceHost.endpoint)
-  const projectId = input.projectId
+  const projectKey = input.surfaceProjectKey
     ?? stringValue(input.project.projectUid)
-    ?? safeProjectIdFromDir(input.projectDir)
+    ?? safeProjectKeyFromDir(input.projectDir)
   const commonQuery: Record<string, string> = {
     source: 'runtime-status',
-    projectId,
+    projectKey,
+    projectId: projectKey,
     projectDir: input.projectDir,
   }
   if (input.productionId) commonQuery.productionId = input.productionId
@@ -2390,9 +3795,9 @@ function localSurfaceURLs(input: {
   }
 
   const home = localSurfaceURL(baseURL, '/', commonQuery)
-  const projectOverview = localSurfaceURL(baseURL, `/studio/${encodeURIComponent(projectId)}/overview`, commonQuery)
-  const projectContent = localSurfaceURL(baseURL, `/studio/${encodeURIComponent(projectId)}/content`, commonQuery)
-  const projectTimeline = localSurfaceURL(baseURL, `/studio/${encodeURIComponent(projectId)}/timeline`, commonQuery)
+  const projectOverview = localSurfaceURL(baseURL, `/studio/${encodeURIComponent(projectKey)}/overview`, commonQuery)
+  const projectContent = localSurfaceURL(baseURL, `/studio/${encodeURIComponent(projectKey)}/content`, commonQuery)
+  const projectTimeline = localSurfaceURL(baseURL, `/studio/${encodeURIComponent(projectKey)}/timeline`, commonQuery)
   const canvas = localSurfaceURL(baseURL, '/canvases', { source: 'runtime-status' })
   const editing = localSurfaceURL(baseURL, '/editing', commonQuery)
   const admin = localSurfaceURL(baseURL, '/admin/overview', { source: 'runtime-status' })
@@ -2401,7 +3806,7 @@ function localSurfaceURLs(input: {
     ? runtimeSurfaceLink({
         title: 'MovScript project overview',
         surface: 'project.overview',
-        route: `/studio/${encodeURIComponent(projectId)}/overview`,
+        route: `/studio/${encodeURIComponent(projectKey)}/overview`,
         url: projectOverview,
         usage: 'Open this URL in the Codex/in-app browser when the user needs to inspect or operate the MovScript project UI.',
       })
@@ -2417,14 +3822,14 @@ function localSurfaceURLs(input: {
     runtimeSurfaceLink({
       title: 'MovScript project content',
       surface: 'project.content',
-      route: `/studio/${encodeURIComponent(projectId)}/content`,
+      route: `/studio/${encodeURIComponent(projectKey)}/content`,
       url: projectContent,
       usage: 'Open this URL to inspect content units and project content state.',
     }),
     runtimeSurfaceLink({
       title: 'MovScript project timeline',
       surface: 'project.timeline',
-      route: `/studio/${encodeURIComponent(projectId)}/timeline`,
+      route: `/studio/${encodeURIComponent(projectKey)}/timeline`,
       url: projectTimeline,
       usage: 'Open this URL to inspect the project timeline surface.',
     }),
@@ -2470,7 +3875,7 @@ function localSurfaceURLs(input: {
   }
 }
 
-function safeProjectIdFromDir(projectDir: string): string {
+function safeProjectKeyFromDir(projectDir: string): string {
   return basename(projectDir) || 'sample-project'
 }
 
@@ -2491,7 +3896,6 @@ function runtimeFocusQuery(args: Record<string, unknown>): Record<string, string
   setQueryValue(output, 'scopeRef', args.scopeRef ?? args.scope_ref)
   setQueryValue(output, 'targetKind', args.targetKind ?? args.target_kind)
   setQueryValue(output, 'targetRef', args.targetRef ?? args.target_ref)
-  setQueryValue(output, 'timeline_assembly_ref', args.timelineAssemblyRef ?? args.timeline_assembly_ref)
   return output
 }
 
@@ -2698,26 +4102,42 @@ function bindWorkspaceRuntime(args: Record<string, unknown>): { backendEndpoint?
   const projectServiceEndpoint = workspaceProjectServiceEndpoint(args)
   if (!projectServiceEndpoint) return backendBinding
 
+  if (!backendBinding.backendEndpoint) {
+    setMovScriptBackendAPIBaseURL(projectServiceEndpoint)
+  }
   const previousURL = process.env.MOVSCRIPT_PROJECT_SERVICE_URL
   process.env.MOVSCRIPT_PROJECT_SERVICE_URL = projectServiceEndpoint
   return {
     ...backendBinding,
+    backendEndpoint: backendBinding.backendEndpoint ?? projectServiceEndpoint,
     projectServiceEndpoint,
     restore: () => restoreOptionalEnv('MOVSCRIPT_PROJECT_SERVICE_URL', previousURL),
   }
 }
 
-function bindEditingRuntime(args: Record<string, unknown>): { backendEndpoint?: string; editingServiceEndpoint?: string; restore?: () => void } {
+function bindEditingRuntime(args: Record<string, unknown>): { backendEndpoint?: string; editingServiceEndpoint?: string; mediaPipelineServiceEndpoint?: string; projectServiceEndpoint?: string; restore?: () => void } {
   const backendBinding = bindBackendRuntime(args)
   const editingServiceEndpoint = editingServiceEndpointFromRuntime(args)
-  if (!editingServiceEndpoint) return backendBinding
+  const mediaPipelineServiceEndpoint = mediaPipelineServiceEndpointFromRuntime(args)
+  const projectServiceEndpoint = workspaceProjectServiceEndpoint(args)
+  if (!editingServiceEndpoint && !mediaPipelineServiceEndpoint && !projectServiceEndpoint) return backendBinding
 
-  const previousURL = process.env.MOVSCRIPT_EDITING_SERVICE_URL
-  process.env.MOVSCRIPT_EDITING_SERVICE_URL = editingServiceEndpoint
+  const previousEditingURL = process.env.MOVSCRIPT_EDITING_SERVICE_URL
+  const previousMediaPipelineURL = process.env.MOVSCRIPT_MEDIA_PIPELINE_URL
+  const previousProjectURL = process.env.MOVSCRIPT_PROJECT_SERVICE_URL
+  if (editingServiceEndpoint) process.env.MOVSCRIPT_EDITING_SERVICE_URL = editingServiceEndpoint
+  if (mediaPipelineServiceEndpoint) process.env.MOVSCRIPT_MEDIA_PIPELINE_URL = mediaPipelineServiceEndpoint
+  if (projectServiceEndpoint) process.env.MOVSCRIPT_PROJECT_SERVICE_URL = projectServiceEndpoint
   return {
     ...backendBinding,
-    editingServiceEndpoint,
-    restore: () => restoreOptionalEnv('MOVSCRIPT_EDITING_SERVICE_URL', previousURL),
+    ...(editingServiceEndpoint ? { editingServiceEndpoint } : {}),
+    ...(mediaPipelineServiceEndpoint ? { mediaPipelineServiceEndpoint } : {}),
+    ...(projectServiceEndpoint ? { projectServiceEndpoint } : {}),
+    restore: () => {
+      restoreOptionalEnv('MOVSCRIPT_EDITING_SERVICE_URL', previousEditingURL)
+      restoreOptionalEnv('MOVSCRIPT_MEDIA_PIPELINE_URL', previousMediaPipelineURL)
+      restoreOptionalEnv('MOVSCRIPT_PROJECT_SERVICE_URL', previousProjectURL)
+    },
   }
 }
 
@@ -2784,6 +4204,38 @@ function adminResourceAccessPayload(args: Record<string, unknown>): Record<strin
   })
 }
 
+function adminResourceAccessRouteDiagnosePayload(args: Record<string, unknown>): Record<string, unknown> {
+  const explicit = adminPayload(args)
+  if (Object.keys(explicit).length > 0) return explicit
+  const routeID = args.routeID ?? args.routeId ?? args.route_id
+  return compactObject({
+    route_id: numberValue(routeID) ?? stringValue(routeID),
+    purpose: stringValue(args.purpose),
+    required_media_type: stringValue(args.requiredMediaType ?? args.required_media_type ?? args.mediaType ?? args.media_type),
+    transport: stringValue(args.transport),
+    profile_id: stringValue(args.profileID ?? args.profileId ?? args.profile_id),
+  })
+}
+
+function adminGenerationToolCallPayload(args: Record<string, unknown>): Record<string, unknown> {
+  const explicit = adminPayload(args)
+  if (Object.keys(explicit).length > 0) return explicit
+  return compactObject({
+    tool_type: stringValue(args.toolType ?? args.tool_type),
+    server_id: stringValue(args.toolServerID ?? args.toolServerId ?? args.tool_server_id ?? args.serverID ?? args.serverId ?? args.server_id),
+    server_scope: stringValue(args.toolServerScope ?? args.tool_server_scope ?? args.serverScope ?? args.server_scope),
+    operation: stringValue(args.operation),
+    path: stringValue(args.toolPath ?? args.tool_path ?? args.path),
+    workflow: isRecord(args.workflow) ? args.workflow : undefined,
+    payload: isRecord(args.toolPayload ?? args.tool_payload) ? (args.toolPayload ?? args.tool_payload) : undefined,
+    client_id: stringValue(args.clientID ?? args.clientId ?? args.client_id),
+    prompt_id: stringValue(args.promptID ?? args.promptId ?? args.prompt_id),
+    filename: stringValue(args.filename),
+    subfolder: stringValue(args.subfolder),
+    file_type: stringValue(args.fileType ?? args.file_type),
+  })
+}
+
 function adminRequiredPathArg(args: Record<string, unknown>, keys: string[]): string {
   for (const key of keys) {
     const value = stringValue(args[key])
@@ -2804,16 +4256,28 @@ function adminDebugCliArgv(spec: AdminCommandSpec, args: Record<string, unknown>
   if (server) argv.push('--server', server)
   if (args.token !== undefined) argv.push('--token', '<redacted>')
   appendPathArg(argv, args, ['providerID', 'providerId', 'provider_id'], '--provider-id')
+  appendPathArg(argv, args, ['providerInstanceID', 'providerInstanceId', 'provider_instance_id'], '--provider-instance-id')
   appendPathArg(argv, args, ['credentialKey', 'credential_key'], '--credential-key')
   appendPathArg(argv, args, ['catalogEntryID', 'catalogEntryId', 'catalog_entry_id'], '--catalog-entry-id')
   appendPathArg(argv, args, ['bindingID', 'bindingId', 'binding_id'], '--binding-id')
   appendPathArg(argv, args, ['keyID', 'keyId', 'key_id'], '--key-id')
+  appendPathArg(argv, args, ['cloudFileConfigID', 'cloudFileConfigId', 'cloud_file_config_id'], '--cloud-file-config-id')
   appendPathArg(argv, args, ['resourceID', 'resourceId', 'resource_id'], '--resource-id')
   appendPathArg(argv, args, ['requiredMediaType', 'required_media_type', 'mediaType', 'media_type'], '--required-media-type')
   appendPathArg(argv, args, ['profileID', 'profileId', 'profile_id'], '--profile-id')
   appendPathArg(argv, args, ['transport'], '--transport')
   appendPathArg(argv, args, ['purpose'], '--purpose')
   appendPathArg(argv, args, ['routeID', 'routeId', 'route_id'], '--route-id')
+  appendPathArg(argv, args, ['toolType', 'tool_type'], '--tool-type')
+  appendPathArg(argv, args, ['toolServerID', 'toolServerId', 'tool_server_id', 'serverID', 'serverId', 'server_id'], '--tool-server-id')
+  appendPathArg(argv, args, ['toolServerScope', 'tool_server_scope', 'serverScope', 'server_scope'], '--tool-server-scope')
+  appendPathArg(argv, args, ['operation'], '--operation')
+  appendPathArg(argv, args, ['toolPath', 'tool_path', 'path'], '--tool-path')
+  appendPathArg(argv, args, ['clientID', 'clientId', 'client_id'], '--client-id')
+  appendPathArg(argv, args, ['promptID', 'promptId', 'prompt_id'], '--prompt-id')
+  appendPathArg(argv, args, ['filename'], '--filename')
+  appendPathArg(argv, args, ['subfolder'], '--subfolder')
+  appendPathArg(argv, args, ['fileType', 'file_type'], '--file-type')
   appendPathArg(argv, args, ['id'], '--id')
   if (isRecord(args.query)) {
     for (const [key, value] of Object.entries(args.query)) {
@@ -2821,6 +4285,9 @@ function adminDebugCliArgv(spec: AdminCommandSpec, args: Record<string, unknown>
     }
   }
   if (args.payload !== undefined || args.body !== undefined) argv.push('--payload', '<json>')
+  if (args.workflow !== undefined) argv.push('--workflow', '<json>')
+  if (args.toolPayload !== undefined || args.tool_payload !== undefined) argv.push('--tool-payload', '<json>')
+  if (args.yes === true) argv.push('--yes')
   return argv
 }
 
@@ -2845,13 +4312,16 @@ function runtimeDebugCliArgv(spec: RuntimeCommandSpec, args: Record<string, unkn
   appendPathArg(argv, args, ['stopTimeoutMs', 'stop_timeout_ms'], '--stop-timeout-ms')
   appendPathArg(argv, args, ['backendMode', 'backend_mode'], '--backend-mode')
   appendPathArg(argv, args, ['backendBaseURL', 'backend_base_url'], '--backend-base-url')
+  appendPathArg(argv, args, ['gatewayBaseURL', 'gateway_base_url', 'baseURL', 'base_url'], '--gateway-base-url')
+  appendPathArg(argv, args, ['gatewayKind', 'gateway_kind'], '--gateway-kind')
+  appendPathArg(argv, args, ['instanceId', 'instance_id'], '--instance-id')
+  appendPathArg(argv, args, ['healthURL', 'health_url'], '--health-url')
   appendPathArg(argv, args, ['projectId', 'project_id'], '--project-id')
   appendPathArg(argv, args, ['productionId', 'production_id'], '--production-id')
   appendPathArg(argv, args, ['scopeKind', 'scope_kind'], '--scope-kind')
   appendPathArg(argv, args, ['scopeRef', 'scope_ref'], '--scope-ref')
   appendPathArg(argv, args, ['targetKind', 'target_kind'], '--target-kind')
   appendPathArg(argv, args, ['targetRef', 'target_ref'], '--target-ref')
-  appendPathArg(argv, args, ['timelineAssemblyRef', 'timeline_assembly_ref'], '--timeline-assembly-ref')
   appendPathArg(argv, args, ['localBackendURL', 'local_backend_url'], '--local-backend-url')
   if (args.token !== undefined) argv.push('--token', '<redacted>')
   if (args.remember === true) argv.push('--remember')
@@ -2869,8 +4339,11 @@ function contextDebugCliArgv(spec: ContextCommandSpec, args: Record<string, unkn
 }
 
 function systemDebugCliArgv(spec: SystemCommandSpec, args: Record<string, unknown>): string[] {
-  const argv = ['movscript', 'system', ...spec.cliPath, '--json']
+  const argv = spec.productCliPath
+    ? ['movscript', ...spec.productCliPath, '--json']
+    : ['movscript', 'system', ...spec.cliPath, '--json']
   appendRuntimeArgv(argv, args)
+  appendPathArg(argv, args, ['mediaPipelineServiceURL', 'media_pipeline_service_url'], '--media-pipeline-service-url')
   appendPathArg(argv, args, ['capability'], '--capability')
   appendPathArg(argv, args, ['operation'], '--operation')
   appendPathArg(argv, args, ['model_operation', 'modelOperation'], '--model-operation')
@@ -2896,6 +4369,7 @@ function systemDebugCliArgv(spec: SystemCommandSpec, args: Record<string, unknow
   appendPathArg(argv, args, ['output_kind', 'outputKind'], '--output-kind')
   appendPathArg(argv, args, ['job_id', 'jobId'], '--job-id')
   appendPathArg(argv, args, ['task_id', 'taskId'], '--task-id')
+  appendPathArg(argv, args, ['result_id', 'resultId'], '--result-id')
   appendPathArg(argv, args, ['stream_id', 'streamId'], '--stream-id')
   appendPathArg(argv, args, ['verbosity'], '--verbosity')
   appendPathArg(argv, args, ['query', 'q'], '--query')
@@ -2988,6 +4462,7 @@ function systemDebugCliArgv(spec: SystemCommandSpec, args: Record<string, unknow
   appendJSONArg(argv, args, ['reference_resource_ids', 'referenceResourceIds'], '--reference-resource-ids')
   appendJSONArg(argv, args, ['extra_params', 'extraParams'], '--extra-params')
   appendJSONArg(argv, args, ['job_ids', 'jobIds'], '--job-ids')
+  appendJSONArg(argv, args, ['result'], '--result')
   appendJSONArg(argv, args, ['prompt_snapshot', 'promptSnapshot'], '--prompt-snapshot')
   appendJSONArg(argv, args, ['metadata'], '--metadata')
   appendJSONArg(argv, args, ['segment_paths', 'segmentPaths'], '--segment-paths')
@@ -3014,17 +4489,131 @@ function systemDebugCliArgv(spec: SystemCommandSpec, args: Record<string, unknow
   return argv
 }
 
+function domainDebugCliArgv(spec: DomainCommandSpec, args: Record<string, unknown>): string[] {
+  const argv = ['movscript', 'domain', ...spec.cliPath, '--json']
+  appendRuntimeArgv(argv, args)
+  appendPathArg(argv, args, ['projectServiceURL', 'project_service_url'], '--project-service-url')
+  appendPathArg(argv, args, ['providerScopeId', 'provider_scope_id', 'providerProjectId', 'provider_project_id'], '--provider-scope-id')
+  appendPathArg(argv, args, ['projectId', 'project_id'], '--project-id')
+  appendPathArg(argv, args, ['projectUid', 'project_uid'], '--project-uid')
+  appendPathArg(argv, args, ['projectTitle', 'project_title'], '--project-title')
+  appendPathArg(argv, args, ['userId', 'user_id', 'user'], '--user')
+  appendPathArg(argv, args, ['orgId', 'org_id', 'org'], '--org')
+  appendPathArg(argv, args, ['entityKind', 'entity_kind'], '--entity-kind')
+  appendPathArg(argv, args, ['entityId', 'entity_id'], '--entity-id')
+  appendPathArg(argv, args, ['query', 'q'], '--query')
+  appendPathArg(argv, args, ['productionId', 'production_id'], '--production-id')
+  appendPathArg(argv, args, ['segmentId', 'segment_id'], '--segment-id')
+  appendPathArg(argv, args, ['sceneMomentId', 'scene_moment_id'], '--scene-moment-id')
+  appendPathArg(argv, args, ['expressionUnitId', 'expression_unit_id'], '--expression-unit-id')
+  appendPathArg(argv, args, ['storyboardId', 'storyboard_id'], '--storyboard-id')
+  appendPathArg(argv, args, ['contentUnitId', 'content_unit_id'], '--content-unit-id')
+  appendPathArg(argv, args, ['settingId', 'setting_id'], '--setting-id')
+  appendPathArg(argv, args, ['settingStateId', 'setting_state_id'], '--setting-state-id')
+  appendPathArg(argv, args, ['assetId', 'asset_id'], '--asset-id')
+  appendPathArg(argv, args, ['candidateId', 'candidate_id'], '--candidate-id')
+  appendPathArg(argv, args, ['resourceId', 'resource_id'], '--resource-id')
+  appendPathArg(argv, args, ['outputKind', 'output_kind'], '--output-kind')
+  appendPathArg(argv, args, ['kind'], '--kind')
+  appendPathArg(argv, args, ['source'], '--source')
+  appendPathArg(argv, args, ['status'], '--status')
+  appendPathArg(argv, args, ['mimeType', 'mime_type'], '--mime-type')
+  appendPathArg(argv, args, ['width'], '--width')
+  appendPathArg(argv, args, ['height'], '--height')
+  appendPathArg(argv, args, ['durationSec', 'duration_sec'], '--duration-sec')
+  appendPathArg(argv, args, ['decision'], '--decision')
+  appendPathArg(argv, args, ['stalePolicy', 'stale_policy'], '--stale-policy')
+  appendPathArg(argv, args, ['reason'], '--reason')
+  appendPathArg(argv, args, ['decidedAt', 'decided_at'], '--decided-at')
+  appendPathArg(argv, args, ['limit'], '--limit')
+  appendPathArg(argv, args, ['commit'], '--commit')
+  appendPathArg(argv, args, ['checkpointHash', 'checkpoint_hash'], '--checkpoint-hash')
+  appendPathArg(argv, args, ['projectName', 'project_name'], '--project-name')
+  appendPathArg(argv, args, ['sceneName', 'scene_name'], '--scene-name')
+  appendPathArg(argv, args, ['defaultDurationSec', 'default_duration_sec'], '--default-duration-sec')
+  appendPathArg(argv, args, ['target'], '--target')
+  appendPathArg(argv, args, ['targetKind', 'target_kind'], '--target-kind')
+  appendPathArg(argv, args, ['provider', 'provider_id'], '--provider')
+  appendPathArg(argv, args, ['providerKey', 'provider_key'], '--provider-key')
+  appendPathArg(argv, args, ['model', 'model_id', 'public_model_id', 'publicModelId'], '--model')
+  appendPathArg(argv, args, ['groupId', 'group_id', 'groupRef', 'group_ref'], '--group-id')
+  appendPathArg(argv, args, ['assetGroupId', 'asset_group_id'], '--asset-group-id')
+  appendPathArg(argv, args, ['assetGroupName', 'asset_group_name'], '--asset-group-name')
+  appendPathArg(argv, args, ['sourceUrl', 'source_url', 'url'], '--source-url')
+  appendPathArg(argv, args, ['name'], '--name')
+  appendPathArg(argv, args, ['timeoutMs', 'timeout_ms'], '--timeout-ms')
+  appendPathArg(argv, args, ['nonce'], '--nonce')
+  appendPathArg(argv, args, ['targetPath', 'target_path'], '--target-path')
+  appendPathArg(argv, args, ['namespacePath', 'namespace_path'], '--namespace-path')
+  appendPathArg(argv, args, ['timelineNamespacePath', 'timeline_namespace_path'], '--timeline-namespace-path')
+  appendPathArg(argv, args, ['parentPath', 'parent_path'], '--parent-path')
+  appendPathArg(argv, args, ['expressionUnitPath', 'expression_unit_path'], '--expression-unit-path')
+  appendPathArg(argv, args, ['sceneMomentPath', 'scene_moment_path'], '--scene-moment-path')
+  appendPathArg(argv, args, ['keyframeId', 'keyframe_id'], '--keyframe-id')
+  appendPathArg(argv, args, ['audioCueId', 'audio_cue_id'], '--audio-cue-id')
+  appendPathArg(argv, args, ['scriptId', 'script_id'], '--script-id')
+  appendPathArg(argv, args, ['versionId', 'version_id'], '--version-id')
+  appendPathArg(argv, args, ['versionLabel', 'version_label'], '--version-label')
+  appendPathArg(argv, args, ['sourceText', 'source_text'], '--source-text')
+  appendPathArg(argv, args, ['sourcePath', 'source_path'], '--source-path')
+  appendJSONArg(argv, args, ['include'], '--include')
+  appendJSONArg(argv, args, ['payload'], '--payload')
+  appendJSONArg(argv, args, ['record'], '--record')
+  appendJSONArg(argv, args, ['entity'], '--entity')
+  appendJSONArg(argv, args, ['projectStyle', 'project_style'], '--project-style')
+  appendJSONArg(argv, args, ['setting'], '--setting')
+  appendJSONArg(argv, args, ['states'], '--states')
+  appendJSONArg(argv, args, ['unit'], '--unit')
+  appendJSONArg(argv, args, ['namespace'], '--namespace')
+  appendJSONArg(argv, args, ['root'], '--root')
+  appendJSONArg(argv, args, ['tree'], '--tree')
+  appendJSONArg(argv, args, ['nodes'], '--nodes')
+  appendJSONArg(argv, args, ['namespaces'], '--namespaces')
+  appendJSONArg(argv, args, ['timelineNamespaces', 'timeline_namespaces'], '--timeline-namespaces')
+  appendJSONArg(argv, args, ['production'], '--production')
+  appendJSONArg(argv, args, ['segments'], '--segments')
+  appendJSONArg(argv, args, ['contentUnits', 'content_units'], '--content-units')
+  appendJSONArg(argv, args, ['segment'], '--segment')
+  appendJSONArg(argv, args, ['sceneMoment', 'scene_moment'], '--scene-moment')
+  appendJSONArg(argv, args, ['keyframe'], '--keyframe')
+  appendJSONArg(argv, args, ['storyboard'], '--storyboard')
+  appendJSONArg(argv, args, ['audioCue', 'audio_cue'], '--audio-cue')
+  appendJSONArg(argv, args, ['expressionUnit', 'expression_unit'], '--expression-unit')
+  appendJSONArg(argv, args, ['editPrompt', 'edit_prompt'], '--edit-prompt')
+  appendJSONArg(argv, args, ['transition'], '--transition')
+  appendJSONArg(argv, args, ['timeline'], '--timeline')
+  appendJSONArg(argv, args, ['outputs'], '--outputs')
+  appendJSONArg(argv, args, ['items'], '--items')
+  appendJSONArg(argv, args, ['producer'], '--producer')
+  appendJSONArg(argv, args, ['promptSnapshot', 'prompt_snapshot'], '--prompt-snapshot')
+  appendJSONArg(argv, args, ['metadata'], '--metadata')
+  appendJSONArg(argv, args, ['targetRecord', 'target_record'], '--target-record')
+  if (args.continueOnError === true || args.continue_on_error === true) argv.push('--continue-on-error')
+  if (args.allowPrivateUrls === true || args.allow_private_urls === true) argv.push('--allow-private-urls')
+  if (args.lock === true) argv.push('--lock')
+  return argv
+}
+
 function editingDebugCliArgv(spec: EditingCommandSpec, args: Record<string, unknown>): string[] {
   const argv = ['movscript', 'editing', ...spec.cliPath, '--json']
   appendRuntimeArgv(argv, args)
   appendPathArg(argv, args, ['editingServiceURL', 'editing_service_url'], '--editing-service-url')
+  appendPathArg(argv, args, ['mediaPipelineServiceURL', 'media_pipeline_service_url'], '--media-pipeline-service-url')
+  appendPathArg(argv, args, ['projectServiceURL', 'project_service_url'], '--project-service-url')
   appendJSONArg(argv, args, ['editingProject', 'editing_project', 'project'], '--editing-project')
   appendPathArg(argv, args, ['editingProjectId', 'editing_project_id'], '--editing-project-id')
+  appendPathArg(argv, args, ['mediaProjectId', 'media_project_id'], '--media-project-id')
   appendPathArg(argv, args, ['projectId', 'project_id'], '--project-id')
   appendPathArg(argv, args, ['taskId', 'task_id'], '--task-id')
+  appendPathArg(argv, args, ['resultId', 'result_id'], '--result-id')
+  appendPathArg(argv, args, ['watchId', 'watch_id'], '--watch-id')
   appendPathArg(argv, args, ['title'], '--title')
   appendPathArg(argv, args, ['name'], '--name')
   appendPathArg(argv, args, ['outputPath', 'output_path'], '--output-path')
+  appendPathArg(argv, args, ['outputDirectory', 'output_directory', 'watchDirectory', 'watch_directory', 'exportDirectory', 'export_directory'], '--output-directory')
+  appendPathArg(argv, args, ['waitForMs', 'wait_for_ms'], '--wait-for-ms')
+  appendPathArg(argv, args, ['timeoutMs', 'timeout_ms'], '--timeout-ms')
+  appendPathArg(argv, args, ['pollIntervalMs', 'poll_interval_ms'], '--poll-interval-ms')
   appendPathArg(argv, args, ['savePath', 'save_path'], '--save-path')
   appendPathArg(argv, args, ['saveDirectory', 'save_directory'], '--save-directory')
   appendPathArg(argv, args, ['hlsDirectory', 'hls_directory'], '--hls-directory')
@@ -3041,6 +4630,7 @@ function editingDebugCliArgv(spec: EditingCommandSpec, args: Record<string, unkn
   appendPathArg(argv, args, ['outputKind', 'output_kind'], '--output-kind')
   appendPathArg(argv, args, ['kind'], '--kind')
   appendPathArg(argv, args, ['status'], '--status')
+  appendPathArg(argv, args, ['backend'], '--backend')
   appendPathArg(argv, args, ['width'], '--width')
   appendPathArg(argv, args, ['height'], '--height')
   appendPathArg(argv, args, ['fps'], '--fps')
@@ -3064,6 +4654,7 @@ function editingDebugCliArgv(spec: EditingCommandSpec, args: Record<string, unkn
   appendPathArg(argv, args, ['retainSide', 'retain_side'], '--retain-side')
   appendPathArg(argv, args, ['zIndex', 'z_index'], '--z-index')
   appendPathArg(argv, args, ['expectedRevision', 'expected_revision'], '--expected-revision')
+  appendPathArg(argv, args, ['limit'], '--limit')
   appendPathArg(argv, args, ['renderRuntime', 'render_runtime'], '--render-runtime')
   appendPathArg(argv, args, ['format'], '--format')
   appendPathArg(argv, args, ['target'], '--target')
@@ -3071,11 +4662,15 @@ function editingDebugCliArgv(spec: EditingCommandSpec, args: Record<string, unkn
   appendPathArg(argv, args, ['operation'], '--operation')
   appendPathArg(argv, args, ['tool'], '--tool')
   appendPathArg(argv, args, ['durationSec', 'duration_sec'], '--duration-sec')
-  appendJSONArg(argv, args, ['editPlan', 'edit_plan'], '--edit-plan')
-  appendJSONArg(argv, args, ['editDecisions', 'edit_decisions'], '--edit-decisions')
-  appendJSONArg(argv, args, ['assetManifest', 'asset_manifest'], '--asset-manifest')
+  appendPathArg(argv, args, ['exchangeProjectPath', 'exchange_project_path'], '--exchange-project-path')
+  appendPathArg(argv, args, ['externalApp', 'external_app', 'externalNle', 'external_nle'], '--external-app')
+  appendPathArg(argv, args, ['appName', 'app_name', 'application', 'applicationName', 'application_name'], '--app-name')
+  appendPathArg(argv, args, ['platform'], '--platform')
+  appendPathArg(argv, args, ['reviewer'], '--reviewer')
+  appendPathArg(argv, args, ['reviewStatus', 'review_status'], '--review-status')
   appendJSONArg(argv, args, ['source'], '--source')
   appendJSONArg(argv, args, ['output'], '--output')
+  appendJSONArg(argv, args, ['result'], '--result')
   appendJSONArg(argv, args, ['asset'], '--asset')
   appendJSONArg(argv, args, ['track'], '--track')
   appendJSONArg(argv, args, ['clip'], '--clip')
@@ -3091,33 +4686,26 @@ function editingDebugCliArgv(spec: EditingCommandSpec, args: Record<string, unkn
   appendJSONArg(argv, args, ['producer'], '--producer')
   appendJSONArg(argv, args, ['provenance'], '--provenance')
   appendJSONArg(argv, args, ['promptSnapshot', 'prompt_snapshot'], '--prompt-snapshot')
-  appendJSONArg(argv, args, ['timelineAssembly', 'timeline_assembly'], '--timeline-assembly')
-  appendJSONArg(argv, args, ['compileManifest', 'compile_manifest'], '--compile-manifest')
   if (args.importToResource === true || args.import_to_resource === true) argv.push('--import-to-resource')
+  if (args.dryRun === true || args.dry_run === true) argv.push('--dry-run')
   return argv
 }
 
-function timelineDebugCliArgv(spec: TimelineCommandSpec, args: Record<string, unknown>): string[] {
-  const argv = ['movscript', 'timeline', ...spec.cliPath, '--json']
+function productionEditingDebugCliArgv(spec: ProductionEditingCommandSpec, args: Record<string, unknown>): string[] {
+  const argv = ['movscript', 'production', 'editing', ...spec.cliPath, '--json']
   appendRuntimeArgv(argv, args)
-  appendPathArg(argv, args, ['backend'], '--backend')
-  appendPathArg(argv, args, ['preferred_backend', 'preferredBackend'], '--preferred-backend')
-  appendPathArg(argv, args, ['render_runtime', 'renderRuntime'], '--render-runtime')
-  appendPathArg(argv, args, ['title'], '--title')
-  appendPathArg(argv, args, ['finishing_project_id', 'finishingProjectId'], '--finishing-project-id')
-  appendPathArg(argv, args, ['target_ref', 'targetRef'], '--target-ref')
-  appendPathArg(argv, args, ['scope_kind', 'scopeKind'], '--scope-kind')
-  appendPathArg(argv, args, ['scope_ref', 'scopeRef'], '--scope-ref')
-  appendPathArg(argv, args, ['width'], '--width')
-  appendPathArg(argv, args, ['height'], '--height')
-  appendPathArg(argv, args, ['fps'], '--fps')
-  appendPathArg(argv, args, ['background'], '--background')
-  appendPathArg(argv, args, ['default_duration_ms', 'defaultDurationMs'], '--default-duration-ms')
-  appendJSONArg(argv, args, ['timeline_assembly', 'timelineAssembly'], '--timeline-assembly')
-  appendJSONArg(argv, args, ['edit_decisions', 'editDecisions'], '--edit-decisions')
-  appendJSONArg(argv, args, ['asset_manifest', 'assetManifest'], '--asset-manifest')
-  appendJSONArg(argv, args, ['compile_manifest', 'compileManifest'], '--compile-manifest')
-  if (args.runtime_locked === true || args.runtimeLocked === true) argv.push('--runtime-locked')
+  appendPathArg(argv, args, ['projectServiceURL', 'project_service_url'], '--project-service-url')
+  appendPathArg(argv, args, ['mediaProjectId', 'media_project_id'], '--media-project-id')
+  appendPathArg(argv, args, ['projectId', 'project_id'], '--project-id')
+  appendPathArg(argv, args, ['productionId', 'production_id'], '--production-id')
+  appendPathArg(argv, args, ['workspaceId', 'workspace_id'], '--workspace-id')
+  appendPathArg(argv, args, ['kind', 'workspaceKind', 'workspace_kind'], '--kind')
+  appendPathArg(argv, args, ['title', 'name'], '--title')
+  appendJSONArg(argv, args, ['seed'], '--seed')
+  appendPathArg(argv, args, ['page'], '--page')
+  appendPathArg(argv, args, ['pageSize', 'page_size'], '--page-size')
+  if (args.includeCandidates === true || args.include_candidates === true) argv.push('--include-candidates')
+  if (args.includeUnselected === true || args.include_unselected === true) argv.push('--include-unselected')
   return argv
 }
 
@@ -3165,6 +4753,26 @@ function editingServiceEndpointFromRuntime(args: Record<string, unknown>): strin
       ?? findRuntimeService(runtimeHome, EDITING_SERVICE)?.endpoint
       ?? findRuntimeEndpoint(runtimeHome, LOCAL_NODE_GATEWAY_SERVICE)
       ?? findRuntimeService(runtimeHome, LOCAL_NODE_GATEWAY_SERVICE)?.endpoint,
+  )
+}
+
+function mediaPipelineServiceEndpointFromRuntime(args: Record<string, unknown>): string | undefined {
+  const explicit = stringValue(
+    args.mediaPipelineServiceURL
+    ?? args.media_pipeline_service_url
+    ?? args.backendBaseURL
+    ?? args.backend_base_url
+    ?? args.server
+    ?? process.env.MOVSCRIPT_MEDIA_PIPELINE_URL
+    ?? process.env.MOVSCRIPT_MEDIA_PIPELINE_BASE_URL,
+  )
+  if (explicit) return explicit
+
+  const homeDir = resolveRuntimeHomeArg(args)
+  const runtimeHome = readRuntimeHomeSnapshot(homeDir)
+  return endpointURL(
+    findRuntimeEndpoint(runtimeHome, MEDIA_PIPELINE_SERVICE)
+      ?? findRuntimeService(runtimeHome, MEDIA_PIPELINE_SERVICE)?.endpoint,
   )
 }
 
@@ -3242,8 +4850,14 @@ function runtimeReadinessSchema(extra: Record<string, unknown> = {}) {
     workspace_dir: { type: 'string', description: 'Alias for workspaceDir.' },
     projectDir: { type: 'string', description: 'Optional project source directory to inspect.' },
     project_dir: { type: 'string', description: 'Alias for projectDir.' },
-    projectId: { type: 'string', description: 'Optional project id to use when constructing surface URLs.' },
-    project_id: { type: 'string', description: 'Alias for projectId.' },
+    surfaceProjectKey: { type: 'string', description: 'Optional project route key to use when constructing surface URLs.' },
+    surface_project_key: { type: 'string', description: 'Alias for surfaceProjectKey.' },
+    routeProjectKey: { type: 'string', description: 'Alias for surfaceProjectKey.' },
+    route_project_key: { type: 'string', description: 'Alias for surfaceProjectKey.' },
+    projectKey: { type: 'string', description: 'Alias for surfaceProjectKey.' },
+    project_key: { type: 'string', description: 'Alias for surfaceProjectKey.' },
+    projectId: { type: 'string', description: 'Deprecated alias for surfaceProjectKey; not a backend project id.' },
+    project_id: { type: 'string', description: 'Deprecated alias for surfaceProjectKey; not a backend project id.' },
     productionId: { type: 'string', description: 'Optional legacy production id to include in surface URLs.' },
     production_id: { type: 'string', description: 'Alias for productionId.' },
     scopeKind: { type: 'string', description: 'Optional timeline namespace scope kind.' },
@@ -3254,8 +4868,6 @@ function runtimeReadinessSchema(extra: Record<string, unknown> = {}) {
     target_kind: { type: 'string', description: 'Alias for targetKind.' },
     targetRef: { type: 'string', description: 'Optional normalized target ref.' },
     target_ref: { type: 'string', description: 'Alias for targetRef.' },
-    timelineAssemblyRef: { type: 'string', description: 'Optional timeline assembly target ref.' },
-    timeline_assembly_ref: { type: 'string', description: 'Alias for timelineAssemblyRef.' },
     localBackendURL: { type: 'string', description: 'Optional local backend URL to probe.' },
     local_backend_url: { type: 'string', description: 'Alias for localBackendURL.' },
     timeoutMs: { type: 'number', description: 'Probe timeout in milliseconds. Defaults to 750.' },
@@ -3270,11 +4882,11 @@ function runtimeConfigureSchema() {
     home_dir: { type: 'string', description: 'Alias for homeDir.' },
     movscriptHome: { type: 'string', description: 'Alias for homeDir.' },
     movscript_home: { type: 'string', description: 'Alias for homeDir.' },
-    backendMode: { type: 'string', enum: ['local', 'cloud'], description: 'Preferred backend mode.' },
-    backend_mode: { type: 'string', enum: ['local', 'cloud'], description: 'Alias for backendMode.' },
+    backendMode: { type: 'string', enum: ['local', 'cloud', 'external'], description: 'Preferred backend mode.' },
+    backend_mode: { type: 'string', enum: ['local', 'cloud', 'external'], description: 'Alias for backendMode.' },
     backendBaseURL: { type: 'string', description: 'Backend base URL such as http://localhost:8766 or https://api.example.' },
     backend_base_url: { type: 'string', description: 'Alias for backendBaseURL.' },
-    token: { type: 'string', description: 'Bearer token for the selected backend. Prefer environment variables or movcli auth for persistent secrets.' },
+    token: { type: 'string', description: 'Bearer token for the selected backend. Prefer environment variables or movscript auth for persistent secrets.' },
     projectDir: { type: 'string', description: 'Project source directory to use as default workspace/project context.' },
     project_dir: { type: 'string', description: 'Alias for projectDir.' },
     workspaceDir: { type: 'string', description: 'Workspace directory to persist backend config under.' },
@@ -3282,6 +4894,29 @@ function runtimeConfigureSchema() {
     remember: { type: 'boolean', description: 'When true, persist backendBaseURL to .movscript/backend/config.json.' },
     clearToken: { type: 'boolean', description: 'When true, clear persisted workspace auth for the selected workspace.' },
     clear_token: { type: 'boolean', description: 'Alias for clearToken.' },
+  })
+}
+
+function runtimeGatewayConfigureSchema() {
+  return objectSchema({
+    homeDir: { type: 'string', description: 'Optional MovScript Home directory. Defaults to MOVSCRIPT_HOME or ~/.movscript.' },
+    home_dir: { type: 'string', description: 'Alias for homeDir.' },
+    movscriptHome: { type: 'string', description: 'Alias for homeDir.' },
+    movscript_home: { type: 'string', description: 'Alias for homeDir.' },
+    gatewayBaseURL: { type: 'string', description: 'Runtime gateway base URL. The MCP endpoint is derived as /v1/mcp.' },
+    gateway_base_url: { type: 'string', description: 'Alias for gatewayBaseURL.' },
+    baseURL: { type: 'string', description: 'Alias for gatewayBaseURL.' },
+    base_url: { type: 'string', description: 'Alias for gatewayBaseURL.' },
+    backendBaseURL: { type: 'string', description: 'Compatibility alias for gatewayBaseURL.' },
+    backend_base_url: { type: 'string', description: 'Compatibility alias for gatewayBaseURL.' },
+    gatewayKind: { type: 'string', enum: ['runtime', 'cloud', 'external'], description: 'Runtime gateway record kind.' },
+    gateway_kind: { type: 'string', enum: ['runtime', 'cloud', 'external'], description: 'Alias for gatewayKind.' },
+    dataPlane: { type: 'string', enum: ['cloud', 'external'], description: 'Alias for gatewayKind when registering cloud/external runtime gateways.' },
+    data_plane: { type: 'string', enum: ['cloud', 'external'], description: 'Alias for dataPlane.' },
+    instanceId: { type: 'string', description: 'Optional endpoint instance id.' },
+    instance_id: { type: 'string', description: 'Alias for instanceId.' },
+    healthURL: { type: 'string', description: 'Optional gateway health URL. Defaults to /v1/mcp/health.' },
+    health_url: { type: 'string', description: 'Alias for healthURL.' },
   })
 }
 
@@ -3356,6 +4991,15 @@ function adminProviderSchema(includePayload = false) {
   return includePayload ? adminWriteSchema(extra) : adminReadSchema(extra)
 }
 
+function adminProviderInstanceSchema(includePayload = false) {
+  return (includePayload ? adminWriteSchema : adminReadSchema)({
+    providerInstanceID: { type: 'string', description: 'Provider instance id, such as provider_type:instance_key.' },
+    providerInstanceId: { type: 'string', description: 'Alias for providerInstanceID.' },
+    provider_instance_id: { type: 'string', description: 'Alias for providerInstanceID.' },
+    id: { type: 'string', description: 'Alias for providerInstanceID.' },
+  })
+}
+
 function adminProviderCredentialSchema(includePayload = false, includeCredentialKey = false) {
   return (includePayload ? adminWriteSchema : adminReadSchema)({
     providerID: { type: 'string', description: 'Provider id.' },
@@ -3399,6 +5043,41 @@ function adminGatewayKeySchema(includePayload = false) {
   })
 }
 
+function adminCloudFileConfigSchema(includePayload = false) {
+  return (includePayload ? adminWriteSchema : adminReadSchema)({
+    cloudFileConfigID: { type: ['string', 'number'], description: 'Cloud file configuration id.' },
+    cloudFileConfigId: { type: ['string', 'number'], description: 'Alias for cloudFileConfigID.' },
+    cloud_file_config_id: { type: ['string', 'number'], description: 'Alias for cloudFileConfigID.' },
+    id: { type: ['string', 'number'], description: 'Alias for cloudFileConfigID.' },
+  })
+}
+
+function adminResourceAccessProfileSchema(includePayload = false) {
+  return (includePayload ? adminWriteSchema : adminReadSchema)({
+    profileID: { type: 'string', description: 'ResourceAccessProfile id.' },
+    profileId: { type: 'string', description: 'Alias for profileID.' },
+    profile_id: { type: 'string', description: 'Alias for profileID.' },
+    id: { type: 'string', description: 'Alias for profileID.' },
+  })
+}
+
+function adminResourceAccessRouteDiagnoseSchema() {
+  return adminWriteSchema({
+    profileID: { type: 'string', description: 'ResourceAccessProfile id.' },
+    profileId: { type: 'string', description: 'Alias for profileID.' },
+    profile_id: { type: 'string', description: 'Alias for profileID.' },
+    requiredMediaType: { type: 'string', description: 'Required resource media type, or any.' },
+    required_media_type: { type: 'string', description: 'Alias for requiredMediaType.' },
+    mediaType: { type: 'string', description: 'Alias for requiredMediaType.' },
+    media_type: { type: 'string', description: 'Alias for requiredMediaType.' },
+    transport: { type: 'string', description: 'Resource access transport; currently public_url.' },
+    purpose: { type: 'string', description: 'Diagnostic purpose or route requirement.' },
+    routeID: { type: ['string', 'number'], description: 'Optional route id whose transfer requirement is being tested.' },
+    routeId: { type: ['string', 'number'], description: 'Alias for routeID.' },
+    route_id: { type: ['string', 'number'], description: 'Alias for routeID.' },
+  })
+}
+
 function adminResourceAccessResolveSchema() {
   return adminWriteSchema({
     resourceID: { type: ['string', 'number'], description: 'RawResource id to resolve.' },
@@ -3416,6 +5095,40 @@ function adminResourceAccessResolveSchema() {
     routeID: { type: ['string', 'number'], description: 'Optional route id whose transfer requirement is being tested.' },
     routeId: { type: ['string', 'number'], description: 'Alias for routeID.' },
     route_id: { type: ['string', 'number'], description: 'Alias for routeID.' },
+  })
+}
+
+function adminGenerationToolCallSchema() {
+  return adminWriteSchema({
+    toolType: { type: 'string', description: 'Generation tool type, such as comfyui or webui.' },
+    tool_type: { type: 'string', description: 'Alias for toolType.' },
+    toolServerID: { type: 'string', description: 'Optional generation tool server id.' },
+    toolServerId: { type: 'string', description: 'Alias for toolServerID.' },
+    tool_server_id: { type: 'string', description: 'Alias for toolServerID.' },
+    serverID: { type: 'string', description: 'Alias for toolServerID.' },
+    serverId: { type: 'string', description: 'Alias for toolServerID.' },
+    server_id: { type: 'string', description: 'Alias for toolServerID.' },
+    toolServerScope: { type: 'string', description: 'Optional generation tool server scope, such as admin or org.' },
+    tool_server_scope: { type: 'string', description: 'Alias for toolServerScope.' },
+    serverScope: { type: 'string', description: 'Alias for toolServerScope.' },
+    server_scope: { type: 'string', description: 'Alias for toolServerScope.' },
+    operation: { type: 'string', description: 'Supported diagnostic operation, such as status, object_info, queue, models, or progress.' },
+    toolPath: { type: 'string', description: 'Safe tool path for supported get-style operations.' },
+    tool_path: { type: 'string', description: 'Alias for toolPath.' },
+    path: { type: 'string', description: 'Alias for toolPath.' },
+    workflow: { type: 'object', additionalProperties: true, description: 'Optional ComfyUI workflow for queue_prompt.' },
+    toolPayload: { type: 'object', additionalProperties: true, description: 'Optional upstream payload for WebUI txt2img/img2img.' },
+    tool_payload: { type: 'object', additionalProperties: true, description: 'Alias for toolPayload.' },
+    clientID: { type: 'string', description: 'Optional ComfyUI client id.' },
+    clientId: { type: 'string', description: 'Alias for clientID.' },
+    client_id: { type: 'string', description: 'Alias for clientID.' },
+    promptID: { type: 'string', description: 'Optional ComfyUI prompt id for history.' },
+    promptId: { type: 'string', description: 'Alias for promptID.' },
+    prompt_id: { type: 'string', description: 'Alias for promptID.' },
+    filename: { type: 'string', description: 'Optional ComfyUI output filename for view.' },
+    subfolder: { type: 'string', description: 'Optional ComfyUI output subfolder for view.' },
+    fileType: { type: 'string', description: 'Optional ComfyUI view file type.' },
+    file_type: { type: 'string', description: 'Alias for fileType.' },
   })
 }
 

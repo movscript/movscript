@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, Settings } from 'lucide-react'
@@ -57,24 +57,31 @@ export function AppSettingsPanel({
   const [testState, setTestState] = useState<AppSettingsTestState>({ status: 'idle', message: '' })
   const [resourceGCState, setResourceGCState] = useState<AppSettingsTestState>({ status: 'idle', message: '' })
 
+  const localMode = isLocalDataConnection(settings)
+  const effectiveDataConnectionURL = getSettingsDataConnectionBaseURL(settings)
+
+  useEffect(() => {
+    if (localMode) setDataConnectionURLInput(effectiveDataConnectionURL)
+  }, [effectiveDataConnectionURL, localMode])
+
   const normalized = useMemo(() => {
+    if (localMode) return effectiveDataConnectionURL
     try {
       return normalizeAPIBaseURL(dataConnectionURL)
     } catch {
       return dataConnectionURL.trim()
     }
-  }, [dataConnectionURL])
-  const hasChanged = normalized !== getSettingsDataConnectionBaseURL(settings)
+  }, [dataConnectionURL, effectiveDataConnectionURL, localMode])
+  const hasChanged = !localMode && normalized !== effectiveDataConnectionURL
   const movScriptHomeDirChanged = movScriptHomeDir.trim() !== (settings.movScriptWorkspaceDir ?? '')
   const isValid = /^https?:\/\/.+/i.test(normalized)
   const parsedShotSources = useMemo(() => parseShotLibrarySources(shotSourcesText), [shotSourcesText])
   const shotSourcesValid = parsedShotSources.ok
   const shotSourcesChanged = shotSourcesText.trim() !== formatShotLibrarySources(settings).trim()
-  const localMode = isLocalDataConnection(settings)
   const canOpenAdmin = user?.system_role === 'super_admin'
 
   async function saveSettings() {
-    if (!isValid) return
+    if (!isValid || localMode) return
     setDataConnectionURL(normalized)
     setSaved(true)
     setTestState({ status: 'idle', message: '' })

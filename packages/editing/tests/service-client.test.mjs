@@ -104,14 +104,6 @@ test('editing service client posts timeline view requests to the timeline view e
     now: '2026-06-24T00:00:00.000Z',
     defaultDurationMs: 7000,
   })
-  await client.timelineView({
-    projectDir: '/tmp/movscript-project',
-    kind: 'timelineAssemblyBundle',
-    targetKind: 'timeline_assembly',
-    targetRef: 'timeline_assembly:production:pilot',
-    scopeKind: 'production',
-    scopeRef: 'pilot',
-  })
   assert.deepEqual(requests, [{
     url: `http://127.0.0.1:9011${EDITING_SERVICE_TIMELINE_VIEW_ENDPOINT}`,
     method: 'POST',
@@ -145,17 +137,6 @@ test('editing service client posts timeline view requests to the timeline view e
       projectName: 'Pilot timeline',
       now: '2026-06-24T00:00:00.000Z',
       defaultDurationMs: 7000,
-    },
-  }, {
-    url: `http://127.0.0.1:9011${EDITING_SERVICE_TIMELINE_VIEW_ENDPOINT}`,
-    method: 'POST',
-    body: {
-      projectDir: '/tmp/movscript-project',
-      kind: 'timelineAssemblyBundle',
-      targetKind: 'timeline_assembly',
-      targetRef: 'timeline_assembly:production:pilot',
-      scopeKind: 'production',
-      scopeRef: 'pilot',
     },
   }])
 })

@@ -6,6 +6,7 @@ import test from 'node:test'
 
 import {
   PROJECT_SERVICE_CANDIDATE_VIEW_ENDPOINT,
+  PROJECT_SERVICE_ASSET_PROVIDER_CERTIFICATION_PATCH_ENDPOINT,
   PROJECT_SERVICE_CONTENT_CANVAS_READ_MODEL_ENDPOINT,
   PROJECT_SERVICE_CONTENT_UNITS_READ_MODEL_ENDPOINT,
   PROJECT_SERVICE_CONTENT_CANDIDATE_CREATE_ENDPOINT,
@@ -20,8 +21,12 @@ import {
   PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT,
   PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT,
   PROJECT_SERVICE_SOURCE_INTERPRET_ENDPOINT,
-  PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT,
-  PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_WRITE_ENDPOINT,
+  PROJECT_SERVICE_SOURCE_PRODUCTION_WORK_PLAN_ENDPOINT,
+  PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_CREATE_ENDPOINT,
+  PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_DELETE_ENDPOINT,
+  PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_LIST_ENDPOINT,
+  PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_OPEN_ENDPOINT,
+  PROJECT_SERVICE_PRODUCTION_EDITING_RESOURCES_REFRESH_ENDPOINT,
   ProjectServiceClient,
   createProjectServiceClientFromRuntime,
   resolveProjectServiceBaseUrl,
@@ -61,6 +66,97 @@ test('project service client posts project source requests to stable endpoints',
       debugArtifacts: false,
       commit: 'HEAD',
       checkpointHash: 'abc123',
+    },
+  }])
+})
+
+test('project service client posts production work plan requests to the stable endpoint', async () => {
+  const requests = []
+  const client = new ProjectServiceClient({
+    baseUrl: 'http://127.0.0.1:9001',
+    fetch: async (url, init = {}) => {
+      requests.push({
+        url: String(url),
+        method: init.method,
+        body: init.body ? JSON.parse(String(init.body)) : undefined,
+      })
+      return new Response(JSON.stringify({
+        schema: 'movscript.project-source-production-work-plan.v1',
+        projectDir: '/tmp/project',
+        productionWorkPlan: {
+          schema: 'movscript.production_work_plan.v1',
+          items: [{ id: 'cu_hero' }],
+        },
+      }), { status: 200 })
+    },
+  })
+
+  const result = await client.productionWorkPlan({
+    projectDir: '/tmp/project',
+    projectUid: 'prj_demo',
+  })
+
+  assert.equal(result.productionWorkPlan.schema, 'movscript.production_work_plan.v1')
+  assert.deepEqual(requests, [{
+    url: `http://127.0.0.1:9001${PROJECT_SERVICE_SOURCE_PRODUCTION_WORK_PLAN_ENDPOINT}`,
+    method: 'POST',
+    body: {
+      projectDir: '/tmp/project',
+      projectUid: 'prj_demo',
+    },
+  }])
+})
+
+test('project service client posts asset provider certification patches to the stable endpoint', async () => {
+  const requests = []
+  const client = new ProjectServiceClient({
+    baseUrl: 'http://127.0.0.1:9001',
+    fetch: async (url, init = {}) => {
+      requests.push({
+        url: String(url),
+        method: init.method,
+        body: init.body ? JSON.parse(String(init.body)) : undefined,
+      })
+      return new Response(JSON.stringify({
+        schema: 'movscript.project-asset-provider-certification-patch.v1',
+        projectDir: '/tmp/project',
+        result: {
+          status: 'patched',
+          path: 'settings/hero/assets/face/asset.json',
+          provider: 'volcengine_ark_official',
+          storage_key: 'volcengine_ark_official::model:seedance-2',
+          certification: {
+            asset_uri: 'asset://hero-face',
+          },
+        },
+      }), { status: 200 })
+    },
+  })
+
+  const result = await client.patchAssetProviderCertification({
+    projectDir: '/tmp/project',
+    input: {
+      assetPath: 'settings/hero/assets/face/asset.json',
+      provider: 'volcengine_ark_official',
+      storageKey: 'volcengine_ark_official::model:seedance-2',
+      certification: {
+        asset_uri: 'asset://hero-face',
+      },
+    },
+  })
+
+  assert.equal(result.result.status, 'patched')
+  assert.deepEqual(requests, [{
+    url: `http://127.0.0.1:9001${PROJECT_SERVICE_ASSET_PROVIDER_CERTIFICATION_PATCH_ENDPOINT}`,
+    method: 'POST',
+    body: {
+      projectDir: '/tmp/project',
+      assetPath: 'settings/hero/assets/face/asset.json',
+      provider: 'volcengine_ark_official',
+      storageKey: 'volcengine_ark_official::model:seedance-2',
+      certification: {
+        asset_uri: 'asset://hero-face',
+      },
     },
   }])
 })
@@ -418,10 +514,10 @@ test('project service client reads resource views through the resource view endp
   }])
 })
 
-test('project service client reads and writes TimelineAssembly drafts through stable endpoints', async () => {
+test('project service client posts production editing workspace requests to stable endpoints', async () => {
   const requests = []
   const client = new ProjectServiceClient({
-    baseUrl: 'http://127.0.0.1:9011',
+    baseUrl: 'http://127.0.0.1:9012',
     fetch: async (url, init = {}) => {
       requests.push({
         url: String(url),
@@ -429,49 +525,76 @@ test('project service client reads and writes TimelineAssembly drafts through st
         body: init.body ? JSON.parse(String(init.body)) : undefined,
       })
       return new Response(JSON.stringify({
-        schema: String(url).endsWith(PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT)
-          ? 'movscript.project-timeline-assembly-draft-read.v1'
-          : 'movscript.project-timeline-assembly-draft-write.v1',
+        schema: 'movscript.production_editing_workspace.v1',
         projectDir: '/tmp/project',
-        status: String(url).endsWith(PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT) ? 'ready' : 'written',
-        draftKind: 'timeline_assembly',
-        draft_kind: 'timeline_assembly',
-        targetRef: 'timeline_assembly:production:pilot',
-        target_ref: 'timeline_assembly:production:pilot',
-        path: 'timeline_assemblies/timeline_assembly_production_pilot/assembly.json',
-        record: { title: 'Pilot Rough Cut' },
+        status: 'ok',
+        productionId: 'pilot',
+        workspace: { workspaceId: 'rough_cut_v1', kind: 'system_editing' },
       }), { status: 200 })
     },
   })
 
-  const read = await client.readTimelineAssemblyDraft({
+  await client.listProductionEditingWorkspaces({
     projectDir: '/tmp/project',
-    input: { targetRef: 'timeline_assembly:production:pilot' },
+    input: { productionId: 'pilot', page: 1, pageSize: 5 },
   })
-  const written = await client.writeTimelineAssemblyDraft({
+  await client.createProductionEditingWorkspace({
     projectDir: '/tmp/project',
-    input: {
-      targetRef: 'timeline_assembly:production:pilot',
-      draft: { title: 'Pilot Rough Cut' },
-    },
+    input: { productionId: 'pilot', kind: 'system_editing', title: '粗剪 v1' },
+  })
+  await client.openProductionEditingWorkspace({
+    projectDir: '/tmp/project',
+    input: { productionId: 'pilot', workspaceId: 'rough_cut_v1' },
+  })
+  await client.refreshProductionEditingResources({
+    projectDir: '/tmp/project',
+    input: { productionId: 'pilot' },
+  })
+  await client.deleteProductionEditingWorkspace({
+    projectDir: '/tmp/project',
+    input: { productionId: 'pilot', workspaceId: 'rough_cut_v1' },
   })
 
-  assert.equal(read.status, 'ready')
-  assert.equal(written.status, 'written')
   assert.deepEqual(requests, [{
-    url: `http://127.0.0.1:9011${PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT}`,
+    url: `http://127.0.0.1:9012${PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_LIST_ENDPOINT}`,
     method: 'POST',
     body: {
       projectDir: '/tmp/project',
-      targetRef: 'timeline_assembly:production:pilot',
+      productionId: 'pilot',
+      page: 1,
+      pageSize: 5,
     },
   }, {
-    url: `http://127.0.0.1:9011${PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_WRITE_ENDPOINT}`,
+    url: `http://127.0.0.1:9012${PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_CREATE_ENDPOINT}`,
     method: 'POST',
     body: {
       projectDir: '/tmp/project',
-      targetRef: 'timeline_assembly:production:pilot',
-      draft: { title: 'Pilot Rough Cut' },
+      productionId: 'pilot',
+      kind: 'system_editing',
+      title: '粗剪 v1',
+    },
+  }, {
+    url: `http://127.0.0.1:9012${PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_OPEN_ENDPOINT}`,
+    method: 'POST',
+    body: {
+      projectDir: '/tmp/project',
+      productionId: 'pilot',
+      workspaceId: 'rough_cut_v1',
+    },
+  }, {
+    url: `http://127.0.0.1:9012${PROJECT_SERVICE_PRODUCTION_EDITING_RESOURCES_REFRESH_ENDPOINT}`,
+    method: 'POST',
+    body: {
+      projectDir: '/tmp/project',
+      productionId: 'pilot',
+    },
+  }, {
+    url: `http://127.0.0.1:9012${PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_DELETE_ENDPOINT}`,
+    method: 'POST',
+    body: {
+      projectDir: '/tmp/project',
+      productionId: 'pilot',
+      workspaceId: 'rough_cut_v1',
     },
   }])
 })

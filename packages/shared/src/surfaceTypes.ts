@@ -210,8 +210,8 @@ export interface PaginatedResponse<T> {
   page_size: number
 }
 
-export type MediaNodeType = 'text' | 'image' | 'video'
-export type ToolNodeType = 'canvas' | 'ref_image_gen' | 'ref_video_gen' | 'multi_angle' | 'style_transfer' | 'motion_imitation' | 'audio_tts' | 'audio_transcribe' | 'audio_translate' | 'audio_music' | 'audio_sfx' | 'audio_chat' | 'voice_clone' | 'voice_design'
+export type MediaNodeType = 'text' | 'image' | 'video' | 'audio'
+export type ToolNodeType = 'canvas' | 'reference_to_image' | 'reference_to_video'
 export type SemanticEntityKind = 'script' | 'segment' | 'scene_moment' | 'setting' | 'asset_slot' | 'content_unit'
 export type SpecialNodeType = 'input' | 'output' | 'resource_sink' | 'approval' | 'text_gen' | 'ai_gen' | 'group' | 'plugin_card'
 export type PluginNodeType = string & { readonly __pluginNodeType?: unique symbol }
@@ -228,14 +228,17 @@ export type CanvasResourceRole =
   | 'reference_image'
   | 'reference_video'
   | 'reference_audio'
-  | 'motion_reference'
   | 'style_reference'
-  | 'source_image'
-  | 'source_video'
+  | 'character_reference'
+  | 'product_reference'
+  | 'target_image'
+  | 'target_video'
   | 'source_audio'
+  | 'speech_audio'
+  | 'voice_sample'
+  | 'target_voice'
   | 'mask'
-  | 'character'
-  | 'product'
+  | 'transcript'
 export type CanvasRunStatus = 'pending' | 'running' | 'done' | 'failed'
 export type CanvasPortType = CanvasParamType
 
@@ -397,7 +400,7 @@ export interface CanvasPortValue {
 
 export type CanvasStage = 'script_analysis' | 'asset_prep' | 'storyboard' | 'generation' | 'editing'
 
-export type CanvasExecutableCapability = 'text' | 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v' | 'audio' | 'audio_tts' | 'audio_transcribe' | 'audio_translate' | 'audio_music' | 'audio_sfx' | 'audio_chat' | 'voice_clone' | 'voice_design' | 'subtitle_align' | 'subtitle_translate'
+export type CanvasExecutableCapability = 'text_generation' | 'image_generation' | 'video_generation' | 'audio_generation'
 
 export interface CanvasExecutableReferenceAsset {
   resource_id?: number

@@ -19,7 +19,6 @@
     }
   },
   "bin": {
-    "movcli": "./bin/movcli",
     "movscript": "./bin/movscript"
   },
   "scripts": {

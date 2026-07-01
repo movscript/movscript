@@ -7,6 +7,7 @@ import test from 'node:test'
 import {
   PROJECT_SERVICE_CAPABILITIES,
   PROJECT_SERVICE_CANDIDATE_VIEW_ENDPOINT,
+  PROJECT_SERVICE_ASSET_PROVIDER_CERTIFICATION_PATCH_ENDPOINT,
   PROJECT_SERVICE_CONTENT_CANVASES_LIST_ENDPOINT,
   PROJECT_SERVICE_CONTENT_CANVAS_READ_MODEL_ENDPOINT,
   PROJECT_SERVICE_CONTENT_CANVAS_DELETE_ENDPOINT,
@@ -19,7 +20,6 @@ import {
   PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT,
   PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_SELECT_ENDPOINT,
   PROJECT_SERVICE_CONTENT_UNITS_READ_MODEL_ENDPOINT,
-  PROJECT_SERVICE_TIMELINE_ASSEMBLY_CONTENT_UNIT_ENSURE_ENDPOINT,
   PROJECT_SERVICE_ENTITIES_QUERY_ENDPOINT,
   PROJECT_SERVICE_HIERARCHY_WRITE_ENDPOINT,
   PROJECT_SERVICE_HOME_READ_MODEL_ENDPOINT,
@@ -37,13 +37,17 @@ import {
   PROJECT_SERVICE_SOURCE_INSPECT_ENDPOINT,
   PROJECT_SERVICE_SOURCE_INTERPRET_ENDPOINT,
   PROJECT_SERVICE_SOURCE_OVERVIEW_ENDPOINT,
+  PROJECT_SERVICE_SOURCE_PRODUCTION_WORK_PLAN_ENDPOINT,
   PROJECT_SERVICE_SOURCE_REGENERATION_PLAN_ENDPOINT,
   PROJECT_SERVICE_SOURCE_SNAPSHOT_ENDPOINT,
   PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT,
   PROJECT_SERVICE_SETTING_CREATE_ENDPOINT,
   PROJECT_SERVICE_STANDARDS_UPSERT_ENDPOINT,
-  PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT,
-  PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_WRITE_ENDPOINT,
+  PROJECT_SERVICE_PRODUCTION_EDITING_RESOURCES_REFRESH_ENDPOINT,
+  PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_CREATE_ENDPOINT,
+  PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_DELETE_ENDPOINT,
+  PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_LIST_ENDPOINT,
+  PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_OPEN_ENDPOINT,
   PROJECT_SERVICE_WORKSPACE_CANDIDATE_APPEND_ENDPOINT,
   PROJECT_SERVICE_WORKSPACE_CANDIDATE_SELECT_ENDPOINT,
   startProjectService,
@@ -135,6 +139,46 @@ test('project-service exposes inspect and overview read-model endpoints', async 
   assert.equal(overview.overview.source.documentCount >= 2, true)
 })
 
+test('project-service patches asset provider certifications through a typed endpoint', async () => {
+  const projectDir = await createProjectSource()
+  const assetPath = join(projectDir, 'settings', 'hero', 'assets', 'face', 'asset.json')
+  await mkdir(dirname(assetPath), { recursive: true })
+  await writeFile(assetPath, JSON.stringify({
+    schema: 'movscript.asset.v1',
+    kind: 'asset',
+    id: 'asset_face',
+    title: 'Hero Face',
+  }, null, 2), 'utf8')
+  const runtime = await startProjectService()
+  tAfterClose(runtime)
+  test.after(async () => {
+    await rm(projectDir, { recursive: true, force: true })
+  })
+
+  const result = await postJSON(`${runtime.url}${PROJECT_SERVICE_ASSET_PROVIDER_CERTIFICATION_PATCH_ENDPOINT}`, {
+    projectDir,
+    input: {
+      assetPath: 'settings/hero/assets/face/asset.json',
+      provider: 'volcengine_ark_official',
+      storageKey: 'volcengine_ark_official::model:seedance-2',
+      certification: {
+        asset_uri: 'asset://hero-face',
+        model: 'seedance-2',
+        status: 'active',
+      },
+    },
+  })
+
+  assert.equal(result.schema, 'movscript.project-asset-provider-certification-patch.v1')
+  assert.equal(result.projectDir, projectDir)
+  assert.equal(result.result.status, 'patched')
+  assert.equal(result.result.path, 'settings/hero/assets/face/asset.json')
+  assert.equal(result.result.storage_key, 'volcengine_ark_official::model:seedance-2')
+  const saved = JSON.parse(await readFile(assetPath, 'utf8'))
+  assert.equal(saved.provider_certifications['volcengine_ark_official::model:seedance-2'].asset_uri, 'asset://hero-face')
+  assert.equal(saved.provider_certifications['volcengine_ark_official::model:seedance-2'].status, 'active')
+})
+
 test('project-service exposes a stable project read-model endpoint', async () => {
   const projectDir = await createProjectSource()
   const runtime = await startProjectService({ now: () => new Date('2026-06-07T00:00:00.000Z') })
@@ -174,10 +218,9 @@ test('project-service exposes a stable project read-model endpoint', async () =>
     kind: 'content_unit',
     id: 'cu_opening_assembly',
     title: 'Opening Assembly',
-    content_unit_type: 'timeline_assembly_ref',
+    content_unit_type: 'segment_ref',
     output_kind: 'video',
-    target_kind: 'timeline_assembly',
-    target_ref: 'timeline_assembly:segment:a19d',
+    segment_ref: 'a19d',
     edit_prompt: { text: 'Compose the opening beat.' },
   }), 'utf8')
 
@@ -198,16 +241,13 @@ test('project-service exposes a stable project read-model endpoint', async () =>
   assert.equal(readModel.projectReadModel.contentUnits.length >= 1, true)
   assert.equal(Array.isArray(readModel.projectReadModel.contentUnitSummaries), true)
   assert.equal(typeof readModel.projectReadModel.contentUnitCandidates, 'object')
-  assert.equal(readModel.projectReadModel.contentUnits.find(item => item.record.id === 'cu_opening_assembly')?.record.target_ref, 'timeline_assembly:segment:a19d')
+  assert.equal(readModel.projectReadModel.contentUnits.find(item => item.record.id === 'cu_opening_assembly')?.record.segment_ref, 'a19d')
   assert.equal(readModel.projectReadModel.projectTimelineStatus.schema, 'movscript.project_timeline_status.v1')
   assert.deepEqual(readModel.projectReadModel.projectTimelineStatus.namespace_vocabulary.timeline_namespaces, ['act', 'sequence', 'beat', 'episode'])
   assert.equal(readModel.projectReadModel.projectTimelineStatus.timeline_namespaces.find(item => item.id === 'p8f3')?.kind, 'episode')
   assert.equal(readModel.projectReadModel.projectTimelineStatus.timeline_namespaces.find(item => item.id === 'a19d')?.kind, 'beat')
-  const assembly = readModel.projectReadModel.projectTimelineStatus.timeline_assemblies.find(item => item.content_unit_id === 'cu_opening_assembly')
-  assert.equal(assembly?.target_kind, 'timeline_assembly')
-  assert.equal(assembly?.scope?.kind, 'beat')
-  assert.equal(assembly?.scope?.id, 'a19d')
-  assert.equal(readModel.projectReadModel.project_timeline_status.timeline_assembly_count, 1)
+  assert.equal(readModel.projectReadModel.projectTimelineStatus.timeline_assemblies, undefined)
+  assert.equal(readModel.projectReadModel.project_timeline_status.timeline_assembly_count, undefined)
 })
 
 test('project-service exposes a lightweight project home read-model endpoint', async () => {
@@ -398,7 +438,7 @@ test('project-service executes local project lifecycle commands', async () => {
     command: 'createProject',
     input: {
       title: 'Lifecycle Project',
-      projectId: 'lifecycle_project',
+      localProjectId: 'lifecycle_project',
       projectUid: 'prj_lifecycle',
     },
   })
@@ -407,9 +447,12 @@ test('project-service executes local project lifecycle commands', async () => {
   assert.equal(created.command, 'createProject')
   assert.equal(created.projectDir, projectDir)
   assert.equal(created.result.status, 'created')
+  assert.equal(created.result.localProjectId, 'lifecycle_project')
+  assert.equal(created.result.local_project_id, 'lifecycle_project')
   assert.equal(created.result.projectId, 'lifecycle_project')
   assert.equal(created.result.projectUid, 'prj_lifecycle')
   assert.equal(created.result.locator.projectDir, projectDir)
+  assert.equal(created.result.locator.localProjectId, 'lifecycle_project')
   assert.equal(created.result.project.name, 'Lifecycle Project')
   assert.equal(JSON.parse(await readFile(join(projectDir, 'workspace.json'), 'utf8')).project_uid, 'prj_lifecycle')
   const createdProject = JSON.parse(await readFile(join(projectDir, 'project.json'), 'utf8'))
@@ -421,6 +464,7 @@ test('project-service executes local project lifecycle commands', async () => {
     command: 'openProject',
   })
   assert.equal(opened.result.status, 'ready')
+  assert.equal(opened.result.localProjectId, 'lifecycle_project')
   assert.equal(opened.result.projectUid, 'prj_lifecycle')
   assert.equal(opened.result.locator.projectUid, 'prj_lifecycle')
   assert.equal(opened.result.project.name, 'Lifecycle Project')
@@ -440,11 +484,12 @@ test('project-service executes local project lifecycle commands', async () => {
     command: 'importProject',
     input: {
       title: 'Imported Project',
-      project_id: 'imported_project',
+      local_project_id: 'imported_project',
       project_uid: 'prj_imported',
     },
   })
   assert.equal(imported.result.status, 'imported')
+  assert.equal(imported.result.localProjectId, 'imported_project')
   assert.equal(imported.result.projectUid, 'prj_imported')
   assert.equal(JSON.parse(await readFile(join(importDir, 'workspace.json'), 'utf8')).project_uid, 'prj_imported')
 })
@@ -549,10 +594,9 @@ test('project-service exposes project resource views through the shared workspac
     kind: 'content_unit',
     id: 'cu_opening_assembly',
     title: 'Opening Assembly',
-    content_unit_type: 'timeline_assembly_ref',
+    content_unit_type: 'segment_ref',
     output_kind: 'video',
-    target_kind: 'timeline_assembly',
-    target_ref: 'timeline_assembly:segment:opening',
+    segment_ref: 'opening',
     edit_prompt: { text: 'Compose the opening beat.' },
   }), 'utf8')
 
@@ -638,13 +682,10 @@ test('project-service exposes project resource views through the shared workspac
     && edge.target.id === 'pilot'
     && edge.target.kind === 'episode',
   ))
-  assert.ok(domainEdges.items.some(edge =>
-    edge.origin === 'explicit_ref'
-    && edge.relation === 'target'
-    && edge.source.id === 'cu_opening_assembly'
-    && edge.target.category === 'timeline_assembly'
-    && edge.target.id === 'timeline_assembly:segment:opening',
-  ))
+  assert.equal(domainEdges.items.some(edge =>
+    edge.relation === 'target'
+    && edge.source.id === 'cu_opening_assembly',
+  ), false)
   assert.ok(domainEdges.items.some(edge =>
     edge.origin === 'explicit_ref'
     && edge.relation === 'scope'
@@ -696,6 +737,12 @@ test('project-service interprets project source and exposes regeneration plannin
   assert.equal(regeneration.projectDir, projectDir)
   assert.equal(regeneration.regenerationPlan.schema, 'movscript.workspace-regeneration-plan.v1')
   assert.equal(regeneration.regenerationPlan.status, 'ready')
+
+  const productionWorkPlan = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_PRODUCTION_WORK_PLAN_ENDPOINT}`, { projectDir })
+  assert.equal(productionWorkPlan.schema, 'movscript.project-source-production-work-plan.v1')
+  assert.equal(productionWorkPlan.projectDir, projectDir)
+  assert.equal(productionWorkPlan.productionWorkPlan.schema, 'movscript.production_work_plan.v1')
+  assert.equal(Array.isArray(productionWorkPlan.productionWorkPlan.items), true)
 })
 
 test('project-service executes whitelisted source commands through the shared engine/workspace service', async () => {
@@ -817,21 +864,44 @@ test('project-service executes whitelisted source commands through the shared en
   assert.equal(namespaceRecord.timeline_namespace_kind, 'episode')
   assert.equal(namespaceRecord.content_unit_ref, undefined)
 
-  const assemblyCommand = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
-    projectDir,
-    command: 'ensureTimelineAssemblyContentUnit',
-    input: {
-      scopeKind: 'episode',
-      scopeRef: 'pilot',
-      id: 'cu_pilot_assembly',
-      title: 'Pilot assembly',
-      prompt: 'Assemble the pilot episode.',
-    },
+  const removedAssemblyCommand = await fetch(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      projectDir,
+      command: 'ensureTimelineAssemblyContentUnit',
+      input: {
+        scopeKind: 'episode',
+        scopeRef: 'pilot',
+        id: 'cu_pilot_assembly',
+        title: 'Pilot assembly',
+        prompt: 'Assemble the pilot episode.',
+      },
+    }),
   })
-  assert.equal(assemblyCommand.command, 'ensureTimelineAssemblyContentUnit')
-  assert.equal(assemblyCommand.result.record.content_unit_type, 'timeline_assembly_ref')
-  assert.equal(assemblyCommand.result.record.target_kind, 'timeline_assembly')
-  assert.equal(assemblyCommand.result.record.target_ref, 'timeline_assembly:episode:pilot')
+  assert.equal(removedAssemblyCommand.status, 400)
+  const removedAssemblyCommandText = await removedAssemblyCommand.text()
+  assert.match(removedAssemblyCommandText, /project_source_command_unsupported/)
+
+  const removedContentUnitCommand = await fetch(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      projectDir,
+      command: 'createContentUnit',
+      input: {
+        id: 'cu_pilot_assembly',
+        title: 'Pilot assembly',
+        contentUnitType: 'timeline_assembly_ref',
+        targetKind: 'timeline_assembly',
+        targetRef: 'timeline_assembly:episode:pilot',
+        prompt: 'Assemble the pilot episode.',
+      },
+    }),
+  })
+  assert.equal(removedContentUnitCommand.status, 400)
+  const removedContentUnitCommandText = await removedContentUnitCommand.text()
+  assert.match(removedContentUnitCommandText, /namespace_playback_content_unit_removed/)
 
   const canvasCommand = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
     projectDir,
@@ -854,6 +924,7 @@ test('project-service executes whitelisted source commands through the shared en
           kind: 'content_unit',
           added_at: '2026-06-07T00:00:00.000Z',
         }],
+        edges: [],
         layouts: {
           'scene_moment:opening': {
             x: 120,
@@ -1050,8 +1121,8 @@ test('project-service executes whitelisted source commands through the shared en
   assert.equal(runCanvas.result.canvas.record.title, 'Pilot Storyboard Canvas')
   assert.equal(typeof runCanvas.result.trace.interpretationId, 'string')
   assert.equal(runCanvas.result.readModel.schema, 'movscript.content_canvas_run_read_model_summary.v1')
-  assert.equal(runCanvas.result.readModel.timelineAssemblyCount >= 1, true)
-  assert.deepEqual(runCanvas.result.candidateImpact.affectedContentUnitIds, ['cu_pilot_assembly'])
+  assert.equal(runCanvas.result.readModel.timelineAssemblyCount ?? 0, 0)
+  assert.deepEqual(runCanvas.result.candidateImpact?.affectedContentUnitIds ?? [], [])
 
   const canvasDelete = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
     projectDir,
@@ -1064,7 +1135,7 @@ test('project-service executes whitelisted source commands through the shared en
 
   const readModel = await postJSON(`${runtime.url}${PROJECT_SERVICE_READ_MODEL_ENDPOINT}`, { projectDir })
   assert.equal(readModel.projectReadModel.projectTimelineStatus.timeline_namespaces.find(item => item.id === 'pilot')?.kind, 'episode')
-  assert.equal(readModel.projectReadModel.projectTimelineStatus.timeline_assemblies.find(item => item.content_unit_id === 'cu_pilot_assembly')?.scope?.kind, 'episode')
+  assert.equal(readModel.projectReadModel.projectTimelineStatus.timeline_assemblies, undefined)
 
   const unsupported = await fetch(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
     method: 'POST',
@@ -1077,93 +1148,263 @@ test('project-service executes whitelisted source commands through the shared en
   assert.equal((await unsupported.json()).error, 'project_source_command_unsupported')
 })
 
-test('project-service persists TimelineAssembly drafts as project-owned artifacts', async () => {
+test('project-service manages production-bound editing workspaces and refreshes production resources', async () => {
   const projectDir = await createProjectSource()
-  const runtime = await startProjectService()
+  const originalFetch = globalThis.fetch
+  const contexts = new Map()
+  await mkdir(join(projectDir, 'content_units', 'cu_storyboard_ref'), { recursive: true })
+  await writeFile(join(projectDir, 'content_units', 'cu_storyboard_ref', 'content_unit.json'), JSON.stringify({
+    schema: 'movscript.content_unit.v1',
+    kind: 'content_unit',
+    id: 'cu_storyboard_ref',
+    title: 'Main storyboard',
+    content_unit_type: 'storyboard_ref',
+    output_kind: 'video',
+    storyboard_ref: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/storyboards/main',
+  }, null, 2), 'utf8')
+  const runtime = await startProjectService({ now: () => new Date('2026-07-01T00:00:00.000Z') })
   tAfterClose(runtime)
   test.after(async () => {
+    globalThis.fetch = originalFetch
     await rm(projectDir, { recursive: true, force: true })
   })
 
-  const missing = await postJSON(`${runtime.url}${PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT}`, {
-    projectDir,
-    targetRef: 'timeline_assembly:production:pilot',
-  })
-  assert.equal(missing.schema, 'movscript.project-timeline-assembly-draft-read.v1')
-  assert.equal(missing.status, 'missing')
-  assert.equal(missing.path, 'timeline_assemblies/timeline_assembly_production_pilot/assembly.json')
+  globalThis.fetch = async (url, init = {}) => {
+    const href = String(url)
+    if (href.startsWith('http://127.0.0.1:')) return originalFetch(url, init)
+    assert.equal(href.startsWith('https://cloud.example/api/v1/project-data'), true, href)
+    const method = init.method ?? 'GET'
+    if (href.includes('/decisions/query') && method === 'POST') {
+      const body = JSON.parse(String(init.body))
+      const refs = Array.isArray(body.target_refs) ? body.target_refs : []
+      return jsonResponse(refs.map(ref => contexts.get(ref)).filter(Boolean))
+    }
+    if (href.includes('/decisions?') && method === 'GET') {
+      const targetRef = new URL(href).searchParams.get('target_ref')
+      const context = targetRef ? contexts.get(targetRef) : undefined
+      return context ? jsonResponse(context) : new Response('', { status: 404 })
+    }
+    throw new Error(`unexpected project-data request: ${method} ${href}`)
+  }
 
-  const write = await postJSON(`${runtime.url}${PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_WRITE_ENDPOINT}`, {
-    projectDir,
-    targetRef: 'timeline_assembly:production:pilot',
-    draft: {
-      title: 'Pilot Rough Cut',
-      assembly: {
-        schema: 'movscript.timeline_assembly.intent_workbench.v1',
-        id: 'timeline-assembly-pilot',
-        targetRef: 'timeline_assembly:production:pilot',
-        clips: [{ id: 'clip-opening', trackId: 'video_main', kind: 'visual', durationMs: 4000 }],
-      },
-      handoff: {
-        schema: 'movscript.edit_desk.handoff.v1',
-        timeline_assembly_id: 'timeline-assembly-pilot',
-        target_ref: 'timeline_assembly:production:pilot',
-        compile_manifest: { schema: 'movscript.timeline_assembly.compile_manifest.v1', id: 'compile_1' },
-        openmontage: {
-          asset_manifest: { version: '1.0', assets: [] },
-          edit_decisions: { schema: 'openmontage/artifacts/edit_decisions', cuts: [] },
-        },
-      },
-    },
-  })
-  assert.equal(write.schema, 'movscript.project-timeline-assembly-draft-write.v1')
-  assert.equal(write.status, 'written')
-  assert.equal(write.record.schema, 'movscript.timeline_assembly.draft.v1')
-  assert.equal(write.record.kind, 'timeline_assembly_draft')
-  assert.equal(write.record.target_ref, 'timeline_assembly:production:pilot')
-  assert.equal(write.record.assembly.id, 'timeline-assembly-pilot')
-  assert.equal(write.record.compile_manifest.id, 'compile_1')
+  const decisionStore = {
+    kind: 'scoped-project-data',
+    baseUrl: 'https://cloud.example',
+    projectUid: 'prj_demo',
+    title: 'Demo',
+    scopeKind: 'org',
+    scopeId: 12,
+    token: 'sk-test',
+  }
 
-  const draftFile = JSON.parse(await readFile(join(projectDir, 'timeline_assemblies', 'timeline_assembly_production_pilot', 'assembly.json'), 'utf8'))
-  assert.equal(draftFile.schema, 'movscript.timeline_assembly.draft.v1')
-  assert.equal(draftFile.title, 'Pilot Rough Cut')
-  assert.equal(draftFile.handoff.compile_manifest.id, 'compile_1')
-
-  const read = await postJSON(`${runtime.url}${PROJECT_SERVICE_TIMELINE_ASSEMBLY_DRAFT_READ_ENDPOINT}`, {
+  const refresh = await postJSON(`${runtime.url}${PROJECT_SERVICE_PRODUCTION_EDITING_RESOURCES_REFRESH_ENDPOINT}`, {
     projectDir,
-    targetRef: 'timeline_assembly:production:pilot',
-  })
-  assert.equal(read.status, 'ready')
-  assert.equal(read.record.title, 'Pilot Rough Cut')
-  assert.equal(read.record.assembly.clips[0].id, 'clip-opening')
-  assert.equal(typeof read.version, 'string')
-
-  const commandRead = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
-    projectDir,
-    command: 'readTimelineAssemblyDraft',
     input: {
-      targetRef: 'timeline_assembly:production:pilot',
+      productionId: 'p8f3',
     },
   })
-  assert.equal(commandRead.command, 'readTimelineAssemblyDraft')
-  assert.equal(commandRead.result.status, 'ready')
-  assert.equal(commandRead.result.record.target_ref, 'timeline_assembly:production:pilot')
+  assert.equal(refresh.schema, 'movscript.production_editing_resources_refresh.v1')
+  assert.equal(refresh.status, 'ok')
+  assert.equal(refresh.productionId, 'p8f3')
+  assert.equal(refresh.resources.schema, 'movscript.production_editing_resources.v1')
+  assert.deepEqual(new Set(refresh.resources.items.map((item) => item.kind)), new Set(['asset', 'keyframe', 'storyboard']))
+  assert.equal(refresh.resources.items.find((item) => item.kind === 'asset')?.contentUnitId, 'cu_wet_hair_ref')
+  assert.equal(refresh.resources.items.find((item) => item.kind === 'keyframe')?.contentUnitId, 'cu_scene_anchor_keyframe_ref')
+  assert.equal(refresh.resources.items.find((item) => item.kind === 'storyboard')?.contentUnitId, 'cu_storyboard_ref')
+  const resourcesPath = join(projectDir, 'editing_projects', 'productions', 'p8f3', 'resources.json')
+  assert.equal(JSON.parse(await readFile(resourcesPath, 'utf8')).productionId, 'p8f3')
 
-  const commandWrite = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
-    projectDir,
-    command: 'writeTimelineAssemblyDraft',
-    input: {
-      targetRef: 'timeline_assembly:production:pilot',
-      expectedVersion: read.version,
-      draft: {
-        ...read.record,
-        title: 'Pilot Rough Cut v2',
+  const legacyKindResponse = await fetch(`${runtime.url}${PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_CREATE_ENDPOINT}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      projectDir,
+      input: {
+        productionId: 'p8f3',
+        kind: 'system',
       },
+    }),
+  })
+  assert.equal(legacyKindResponse.status, 400)
+  assert.match(await legacyKindResponse.text(), /unsupported production editing workspace kind: system/)
+
+  const created = await postJSON(`${runtime.url}${PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_CREATE_ENDPOINT}`, {
+    projectDir,
+    input: {
+      projectId: 'project_demo',
+      productionId: 'p8f3',
+      kind: 'system_editing',
+      workspaceId: 'rough_cut_v1',
+      title: '粗剪 v1',
     },
   })
-  assert.equal(commandWrite.command, 'writeTimelineAssemblyDraft')
-  assert.equal(commandWrite.result.status, 'written')
-  assert.equal(commandWrite.result.record.title, 'Pilot Rough Cut v2')
+  assert.equal(created.schema, 'movscript.production_editing_workspace_create.v1')
+  assert.equal(created.status, 'created')
+  assert.equal(created.workspace.kind, 'system_editing')
+  assert.equal(created.workspace.autoImportRenderResult, true)
+  assert.equal(created.workspace.candidateDecisionRequired, true)
+  assert.equal(created.workspace.mediaEditingProjectProjectId, 'project_demo')
+  assert.equal(created.workspace.seedSourceHash, refresh.resources.sourceHash)
+  assert.equal(created.workspace.lastSeenResourceSourceHash, refresh.resources.sourceHash)
+  assert.equal(created.workspace.resourceSourceHash, refresh.resources.sourceHash)
+  assert.equal(created.workspace.stale, false)
+  assert.deepEqual(created.workspace.staleHints, [])
+  assert.equal(created.stale, false)
+  assert.equal(created.handoff.toSkill, 'system_edit')
+  assert.equal(created.handoff.requiredContext.mediaEditingProjectId, 'rough_cut_v1')
+  assert.equal(created.handoffPreflight.schema, 'movscript.production_editing_handoff_preflight.v1')
+  assert.equal(created.handoffPreflight.ready, true)
+  assert.equal(created.handoffPreflight.agentSkill.skillName, 'system_edit')
+  assert.equal(created.handoffPreflight.agentSkill.status, 'available')
+  assert.equal(created.handoffPreflight.projectRuntime.status, 'ready')
+  assert.equal(created.mediaEditingProject.projectId, 'project_demo')
+  assert.match(created.workspace.mediaEditingProjectPath, /editing_projects\/productions\/p8f3\/workspaces\/rough_cut_v1\/media-editing-project\.json$/)
+  const mediaEditingProjectFile = JSON.parse(await readFile(created.workspace.mediaEditingProjectPath, 'utf8'))
+  assert.equal(mediaEditingProjectFile.editingProject.projectId, 'project_demo')
+  assert.equal(mediaEditingProjectFile.editingProject.source.productionId, 'p8f3')
+  assert.equal(mediaEditingProjectFile.editingProject.workspace.workspaceId, 'rough_cut_v1')
+
+  const opened = await postJSON(`${runtime.url}${PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_OPEN_ENDPOINT}`, {
+    projectDir,
+    input: {
+      productionId: 'p8f3',
+      workspaceId: 'rough_cut_v1',
+    },
+  })
+  assert.equal(opened.schema, 'movscript.production_editing_workspace_open.v1')
+  assert.equal(opened.status, 'ready')
+  assert.equal(opened.open_action.kind, 'desktop_route')
+  assert.equal(opened.open_action.route, '/editing/rough_cut_v1?projectId=project_demo')
+  assert.equal(opened.open_action.editingProjectId, 'rough_cut_v1')
+  assert.equal(opened.open_action.editingProjectProjectId, 'project_demo')
+  assert.equal(opened.mediaEditingProject.projectId, 'project_demo')
+  assert.equal(opened.resources.items.length, refresh.resources.items.length)
+  assert.equal(opened.stale, false)
+  assert.equal(opened.workspace.seedSourceHash, created.workspace.seedSourceHash)
+  assert.equal(opened.workspace.lastSeenResourceSourceHash, created.workspace.seedSourceHash)
+  assert.equal(opened.handoff.toSkill, 'system_edit')
+  assert.equal(opened.handoffPreflight.ready, true)
+  assert.equal(opened.handoffPreflight.projectRuntime.status, 'ready')
+
+  const listed = await postJSON(`${runtime.url}${PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_LIST_ENDPOINT}`, {
+    projectDir,
+    input: {
+      productionId: 'p8f3',
+      query: '粗剪',
+      pageSize: 1,
+    },
+  })
+  assert.equal(listed.schema, 'movscript.production_editing_workspaces_list.v1')
+  assert.equal(listed.status, 'ok')
+  assert.equal(listed.workspaces.length, 1)
+  assert.equal(listed.workspaces[0].workspaceId, 'rough_cut_v1')
+  assert.equal(listed.workspaces[0].stale, false)
+  assert.equal(listed.pagination.total, 1)
+
+  contexts.set('content_units/cu_wet_hair_ref', {
+    schema: 'movscript.decision_context.v1',
+    project_uid: 'prj_demo',
+    content_unit_id: 'cu_wet_hair_ref',
+    target_kind: 'content_unit',
+    target_ref: 'content_units/cu_wet_hair_ref',
+    status: 'open',
+    candidates: [{
+      id: 'candidate_asset_202',
+      outputs: [{ kind: 'image', resource_id: 202 }],
+    }],
+    selection: {
+      candidate_id: 'candidate_asset_202',
+      resource_id: 202,
+      stale_policy: 'strict',
+      selected_at: '2026-07-01T00:01:00.000Z',
+    },
+  })
+
+  const staleOpened = await postJSON(`${runtime.url}${PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_OPEN_ENDPOINT}`, {
+    projectDir,
+    decisionStore,
+    input: {
+      productionId: 'p8f3',
+      workspaceId: 'rough_cut_v1',
+    },
+  })
+  assert.equal(staleOpened.stale, true)
+  assert.equal(staleOpened.workspace.stale, true)
+  assert.equal(staleOpened.workspace.seedSourceHash, created.workspace.seedSourceHash)
+  assert.equal(staleOpened.workspace.resourceSourceHash, created.workspace.seedSourceHash)
+  assert.notEqual(staleOpened.workspace.lastSeenResourceSourceHash, created.workspace.seedSourceHash)
+  assert.equal(staleOpened.workspace.lastSeenResourceSourceHash, staleOpened.resources.sourceHash)
+  assert.equal(staleOpened.workspace.staleHints[0].code, 'production_resources_changed')
+  assert.equal(staleOpened.staleHints[0].lastSeenResourceSourceHash, staleOpened.resources.sourceHash)
+  assert.equal(staleOpened.handoffPreflight.ready, true)
+
+  const staleListed = await postJSON(`${runtime.url}${PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_LIST_ENDPOINT}`, {
+    projectDir,
+    input: {
+      productionId: 'p8f3',
+      query: '粗剪',
+      pageSize: 1,
+    },
+  })
+  assert.equal(staleListed.workspaces[0].stale, true)
+  assert.equal(staleListed.workspaces[0].seedSourceHash, created.workspace.seedSourceHash)
+  assert.equal(staleListed.workspaces[0].lastSeenResourceSourceHash, staleOpened.resources.sourceHash)
+
+  const remotion = await postJSON(`${runtime.url}${PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_CREATE_ENDPOINT}`, {
+    projectDir,
+    input: {
+      productionId: 'p8f3',
+      kind: 'remotion',
+      workspaceId: 'remotion_title_v1',
+      title: 'Remotion 片头',
+    },
+  })
+  assert.equal(remotion.status, 'created')
+  assert.equal(remotion.workspace.kind, 'remotion')
+  assert.equal(remotion.handoff.toSkill, 'remotion')
+  assert.equal(remotion.handoff.requiredContext.projectDirectory, remotion.workspace.projectDirectory)
+  assert.equal(remotion.handoffPreflight.ready, false)
+  assert.equal(remotion.handoffPreflight.agentSkill.skillName, 'remotion')
+  assert.equal(remotion.handoffPreflight.agentSkill.status, 'installed_restart_required')
+  assert.equal(remotion.handoffPreflight.agentSkill.installAction.kind, 'codex_skill_install')
+  assert.equal(remotion.handoffPreflight.blockers.some((blocker) => blocker.code === 'REMOTION_SKILL_INSTALL_RESTART_REQUIRED'), true)
+  assert.equal(remotion.handoffPreflight.projectRuntime.status, 'ready')
+  assert.equal(remotion.handoffPreflight.projectRuntime.checks.some((check) => check.path === 'package.json' && check.exists === true), true)
+  assert.equal(remotion.handoffPreflight.projectRuntime.checks.some((check) => check.path === 'src/Root.tsx' && check.exists === true), true)
+  const installedRemotionSkill = await readFile(join(projectDir, '.codex', 'skills', 'plugins', 'movscript_movscript-bundled', 'remotion', 'SKILL.md'), 'utf8')
+  assert.match(installedRemotionSkill, /name: remotion/)
+  assert.match(remotion.workspace.projectDirectory, /editing_projects\/productions\/p8f3\/workspaces\/remotion_title_v1\/remotion$/)
+  assert.equal(remotion.workspace.exportResult.schema, 'movscript.production_editing.remotion_project_scaffold.v1')
+  assert.equal(remotion.workspace.exportResult.scaffolded, true)
+  assert.equal(remotion.workspace.exportResult.files.some((file) => file.path === 'package.json'), true)
+  assert.equal(remotion.workspace.exportResult.files.some((file) => file.path === 'src/Root.tsx'), true)
+  assert.match(await readFile(join(remotion.workspace.projectDirectory, 'package.json'), 'utf8'), /remotion studio/)
+  assert.match(await readFile(join(remotion.workspace.projectDirectory, 'src', 'Root.tsx'), 'utf8'), /registerRoot/)
+  assert.match(await readFile(join(remotion.workspace.projectDirectory, 'src', 'production-seed.ts'), 'utf8'), /cu_wet_hair_ref/)
+
+  await rm(join(remotion.workspace.projectDirectory, 'src', 'Root.tsx'), { force: true })
+  const remotionBlocked = await postJSON(`${runtime.url}${PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_OPEN_ENDPOINT}`, {
+    projectDir,
+    input: {
+      productionId: 'p8f3',
+      workspaceId: 'remotion_title_v1',
+    },
+  })
+  assert.equal(remotionBlocked.handoff.toSkill, 'remotion')
+  assert.equal(remotionBlocked.handoffPreflight.agentSkill.status, 'available')
+  assert.equal(remotionBlocked.handoffPreflight.ready, false)
+  assert.equal(remotionBlocked.handoffPreflight.projectRuntime.status, 'blocked')
+  assert.equal(remotionBlocked.handoffPreflight.blockers.some((blocker) => blocker.code === 'REMOTION_PROJECT_FILES_MISSING' && blocker.path === 'src/Root.tsx'), true)
+
+  const deleted = await postJSON(`${runtime.url}${PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_DELETE_ENDPOINT}`, {
+    projectDir,
+    input: {
+      productionId: 'p8f3',
+      workspaceId: 'rough_cut_v1',
+    },
+  })
+  assert.equal(deleted.schema, 'movscript.production_editing_workspace_delete.v1')
+  assert.equal(deleted.status, 'deleted')
 })
 
 test('project-service executes typed source operation endpoints through the shared engine/workspace service', async () => {
@@ -1197,40 +1438,26 @@ test('project-service executes typed source operation endpoints through the shar
   assert.equal(typedContentUnit.schema, 'movscript.project-content-unit-create.v1')
   assert.equal(typedContentUnit.result.record.id, 'cu_typed')
 
-  const typedTimelineAssemblyContentUnit = await postJSON(`${runtime.url}${PROJECT_SERVICE_CONTENT_UNIT_CREATE_ENDPOINT}`, {
-    projectDir,
-    id: 'cu_typed_assembly',
-    title: 'Typed Assembly',
-    contentUnitType: 'timeline_assembly_ref',
-    outputKind: 'video',
-    targetCategory: 'timeline_assembly',
-    targetKind: 'timeline_assembly',
-    targetRef: 'timeline_assembly:episode:typed_episode',
-    scopeKind: 'episode',
-    scopeRef: 'typed_episode',
-    prompt: 'Assemble the typed episode.',
+  const removedTimelineAssemblyContentUnit = await fetch(`${runtime.url}${PROJECT_SERVICE_CONTENT_UNIT_CREATE_ENDPOINT}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      projectDir,
+      id: 'cu_typed_assembly',
+      title: 'Typed Assembly',
+      contentUnitType: 'timeline_assembly_ref',
+      outputKind: 'video',
+      targetCategory: 'timeline_assembly',
+      targetKind: 'timeline_assembly',
+      targetRef: 'timeline_assembly:episode:typed_episode',
+      scopeKind: 'episode',
+      scopeRef: 'typed_episode',
+      prompt: 'Assemble the typed episode.',
+    }),
   })
-  assert.equal(typedTimelineAssemblyContentUnit.result.record.content_unit_type, 'timeline_assembly_ref')
-  assert.equal(typedTimelineAssemblyContentUnit.result.record.target_kind, 'timeline_assembly')
-  assert.equal(typedTimelineAssemblyContentUnit.result.record.target_ref, 'timeline_assembly:episode:typed_episode')
-  assert.equal(typedTimelineAssemblyContentUnit.result.record.scope_kind, 'episode')
-  assert.equal(typedTimelineAssemblyContentUnit.result.record.scope_ref, 'typed_episode')
-
-  const ensuredTimelineAssemblyContentUnit = await postJSON(`${runtime.url}${PROJECT_SERVICE_TIMELINE_ASSEMBLY_CONTENT_UNIT_ENSURE_ENDPOINT}`, {
-    projectDir,
-    id: 'cu_typed_assembly_ensure',
-    title: 'Typed Assembly Ensure',
-    outputKind: 'video',
-    scopeKind: 'beat',
-    scopeRef: 'typed_beat',
-    prompt: 'Assemble the typed beat.',
-  })
-  assert.equal(ensuredTimelineAssemblyContentUnit.schema, 'movscript.project-timeline-assembly-content-unit-ensure.v1')
-  assert.equal(ensuredTimelineAssemblyContentUnit.result.record.content_unit_type, 'timeline_assembly_ref')
-  assert.equal(ensuredTimelineAssemblyContentUnit.result.record.target_kind, 'timeline_assembly')
-  assert.equal(ensuredTimelineAssemblyContentUnit.result.record.target_ref, 'timeline_assembly:beat:typed_beat')
-  assert.equal(ensuredTimelineAssemblyContentUnit.result.record.scope_kind, 'beat')
-  assert.equal(ensuredTimelineAssemblyContentUnit.result.record.scope_ref, 'typed_beat')
+  assert.equal(removedTimelineAssemblyContentUnit.status, 400)
+  const removedTimelineAssemblyContentUnitText = await removedTimelineAssemblyContentUnit.text()
+  assert.match(removedTimelineAssemblyContentUnitText, /namespace_playback_content_unit_removed/)
 
   const typedHierarchy = await postJSON(`${runtime.url}${PROJECT_SERVICE_HIERARCHY_WRITE_ENDPOINT}`, {
     projectDir,

@@ -86,10 +86,11 @@ func TestCallResponsesWithRouteUsageFallsBackToChatWhenProviderResponsesFails(t 
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "gpt-5.2",
-		DisplayName:   "gpt-5.2",
-		IsEnabled:     true,
-		Capabilities:  CapabilityText,
+		PublicModelID:         "gpt-5.2",
+		DisplayName:           "gpt-5.2",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyTextGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -98,10 +99,10 @@ func TestCallResponsesWithRouteUsageFallsBackToChatWhenProviderResponsesFails(t 
 		CatalogEntryID: entry.ID,
 		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
 		ProviderID:     fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		AdapterType:    cred.AdapterType,
 		CredentialID:   &cred.ID,
 		IsEnabled:      true,
-		CapacityWeight: 1,
-	}).Error; err != nil {
+		CapacityWeight: 1}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
 
@@ -114,7 +115,7 @@ func TestCallResponsesWithRouteUsageFallsBackToChatWhenProviderResponsesFails(t 
 		}, nil
 	}
 	svc := NewAIService(db, registry)
-	route, err := svc.ResolveModelRoute(ModelRouteRequest{ModelID: "gpt-5.2", Capability: CapabilityText})
+	route, err := svc.ResolveModelRoute(ModelRouteRequest{ModelID: "gpt-5.2", Capability: CapabilityFamilyTextGeneration})
 	if err != nil {
 		t.Fatalf("ResolveModelRoute() error = %v", err)
 	}
@@ -141,7 +142,7 @@ func resetFailoverTestState() {
 }
 
 func createTextProviderVariant(t *testing.T, db *gorm.DB, id uint, providerName string) {
-	createProviderVariant(t, db, id, providerName, "gpt-5.2", 10, CapabilityText)
+	createProviderVariant(t, db, id, providerName, "gpt-5.2", 10, CapabilityFamilyTextGeneration)
 }
 
 func createProviderVariant(t *testing.T, db *gorm.DB, id uint, providerName string, modelDefID string, priority int, capabilities ...string) {
@@ -157,11 +158,12 @@ func createProviderVariant(t *testing.T, db *gorm.DB, id uint, providerName stri
 	}
 	if db.Migrator().HasTable(&persistencemodel.AIModelCatalogEntry{}) && db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) {
 		entry := persistencemodel.AIModelCatalogEntry{
-			Model:         gorm.Model{ID: id},
-			PublicModelID: modelDefID,
-			DisplayName:   modelDefID,
-			IsEnabled:     true,
-			Capabilities:  strings.Join(capabilities, ","),
+			Model:                 gorm.Model{ID: id},
+			PublicModelID:         modelDefID,
+			DisplayName:           modelDefID,
+			IsEnabled:             true,
+			Capabilities:          strings.Join(capabilities, ","),
+			ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(capabilities...),
 		}
 		if err := db.Create(&entry).Error; err != nil {
 			t.Fatalf("create catalog entry: %v", err)
@@ -170,11 +172,11 @@ func createProviderVariant(t *testing.T, db *gorm.DB, id uint, providerName stri
 			CatalogEntryID: entry.ID,
 			SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
 			ProviderID:     fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+			AdapterType:    cred.AdapterType,
 			CredentialID:   &cred.ID,
 			IsEnabled:      true,
 			Priority:       priority,
-			CapacityWeight: 1,
-		}
+			CapacityWeight: 1}
 		if err := db.Create(&route).Error; err != nil {
 			t.Fatalf("create route binding: %v", err)
 		}

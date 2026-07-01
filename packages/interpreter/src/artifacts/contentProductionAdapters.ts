@@ -5,6 +5,7 @@ import type {
   ContentUnitDependencyReport,
   ContentUnitOutputKind,
   ContentUnitPromptBlocker,
+  ContentUnitPromptRef,
   ContentUnitPromptRefKind,
   ContentUnitResolvedRef,
   ContentUnitRuntimePanel,
@@ -13,6 +14,7 @@ import type {
 import {
   contentUnitTargetAdapterFor,
   contentUnitTargetValidationDiagnostics,
+  isContentUnitPromptRefKind,
   MOVSCRIPT_SPECIALIZED_CONTENT_UNIT_TYPES,
 } from '@movscript/domain'
 import {
@@ -35,6 +37,8 @@ import {
   resolvePromptRefs,
   stableJsonValue,
   stringField,
+  arrayField,
+  resourceIdField,
 } from './contentProductionHelpers.js'
 
 const CONTENT_UNIT_ADAPTERS: Record<string, ContentUnitAdapter> = Object.fromEntries(
@@ -50,7 +54,6 @@ export function contentUnitAdapterFor(contentUnitType: string): ContentUnitAdapt
 }
 
 function specializedAdapter(contentUnitType: string): ContentUnitAdapter {
-  if (contentUnitType === 'timeline_assembly_ref') return timelineAssemblyAdapter()
   if (contentUnitType === 'expression_unit_ref') return expressionUnitAdapter()
   const targetAdapter = contentUnitTargetAdapterFor(contentUnitType)
   if (!targetAdapter?.primaryRefKind || !targetAdapter.outputKind) return genericAdapter(contentUnitType)
@@ -146,35 +149,6 @@ function contentUnitTargetIssues(record: Record<string, unknown>): ContentUnitDe
     .map((diagnostic) => ({ severity: diagnostic.severity, message: diagnostic.message }))
 }
 
-function timelineAssemblyAdapter(): ContentUnitAdapter {
-  return {
-    type: 'timeline_assembly_ref',
-    version: 'timeline_assembly_ref@1',
-    outputKind: 'video',
-    validate(context) {
-      const issues: ContentUnitDependencyReport['issues'] = contentUnitTargetIssues(context.contentUnit.record)
-      if (context.contentUnit.record.output_kind !== 'video') {
-        issues.push({ severity: 'error', message: 'timeline_assembly_ref output_kind must be video' })
-      }
-      return issues
-    },
-    derivePrompt(context) {
-      return basePrompt(context, {
-        adapterVersion: this.version,
-        outputKind: 'video',
-        primaryKind: undefined,
-        blockers: [],
-      })
-    },
-    collectDependencies(_context, prompt) {
-      return dependenciesFromPrompt(prompt)
-    },
-    deriveRuntimePanel(context, derivation) {
-      return runtimePanelFor(context, this.version, derivation.prompt)
-    },
-  }
-}
-
 function expressionUnitAdapter(): ContentUnitAdapter {
   return {
     ...refAdapter('expression_unit_ref', 'expression_unit', 'metadata'),
@@ -211,9 +185,13 @@ function basePrompt(
 ): NormalizedContentUnitPrompt {
   const editPrompt = normalizedEditPrompt(context.contentUnit.record.edit_prompt)
   const refs = parseContentUnitEditPromptRefs(context.contentUnit.record.edit_prompt)
+  const generationRefs = contentUnitGenerationPromptRefs(context.contentUnit.record)
+  const hasGenerationReferencePool = hasExplicitGenerationReferencePool(context.contentUnit.record)
   const unsupportedRefs = parseUnsupportedContentUnitEditPromptRefs(context.contentUnit.record.edit_prompt)
   const resolved = resolvePromptRefs(context.index, refs, options.primaryKind)
+  const resolvedGeneration = resolvePromptRefs(context.index, generationRefs, options.primaryKind)
   const resolvedRefs = resolved.refs.map((ref) => annotateInputSelectionStatus(context, ref))
+  const resolvedGenerationRefs = resolvedGeneration.refs.map((ref) => annotateInputSelectionStatus(context, ref))
   const modelIntent = recordField(context.contentUnit.record.model_intent)
   const styleReferenceResourceIds = usesVisualStyleReferences(options.outputKind)
     ? projectStyleReferenceResourceIds(context.index)
@@ -230,6 +208,19 @@ function basePrompt(
       provider_asset: ref.selection?.provider_asset,
       required: true,
     }))
+  const generationSemanticInputs = resolvedGenerationRefs
+    .filter((ref) => ref.role === 'input' && ref.selection?.resource_id !== undefined && ref.selection.stale !== true)
+    .map((ref) => ({
+      role: `${ref.kind}_ref`,
+      kind: inputKindForRef(context, ref),
+      ref: ref.raw,
+      source_content_unit_ref: ref.selection?.content_unit_ref,
+      candidate_id: ref.selection?.candidate_id,
+      resource_id: ref.selection?.resource_id,
+      provider_asset: ref.selection?.provider_asset,
+      required: true,
+    }))
+  const generationResourceInputs = contentUnitGenerationResourceInputs(context.contentUnit.record)
   const blockers = [
     ...options.blockers,
     ...unsupportedRefs.map((ref) => ({
@@ -243,7 +234,7 @@ function basePrompt(
     capability: stringField(modelIntent?.capability) ?? capabilityForOutputKind(options.outputKind),
     model_intent: modelIntent,
     inputs: [
-      ...semanticInputs,
+      ...(hasGenerationReferencePool ? [...generationSemanticInputs, ...generationResourceInputs] : semanticInputs),
       ...styleReferenceResourceIds.map((resourceId) => ({
         role: 'style_reference',
         kind: 'image' as const,
@@ -265,6 +256,7 @@ function basePrompt(
     edit_prompt: editPrompt,
     model_intent: modelIntent,
     refs: resolvedRefs,
+    generation_refs: resolvedGenerationRefs.length > 0 ? resolvedGenerationRefs : undefined,
     runtime_request: pruneUndefined(runtimeRequest),
     blockers: blockers.length > 0 ? blockers : undefined,
     created_at: context.createdAt,
@@ -480,26 +472,29 @@ function sameCanonicalPrompt(left: NormalizedContentUnitPrompt, right: Normalize
 
 function canonicalPromptComparisonValue(prompt: NormalizedContentUnitPrompt): unknown {
   const refs = Array.isArray(prompt.refs) ? prompt.refs : []
+  const generationRefs = Array.isArray(prompt.generation_refs) ? prompt.generation_refs : []
   const blockers = Array.isArray(prompt.blockers) ? prompt.blockers : []
+  const normalizedRef = (ref: ContentUnitResolvedRef) => ({
+    kind: ref.kind,
+    id: ref.id,
+    raw: ref.raw,
+    role: ref.role,
+    resolved: ref.resolved,
+    selection: ref.selection ? {
+      content_unit_ref: ref.selection.content_unit_ref,
+      candidate_id: ref.selection.candidate_id,
+      resource_id: ref.selection.resource_id,
+      artifact_ref: ref.selection.artifact_ref,
+      provider_asset: ref.selection.provider_asset,
+    } : undefined,
+  })
   return {
     content_unit_type: prompt.content_unit_type,
     output_kind: prompt.output_kind,
     edit_prompt: prompt.edit_prompt,
     model_intent: prompt.model_intent,
-    refs: refs.map((ref) => ({
-      kind: ref.kind,
-      id: ref.id,
-      raw: ref.raw,
-      role: ref.role,
-      resolved: ref.resolved,
-      selection: ref.selection ? {
-        content_unit_ref: ref.selection.content_unit_ref,
-        candidate_id: ref.selection.candidate_id,
-        resource_id: ref.selection.resource_id,
-        artifact_ref: ref.selection.artifact_ref,
-        provider_asset: ref.selection.provider_asset,
-      } : undefined,
-    })),
+    refs: refs.map(normalizedRef),
+    generation_refs: generationRefs.map(normalizedRef),
     runtime_request: prompt.runtime_request,
     blockers: blockers.map((blocker) => ({
       code: blocker.code,
@@ -546,6 +541,75 @@ function capabilityForOutputKind(outputKind: ContentUnitOutputKind): string {
 function inputKindForRef(context: AdapterContext, ref: ContentUnitResolvedRef): 'image' | 'video' | 'audio' | 'text' | 'metadata' {
   const upstream = resolveContentUnitForPromptRef(context.index, ref)
   return contentUnitOutputKind(upstream?.record.output_kind)
+}
+
+function hasExplicitGenerationReferencePool(record: Record<string, unknown>): boolean {
+  return arrayField(record.generation_references ?? record.generationReferences).some(isRecord)
+    || arrayField(record.reference_assets ?? record.referenceAssets).some(isRecord)
+}
+
+function contentUnitGenerationPromptRefs(record: Record<string, unknown>): ContentUnitPromptRef[] {
+  return arrayField(record.generation_references ?? record.generationReferences).flatMap((item): ContentUnitPromptRef[] => {
+    if (!isRecord(item)) return []
+    const kindValue = stringField(item.kind ?? item.ref_kind ?? item.refKind ?? item.type)
+    if (!isContentUnitPromptRefKind(kindValue)) return []
+    const id = idField(item.ref ?? item.target_ref ?? item.targetRef ?? item.id)
+    if (id === undefined) return []
+    const raw = stringField(item.raw ?? item.source_ref ?? item.sourceRef) ?? `{{${kindValue}::${String(id)}}}`
+    return [{
+      kind: kindValue,
+      id: String(id),
+      raw,
+      source: { field: 'generation_references' },
+    }]
+  })
+}
+
+function contentUnitGenerationResourceInputs(record: Record<string, unknown>): NormalizedContentUnitPrompt['runtime_request']['inputs'] {
+  const fromGenerationReferences = arrayField(record.generation_references ?? record.generationReferences).flatMap((item) => {
+    if (!isRecord(item)) return []
+    const kind = stringField(item.kind ?? item.ref_kind ?? item.refKind ?? item.type)
+    const resourceId = resourceIdField(item.resource_id ?? item.resourceId)
+      ?? (kind === 'resource' ? resourceIdField(item.ref ?? item.target_ref ?? item.targetRef) : undefined)
+    if (resourceId === undefined) return []
+    const mediaType = generationReferenceMediaType(item.media_type ?? item.mediaType, item.role)
+    return [{
+      role: stringField(item.role) ?? generationReferenceRoleForMediaType(mediaType),
+      kind: mediaType,
+      ref: stringField(item.raw ?? item.source_ref ?? item.sourceRef),
+      resource_id: resourceId,
+      required: true,
+    }]
+  })
+  const fromReferenceAssets = arrayField(record.reference_assets ?? record.referenceAssets).flatMap((item) => {
+    if (!isRecord(item)) return []
+    const resourceId = resourceIdField(item.resource_id ?? item.resourceId)
+    if (resourceId === undefined) return []
+    const mediaType = generationReferenceMediaType(item.media_type ?? item.mediaType, item.role)
+    return [{
+      role: stringField(item.role) ?? generationReferenceRoleForMediaType(mediaType),
+      kind: mediaType,
+      ref: stringField(item.source_ref ?? item.sourceRef),
+      resource_id: resourceId,
+      required: true,
+    }]
+  })
+  return [...fromGenerationReferences, ...fromReferenceAssets]
+}
+
+function generationReferenceMediaType(value: unknown, role: unknown): 'image' | 'video' | 'audio' | 'text' | 'metadata' {
+  const text = `${String(value ?? '')} ${String(role ?? '')}`.toLowerCase()
+  if (text.includes('video')) return 'video'
+  if (text.includes('audio')) return 'audio'
+  if (text.includes('text')) return 'text'
+  return 'image'
+}
+
+function generationReferenceRoleForMediaType(mediaType: 'image' | 'video' | 'audio' | 'text' | 'metadata'): string {
+  if (mediaType === 'video') return 'reference_video'
+  if (mediaType === 'audio') return 'reference_audio'
+  if (mediaType === 'text') return 'reference_text'
+  return 'reference_image'
 }
 
 function usesVisualStyleReferences(outputKind: ContentUnitOutputKind): boolean {

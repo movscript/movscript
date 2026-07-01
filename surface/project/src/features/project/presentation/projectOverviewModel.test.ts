@@ -18,33 +18,23 @@ test('project overview does not block content canvas solely because productions 
   const orchestration = model.lanes.find((lane) => lane.definition.id === 'orchestration_production')
 
   assert.notEqual(contentCanvas?.state, 'blocked')
-  assert.equal(orchestration?.detail, '0 个时间结构，1 个场面，0 个装配')
+  assert.equal(orchestration?.detail, '0 个时间结构，1 个场面')
 })
 
 test('project overview prefers project timeline status over legacy production and segment counts', () => {
   const model = buildProjectOverviewModel({
     data: {
       ...emptyProjectOverviewData,
-      projectTimelineStatus: {
-        schema: 'movscript.project_timeline_status.v1',
-        timeline_namespace_count: 2,
-        timeline_namespaces: [
-          { id: 'pilot', kind: 'episode', title: 'Pilot' },
-          { id: 'opening', kind: 'beat', title: 'Opening' },
-        ],
-        timeline_assembly_count: 1,
-        timeline_assemblies: [
-          {
-            content_unit_id: 'cu_episode_pilot',
-            target_kind: 'timeline_assembly',
-            target_ref: 'timeline_assembly:episode:pilot',
-            blocking_refs: [],
-            stale_status: 'ok',
+        projectTimelineStatus: {
+          schema: 'movscript.project_timeline_status.v1',
+          timeline_namespace_count: 2,
+          timeline_namespaces: [
+            { id: 'pilot', kind: 'episode', title: 'Pilot' },
+            { id: 'opening', kind: 'beat', title: 'Opening' },
+          ],
+          system_primitives: {
+            scene_moments_count: 3,
           },
-        ],
-        system_primitives: {
-          scene_moments_count: 3,
-        },
       },
     },
     project: null,
@@ -53,11 +43,11 @@ test('project overview prefers project timeline status over legacy production an
   const orchestration = model.lanes.find((lane) => lane.definition.id === 'orchestration_production')
   const contentPreview = model.lanes.find((lane) => lane.definition.id === 'content_preview')
 
-  assert.equal(orchestration?.detail, '2 个时间结构，3 个场面，1 个装配')
-  assert.equal(orchestration?.count, 6)
+  assert.equal(orchestration?.detail, '2 个时间结构，3 个场面')
+  assert.equal(orchestration?.count, 5)
   assert.notEqual(orchestration?.state, 'blocked')
-  assert.equal(contentPreview?.detail, '0 个片段可预览，1 个装配')
-  assert.notEqual(contentPreview?.state, 'blocked')
+  assert.equal(contentPreview?.detail, '0 个片段可预览')
+  assert.equal(contentPreview?.state, 'blocked')
 })
 
 test('project overview keeps asset readiness in setting preview instead of content preview', () => {

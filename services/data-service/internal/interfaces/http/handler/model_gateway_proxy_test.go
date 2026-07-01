@@ -56,10 +56,11 @@ func TestOpenAIProxyForwardsUnknownFieldsAndRewritesModel(t *testing.T) {
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "logical-chat",
-		DisplayName:   "Logical Chat",
-		Capabilities:  ai.CapabilityText,
-		IsEnabled:     true,
+		PublicModelID:         "logical-chat",
+		DisplayName:           "Logical Chat",
+		Capabilities:          ai.CapabilityFamilyTextGeneration,
+		ModelCapabilitiesJSON: testProxyCapabilitiesJSON(ai.CapabilityFamilyTextGeneration, "chat", "responses"),
+		IsEnabled:             true,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -67,11 +68,11 @@ func TestOpenAIProxyForwardsUnknownFieldsAndRewritesModel(t *testing.T) {
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
 		CatalogEntryID:  entry.ID,
 		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		AdapterType:     credential.AdapterType,
 		ProviderModelID: "provider-chat",
 		CredentialID:    &credential.ID,
 		IsEnabled:       true,
-		CapacityWeight:  1,
-	}).Error; err != nil {
+		CapacityWeight:  1}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
 
@@ -156,10 +157,11 @@ func TestOpenAIProxyRoutesImageGenerationByImageCapability(t *testing.T) {
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "logical-image",
-		DisplayName:   "Logical Image",
-		Capabilities:  ai.CapabilityImage,
-		IsEnabled:     true,
+		PublicModelID:         "logical-image",
+		DisplayName:           "Logical Image",
+		Capabilities:          ai.CapabilityFamilyImageGeneration,
+		ModelCapabilitiesJSON: testProxyCapabilitiesJSON(ai.CapabilityFamilyImageGeneration, ai.ImageOperationTextToImage),
+		IsEnabled:             true,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -167,11 +169,11 @@ func TestOpenAIProxyRoutesImageGenerationByImageCapability(t *testing.T) {
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
 		CatalogEntryID:  entry.ID,
 		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		AdapterType:     credential.AdapterType,
 		ProviderModelID: "provider-image",
 		CredentialID:    &credential.ID,
 		IsEnabled:       true,
-		CapacityWeight:  1,
-	}).Error; err != nil {
+		CapacityWeight:  1}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
 
@@ -209,4 +211,11 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return fn(req)
+}
+
+func testProxyCapabilitiesJSON(capability string, operations ...string) string {
+	raw, _ := json.Marshal(map[string]map[string][]string{
+		capability: {"operations": operations},
+	})
+	return string(raw)
 }

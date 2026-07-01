@@ -318,7 +318,7 @@ func TestDashScopeSynthesizeQwenRealtimeTTSUsesWebSocketEvents(t *testing.T) {
 	}
 }
 
-func TestDashScopeChatAudioQwenOmniUsesRealtimeWebSocketEvents(t *testing.T) {
+func TestDashScopeGenerateSpeechToSpeechQwenOmniUsesRealtimeWebSocketEvents(t *testing.T) {
 	var gotAuth string
 	var gotModel string
 	var gotEvents []map[string]any
@@ -350,7 +350,7 @@ func TestDashScopeChatAudioQwenOmniUsesRealtimeWebSocketEvents(t *testing.T) {
 	defer server.Close()
 
 	adapter := NewDashScopeAdapter("dash-key", server.URL+"/api/v1")
-	resp, err := adapter.ChatAudio(context.Background(), media.AudioChatRequest{
+	resp, err := adapter.GenerateSpeechToSpeech(context.Background(), media.SpeechToSpeechRequest{
 		Model:    "qwen3-omni-flash-realtime",
 		Prompt:   "用中文回答",
 		Audio:    []byte("pcm-input"),
@@ -358,7 +358,7 @@ func TestDashScopeChatAudioQwenOmniUsesRealtimeWebSocketEvents(t *testing.T) {
 		Voice:    "Tina",
 	})
 	if err != nil {
-		t.Fatalf("ChatAudio() error = %v", err)
+		t.Fatalf("GenerateSpeechToSpeech() error = %v", err)
 	}
 	if gotAuth != "Bearer dash-key" {
 		t.Fatalf("Authorization = %q", gotAuth)

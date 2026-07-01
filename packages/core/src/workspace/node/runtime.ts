@@ -3,9 +3,9 @@ import { join, win32 as pathWin32 } from 'node:path'
 import { resolveMovScriptWorkspaceRootPaths } from './paths.js'
 
 export const MOVSCRIPT_SERVER_BINARY_BASENAME = 'movscript-server'
-export const MOVSCRIPT_CLI_BINARY_BASENAME = 'movcli'
-export const MOVSCRIPT_CLI_COMMAND_BASENAME = 'movcli.cmd'
-export const MOVSCRIPT_CLI_SHIM_BASENAME = 'movcli.mjs'
+export const MOVSCRIPT_CLI_BINARY_BASENAME = 'movscript'
+export const MOVSCRIPT_CLI_COMMAND_BASENAME = 'movscript.cmd'
+export const MOVSCRIPT_CLI_SHIM_BASENAME = 'movscript.mjs'
 
 export type MovScriptRuntimeDependencySeverity = 'fatal' | 'warning' | 'optional'
 export type MovScriptRuntimeDependencyStatus = 'ok' | 'missing' | 'invalid'
@@ -31,15 +31,15 @@ export interface MovScriptWorkspaceRuntimePaths {
   configTomlPath: string
   binDir: string
   movscriptServerPath: string
-  movcliPath: string
-  movcliShimPath: string
+  movscriptCliPath: string
+  movscriptCliShimPath: string
 }
 
 export interface MovScriptRuntimePreflightInput {
   workspaceDir?: string
   platform?: NodeJS.Platform
   requireMovScriptServer?: boolean
-  requireMovcli?: boolean
+  requireMovScriptCli?: boolean
   exists?: (path: string) => boolean
   statFile?: (path: string) => MovScriptRuntimeStatLike
   canExecute?: (path: string) => boolean
@@ -71,8 +71,8 @@ export function resolveMovScriptWorkspaceRuntimePaths(input: {
     configTomlPath: root.configTomlPath,
     binDir: root.binDir,
     movscriptServerPath: joinPath(root.binDir, movScriptRuntimeBinaryName(MOVSCRIPT_SERVER_BINARY_BASENAME, platform)),
-    movcliPath: joinPath(root.binDir, movScriptRuntimeCliName(platform)),
-    movcliShimPath: joinPath(root.binDir, MOVSCRIPT_CLI_SHIM_BASENAME),
+    movscriptCliPath: joinPath(root.binDir, movScriptRuntimeCliName(platform)),
+    movscriptCliShimPath: joinPath(root.binDir, MOVSCRIPT_CLI_SHIM_BASENAME),
   }
 }
 
@@ -117,20 +117,20 @@ export function movScriptRuntimePreflight(input: MovScriptRuntimePreflightInput 
     }))
   }
 
-  if (input.requireMovcli !== false) {
+  if (input.requireMovScriptCli !== false) {
     checks.push(executableCheck({
-      id: 'runtime.movcli',
+      id: 'runtime.movscriptCli',
       label: 'MovScript CLI',
-      path: paths.movcliPath,
+      path: paths.movscriptCliPath,
       platform: input.platform ?? process.platform,
       exists,
       statFile,
       canExecute,
     }))
     checks.push(fileCheck({
-      id: 'runtime.movcliShim',
+      id: 'runtime.movscriptCliShim',
       label: 'MovScript CLI shim',
-      path: paths.movcliShimPath,
+      path: paths.movscriptCliShimPath,
       exists,
       statFile,
     }))

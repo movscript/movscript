@@ -83,8 +83,8 @@ func seedOverviewData(t *testing.T, db *gorm.DB, now time.Time) {
 		t.Fatalf("disable credential: %v", err)
 	}
 	catalogEntries := []persistencemodel.AIModelCatalogEntry{
-		{PublicModelID: "video-fast", DisplayName: "Video Fast", IsEnabled: true, Capabilities: "video"},
-		{PublicModelID: "image-fast", DisplayName: "Image Fast", IsEnabled: true, Capabilities: "image"},
+		{PublicModelID: "video-fast", DisplayName: "Video Fast", IsEnabled: true, Capabilities: "video_generation"},
+		{PublicModelID: "image-fast", DisplayName: "Image Fast", IsEnabled: true, Capabilities: "image_generation"},
 	}
 	for i := range catalogEntries {
 		if err := db.Create(&catalogEntries[i]).Error; err != nil {

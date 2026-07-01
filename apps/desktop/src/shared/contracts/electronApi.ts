@@ -60,7 +60,6 @@ import type {
   ElectronMovScriptEngineContentUnitEnsureInput,
   ElectronMovScriptEngineContentUnitGenerationPromptReadInput,
   ElectronMovScriptEngineContentUnitEditPromptInput,
-  ElectronMovScriptEngineTimelineAssemblyContentUnitEnsureInput,
   ElectronMovScriptEngineEntityBasicsUpdateInput,
   ElectronMovScriptEngineExpressionUnitCreateInput,
   ElectronMovScriptEngineExpressionUnitInput,
@@ -215,7 +214,7 @@ export type ElectronAPI = {
   downloadAppUpdate?: () => Promise<ElectronAppUpdateStatus>
   installAppUpdate?: () => Promise<ElectronAppUpdateStatus>
   onAppUpdateStatus?: (handler: (status: ElectronAppUpdateStatus) => void) => () => void
-  openAdminConsole?: (input?: { baseURL?: string; path?: string; authSession?: ElectronAdminAuthSessionInput | null }) => Promise<{ url: string }>
+  openAdminConsole?: (input?: { path?: string; authSession?: ElectronAdminAuthSessionInput | null }) => Promise<{ url: string }>
   openExternalURL?: (input: { url: string }) => Promise<{ url: string }>
   installMovScriptCodexPlugin?: () => Promise<ElectronMovScriptCodexPluginInstallResult>
   embeddedBrowserNavigate?: (input: { tabId?: string; url: string; bounds?: ElectronEmbeddedBrowserBounds | null }) => Promise<ElectronEmbeddedBrowserState>
@@ -287,7 +286,6 @@ export type ElectronAPI = {
   decideMovScriptEngineContentUnitCandidate?: (input: ElectronMovScriptEngineContentCandidateDecideInput) => Promise<void>
   createMovScriptEngineContentUnit?: (input: ElectronMovScriptEngineContentUnitCreateInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['createContentUnit']>>>
   ensureMovScriptEngineContentUnitForEntity?: (input: ElectronMovScriptEngineContentUnitEnsureInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['ensureContentUnitForEntity']>>>
-  ensureMovScriptEngineTimelineAssemblyContentUnit?: (input: ElectronMovScriptEngineTimelineAssemblyContentUnitEnsureInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['ensureContentUnitForEntity']>>>
   createMovScriptEngineSetting?: (input: ElectronMovScriptEngineSettingCreateInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['createSetting']>>>
   createMovScriptEngineSettingState?: (input: ElectronMovScriptEngineSettingStateCreateInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['createSettingState']>>>
   createMovScriptEngineAsset?: (input: ElectronMovScriptEngineAssetCreateInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['createAsset']>>>

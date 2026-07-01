@@ -21,9 +21,9 @@ test('resolveCanvasRuntimeModel resolves saved public model id through catalog m
   }) as typeof canvasApi.get
 
   try {
-    const resolved = await resolveCanvasRuntimeModel({ modelId: 'image.standard' }, 'image')
+    const resolved = await resolveCanvasRuntimeModel({ modelId: 'image.standard' }, 'image_generation')
 
-    assert.deepEqual(requests, [{ path: canvasServicePaths.runtimeModels, capability: 'image' }])
+    assert.deepEqual(requests, [{ path: canvasServicePaths.runtimeModels, capability: 'image_generation' }])
     assert.deepEqual(resolved, {
       modelId: 'image.standard',
     })
@@ -193,7 +193,7 @@ test('generateCanvasRuntimeMedia submits multimodal reference-to-video assets', 
 
   try {
     await generateCanvasRuntimeMedia({
-      nodeType: 'ref_video_gen',
+      nodeType: 'reference_to_video',
       data: { source: 'ai', modelOperation: 'reference_to_video' },
       outputType: 'video',
       prompt: 'use all references',
@@ -239,7 +239,7 @@ function modelFixture(patch: Partial<PublicModel>): PublicModel {
 	    provider_id: 'local_provider:1',
 	    model_id: 'model',
     display_name: 'Model',
-    capabilities: ['image'],
+    capabilities: ['image_generation'],
     accepts_image_input: false,
     ...patch,
   }

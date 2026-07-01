@@ -73,7 +73,7 @@ type templateSource struct {
 	APIKinds             []string       `yaml:"api_kinds,omitempty" json:"api_kinds,omitempty"`
 	AllowModelIDOverride bool           `yaml:"allow_model_id_override,omitempty" json:"allow_model_id_override,omitempty"`
 	Input                inputSource    `yaml:"input,omitempty" json:"input,omitempty"`
-	ImageEditField       string         `yaml:"image_edit_field,omitempty" json:"image_edit_field,omitempty"`
+	InputImageField      string         `yaml:"input_image_field,omitempty" json:"input_image_field,omitempty"`
 	Video                videoSource    `yaml:"video,omitempty" json:"video,omitempty"`
 	Params               []paramSource  `yaml:"params,omitempty" json:"params,omitempty"`
 	Source               sourceEvidence `yaml:"source" json:"source"`
@@ -214,9 +214,9 @@ func bootstrapFromCurrent(sourceDir string) error {
 				MaxImages:    template.MaxInputImages,
 				MaxVideos:    template.MaxInputVideos,
 			},
-			ImageEditField: template.ImageEditField,
-			Params:         paramsToSource(template.SupportedParams),
-			Source:         source,
+			InputImageField: template.InputImageField,
+			Params:          paramsToSource(template.SupportedParams),
+			Source:          source,
 		})
 	}
 	labs := make([]string, 0, len(grouped))
@@ -402,75 +402,53 @@ func adapterSupportsRuntimeCapability(adapterType, capability string) bool {
 	switch strings.TrimSpace(adapterType) {
 	case infraai.AdapterOpenAICompat:
 		switch capability {
-		case infraai.CapabilityText, infraai.CapabilityReasoning,
-			infraai.CapabilityImage, infraai.CapabilityImageEdit,
-			infraai.CapabilityAudioTTS, infraai.CapabilityAudioSTT, infraai.CapabilityAudioChat,
-			infraai.CapabilityAudioTranslate, infraai.CapabilitySubAlign:
+		case infraai.CapabilityFamilyTextGeneration, infraai.CapabilityReasoning, infraai.CapabilityFamilyImageGeneration, infraai.CapabilityFamilyAudioGeneration:
 			return true
 		}
 	case infraai.AdapterOpenAIVideoMultipart:
-		return capability == infraai.CapabilityVideo || capability == infraai.CapabilityVideoI2V || capability == infraai.CapabilityVideoV2V
+		return capability == infraai.CapabilityFamilyVideoGeneration
 	case infraai.AdapterOfficialVideoGenerations:
-		return capability == infraai.CapabilityVideo
+		return capability == infraai.CapabilityFamilyVideoGeneration
 	case infraai.AdapterYunwuUnifiedVideo:
-		return capability == infraai.CapabilityVideo || capability == infraai.CapabilityVideoI2V
+		return capability == infraai.CapabilityFamilyVideoGeneration
 	case infraai.AdapterAnthropic:
-		return capability == infraai.CapabilityText || capability == infraai.CapabilityReasoning
+		return capability == infraai.CapabilityFamilyTextGeneration || capability == infraai.CapabilityReasoning
 	case infraai.AdapterDashScope:
 		switch capability {
-		case infraai.CapabilityImage, infraai.CapabilityVideo, infraai.CapabilityVideoI2V, infraai.CapabilityVideoV2V, infraai.CapabilityAudioTTS,
-			infraai.CapabilityAudioChat:
+		case infraai.CapabilityFamilyImageGeneration, infraai.CapabilityFamilyVideoGeneration, infraai.CapabilityFamilyAudioGeneration:
 			return true
 		}
 	case infraai.AdapterVyroSeedance:
-		return capability == infraai.CapabilityVideo || capability == infraai.CapabilityVideoI2V
+		return capability == infraai.CapabilityFamilyVideoGeneration
 	case infraai.AdapterGemini:
 		switch capability {
-		case infraai.CapabilityText, infraai.CapabilityReasoning,
-			infraai.CapabilityImage, infraai.CapabilityImageEdit,
-			infraai.CapabilityVideo, infraai.CapabilityVideoI2V,
-			infraai.CapabilityAudioTTS, infraai.CapabilityAudioSTT, infraai.CapabilityAudioMusic:
+		case infraai.CapabilityFamilyTextGeneration, infraai.CapabilityReasoning, infraai.CapabilityFamilyImageGeneration, infraai.CapabilityFamilyVideoGeneration, infraai.CapabilityFamilyAudioGeneration:
 			return true
 		}
 	case infraai.AdapterVolcen:
 		switch capability {
-		case infraai.CapabilityText, infraai.CapabilityReasoning,
-			infraai.CapabilityImage, infraai.CapabilityImageEdit,
-			infraai.CapabilityVideo, infraai.CapabilityVideoI2V, infraai.CapabilityVideoV2V,
-			infraai.CapabilityAudioTTS, infraai.CapabilityAudioSTT, infraai.CapabilityAudioMusic,
-			infraai.CapabilityAudioSFX, infraai.CapabilityAudioChat, infraai.CapabilityVoiceClone,
-			infraai.CapabilityVoiceDesign, infraai.CapabilitySubAlign:
+		case infraai.CapabilityFamilyTextGeneration, infraai.CapabilityReasoning, infraai.CapabilityFamilyImageGeneration, infraai.CapabilityFamilyVideoGeneration, infraai.CapabilityFamilyAudioGeneration:
 			return true
 		}
 	case infraai.AdapterKling:
-		return capability == infraai.CapabilityVideo || capability == infraai.CapabilityVideoI2V
+		return capability == infraai.CapabilityFamilyVideoGeneration
 	case infraai.AdapterVidu:
-		return capability == infraai.CapabilityVideo || capability == infraai.CapabilityVideoI2V || capability == infraai.CapabilityVideoV2V
+		return capability == infraai.CapabilityFamilyVideoGeneration
 	case infraai.AdapterElevenLabs:
-		switch capability {
-		case infraai.CapabilityAudioTTS, infraai.CapabilityAudioSTT, infraai.CapabilityAudioMusic, infraai.CapabilityAudioSFX,
-			infraai.CapabilityVoiceClone, infraai.CapabilityVoiceDesign, infraai.CapabilitySubAlign:
-			return true
-		}
+		return capability == infraai.CapabilityFamilyAudioGeneration
 	case infraai.AdapterMiniMax:
-		return capability == infraai.CapabilityAudioTTS
+		return capability == infraai.CapabilityFamilyAudioGeneration
 	case infraai.AdapterXiaomiMimo:
-		return capability == infraai.CapabilityText || capability == infraai.CapabilityAudioChat
+		return capability == infraai.CapabilityFamilyTextGeneration || capability == infraai.CapabilityFamilyAudioGeneration
 	case infraai.AdapterMureka:
-		return capability == infraai.CapabilityText || capability == infraai.CapabilityAudioMusic
+		return capability == infraai.CapabilityFamilyTextGeneration || capability == infraai.CapabilityFamilyAudioGeneration
 	case infraai.AdapterStability:
-		return capability == infraai.CapabilityAudioMusic || capability == infraai.CapabilityAudioSFX
+		return capability == infraai.CapabilityFamilyAudioGeneration
 	case infraai.AdapterDoubao2API:
-		return capability == infraai.CapabilityImage || capability == infraai.CapabilityVideo
+		return capability == infraai.CapabilityFamilyImageGeneration || capability == infraai.CapabilityFamilyVideoGeneration
 	case infraai.AdapterLocal:
 		switch capability {
-		case infraai.CapabilityText, infraai.CapabilityReasoning,
-			infraai.CapabilityImage, infraai.CapabilityImageEdit,
-			infraai.CapabilityVideo, infraai.CapabilityVideoI2V, infraai.CapabilityVideoV2V,
-			infraai.CapabilityAudioMusic, infraai.CapabilityAudioSFX, infraai.CapabilityAudioChat,
-			infraai.CapabilityAudioSTT, infraai.CapabilityAudioTranslate,
-			infraai.CapabilityVoiceClone, infraai.CapabilityVoiceDesign,
-			infraai.CapabilitySubAlign, infraai.CapabilitySubTranslate:
+		case infraai.CapabilityFamilyTextGeneration, infraai.CapabilityReasoning, infraai.CapabilityFamilyImageGeneration, infraai.CapabilityFamilyVideoGeneration, infraai.CapabilityFamilyAudioGeneration:
 			return true
 		}
 	}
@@ -698,8 +676,8 @@ func writeGeneratedGo(path string, templates []templateSource, check bool) error
 		if template.Input.MaxVideos != 0 {
 			fmt.Fprintf(&buf, "\t\tMaxInputVideos: %d,\n", template.Input.MaxVideos)
 		}
-		if template.ImageEditField != "" {
-			writeGoStringField(&buf, "ImageEditField", template.ImageEditField)
+		if template.InputImageField != "" {
+			writeGoStringField(&buf, "InputImageField", template.InputImageField)
 		}
 		if template.AllowModelIDOverride {
 			buf.WriteString("\t\tAllowModelIDOverride: true,\n")
@@ -983,7 +961,7 @@ func sourceForTemplate(id string, capabilities []string, date string) sourceEvid
 	source := sourceEvidence{VerifiedAt: date, Status: "needs_review"}
 	switch labForTemplateID(id) {
 	case "openai":
-		if hasCapability(capabilities, infraai.CapabilityImage) || hasCapability(capabilities, infraai.CapabilityImageEdit) {
+		if hasCapability(capabilities, infraai.CapabilityFamilyImageGeneration) || hasCapability(capabilities, infraai.CapabilityFamilyImageGeneration) {
 			source.URL = "https://developers.openai.com/api/reference/resources/images"
 		} else {
 			source.URL = "https://developers.openai.com/api/docs/models"
@@ -995,7 +973,7 @@ func sourceForTemplate(id string, capabilities []string, date string) sourceEvid
 	case "xai":
 		source.URL = "https://docs.x.ai/docs/models"
 	case "elevenlabs":
-		if hasCapability(capabilities, infraai.CapabilityAudioSTT) {
+		if hasCapability(capabilities, infraai.CapabilityFamilyAudioGeneration) {
 			source.URL = "https://elevenlabs.io/docs/api-reference/speech-to-text/convert"
 		} else {
 			source.URL = "https://elevenlabs.io/docs/api-reference/text-to-speech/convert"
@@ -1032,24 +1010,11 @@ func hasCapability(capabilities []string, want string) bool {
 
 func validCapability(value string) bool {
 	switch value {
-	case infraai.CapabilityText,
+	case infraai.CapabilityFamilyTextGeneration,
 		infraai.CapabilityReasoning,
-		infraai.CapabilityImage,
-		infraai.CapabilityImageEdit,
-		infraai.CapabilityVideo,
-		infraai.CapabilityVideoI2V,
-		infraai.CapabilityVideoV2V,
-		infraai.CapabilityAudio,
-		infraai.CapabilityAudioTTS,
-		infraai.CapabilityAudioSTT,
-		infraai.CapabilityAudioMusic,
-		infraai.CapabilityAudioSFX,
-		infraai.CapabilityAudioChat,
-		infraai.CapabilityVoiceClone,
-		infraai.CapabilityVoiceDesign,
-		infraai.CapabilityAudioTranslate,
-		infraai.CapabilitySubAlign,
-		infraai.CapabilitySubTranslate:
+		infraai.CapabilityFamilyImageGeneration,
+		infraai.CapabilityFamilyVideoGeneration,
+		infraai.CapabilityFamilyAudioGeneration:
 		return true
 	default:
 		return false

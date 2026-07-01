@@ -6,7 +6,8 @@
     "paths": {
       "@movscript/decision": ["../decision/src/index.ts"],
       "@movscript/domain": ["../domain/src/index.ts"],
-      "@movscript/language/domain": ["../language/src/domain/index.ts"]
+      "@movscript/language/domain": ["../language/src/domain/index.ts"],
+      "@movscript/runtime-contracts": ["../runtime-contracts/src/index.ts"]
     }
   },
   "include": ["src"]

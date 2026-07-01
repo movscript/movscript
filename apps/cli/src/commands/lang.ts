@@ -48,6 +48,7 @@ interface GetModelOptions extends WorkspaceOptions {
 
 interface InitOptions extends WorkspaceOptions {
   id?: string
+  localProjectId?: string
   title?: string
   language?: string
   overwrite?: boolean
@@ -92,9 +93,6 @@ interface AddContentUnitOptions extends WorkspaceOptions {
   kind?: string
   contentUnitType?: string
   outputKind?: string
-  timelineAssembly?: string
-  scopeKind?: string
-  scopeRef?: string
   asset?: string
   production?: string
   segment?: string
@@ -273,7 +271,7 @@ export function registerLangCommands(program: Command): void {
     .showHelpAfterError()
     .addHelpText('after', `
 Examples:
-  $ movscript project init --id demo --title "Demo Film"
+  $ movscript project init --local-project-id demo --title "Demo Film"
   $ movscript project demo create --cwd ./demo
   $ movscript setting add hero --title "Hero"
   $ movscript asset add --setting hero --slot portrait --prompt "cinematic portrait"
@@ -289,7 +287,8 @@ Examples:
   program
     .command('init')
     .description('Initialize a MovScript project workspace')
-    .option('--id <id>', 'Project id written to project_id')
+    .option('--local-project-id <id>', 'Local project id written to project_id')
+    .option('--id <id>', 'Deprecated alias for --local-project-id')
     .option('--title <title>', 'Project title')
     .option('--language <language>', 'Project language')
     .option('--standard <key=value...>', 'Project standard field, repeatable', collectOption, [])
@@ -299,22 +298,23 @@ Examples:
       await initProjectFromCliOptions(options, command)
     })
 
-  const project = program
-    .command('project')
-    .description('Manage the MovScript project workspace')
+  const project = ensureRootCommand(program, 'project', 'Manage the MovScript project workspace')
 
-  project
-    .command('init')
-    .description('Initialize a MovScript project workspace')
-    .option('--id <id>', 'Project id written to project_id')
-    .option('--title <title>', 'Project title')
-    .option('--language <language>', 'Project language')
-    .option('--standard <key=value...>', 'Project standard field, repeatable', collectOption, [])
-    .option('--overwrite', 'Overwrite existing project files')
-    .option('--json', 'Print JSON output')
-    .action(async (options: InitOptions, command: Command) => {
-      await initProjectFromCliOptions(options, command)
-    })
+  if (!project.commands.some((candidate) => candidate.name() === 'init')) {
+    project
+      .command('init')
+      .description('Initialize a MovScript project workspace')
+      .option('--local-project-id <id>', 'Local project id written to project_id')
+      .option('--id <id>', 'Deprecated alias for --local-project-id')
+      .option('--title <title>', 'Project title')
+      .option('--language <language>', 'Project language')
+      .option('--standard <key=value...>', 'Project standard field, repeatable', collectOption, [])
+      .option('--overwrite', 'Overwrite existing project files')
+      .option('--json', 'Print JSON output')
+      .action(async (options: InitOptions, command: Command) => {
+        await initProjectFromCliOptions(options, command)
+      })
+  }
 
   const projectDemo = project
     .command('demo')
@@ -479,9 +479,7 @@ Examples:
       printResult(result, merged)
     })
 
-  const production = program
-    .command('production')
-    .description('Manage productions')
+  const production = ensureRootCommand(program, 'production', 'Manage productions')
 
   production
     .command('list')
@@ -497,13 +495,13 @@ Examples:
     .command('add')
     .alias('create')
     .description('Create or update a production')
-    .option('--id <id>', 'Production id', 'main')
+    .option('--id <id>', 'Production id')
     .option('--title <title>', 'Production title')
     .option('--json', 'Print JSON output')
     .action(async (options: AddProductionOptions, command: Command) => {
       const merged = mergeGlobalOptions(options, command)
       const result = await createCliEngine(merged).createProduction({
-        id: options.id ?? 'main',
+        id: options.id,
         title: options.title,
       })
       printResult(result, merged)
@@ -1086,16 +1084,13 @@ Examples:
     .description('Create or update a project-level content unit with prompt refs')
     .option('--id <id>', 'Content unit id')
     .option('--title <title>', 'Content unit title')
-    .option('--type <type>', 'Content unit type, such as asset_ref, keyframe_ref, storyboard_ref, scence_moment_ref, expression_unit_ref, or timeline_assembly_ref')
+    .option('--type <type>', 'Content unit type, such as asset_ref, keyframe_ref, storyboard_ref, scence_moment_ref, expression_unit_ref, audio_cue_ref, or production_ref')
     .option('--content-unit-type <type>', 'Content unit type field; same as --type')
     .option('--kind <kind>', 'Deprecated alias for --type')
     .option('--output-kind <kind>', 'Output kind: image, video, audio, text, or metadata')
-    .option('--timeline-assembly <ref>', 'Timeline assembly target for timeline_assembly_ref, e.g. timeline_assembly:episode:episode_01 or episode_01 with --scope-kind')
-    .option('--scope-kind <kind>', 'Timeline namespace scope kind for timeline_assembly_ref, e.g. episode, act, sequence, or beat')
-    .option('--scope-ref <id>', 'Timeline namespace scope id/ref for timeline_assembly_ref')
     .option('--asset <id-or-path>', 'Asset id or path for asset_ref content units')
-    .option('--production <id>', 'Production id; legacy assembly alias for production_ref')
-    .option('--segment <id>', 'Segment id; legacy assembly alias for segment_ref')
+    .option('--production <id>', 'Production id for production_ref content units')
+    .option('--segment <id>', 'Segment id for segment_ref content units')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
     .option('--expression-unit <id-or-path>', 'Expression unit id or path')
     .option('--storyboard <id-or-path>', 'Storyboard id or path; storyboard_ref defaults to main when omitted')
@@ -1126,16 +1121,13 @@ Examples:
     .command('modify <id>')
     .description('Modify a content unit')
     .option('--title <title>', 'Content unit title')
-    .option('--type <type>', 'Content unit type, such as asset_ref, keyframe_ref, storyboard_ref, scence_moment_ref, expression_unit_ref, or timeline_assembly_ref')
+    .option('--type <type>', 'Content unit type, such as asset_ref, keyframe_ref, storyboard_ref, scence_moment_ref, expression_unit_ref, audio_cue_ref, or production_ref')
     .option('--content-unit-type <type>', 'Content unit type field; same as --type')
     .option('--kind <kind>', 'Deprecated alias for --type')
     .option('--output-kind <kind>', 'Output kind: image, video, audio, text, or metadata')
-    .option('--timeline-assembly <ref>', 'Timeline assembly target for timeline_assembly_ref, e.g. timeline_assembly:episode:episode_01 or episode_01 with --scope-kind')
-    .option('--scope-kind <kind>', 'Timeline namespace scope kind for timeline_assembly_ref, e.g. episode, act, sequence, or beat')
-    .option('--scope-ref <id>', 'Timeline namespace scope id/ref for timeline_assembly_ref')
     .option('--asset <id-or-path>', 'Asset id or path for asset_ref content units')
-    .option('--production <id>', 'Production id; legacy assembly alias for production_ref')
-    .option('--segment <id>', 'Segment id; legacy assembly alias for segment_ref')
+    .option('--production <id>', 'Production id for production_ref content units')
+    .option('--segment <id>', 'Segment id for segment_ref content units')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
     .option('--expression-unit <id-or-path>', 'Expression unit id or path')
     .option('--storyboard <id-or-path>', 'Storyboard id or path')
@@ -1419,6 +1411,12 @@ Examples:
       printResult(result, merged)
     })
 
+}
+
+function ensureRootCommand(program: Command, name: string, description: string): Command {
+  const existing = program.commands.find((candidate) => candidate.name() === name)
+  if (existing) return existing
+  return program.command(name).description(description)
 }
 
 function mergeGlobalOptions(options: WorkspaceOptions, command: Command): WorkspaceOptions {
@@ -1837,7 +1835,6 @@ function parseContentCandidateOutputKind(
 function outputKindFromContentUnitType(value: string | undefined): 'image' | 'video' | 'audio' | 'text' | 'metadata' | undefined {
   if (!value) return undefined
   if (value.includes('video')) return 'video'
-  if (value === 'timeline_assembly_ref') return 'video'
   if (value === 'scence_moment_ref' || value === 'scene_moment_ref') return 'video'
   if (value.includes('image') || value.includes('frame') || value.includes('asset_ref')) return 'image'
   if (value.includes('audio') || value.includes('sound')) return 'audio'
@@ -1869,11 +1866,6 @@ async function saveContentUnitFromCliOptions(
     description: options.description,
     order: parseOptionalNumberOption(options.order, 'order'),
     modelIntent: buildContentUnitModelIntent(options, outputKind, { defaultCapability: shouldDefaultCapability }),
-    targetCategory: source.targetCategory,
-    targetKind: source.targetKind,
-    targetRef: source.targetRef,
-    scopeKind: source.scopeKind,
-    scopeRef: source.scopeRef,
     productionId: source.productionId,
     segmentId: source.segmentId,
     sceneMomentId: source.sceneMomentId,
@@ -1889,7 +1881,6 @@ function contentUnitTypeFromOptions(options: AddContentUnitOptions, defaultType?
   const value = options.contentUnitType
     ?? options.type
     ?? options.kind
-    ?? (options.timelineAssembly !== undefined || options.scopeKind !== undefined || options.scopeRef !== undefined ? 'timeline_assembly_ref' : undefined)
     ?? defaultType
   if (!value) return undefined
   return normalizeContentUnitType(value)
@@ -1903,10 +1894,6 @@ function normalizeContentUnitType(value: string): string {
       return 'keyframe_ref'
     case 'storyboard':
       return 'storyboard_ref'
-    case 'timeline_assembly':
-    case 'assembly':
-    case 'timeline':
-      return 'timeline_assembly_ref'
     case 'scene_moment':
     case 'scene':
     case 'moment':
@@ -1933,7 +1920,6 @@ function defaultCliContentUnitOutputKind(contentUnitType: string): CliContentUni
     case 'keyframe_ref':
       return 'image'
     case 'storyboard_ref':
-    case 'timeline_assembly_ref':
     case 'expression_unit_ref':
     case 'scence_moment_ref':
     case 'scene_moment_ref':
@@ -1951,12 +1937,8 @@ function validateContentUnitSourceForType(
   if (contentUnitType === 'asset_ref' && !source.assetRef) throw new Error('--asset is required for asset_ref content units')
   if (contentUnitType === 'keyframe_ref' && !source.keyframeId) throw new Error('--keyframe is required for keyframe_ref content units')
   if (contentUnitType === 'storyboard_ref' && !source.storyboardId) throw new Error('--storyboard is required for storyboard_ref content units')
-  if (contentUnitType === 'timeline_assembly_ref' && !source.targetRef) throw new Error('--timeline-assembly with --scope-kind, or --scope-kind/--scope-ref, is required for timeline_assembly_ref content units')
   if ((contentUnitType === 'scence_moment_ref' || contentUnitType === 'scene_moment_ref') && !source.sceneMomentId) throw new Error('--scene-moment is required for scence_moment_ref content units')
   if (contentUnitType === 'expression_unit_ref' && !source.expressionUnitId) throw new Error('--expression-unit is required for expression_unit_ref content units')
-  if (contentUnitType !== 'timeline_assembly_ref' && (options.timelineAssembly !== undefined || options.scopeKind !== undefined || options.scopeRef !== undefined)) {
-    throw new Error('--timeline-assembly, --scope-kind, and --scope-ref are only valid for timeline_assembly_ref content units')
-  }
   if (contentUnitType === 'storyboard_ref' && !options.storyboard && source.storyboardId === 'main' && !source.sceneMomentId) {
     throw new Error('--scene-moment is required when storyboard_ref uses the default --storyboard main')
   }
@@ -1996,8 +1978,9 @@ function targetKindValue(value: string | undefined): value is 'asset' | 'storybo
 async function initProjectFromCliOptions(options: InitOptions, command: Command): Promise<void> {
   const merged = mergeGlobalOptions(options, command)
   const engine = createCliEngine(merged)
+  const localProjectId = options.localProjectId ?? options.id
   const result = await engine.initProject({
-    ...(options.id !== undefined ? { projectId: options.id } : {}),
+    ...(localProjectId !== undefined ? { localProjectId } : {}),
     ...(options.title !== undefined ? { title: options.title } : {}),
     ...(options.language !== undefined ? { language: options.language } : {}),
     standards: parseKeyValueOptions(options.standard ?? []),
@@ -2011,13 +1994,14 @@ async function createDemoProjectFromCliOptions(options: DemoCreateOptions, comma
   const engine = createCliEngine(merged)
   const repository = createNodeMovScriptWorkspaceFileRepository(engine.projectDir)
   const writtenPaths = await writeDemoProject(repository, {
-    projectId: options.id ?? 'demo',
+    localProjectId: options.id ?? 'demo',
     title: options.title ?? 'Demo Film',
     overwrite: Boolean(options.overwrite),
   })
   const interpretation = options.noInterpret ? undefined : await engine.interpret()
   printResult({
     projectDir: engine.projectDir,
+    localProjectId: options.id ?? 'demo',
     projectId: options.id ?? 'demo',
     writtenPaths,
     interpretation: summarizeDemoInterpretation(interpretation),
@@ -2047,9 +2031,9 @@ function summarizeDemoInterpretation(interpretation: unknown): unknown {
 
 async function writeDemoProject(
   repository: MovScriptWorkspaceFileRepository,
-  input: { projectId: string; title: string; overwrite: boolean },
+  input: { localProjectId: string; title: string; overwrite: boolean },
 ): Promise<Array<{ path: string; status: 'created' | 'updated' | 'skipped' }>> {
-  const entries = demoProjectFileEntries(input.projectId, input.title)
+  const entries = demoProjectFileEntries(input.localProjectId, input.title)
   const results: Array<{ path: string; status: 'created' | 'updated' | 'skipped' }> = []
   for (const [path, record] of entries) {
     const existing = await repository.read({ path }).catch(() => undefined)
@@ -2066,17 +2050,17 @@ async function writeDemoProject(
   return results
 }
 
-function demoProjectFileEntries(projectId: string, title: string): Array<[string, Record<string, unknown> | string]> {
+function demoProjectFileEntries(localProjectId: string, title: string): Array<[string, Record<string, unknown> | string]> {
   return [
     ['workspace.json', {
       schema: 'movscript.workspace.v1',
-      project_id: projectId,
+      project_id: localProjectId,
       title,
     }],
     ['project.json', {
       schema: 'movscript.project.v1',
       kind: 'project',
-      project_id: projectId,
+      project_id: localProjectId,
       title,
       language: 'zh-CN',
     }],
@@ -2570,9 +2554,13 @@ async function dispatchInteractiveProjectCommand(args: string[], options: Worksp
   const parsed = parseSlashOptions(args)
   if (action === 'init') {
     const standard = parsed.options.standard ?? parsed.options.standards
+    const localProjectId = parsed.options.localProjectId
+      ?? parsed.options['local-project-id']
+      ?? parsed.options.id
+      ?? parsed.positionals[0]
     const result = await engine.initProject({
-      ...(parsed.options.id !== undefined || parsed.positionals[0] !== undefined
-        ? { projectId: parsed.options.id ?? parsed.positionals[0] }
+      ...(localProjectId !== undefined
+        ? { localProjectId }
         : {}),
       ...(parsed.options.title !== undefined ? { title: parsed.options.title } : {}),
       ...(parsed.options.language !== undefined ? { language: parsed.options.language } : {}),
@@ -2588,7 +2576,7 @@ async function dispatchInteractiveProjectCommand(args: string[], options: Worksp
     const demoOptions = parseSlashOptions(args)
     const repository = createNodeMovScriptWorkspaceFileRepository(engine.projectDir)
     const writtenPaths = await writeDemoProject(repository, {
-      projectId: demoOptions.options.id ?? 'demo',
+      localProjectId: demoOptions.options.id ?? 'demo',
       title: demoOptions.options.title ?? 'Demo Film',
       overwrite: demoOptions.options.overwrite === 'true',
     })
@@ -2596,6 +2584,7 @@ async function dispatchInteractiveProjectCommand(args: string[], options: Worksp
     const interpretation = shouldInterpret ? await engine.interpret() : undefined
     printResult({
       projectDir: engine.projectDir,
+      localProjectId: demoOptions.options.id ?? 'demo',
       projectId: demoOptions.options.id ?? 'demo',
       writtenPaths,
       interpretation: summarizeDemoInterpretation(interpretation),
@@ -2675,7 +2664,7 @@ async function dispatchInteractiveProductionCommand(args: string[], options: Wor
   const parsed = parseSlashOptions(args)
   if (action === 'add' || action === 'create' || action === 'upsert') {
     const result = await engine.createProduction({
-      id: parsed.options.id ?? 'main',
+      id: parsed.options.id,
       title: parsed.options.title ?? parsed.positionals[0],
     })
     printResult(result, options)
@@ -2878,9 +2867,6 @@ async function dispatchInteractiveContentUnitCommand(args: string[], options: Wo
       kind: parsed.options.kind,
       contentUnitType: parsed.options.contentUnitType ?? parsed.options['content-unit-type'],
       outputKind: parsed.options.outputKind ?? parsed.options['output-kind'],
-      timelineAssembly: parsed.options.timelineAssembly ?? parsed.options['timeline-assembly'],
-      scopeKind: parsed.options.scopeKind ?? parsed.options['scope-kind'],
-      scopeRef: parsed.options.scopeRef ?? parsed.options['scope-ref'],
       asset: parsed.options.asset,
       production: parsed.options.production,
       segment: parsed.options.segment,
@@ -2977,7 +2963,7 @@ async function dispatchInteractiveCandidateCommand(args: string[], options: Work
 
 function printInteractiveHelp(): void {
   console.log(`Slash commands:
-  /project init [id] [--title <title>] [--language <language>] [--standard <key=value>] [--overwrite]
+  /project init [id] [--local-project-id <id>] [--title <title>] [--language <language>] [--standard <key=value>] [--overwrite]
   /project demo create [--id <id>] [--title <title>] [--overwrite] [--no-interpret]
   /init [id] [--title <title>] [--language <language>] [--standard <key=value>] [--overwrite]
   /setting list [--kind <kind>] [--query <text>] [--limit <n>]
@@ -2990,7 +2976,7 @@ function printInteractiveHelp(): void {
   /storyboard add --scene-moment <id-or-path> [--segment <id-or-path>] [--id <id>] [--title <title>] [--order <n>]
   /audio-cue add --scene-moment <id-or-path> [--expression-unit <id-or-path>] [--storyboard <id-or-path>] [--id <id>] [--title <title>] [--kind <kind>] [--prompt <text>]
   /expression-unit add --scene-moment <id-or-path> [--id <id>] [--slot-kind <visual|voice|subtitle|audio>] [--kind <legacy-kind>] [--speaker <text>] [--text <text>] [--storyboard <id-or-path>]
-  /content-unit add --title <title> --type <asset_ref|keyframe_ref|storyboard_ref|scence_moment_ref|expression_unit_ref|timeline_assembly_ref> [--timeline-assembly <timeline_assembly:scope:id>] [--scope-kind <kind>] [--scope-ref <id>] [--asset <id>] [--keyframe <id>] [--scene-moment <id>] [--expression-unit <id>] [--storyboard <id>] [--output-kind <kind>] [--prompt <text>]
+  /content-unit add --title <title> --type <asset_ref|keyframe_ref|storyboard_ref|scence_moment_ref|expression_unit_ref|audio_cue_ref|production_ref> [--asset <id>] [--keyframe <id>] [--scene-moment <id>] [--expression-unit <id>] [--storyboard <id>] [--audio-cue <id>] [--production <id>] [--output-kind <kind>] [--prompt <text>]
   /content-unit status <id-or-path>
   /content-unit backend-prompt <id-or-path>
   /language kinds
@@ -3556,11 +3542,6 @@ function parseOptionalNumberOption(value: string | undefined, optionName: string
 }
 
 interface ContentUnitSourceRefs {
-  targetCategory?: string
-  targetKind?: string
-  targetRef?: string
-  scopeKind?: string
-  scopeRef?: string
   productionId?: string
   segmentId?: string
   sceneMomentId?: string
@@ -3578,21 +3559,9 @@ function parseContentUnitSourceOptions(options: AddContentUnitOptions, contentUn
   const storyboard = parseStoryboardRefOption(options.storyboard)
   const keyframe = parseKeyframeRefOption(options.keyframe)
   const audioCue = parseAudioCueRefOption(options.audioCue)
-  const timelineAssembly = parseTimelineAssemblyRefOptions(options, contentUnitType)
-  const legacyProductionId = timelineAssembly.targetRef === undefined
-    ? options.production ?? keyframe.productionId ?? audioCue.productionId ?? storyboard.productionId ?? expressionUnit.productionId ?? sceneMoment.productionId
-    : undefined
-  const legacySegmentId = timelineAssembly.targetRef === undefined
-    ? options.segment ?? keyframe.segmentId ?? audioCue.segmentId ?? storyboard.segmentId ?? expressionUnit.segmentId ?? sceneMoment.segmentId
-    : undefined
   return pruneUndefined({
-    targetCategory: timelineAssembly.targetCategory,
-    targetKind: timelineAssembly.targetKind,
-    targetRef: timelineAssembly.targetRef,
-    scopeKind: timelineAssembly.scopeKind,
-    scopeRef: timelineAssembly.scopeRef,
-    productionId: legacyProductionId,
-    segmentId: legacySegmentId,
+    productionId: options.production ?? keyframe.productionId ?? audioCue.productionId ?? storyboard.productionId ?? expressionUnit.productionId ?? sceneMoment.productionId,
+    segmentId: options.segment ?? keyframe.segmentId ?? audioCue.segmentId ?? storyboard.segmentId ?? expressionUnit.segmentId ?? sceneMoment.segmentId,
     sceneMomentId: sceneMoment.sceneMomentId ?? keyframe.sceneMomentId ?? audioCue.sceneMomentId ?? storyboard.sceneMomentId ?? expressionUnit.sceneMomentId,
     expressionUnitId: expressionUnit.expressionUnitId ?? storyboard.expressionUnitId ?? keyframe.expressionUnitId ?? plainIdOption(options.expressionUnit),
     storyboardId: storyboard.storyboardId ?? (contentUnitType === undefined || contentUnitType === 'storyboard_ref' ? 'main' : undefined),
@@ -3600,61 +3569,6 @@ function parseContentUnitSourceOptions(options: AddContentUnitOptions, contentUn
     assetRef: asset.assetRef ?? options.asset,
     audioCueId: audioCue.audioCueId,
   })
-}
-
-function parseTimelineAssemblyRefOptions(
-  options: AddContentUnitOptions,
-  contentUnitType?: string,
-): ContentUnitSourceRefs {
-  const rawAssembly = stringValue(options.timelineAssembly)
-  const rawScopeKind = stringValue(options.scopeKind)
-  const rawScopeRef = stringValue(options.scopeRef)
-  if (!rawAssembly && !rawScopeKind && !rawScopeRef && contentUnitType !== 'timeline_assembly_ref') return {}
-
-  const parsedAssembly = parseImplicitTimelineAssemblyRefOption(rawAssembly)
-  if (parsedAssembly && rawScopeKind && parsedAssembly.scopeKind !== rawScopeKind) {
-    throw new Error('--scope-kind conflicts with --timeline-assembly')
-  }
-  if (parsedAssembly && rawScopeRef && parsedAssembly.scopeRef !== rawScopeRef) {
-    throw new Error('--scope-ref conflicts with --timeline-assembly')
-  }
-  if (rawAssembly && !parsedAssembly && rawScopeRef && rawAssembly !== rawScopeRef) {
-    throw new Error('--scope-ref conflicts with --timeline-assembly')
-  }
-
-  const productionScopeRef = !rawAssembly && !rawScopeKind && !rawScopeRef && contentUnitType === 'timeline_assembly_ref'
-    ? stringValue(options.production)
-    : undefined
-  const segmentScope = !rawAssembly && !rawScopeKind && !rawScopeRef && contentUnitType === 'timeline_assembly_ref' && !productionScopeRef
-    ? parseSegmentRefOption(options.segment)
-    : {}
-  const segmentScopeRef = stringValue(segmentScope.segmentId)
-
-  const scopeKind = rawScopeKind ?? parsedAssembly?.scopeKind ?? (productionScopeRef ? 'production' : segmentScopeRef ? 'segment' : undefined)
-  const scopeRef = rawScopeRef ?? parsedAssembly?.scopeRef ?? (!parsedAssembly ? rawAssembly : undefined) ?? productionScopeRef ?? segmentScopeRef
-  if (!scopeKind && !scopeRef) return {}
-  if (!scopeKind || !scopeRef) {
-    throw new Error('--timeline-assembly requires --scope-kind, or provide both --scope-kind and --scope-ref')
-  }
-  return {
-    targetCategory: 'timeline_assembly',
-    targetKind: 'timeline_assembly',
-    targetRef: implicitTimelineAssemblyRefOption(scopeKind, scopeRef),
-    scopeKind,
-    scopeRef,
-  }
-}
-
-function implicitTimelineAssemblyRefOption(scopeKind: string, scopeRef: string): string {
-  return `timeline_assembly:${scopeKind}:${scopeRef}`
-}
-
-function parseImplicitTimelineAssemblyRefOption(value: string | undefined): { scopeKind: string; scopeRef: string } | undefined {
-  if (!value?.startsWith('timeline_assembly:')) return undefined
-  const [, scopeKind, ...scopeRefParts] = value.split(':')
-  const scopeRef = scopeRefParts.join(':')
-  if (!scopeKind?.trim() || !scopeRef.trim()) return undefined
-  return { scopeKind: scopeKind.trim(), scopeRef: scopeRef.trim() }
 }
 
 function parsePlanningParentOptions(options: {

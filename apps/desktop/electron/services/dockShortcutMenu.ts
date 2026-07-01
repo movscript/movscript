@@ -45,7 +45,7 @@ function refreshDockShortcutMenu(): void {
   const labels = snapshot.labels ?? {}
   const template: Electron.MenuItemConstructorOptions[] = [
     dockHomeItem(labels.appHome ?? 'Home', '/', 'home', isRouteWindowOpen('/')),
-    dockHomeItem(labels.toolHome ?? 'Tools', '/tools/ref-image-gen', 'tool', isRouteWindowOpen('/tools/ref-image-gen'), () => openToolWindow()),
+    dockHomeItem(labels.toolHome ?? 'Tools', '/tools/image', 'tool', isRouteWindowOpen('/tools/image'), () => openToolWindow()),
     dockHomeItem(labels.editHome ?? 'Editing', '/editing', 'editingProject', isRouteWindowOpen('/editing'), () => openEditingWindow()),
     dockHomeItem(labels.canvasHome ?? 'Canvas', '/canvases', 'canvas', isRouteWindowOpen('/canvases'), () => openCanvasWindow()),
     { type: 'separator' },

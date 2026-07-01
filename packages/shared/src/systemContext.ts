@@ -4,7 +4,8 @@ export type MovScriptPrincipalKind =
   | 'service-account'
   | 'external-user'
 
-export type MovScriptDataConnectionKind = 'local' | 'cloud' | 'external'
+export type MovScriptDataConnectionKind = 'local' | 'cloud'
+export type MovScriptRuntimeConnectionMode = 'local' | 'cloud'
 
 export type MovScriptDaemonRuntimeOwner = 'movscript.local-node'
 
@@ -33,9 +34,27 @@ export interface MovScriptPrincipalContext {
 
 export interface MovScriptDataConnectionContext {
   kind: MovScriptDataConnectionKind
-  authMode?: 'local-owner' | 'session' | 'service-account' | 'external'
+  authMode?: 'local-owner' | 'session' | 'service-account'
   status?: 'connected' | 'degraded' | 'unavailable'
   displayName?: string
+}
+
+export interface MovScriptRuntimeConnectionDescriptor {
+  schema: 'movscript.runtime-connection.v1'
+  mode: MovScriptRuntimeConnectionMode
+  gatewayBaseURL: string
+  apiV1BaseURL: string
+  authMode: 'local-owner' | 'session'
+  displayName: string
+  status: 'connected' | 'starting' | 'degraded' | 'unavailable'
+  source: 'daemon' | 'cloud'
+}
+
+export interface MovScriptRuntimeIdentity {
+  pluginVersion?: string
+  pluginRoot?: string
+  runtimeVersion?: string
+  runtimeRoot?: string
 }
 
 export interface MovScriptRuntimeDescriptor {
@@ -44,6 +63,7 @@ export interface MovScriptRuntimeDescriptor {
     owner: MovScriptDaemonRuntimeOwner
     appId: MovScriptDaemonRuntimeOwner
     name: 'MovScript Local Node Daemon'
+    identity?: MovScriptRuntimeIdentity
   }
   gateway: {
     baseURL: string
@@ -70,6 +90,8 @@ export interface MovScriptWorkspaceSessionContext {
   windowId?: string
   project?: {
     id: string
+    key?: string
+    backendProjectId?: number
     uid?: string
     slug?: string
     title?: string
@@ -97,6 +119,9 @@ export interface MovScriptContextSessionInput {
   sessionId?: string
   windowId?: string
   projectId?: string | number
+  backendProjectId?: number
+  projectKey?: string
+  routeProjectKey?: string
   projectUid?: string
   projectSlug?: string
   projectTitle?: string
@@ -118,5 +143,11 @@ export function movScriptContextProjectCwd(
 export function movScriptContextProjectId(
   context: Pick<MovScriptContextEnvelope, 'session'> | undefined,
 ): string | undefined {
-  return context?.session?.project?.id?.trim() || undefined
+  return movScriptContextProjectKey(context)
+}
+
+export function movScriptContextProjectKey(
+  context: Pick<MovScriptContextEnvelope, 'session'> | undefined,
+): string | undefined {
+  return context?.session?.project?.key?.trim() || context?.session?.project?.id?.trim() || undefined
 }

@@ -72,7 +72,7 @@ func (w *Worker) prepareVideoInputReferencesForRouteWithTrace(job *persistencemo
 	if len(imageData) == 0 && len(videoData) == 0 && len(audioData) == 0 {
 		return nil, nil
 	}
-	requirements := ai.RouteCapabilityPublicURLRequirements(route.RouteCapabilitiesJSON, route.Capability)
+	requirements := ai.AdapterOperationPublicURLRequirements(w.adapterTypeForRoute(route), route.Capability, route.Operation)
 	if !w.videoRouteRequiresPublicMediaReferencesForRoute(route) && !requirements.Image && !requirements.Video {
 		return nil, nil
 	}
@@ -122,7 +122,7 @@ func (w *Worker) videoRouteRequiresPublicMediaReferences(job *persistencemodel.J
 }
 
 func (w *Worker) videoRouteRequiresPublicMediaReferencesForRoute(route ai.ModelRoute) bool {
-	requirements := ai.RouteCapabilityPublicURLRequirements(route.RouteCapabilitiesJSON, route.Capability)
+	requirements := ai.AdapterOperationPublicURLRequirements(w.adapterTypeForRoute(route), route.Capability, route.Operation)
 	if requirements.Image || requirements.Video || requirements.Audio {
 		return true
 	}
@@ -379,6 +379,9 @@ func jobHasCatalogRouteMetadata(job *persistencemodel.Job) bool {
 }
 
 func (w *Worker) adapterTypeForRoute(route ai.ModelRoute) string {
+	if adapterType := strings.TrimSpace(route.AdapterType); adapterType != "" {
+		return adapterType
+	}
 	if route.CredentialID != 0 && w != nil && w.db != nil && w.db.Migrator().HasTable(&persistencemodel.AICredential{}) {
 		var cred persistencemodel.AICredential
 		if err := w.db.Where("id = ? AND deleted_at IS NULL", route.CredentialID).First(&cred).Error; err == nil {

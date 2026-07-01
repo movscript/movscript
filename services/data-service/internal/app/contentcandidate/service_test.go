@@ -35,7 +35,7 @@ func TestGenerateCreatesScopedProjectDataCandidate(t *testing.T) {
 	entry := persistencemodel.AIModelCatalogEntry{
 		PublicModelID:         "canvas-test-image",
 		DisplayName:           "Canvas Test Image",
-		Capabilities:          ai.CapabilityImage,
+		Capabilities:          ai.CapabilityFamilyImageGeneration,
 		ModelCapabilitiesJSON: `{"image_generation":{"operations":["text_to_image"]}}`,
 		IsEnabled:             true,
 	}
@@ -43,13 +43,13 @@ func TestGenerateCreatesScopedProjectDataCandidate(t *testing.T) {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
-		CatalogEntryID:        entry.ID,
-		SourceType:            persistencemodel.ModelRouteSourceRelayGateway,
-		RouteGroup:            "default",
-		ProviderModelID:       "canvas-test-image",
-		IsEnabled:             true,
-		CapacityWeight:        1,
-		RouteCapabilitiesJSON: `{"image_generation":{"operations":["text_to_image"]}}`,
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
+		RouteGroup:      "default",
+		AdapterType:     ai.AdapterOpenAICompat,
+		ProviderModelID: "canvas-test-image",
+		IsEnabled:       true,
+		CapacityWeight:  1,
 	}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestGenerateCreatesScopedProjectDataCandidate(t *testing.T) {
 		ScopeID:       "5",
 		OutputKind:    "image",
 		ModelID:       "canvas-test-image",
-		JobType:       ai.CapabilityImage,
+		JobType:       domainjob.JobTypeImage,
 		GenerationIntent: &jobapp.GenerationIntentInput{
 			Capability: ai.CapabilityFamilyImageGeneration,
 			Operation:  ai.ImageOperationTextToImage,

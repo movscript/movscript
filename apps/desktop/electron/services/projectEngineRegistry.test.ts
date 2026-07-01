@@ -16,7 +16,6 @@ import {
   __setProjectEngineWorkspaceUpdatedBroadcasterForTest,
   createMovScriptEngineContentCandidate,
   deleteMovScriptEngineContentCanvas,
-  ensureMovScriptEngineTimelineAssemblyContentUnit,
   listMovScriptEngineContentCanvases,
   loadMovScriptEngineContentWorkspace,
   loadMovScriptEngineContentWorkspaceSnapshot,
@@ -289,72 +288,6 @@ test('workspace domain mutations run through project engines and invalidate cach
     assert.notEqual(first, second)
     assert.equal(snapshots.length, 1)
     assert.equal((snapshots[0] as { productionId: string }).productionId, 'pilot')
-  } finally {
-    restore()
-    await rm(workspaceDir, { recursive: true, force: true })
-  }
-})
-
-test('timeline assembly content unit ensure uses canonical assembly target without production writer', async () => {
-  const workspaceDir = await createTestWorkspaceDir()
-  const ensureCalls: unknown[] = []
-  const productionCalls: unknown[] = []
-  const segmentCalls: unknown[] = []
-  const restore = __setProjectEngineFactoryForTest(() => fakeEngine({
-    ensureContentUnitForEntity: async (input) => {
-      ensureCalls.push(input)
-      return {
-        path: 'content_units/episode_01_assembly/content_unit.json',
-        record: input as unknown as Record<string, unknown>,
-        created: true,
-      }
-    },
-    createProduction: async (input) => {
-      productionCalls.push(input)
-      return {
-        productionPath: `productions/${String((input as { id?: unknown }).id ?? 'main')}/production.json`,
-        writtenPaths: [],
-        snapshot: { production: input },
-      }
-    },
-    createSegment: async (input) => {
-      segmentCalls.push(input)
-      return {
-        productionPath: `productions/${String((input as { productionId?: unknown }).productionId ?? 'main')}/production.json`,
-        writtenPaths: [],
-        snapshot: { segments: [input] },
-      }
-    },
-  }))
-
-  try {
-    await ensureMovScriptEngineTimelineAssemblyContentUnit({
-      workspaceDir,
-      projectDir: join(workspaceDir, 'project-7'),
-      userId: 1,
-      projectId: 7,
-      expectedWorkspaceVersions: {},
-      payload: {
-        scopeKind: 'episode',
-        scopeRef: 'episode_01',
-        id: 'episode_01_assembly',
-        title: 'Episode 01 assembly',
-      },
-    })
-
-    assert.equal(ensureCalls.length, 1)
-    assert.deepEqual(ensureCalls[0], {
-      scopeKind: 'episode',
-      scopeRef: 'episode_01',
-      id: 'episode_01_assembly',
-      title: 'Episode 01 assembly',
-      targetKind: 'timeline_assembly',
-      targetRef: 'timeline_assembly:episode:episode_01',
-      contentUnitType: 'timeline_assembly_ref',
-      outputKind: 'video',
-    })
-    assert.deepEqual(productionCalls, [])
-    assert.deepEqual(segmentCalls, [])
   } finally {
     restore()
     await rm(workspaceDir, { recursive: true, force: true })

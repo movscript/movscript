@@ -1,19 +1,18 @@
 export const PROJECT_SURFACE_ROUTES = {
-  overview: '/studio/:projectId/overview',
-  progress: '/studio/:projectId/progress',
-  dailies: '/studio/:projectId/dailies',
-  liveRoom: '/studio/:projectId/live-room',
-  editDesk: '/studio/:projectId/edit-desk',
-  impact: '/studio/:projectId/impact',
-  timeline: '/studio/:projectId/timeline',
-  resources: '/studio/:projectId/resources',
-  scripts: '/studio/:projectId/scripts',
-  standards: '/studio/:projectId/standards',
-  content: '/studio/:projectId/content',
-  contentCanvas: '/studio/:projectId/content/canvas',
-  contentPreview: '/studio/:projectId/content/preview',
-  settingPreview: '/studio/:projectId/settings/preview',
-  settings: '/studio/:projectId/settings',
+  overview: '/studio/:projectKey/overview',
+  progress: '/studio/:projectKey/progress',
+  dailies: '/studio/:projectKey/dailies',
+  liveRoom: '/studio/:projectKey/live-room',
+  impact: '/studio/:projectKey/impact',
+  timeline: '/studio/:projectKey/timeline',
+  resources: '/studio/:projectKey/resources',
+  scripts: '/studio/:projectKey/scripts',
+  standards: '/studio/:projectKey/standards',
+  content: '/studio/:projectKey/content',
+  contentCanvas: '/studio/:projectKey/content/canvas',
+  contentPreview: '/studio/:projectKey/content/preview',
+  settingPreview: '/studio/:projectKey/settings/preview',
+  settings: '/studio/:projectKey/settings',
 } as const
 
 export type ProjectSurfaceRouteKey = keyof typeof PROJECT_SURFACE_ROUTES
@@ -36,7 +35,6 @@ export const PROJECT_SURFACE_ROUTE_DEFINITIONS: readonly ProjectSurfaceRouteDefi
   { label: 'Progress', key: 'progress', path: PROJECT_SURFACE_ROUTES.progress, segment: 'progress' },
   { label: 'Dailies', key: 'dailies', path: PROJECT_SURFACE_ROUTES.dailies, segment: 'dailies' },
   { label: 'Live room', key: 'liveRoom', path: PROJECT_SURFACE_ROUTES.liveRoom, segment: 'live-room' },
-  { label: 'Edit desk', key: 'editDesk', path: PROJECT_SURFACE_ROUTES.editDesk, segment: 'edit-desk' },
   { label: 'Impact', key: 'impact', path: PROJECT_SURFACE_ROUTES.impact, segment: 'impact' },
   { label: 'Timeline', key: 'timeline', path: PROJECT_SURFACE_ROUTES.timeline, segment: 'timeline' },
   { label: 'Resources', key: 'resources', path: PROJECT_SURFACE_ROUTES.resources, segment: 'resources' },
@@ -53,6 +51,7 @@ export type SurfaceDescriptorScope = 'project' | 'admin'
 export interface SurfaceDescriptor {
   scope: SurfaceDescriptorScope
   surface: string
+  projectKey?: string | number
   projectId?: string | number
   params?: Record<string, string | number | boolean | undefined>
   reason?: string
@@ -66,13 +65,14 @@ export function projectSurfaceRouteBySegment(segment: string | undefined): Proje
 
 export function projectSurfacePath(
   route: ProjectSurfaceRouteKey,
-  projectId: string | number,
+  projectKey: string | number,
 ): string {
-  return PROJECT_SURFACE_ROUTES[route].replace(':projectId', encodeURIComponent(String(projectId)))
+  return PROJECT_SURFACE_ROUTES[route].replace(':projectKey', encodeURIComponent(String(projectKey)))
 }
 
 export function projectSurfaceDescriptor(input: {
   surface: ProjectSurfaceName
+  projectKey?: string | number
   projectId: string | number
   params?: Record<string, string | number | boolean | undefined>
   reason?: string
@@ -81,6 +81,7 @@ export function projectSurfaceDescriptor(input: {
   return {
     scope: 'project',
     surface: input.surface,
+    projectKey: input.projectKey ?? input.projectId,
     projectId: input.projectId,
     ...(input.params ? { params: input.params } : {}),
     ...(input.reason ? { reason: input.reason } : {}),

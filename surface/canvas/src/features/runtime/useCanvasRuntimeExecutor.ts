@@ -164,7 +164,7 @@ export function useCanvasRuntimeExecutor({
 
     const outputType = node.type === 'text_gen' ? 'text'
       : node.type === 'ai_gen' ? (data.outputType ?? 'image')
-        : node.type === 'video' || node.type === 'ref_video_gen' || node.type === 'motion_imitation' ? 'video'
+        : node.type === 'video' || node.type === 'reference_to_video' ? 'video'
           : node.type === 'text' ? 'text'
             : 'image'
     const prompt = runtimePromptForNode(node, inputs)

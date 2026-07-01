@@ -28,6 +28,9 @@ test('local project home href opens the canonical studio overview route without 
   assert.equal(url.pathname, '/studio/7/overview')
   assert.equal(url.searchParams.get('projectDir'), '/tmp/rain-night')
   assert.equal(url.searchParams.get('projectUid'), 'proj_uid_7')
+  assert.equal(url.searchParams.get('projectKey'), '7')
+  assert.equal(url.searchParams.get('routeProjectKey'), '7')
+  assert.equal(url.searchParams.get('backendProjectId'), '7')
   assert.equal(url.searchParams.get('projectId'), '7')
   assert.equal(url.searchParams.get('projectName'), 'Rain Night')
   assert.equal(url.searchParams.has('projectServiceBaseURL'), false)
@@ -46,6 +49,8 @@ test('local project route href uses project uid when no numeric id is available'
   assert.equal(url.pathname, '/studio/proj_uid_only/scripts')
   assert.equal(url.searchParams.get('projectDir'), '/tmp/uid-project')
   assert.equal(url.searchParams.get('projectUid'), 'proj_uid_only')
+  assert.equal(url.searchParams.get('projectKey'), 'proj_uid_only')
+  assert.equal(url.searchParams.get('routeProjectKey'), 'proj_uid_only')
   assert.equal(url.searchParams.has('projectId'), false)
 })
 
@@ -55,6 +60,8 @@ test('local route helpers require canonical project-id-first studio urls', () =>
     new URLSearchParams('projectDir=/tmp/rain-night'),
   )
   assert.equal(canonical.route?.key, 'overview')
+  assert.equal(canonical.projectKey, '7')
+  assert.equal(canonical.routeProjectKey, '7')
   assert.equal(canonical.projectId, '7')
   assert.equal(canonical.projectDir, '/tmp/rain-night')
 
@@ -63,6 +70,7 @@ test('local route helpers require canonical project-id-first studio urls', () =>
     new URLSearchParams('projectDir=/tmp/rain-night'),
   )
   assert.equal(segmentFirst.route, undefined)
+  assert.equal(segmentFirst.projectKey, 'scripts')
   assert.equal(segmentFirst.projectId, 'scripts')
   assert.equal(segmentFirst.projectDir, '/tmp/rain-night')
 
@@ -71,6 +79,7 @@ test('local route helpers require canonical project-id-first studio urls', () =>
     new URLSearchParams('projectDir=/tmp/rain-night'),
   )
   assert.equal(multiSegment.route?.key, 'settingPreview')
+  assert.equal(multiSegment.projectKey, '7')
   assert.equal(multiSegment.projectId, '7')
 })
 
@@ -93,24 +102,7 @@ test('local route context derives legacy production id from normalized timeline 
   assert.equal(scoped.productionId, 'pilot')
   assert.equal(scoped.domainFocus.scope?.kind, 'production')
   assert.equal(scoped.domainFocus.scope?.ref, 'pilot')
-  assert.equal(scoped.domainFocus.target?.targetKind, 'timeline_assembly')
-  assert.equal(scoped.domainFocus.target?.targetRef, 'timeline_assembly:production:pilot')
-
-  const assembly = projectRouteContext(
-    '/studio/7/preview',
-    new URLSearchParams('projectDir=/tmp/rain-night&targetKind=timeline_assembly&targetRef=timeline_assembly:production:pilot-final'),
-  )
-  assert.equal(assembly.productionId, 'pilot-final')
-  assert.equal(assembly.domainFocus.scope?.kind, 'production')
-  assert.equal(assembly.domainFocus.scope?.ref, 'pilot-final')
-  assert.equal(assembly.domainFocus.target?.targetRef, 'timeline_assembly:production:pilot-final')
-
-  const alias = projectRouteContext(
-    '/studio/7/preview',
-    new URLSearchParams('projectDir=/tmp/rain-night&timeline_assembly_ref=timeline_assembly:production:pilot-alias'),
-  )
-  assert.equal(alias.productionId, 'pilot-alias')
-  assert.equal(alias.domainFocus.target?.targetRef, 'timeline_assembly:production:pilot-alias')
+  assert.equal(scoped.domainFocus.target, undefined)
 })
 
 test('local route context treats non-production timeline focus as canonical over stale production query', () => {
@@ -121,15 +113,7 @@ test('local route context treats non-production timeline focus as canonical over
   assert.equal(scoped.productionId, undefined)
   assert.equal(scoped.domainFocus.scope?.kind, 'episode')
   assert.equal(scoped.domainFocus.scope?.ref, 'episode_01')
-  assert.equal(scoped.domainFocus.target?.targetKind, 'timeline_assembly')
-  assert.equal(scoped.domainFocus.target?.targetRef, 'timeline_assembly:episode:episode_01')
-
-  const alias = projectRouteContext(
-    '/studio/7/preview',
-    new URLSearchParams('projectDir=/tmp/rain-night&productionId=pilot&timeline_assembly_ref=timeline_assembly:episode:episode_01'),
-  )
-  assert.equal(alias.productionId, undefined)
-  assert.equal(alias.domainFocus.scope?.kind, 'episode')
+  assert.equal(scoped.domainFocus.target, undefined)
 
   const query = new URLSearchParams('productionId=pilot&scopeKind=episode&scopeRef=episode_01')
   normalizeTimelineFocusQuery(query)

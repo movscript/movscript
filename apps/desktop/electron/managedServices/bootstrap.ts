@@ -1,4 +1,4 @@
-import { writeMovScriptDataServiceConfig } from '@movscript/data-client'
+import { resolveMovScriptDataServiceSession, writeMovScriptDataServiceConfig } from '@movscript/data-client'
 import {
   readMovScriptHomeConfig,
   resolveMovScriptHomeConfigPaths,
@@ -14,7 +14,7 @@ import { ensureMCPServerReady } from './mcp'
 export type ManagedServicesBootstrapResult = {
   localRuntime?: {
     enabled: boolean
-    dataPlane: 'local' | 'cloud' | 'external'
+    dataPlane: 'local' | 'cloud'
     dataServiceURL?: string
     forceRestart?: boolean
   }
@@ -27,13 +27,17 @@ export async function bootstrapManagedServicesBeforeWindow(): Promise<ManagedSer
   const runtime = prepareDesktopRuntimeDependencies({
     workspaceDir,
     requireMovScriptServer: false,
-    requireMovcli: true,
+    requireMovScriptCli: true,
   })
   if (!runtime.preflight.ok) {
     throw new Error(`MovScript runtime dependency check failed:\n${formatDesktopRuntimePreflightFailure(runtime.preflight)}`)
   }
-  if (appSettings?.launchMode === 'cloud' && appSettings.apiBaseURL) {
-    writeMovScriptDataServiceConfig(workspaceDir, { baseURL: appSettings.apiBaseURL })
+  const cloudServiceURL = appSettings?.dataConnection?.url
+    || appSettings?.cloudAPIBaseURL
+    || appSettings?.apiBaseURL
+    || resolveMovScriptDataServiceSession({ workspaceDir }).baseURL
+  if (appSettings?.launchMode === 'cloud' && cloudServiceURL) {
+    writeMovScriptDataServiceConfig(workspaceDir, { baseURL: cloudServiceURL })
   }
   const smokeLocalRuntime = desktopSmokeLocalRuntimeFromEnv()
   await ensureMCPServerReady()
@@ -44,7 +48,7 @@ export async function bootstrapManagedServicesBeforeWindow(): Promise<ManagedSer
           enabled: true,
           dataPlane: appSettings.launchMode === 'local' ? 'local' : 'cloud',
           forceRestart: shouldForceRefreshLocalRuntimeDaemon(),
-          ...(appSettings.launchMode !== 'local' && appSettings.apiBaseURL ? { dataServiceURL: appSettings.apiBaseURL } : {}),
+          ...(appSettings.launchMode !== 'local' && cloudServiceURL ? { dataServiceURL: cloudServiceURL } : {}),
         }
       : undefined),
   }
@@ -53,7 +57,7 @@ export async function bootstrapManagedServicesBeforeWindow(): Promise<ManagedSer
 function desktopSmokeLocalRuntimeFromEnv(env: NodeJS.ProcessEnv = process.env): ManagedServicesBootstrapResult['localRuntime'] {
   if (env.MOVSCRIPT_DESKTOP_SMOKE_LOCAL_RUNTIME !== '1') return undefined
   const rawDataPlane = (env.MOVSCRIPT_DESKTOP_SMOKE_DATA_PLANE ?? env.MOVSCRIPT_LOCAL_DAEMON_DATA_PLANE ?? 'local').trim()
-  const dataPlane = rawDataPlane === 'cloud' || rawDataPlane === 'external' ? rawDataPlane : 'local'
+  const dataPlane = rawDataPlane === 'cloud' || rawDataPlane === 'external' ? 'cloud' : 'local'
   const dataServiceURL = env.MOVSCRIPT_DESKTOP_SMOKE_DATA_SERVICE_URL?.trim() || env.MOVSCRIPT_DATA_SERVICE_URL?.trim()
   return {
     enabled: true,

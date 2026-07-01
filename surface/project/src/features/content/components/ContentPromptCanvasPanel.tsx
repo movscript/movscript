@@ -9,6 +9,7 @@ import {
   PanOnScrollMode,
   Position,
   ReactFlow,
+  SelectionMode,
   type Connection,
   type Edge,
   type Node,
@@ -19,7 +20,7 @@ import {
   useNodesState,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { ChevronLeft, ChevronRight, Clock3, FileText, FolderOpen, GitBranch, Image as ImageIcon, Info, Link2, LocateFixed, Move, Music, Pencil, Plus, RotateCcw, Save, Search, Sparkles, Star, Trash2, Video, X, type LucideIcon } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Clock3, FileText, FolderOpen, GitBranch, Image as ImageIcon, Info, Layers3, Link2, LocateFixed, Move, Music, Pencil, Plus, RotateCcw, Save, Search, Sparkles, Star, Trash2, Ungroup, Video, X, type LucideIcon } from 'lucide-react'
 
 import {
   evaluateGenerationReadiness,
@@ -86,6 +87,8 @@ import {
   contentCanvasDocumentScope,
   normalizeContentCanvasDocumentTitle,
   type ContentCanvasDocument,
+  type ContentCanvasDocumentGroup,
+  type ContentCanvasDocumentGroupInput,
   type ContentCanvasDocumentScope,
 } from '../application/contentCanvasDocuments'
 import type { ContentCanvasCreateNodeInput } from '../application/contentCanvasCommands'
@@ -112,14 +115,12 @@ import {
 } from './contentPromptCanvasQuickCreateModel'
 import { contentCanvasGenerationTargetForNode } from './contentCanvasWorkspaceGenerationModel'
 import {
-  appendContentNodeReferenceToPrompt,
   candidateDecisionForNode,
   iconForContentNode,
   mediaKindForNode,
   mediaKindLabel,
   nodeCandidateBadge,
   promptFromContentNode,
-  upsertContentNodeReferenceInPrompt,
 } from './contentCanvasWorkspaceModel'
 import {
   expressionUnitKindShortLabel,
@@ -149,6 +150,7 @@ type CreativeFlowNodeData = {
   onContextMenu: (event: ReactMouseEvent, node: ContentCanvasNode) => void
   onPromptCommit: (node: ContentCanvasNode, prompt: string) => void
   onPromptDraftChange: (node: ContentCanvasNode, prompt: string) => void
+  onReferencePoolCommit: (node: ContentCanvasNode, prompt: string, generationReferences: Array<Record<string, unknown>>) => void
   onStructuredPromptCommit: (node: ContentCanvasNode, structured: Record<string, unknown>) => void
   onCandidatePreviewOpen: (preview: CreativeFlowNodeCandidatePreview) => void
   onCandidateRemove: (node: ContentCanvasNode, candidate: ContentCanvasCandidate) => void
@@ -162,6 +164,17 @@ type CreativeFlowNodeData = {
   onCanvasDeselect: () => void
   onSelectNode: (kind: InspectorSelection['kind'], nodeId: string) => void
 }
+
+type CreativeFlowGroupNodeData = {
+  group: ContentCanvasDocumentGroup
+  groupKey: string
+  title: string
+  memberCount: number
+}
+
+type CreativeFlowContentNode = Node<CreativeFlowNodeData>
+type CreativeFlowGroupNode = Node<CreativeFlowGroupNodeData>
+type CreativeFlowNode = Node<CreativeFlowNodeData | CreativeFlowGroupNodeData>
 
 type CreativeFlowNodeCandidatePreview = {
   key: string
@@ -283,7 +296,14 @@ type CreativeCanvasReferenceRoleMenuState = {
   role: string
 }
 
+type CreativeCanvasGroupDragSnapshot = {
+  groupId: string
+  position: ContentCanvasNodePosition
+  memberPositions: Map<string, ContentCanvasNodePosition>
+}
+
 const CREATIVE_CANVAS_MINIMAP_NODE_LIMIT = 120
+const CONTENT_PROMPT_CANVAS_GROUP_PADDING = 56
 const CONTENT_PROMPT_ASSET_LIBRARY_PAGE_SIZE = 9
 const CONTENT_PROMPT_NODE_CANDIDATE_PAGE_SIZE = 3
 const CONTENT_PROMPT_REFERENCE_DRAG_MIME = 'application/x-movscript-content-reference'
@@ -292,12 +312,14 @@ const CONTENT_CANVAS_CREATE_SELECT_EMPTY_VALUE = '__empty__'
 
 const nodeTypes = {
   contentPrompt: memo(ContentPromptFlowNode, areCreativeFlowNodePropsEqual),
+  contentGroup: memo(ContentPromptGroupFlowNode, areCreativeFlowGroupNodePropsEqual),
 }
 
 export function ContentPromptCanvasPanel({
   activeCanvasDocument,
   candidateSelections,
   canvasDocuments,
+  canvasGroups,
   canvasNodeIds,
   draftAssetPrompts,
   draftExpressionPrompts,
@@ -322,17 +344,21 @@ export function ContentPromptCanvasPanel({
   onCanvasDeselect,
   onClearManualPositions,
   onClearManualPositionsForNodes,
-  onCreateAssembly,
   onCreateChild,
   onCreateCanvas,
+  onCreateGroup,
   onCreateNode,
   onDeleteNode,
   onExpressionPromptChange,
+  onGenerationReferenceAppend,
   onNodePositionsCommit,
   onViewportCommit,
   onPromptChange,
   onPromptCommit,
+  onReferencePoolCommit,
   onRemoveNodeFromCanvas,
+  onRemoveGroupsFromCanvas,
+  onRemoveNodesFromCanvas,
   onRenameCanvas,
   onSaveCanvas,
   onStructuredPromptCommit,
@@ -342,6 +368,7 @@ export function ContentPromptCanvasPanel({
   activeCanvasDocument?: ContentCanvasDocument
   candidateSelections: CandidateSelections
   canvasDocuments: ContentCanvasDocument[]
+  canvasGroups: ContentCanvasDocumentGroup[]
   canvasNodeIds: string[]
   draftAssetPrompts: Record<string, string>
   draftExpressionPrompts: Record<string, string>
@@ -366,17 +393,21 @@ export function ContentPromptCanvasPanel({
   onCanvasDeselect: () => void
   onClearManualPositions: () => void
   onClearManualPositionsForNodes: (nodeIds: string[]) => void
-  onCreateAssembly: (node: ContentCanvasNode) => void
   onCreateChild: (node: ContentCanvasNode, childKind: CreativeCanvasChildKind, position?: ContentCanvasNodePosition, input?: ContentCanvasCreateNodeInput) => void
   onCreateCanvas: (title?: string) => void
+  onCreateGroup: (input: ContentCanvasDocumentGroupInput) => void
   onCreateNode: (nodeKind: CreativeCanvasDirectKind, position: ContentCanvasNodePosition, input?: ContentCanvasCreateNodeInput) => void
   onDeleteNode: (node: ContentCanvasNode) => void
   onExpressionPromptChange: (nodeId: string, prompt: string) => void
+  onGenerationReferenceAppend: (targetNode: ContentCanvasNode | undefined, sourceNode: ContentCanvasNode | undefined, options?: { role?: string; mediaType?: string }) => void
   onNodePositionsCommit: (nodePositions: Record<string, { x: number; y: number }>) => void
   onViewportCommit: (viewport: Viewport) => void
   onPromptChange: (assetId: string, prompt: string) => void
   onPromptCommit: (node: ContentCanvasNode | undefined, prompt: string) => void
+  onReferencePoolCommit: (node: ContentCanvasNode | undefined, prompt: string, generationReferences: Array<Record<string, unknown>>) => void
   onRemoveNodeFromCanvas: (nodeId: string) => void
+  onRemoveGroupsFromCanvas: (groupIds: string[]) => void
+  onRemoveNodesFromCanvas: (nodeIds: string[]) => void
   onRenameCanvas: (canvasId: string, title: string) => void
   onSaveCanvas: () => void
   onStructuredPromptCommit: (node: ContentCanvasNode | undefined, structured: Record<string, unknown>) => void
@@ -401,10 +432,11 @@ export function ContentPromptCanvasPanel({
   const [nodeLibraryOpen, setNodeLibraryOpen] = useState(false)
   const [nodeLibraryQuery, setNodeLibraryQuery] = useState('')
   const [assetLibraryNotice, setAssetLibraryNotice] = useState<string | null>(null)
-  const [flowInstance, setFlowInstance] = useState<ReactFlowInstance<Node<CreativeFlowNodeData>, Edge> | null>(null)
+  const [flowInstance, setFlowInstance] = useState<ReactFlowInstance<CreativeFlowNode, Edge> | null>(null)
   const consumedFocusRequestIdRef = useRef<number | null>(null)
   const focusFrameRef = useRef<number | null>(null)
   const suppressNextNodeClickRef = useRef(false)
+  const groupDragSnapshotRef = useRef<CreativeCanvasGroupDragSnapshot | null>(null)
   const panelRef = useRef<HTMLElement | null>(null)
   const flowNodeSemanticSyncKeyRef = useRef<string | null>(null)
   const [localPromptReferenceEdges, setLocalPromptReferenceEdges] = useState<Edge[]>([])
@@ -468,6 +500,9 @@ export function ContentPromptCanvasPanel({
   const commitPromptFromNode = useCallback((node: ContentCanvasNode, prompt: string) => {
     onPromptCommit(node, prompt)
   }, [onPromptCommit])
+  const commitReferencePoolFromNode = useCallback((node: ContentCanvasNode, prompt: string, generationReferences: Array<Record<string, unknown>>) => {
+    onReferencePoolCommit(node, prompt, generationReferences)
+  }, [onReferencePoolCommit])
   const appendLocalPromptReferenceEdge = useCallback((sourceNode: ContentCanvasNode, targetNode: ContentCanvasNode) => {
     if (!visibleCreativeNodeIdSet.has(sourceNode.id) || !visibleCreativeNodeIdSet.has(targetNode.id)) return
     setLocalPromptReferenceEdges((current) => appendPromptReferencePreviewEdge(current, sourceNode, targetNode))
@@ -505,27 +540,28 @@ export function ContentPromptCanvasPanel({
     if (!activePromptReferenceTargetId || activePromptReferenceTargetId === sourceNode.id) return
     const target = nodeById.get(activePromptReferenceTargetId)
     if (!target) return
-    const currentPrompt = promptByNodeId[target.id] ?? ''
-    const nextPrompt = appendContentNodeReferenceToPrompt(currentPrompt, sourceNode)
-    updatePromptDraft(target, nextPrompt)
-    commitPromptFromNode(target, nextPrompt)
+    onGenerationReferenceAppend(target, sourceNode)
     appendLocalPromptReferenceEdge(sourceNode, target)
-  }, [activePromptReferenceTargetId, appendLocalPromptReferenceEdge, commitPromptFromNode, nodeById, promptByNodeId, updatePromptDraft])
+  }, [activePromptReferenceTargetId, appendLocalPromptReferenceEdge, nodeById, onGenerationReferenceAppend])
   const appendReferenceToPromptTargetWithRole = useCallback((
     targetNode: ContentCanvasNode,
     sourceNode: ContentCanvasNode,
     role?: string,
     mediaType?: PromptReferenceMediaType,
   ) => {
-    const currentPrompt = promptByNodeId[targetNode.id] ?? ''
-    const nextPrompt = upsertContentNodeReferenceInPrompt(currentPrompt, sourceNode, {
+    onGenerationReferenceAppend(targetNode, sourceNode, {
       ...(role ? { role } : {}),
       ...(mediaType ? { mediaType } : {}),
     })
-    updatePromptDraft(targetNode, nextPrompt)
-    commitPromptFromNode(targetNode, nextPrompt)
     appendLocalPromptReferenceEdge(sourceNode, targetNode)
-  }, [appendLocalPromptReferenceEdge, commitPromptFromNode, promptByNodeId, updatePromptDraft])
+  }, [appendLocalPromptReferenceEdge, onGenerationReferenceAppend])
+  const openReferenceRoleMenu = useCallback((state: CreativeCanvasReferenceRoleMenuState) => {
+    if (typeof window === 'undefined') {
+      setReferenceRoleMenu(state)
+      return
+    }
+    window.requestAnimationFrame(() => setReferenceRoleMenu(state))
+  }, [])
   const appendReferenceToPromptTarget = useCallback((targetNode: ContentCanvasNode, sourceNodeId: string, point?: { x: number; y: number }) => {
     if (targetNode.id === sourceNodeId) return
     const sourceNode = nodeById.get(sourceNodeId)
@@ -538,7 +574,7 @@ export function ContentPromptCanvasPanel({
     appendReferenceToPromptTargetWithRole(targetNode, sourceNode, defaultRole, mediaType)
     if (point && mediaType && roleOptions.length > 1) {
       const menuPoint = contentPromptReferenceRoleMenuPoint(point)
-      setReferenceRoleMenu({
+      openReferenceRoleMenu({
         x: menuPoint.x,
         y: menuPoint.y,
         targetNodeId: targetNode.id,
@@ -547,8 +583,8 @@ export function ContentPromptCanvasPanel({
         role: defaultRole ?? 'reference_image',
       })
     }
-  }, [appendReferenceToPromptTargetWithRole, candidateSelections, nodeById])
-  const initialFlowNodes = useMemo<Node<CreativeFlowNodeData>[]>(() => creativeGraph.nodes.map((item) => {
+  }, [appendReferenceToPromptTargetWithRole, candidateSelections, nodeById, openReferenceRoleMenu])
+  const initialContentFlowNodes = useMemo<CreativeFlowContentNode[]>(() => creativeGraph.nodes.map((item) => {
     const candidatePreviews = candidatePreviewsForNode(item.source, candidateSelections)
     return {
       id: item.id,
@@ -583,11 +619,20 @@ export function ContentPromptCanvasPanel({
         onCanvasDeselect,
         onPromptCommit: commitPromptFromNode,
         onPromptDraftChange: updatePromptDraft,
+        onReferencePoolCommit: commitReferencePoolFromNode,
         onStructuredPromptCommit,
         onSelectNode,
       },
     }
-  }), [activePromptReferenceTargetId, appendReferenceToActivePrompt, appendReferenceToPromptTarget, candidateSelections, candidateSelectionsKey, commitPromptFromNode, contentNodesKey, createResourceCandidateFromDrop, creativeGraph.nodes, focusedNodeId, nodes, onCanvasDeselect, onCandidateCreate, onCandidatePreflight, onCandidatePromptPreview, onCandidateRemove, onCandidateSelect, onSelectNode, onStructuredPromptCommit, openNodeContextMenu, persistedManualPositions, promptByNodeId, updatePromptDraft])
+  }), [activePromptReferenceTargetId, appendReferenceToActivePrompt, appendReferenceToPromptTarget, candidateSelections, candidateSelectionsKey, commitPromptFromNode, commitReferencePoolFromNode, contentNodesKey, createResourceCandidateFromDrop, creativeGraph.nodes, focusedNodeId, nodes, onCanvasDeselect, onCandidateCreate, onCandidatePreflight, onCandidatePromptPreview, onCandidateRemove, onCandidateSelect, onSelectNode, onStructuredPromptCommit, openNodeContextMenu, persistedManualPositions, promptByNodeId, updatePromptDraft])
+  const initialFlowNodes = useMemo<CreativeFlowNode[]>(() => [
+    ...creativeFlowGroupNodesFromCanvasGroups({
+      contentNodes: initialContentFlowNodes,
+      groups: canvasGroups,
+      nodeLayouts: activeCanvasDocument?.nodeLayouts,
+    }),
+    ...initialContentFlowNodes,
+  ], [activeCanvasDocument?.nodeLayouts, canvasGroups, initialContentFlowNodes])
   const initialFlowEdges = useMemo<Edge[]>(() => creativeGraph.edges.map((edge) => ({
     id: edge.id,
     source: edge.source,
@@ -597,7 +642,7 @@ export function ContentPromptCanvasPanel({
     style: { strokeWidth: edge.sourceEdge.kind === 'sequence' ? 1 : 1.6 },
     data: { kind: edge.sourceEdge.kind, relation: edge.sourceEdge.relation },
   })), [creativeGraph.edges])
-  const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(initialFlowNodes)
+  const [flowNodes, setFlowNodes, onNodesChange] = useNodesState<CreativeFlowNode>(initialFlowNodes)
   const [flowEdges, setFlowEdges] = useEdgesState(initialFlowEdges)
   const displayedFlowEdges = useMemo(
     () => mergePromptReferencePreviewEdges(flowEdges, localPromptReferenceEdges, visibleCreativeNodeIdSet),
@@ -607,6 +652,38 @@ export function ContentPromptCanvasPanel({
     () => `${activeCanvasDocument?.id ?? 'free'}:${initialFlowNodes.map((node) => node.id).join('|')}`,
     [activeCanvasDocument?.id, initialFlowNodes],
   )
+  const contentFlowNodes = useMemo(
+    () => flowNodes.filter(isCreativeFlowContentNode),
+    [flowNodes],
+  )
+  const selectedContentFlowNodes = useMemo(
+    () => contentFlowNodes.filter((node) => node.selected),
+    [contentFlowNodes],
+  )
+  const selectedGroupFlowNodes = useMemo(
+    () => flowNodes.filter(isCreativeFlowGroupNode).filter((node) => node.selected),
+    [flowNodes],
+  )
+  const selectedGroupMemberNodeIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const groupNode of selectedGroupFlowNodes) {
+      for (const nodeId of groupNode.data.group.memberNodeIds) ids.add(nodeId)
+    }
+    return ids
+  }, [selectedGroupFlowNodes])
+  const selectedContentNodeIds = useMemo(
+    () => selectedContentFlowNodes
+      .map((node) => node.id)
+      .filter((nodeId) => !selectedGroupMemberNodeIds.has(nodeId)),
+    [selectedContentFlowNodes, selectedGroupMemberNodeIds],
+  )
+  const selectedGroupIds = useMemo(
+    () => selectedGroupFlowNodes.map((node) => node.id),
+    [selectedGroupFlowNodes],
+  )
+  const selectedCanvasItemCount = selectedContentNodeIds.length + selectedGroupIds.length
+  const groupableSelectedNodes = selectedContentFlowNodes.filter((node) => !selectedGroupMemberNodeIds.has(node.id))
+  const canGroupSelectedNodes = groupableSelectedNodes.length >= 2
 
   const selectPromptCanvasNode = useCallback((nodeId: string) => {
     const sourceNode = nodeById.get(nodeId)
@@ -618,7 +695,7 @@ export function ContentPromptCanvasPanel({
   const openQuickAddMenuAtClientPoint = useCallback((clientX: number, clientY: number) => {
     const position = flowInstance?.screenToFlowPosition({ x: clientX, y: clientY }) ?? { x: 0, y: 0 }
     const quickAdd = creativeCanvasQuickAddOptionsForPosition({
-      flowNodes,
+      flowNodes: contentFlowNodes,
       focusedNodeId,
       nodeById,
       position,
@@ -632,7 +709,7 @@ export function ContentPromptCanvasPanel({
       inferredParentTitle: quickAdd.inferredParent?.title,
       groups: quickAdd.groups,
     })
-  }, [flowInstance, flowNodes, focusedNodeId, nodeById])
+  }, [contentFlowNodes, flowInstance, focusedNodeId, nodeById])
 
   const openQuickAddMenu = useCallback((event: ReactMouseEvent | globalThis.MouseEvent) => {
     event.preventDefault()
@@ -708,7 +785,7 @@ export function ContentPromptCanvasPanel({
   useEffect(() => {
     if (!flowInstance || !focusRequest) return
     if (consumedFocusRequestIdRef.current === focusRequest.requestId) return
-    const focusedNode = flowNodes.find((node) => node.id === focusRequest.nodeId)
+    const focusedNode = contentFlowNodes.find((node) => node.id === focusRequest.nodeId)
     if (!focusedNode) return
     consumedFocusRequestIdRef.current = focusRequest.requestId
     const size = creativeCanvasNodeViewportSize(focusedNode.data.item)
@@ -724,7 +801,7 @@ export function ContentPromptCanvasPanel({
         zoom: Math.max(flowInstance.getZoom(), zoom),
       })
     })
-  }, [flowInstance, flowNodes, focusRequest])
+  }, [contentFlowNodes, flowInstance, focusRequest])
 
   const editablePromptNodeIds = useMemo(
     () => new Set(creativeGraph.nodes.filter((node) => isCreativePromptEditableNode(node)).map((node) => node.id)),
@@ -772,14 +849,14 @@ export function ContentPromptCanvasPanel({
   }, [appendReferenceToPromptTarget, editablePromptNodeIds, focusedNodeId, nodeById, onSelectNode, promptReferenceMenuPointForNode])
 
   const positionForContextChildCreate = useCallback((node: ContentCanvasNode): ContentCanvasNodePosition => {
-    const flowNode = flowNodes.find((item) => item.id === node.id)
+    const flowNode = contentFlowNodes.find((item) => item.id === node.id)
     const nodePosition = flowNode?.position ?? node.position
     const nodeWidth = flowNode ? creativeCanvasNodeViewportSize(flowNode.data.item).width : 320
     return {
       x: nodePosition.x + nodeWidth + 48,
       y: nodePosition.y,
     }
-  }, [flowNodes])
+  }, [contentFlowNodes])
 
   const runContextMenuAction = useCallback((action: CreativeCanvasAction, node: ContentCanvasNode) => {
     setContextMenu(null)
@@ -794,10 +871,6 @@ export function ContentPromptCanvasPanel({
         },
         position: positionForContextChildCreate(node),
       })
-      return
-    }
-    if (action.kind === 'create_assembly') {
-      onCreateAssembly(node)
       return
     }
     if (action.kind === 'generate_candidate') {
@@ -825,7 +898,7 @@ export function ContentPromptCanvasPanel({
       onDeleteNode(node)
       return
     }
-  }, [onCandidateNodeSelect, onCreateAssembly, onDeleteNode, onRemoveNodeFromCanvas, onResourceOpen, onSelectNode, positionForContextChildCreate])
+  }, [onCandidateNodeSelect, onDeleteNode, onRemoveNodeFromCanvas, onResourceOpen, onSelectNode, positionForContextChildCreate])
 
   const runQuickAddOption = useCallback((option: CreativeCanvasQuickAddOption, position: ContentCanvasNodePosition) => {
     setContextMenu(null)
@@ -850,25 +923,51 @@ export function ContentPromptCanvasPanel({
     setQuickCreateDialog(null)
   }, [])
 
+  const createGroupFromSelection = useCallback(() => {
+    const bounds = creativeFlowContentNodesBounds(groupableSelectedNodes)
+    if (!bounds) return
+    onCreateGroup({
+      memberNodeIds: groupableSelectedNodes.map((node) => node.id),
+      position: { x: bounds.x, y: bounds.y },
+      size: { width: bounds.width, height: bounds.height },
+    })
+  }, [groupableSelectedNodes, onCreateGroup])
+
+  const ungroupSelectedGroups = useCallback(() => {
+    if (!selectedGroupIds.length) return
+    onRemoveGroupsFromCanvas(selectedGroupIds)
+  }, [onRemoveGroupsFromCanvas, selectedGroupIds])
+
+  const removeSelectedFlowItemsFromCanvas = useCallback(() => {
+    const nodeIds = new Set(selectedContentNodeIds)
+    for (const nodeId of selectedGroupMemberNodeIds) nodeIds.add(nodeId)
+    if (nodeIds.size === 0 && selectedGroupIds.length === 0) return
+    if (nodeIds.size > 0) onRemoveNodesFromCanvas([...nodeIds])
+    if (selectedGroupIds.length > 0) onRemoveGroupsFromCanvas(selectedGroupIds)
+  }, [
+    onRemoveGroupsFromCanvas,
+    onRemoveNodesFromCanvas,
+    selectedContentNodeIds,
+    selectedGroupIds,
+    selectedGroupMemberNodeIds,
+  ])
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Delete' && event.key !== 'Backspace') return
       if (isTextEditingTarget(event.target)) return
-      const selectedNode = flowNodes.find((node) => node.selected)
-        ?? (focusedNodeId ? flowNodes.find((node) => node.id === focusedNodeId) : undefined)
-      const sourceNode = selectedNode ? nodeById.get(selectedNode.id) : undefined
-      if (!sourceNode) return
+      if (selectedCanvasItemCount === 0) return
       event.preventDefault()
-      onRemoveNodeFromCanvas(sourceNode.id)
+      removeSelectedFlowItemsFromCanvas()
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [flowNodes, focusedNodeId, nodeById, onRemoveNodeFromCanvas])
+  }, [removeSelectedFlowItemsFromCanvas, selectedCanvasItemCount])
 
   const relayoutCanvas = useCallback(() => {
     const nextPositions = layoutCreativeCanvas({
       graph: creativeGraph,
-      measuredNodeSizes: creativeCanvasMeasuredNodeSizes(flowNodes),
+      measuredNodeSizes: creativeCanvasMeasuredNodeSizes(contentFlowNodes),
     }).positions
     setFlowNodes((currentNodes) => currentNodes.map((node) => ({
       ...node,
@@ -878,7 +977,7 @@ export function ContentPromptCanvasPanel({
     window.requestAnimationFrame(() => {
       void flowInstance?.fitView({ padding: 0.2, duration: 320 })
     })
-  }, [creativeGraph, flowInstance, flowNodes, onNodePositionsCommit, setFlowNodes])
+  }, [contentFlowNodes, creativeGraph, flowInstance, onNodePositionsCommit, setFlowNodes])
 
   const handleCanvasDragOver = useCallback((event: ReactDragEvent) => {
     if (!resourceDropAcceptsPayload(event.dataTransfer) && !contentPromptCanvasNodeDropAcceptsPayload(event.dataTransfer)) return
@@ -909,7 +1008,7 @@ export function ContentPromptCanvasPanel({
     setReferenceRoleMenu(null)
     const position = flowPositionForClientPoint(event.clientX, event.clientY)
     const targetNode = creativeCanvasResourceTargetForPosition({
-      flowNodes,
+      flowNodes: contentFlowNodes,
       focusedNodeId,
       nodeById,
       position,
@@ -922,7 +1021,7 @@ export function ContentPromptCanvasPanel({
     onCandidateResourceSelect(targetNode, resource, position)
     const targetLabel = contentCanvasGenerationTargetForNode(targetNode)?.label ?? targetNode.title
     setAssetLibraryNotice(`已加入 ${targetLabel} 的候选。`)
-  }, [addLibraryNodeToCanvasAtPosition, dropPositionForCanvasLibraryNode, flowNodes, flowPositionForClientPoint, focusedNodeId, nodeById, onCandidateResourceSelect])
+  }, [addLibraryNodeToCanvasAtPosition, contentFlowNodes, dropPositionForCanvasLibraryNode, flowPositionForClientPoint, focusedNodeId, nodeById, onCandidateResourceSelect])
 
   const generatableCount = creativeGraph.nodes.filter((node) => node.canGenerate).length
   const showMiniMap = creativeGraph.nodes.length <= CREATIVE_CANVAS_MINIMAP_NODE_LIMIT
@@ -1013,6 +1112,33 @@ export function ContentPromptCanvasPanel({
         >
           <LocateFixed size={14} aria-hidden="true" />
           <span>整理画布</span>
+        </button>
+        <button
+          type="button"
+          disabled={!canGroupSelectedNodes}
+          onClick={createGroupFromSelection}
+          title="分组选中节点"
+          aria-label="分组选中节点"
+        >
+          <Layers3 size={14} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          disabled={!selectedGroupIds.length}
+          onClick={ungroupSelectedGroups}
+          title="取消选中分组"
+          aria-label="取消选中分组"
+        >
+          <Ungroup size={14} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          disabled={!selectedCanvasItemCount}
+          onClick={removeSelectedFlowItemsFromCanvas}
+          title="删除选中内容"
+          aria-label="删除选中内容"
+        >
+          <Trash2 size={14} aria-hidden="true" />
         </button>
       </div>
       <ContentCanvasNameDialog
@@ -1201,7 +1327,7 @@ export function ContentPromptCanvasPanel({
           }}
         />
       ) : null}
-      <ReactFlow
+      <ReactFlow<CreativeFlowNode, Edge>
         nodes={flowNodes}
         edges={displayedFlowEdges}
         nodeTypes={nodeTypes}
@@ -1217,8 +1343,33 @@ export function ContentPromptCanvasPanel({
           }
           selectPromptCanvasNode(node.id)
         }}
-        onNodeDragStart={() => {
+        onNodeDragStart={(_event, node) => {
           suppressNextNodeClickRef.current = true
+          if (!isCreativeFlowGroupNode(node)) {
+            groupDragSnapshotRef.current = null
+            return
+          }
+          const memberIds = new Set(node.data.group.memberNodeIds)
+          groupDragSnapshotRef.current = {
+            groupId: node.id,
+            position: { ...node.position },
+            memberPositions: new Map(contentFlowNodes
+              .filter((candidate) => memberIds.has(candidate.id))
+              .map((candidate) => [candidate.id, { ...candidate.position }])),
+          }
+        }}
+        onNodeDrag={(_event, node) => {
+          const groupSnapshot = groupDragSnapshotRef.current
+          if (!isCreativeFlowGroupNode(node) || groupSnapshot?.groupId !== node.id) return
+          const dx = node.position.x - groupSnapshot.position.x
+          const dy = node.position.y - groupSnapshot.position.y
+          if (dx === 0 && dy === 0) return
+          setFlowNodes((currentNodes) => currentNodes.map((currentNode) => {
+            const initialPosition = groupSnapshot.memberPositions.get(currentNode.id)
+            return initialPosition
+              ? { ...currentNode, position: { x: initialPosition.x + dx, y: initialPosition.y + dy } }
+              : currentNode
+          }))
         }}
         onPaneClick={() => {
           setContextMenu(null)
@@ -1231,12 +1382,42 @@ export function ContentPromptCanvasPanel({
         onDrop={handleCanvasDrop}
         deleteKeyCode={null}
         selectionOnDrag
+        selectionMode={SelectionMode.Full}
         panOnDrag={[1, 2]}
         zoomOnScroll={false}
         zoomOnPinch
         panOnScroll
         panOnScrollMode={PanOnScrollMode.Free}
         onNodeDragStop={(_event, node, draggedNodes) => {
+          const groupSnapshot = groupDragSnapshotRef.current
+          groupDragSnapshotRef.current = null
+          if (isCreativeFlowGroupNode(node) && groupSnapshot?.groupId === node.id) {
+            const dx = node.position.x - groupSnapshot.position.x
+            const dy = node.position.y - groupSnapshot.position.y
+            const groupMovedPositions: Record<string, ContentCanvasNodePosition> = {
+              [node.id]: node.position,
+            }
+            if (dx !== 0 || dy !== 0) {
+              for (const [memberNodeId, position] of groupSnapshot.memberPositions.entries()) {
+                groupMovedPositions[memberNodeId] = {
+                  x: position.x + dx,
+                  y: position.y + dy,
+                }
+              }
+              setFlowNodes((currentNodes) => currentNodes.map((currentNode) => {
+                const nextPosition = groupMovedPositions[currentNode.id]
+                return nextPosition ? { ...currentNode, position: nextPosition } : currentNode
+              }))
+            }
+            onNodePositionsCommit({
+              ...flowPositionsByNodeId(flowNodes),
+              ...groupMovedPositions,
+            })
+            window.setTimeout(() => {
+              suppressNextNodeClickRef.current = false
+            }, 0)
+            return
+          }
           const movedNodes = draggedNodes.length ? draggedNodes : [node]
           const movedPositions = flowPositionsByNodeId(movedNodes)
           const visiblePositions = {
@@ -1576,7 +1757,25 @@ function ContentCanvasNameDialog({
   )
 }
 
-function ContentPromptFlowNode({ data }: NodeProps<Node<CreativeFlowNodeData>>) {
+function ContentPromptGroupFlowNode({ data, selected }: NodeProps<Node<CreativeFlowGroupNodeData>>) {
+  return (
+    <section
+      className="content-prompt-flow-group"
+      data-selected={selected ? 'true' : undefined}
+      aria-label={`${data.title}，${data.memberCount} 个节点`}
+    >
+      <header>
+        <span>
+          <Layers3 size={13} aria-hidden="true" />
+          <strong>{data.title}</strong>
+        </span>
+        <em>{data.memberCount} 个节点</em>
+      </header>
+    </section>
+  )
+}
+
+function ContentPromptFlowNode({ data, selected }: NodeProps<Node<CreativeFlowNodeData>>) {
   const node = data.item.source
   const Icon = iconForContentNode(node)
   const display = creativeFlowNodeDisplay(node, data.item.role)
@@ -1603,7 +1802,7 @@ function ContentPromptFlowNode({ data }: NodeProps<Node<CreativeFlowNodeData>>) 
   return (
     <article
       className="content-prompt-flow-node"
-      data-selected={focused ? 'true' : undefined}
+      data-selected={focused || selected ? 'true' : undefined}
       data-expanded={expanded ? 'true' : undefined}
       data-kind={node.kind}
       data-expression-kind={node.kind === 'expression_unit' ? expressionUnitKindValue(node) : undefined}
@@ -1756,11 +1955,12 @@ function ContentPromptFlowNode({ data }: NodeProps<Node<CreativeFlowNodeData>>) 
                   ariaLabel={`${node.title} 提示词`}
                   candidateSelections={data.candidateSelections}
                   nodes={data.nodes}
-                  ownerNode={node}
-                  structured={structuredPromptFromNode(node)}
+                  ownerNode={generationTarget?.node ?? node}
+                  structured={structuredPromptFromNode(generationTarget?.node ?? node)}
                   value={data.prompt}
                   onChange={(prompt) => data.onPromptDraftChange(node, prompt)}
                   onBlur={(prompt) => data.onPromptCommit(node, prompt)}
+                  onReferencePoolCommit={(prompt, generationReferences) => data.onReferencePoolCommit(node, prompt, generationReferences)}
                   onStructuredCommit={(structured) => data.onStructuredPromptCommit(node, structured)}
                   onSelectNode={(referenceNode) => data.onSelectNode(selectionKindForPromptNode(referenceNode), referenceNode.id)}
                 />
@@ -2730,7 +2930,7 @@ function ContentPromptFlowNodeGenerationPanel({
         </GenerationCallField>
         <GenerationCallField className="content-prompt-flow-node__generation-field content-prompt-flow-node__generation-field--model" label="模型">
           <ContentCanvasModelSelector
-            capability={capability}
+            capability={capability ?? 'image_generation'}
             operation={operationExplicit ? operation : ''}
             targetOutput={mediaKind}
             resolveIntent={!operationExplicit}
@@ -3167,8 +3367,21 @@ function areCreativeFlowNodePropsEqual(
     && previous.data.onResourceDrop === next.data.onResourceDrop
     && previous.data.onPromptCommit === next.data.onPromptCommit
     && previous.data.onPromptDraftChange === next.data.onPromptDraftChange
+    && previous.data.onReferencePoolCommit === next.data.onReferencePoolCommit
     && previous.data.onStructuredPromptCommit === next.data.onStructuredPromptCommit
     && previous.data.onSelectNode === next.data.onSelectNode
+}
+
+function areCreativeFlowGroupNodePropsEqual(
+  previous: NodeProps<Node<CreativeFlowGroupNodeData>>,
+  next: NodeProps<Node<CreativeFlowGroupNodeData>>,
+): boolean {
+  return previous.id === next.id
+    && previous.selected === next.selected
+    && previous.dragging === next.dragging
+    && previous.data.groupKey === next.data.groupKey
+    && previous.data.title === next.data.title
+    && previous.data.memberCount === next.data.memberCount
 }
 
 function promptDraftForNode(
@@ -3628,11 +3841,95 @@ function contentCanvasUploadedResourceType(value: unknown): ContentCanvasUploade
   return 'file'
 }
 
+function creativeFlowGroupNodesFromCanvasGroups({
+  contentNodes,
+  groups,
+  nodeLayouts,
+}: {
+  contentNodes: CreativeFlowContentNode[]
+  groups: ContentCanvasDocumentGroup[]
+  nodeLayouts?: ContentCanvasDocument['nodeLayouts']
+}): CreativeFlowGroupNode[] {
+  const contentNodeById = new Map(contentNodes.map((node) => [node.id, node]))
+  return groups.flatMap((group) => {
+    const memberNodes = group.memberNodeIds
+      .map((nodeId) => contentNodeById.get(nodeId))
+      .filter((node): node is CreativeFlowContentNode => Boolean(node))
+    if (memberNodes.length < 2) return []
+    const layout = nodeLayouts?.[group.id]
+    const bounds = creativeFlowContentNodesBounds(memberNodes, CONTENT_PROMPT_CANVAS_GROUP_PADDING)
+    if (!layout && !bounds) return []
+    const width = Math.max(260, layout?.width ?? bounds?.width ?? 260)
+    const height = Math.max(160, layout?.height ?? bounds?.height ?? 160)
+    return [{
+      id: group.id,
+      type: 'contentGroup',
+      position: {
+        x: layout?.x ?? bounds?.x ?? 0,
+        y: layout?.y ?? bounds?.y ?? 0,
+      },
+      style: { width, height },
+      zIndex: -2,
+      data: {
+        group: {
+          ...group,
+          memberNodeIds: memberNodes.map((node) => node.id),
+        },
+        groupKey: stableContentPromptJSONString({
+          id: group.id,
+          title: group.title,
+          memberNodeIds: memberNodes.map((node) => node.id),
+          layout,
+        }),
+        title: group.title,
+        memberCount: memberNodes.length,
+      },
+    }]
+  })
+}
+
+function creativeFlowContentNodesBounds(
+  nodes: CreativeFlowContentNode[],
+  padding = CONTENT_PROMPT_CANVAS_GROUP_PADDING,
+): { x: number; y: number; width: number; height: number } | null {
+  if (!nodes.length) return null
+  const rects = nodes.map((node) => {
+    const size = creativeFlowContentNodeRenderedSize(node)
+    return {
+      x: node.position.x,
+      y: node.position.y,
+      width: size.width,
+      height: size.height,
+    }
+  })
+  const minX = Math.min(...rects.map((rect) => rect.x)) - padding
+  const minY = Math.min(...rects.map((rect) => rect.y)) - padding
+  const maxX = Math.max(...rects.map((rect) => rect.x + rect.width)) + padding
+  const maxY = Math.max(...rects.map((rect) => rect.y + rect.height)) + padding
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  }
+}
+
+function creativeFlowContentNodeRenderedSize(node: CreativeFlowContentNode): { width: number; height: number } {
+  const measured = (node as { measured?: { width?: number; height?: number }; width?: number; height?: number }).measured
+  const width = measured?.width ?? (node as { width?: number }).width
+  const height = measured?.height ?? (node as { height?: number }).height
+  const fallback = creativeCanvasNodeViewportSize(node.data.item)
+  return {
+    width: typeof width === 'number' && width > 0 ? width : fallback.width,
+    height: typeof height === 'number' && height > 0 ? height : fallback.height,
+  }
+}
+
 function reconcileCreativeFlowNodes(
-  currentNodes: Node<CreativeFlowNodeData>[],
-  nextNodes: Node<CreativeFlowNodeData>[],
+  currentNodes: CreativeFlowNode[],
+  nextNodes: CreativeFlowNode[],
   options: { resetPositions: boolean },
-): Node<CreativeFlowNodeData>[] {
+): CreativeFlowNode[] {
   if (options.resetPositions) {
     return creativeFlowNodeListShallowEqual(currentNodes, nextNodes) ? currentNodes : nextNodes
   }
@@ -3648,38 +3945,47 @@ function reconcileCreativeFlowNodes(
       ...currentNode,
       ...nextNode,
       position: currentNode.position,
+      selected: currentNode.selected,
     }
     if (creativeFlowNodeShallowEqual(currentNode, mergedNode)) return currentNode
     changed = true
-    return mergedNode
+    return mergedNode as CreativeFlowNode
   })
   return changed ? reconciled : currentNodes
 }
 
 function creativeFlowNodeListShallowEqual(
-  left: Node<CreativeFlowNodeData>[],
-  right: Node<CreativeFlowNodeData>[],
+  left: CreativeFlowNode[],
+  right: CreativeFlowNode[],
 ): boolean {
   return left.length === right.length && left.every((node, index) => creativeFlowNodeShallowEqual(node, right[index]))
 }
 
 function creativeFlowNodeShallowEqual(
-  left: Node<CreativeFlowNodeData>,
-  right: Node<CreativeFlowNodeData> | undefined,
+  left: CreativeFlowNode,
+  right: CreativeFlowNode | undefined,
 ): boolean {
   if (!right) return false
   return left.id === right.id
     && left.type === right.type
     && left.selected === right.selected
+    && creativeFlowNodeStyleShallowEqual(left.style, right.style)
     && creativeFlowNodeDataShallowEqual(left.data, right.data)
     && left.position.x === right.position.x
     && left.position.y === right.position.y
 }
 
 function creativeFlowNodeDataShallowEqual(
-  left: CreativeFlowNodeData,
-  right: CreativeFlowNodeData,
+  left: CreativeFlowNodeData | CreativeFlowGroupNodeData,
+  right: CreativeFlowNodeData | CreativeFlowGroupNodeData,
 ): boolean {
+  if (isCreativeFlowGroupNodeData(left) || isCreativeFlowGroupNodeData(right)) {
+    return isCreativeFlowGroupNodeData(left)
+      && isCreativeFlowGroupNodeData(right)
+      && left.groupKey === right.groupKey
+      && left.title === right.title
+      && left.memberCount === right.memberCount
+  }
   return left.itemKey === right.itemKey
     && left.focused === right.focused
     && left.candidateSelectionsKey === right.candidateSelectionsKey
@@ -3688,6 +3994,22 @@ function creativeFlowNodeDataShallowEqual(
     && left.nodesKey === right.nodesKey
     && left.prompt === right.prompt
     && left.referenceTargetNodeId === right.referenceTargetNodeId
+}
+
+function creativeFlowNodeStyleShallowEqual(left: CreativeFlowNode['style'], right: CreativeFlowNode['style']): boolean {
+  return left?.width === right?.width && left?.height === right?.height
+}
+
+function isCreativeFlowContentNode(node: Node<CreativeFlowNodeData | CreativeFlowGroupNodeData>): node is CreativeFlowContentNode {
+  return node.type === 'contentPrompt' && !isCreativeFlowGroupNodeData(node.data)
+}
+
+function isCreativeFlowGroupNode(node: Node<CreativeFlowNodeData | CreativeFlowGroupNodeData>): node is CreativeFlowGroupNode {
+  return node.type === 'contentGroup' && isCreativeFlowGroupNodeData(node.data)
+}
+
+function isCreativeFlowGroupNodeData(data: CreativeFlowNodeData | CreativeFlowGroupNodeData): data is CreativeFlowGroupNodeData {
+  return Object.prototype.hasOwnProperty.call(data, 'group')
 }
 
 function creativeCanvasNodeSemanticKey(node: CreativeCanvasNode): string {
@@ -3741,7 +4063,7 @@ function stableContentPromptJSONString(value: unknown): string {
     .join(',')}}`
 }
 
-function flowPositionsByNodeId(nodes: Node<CreativeFlowNodeData>[]): Record<string, { x: number; y: number }> {
+function flowPositionsByNodeId(nodes: Array<Node<CreativeFlowNodeData | CreativeFlowGroupNodeData>>): Record<string, { x: number; y: number }> {
   return Object.fromEntries(nodes.map((node) => [node.id, node.position]))
 }
 
@@ -3889,7 +4211,7 @@ function creativeFlowNodeDisplay(node: ContentCanvasNode, role: CreativeCanvasNo
   }
 }
 
-function creativeCanvasMeasuredNodeSizes(nodes: Node<CreativeFlowNodeData>[]): Record<string, { width: number; height: number }> {
+function creativeCanvasMeasuredNodeSizes(nodes: CreativeFlowContentNode[]): Record<string, { width: number; height: number }> {
   const sizes: Record<string, { width: number; height: number }> = {}
   for (const node of nodes) {
     const measured = (node as { measured?: { width?: number; height?: number }; width?: number; height?: number }).measured

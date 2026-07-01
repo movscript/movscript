@@ -184,13 +184,13 @@ func TestDebugListJobsFiltersScopeAndRejectsInvalidIDs(t *testing.T) {
 	otherProjectID := uint(13)
 	orgID := uint(2)
 	if err := db.Create(&[]persistencemodel.Job{
-		{UserID: 7, OrgID: &orgID, ProjectID: &projectID, RuntimeModelID: 4, JobType: "video_i2v", FeatureKey: "ref_video_gen", Status: "failed", RequestContext: `{"model_id":"video.fast"}`},
-		{UserID: 8, OrgID: &orgID, ProjectID: &otherProjectID, RuntimeModelID: 5, JobType: "image", FeatureKey: "ref_image_gen", Status: "failed", RequestContext: `{"model_id":"image.fast"}`},
+		{UserID: 7, OrgID: &orgID, ProjectID: &projectID, RuntimeModelID: 4, JobType: "video", FeatureKey: "reference_to_video", Status: "failed", RequestContext: `{"model_id":"video.fast"}`},
+		{UserID: 8, OrgID: &orgID, ProjectID: &otherProjectID, RuntimeModelID: 5, JobType: "image", FeatureKey: "reference_to_image", Status: "failed", RequestContext: `{"model_id":"image.fast"}`},
 	}).Error; err != nil {
 		t.Fatalf("seed jobs: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/admin/debug/jobs?job_id=1&status=failed&project_id=12&user_id=7&job_type=video_i2v&feature_key=ref_video_gen&model_id=video.fast", nil)
+	req := httptest.NewRequest(http.MethodGet, "/admin/debug/jobs?job_id=1&status=failed&project_id=12&user_id=7&job_type=video&feature_key=reference_to_video&model_id=video.fast", nil)
 	res := httptest.NewRecorder()
 	router.ServeHTTP(res, req)
 

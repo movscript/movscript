@@ -100,11 +100,8 @@ test('project entry review paths are generated from review query contracts', () 
       workspaceId: 'workspace-assembly',
       scopeKind: 'episode',
       scopeRef: 'episode_01',
-      targetCategory: 'timeline_assembly',
-      targetKind: 'timeline_assembly',
-      targetRef: 'timeline_assembly:episode:episode_01',
     }),
-    '/project/content/preview?workspaceId=workspace-assembly&scopeKind=episode&scopeRef=episode_01&targetCategory=timeline_assembly&targetKind=timeline_assembly&targetRef=timeline_assembly%3Aepisode%3Aepisode_01&timeline_assembly_ref=timeline_assembly%3Aepisode%3Aepisode_01',
+    '/project/content/preview?workspaceId=workspace-assembly&scopeKind=episode&scopeRef=episode_01',
   )
 })
 

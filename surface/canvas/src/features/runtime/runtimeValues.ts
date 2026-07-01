@@ -22,11 +22,8 @@ export { valuesHaveRuntimeValue as hasValueForPort } from '@movscript/core/canva
 const TOOL_CARD_NODE_TYPES = new Set([
   'text_gen',
   'ai_gen',
-  'ref_image_gen',
-  'ref_video_gen',
-	'multi_angle',
-	'style_transfer',
-	'motion_imitation',
+  'reference_to_image',
+  'reference_to_video',
 ])
 
 export interface WorkflowRunOutputItem {

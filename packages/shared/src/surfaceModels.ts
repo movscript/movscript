@@ -2,27 +2,16 @@ import type { PublicModel } from './surfaceTypes.js'
 import { surfaceDataApi } from './surfaceHttpClient.js'
 
 export type SurfaceModelCapability =
-  | 'text'
-  | 'image'
-  | 'image_edit'
-  | 'video'
-  | 'video_i2v'
-  | 'video_v2v'
-  | 'audio'
-  | 'audio_tts'
-  | 'audio_transcribe'
-  | 'audio_translate'
-  | 'audio_music'
-  | 'audio_sfx'
-  | 'audio_chat'
-  | 'voice_clone'
-  | 'voice_design'
-  | 'subtitle_align'
-  | 'subtitle_translate'
-  | string
+  | 'text_generation'
+  | 'image_generation'
+  | 'video_generation'
+  | 'audio_generation'
+  | 'embedding'
+  | 'rerank'
+  | 'moderation'
 
-export function surfaceModelQueryCapability(capability: SurfaceModelCapability): string {
-  return capability === 'audio' ? 'audio_tts' : capability
+export function surfaceModelQueryCapability(capability: SurfaceModelCapability): SurfaceModelCapability {
+  return capability
 }
 
 export type SurfaceModelReferenceAssetIntent = {

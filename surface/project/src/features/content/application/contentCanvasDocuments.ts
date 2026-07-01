@@ -21,6 +21,14 @@ export interface ContentCanvasDocumentNodeRef {
   addedAt: string
 }
 
+export interface ContentCanvasDocumentGroup {
+  id: string
+  title: string
+  memberNodeIds: string[]
+  createdAt: string
+  updatedAt?: string
+}
+
 export type ContentCanvasDocumentScope =
   | { kind: 'global' }
   | {
@@ -36,6 +44,7 @@ export interface ContentCanvasDocument {
   title: string
   scope?: ContentCanvasDocumentScope
   nodes: Record<string, ContentCanvasDocumentNodeRef>
+  groups?: Record<string, ContentCanvasDocumentGroup>
   nodeLayouts?: Record<string, ContentCanvasNodeLayout>
   viewport?: Viewport
   updatedAt: string
@@ -57,6 +66,14 @@ export interface ContentCanvasProjectDocumentNodeRef {
   added_at?: string
 }
 
+export interface ContentCanvasProjectDocumentGroup {
+  id: string
+  title?: string
+  member_node_ids: string[]
+  created_at?: string
+  updated_at?: string
+}
+
 export interface ContentCanvasProjectNodeLayout {
   x: number
   y: number
@@ -75,6 +92,7 @@ export interface ContentCanvasProjectDocument {
   name: string
   scope: ContentCanvasProjectDocumentScope
   nodes: ContentCanvasProjectDocumentNodeRef[]
+  groups?: ContentCanvasProjectDocumentGroup[]
   layouts: Record<string, ContentCanvasProjectNodeLayout>
   viewport?: Viewport
   updated_at: string
@@ -93,6 +111,13 @@ export type ContentCanvasDocumentNodeInput = {
   nodeId: string
   kind?: ContentCanvasNodeKind
   position?: { x: number; y: number }
+}
+
+export type ContentCanvasDocumentGroupInput = {
+  title?: string
+  memberNodeIds: string[]
+  position: { x: number; y: number }
+  size: { width: number; height: number }
 }
 
 const contentCanvasDocumentsCache = new Map<number, ContentCanvasDocumentsState | undefined>()
@@ -301,6 +326,93 @@ export function addContentCanvasDocumentNodes(
   }, { dirtyCanvasIds: [canvasId] })
 }
 
+export function createContentCanvasDocumentGroup(
+  projectId: number | undefined,
+  canvasId: string | undefined,
+  input: ContentCanvasDocumentGroupInput,
+): ContentCanvasDocumentsState | undefined {
+  if (!projectId || !canvasId) return readContentCanvasDocumentsState(projectId)
+  const current = ensureContentCanvasDocumentsState(projectId)
+  const document = current?.documents[canvasId]
+  if (!current || !document) return current
+  const memberNodeIds = uniqueContentCanvasIds(input.memberNodeIds)
+    .filter((nodeId) => Object.prototype.hasOwnProperty.call(document.nodes, nodeId))
+  if (memberNodeIds.length < 2) return current
+  const now = new Date().toISOString()
+  const groupId = `group:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`
+  const title = input.title?.trim() || `分组 ${Object.keys(document.groups ?? {}).length + 1}`
+  return writeContentCanvasDocumentsState(projectId, {
+    ...current,
+    documents: {
+      ...current.documents,
+      [canvasId]: {
+        ...document,
+        groups: {
+          ...(document.groups ?? {}),
+          [groupId]: {
+            id: groupId,
+            title,
+            memberNodeIds,
+            createdAt: now,
+            updatedAt: now,
+          },
+        },
+        nodeLayouts: {
+          ...(document.nodeLayouts ?? {}),
+          [groupId]: {
+            x: input.position.x,
+            y: input.position.y,
+            width: input.size.width,
+            height: input.size.height,
+            manual: true,
+            source: 'manual',
+            updatedAt: now,
+          },
+        },
+        updatedAt: now,
+      },
+    },
+    updatedAt: now,
+  }, { dirtyCanvasIds: [canvasId] })
+}
+
+export function removeContentCanvasDocumentGroups(
+  projectId: number | undefined,
+  canvasId: string | undefined,
+  groupIds: Iterable<string>,
+): ContentCanvasDocumentsState | undefined {
+  if (!projectId || !canvasId) return readContentCanvasDocumentsState(projectId)
+  const current = readContentCanvasDocumentsState(projectId)
+  const document = current?.documents[canvasId]
+  if (!current || !document) return current
+  const ids = new Set(groupIds)
+  if (!ids.size) return current
+  const groups = { ...(document.groups ?? {}) }
+  const nodeLayouts = { ...(document.nodeLayouts ?? {}) }
+  let changed = false
+  for (const groupId of ids) {
+    if (!Object.prototype.hasOwnProperty.call(groups, groupId)) continue
+    delete groups[groupId]
+    delete nodeLayouts[groupId]
+    changed = true
+  }
+  if (!changed) return current
+  const now = new Date().toISOString()
+  return writeContentCanvasDocumentsState(projectId, {
+    ...current,
+    documents: {
+      ...current.documents,
+      [canvasId]: {
+        ...document,
+        groups,
+        nodeLayouts,
+        updatedAt: now,
+      },
+    },
+    updatedAt: now,
+  }, { dirtyCanvasIds: [canvasId] })
+}
+
 export function removeContentCanvasDocumentNodes(
   projectId: number | undefined,
   canvasId: string | undefined,
@@ -313,14 +425,23 @@ export function removeContentCanvasDocumentNodes(
   const ids = new Set(nodeIds)
   if (!ids.size) return current
   const nodes = { ...document.nodes }
+  const groups = { ...(document.groups ?? {}) }
   const nodeLayouts = { ...(document.nodeLayouts ?? {}) }
   let changed = false
   for (const nodeId of ids) {
-    if (!Object.prototype.hasOwnProperty.call(nodes, nodeId)) continue
-    delete nodes[nodeId]
-    delete nodeLayouts[nodeId]
-    changed = true
+    if (Object.prototype.hasOwnProperty.call(nodes, nodeId)) {
+      delete nodes[nodeId]
+      delete nodeLayouts[nodeId]
+      changed = true
+    }
+    if (Object.prototype.hasOwnProperty.call(groups, nodeId)) {
+      delete groups[nodeId]
+      delete nodeLayouts[nodeId]
+      changed = true
+    }
   }
+  const prunedGroups = pruneContentCanvasDocumentGroups(groups, nodes)
+  if (prunedGroups !== groups) changed = true
   if (!changed) return current
   const now = new Date().toISOString()
   return writeContentCanvasDocumentsState(projectId, {
@@ -330,6 +451,7 @@ export function removeContentCanvasDocumentNodes(
       [canvasId]: {
         ...document,
         nodes,
+        groups: prunedGroups,
         nodeLayouts,
         updatedAt: now,
       },
@@ -352,12 +474,25 @@ export function removeContentCanvasDocumentNodesEverywhere(
   const documents: Record<string, ContentCanvasDocument> = {}
   for (const [canvasId, document] of Object.entries(current.documents)) {
     const nodes = { ...document.nodes }
+    const groups = { ...(document.groups ?? {}) }
     const nodeLayouts = { ...(document.nodeLayouts ?? {}) }
     let documentChanged = false
     for (const nodeId of ids) {
-      if (!Object.prototype.hasOwnProperty.call(nodes, nodeId)) continue
-      delete nodes[nodeId]
-      delete nodeLayouts[nodeId]
+      if (Object.prototype.hasOwnProperty.call(nodes, nodeId)) {
+        delete nodes[nodeId]
+        delete nodeLayouts[nodeId]
+        changed = true
+        documentChanged = true
+      }
+      if (Object.prototype.hasOwnProperty.call(groups, nodeId)) {
+        delete groups[nodeId]
+        delete nodeLayouts[nodeId]
+        changed = true
+        documentChanged = true
+      }
+    }
+    const prunedGroups = pruneContentCanvasDocumentGroups(groups, nodes)
+    if (prunedGroups !== groups) {
       changed = true
       documentChanged = true
     }
@@ -365,6 +500,7 @@ export function removeContentCanvasDocumentNodesEverywhere(
       ? {
         ...document,
         nodes,
+        groups: prunedGroups,
         nodeLayouts,
         updatedAt: now,
       }
@@ -389,9 +525,18 @@ export function updateContentCanvasDocumentNodePositions(
   if (!current || !document) return current
   const now = new Date().toISOString()
   const nodes = { ...document.nodes }
+  const groups = { ...(document.groups ?? {}) }
   const nodeLayouts = { ...(document.nodeLayouts ?? {}) }
   for (const [nodeId, position] of Object.entries(positions)) {
-    nodes[nodeId] = nodes[nodeId] ?? { nodeId, addedAt: now }
+    const group = groups[nodeId]
+    if (!group) {
+      nodes[nodeId] = nodes[nodeId] ?? { nodeId, addedAt: now }
+    } else {
+      groups[nodeId] = {
+        ...group,
+        updatedAt: now,
+      }
+    }
     nodeLayouts[nodeId] = {
       ...(nodeLayouts[nodeId] ?? {
         width: CONTENT_CANVAS_DEFAULT_NODE_SIZE.width,
@@ -411,6 +556,7 @@ export function updateContentCanvasDocumentNodePositions(
       [canvasId]: {
         ...document,
         nodes,
+        groups,
         nodeLayouts,
         updatedAt: now,
       },
@@ -480,6 +626,17 @@ export function contentCanvasDocumentPositions(document: ContentCanvasDocument |
   )
 }
 
+export function contentCanvasDocumentGroups(document: ContentCanvasDocument | undefined): ContentCanvasDocumentGroup[] {
+  const nodeIds = new Set(Object.keys(document?.nodes ?? {}))
+  return Object.values(document?.groups ?? {})
+    .map((group) => ({
+      ...group,
+      memberNodeIds: uniqueContentCanvasIds(group.memberNodeIds).filter((nodeId) => nodeIds.has(nodeId)),
+    }))
+    .filter((group) => group.memberNodeIds.length >= 2)
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id))
+}
+
 export function contentCanvasDocumentScope(document: ContentCanvasDocument | undefined): ContentCanvasDocumentScope {
   return document?.scope && isContentCanvasDocumentScope(document.scope)
     ? document.scope
@@ -501,6 +658,7 @@ export function contentCanvasProjectDocumentFromDocument(document: ContentCanvas
         added_at: node.addedAt,
       }))
       .sort((left, right) => left.node_id.localeCompare(right.node_id)),
+    groups: contentCanvasProjectGroupsFromDocumentGroups(document.groups),
     layouts: contentCanvasProjectLayoutsFromDocumentLayouts(document.nodeLayouts),
     updated_at: document.updatedAt,
   }
@@ -517,6 +675,7 @@ export function contentCanvasDocumentFromProjectDocument(value: unknown): Conten
     title,
     scope: contentCanvasDocumentScopeFromProjectScope(value.scope),
     nodes: contentCanvasDocumentNodesFromProjectNodes(value.nodes),
+    groups: contentCanvasDocumentGroupsFromProjectGroups(value.groups ?? value.group_nodes ?? value.groupNodes),
     nodeLayouts: contentCanvasDocumentLayoutsFromProjectLayouts(value.layouts ?? value.node_layouts ?? value.nodeLayouts),
     ...(isViewport(value.viewport) ? { viewport: value.viewport } : {}),
     updatedAt,
@@ -699,6 +858,21 @@ function contentCanvasProjectLayoutsFromDocumentLayouts(
   )
 }
 
+function contentCanvasProjectGroupsFromDocumentGroups(
+  groups: Record<string, ContentCanvasDocumentGroup> | undefined,
+): ContentCanvasProjectDocumentGroup[] {
+  return Object.values(groups ?? {})
+    .map((group) => ({
+      id: group.id,
+      title: group.title,
+      member_node_ids: uniqueContentCanvasIds(group.memberNodeIds),
+      created_at: group.createdAt,
+      ...(group.updatedAt ? { updated_at: group.updatedAt } : {}),
+    }))
+    .filter((group) => group.member_node_ids.length >= 2)
+    .sort((left, right) => left.id.localeCompare(right.id))
+}
+
 function contentCanvasDocumentLayoutsFromProjectLayouts(value: unknown): Record<string, ContentCanvasNodeLayout> {
   const layouts = isRecord(value) ? value : {}
   return Object.fromEntries(
@@ -706,6 +880,35 @@ function contentCanvasDocumentLayoutsFromProjectLayouts(value: unknown): Record<
       .map(([nodeId, layout]) => [nodeId, contentCanvasDocumentLayoutFromProjectLayout(layout)])
       .filter((entry): entry is [string, ContentCanvasNodeLayout] => Boolean(entry[1])),
   )
+}
+
+function contentCanvasDocumentGroupsFromProjectGroups(value: unknown): Record<string, ContentCanvasDocumentGroup> {
+  const groups = Array.isArray(value) ? value : Object.values(isRecord(value) ? value : {})
+  return Object.fromEntries(
+    groups
+      .map(contentCanvasDocumentGroupFromProjectGroup)
+      .filter((group): group is ContentCanvasDocumentGroup => Boolean(group))
+      .map((group) => [group.id, group]),
+  )
+}
+
+function contentCanvasDocumentGroupFromProjectGroup(value: unknown): ContentCanvasDocumentGroup | undefined {
+  if (!isRecord(value)) return undefined
+  const id = stringValue(value.id ?? value.groupId ?? value.group_id)
+  if (!id) return undefined
+  const memberNodeIds = uniqueContentCanvasIds(
+    arrayStringValues(value.member_node_ids ?? value.memberNodeIds ?? value.nodes ?? value.node_ids ?? value.nodeIds),
+  )
+  if (memberNodeIds.length < 2) return undefined
+  const createdAt = stringValue(value.created_at ?? value.createdAt) ?? new Date().toISOString()
+  const updatedAt = stringValue(value.updated_at ?? value.updatedAt)
+  return {
+    id,
+    title: stringValue(value.title ?? value.name ?? value.label) ?? '画布分组',
+    memberNodeIds,
+    createdAt,
+    ...(updatedAt ? { updatedAt } : {}),
+  }
 }
 
 function contentCanvasDocumentLayoutFromProjectLayout(value: unknown): ContentCanvasNodeLayout | undefined {
@@ -1098,6 +1301,7 @@ function isContentCanvasDocument(value: unknown): value is ContentCanvasDocument
   if (typeof value.title !== 'string') return false
   if (value.scope !== undefined && !isContentCanvasDocumentScope(value.scope)) return false
   if (!isRecord(value.nodes)) return false
+  if (value.groups !== undefined && !isDocumentGroups(value.groups)) return false
   if (value.nodeLayouts !== undefined && !isNodeLayouts(value.nodeLayouts)) return false
   if (value.viewport !== undefined && !isViewport(value.viewport)) return false
   if (typeof value.updatedAt !== 'string') return false
@@ -1120,6 +1324,19 @@ function isDocumentNodeRef(value: unknown): value is ContentCanvasDocumentNodeRe
     && typeof value.nodeId === 'string'
     && typeof value.addedAt === 'string'
     && (value.kind === undefined || typeof value.kind === 'string')
+}
+
+function isDocumentGroups(value: unknown): value is Record<string, ContentCanvasDocumentGroup> {
+  if (!isRecord(value)) return false
+  return Object.values(value).every((group) => (
+    isRecord(group)
+    && typeof group.id === 'string'
+    && typeof group.title === 'string'
+    && Array.isArray(group.memberNodeIds)
+    && group.memberNodeIds.every((nodeId) => typeof nodeId === 'string')
+    && typeof group.createdAt === 'string'
+    && (group.updatedAt === undefined || typeof group.updatedAt === 'string')
+  ))
 }
 
 function isNodeLayouts(value: unknown): value is Record<string, ContentCanvasNodeLayout> {
@@ -1165,6 +1382,47 @@ function stableContentCanvasToken(value: string): string {
     hash = Math.imul(hash, 16777619)
   }
   return (hash >>> 0).toString(36)
+}
+
+function pruneContentCanvasDocumentGroups(
+  groups: Record<string, ContentCanvasDocumentGroup>,
+  nodes: Record<string, ContentCanvasDocumentNodeRef>,
+): Record<string, ContentCanvasDocumentGroup> {
+  const nodeIds = new Set(Object.keys(nodes))
+  let changed = false
+  const next = Object.fromEntries(
+    Object.entries(groups)
+      .map(([groupId, group]) => {
+        const memberNodeIds = uniqueContentCanvasIds(group.memberNodeIds).filter((nodeId) => nodeIds.has(nodeId))
+        if (memberNodeIds.length !== group.memberNodeIds.length || memberNodeIds.some((nodeId, index) => nodeId !== group.memberNodeIds[index])) {
+          changed = true
+        }
+        return [groupId, { ...group, memberNodeIds }] as const
+      })
+      .filter(([, group]) => {
+        const keep = group.memberNodeIds.length >= 2
+        if (!keep) changed = true
+        return keep
+      }),
+  )
+  return changed ? next : groups
+}
+
+function uniqueContentCanvasIds(values: Iterable<string>): string[] {
+  const ids: string[] = []
+  const seen = new Set<string>()
+  for (const value of values) {
+    const id = value.trim()
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    ids.push(id)
+  }
+  return ids
+}
+
+function arrayStringValues(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is string => typeof item === 'string')
 }
 
 function stringValue(value: unknown): string | undefined {

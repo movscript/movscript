@@ -35,13 +35,14 @@ type Category = {
 export const CATEGORIES: Category[] = [
   { key: 'all', labelKey: 'common.all', icon: <Wand2 size={14} /> },
   { key: 'image_generation:text_to_image', labelKey: 'pages.jobs.operations.text_to_image', icon: <ImageIcon size={14} /> },
-  { key: 'image_generation:image_to_image', labelKey: 'pages.jobs.operations.image_to_image', icon: <ImageIcon size={14} /> },
-  { key: 'image_generation:image_edit', labelKey: 'pages.jobs.operations.image_edit', icon: <ImageIcon size={14} /> },
+  { key: 'image_generation:reference_to_image', labelKey: 'pages.jobs.operations.reference_to_image', icon: <ImageIcon size={14} /> },
+  { key: 'image_generation:edit_image', labelKey: 'pages.jobs.operations.edit_image', icon: <ImageIcon size={14} /> },
   { key: 'video_generation:prompt_to_video', labelKey: 'pages.jobs.operations.prompt_to_video', icon: <Video size={14} /> },
   { key: 'video_generation:image_to_video', labelKey: 'pages.jobs.operations.image_to_video', icon: <Video size={14} /> },
   { key: 'video_generation:first_frame_to_video', labelKey: 'pages.jobs.operations.first_frame_to_video', icon: <Video size={14} /> },
   { key: 'video_generation:first_last_frame_to_video', labelKey: 'pages.jobs.operations.first_last_frame_to_video', icon: <Video size={14} /> },
   { key: 'video_generation:reference_to_video', labelKey: 'pages.jobs.operations.reference_to_video', icon: <Video size={14} /> },
+  { key: 'video_generation:edit_video', labelKey: 'pages.jobs.operations.edit_video', icon: <Video size={14} /> },
   { key: 'canvas', labelKey: 'header.titles.canvases', icon: <LayoutGrid size={14} /> },
 ]
 

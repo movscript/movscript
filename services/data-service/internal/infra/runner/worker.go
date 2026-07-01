@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/movscript/movscript/internal/app/systemstream"
+	domainjob "github.com/movscript/movscript/internal/domain/job"
 	"github.com/movscript/movscript/internal/infra/ai"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/infra/storage"
@@ -74,6 +75,7 @@ func (w *Worker) resolveJobModelRoute(ctx context.Context, job *persistencemodel
 	if w.aiService == nil {
 		return ai.ModelRoute{}, fmt.Errorf("ai service is required")
 	}
+	capability = runnerGenerationCapabilityForJobType(capability)
 	if job.RouteGroup != "" {
 		ctx = ai.WithProviderRouteGroup(ctx, job.RouteGroup)
 	}
@@ -106,6 +108,19 @@ func (w *Worker) resolveJobModelRoute(ctx context.Context, job *persistencemodel
 	return route, nil
 }
 
+func runnerGenerationCapabilityForJobType(jobType string) string {
+	switch strings.TrimSpace(jobType) {
+	case domainjob.JobTypeImage:
+		return ai.CapabilityFamilyImageGeneration
+	case domainjob.JobTypeVideo:
+		return ai.CapabilityFamilyVideoGeneration
+	case domainjob.JobTypeAudio:
+		return ai.CapabilityFamilyAudioGeneration
+	default:
+		return strings.TrimSpace(jobType)
+	}
+}
+
 func annotateDebugRouteContext(debugResult *ai.DebugCallResult, route ai.ModelRoute, fallbackCapability string) {
 	if debugResult == nil {
 		return
@@ -131,7 +146,6 @@ func annotateDebugRouteContext(debugResult *ai.DebugCallResult, route ai.ModelRo
 		EndpointBaseURL:    strings.TrimSpace(route.EndpointBaseURL),
 		EndpointPathPrefix: strings.TrimSpace(route.EndpointPathPrefix),
 		EndpointMode:       strings.TrimSpace(route.EndpointMode),
-		OperationProfile:   strings.TrimSpace(route.OperationProfile),
 		SelectionReason:    strings.TrimSpace(route.SelectionReason),
 	}
 }
@@ -149,9 +163,13 @@ func runnerGenerationIntentFromRequestContext(requestContext string) *runnerReso
 			Capability      string `json:"capability"`
 			Operation       string `json:"operation"`
 			ReferenceAssets []struct {
-				Role       string `json:"role"`
-				MediaType  string `json:"media_type"`
-				ResourceID uint   `json:"resource_id"`
+				ReferenceID string `json:"reference_id"`
+				SourceKind  string `json:"source_kind"`
+				SourceID    any    `json:"source_id"`
+				SourceRef   any    `json:"source_ref"`
+				Role        string `json:"role"`
+				MediaType   string `json:"media_type"`
+				ResourceID  uint   `json:"resource_id"`
 			} `json:"reference_assets"`
 		} `json:"intent"`
 	}
@@ -174,9 +192,13 @@ func runnerGenerationIntentFromRequestContext(requestContext string) *runnerReso
 			MediaType: mediaType,
 		})
 		out.RequestAssets = append(out.RequestAssets, ai.ReferenceAsset{
-			Role:       role,
-			MediaType:  mediaType,
-			ResourceID: ref.ResourceID,
+			ReferenceID: strings.TrimSpace(ref.ReferenceID),
+			SourceKind:  strings.TrimSpace(ref.SourceKind),
+			SourceID:    ref.SourceID,
+			SourceRef:   ref.SourceRef,
+			Role:        role,
+			MediaType:   mediaType,
+			ResourceID:  ref.ResourceID,
 		})
 	}
 	return out
@@ -287,64 +309,51 @@ func (w *Worker) execute(ctx context.Context, job *persistencemodel.Job) (err er
 	}
 	sm.succeed("request context prepared")
 
+	operation := runnerGenerationOperationFromJob(job)
 	switch outputType {
-	case ai.CapabilityImage:
+	case domainjob.JobTypeImage:
 		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
 			return err
 		}
-		result, err := w.runImageJob(debugCtx, job, params, imageData, sm, debugResult)
+		var (
+			result providerResult
+			err    error
+		)
+		if operation == "" || operation == ai.ImageOperationTextToImage {
+			result, err = w.runImageJob(debugCtx, job, params, imageData, sm, debugResult)
+		} else {
+			result, err = w.runImageEditJob(debugCtx, job, params, imageData, sm, debugResult)
+		}
 		if err != nil {
 			w.saveDebugInfo(job, debugResult)
 			return err
 		}
 		return w.completeProviderResult(callCtx, job, result, sm, debugResult)
 
-	case ai.CapabilityImageEdit:
-		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
-			return err
-		}
-		result, err := w.runImageEditJob(debugCtx, job, params, imageData, sm, debugResult)
-		if err != nil {
-			w.saveDebugInfo(job, debugResult)
-			return err
-		}
-		return w.completeProviderResult(callCtx, job, result, sm, debugResult)
-
-	case ai.CapabilityVideo, ai.CapabilityVideoI2V, ai.CapabilityVideoV2V:
+	case domainjob.JobTypeVideo:
 		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
 			return err
 		}
 		return w.runVideoJob(callCtx, debugCtx, job, params, imageData, videoData, audioData, sm, debugResult)
 
-	case ai.CapabilityAudioTTS:
+	case domainjob.JobTypeAudio:
 		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
 			return err
 		}
-		return w.runAudioTTSJob(callCtx, debugCtx, job, params, sm, debugResult)
-
-	case ai.CapabilityAudioMusic, ai.CapabilityAudioSFX:
-		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
-			return err
+		switch operation {
+		case "", ai.AudioOperationTextToSpeech:
+			return w.runAudioTTSJob(callCtx, debugCtx, job, params, sm, debugResult)
+		case ai.AudioOperationMusicGeneration, ai.AudioOperationSoundEffectGeneration:
+			return w.runAudioGenerateJob(callCtx, debugCtx, job, params, sm, debugResult, operation)
+		case ai.AudioOperationSpeechToSpeech:
+			return w.runSpeechToSpeechJob(callCtx, debugCtx, job, params, sm, debugResult, audioData)
+		case ai.AudioOperationVoiceClone, ai.AudioOperationVoiceDesign:
+			return w.runVoiceProfileJob(callCtx, debugCtx, job, params, sm, debugResult, operation, audioData)
+		case ai.AudioOperationSpeechToText, ai.AudioOperationSpeechTranslate, ai.AudioOperationForcedAlignment, ai.AudioOperationDubbing:
+			return w.runSubtitleJob(callCtx, debugCtx, job, params, sm, debugResult, operation, audioData, textData)
+		default:
+			return fmt.Errorf("unsupported audio generation operation %q", operation)
 		}
-		return w.runAudioGenerateJob(callCtx, debugCtx, job, params, sm, debugResult, outputType)
-
-	case ai.CapabilityAudioChat:
-		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
-			return err
-		}
-		return w.runAudioChatJob(callCtx, debugCtx, job, params, sm, debugResult, audioData)
-
-	case ai.CapabilityVoiceClone, ai.CapabilityVoiceDesign:
-		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
-			return err
-		}
-		return w.runVoiceProfileJob(callCtx, debugCtx, job, params, sm, debugResult, outputType, audioData)
-
-	case ai.CapabilityAudioSTT, ai.CapabilityAudioTranslate, ai.CapabilitySubAlign, ai.CapabilitySubTranslate:
-		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
-			return err
-		}
-		return w.runSubtitleJob(callCtx, debugCtx, job, params, sm, debugResult, outputType, audioData, textData)
 
 	default:
 		return fmt.Errorf("unsupported output type %q", outputType)

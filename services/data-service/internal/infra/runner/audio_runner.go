@@ -21,11 +21,11 @@ func (w *Worker) runAudioTTSJob(ctx context.Context, debugCtx context.Context, j
 		AudioFormat: firstNonEmpty(params.String("audio_format"), params.String("response_format"), params.String("output_format")),
 		Params:      params.values,
 	}
-	route, err := w.resolveJobModelRoute(ctx, job, job.JobType)
+	route, err := w.resolveJobModelRoute(ctx, job, ai.CapabilityFamilyAudioGeneration)
 	if err != nil {
 		return err
 	}
-	annotateDebugRouteContext(debugResult, route, job.JobType)
+	annotateDebugRouteContext(debugResult, route, ai.CapabilityFamilyAudioGeneration)
 	resp, err := w.aiService.CallTTSWithRouteUsage(debugCtx, job.UserID, route, req, w.usageContext(job))
 	if err != nil {
 		w.saveDebugInfo(job, debugResult)
@@ -40,11 +40,11 @@ func (w *Worker) runAudioTTSJob(ctx context.Context, debugCtx context.Context, j
 	return w.completeProviderBytes(ctx, job, resp.Audio, mimeType, sm, debugResult)
 }
 
-func (w *Worker) runAudioGenerateJob(ctx context.Context, debugCtx context.Context, job *persistencemodel.Job, params generationParams, sm *jobStateMachine, debugResult *ai.DebugCallResult, capability string) error {
+func (w *Worker) runAudioGenerateJob(ctx context.Context, debugCtx context.Context, job *persistencemodel.Job, params generationParams, sm *jobStateMachine, debugResult *ai.DebugCallResult, operation string) error {
 	sm.enter(StateCallingProvider, "call audio generation provider")
 	kind := media.AudioGenerationKindMusic
-	if capability == ai.CapabilityAudioSFX {
-		kind = media.AudioGenerationKindSFX
+	if operation == ai.AudioOperationSoundEffectGeneration {
+		kind = media.AudioGenerationKindSoundEffect
 	}
 	req := media.AudioGenerationRequest{
 		Kind:           kind,
@@ -56,12 +56,12 @@ func (w *Worker) runAudioGenerateJob(ctx context.Context, debugCtx context.Conte
 		DurationSec:    firstPositive(params.Int("duration"), params.Int("duration_sec")),
 		Params:         params.values,
 	}
-	route, err := w.resolveJobModelRoute(ctx, job, capability)
+	route, err := w.resolveJobModelRoute(ctx, job, ai.CapabilityFamilyAudioGeneration)
 	if err != nil {
 		return err
 	}
-	annotateDebugRouteContext(debugResult, route, capability)
-	resp, err := w.aiService.CallAudioGenerateWithRouteUsage(debugCtx, job.UserID, route, capability, req, w.usageContext(job))
+	annotateDebugRouteContext(debugResult, route, ai.CapabilityFamilyAudioGeneration)
+	resp, err := w.aiService.CallAudioGenerateWithRouteUsage(debugCtx, job.UserID, route, ai.CapabilityFamilyAudioGeneration, req, w.usageContext(job))
 	if err != nil {
 		w.saveDebugInfo(job, debugResult)
 		return err
@@ -75,14 +75,14 @@ func (w *Worker) runAudioGenerateJob(ctx context.Context, debugCtx context.Conte
 	return w.completeProviderBytes(ctx, job, resp.Audio, mimeType, sm, debugResult)
 }
 
-func (w *Worker) runAudioChatJob(ctx context.Context, debugCtx context.Context, job *persistencemodel.Job, params generationParams, sm *jobStateMachine, debugResult *ai.DebugCallResult, audioData []ai.MediaData) error {
-	sm.enter(StateCallingProvider, "call audio chat provider")
-	route, err := w.resolveJobModelRoute(ctx, job, ai.CapabilityAudioChat)
+func (w *Worker) runSpeechToSpeechJob(ctx context.Context, debugCtx context.Context, job *persistencemodel.Job, params generationParams, sm *jobStateMachine, debugResult *ai.DebugCallResult, audioData []ai.MediaData) error {
+	sm.enter(StateCallingProvider, "call speech-to-speech provider")
+	route, err := w.resolveJobModelRoute(ctx, job, ai.CapabilityFamilyAudioGeneration)
 	if err != nil {
 		return err
 	}
-	annotateDebugRouteContext(debugResult, route, ai.CapabilityAudioChat)
-	req := media.AudioChatRequest{
+	annotateDebugRouteContext(debugResult, route, ai.CapabilityFamilyAudioGeneration)
+	req := media.SpeechToSpeechRequest{
 		Prompt:      job.Prompt,
 		Language:    params.String("language"),
 		Voice:       params.String("voice"),
@@ -95,7 +95,7 @@ func (w *Worker) runAudioChatJob(ctx context.Context, debugCtx context.Context, 
 		req.Audio = audioData[0].Bytes
 		req.MimeType = audioData[0].MimeType
 	}
-	resp, err := w.aiService.CallAudioChatWithRouteUsage(debugCtx, job.UserID, route, req, w.usageContext(job))
+	resp, err := w.aiService.CallSpeechToSpeechWithRouteUsage(debugCtx, job.UserID, route, req, w.usageContext(job))
 	if err != nil {
 		w.saveDebugInfo(job, debugResult)
 		return err
@@ -103,24 +103,24 @@ func (w *Worker) runAudioChatJob(ctx context.Context, debugCtx context.Context, 
 	if len(resp.Audio) == 0 {
 		return fmt.Errorf("no audio bytes returned by provider")
 	}
-	sm.succeed("provider returned audio chat bytes")
+	sm.succeed("provider returned speech-to-speech bytes")
 
 	mimeType := firstNonEmpty(resp.MimeType, "audio/mpeg")
 	return w.completeProviderBytes(ctx, job, resp.Audio, mimeType, sm, debugResult)
 }
 
-func (w *Worker) runVoiceProfileJob(ctx context.Context, debugCtx context.Context, job *persistencemodel.Job, params generationParams, sm *jobStateMachine, debugResult *ai.DebugCallResult, capability string, audioData []ai.MediaData) error {
+func (w *Worker) runVoiceProfileJob(ctx context.Context, debugCtx context.Context, job *persistencemodel.Job, params generationParams, sm *jobStateMachine, debugResult *ai.DebugCallResult, operation string, audioData []ai.MediaData) error {
 	sm.enter(StateCallingProvider, "call voice profile provider")
-	route, err := w.resolveJobModelRoute(ctx, job, capability)
+	route, err := w.resolveJobModelRoute(ctx, job, ai.CapabilityFamilyAudioGeneration)
 	if err != nil {
 		return err
 	}
-	annotateDebugRouteContext(debugResult, route, capability)
+	annotateDebugRouteContext(debugResult, route, ai.CapabilityFamilyAudioGeneration)
 	name := firstNonEmpty(params.String("name"), strings.TrimSpace(job.Title), "MovScript voice")
 	description := firstNonEmpty(params.String("description"), strings.TrimSpace(job.Prompt), name)
 	var resp media.VoiceProfileResponse
-	switch capability {
-	case ai.CapabilityVoiceClone:
+	switch operation {
+	case ai.AudioOperationVoiceClone:
 		if len(audioData) == 0 {
 			return fmt.Errorf("voice_clone requires an audio input resource")
 		}
@@ -139,7 +139,7 @@ func (w *Worker) runVoiceProfileJob(ctx context.Context, debugCtx context.Contex
 			Model:       params.String("model"),
 			Params:      params.values,
 		}, w.usageContext(job))
-	case ai.CapabilityVoiceDesign:
+	case ai.AudioOperationVoiceDesign:
 		resp, err = w.aiService.CallVoiceDesignWithRouteUsage(debugCtx, job.UserID, route, media.VoiceDesignRequest{
 			Name:        name,
 			Description: description,
@@ -148,7 +148,7 @@ func (w *Worker) runVoiceProfileJob(ctx context.Context, debugCtx context.Contex
 			Params:      params.values,
 		}, w.usageContext(job))
 	default:
-		return fmt.Errorf("unsupported voice profile capability %q", capability)
+		return fmt.Errorf("unsupported voice profile operation %q", operation)
 	}
 	if err != nil {
 		w.saveDebugInfo(job, debugResult)
@@ -162,19 +162,19 @@ func (w *Worker) runVoiceProfileJob(ctx context.Context, debugCtx context.Contex
 	return w.completeProviderBytes(ctx, job, data, "application/json", sm, debugResult)
 }
 
-func (w *Worker) runSubtitleJob(ctx context.Context, debugCtx context.Context, job *persistencemodel.Job, params generationParams, sm *jobStateMachine, debugResult *ai.DebugCallResult, capability string, audioData []ai.MediaData, textData []ai.MediaData) error {
+func (w *Worker) runSubtitleJob(ctx context.Context, debugCtx context.Context, job *persistencemodel.Job, params generationParams, sm *jobStateMachine, debugResult *ai.DebugCallResult, operation string, audioData []ai.MediaData, textData []ai.MediaData) error {
 	sm.enter(StateCallingProvider, "call subtitle provider")
-	route, err := w.resolveJobModelRoute(ctx, job, capability)
+	route, err := w.resolveJobModelRoute(ctx, job, ai.CapabilityFamilyAudioGeneration)
 	if err != nil {
 		return err
 	}
-	annotateDebugRouteContext(debugResult, route, capability)
+	annotateDebugRouteContext(debugResult, route, ai.CapabilityFamilyAudioGeneration)
 
 	var resp media.SubtitleResponse
-	switch capability {
-	case ai.CapabilityAudioSTT:
+	switch operation {
+	case ai.AudioOperationSpeechToText:
 		if len(audioData) == 0 {
-			return fmt.Errorf("audio_transcribe requires an audio input resource")
+			return fmt.Errorf("speech_to_text requires an audio input resource")
 		}
 		audio := audioData[0]
 		resp, err = w.aiService.CallTranscribeWithRouteUsage(debugCtx, job.UserID, route, media.TranscribeRequest{
@@ -185,12 +185,12 @@ func (w *Worker) runSubtitleJob(ctx context.Context, debugCtx context.Context, j
 			Model:           params.String("model"),
 			Params:          params.values,
 		}, w.usageContext(job))
-	case ai.CapabilityAudioTranslate:
+	case ai.AudioOperationSpeechTranslate:
 		if len(audioData) == 0 {
-			return fmt.Errorf("audio_translate requires an audio input resource")
+			return fmt.Errorf("speech_translate requires an audio input resource")
 		}
 		audio := audioData[0]
-		resp, err = w.aiService.CallAudioTranslateWithRouteUsage(debugCtx, job.UserID, route, media.AudioTranslateRequest{
+		resp, err = w.aiService.CallSpeechTranslateWithRouteUsage(debugCtx, job.UserID, route, media.SpeechTranslateRequest{
 			AudioResourceID: audio.ResourceID,
 			Audio:           audio.Bytes,
 			MimeType:        audio.MimeType,
@@ -199,9 +199,9 @@ func (w *Worker) runSubtitleJob(ctx context.Context, debugCtx context.Context, j
 			Model:           params.String("model"),
 			Params:          params.values,
 		}, w.usageContext(job))
-	case ai.CapabilitySubAlign:
+	case ai.AudioOperationForcedAlignment:
 		if len(audioData) == 0 {
-			return fmt.Errorf("subtitle_align requires an audio input resource")
+			return fmt.Errorf("forced_alignment requires an audio input resource")
 		}
 		audio := audioData[0]
 		resp, err = w.aiService.CallAlignWithRouteUsage(debugCtx, job.UserID, route, media.AlignRequest{
@@ -213,7 +213,7 @@ func (w *Worker) runSubtitleJob(ctx context.Context, debugCtx context.Context, j
 			Model:           params.String("model"),
 			Params:          params.values,
 		}, w.usageContext(job))
-	case ai.CapabilitySubTranslate:
+	case ai.AudioOperationDubbing:
 		source := []byte(strings.TrimSpace(job.Prompt))
 		mimeType := "text/plain"
 		var sourceResourceID uint
@@ -223,9 +223,9 @@ func (w *Worker) runSubtitleJob(ctx context.Context, debugCtx context.Context, j
 			sourceResourceID = textData[0].ResourceID
 		}
 		if len(source) == 0 {
-			return fmt.Errorf("subtitle_translate requires subtitle text or a text input resource")
+			return fmt.Errorf("dubbing requires subtitle text or a text input resource")
 		}
-		resp, err = w.aiService.CallSubtitleTranslateWithRouteUsage(debugCtx, job.UserID, route, media.TranslateSubtitleRequest{
+		resp, err = w.aiService.CallDubbingWithRouteUsage(debugCtx, job.UserID, route, media.DubbingRequest{
 			SubtitleResourceID: sourceResourceID,
 			Subtitle:           source,
 			MimeType:           mimeType,
@@ -235,7 +235,7 @@ func (w *Worker) runSubtitleJob(ctx context.Context, debugCtx context.Context, j
 			Params:             params.values,
 		}, w.usageContext(job))
 	default:
-		return fmt.Errorf("unsupported subtitle capability %q", capability)
+		return fmt.Errorf("unsupported subtitle operation %q", operation)
 	}
 	if err != nil {
 		w.saveDebugInfo(job, debugResult)

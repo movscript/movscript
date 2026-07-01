@@ -94,7 +94,7 @@ func registerResourceRoutes(protected *gin.RouterGroup, h handlers) {
 
 func registerAudioRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.GET("/audio/models", h.audio.ListModels)
-	protected.POST("/audio/tts", h.audio.Synthesize)
+	protected.POST("/audio/text-to-speech", h.audio.Synthesize)
 	protected.POST("/audio/transcribe", h.audio.Transcribe)
 	protected.POST("/audio/align", h.audio.Align)
 }

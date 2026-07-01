@@ -38,6 +38,14 @@ func TestGeneratedResourceNameFallsBackToJobID(t *testing.T) {
 	}
 }
 
+func testOperationCapabilitiesJSON(capability, operation string) string {
+	return fmt.Sprintf(`{%q:{"operations":[%q]}}`, capability, operation)
+}
+
+func testGenerationIntentRequestContext(capability, operation string) string {
+	return fmt.Sprintf(`{"intent":{"capability":%q,"operation":%q}}`, capability, operation)
+}
+
 func TestResolveMentionsAcceptsTypedResourceTokens(t *testing.T) {
 	worker := NewWorker(nil, nil, nil, nil)
 	prompt, inputID, inputIDs := worker.resolveMentions(
@@ -59,7 +67,7 @@ func TestResolveMentionsAcceptsTypedResourceTokens(t *testing.T) {
 func TestProviderGeneratedArtifactMetadataIncludesOriginRouteFacts(t *testing.T) {
 	job := &model.Job{
 		Model:   gorm.Model{ID: 44},
-		JobType: ai.CapabilityImage,
+		JobType: domainjob.JobTypeImage,
 		RequestContext: `{
 			"model":{"identifier":"volcengine-ark:seedream-5-0-lite","model_def_id":"volcengine-ark:seedream-5-0-lite","provider_name":"Ark main"},
 			"route":{
@@ -114,14 +122,13 @@ func TestAnnotateDebugRouteContextCapturesRuntimeRouteFacts(t *testing.T) {
 		AdapterKey:         "yunwu_unified_video",
 		AdapterType:        ai.AdapterYunwuUnifiedVideo,
 		ProviderModelID:    "grok-video-3",
-		Capability:         ai.CapabilityVideo,
+		Capability:         ai.CapabilityFamilyVideoGeneration,
 		Operation:          ai.VideoOperationFirstLastFrameToVideo,
-		APIKind:            ai.CapabilityVideoI2V,
+		APIKind:            ai.CapabilityFamilyVideoGeneration,
 		EndpointPathPrefix: "/video",
 		EndpointMode:       ai.RouteEndpointModeReplacePath,
-		OperationProfile:   "yunwu_unified_video",
 		SelectionReason:    "route_binding_id",
-	}, ai.CapabilityVideo)
+	}, ai.CapabilityFamilyVideoGeneration)
 
 	if result.RouteTrace == nil {
 		t.Fatal("route_trace is nil")
@@ -130,10 +137,10 @@ func TestAnnotateDebugRouteContextCapturesRuntimeRouteFacts(t *testing.T) {
 	if trace.PublicModelID != "grok-video" || trace.RouteBindingID != 34 || trace.ProviderModelID != "grok-video-3" {
 		t.Fatalf("route_trace identity = %#v", trace)
 	}
-	if trace.AdapterType != ai.AdapterYunwuUnifiedVideo || trace.Capability != ai.CapabilityVideo || trace.Operation != ai.VideoOperationFirstLastFrameToVideo {
+	if trace.AdapterType != ai.AdapterYunwuUnifiedVideo || trace.Capability != ai.CapabilityFamilyVideoGeneration || trace.Operation != ai.VideoOperationFirstLastFrameToVideo {
 		t.Fatalf("route_trace execution facts = %#v", trace)
 	}
-	if trace.EndpointPathPrefix != "/video" || trace.EndpointMode != ai.RouteEndpointModeReplacePath || trace.OperationProfile != "yunwu_unified_video" {
+	if trace.EndpointPathPrefix != "/video" || trace.EndpointMode != ai.RouteEndpointModeReplacePath {
 		t.Fatalf("route_trace endpoint facts = %#v", trace)
 	}
 }
@@ -141,7 +148,7 @@ func TestAnnotateDebugRouteContextCapturesRuntimeRouteFacts(t *testing.T) {
 func TestProviderGeneratedArtifactMetadataTrustRequiresProviderPolicy(t *testing.T) {
 	job := &model.Job{
 		Model:   gorm.Model{ID: 45},
-		JobType: ai.CapabilityImage,
+		JobType: domainjob.JobTypeImage,
 		RequestContext: `{
 			"model":{"identifier":"volcengine:seedream-5-0-lite","model_def_id":"volcengine:seedream-5-0-lite","provider_name":"Ark proxy"},
 			"route":{
@@ -169,7 +176,7 @@ func TestProviderGeneratedArtifactMetadataTrustRequiresProviderPolicy(t *testing
 func TestProviderGeneratedArtifactMetadataTrustRequiresProviderAccount(t *testing.T) {
 	job := &model.Job{
 		Model:   gorm.Model{ID: 46},
-		JobType: ai.CapabilityVideo,
+		JobType: domainjob.JobTypeVideo,
 		RequestContext: `{
 			"model":{"identifier":"volcengine:seedance-2-0","model_def_id":"volcengine:seedance-2-0","provider_name":"Ark main"},
 			"route":{
@@ -221,7 +228,7 @@ func TestClaimLocalJobWritesWorkerLease(t *testing.T) {
 	job := model.Job{
 		UserID:         1,
 		RuntimeModelID: 1,
-		JobType:        ai.CapabilityImage,
+		JobType:        domainjob.JobTypeImage,
 		Status:         StatusPending,
 		MaxAttempts:    3,
 	}
@@ -259,7 +266,7 @@ func TestWorkerRouteHelpersDoNotFallbackToLegacyModelConfig(t *testing.T) {
 	if db.Migrator().HasTable("ai_model_configs") || db.Migrator().HasTable(&model.AICredential{}) {
 		t.Fatal("catalog-only worker test should not create legacy provider tables")
 	}
-	job := &model.Job{UserID: 7, RuntimeModelID: 42, JobType: ai.CapabilityImage}
+	job := &model.Job{UserID: 7, RuntimeModelID: 42, JobType: domainjob.JobTypeImage}
 	if got := worker.modelAdapterTypeForJob(job); got != "" {
 		t.Fatalf("modelAdapterTypeForJob() = %q, want empty without route metadata", got)
 	}
@@ -286,10 +293,11 @@ func TestWorkerUsesCatalogRouteBindingForModelAdapterWithoutLegacyModelConfigTab
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := model.AIModelCatalogEntry{
-		PublicModelID: "image-fast",
-		DisplayName:   "Image Fast",
-		IsEnabled:     true,
-		Capabilities:  ai.CapabilityImage,
+		PublicModelID:         "image-fast",
+		DisplayName:           "Image Fast",
+		IsEnabled:             true,
+		Capabilities:          ai.CapabilityFamilyImageGeneration,
+		ModelCapabilitiesJSON: testOperationCapabilitiesJSON(ai.CapabilityFamilyImageGeneration, ai.ImageOperationTextToImage),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -297,11 +305,11 @@ func TestWorkerUsesCatalogRouteBindingForModelAdapterWithoutLegacyModelConfigTab
 	binding := model.AIModelRouteBinding{
 		CatalogEntryID:  entry.ID,
 		SourceType:      model.ModelRouteSourceLocalProvider,
+		AdapterType:     cred.AdapterType,
 		CredentialID:    &cred.ID,
 		ProviderModelID: "provider-image-v2",
 		IsEnabled:       true,
-		CapacityWeight:  1,
-	}
+		CapacityWeight:  1}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
@@ -310,13 +318,13 @@ func TestWorkerUsesCatalogRouteBindingForModelAdapterWithoutLegacyModelConfigTab
 		RuntimeModelID:        entry.ID,
 		AIModelCatalogEntryID: &entry.ID,
 		RouteBindingID:        &binding.ID,
-		JobType:               ai.CapabilityImage,
+		JobType:               domainjob.JobTypeImage,
 		Status:                StatusRunning,
 		MaxAttempts:           1,
 	}
 	worker := NewWorker(db, ai.NewAIService(db, ai.NewRegistry(db, nil)), nil, nil)
 
-	route, err := worker.resolveJobModelRoute(context.Background(), &job, ai.CapabilityImage)
+	route, err := worker.resolveJobModelRoute(context.Background(), &job, ai.CapabilityFamilyImageGeneration)
 	if err != nil {
 		t.Fatalf("resolveJobModelRoute() error = %v", err)
 	}
@@ -386,10 +394,10 @@ func TestPrepareVideoInputReferencesFailsWhenRouteRequiresPublicImageURL(t *test
 	resourceID := resource.ID
 	job := &model.Job{Prompt: "animate", InputResourceID: &resourceID}
 	route := ai.ModelRoute{
-		RouteBindingID:        88,
-		Capability:            ai.CapabilityFamilyVideoGeneration,
-		AdapterType:           ai.AdapterOpenAICompat,
-		RouteCapabilitiesJSON: `{"video_generation":{"operations":["image_to_video"],"requires_public_image_url":true}}`,
+		RouteBindingID: 88,
+		Capability:     ai.CapabilityFamilyVideoGeneration,
+		Operation:      ai.VideoOperationImageToVideo,
+		AdapterType:    ai.AdapterVolcen,
 	}
 	imageData := []ai.MediaData{{ResourceID: resource.ID, MimeType: "image/png"}}
 	worker := NewWorker(db, nil, nil, nil)
@@ -412,10 +420,10 @@ func TestPrepareVideoInputReferencesFailsWhenRouteRequiresPublicImageURL(t *test
 func TestPrepareVideoInputReferencesAcceptsExistingPublicImageURL(t *testing.T) {
 	worker := NewWorker(nil, nil, nil, nil)
 	route := ai.ModelRoute{
-		RouteBindingID:        89,
-		Capability:            ai.CapabilityFamilyVideoGeneration,
-		AdapterType:           ai.AdapterOpenAICompat,
-		RouteCapabilitiesJSON: `{"video_generation":{"operations":["image_to_video"],"requires_public_image_url":true}}`,
+		RouteBindingID: 89,
+		Capability:     ai.CapabilityFamilyVideoGeneration,
+		Operation:      ai.VideoOperationImageToVideo,
+		AdapterType:    ai.AdapterVolcen,
 	}
 	imageData := []ai.MediaData{{ResourceID: 12, PresignedURL: "https://cdn.example.test/ref.png", MimeType: "image/png"}}
 
@@ -457,10 +465,10 @@ func TestPrepareVideoInputReferencesUsesResourceAccessProfile(t *testing.T) {
 		t.Fatalf("save resource access settings: %v", err)
 	}
 	route := ai.ModelRoute{
-		RouteBindingID:        90,
-		Capability:            ai.CapabilityFamilyVideoGeneration,
-		AdapterType:           ai.AdapterOpenAICompat,
-		RouteCapabilitiesJSON: `{"video_generation":{"operations":["image_to_video"],"requires_public_image_url":true}}`,
+		RouteBindingID: 90,
+		Capability:     ai.CapabilityFamilyVideoGeneration,
+		Operation:      ai.VideoOperationImageToVideo,
+		AdapterType:    ai.AdapterVolcen,
 	}
 	worker := NewWorker(db, nil, nil, nil)
 	imageData := []ai.MediaData{{ResourceID: resource.ID, MimeType: "image/png"}}
@@ -524,11 +532,11 @@ func TestPrepareVideoInputReferencesUsesObjectRelayResourceAccessProfile(t *test
 		t.Fatalf("save resource access settings: %v", err)
 	}
 	route := ai.ModelRoute{
-		RouteBindingID:        91,
-		Capability:            ai.CapabilityFamilyVideoGeneration,
-		AdapterType:           ai.AdapterYunwuUnifiedVideo,
-		ProviderModelID:       "grok-video-3",
-		RouteCapabilitiesJSON: `{"video_generation":{"operations":["image_to_video"],"asset_transport":{"input_media":["public_url"]},"requires_public_image_url":true}}`,
+		RouteBindingID:  91,
+		Capability:      ai.CapabilityFamilyVideoGeneration,
+		Operation:       ai.VideoOperationImageToVideo,
+		AdapterType:     ai.AdapterYunwuUnifiedVideo,
+		ProviderModelID: "grok-video-3",
 	}
 	worker := NewWorker(db, nil, nil, nil)
 	imageData := []ai.MediaData{{ResourceID: resource.ID, MimeType: "image/png"}}
@@ -574,11 +582,11 @@ func TestPrepareVideoInputReferencesUsesResourceAccessForVolcenSeedanceRoute(t *
 		t.Fatalf("save resource access settings: %v", err)
 	}
 	route := ai.ModelRoute{
-		RouteBindingID:        92,
-		Capability:            ai.CapabilityFamilyVideoGeneration,
-		AdapterType:           ai.AdapterVolcen,
-		ProviderModelID:       "doubao-seedance-2-0-pro-260128",
-		RouteCapabilitiesJSON: `{"video_generation":{"operations":["reference_to_video"],"reference_assets":{"min":1,"max":2,"modalities":["image","video"],"roles":["reference_image","reference_video"]},"asset_transport":{"input_media":["public_url"]}}}`,
+		RouteBindingID:  92,
+		Capability:      ai.CapabilityFamilyVideoGeneration,
+		Operation:       ai.VideoOperationReferenceToVideo,
+		AdapterType:     ai.AdapterVolcen,
+		ProviderModelID: "doubao-seedance-2-0-pro-260128",
 	}
 	worker := NewWorker(db, nil, nil, nil)
 	imageData := []ai.MediaData{{ResourceID: image.ID, MimeType: "image/png"}}
@@ -622,21 +630,20 @@ func TestRunVideoJobRecordsResourceAccessTraceBeforeUpstreamCall(t *testing.T) {
 		PublicModelID:         "grok-video",
 		DisplayName:           "Grok Video",
 		IsEnabled:             true,
-		Capabilities:          ai.CapabilityVideo,
+		Capabilities:          ai.CapabilityFamilyVideoGeneration,
 		ModelCapabilitiesJSON: `{"video_generation":{"operations":["image_to_video"],"reference_assets":{"min":1,"max":1,"modalities":["image"],"roles":["generic"]}}}`,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	binding := model.AIModelRouteBinding{
-		CatalogEntryID:        entry.ID,
-		SourceType:            model.ModelRouteSourceRelayGateway,
-		ProviderID:            model.ModelRouteSourceRelayGateway,
-		AdapterType:           ai.AdapterYunwuUnifiedVideo,
-		ProviderModelID:       "grok-video-3",
-		IsEnabled:             true,
-		CapacityWeight:        1,
-		RouteCapabilitiesJSON: `{"video_generation":{"operations":["image_to_video"],"reference_assets":{"min":1,"max":1,"modalities":["image"],"roles":["generic"]},"asset_transport":{"input_media":["public_url"]}}}`,
+		CatalogEntryID:  entry.ID,
+		SourceType:      model.ModelRouteSourceRelayGateway,
+		ProviderID:      model.ModelRouteSourceRelayGateway,
+		AdapterType:     ai.AdapterYunwuUnifiedVideo,
+		ProviderModelID: "grok-video-3",
+		IsEnabled:       true,
+		CapacityWeight:  1,
 	}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
@@ -647,7 +654,7 @@ func TestRunVideoJobRecordsResourceAccessTraceBeforeUpstreamCall(t *testing.T) {
 		RuntimeModelID:        entry.ID,
 		AIModelCatalogEntryID: &entry.ID,
 		RouteBindingID:        &binding.ID,
-		JobType:               ai.CapabilityVideo,
+		JobType:               domainjob.JobTypeVideo,
 		Status:                StatusRunning,
 		MaxAttempts:           1,
 		RequestContext:        requestContext,
@@ -757,7 +764,7 @@ func TestBuildVideoRequestUsesProviderAssetReadModelByProviderModel(t *testing.T
 		ProviderID:      providerID,
 		PublicModelID:   modelID,
 		ProviderModelID: modelID,
-		Capability:      "video_i2v",
+		Capability:      ai.CapabilityFamilyVideoGeneration,
 		Status:          model.ProviderAssetStatusActive,
 		AssetURI:        asset.AssetURI,
 		RemoteAssetID:   asset.RemoteAssetID,
@@ -1051,21 +1058,23 @@ func TestWorkerProviderFileUploaderUsesCatalogRouteCredentialWithoutLegacyModelC
 		t.Fatalf("create provider credential: %v", err)
 	}
 	entry := model.AIModelCatalogEntry{
-		PublicModelID: "image-edit",
-		DisplayName:   "Image Edit",
-		IsEnabled:     true,
-		Capabilities:  ai.CapabilityImageEdit,
+		PublicModelID:         "image-edit",
+		DisplayName:           "Image Edit",
+		IsEnabled:             true,
+		Capabilities:          ai.CapabilityFamilyImageGeneration,
+		ModelCapabilitiesJSON: testOperationCapabilitiesJSON(ai.CapabilityFamilyImageGeneration, ai.ImageOperationTextToImage),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	binding := model.AIModelRouteBinding{
-		CatalogEntryID: entry.ID,
-		SourceType:     model.ModelRouteSourceLocalProvider,
-		ProviderID:     providerID,
-		IsEnabled:      true,
-		CapacityWeight: 1,
-	}
+		CatalogEntryID:  entry.ID,
+		SourceType:      model.ModelRouteSourceLocalProvider,
+		ProviderID:      providerID,
+		AdapterType:     ai.AdapterOpenAICompat,
+		ProviderModelID: "provider-image-edit",
+		IsEnabled:       true,
+		CapacityWeight:  1}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
@@ -1074,7 +1083,7 @@ func TestWorkerProviderFileUploaderUsesCatalogRouteCredentialWithoutLegacyModelC
 		RuntimeModelID:        entry.ID,
 		AIModelCatalogEntryID: &entry.ID,
 		RouteBindingID:        &binding.ID,
-		JobType:               ai.CapabilityImageEdit,
+		JobType:               domainjob.JobTypeImage,
 		Status:                StatusRunning,
 		MaxAttempts:           1,
 	}
@@ -1095,7 +1104,7 @@ func TestClaimLocalProviderPollDoesNotIncrementAttempt(t *testing.T) {
 	job := model.Job{
 		UserID:         1,
 		RuntimeModelID: 1,
-		JobType:        ai.CapabilityVideo,
+		JobType:        domainjob.JobTypeVideo,
 		Status:         StatusPending,
 		AttemptCount:   1,
 		MaxAttempts:    3,
@@ -1172,7 +1181,7 @@ func TestCompleteFailureSyncsBoundContentUnitCandidate(t *testing.T) {
 	job := model.Job{
 		UserID:         5,
 		RuntimeModelID: 1,
-		JobType:        ai.CapabilityImage,
+		JobType:        domainjob.JobTypeImage,
 		Status:         StatusRunning,
 		AttemptCount:   1,
 		MaxAttempts:    1,
@@ -1275,7 +1284,7 @@ func TestRenewLeaseOnlyForOwningWorker(t *testing.T) {
 	job := model.Job{
 		UserID:         1,
 		RuntimeModelID: 1,
-		JobType:        ai.CapabilityImage,
+		JobType:        domainjob.JobTypeImage,
 		Status:         StatusRunning,
 		MaxAttempts:    3,
 		LockedBy:       "worker-a",
@@ -1320,7 +1329,7 @@ func TestRequeueStaleRunningJobsClearsExpiredLease(t *testing.T) {
 	job := model.Job{
 		UserID:         1,
 		RuntimeModelID: 1,
-		JobType:        ai.CapabilityImage,
+		JobType:        domainjob.JobTypeImage,
 		Status:         StatusRunning,
 		AttemptCount:   1,
 		MaxAttempts:    3,
@@ -1381,81 +1390,83 @@ func TestWorkerExecutesOrthogonalSubtitleJobTypesAsResourceOutputs(t *testing.T)
 	}
 
 	cases := []struct {
-		capability string
-		want       string
-		withAudio  bool
+		operation string
+		want      string
+		withAudio bool
 	}{
-		{capability: ai.CapabilityAudioSTT, want: "transcribed", withAudio: true},
-		{capability: ai.CapabilityAudioTranslate, want: "[local audio translation:zh-CN]\ntranslated audio\n", withAudio: true},
-		{capability: ai.CapabilitySubAlign, want: "hello world", withAudio: true},
-		{capability: ai.CapabilitySubTranslate, want: "[local subtitle translation:zh-CN]\nhello world\n", withAudio: false},
+		{operation: ai.AudioOperationSpeechToText, want: "transcribed", withAudio: true},
+		{operation: ai.AudioOperationSpeechTranslate, want: "[local speech translation:zh-CN]\ntranslated audio\n", withAudio: true},
+		{operation: ai.AudioOperationForcedAlignment, want: "hello world", withAudio: true},
+		{operation: ai.AudioOperationDubbing, want: "[local subtitle translation:zh-CN]\nhello world\n", withAudio: false},
 	}
 	for index, tc := range cases {
 		entry := model.AIModelCatalogEntry{
-			Model:         gorm.Model{ID: uint(100 + index)},
-			PublicModelID: "local-" + tc.capability,
-			DisplayName:   "Local " + tc.capability,
-			IsEnabled:     true,
-			Capabilities:  tc.capability,
+			Model:                 gorm.Model{ID: uint(100 + index)},
+			PublicModelID:         "local-" + tc.operation,
+			DisplayName:           "Local " + tc.operation,
+			IsEnabled:             true,
+			Capabilities:          ai.CapabilityFamilyAudioGeneration,
+			ModelCapabilitiesJSON: testOperationCapabilitiesJSON(ai.CapabilityFamilyAudioGeneration, tc.operation),
 		}
 		if err := db.Create(&entry).Error; err != nil {
-			t.Fatalf("create catalog entry %s: %v", tc.capability, err)
+			t.Fatalf("create catalog entry %s: %v", tc.operation, err)
 		}
 		binding := model.AIModelRouteBinding{
 			CatalogEntryID: entry.ID,
 			SourceType:     model.ModelRouteSourceLocalProvider,
+			AdapterType:    cred.AdapterType,
 			CredentialID:   &cred.ID,
 			IsEnabled:      true,
-			CapacityWeight: 1,
-		}
+			CapacityWeight: 1}
 		if err := db.Create(&binding).Error; err != nil {
-			t.Fatalf("create route binding %s: %v", tc.capability, err)
+			t.Fatalf("create route binding %s: %v", tc.operation, err)
 		}
 		job := model.Job{
 			UserID:                42,
 			RuntimeModelID:        entry.ID,
 			AIModelCatalogEntryID: &entry.ID,
 			RouteBindingID:        &binding.ID,
-			JobType:               tc.capability,
+			JobType:               domainjob.JobTypeAudio,
 			Status:                StatusRunning,
 			MaxAttempts:           1,
-			Title:                 "subtitle " + tc.capability,
+			Title:                 "subtitle " + tc.operation,
 			Prompt:                "hello world",
-			ExtraParams:           `{"target_language":"zh-CN","language":"en-US","script":"hello world"}`,
+			ExtraParams:           fmt.Sprintf(`{"operation":%q,"target_language":"zh-CN","language":"en-US","script":"hello world"}`, tc.operation),
+			RequestContext:        testGenerationIntentRequestContext(ai.CapabilityFamilyAudioGeneration, tc.operation),
 		}
 		if tc.withAudio {
 			job.InputResourceID = &audioResourceID
 		}
 		if err := db.Create(&job).Error; err != nil {
-			t.Fatalf("create job %s: %v", tc.capability, err)
+			t.Fatalf("create job %s: %v", tc.operation, err)
 		}
 		if err := worker.execute(context.Background(), &job); err != nil {
-			t.Fatalf("execute %s: %v", tc.capability, err)
+			t.Fatalf("execute %s: %v", tc.operation, err)
 		}
 
 		var reloaded model.Job
 		if err := db.First(&reloaded, job.ID).Error; err != nil {
-			t.Fatalf("reload job %s: %v", tc.capability, err)
+			t.Fatalf("reload job %s: %v", tc.operation, err)
 		}
 		if reloaded.Status != StatusSucceeded {
-			t.Fatalf("%s status = %q, want %q", tc.capability, reloaded.Status, StatusSucceeded)
+			t.Fatalf("%s status = %q, want %q", tc.operation, reloaded.Status, StatusSucceeded)
 		}
 		if reloaded.OutputResourceID == nil {
-			t.Fatalf("%s did not store an output resource id", tc.capability)
+			t.Fatalf("%s did not store an output resource id", tc.operation)
 		}
 		var output model.RawResource
 		if err := db.First(&output, *reloaded.OutputResourceID).Error; err != nil {
-			t.Fatalf("load output resource for %s: %v", tc.capability, err)
+			t.Fatalf("load output resource for %s: %v", tc.operation, err)
 		}
 		if output.Type != "text" || output.MimeType != "text/plain" {
-			t.Fatalf("%s output resource type/mime = %q/%q", tc.capability, output.Type, output.MimeType)
+			t.Fatalf("%s output resource type/mime = %q/%q", tc.operation, output.Type, output.MimeType)
 		}
 		data, _, _, err := worker.readResourceBytes(output)
 		if err != nil {
-			t.Fatalf("read output resource for %s: %v", tc.capability, err)
+			t.Fatalf("read output resource for %s: %v", tc.operation, err)
 		}
 		if string(data) != tc.want {
-			t.Fatalf("%s output = %q, want %q", tc.capability, string(data), tc.want)
+			t.Fatalf("%s output = %q, want %q", tc.operation, string(data), tc.want)
 		}
 	}
 }
@@ -1492,87 +1503,89 @@ func TestWorkerExecutesVoiceProfileJobsAsJSONResources(t *testing.T) {
 	}
 
 	for index, tc := range []struct {
-		capability string
+		operation  string
 		withAudio  bool
 		wantPrefix string
 	}{
-		{capability: ai.CapabilityVoiceClone, withAudio: true, wantPrefix: "local_clone_"},
-		{capability: ai.CapabilityVoiceDesign, withAudio: false, wantPrefix: "local_design_"},
+		{operation: ai.AudioOperationVoiceClone, withAudio: true, wantPrefix: "local_clone_"},
+		{operation: ai.AudioOperationVoiceDesign, withAudio: false, wantPrefix: "local_design_"},
 	} {
 		entry := model.AIModelCatalogEntry{
-			Model:         gorm.Model{ID: uint(300 + index)},
-			PublicModelID: "local-" + tc.capability,
-			DisplayName:   "Local " + tc.capability,
-			IsEnabled:     true,
-			Capabilities:  tc.capability,
+			Model:                 gorm.Model{ID: uint(300 + index)},
+			PublicModelID:         "local-" + tc.operation,
+			DisplayName:           "Local " + tc.operation,
+			IsEnabled:             true,
+			Capabilities:          ai.CapabilityFamilyAudioGeneration,
+			ModelCapabilitiesJSON: testOperationCapabilitiesJSON(ai.CapabilityFamilyAudioGeneration, tc.operation),
 		}
 		if err := db.Create(&entry).Error; err != nil {
-			t.Fatalf("create catalog entry %s: %v", tc.capability, err)
+			t.Fatalf("create catalog entry %s: %v", tc.operation, err)
 		}
 		binding := model.AIModelRouteBinding{
 			CatalogEntryID: entry.ID,
 			SourceType:     model.ModelRouteSourceLocalProvider,
+			AdapterType:    cred.AdapterType,
 			CredentialID:   &cred.ID,
 			IsEnabled:      true,
-			CapacityWeight: 1,
-		}
+			CapacityWeight: 1}
 		if err := db.Create(&binding).Error; err != nil {
-			t.Fatalf("create route binding %s: %v", tc.capability, err)
+			t.Fatalf("create route binding %s: %v", tc.operation, err)
 		}
 		job := model.Job{
 			UserID:                42,
 			RuntimeModelID:        entry.ID,
 			AIModelCatalogEntryID: &entry.ID,
 			RouteBindingID:        &binding.ID,
-			JobType:               tc.capability,
+			JobType:               domainjob.JobTypeAudio,
 			Status:                StatusRunning,
 			MaxAttempts:           1,
-			Title:                 "voice " + tc.capability,
+			Title:                 "voice " + tc.operation,
 			Prompt:                "warm narrator voice",
-			ExtraParams:           `{"name":"Narrator","description":"warm narrator voice"}`,
+			ExtraParams:           fmt.Sprintf(`{"operation":%q,"name":"Narrator","description":"warm narrator voice"}`, tc.operation),
+			RequestContext:        testGenerationIntentRequestContext(ai.CapabilityFamilyAudioGeneration, tc.operation),
 		}
 		if tc.withAudio {
 			job.InputResourceID = &audioResourceID
 		}
 		if err := db.Create(&job).Error; err != nil {
-			t.Fatalf("create job %s: %v", tc.capability, err)
+			t.Fatalf("create job %s: %v", tc.operation, err)
 		}
 		if err := worker.execute(context.Background(), &job); err != nil {
-			t.Fatalf("execute %s: %v", tc.capability, err)
+			t.Fatalf("execute %s: %v", tc.operation, err)
 		}
 
 		var reloaded model.Job
 		if err := db.First(&reloaded, job.ID).Error; err != nil {
-			t.Fatalf("reload job %s: %v", tc.capability, err)
+			t.Fatalf("reload job %s: %v", tc.operation, err)
 		}
 		if reloaded.Status != StatusSucceeded || reloaded.OutputResourceID == nil {
-			t.Fatalf("%s status=%q output=%v", tc.capability, reloaded.Status, reloaded.OutputResourceID)
+			t.Fatalf("%s status=%q output=%v", tc.operation, reloaded.Status, reloaded.OutputResourceID)
 		}
 		var output model.RawResource
 		if err := db.First(&output, *reloaded.OutputResourceID).Error; err != nil {
-			t.Fatalf("load output resource for %s: %v", tc.capability, err)
+			t.Fatalf("load output resource for %s: %v", tc.operation, err)
 		}
 		if output.Type != "text" || output.MimeType != "application/json" {
-			t.Fatalf("%s output resource type/mime = %q/%q", tc.capability, output.Type, output.MimeType)
+			t.Fatalf("%s output resource type/mime = %q/%q", tc.operation, output.Type, output.MimeType)
 		}
 		data, _, _, err := worker.readResourceBytes(output)
 		if err != nil {
-			t.Fatalf("read output resource for %s: %v", tc.capability, err)
+			t.Fatalf("read output resource for %s: %v", tc.operation, err)
 		}
 		var payload struct {
 			VoiceID string `json:"voice_id"`
 		}
 		if err := json.Unmarshal(data, &payload); err != nil {
-			t.Fatalf("decode output for %s: %v\n%s", tc.capability, err, string(data))
+			t.Fatalf("decode output for %s: %v\n%s", tc.operation, err, string(data))
 		}
 		if !strings.HasPrefix(payload.VoiceID, tc.wantPrefix) {
-			t.Fatalf("%s voice_id = %q, want prefix %q", tc.capability, payload.VoiceID, tc.wantPrefix)
+			t.Fatalf("%s voice_id = %q, want prefix %q", tc.operation, payload.VoiceID, tc.wantPrefix)
 		}
 	}
 }
 
-func TestWorkerExecutesAudioChatJobAsAudioResource(t *testing.T) {
-	db := testutil.OpenSQLite(t, "runner_audio_chat_job.db",
+func TestWorkerExecutesSpeechToSpeechJobAsAudioResource(t *testing.T) {
+	db := testutil.OpenSQLite(t, "runner_speech_to_speech_job.db",
 		&model.Job{},
 		&model.RawResource{},
 		&model.ResourceBlob{},
@@ -1589,7 +1602,7 @@ func TestWorkerExecutesAudioChatJobAsAudioResource(t *testing.T) {
 	cred := model.AICredential{
 		Model:       gorm.Model{ID: 1},
 		AdapterType: ai.AdapterLocal,
-		DisplayName: "Local audio chat runner",
+		DisplayName: "Local speech-to-speech runner",
 		IsEnabled:   true,
 	}
 	if err := db.Create(&cred).Error; err != nil {
@@ -1603,11 +1616,12 @@ func TestWorkerExecutesAudioChatJobAsAudioResource(t *testing.T) {
 	}
 
 	entry := model.AIModelCatalogEntry{
-		Model:         gorm.Model{ID: 400},
-		PublicModelID: "local-audio-chat",
-		DisplayName:   "Local Audio Chat",
-		IsEnabled:     true,
-		Capabilities:  ai.CapabilityAudioChat,
+		Model:                 gorm.Model{ID: 400},
+		PublicModelID:         "local-speech-to-speech",
+		DisplayName:           "Local Speech-to-Speech",
+		IsEnabled:             true,
+		Capabilities:          ai.CapabilityFamilyAudioGeneration,
+		ModelCapabilitiesJSON: testOperationCapabilitiesJSON(ai.CapabilityFamilyAudioGeneration, ai.AudioOperationSpeechToSpeech),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -1615,10 +1629,10 @@ func TestWorkerExecutesAudioChatJobAsAudioResource(t *testing.T) {
 	binding := model.AIModelRouteBinding{
 		CatalogEntryID: entry.ID,
 		SourceType:     model.ModelRouteSourceLocalProvider,
+		AdapterType:    cred.AdapterType,
 		CredentialID:   &cred.ID,
 		IsEnabled:      true,
-		CapacityWeight: 1,
-	}
+		CapacityWeight: 1}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
@@ -1627,19 +1641,20 @@ func TestWorkerExecutesAudioChatJobAsAudioResource(t *testing.T) {
 		RuntimeModelID:        entry.ID,
 		AIModelCatalogEntryID: &entry.ID,
 		RouteBindingID:        &binding.ID,
-		JobType:               ai.CapabilityAudioChat,
+		JobType:               domainjob.JobTypeAudio,
 		Status:                StatusRunning,
 		MaxAttempts:           1,
-		Title:                 "audio chat",
+		Title:                 "speech to speech",
 		Prompt:                "answer in a calm voice",
-		ExtraParams:           `{"language":"zh-CN","voice":"alloy"}`,
+		ExtraParams:           `{"operation":"speech_to_speech","language":"zh-CN","voice":"alloy"}`,
+		RequestContext:        testGenerationIntentRequestContext(ai.CapabilityFamilyAudioGeneration, ai.AudioOperationSpeechToSpeech),
 		InputResourceID:       &audioResourceID,
 	}
 	if err := db.Create(&job).Error; err != nil {
 		t.Fatalf("create job: %v", err)
 	}
 	if err := worker.execute(context.Background(), &job); err != nil {
-		t.Fatalf("execute audio_chat: %v", err)
+		t.Fatalf("execute speech_to_speech: %v", err)
 	}
 
 	var reloaded model.Job
@@ -1661,7 +1676,7 @@ func TestWorkerExecutesAudioChatJobAsAudioResource(t *testing.T) {
 		t.Fatalf("read output resource: %v", err)
 	}
 	if len(data) == 0 {
-		t.Fatal("audio_chat output resource is empty")
+		t.Fatal("speech_to_speech output resource is empty")
 	}
 }
 

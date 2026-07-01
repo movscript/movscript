@@ -166,10 +166,13 @@ export function AppSettingsContent({
             id="dataConnectionURL"
             value={dataConnectionURL}
             onChange={(e) => {
+              if (localMode) return
               setDataConnectionURLInput(e.target.value)
               setSaved(false)
             }}
             placeholder="https://api.example.com"
+            readOnly={localMode}
+            aria-readonly={localMode}
             spellCheck={false}
           />
         </AppSettingsField>

@@ -7,21 +7,21 @@ import { ShotVectorPage } from '@admin/pages/admin/ShotVectorPage'
 import { UserManagementPage } from '@admin/pages/admin/UserManagementPage'
 import type { AdminDashboardCard, AdminNavItem, AdminRouteItem, AdminRuntimeCapabilities, AdminSectionCard } from './contract'
 
-const AdminPage = React.lazy(() => import('@admin/pages/admin/AdminPage'))
+const AdminOverviewPage = React.lazy(() => import('@admin/pages/admin/AdminOverviewPage'))
 const ProjectOwnerManagementPage = React.lazy(() =>
-  import('@admin/pages/admin/AdminPage').then((module) => ({ default: module.ProjectOwnerManagementPage })),
+  import('@admin/features/projects-admin/pages/ProjectOwnerManagementPage').then((module) => ({ default: module.ProjectOwnerManagementPage })),
 )
 const StoragePage = React.lazy(() =>
-  import('@admin/pages/admin/AdminPage').then((module) => ({ default: module.StoragePage })),
+  import('@admin/features/storage-admin/pages/StoragePage').then((module) => ({ default: module.StoragePage })),
 )
 const CloudFileConfigPage = React.lazy(() =>
-  import('@admin/pages/admin/AdminPage').then((module) => ({ default: module.CloudFileConfigPage })),
+  import('@admin/features/cloud-files-admin/pages/CloudFileConfigPage').then((module) => ({ default: module.CloudFileConfigPage })),
 )
 const DebugPage = React.lazy(() =>
   import('@admin/pages/admin/DebugPage').then((module) => ({ default: module.DebugPage })),
 )
 const ModelManagementPage = React.lazy(() =>
-  import('@admin/pages/admin/AdminPage').then((module) => ({ default: module.ModelManagementPage })),
+  import('@admin/features/model-management/pages/ModelManagementPage').then((module) => ({ default: module.ModelManagementPage })),
 )
 const UsageLogsPage = React.lazy(() =>
   import('@admin/pages/admin/UsageLogsPage').then((module) => ({ default: module.UsageLogsPage })),
@@ -33,8 +33,8 @@ const SystemSettingsPage = React.lazy(() =>
 export const runtimeNavItems: AdminNavItem[] = []
 
 export const runtimeBaseRoutes: AdminRouteItem[] = [
-  { path: '/', element: <AdminPage /> },
-  { path: '/overview', element: <AdminPage /> },
+  { path: '/', element: <AdminOverviewPage /> },
+  { path: '/overview', element: <AdminOverviewPage /> },
   { path: '/models', element: <Navigate to="/models/providers" replace /> },
   { path: '/models/providers', element: <ModelManagementPage view="providers" /> },
   { path: '/models/catalog', element: <ModelManagementPage view="catalog" /> },
@@ -62,4 +62,5 @@ export const runtimeCapabilities: AdminRuntimeCapabilities = {
   relayGatewayGroup: false,
   hideModelManagement: false,
   modelManagementRedirect: undefined,
+  disabledBaseRoutes: ['/user-management', '/orgs'],
 }

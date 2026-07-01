@@ -14,6 +14,10 @@ func TestVyroSeedanceVideoStartUsesReferenceImagesField(t *testing.T) {
 	var gotFiles int
 	var gotModel string
 	var gotPrompt string
+	var gotMode string
+	var gotGenerateAudio string
+	var gotSize string
+	var gotResolution string
 
 	adapter := NewVyroSeedanceAdapter("test-key", "https://vyro.test/v1")
 	adapter.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -29,6 +33,10 @@ func TestVyroSeedanceVideoStartUsesReferenceImagesField(t *testing.T) {
 		}
 		gotModel = r.FormValue("model")
 		gotPrompt = r.FormValue("prompt")
+		gotMode = r.FormValue("mode")
+		gotGenerateAudio = r.FormValue("generate_audio")
+		gotSize = r.FormValue("size")
+		gotResolution = r.FormValue("resolution")
 		var body bytes.Buffer
 		_ = json.NewEncoder(&body).Encode(map[string]any{"id": "task_1", "status": "created"})
 		return &http.Response{
@@ -39,12 +47,24 @@ func TestVyroSeedanceVideoStartUsesReferenceImagesField(t *testing.T) {
 		}, nil
 	})}
 
+	generateAudio := true
 	resp, err := adapter.VideoStart(context.Background(), VideoRequest{
-		Model:  "vyro-seedance-2-fast",
-		Prompt: "make a video",
+		Model:          "vyro-seedance-2-fast",
+		Operation:      VideoOperationImageToVideo,
+		Prompt:         "make a video",
+		AspectRatio:    "16:9",
+		Duration:       10,
+		Size:           "1080P",
+		ResolutionName: "1080p",
+		GenerateAudio:  &generateAudio,
 		InputImageDataList: []MediaData{{
 			Bytes:    []byte("fake image bytes"),
 			MimeType: "image/png",
+		}},
+		ReferenceAssets: []ReferenceAsset{{
+			Role:       "reference_image",
+			MediaType:  "image",
+			ResourceID: 31,
 		}},
 	})
 	if err != nil {
@@ -56,8 +76,70 @@ func TestVyroSeedanceVideoStartUsesReferenceImagesField(t *testing.T) {
 	if gotModel != "vyro-seedance-2-fast" || gotPrompt != "make a video" {
 		t.Fatalf("model/prompt = %q/%q", gotModel, gotPrompt)
 	}
+	if gotMode != "reference_to_video" || gotGenerateAudio != "1" {
+		t.Fatalf("mode/generate_audio = %q/%q, want reference_to_video/1", gotMode, gotGenerateAudio)
+	}
+	if gotSize != "" || gotResolution != "" {
+		t.Fatalf("unexpected undocumented size/resolution fields = %q/%q", gotSize, gotResolution)
+	}
 	if resp.TaskID != "task_1" || resp.Status != VideoStatusQueued {
 		t.Fatalf("resp = %+v", resp)
+	}
+}
+
+func TestVyroSeedanceDebugBodyIsMultipartProviderSummary(t *testing.T) {
+	var gotFiles int
+	adapter := NewVyroSeedanceAdapter("test-key", "https://vyro.test/v1")
+	adapter.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if err := r.ParseMultipartForm(8 << 20); err != nil {
+			t.Fatalf("ParseMultipartForm() error = %v", err)
+		}
+		gotFiles = len(r.MultipartForm.File["reference_images"])
+		var body bytes.Buffer
+		_ = json.NewEncoder(&body).Encode(map[string]any{"id": "task_1", "status": "created"})
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(&body),
+			Request:    r,
+		}, nil
+	})}
+
+	debugCtx, _ := WithDebugRecorder(context.Background())
+	_, err := adapter.VideoStart(debugCtx, VideoRequest{
+		Model:     "vyro-seedance-2-fast",
+		Prompt:    "make a video",
+		Operation: VideoOperationReferenceToVideo,
+		InputImageDataList: []MediaData{{
+			Bytes:    []byte("fake image bytes"),
+			MimeType: "image/png",
+		}},
+		ReferenceAssets: []ReferenceAsset{{
+			Role:       "reference_image",
+			MediaType:  "image",
+			ResourceID: 31,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("VideoStart() error = %v", err)
+	}
+	if gotFiles != 1 {
+		t.Fatalf("reference_images files = %d, want 1", gotFiles)
+	}
+	debug := takeDebug(debugCtx)
+	if debug == nil {
+		t.Fatal("debug = nil")
+	}
+	if debug.RequestShape != "multipart_form_data_summary" {
+		t.Fatalf("request_shape = %q, want multipart_form_data_summary", debug.RequestShape)
+	}
+	if strings.Contains(debug.RequestBody, "reference_asset_bindings") {
+		t.Fatalf("debug request body leaked internal reference bindings: %s", debug.RequestBody)
+	}
+	for _, want := range []string{"model=vyro-seedance-2-fast", "mode=reference_to_video", "generate_audio=1", "reference_images=1"} {
+		if !strings.Contains(debug.RequestBody, want) {
+			t.Fatalf("debug request body = %q, missing %q", debug.RequestBody, want)
+		}
 	}
 }
 

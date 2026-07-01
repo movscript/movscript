@@ -7,6 +7,7 @@ import { after, before, test } from 'node:test'
 
 import { updateMCPContextSnapshot as updateHostMCPContextSnapshot } from '../dist/index.js'
 import { handleMCPHostJSONRPC, listMCPHostTools, runtimeStatus } from '../dist/stdio.js'
+import { callDaemonMCPTool, daemonMCPCommandTools, listDaemonMCPTools } from '@movscript/local-daemon/mcp'
 
 let server
 let baseURL
@@ -36,41 +37,93 @@ after(async () => {
 test('MCP host exposes runtime daemon bootstrap tools', () => {
   const toolsList = listMCPHostTools()
   const tools = new Set(toolsList.map((tool) => tool.name))
+  assert.equal(tools.has('runtime_doctor'), true)
+  assert.equal(tools.has('movscript_runtime_doctor'), true)
   assert.equal(tools.has('runtime_daemon_ensure'), true)
   assert.equal(tools.has('runtime_daemon_start'), true)
   assert.equal(tools.has('runtime_daemon_status'), true)
   assert.equal(tools.has('runtime_daemon_configure'), true)
+  assert.equal(tools.has('runtime_gateway_configure'), true)
+  assert.equal(tools.has('runtime_gateway_status'), true)
   assert.equal(tools.has('runtime_local_daemon_ensure'), true)
   assert.equal(tools.has('runtime_local_daemon_start'), true)
   const ensureTool = toolsList.find((tool) => tool.name === 'runtime_daemon_ensure')
   assert.equal(ensureTool?.outputSchema?.properties?.schema?.const, 'movscript.command_result.v1')
 })
 
-test('MCP host exposes current admin tools without deferred cloud file or usage policy tools', () => {
+test('MCP host exposes current CLI-backed admin tools', () => {
   const tools = new Set(listMCPHostTools().map((tool) => tool.name))
   assert.equal(tools.has('admin_provider_list'), true)
   assert.equal(tools.has('admin_provider_create'), true)
+  assert.equal(tools.has('admin_provider_connection_test'), true)
+  assert.equal(tools.has('admin_provider_instance_config_get'), true)
+  assert.equal(tools.has('admin_provider_instance_config_update'), true)
+  assert.equal(tools.has('admin_provider_instance_config_apply'), true)
+  assert.equal(tools.has('admin_provider_instance_config_activate'), true)
   assert.equal(tools.has('admin_model_catalog_list'), true)
   assert.equal(tools.has('admin_model_route_binding_create'), true)
   assert.equal(tools.has('admin_model_route_diagnose'), true)
   assert.equal(tools.has('admin_resource_access_settings_get'), true)
   assert.equal(tools.has('admin_public_tunnel_config_update'), true)
+  assert.equal(tools.has('admin_resource_access_profile_list'), true)
+  assert.equal(tools.has('admin_resource_access_profile_upsert'), true)
+  assert.equal(tools.has('admin_resource_access_profile_delete'), true)
+  assert.equal(tools.has('admin_resource_access_profile_test'), true)
+  assert.equal(tools.has('admin_resource_access_route_diagnose'), true)
   assert.equal(tools.has('admin_resource_access_resolve_test'), true)
   assert.equal(tools.has('admin_resource_access_check_test'), true)
   assert.equal(tools.has('admin_generation_tools_settings_update'), true)
+  assert.equal(tools.has('admin_generation_tool_call_test'), true)
   assert.equal(tools.has('admin_model_gateway_key_list'), true)
-  assert.equal(tools.has('admin_cloud_file_config_list'), false)
-  assert.equal(tools.has('admin_cloud_file_config_create'), false)
-  assert.equal(tools.has('admin_usage_policy_get'), false)
-  assert.equal(tools.has('admin_usage_policy_update'), false)
+  assert.equal(tools.has('admin_cloud_file_config_list'), true)
+  assert.equal(tools.has('admin_cloud_file_config_create'), true)
+  assert.equal(tools.has('admin_usage_policy_get'), true)
+  assert.equal(tools.has('admin_usage_policy_update'), true)
+  assert.equal(tools.has('admin_usage_policy_diagnose'), true)
 })
 
-test('MCP host exposes TimelineAssembly compile tools above editing backend tools', () => {
+test('daemon MCP tool surface is command-manifest only', async () => {
+  assert.deepEqual(
+    listDaemonMCPTools().map((tool) => tool.name),
+    daemonMCPCommandTools.map((tool) => tool.name),
+  )
+  await assert.rejects(
+    () => callDaemonMCPTool({ name: 'legacy_direct_core_probe', arguments: {} }),
+    /unknown daemon MCP tool/,
+  )
+})
+
+test('MCP host exposes current domain, production editing, and editing backend tools', () => {
   const tools = new Set(listMCPHostTools().map((tool) => tool.name))
-  assert.equal(tools.has('timeline_backend_capability_list'), true)
-  assert.equal(tools.has('timeline_compile_manifest_create'), true)
-  assert.equal(tools.has('timeline_backend_project_create'), true)
-  assert.equal(tools.has('timeline_backend_conformance_report'), true)
+  assert.equal(tools.has('domain_overview'), true)
+  assert.equal(tools.has('domain_query_entities'), true)
+  assert.equal(tools.has('domain_read_project_context_snapshot'), true)
+  assert.equal(tools.has('domain_regeneration_plan'), true)
+  assert.equal(tools.has('domain_read_content_unit_input_version'), true)
+  assert.equal(tools.has('domain_upsert_project_standards'), true)
+  assert.equal(tools.has('domain_upsert_setting'), true)
+  assert.equal(tools.has('domain_read_script_source'), true)
+  assert.equal(tools.has('domain_update_content_unit_prompt'), true)
+  assert.equal(tools.has('domain_delete_entity'), true)
+  assert.equal(tools.has('domain_create_content_candidate'), true)
+  assert.equal(tools.has('domain_register_raw_resource_as_content_unit_candidate'), true)
+  assert.equal(tools.has('domain_create_content_candidate_batch'), true)
+  assert.equal(tools.has('domain_select_content_unit_candidate'), true)
+  assert.equal(tools.has('domain_select_content_unit_candidate_batch'), true)
+  assert.equal(tools.has('domain_decide_content_unit_candidate'), true)
+  assert.equal(tools.has('domain_query_remote_asset_groups'), true)
+  assert.equal(tools.has('domain_query_remote_assets'), true)
+  assert.equal(tools.has('domain_certify_asset_provider'), true)
+  assert.equal(tools.has('domain_certify_asset_seedance2'), true)
+  assert.equal(tools.has('domain_review'), true)
+  assert.equal(tools.has('production_editing_resources_refresh'), true)
+  assert.equal(tools.has('production_editing_workspace_list'), true)
+  assert.equal(tools.has('production_editing_workspace_create'), true)
+  assert.equal(tools.has('production_editing_workspace_open'), true)
+  assert.equal(tools.has('timeline_backend_capability_list'), false)
+  assert.equal(tools.has('timeline_compile_manifest_create'), false)
+  assert.equal(tools.has('timeline_backend_project_create'), false)
+  assert.equal(tools.has('timeline_backend_conformance_report'), false)
   assert.equal(tools.has('editing_runtime_capabilities_get'), true)
   assert.equal(tools.has('editing_timeline_validate'), true)
   assert.equal(tools.has('editing_timeline_apply_commands'), true)
@@ -94,13 +147,32 @@ test('MCP host exposes TimelineAssembly compile tools above editing backend tool
   assert.equal(tools.has('editing_export_publish_hls'), true)
   assert.equal(tools.has('editing_export_create_candidate'), true)
   assert.equal(tools.has('editing_project_create'), true)
-  assert.equal(tools.has('editing_project_create_from_edit_plan'), true)
-  assert.equal(tools.has('editing_project_create_from_edit_decisions'), true)
+  assert.equal(tools.has('editing_project_create_from_edit_plan'), false)
+  assert.equal(tools.has('editing_project_create_from_edit_decisions'), false)
   assert.equal(tools.has('editing_project_get'), true)
   assert.equal(tools.has('editing_project_save'), true)
   assert.equal(tools.has('editing_project_update_settings'), true)
   assert.equal(tools.has('editing_project_add_asset'), true)
   assert.equal(tools.has('editing_project_remove_asset'), true)
+})
+
+test('MCP host marks legacy inline candidate tools as migration-only temporary fallbacks', () => {
+  const toolsByName = new Map(listMCPHostTools().map((tool) => [tool.name, tool]))
+  const fallbackCommands = [
+    ['domain.candidate.legacy.append', 'domain_append_candidate'],
+    ['domain.candidate.legacy.create_asset_slot', 'domain_create_asset_slot_candidate'],
+    ['domain.candidate.legacy.create_keyframe', 'domain_create_keyframe_candidate'],
+    ['domain.candidate.legacy.select', 'domain_select_candidate'],
+    ['domain.candidate.legacy.update', 'domain_update_candidate'],
+    ['domain.candidate.legacy.unlock', 'domain_unlock_candidate'],
+  ]
+
+  for (const [, toolName] of fallbackCommands) {
+    const tool = toolsByName.get(toolName)
+    assert.ok(tool, `${toolName} must remain discoverable only as a migration fallback`)
+    assert.match(tool.description, /Temporary fallback \(migration-only\)/)
+    assert.match(tool.description, /legacy candidate migration fallback/)
+  }
 })
 
 test('stdio MCP host exposes only runtime bootstrap tools when daemon MCP is unavailable', async () => {
@@ -121,6 +193,8 @@ test('stdio MCP host exposes only runtime bootstrap tools when daemon MCP is una
     assert.equal(tools.has('runtime_daemon_ensure'), true)
     assert.equal(tools.has('runtime_daemon_status'), true)
     assert.equal(tools.has('runtime_daemon_configure'), true)
+    assert.equal(tools.has('runtime_gateway_configure'), true)
+    assert.equal(tools.has('runtime_gateway_status'), true)
     assert.equal(tools.has('admin_provider_list'), false)
     assert.equal(tools.has('system_model_list'), false)
 
@@ -199,6 +273,102 @@ test('stdio MCP host proxies business tools to daemon MCP endpoint when availabl
   }
 })
 
+test('stdio MCP host proxies business tools to a registered cloud runtime gateway', async () => {
+  const previousHome = process.env.MOVSCRIPT_HOME
+  const previousDaemonMCP = process.env.MOVSCRIPT_DAEMON_MCP_ENDPOINT
+  const previousRuntimeMCP = process.env.MOVSCRIPT_RUNTIME_MCP_ENDPOINT
+  const previousRuntimeGateway = process.env.MOVSCRIPT_RUNTIME_GATEWAY_URL
+  const previousCloudGateway = process.env.MOVSCRIPT_CLOUD_RUNTIME_GATEWAY_URL
+  const previousExternalGateway = process.env.MOVSCRIPT_EXTERNAL_RUNTIME_GATEWAY_URL
+  mcpProxyRequests = []
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-cloud-runtime-mcp-proxy-home-'))
+  try {
+    mkdirSync(join(homeDir, 'runtime', 'endpoints'), { recursive: true })
+    writeFileSync(join(homeDir, 'runtime', 'endpoints', 'movscript.runtime.gateway.json'), JSON.stringify({
+      serviceName: 'movscript.runtime.gateway',
+      applicationId: 'movscript.cloud-runtime',
+      status: 'ready',
+      baseURL: `${baseURL}/gateway`,
+      metadata: {
+        owner: 'cloud-runtime',
+        dataPlane: 'cloud',
+      },
+    }), 'utf8')
+    process.env.MOVSCRIPT_HOME = homeDir
+    delete process.env.MOVSCRIPT_DAEMON_MCP_ENDPOINT
+    delete process.env.MOVSCRIPT_RUNTIME_MCP_ENDPOINT
+    delete process.env.MOVSCRIPT_RUNTIME_GATEWAY_URL
+    delete process.env.MOVSCRIPT_CLOUD_RUNTIME_GATEWAY_URL
+    delete process.env.MOVSCRIPT_EXTERNAL_RUNTIME_GATEWAY_URL
+
+    const toolsResponse = await handleMCPHostJSONRPC({
+      jsonrpc: '2.0',
+      id: 'cloud-proxied-tools',
+      method: 'tools/list',
+    })
+    assert.equal(toolsResponse?.error, undefined)
+    assert.deepEqual(toolsResponse.result.tools.map((tool) => tool.name), ['daemon_reported_tool'])
+
+    const businessResponse = await handleMCPHostJSONRPC({
+      jsonrpc: '2.0',
+      id: 'cloud-proxied-admin',
+      method: 'tools/call',
+      params: {
+        name: 'admin_provider_list',
+        arguments: { homeDir },
+      },
+    })
+    assert.equal(businessResponse?.error, undefined)
+    assert.deepEqual(businessResponse.result, {
+      proxied: true,
+      tool: 'admin_provider_list',
+    })
+    assert.deepEqual(mcpProxyRequests.map((request) => request.method), ['tools/list', 'tools/call'])
+  } finally {
+    restoreEnv('MOVSCRIPT_HOME', previousHome)
+    restoreEnv('MOVSCRIPT_DAEMON_MCP_ENDPOINT', previousDaemonMCP)
+    restoreEnv('MOVSCRIPT_RUNTIME_MCP_ENDPOINT', previousRuntimeMCP)
+    restoreEnv('MOVSCRIPT_RUNTIME_GATEWAY_URL', previousRuntimeGateway)
+    restoreEnv('MOVSCRIPT_CLOUD_RUNTIME_GATEWAY_URL', previousCloudGateway)
+    restoreEnv('MOVSCRIPT_EXTERNAL_RUNTIME_GATEWAY_URL', previousExternalGateway)
+  }
+})
+
+test('stdio MCP host can proxy through explicit runtime gateway environment configuration', async () => {
+  const previousHome = process.env.MOVSCRIPT_HOME
+  const previousDaemonMCP = process.env.MOVSCRIPT_DAEMON_MCP_ENDPOINT
+  const previousRuntimeMCP = process.env.MOVSCRIPT_RUNTIME_MCP_ENDPOINT
+  const previousRuntimeGateway = process.env.MOVSCRIPT_RUNTIME_GATEWAY_URL
+  const previousCloudGateway = process.env.MOVSCRIPT_CLOUD_RUNTIME_GATEWAY_URL
+  const previousExternalGateway = process.env.MOVSCRIPT_EXTERNAL_RUNTIME_GATEWAY_URL
+  mcpProxyRequests = []
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-runtime-gateway-env-mcp-proxy-home-'))
+  try {
+    process.env.MOVSCRIPT_HOME = homeDir
+    process.env.MOVSCRIPT_RUNTIME_GATEWAY_URL = `${baseURL}/gateway`
+    delete process.env.MOVSCRIPT_DAEMON_MCP_ENDPOINT
+    delete process.env.MOVSCRIPT_RUNTIME_MCP_ENDPOINT
+    delete process.env.MOVSCRIPT_CLOUD_RUNTIME_GATEWAY_URL
+    delete process.env.MOVSCRIPT_EXTERNAL_RUNTIME_GATEWAY_URL
+
+    const response = await handleMCPHostJSONRPC({
+      jsonrpc: '2.0',
+      id: 'runtime-gateway-env-tools',
+      method: 'tools/list',
+    })
+    assert.equal(response?.error, undefined)
+    assert.deepEqual(response.result.tools.map((tool) => tool.name), ['daemon_reported_tool'])
+    assert.deepEqual(mcpProxyRequests.map((request) => request.method), ['tools/list'])
+  } finally {
+    restoreEnv('MOVSCRIPT_HOME', previousHome)
+    restoreEnv('MOVSCRIPT_DAEMON_MCP_ENDPOINT', previousDaemonMCP)
+    restoreEnv('MOVSCRIPT_RUNTIME_MCP_ENDPOINT', previousRuntimeMCP)
+    restoreEnv('MOVSCRIPT_RUNTIME_GATEWAY_URL', previousRuntimeGateway)
+    restoreEnv('MOVSCRIPT_CLOUD_RUNTIME_GATEWAY_URL', previousCloudGateway)
+    restoreEnv('MOVSCRIPT_EXTERNAL_RUNTIME_GATEWAY_URL', previousExternalGateway)
+  }
+})
+
 test('MCP host context updates prefer daemon context sessions when gateway is registered', async () => {
   const previousHome = process.env.MOVSCRIPT_HOME
   contextRequests = []
@@ -218,17 +388,46 @@ test('MCP host context updates prefer daemon context sessions when gateway is re
       project: { id: 42, name: 'Daemon Context Project', projectDir: '/tmp/movscript-project-42' },
       productionId: 'prod-42',
       user: { id: 7, username: 'operator', systemRole: 'admin' },
-      selection: { entityKind: 'timeline_assembly', entityId: 9, label: 'Cut v1' },
+      selection: { entityKind: 'production', entityId: 'prod-42', label: 'Cut v1' },
       updatedAt: '2026-06-30T00:00:00.000Z',
     })
 
     assert.equal(contextRequests.length, 1)
     assert.equal(contextRequests[0].url, '/gateway/v1/context/sessions')
     assert.equal(contextRequests[0].body.sessionId, 'desktop-current')
-    assert.equal(contextRequests[0].body.projectId, 42)
+    assert.equal(contextRequests[0].body.backendProjectId, 42)
+    assert.equal(contextRequests[0].body.backend_project_id, 42)
+    assert.equal(contextRequests[0].body.projectKey, '42')
+    assert.equal(contextRequests[0].body.projectId, '42')
     assert.equal(contextRequests[0].body.projectDir, '/tmp/movscript-project-42')
     assert.equal(contextRequests[0].body.mcpContext.route.pathname, '/projects/42')
-    assert.equal(contextRequests[0].body.mcpContext.selection.entityKind, 'timeline_assembly')
+    assert.equal(contextRequests[0].body.mcpContext.selection.entityKind, 'production')
+
+    contextRequests = []
+    await updateHostMCPContextSnapshot({
+      route: { pathname: '/studio/local-workspace/overview', search: '?projectKey=local-workspace', hash: '' },
+      project: {
+        id: 'local:abc123',
+        name: 'Local Workspace',
+        backendProjectId: 88,
+        projectUid: 'prj_local_uid',
+        projectKey: 'local-workspace',
+        projectDir: '/tmp/local-workspace',
+      },
+      productionId: null,
+      user: null,
+      selection: null,
+      updatedAt: '2026-06-30T00:01:00.000Z',
+    })
+
+    assert.equal(contextRequests.length, 1)
+    assert.equal(contextRequests[0].body.backendProjectId, 88)
+    assert.equal(contextRequests[0].body.projectUid, 'prj_local_uid')
+    assert.equal(contextRequests[0].body.projectKey, 'local-workspace')
+    assert.equal(contextRequests[0].body.projectId, 'local-workspace')
+    assert.equal(contextRequests[0].body.mcpContext.project.id, 'local:abc123')
+    assert.equal(contextRequests[0].body.mcpContext.project.backendProjectId, 88)
+    assert.equal(contextRequests[0].body.mcpContext.project.projectUid, 'prj_local_uid')
   } finally {
     restoreEnv('MOVSCRIPT_HOME', previousHome)
   }
@@ -293,29 +492,25 @@ test('editing MCP tools run through shared command runner with CLI debug metadat
   assert.deepEqual(response.result.debug.cli_argv, ['movscript', 'editing', 'runtime', 'capabilities', 'get', '--json'])
 })
 
-test('editing project creation MCP tool is backed by the shared CLI runner and stays project-only', async () => {
+test('editing project creation MCP tool is backed by the shared CLI runner and stays media-project-only', async () => {
   editingRequests = []
-  const editDecisions = sampleEditDecisions()
-  const assetManifest = sampleAssetManifest()
   const response = await handleLocalMCPHostJSONRPC({
     jsonrpc: '2.0',
-    id: 'editing-create-from-decisions',
+    id: 'editing-create-project',
     method: 'tools/call',
     params: {
-      name: 'editing_project_create_from_edit_decisions',
+      name: 'editing_project_create',
       arguments: {
         server: baseURL,
-        projectId: 'project_mcp_editing',
+        mediaProjectId: 'project_mcp_editing',
         title: 'MCP Compose Project',
-        editDecisions,
-        assetManifest,
       },
     },
   })
 
   assert.equal(response?.error, undefined)
   assert.equal(response.result.status, 'saved')
-  assert.equal(response.result.editing_project.source.kind, 'edit_decisions')
+  assert.equal(response.result.editing_project.source.kind, 'manual')
   assert.equal(response.result.editing_project.projectId, 'project_mcp_editing')
   assert.equal(response.result.candidate_created, undefined)
   assert.equal(response.result.contract.family, 'editing')
@@ -323,25 +518,19 @@ test('editing project creation MCP tool is backed by the shared CLI runner and s
     'movscript',
     'editing',
     'project',
-    'create-from-edit-decisions',
+    'create',
     '--json',
     '--server',
     baseURL,
-    '--project-id',
+    '--media-project-id',
     'project_mcp_editing',
     '--title',
     'MCP Compose Project',
-    '--edit-decisions',
-    '<json>',
-    '--asset-manifest',
-    '<json>',
   ])
   assert.deepEqual(editingRequests.map((request) => request.body.command), [
-    'createProjectFromEditDecisions',
+    'createProject',
     'saveProject',
   ])
-  assert.deepEqual(editingRequests[0].body.input.editDecisions, editDecisions)
-  assert.deepEqual(editingRequests[0].body.input.assetManifest, assetManifest)
 })
 
 test('editing timeline mutation MCP tool is backed by the shared CLI runner and stays project-only', async () => {
@@ -398,12 +587,12 @@ test('editing task MCP tool is backed by the shared CLI runner and stays candida
       id: 'editing-task-get',
       method: 'tools/call',
       params: {
-        name: 'editing_task_get',
-        arguments: {
-          server: baseURL,
-          projectId: 'project_mcp_editing',
-          taskId: 'task_mcp_render',
-        },
+          name: 'editing_task_get',
+          arguments: {
+            server: baseURL,
+            mediaProjectId: 'project_mcp_editing',
+            taskId: 'task_mcp_render',
+          },
       },
     })
 
@@ -421,7 +610,7 @@ test('editing task MCP tool is backed by the shared CLI runner and stays candida
       '--json',
       '--server',
       baseURL,
-      '--project-id',
+      '--media-project-id',
       'project_mcp_editing',
       '--task-id',
       'task_mcp_render',
@@ -481,6 +670,59 @@ test('editing task create MCP tool is backed by the shared CLI runner and stays 
   } finally {
     restoreEnv('MOVSCRIPT_MEDIA_PIPELINE_URL', previousMediaPipelineURL)
   }
+})
+
+test('editing export MCP tools keep local save and candidate write as explicit CLI-backed gates', async () => {
+  editingRequests = []
+
+  const saved = await handleLocalMCPHostJSONRPC({
+    jsonrpc: '2.0',
+    id: 'editing-export-save-local',
+    method: 'tools/call',
+    params: {
+      name: 'editing_export_save_local',
+      arguments: {
+        server: baseURL,
+        outputPath: '/tmp/final-cut.mp4',
+      },
+    },
+  })
+  assert.equal(saved?.error, undefined)
+  assert.equal(saved.result.status, 'ok')
+  assert.equal(saved.result.output_path, '/tmp/final-cut.mp4')
+  assert.equal(saved.result.uploaded, false)
+  assert.equal(saved.result.candidate_created, false)
+  assert.equal(saved.result.contract.family, 'editing')
+  assert.deepEqual(saved.result.debug.cli_argv, [
+    'movscript',
+    'editing',
+    'export',
+    'save-local',
+    '--json',
+    '--server',
+    baseURL,
+    '--output-path',
+    '/tmp/final-cut.mp4',
+  ])
+
+  const hlsCandidate = await handleLocalMCPHostJSONRPC({
+    jsonrpc: '2.0',
+    id: 'editing-export-create-hls-candidate',
+    method: 'tools/call',
+    params: {
+      name: 'editing_export_create_candidate',
+      arguments: {
+        server: baseURL,
+        contentUnitId: 'cu_01',
+        streamId: 'stream_41',
+      },
+    },
+  })
+  assert.equal(hlsCandidate?.result, undefined)
+  assert.match(hlsCandidate?.error?.message ?? '', /projectDir or cwd is required/)
+  assert.doesNotMatch(hlsCandidate?.error?.message ?? '', /HLS_STREAM_CANDIDATE_UNSUPPORTED/)
+
+  assert.deepEqual(editingRequests.map((request) => request.body.action), ['saveLocalExport'])
 })
 
 test('admin MCP tools bind to MovScript Home daemon gateway before calling fixed backend endpoints', async () => {
@@ -646,81 +888,58 @@ test('system MCP tools run through shared command runner with CLI debug metadata
   ])
 })
 
-test('timeline MCP tools run through shared command runner with CLI debug metadata', async () => {
-  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-timeline-mcp-home-'))
+test('production editing MCP tools run through shared command runner with CLI debug metadata', async () => {
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-production-editing-mcp-home-'))
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-production-editing-project-'))
 
-  const capabilityResponse = await handleLocalMCPHostJSONRPC({
+  const oldTimelineResponse = await handleLocalMCPHostJSONRPC({
     jsonrpc: '2.0',
-    id: 'timeline-capabilities',
+    id: 'old-timeline-capabilities',
     method: 'tools/call',
     params: {
       name: 'timeline_backend_capability_list',
       arguments: { homeDir },
     },
   })
-  assert.equal(capabilityResponse?.error, undefined)
-  assert.deepEqual(capabilityResponse.result.backends.map((backend) => backend.execution_project), [
-    'MediaEditingProject',
-    'RemotionCompositionProject',
-    'HyperFramesCompositionProject',
-    'ExternalNleProject',
-  ])
-  assert.deepEqual(capabilityResponse.result.debug.cli_argv, [
+  assert.match(oldTimelineResponse?.error?.message ?? '', /unknown .*MCP tool/)
+
+  projectRequests = []
+  const listResponse = await handleLocalMCPHostJSONRPC({
+    jsonrpc: '2.0',
+    id: 'production-editing-list',
+    method: 'tools/call',
+    params: {
+      name: 'production_editing_workspace_list',
+      arguments: {
+        homeDir,
+        projectServiceURL: baseURL,
+        projectDir,
+        productionId: 'pilot',
+        kind: 'remotion',
+      },
+    },
+  })
+  assert.equal(listResponse?.error, undefined)
+  assert.equal(listResponse.result.schema, 'movscript.production_editing_workspaces_list.v1')
+  assert.equal(listResponse.result.workspaces[0].kind, 'remotion')
+  assert.deepEqual(projectRequests.map((request) => request.url), ['/v1/project/productions/editing-workspaces/list'])
+  assert.deepEqual(listResponse.result.debug.cli_argv, [
     'movscript',
-    'timeline',
-    'backend',
-    'capability',
+    'production',
+    'editing',
+    'workspace',
     'list',
     '--json',
     '--home-dir',
     homeDir,
-  ])
-
-  const compileResponse = await handleLocalMCPHostJSONRPC({
-    jsonrpc: '2.0',
-    id: 'timeline-compile',
-    method: 'tools/call',
-    params: {
-      name: 'timeline_compile_manifest_create',
-      arguments: {
-        homeDir,
-        backend: 'media_editing_project',
-        timelineAssembly: sampleTimelineAssembly(),
-        editDecisions: sampleEditDecisions(),
-        assetManifest: sampleAssetManifest(),
-        width: 1280,
-        height: 720,
-        fps: 24,
-      },
-    },
-  })
-  assert.equal(compileResponse?.error, undefined)
-  assert.equal(compileResponse.result.status, 'ready')
-  assert.equal(compileResponse.result.compile_manifest.backend.target, 'media_editing_project')
-  assert.deepEqual(compileResponse.result.compile_manifest.inputs.selected_resource_ids, [701, 702])
-  assert.deepEqual(compileResponse.result.debug.cli_argv, [
-    'movscript',
-    'timeline',
-    'compile',
-    'manifest',
-    'create',
-    '--json',
-    '--home-dir',
-    homeDir,
-    '--backend',
-    'media_editing_project',
-    '--width',
-    '1280',
-    '--height',
-    '720',
-    '--fps',
-    '24',
-    '--timeline-assembly',
-    '<json>',
-    '--edit-decisions',
-    '<json>',
-    '--asset-manifest',
-    '<json>',
+    '--project-dir',
+    projectDir,
+    '--project-service-url',
+    baseURL,
+    '--production-id',
+    'pilot',
+    '--kind',
+    'remotion',
   ])
 })
 
@@ -820,6 +1039,254 @@ test('workspace/domain MCP tools run through shared command runner with CLI debu
   ])
   assert.equal(projectRequests[0]?.body.projectUid, 'prj_mcp_workspace')
   assert.equal(projectRequests[1]?.body.project_uid, 'prj_mcp_workspace')
+
+  projectRequests = []
+  const overviewResponse = await handleLocalMCPHostJSONRPC({
+    jsonrpc: '2.0',
+    id: 'domain-overview',
+    method: 'tools/call',
+    params: {
+      name: 'domain_overview',
+      arguments: {
+        backendBaseURL: baseURL,
+        projectDir,
+      },
+    },
+  })
+  assert.equal(overviewResponse?.error, undefined)
+  assert.equal(overviewResponse.result.schema, 'movscript.workspace-overview.v1')
+  assert.equal(overviewResponse.result.contract.family, 'domain')
+  assert.deepEqual(overviewResponse.result.contract.permissions, ['project:read'])
+  assert.deepEqual(overviewResponse.result.debug.cli_argv, [
+    'movscript',
+    'domain',
+    'overview',
+    '--json',
+    '--project-dir',
+    projectDir,
+    '--server',
+    baseURL,
+  ])
+
+  const queryResponse = await handleLocalMCPHostJSONRPC({
+    jsonrpc: '2.0',
+    id: 'domain-query-entities',
+    method: 'tools/call',
+    params: {
+      name: 'domain_query_entities',
+      arguments: {
+        backendBaseURL: baseURL,
+        projectDir,
+        entityKind: 'content_unit',
+        query: 'hero',
+        limit: 2,
+      },
+    },
+  })
+  assert.equal(queryResponse?.error, undefined)
+  assert.equal(queryResponse.result.schema, 'movscript.project-entities-query-result.v1')
+  assert.equal(queryResponse.result.query.limit, 2)
+  assert.deepEqual(queryResponse.result.debug.cli_argv, [
+    'movscript',
+    'domain',
+    'query',
+    'entities',
+    '--json',
+    '--project-dir',
+    projectDir,
+    '--server',
+    baseURL,
+    '--entity-kind',
+    'content_unit',
+    '--query',
+    'hero',
+    '--limit',
+    '2',
+  ])
+
+  const contextResponse = await handleLocalMCPHostJSONRPC({
+    jsonrpc: '2.0',
+    id: 'domain-project-context',
+    method: 'tools/call',
+    params: {
+      name: 'domain_read_project_context_snapshot',
+      arguments: {
+        backendBaseURL: baseURL,
+        projectDir,
+      },
+    },
+  })
+  assert.equal(contextResponse?.error, undefined)
+  assert.equal(contextResponse.result.schema, 'movscript.project_context_snapshot.v1')
+  assert.equal(contextResponse.result.style_reference_resource_ids[0], 101)
+
+  const regenerationResponse = await handleLocalMCPHostJSONRPC({
+    jsonrpc: '2.0',
+    id: 'domain-regeneration',
+    method: 'tools/call',
+    params: {
+      name: 'domain_regeneration_plan',
+      arguments: {
+        backendBaseURL: baseURL,
+        projectDir,
+        target: 'content_unit:cu_hero',
+      },
+    },
+  })
+  assert.equal(regenerationResponse?.error, undefined)
+  assert.equal(regenerationResponse.result.schema, 'movscript.workspace-regeneration-plan.v1')
+  assert.equal(regenerationResponse.result.surface.url.includes('source=domain_regeneration_plan'), true)
+
+  const workPlanResponse = await handleLocalMCPHostJSONRPC({
+    jsonrpc: '2.0',
+    id: 'domain-production-work-plan',
+    method: 'tools/call',
+    params: {
+      name: 'domain_read_production_work_plan',
+      arguments: {
+        backendBaseURL: baseURL,
+        projectDir,
+      },
+    },
+  })
+  assert.equal(workPlanResponse?.error, undefined)
+  assert.equal(workPlanResponse.result.schema, 'movscript.production_work_plan.v1')
+  assert.equal(workPlanResponse.result.items[0].id, 'work_hero')
+  assert.deepEqual(workPlanResponse.result.debug.cli_argv, [
+    'movscript',
+    'domain',
+    'read',
+    'production-work-plan',
+    '--json',
+    '--project-dir',
+    projectDir,
+    '--server',
+    baseURL,
+  ])
+  assert.deepEqual(projectRequests.map((request) => request.url), [
+    '/v1/project/source/overview',
+    '/v1/project/entities/query',
+    '/v1/project/resources/view',
+    '/v1/project/source/regeneration-plan',
+    '/v1/project/source/production-work-plan',
+  ])
+
+  projectRequests = []
+  const settingSourceResponse = await handleLocalMCPHostJSONRPC({
+    jsonrpc: '2.0',
+    id: 'domain-upsert-setting',
+    method: 'tools/call',
+    params: {
+      name: 'domain_upsert_setting',
+      arguments: {
+        backendBaseURL: baseURL,
+        projectDir,
+        projectUid: 'prj_mcp_workspace',
+        payload: { id: 'hero', title: 'Hero', kind: 'character' },
+      },
+    },
+  })
+  assert.equal(settingSourceResponse?.error, undefined)
+  assert.equal(settingSourceResponse.result.endpoint, '/v1/project/settings/create')
+  assert.equal(settingSourceResponse.result.contract.family, 'domain')
+  assert.deepEqual(settingSourceResponse.result.contract.permissions, ['project:read', 'project:write'])
+  assert.deepEqual(settingSourceResponse.result.debug.cli_argv, [
+    'movscript',
+    'domain',
+    'source',
+    'setting',
+    'upsert',
+    '--json',
+    '--project-dir',
+    projectDir,
+    '--server',
+    baseURL,
+    '--project-uid',
+    'prj_mcp_workspace',
+    '--payload',
+    '<json>',
+  ])
+
+  const scriptReadResponse = await handleLocalMCPHostJSONRPC({
+    jsonrpc: '2.0',
+    id: 'domain-read-script-source',
+    method: 'tools/call',
+    params: {
+      name: 'domain_read_script_source',
+      arguments: {
+        backendBaseURL: baseURL,
+        projectDir,
+        record: { id: 'script_main', path: 'scripts/main/script.md' },
+      },
+    },
+  })
+  assert.equal(scriptReadResponse?.error, undefined)
+  assert.equal(scriptReadResponse.result.endpoint, '/v1/project/scripts/source/read')
+  assert.equal(scriptReadResponse.result.sourceText, '# Script')
+  assert.deepEqual(scriptReadResponse.result.contract.permissions, ['project:read'])
+
+  const sourceRequestURLs = projectRequests.map((request) => request.url)
+  assert.equal(sourceRequestURLs.includes('/v1/project/settings/create'), true)
+  assert.equal(sourceRequestURLs.includes('/v1/project/scripts/source/read'), true)
+  assert.equal(projectRequests.find((request) => request.url === '/v1/project/settings/create')?.body.id, 'hero')
+  assert.equal(projectRequests.find((request) => request.url === '/v1/project/scripts/source/read')?.body.record.id, 'script_main')
+
+  projectRequests = []
+  const candidateResponse = await handleLocalMCPHostJSONRPC({
+    jsonrpc: '2.0',
+    id: 'domain-create-content-candidate',
+    method: 'tools/call',
+    params: {
+      name: 'domain_create_content_candidate',
+      arguments: {
+        backendBaseURL: baseURL,
+        token: 'test-token',
+        projectDir,
+        projectUid: 'prj_mcp_workspace',
+        contentUnitId: 'cu_hero',
+        candidateId: 'candidate_mcp_hero',
+        source: 'generation',
+        outputs: [{ kind: 'image', resource_id: 101 }],
+      },
+    },
+  })
+  assert.equal(candidateResponse?.error, undefined)
+  assert.equal(candidateResponse.result.status, 'ok')
+  assert.equal(candidateResponse.result.candidate_created, true)
+  assert.equal(candidateResponse.result.will_auto_select, false)
+  assert.equal(candidateResponse.result.requires_user_adoption, true)
+  assert.equal(candidateResponse.result.result.record.id, 'candidate_mcp_hero')
+  assert.equal(candidateResponse.result.contract.family, 'domain')
+  assert.deepEqual(candidateResponse.result.debug.cli_argv, [
+    'movscript',
+    'domain',
+    'candidate',
+    'create-content',
+    '--json',
+    '--project-dir',
+    projectDir,
+    '--server',
+    baseURL,
+    '--token',
+    '<redacted>',
+    '--project-uid',
+    'prj_mcp_workspace',
+    '--content-unit-id',
+    'cu_hero',
+    '--candidate-id',
+    'candidate_mcp_hero',
+    '--source',
+    'generation',
+    '--outputs',
+    '<json>',
+  ])
+  assert.deepEqual(projectRequests.map((request) => request.url), [
+    '/v1/project/locator/resolve',
+    '/v1/project/locator/resolve',
+    '/v1/project/content-candidates/create',
+  ])
+  assert.equal(projectRequests[2]?.body.input.candidateId, 'candidate_mcp_hero')
+  assert.equal(projectRequests[2]?.body.decisionStore.projectUid, 'prj_mcp_workspace')
 })
 
 test('generation MCP tools run through shared command runner with CLI debug metadata', async () => {
@@ -844,12 +1311,12 @@ test('generation MCP tools run through shared command runner with CLI debug meta
       method: 'tools/call',
       params: {
         name: 'generation_prepare',
-        arguments: { homeDir, capability: 'audio_music' },
+        arguments: { homeDir, capability: 'audio_generation', operation: 'music_generation' },
       },
     })
     assert.equal(prepareResponse?.error, undefined)
     assert.equal(prepareResponse.result.status, 'ready')
-    assert.equal(prepareResponse.result.capability, 'audio_music')
+    assert.equal(prepareResponse.result.capability, 'audio_generation')
     assert.equal(prepareResponse.result.count, 1)
     assert.deepEqual(prepareResponse.result.debug.cli_argv, [
       'movscript',
@@ -860,7 +1327,9 @@ test('generation MCP tools run through shared command runner with CLI debug meta
       '--home-dir',
       homeDir,
       '--capability',
-      'audio_music',
+      'audio_generation',
+      '--operation',
+      'music_generation',
     ])
 
     const submitResponse = await handleLocalMCPHostJSONRPC({
@@ -871,7 +1340,8 @@ test('generation MCP tools run through shared command runner with CLI debug meta
         name: 'generation_submit',
         arguments: {
           homeDir,
-          capability: 'audio_music',
+          capability: 'audio_generation',
+          operation: 'music_generation',
           prompt: 'quiet tension bed',
           title: 'Music Bed',
           style: 'minimal strings',
@@ -891,7 +1361,9 @@ test('generation MCP tools run through shared command runner with CLI debug meta
       '--home-dir',
       homeDir,
       '--capability',
-      'audio_music',
+      'audio_generation',
+      '--operation',
+      'music_generation',
       '--prompt',
       'quiet tension bed',
       '--title',
@@ -906,7 +1378,7 @@ test('generation MCP tools run through shared command runner with CLI debug meta
       method: 'tools/call',
       params: {
         name: 'generation_job_get',
-        arguments: { homeDir, jobId: 701, capability: 'audio_music', verbosity: 'summary' },
+        arguments: { homeDir, jobId: 701, capability: 'audio_generation', verbosity: 'summary' },
       },
     })
     assert.equal(jobResponse?.error, undefined)
@@ -922,7 +1394,7 @@ test('generation MCP tools run through shared command runner with CLI debug meta
       '--home-dir',
       homeDir,
       '--capability',
-      'audio_music',
+      'audio_generation',
       '--job-id',
       '701',
       '--verbosity',
@@ -958,12 +1430,13 @@ test('generation MCP tools run through shared command runner with CLI debug meta
 
     const jobCreateRequest = systemRequests.find((request) => request.method === 'POST' && request.url === '/gateway/api/v1/jobs')
     assert.equal(jobCreateRequest?.body.model_id, 'audio:music')
-    assert.equal(jobCreateRequest?.body.job_type, 'audio_music')
+    assert.equal(jobCreateRequest?.body.job_type, 'audio')
     assert.equal(jobCreateRequest?.body.feature_key, 'electron.generation.music')
+    assert.equal(jobCreateRequest?.body.generation_intent.operation, 'music_generation')
     assert.deepEqual(JSON.parse(jobCreateRequest?.body.extra_params), { style: 'minimal strings' })
     assert.deepEqual(systemRequests.map((request) => `${request.method} ${request.url}`), [
-      'GET /gateway/api/v1/models?capability=audio_music&target_output=audio&resolve_intent=true',
-      'GET /gateway/api/v1/models?capability=audio_generation&operation=music&target_output=audio&resolve_intent=true',
+      'GET /gateway/api/v1/models?capability=audio_generation&operation=music_generation&target_output=audio&resolve_intent=true',
+      'GET /gateway/api/v1/models?capability=audio_generation&operation=music_generation',
       'POST /gateway/api/v1/jobs',
       'GET /gateway/api/v1/jobs/701',
       'GET /gateway/api/v1/jobs/701',
@@ -1005,7 +1478,6 @@ test('artifact MCP tools run through shared command runner with CLI debug metada
     assert.equal(streamResponse.result.manifest_url, 'https://cdn.example/stream.m3u8')
     assert.deepEqual(streamResponse.result.debug.cli_argv, [
       'movscript',
-      'system',
       'artifact',
       'get-stream',
       '--json',
@@ -1058,7 +1530,6 @@ test('system resource and shot query MCP tools run through shared command runner
     assert.equal(projectCreateResponse.result.project.id, 42)
     assert.deepEqual(projectCreateResponse.result.debug.cli_argv, [
       'movscript',
-      'system',
       'project',
       'create',
       '--json',
@@ -1086,7 +1557,6 @@ test('system resource and shot query MCP tools run through shared command runner
     assert.equal(resourceResponse.result.items[0].ID, 101)
     assert.deepEqual(resourceResponse.result.debug.cli_argv, [
       'movscript',
-      'system',
       'resource',
       'library',
       'query',
@@ -1130,7 +1600,6 @@ test('system resource and shot query MCP tools run through shared command runner
     assert.match(readFileSync(annotationPath, 'utf8'), /MCP Annotation/)
     assert.deepEqual(annotationResponse.result.debug.cli_argv, [
       'movscript',
-      'system',
       'resource',
       'image',
       'annotate',
@@ -1185,7 +1654,6 @@ test('system resource and shot query MCP tools run through shared command runner
     assert.equal(externalSearchResponse.result.count, 1)
     assert.deepEqual(externalSearchResponse.result.debug.cli_argv, [
       'movscript',
-      'system',
       'external-resource',
       'search',
       '--json',
@@ -1217,7 +1685,6 @@ test('system resource and shot query MCP tools run through shared command runner
     assert.equal(shotQueryResponse.result.items[0].ID, 301)
     assert.deepEqual(shotQueryResponse.result.debug.cli_argv, [
       'movscript',
-      'system',
       'shot',
       'library',
       'query',
@@ -1246,7 +1713,6 @@ test('system resource and shot query MCP tools run through shared command runner
     assert.equal(shotGroupResponse.result.count, 1)
     assert.deepEqual(shotGroupResponse.result.debug.cli_argv, [
       'movscript',
-      'system',
       'shot',
       'group',
       'get',
@@ -1277,7 +1743,6 @@ test('system resource and shot query MCP tools run through shared command runner
     assert.equal(shotGroupCreateResponse.result.group_id, 4)
     assert.deepEqual(shotGroupCreateResponse.result.debug.cli_argv, [
       'movscript',
-      'system',
       'shot',
       'group',
       'create',
@@ -1317,7 +1782,6 @@ test('system resource and shot query MCP tools run through shared command runner
     assert.equal(shotGroupAddResponse.result.count, 1)
     assert.deepEqual(shotGroupAddResponse.result.debug.cli_argv, [
       'movscript',
-      'system',
       'shot',
       'group',
       'add-shots',
@@ -1457,11 +1921,9 @@ test('runtimeStatus marks Desktop as legacy owner when no local daemon is ready'
       homeDir,
       workspaceDir: projectDir,
       projectDir,
+      surfaceProjectKey: 'route-project-7',
       scopeKind: 'episode',
       scopeRef: 'episode_01',
-      targetKind: 'timeline_assembly',
-      targetRef: 'timeline_assembly:episode:episode_01',
-      timelineAssemblyRef: 'timeline_assembly:episode:episode_01',
       timeoutMs: 500,
     })
 
@@ -1479,14 +1941,16 @@ test('runtimeStatus marks Desktop as legacy owner when no local daemon is ready'
     assert.equal(status.surfaces.reason, 'local_surface_host_ready')
     assert.equal(status.surface.kind, 'browser_url')
     assert.equal(status.surface.surface, 'project.overview')
-    assert.match(status.surface.url, new RegExp(`^${escapeRegExp(baseURL)}/surface/studio/`))
-    assert.equal(new URL(status.surface.url).searchParams.get('projectDir'), projectDir)
-    assert.equal(new URL(status.surface.url).searchParams.get('scopeKind'), 'episode')
-    assert.equal(new URL(status.surface.url).searchParams.get('scopeRef'), 'episode_01')
-    assert.equal(new URL(status.surface.url).searchParams.get('targetKind'), 'timeline_assembly')
-    assert.equal(new URL(status.surface.url).searchParams.get('targetRef'), 'timeline_assembly:episode:episode_01')
-    assert.equal(new URL(status.surface.url).searchParams.get('timeline_assembly_ref'), 'timeline_assembly:episode:episode_01')
-    assert.equal(new URL(status.surface.url).searchParams.get('productionId'), null)
+    const surfaceURL = new URL(status.surface.url)
+    assert.equal(surfaceURL.pathname, '/surface/studio/route-project-7/overview')
+    assert.equal(surfaceURL.searchParams.get('projectKey'), 'route-project-7')
+    assert.equal(surfaceURL.searchParams.get('projectId'), 'route-project-7')
+    assert.equal(surfaceURL.searchParams.get('projectDir'), projectDir)
+    assert.equal(surfaceURL.searchParams.get('scopeKind'), 'episode')
+    assert.equal(surfaceURL.searchParams.get('scopeRef'), 'episode_01')
+    assert.equal(surfaceURL.searchParams.get('targetKind'), null)
+    assert.equal(surfaceURL.searchParams.get('targetRef'), null)
+    assert.equal(surfaceURL.searchParams.get('productionId'), null)
     assert.equal(status.surfaces.urls.canvas, `${baseURL}/surface/canvases?source=runtime-status`)
     assert.equal(status.secondary_surfaces.some((surface) => surface.surface === 'admin.overview'), true)
     assert.equal(status.runtimeOwner.kind, 'desktop_legacy_owner')
@@ -1596,7 +2060,7 @@ test('runtimeStatus prefers the local daemon as runtime owner when daemon contro
   }
 })
 
-test('core MCP tools bind to MovScript Home daemon gateway before calling backend client', async () => {
+test('system MCP tools bind to MovScript Home daemon gateway before calling shared command runner', async () => {
   const previousHome = process.env.MOVSCRIPT_HOME
   const previousWorkspace = process.env.MOVSCRIPT_WORKSPACE_DIR
   const previousDataServiceURL = process.env.MOVSCRIPT_DATA_SERVICE_URL
@@ -1626,7 +2090,7 @@ test('core MCP tools bind to MovScript Home daemon gateway before calling backen
       method: 'tools/call',
       params: {
         name: 'system_model_list',
-        arguments: { capability: 'image' },
+        arguments: { capability: 'image_generation', operation: 'text_to_image' },
       },
     })
 
@@ -1642,7 +2106,9 @@ test('core MCP tools bind to MovScript Home daemon gateway before calling backen
       'list',
       '--json',
       '--capability',
-      'image',
+      'image_generation',
+      '--operation',
+      'text_to_image',
     ])
   } finally {
     restoreEnv('MOVSCRIPT_HOME', previousHome)
@@ -1667,6 +2133,11 @@ function readRequestJSON(req, callback) {
   req.on('end', () => {
     callback(body ? JSON.parse(body) : {})
   })
+}
+
+function projectSourceOperationInput(body) {
+  const { projectDir: _projectDir, ...input } = body
+  return input
 }
 
 function writeJSON(res, payload, statusCode = 200) {
@@ -1779,6 +2250,27 @@ function createTestServer() {
       })
       return
     }
+    if (req.method === 'POST' && req.url === '/v1/project/productions/editing-workspaces/list') {
+      readRequestJSON(req, (body) => {
+        projectRequests.push({ method: req.method, url: req.url, body })
+        writeJSON(res, {
+          schema: 'movscript.production_editing_workspaces_list.v1',
+          status: 'ok',
+          productionId: body.input?.productionId,
+          production_id: body.input?.production_id,
+          workspaces: [{
+            workspaceId: 'remotion_title_v1',
+            workspace_id: 'remotion_title_v1',
+            productionId: body.input?.productionId,
+            production_id: body.input?.production_id,
+            kind: 'remotion',
+            title: 'Remotion Title',
+          }],
+          pagination: { page: 1, pageSize: 50, page_size: 50, total: 1, total_unfiltered: 1, hasNextPage: false, has_next_page: false },
+        })
+      })
+      return
+    }
     if (req.method === 'POST' && req.url === '/api/v1/projects/ensure') {
       readRequestJSON(req, (body) => {
         projectRequests.push({ method: req.method, url: req.url, body })
@@ -1825,16 +2317,136 @@ function createTestServer() {
       })
       return
     }
+    if (req.method === 'POST' && req.url === '/v1/project/source/overview') {
+      readRequestJSON(req, (body) => {
+        projectRequests.push({ method: req.method, url: req.url, body })
+        writeJSON(res, {
+          overview: {
+            schema: 'movscript.workspace-overview.v1',
+            status: 'ready',
+            summary: { issues: 0 },
+          },
+        })
+      })
+      return
+    }
+    if (req.method === 'POST' && req.url === '/v1/project/entities/query') {
+      readRequestJSON(req, (body) => {
+        projectRequests.push({ method: req.method, url: req.url, body })
+        writeJSON(res, {
+          result: {
+            schema: 'movscript.project-entities-query-result.v1',
+            query: body.query,
+            items: [{ entityKind: body.query?.entityKind, id: 'cu_hero' }],
+          },
+        })
+      })
+      return
+    }
+    if (req.method === 'POST' && req.url === '/v1/project/resources/view') {
+      readRequestJSON(req, (body) => {
+        projectRequests.push({ method: req.method, url: req.url, body })
+        writeJSON(res, {
+          schema: 'movscript.project-resource-view.v1',
+          projectDir: body.projectDir,
+          kind: body.kind,
+          items: [{
+            schema: 'movscript.project_context_snapshot.v1',
+            kind: 'project_context_snapshot',
+            style_reference_resource_ids: [101],
+          }],
+        })
+      })
+      return
+    }
+    if (req.method === 'POST' && req.url === '/v1/project/source/regeneration-plan') {
+      readRequestJSON(req, (body) => {
+        projectRequests.push({ method: req.method, url: req.url, body })
+        writeJSON(res, {
+          regenerationPlan: {
+            schema: 'movscript.workspace-regeneration-plan.v1',
+            status: 'ready',
+            affected_content_units: ['cu_hero'],
+          },
+        })
+      })
+      return
+    }
+    if (req.method === 'POST' && req.url === '/v1/project/source/production-work-plan') {
+      readRequestJSON(req, (body) => {
+        projectRequests.push({ method: req.method, url: req.url, body })
+        writeJSON(res, {
+          productionWorkPlan: {
+            schema: 'movscript.production_work_plan.v1',
+            items: [{ id: 'work_hero', target: 'content_unit:cu_hero' }],
+          },
+        })
+      })
+      return
+    }
+    if (req.method === 'POST' && req.url === '/v1/project/scripts/source/read') {
+      readRequestJSON(req, (body) => {
+        projectRequests.push({ method: req.method, url: req.url, body })
+        writeJSON(res, {
+          result: {
+            schema: 'movscript.project-source-operation-result.v1',
+            endpoint: req.url,
+            sourceText: '# Script',
+            input: projectSourceOperationInput(body),
+          },
+        })
+      })
+      return
+    }
+    if (req.method === 'POST' && [
+      '/v1/project/standards/upsert',
+      '/v1/project/settings/create',
+      '/v1/project/content-units/edit-prompt/update',
+      '/v1/project/entities/delete',
+    ].includes(req.url)) {
+      readRequestJSON(req, (body) => {
+        projectRequests.push({ method: req.method, url: req.url, body })
+        writeJSON(res, {
+          result: req.url === '/v1/project/entities/delete'
+            ? undefined
+            : {
+                schema: 'movscript.project-source-operation-result.v1',
+                endpoint: req.url,
+                status: 'ok',
+                input: projectSourceOperationInput(body),
+                writtenPaths: ['source.json'],
+              },
+        })
+      })
+      return
+    }
+    if (req.method === 'POST' && req.url === '/v1/project/content-candidates/create') {
+      readRequestJSON(req, (body) => {
+        projectRequests.push({ method: req.method, url: req.url, body })
+        writeJSON(res, {
+          schema: 'movscript.project-content-candidate-create.v1',
+          projectDir: body.projectDir,
+          result: {
+            record: {
+              id: body.input?.candidateId,
+              content_unit_id: body.input?.contentUnitId,
+              outputs: body.input?.outputs,
+            },
+          },
+        })
+      })
+      return
+    }
     if (req.method === 'POST' && req.url === '/v1/editing/project/command') {
       readRequestJSON(req, (body) => {
         editingRequests.push({ method: req.method, url: req.url, body })
-        if (body.command === 'createProjectFromEditDecisions') {
+        if (body.command === 'createProject') {
           writeJSON(res, {
             schema: 'movscript.editing-project-command-result.v1',
             command: body.command,
             result: {
               status: 'ok',
-              editing_project: sampleCreatedEditingProject(body.input ?? {}),
+              editing_project: sampleCreatedEditingProject(body.input ?? {}, 'manual'),
             },
           })
           return
@@ -1877,6 +2489,22 @@ function createTestServer() {
     if (req.method === 'POST' && req.url === '/v1/editing/task/action') {
       readRequestJSON(req, (body) => {
         editingRequests.push({ method: req.method, url: req.url, body })
+        if (body.action === 'saveLocalExport' && body.input?.outputPath) {
+          writeJSON(res, {
+            schema: 'movscript.editing-task-action.v1',
+            action: body.action,
+            status: 'result',
+            result: {
+              status: 'ok',
+              outputPath: body.input.outputPath,
+              output_path: body.input.outputPath,
+              persisted: true,
+              uploaded: false,
+              candidate_created: false,
+            },
+          })
+          return
+        }
         writeJSON(res, {
           schema: 'movscript.editing-task-action.v1',
           action: body.action,
@@ -1884,7 +2512,7 @@ function createTestServer() {
             action: body.action,
             taskId: body.input?.taskId ?? body.input?.task_id,
             options: {
-              projectId: body.input?.projectId ?? body.input?.project_id,
+              projectId: body.input?.mediaProjectId ?? body.input?.media_project_id ?? body.input?.projectId ?? body.input?.project_id,
             },
           },
         })
@@ -1924,43 +2552,29 @@ function createTestServer() {
       })
       return
     }
-    if (req.method === 'GET' && requestURL.pathname === '/api/v1/models' && requestURL.searchParams.get('capability') === 'image') {
+    if (req.method === 'GET'
+      && (requestURL.pathname === '/api/v1/models' || requestURL.pathname === '/gateway/api/v1/models')
+      && requestURL.searchParams.get('capability') === 'image_generation') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify([{
         id: 1,
         model_id: 'gpt-image-2',
         display_name: 'GPT Image 2',
-        capabilities: ['image', 'image_edit'],
-      }]))
-      return
-    }
-    if (req.method === 'GET'
-      && requestURL.pathname === '/gateway/api/v1/models'
-      && requestURL.searchParams.get('capability') === 'audio_music') {
-      systemRequests.push({ method: req.method, url: req.url })
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify([{
-        id: 51,
-        model_id: 'audio:music',
-        display_name: 'Music Model',
-        capabilities: ['audio_music'],
-        supported_params: [
-          { key: 'style', type: 'string' },
-        ],
+        capabilities: ['image_generation'],
       }]))
       return
     }
     if (req.method === 'GET'
       && requestURL.pathname === '/gateway/api/v1/models'
       && requestURL.searchParams.get('capability') === 'audio_generation'
-      && requestURL.searchParams.get('operation') === 'music') {
+      && requestURL.searchParams.get('operation') === 'music_generation') {
       systemRequests.push({ method: req.method, url: req.url })
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify([{
         id: 51,
         model_id: 'audio:music',
         display_name: 'Music Model',
-        capabilities: ['audio_generation', 'audio_music'],
+        capabilities: ['audio_generation'],
         supported_params: [
           { key: 'style', type: 'string' },
         ],
@@ -2179,51 +2793,6 @@ function createTestServer() {
   })
 }
 
-function sampleTimelineAssembly() {
-  return {
-    schema: 'movscript.timeline_assembly.v1',
-    id: 'assembly_mcp_host',
-    target_ref: 'timeline_assembly:production:pilot',
-    scope_kind: 'production',
-    scope_ref: 'pilot',
-    tracks: [{ id: 'video_main', kind: 'video' }],
-    clips: [{
-      id: 'clip_intro',
-      track_id: 'video_main',
-      kind: 'visual',
-      source: { resource_id: 701 },
-    }],
-  }
-}
-
-function sampleEditDecisions() {
-  return {
-    version: 1,
-    render_runtime: 'ffmpeg',
-    cuts: [{
-      id: 'cut_intro',
-      source: 'clip_intro',
-      in_seconds: 0,
-      out_seconds: 3,
-    }],
-    audio: {
-      music: {
-        asset_id: 'music_bed',
-        volume: 0.4,
-      },
-    },
-  }
-}
-
-function sampleAssetManifest() {
-  return {
-    assets: [
-      { id: 'clip_intro', type: 'video', resource_id: 701, label: 'Intro' },
-      { id: 'music_bed', type: 'audio', resource_id: 702, label: 'Music' },
-    ],
-  }
-}
-
 function sampleEditingProject() {
   return {
     version: 1,
@@ -2248,16 +2817,19 @@ function sampleEditingProject() {
   }
 }
 
-function sampleCreatedEditingProject(input) {
+function sampleCreatedEditingProject(input, sourceKind = 'edit_decisions') {
+  const source = sourceKind === 'manual'
+    ? { kind: 'manual' }
+    : {
+        kind: 'edit_decisions',
+        editDecisionCount: input.editDecisions?.cuts?.length ?? input.edit_decisions?.cuts?.length ?? 0,
+      }
   return {
     version: 1,
     id: 'edit_project_mcp_host',
-    projectId: input.projectId ?? input.project_id ?? 'project_mcp_editing',
+    projectId: input.mediaProjectId ?? input.media_project_id ?? input.projectId ?? input.project_id ?? 'project_mcp_editing',
     title: input.title ?? 'MCP Compose Project',
-    source: {
-      kind: 'edit_decisions',
-      editDecisionCount: input.editDecisions?.cuts?.length ?? input.edit_decisions?.cuts?.length ?? 0,
-    },
+    source,
     settings: {
       width: input.width ?? 1280,
       height: input.height ?? 720,

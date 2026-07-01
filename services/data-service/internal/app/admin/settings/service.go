@@ -19,12 +19,15 @@ const SystemHealthThresholdsKey = "system_health_thresholds"
 const GenerationToolsSettingsKey = "generation_tools_settings"
 const ProviderAssetSettingsKey = "provider_asset_settings"
 const ResourceAccessSettingsKey = "resource_access_settings"
+const UsagePolicySettingsKey = "usage_policy_settings"
 const OrgGenerationToolsSettingsKeyPrefix = "generation_tools_settings:org:"
 
 var ErrInvalidSystemHealthThresholds = errors.New("invalid system health thresholds")
 var ErrInvalidGenerationToolsSettings = errors.New("invalid generation tools settings")
 var ErrInvalidProviderAssetSettings = errors.New("invalid provider asset settings")
 var ErrInvalidResourceAccessSettings = errors.New("invalid resource access settings")
+var ErrResourceAccessProfileNotFound = errors.New("resource access profile not found")
+var ErrInvalidUsagePolicySettings = errors.New("invalid usage policy settings")
 
 type Service struct {
 	repo          repository
@@ -126,6 +129,22 @@ type resourceAccessSettingsStored struct {
 	DefaultProfileID string                  `json:"default_profile_id,omitempty"`
 }
 
+type UsagePolicySettings struct {
+	Mode                      string                     `json:"mode"`
+	DefaultUsageCreditLimit   float64                    `json:"default_usage_credit_limit,omitempty"`
+	DefaultMonthlyCreditLimit float64                    `json:"default_monthly_credit_limit,omitempty"`
+	DefaultDailyCreditLimit   float64                    `json:"default_daily_credit_limit,omitempty"`
+	AlertThresholds           []float64                  `json:"alert_thresholds,omitempty"`
+	Gateway                   UsagePolicyGatewaySettings `json:"gateway,omitempty"`
+	Notes                     string                     `json:"notes,omitempty"`
+}
+
+type UsagePolicyGatewaySettings struct {
+	MaxRequestsPerMinute    int     `json:"max_requests_per_minute,omitempty"`
+	MaxConcurrentRequests   int     `json:"max_concurrent_requests,omitempty"`
+	MaxEstimatedCostPerCall float64 `json:"max_estimated_cost_per_call,omitempty"`
+}
+
 type ProviderAssetGroupState struct {
 	ID          string `json:"id"`
 	Name        string `json:"name,omitempty"`
@@ -164,6 +183,13 @@ func DefaultProviderAssetSettings() ProviderAssetSettings {
 func DefaultResourceAccessSettings() ResourceAccessSettings {
 	return ResourceAccessSettings{
 		Profiles: []ResourceAccessProfile{},
+	}
+}
+
+func DefaultUsagePolicySettings() UsagePolicySettings {
+	return UsagePolicySettings{
+		Mode:            "off",
+		AlertThresholds: []float64{80, 100},
 	}
 }
 
@@ -355,6 +381,94 @@ func (s *Service) UpdateResourceAccessSettings(ctx context.Context, settings Res
 	for i := range settings.Profiles {
 		settings.Profiles[i].SigningSecretSet = settings.Profiles[i].SigningSecret != ""
 		settings.Profiles[i].SigningSecret = ""
+	}
+	return settings, nil
+}
+
+func (s *Service) UpsertResourceAccessProfile(ctx context.Context, profileID string, profile ResourceAccessProfile, defaultProfileID string) (ResourceAccessSettings, error) {
+	settings, err := s.ResourceAccessSettings(ctx)
+	if err != nil {
+		return settings, err
+	}
+	profile.ID = normalizeResourceAccessProfileID(firstNonEmpty(profileID, profile.ID))
+	if profile.ID == "" {
+		return settings, ErrInvalidResourceAccessSettings
+	}
+	replaced := false
+	for i := range settings.Profiles {
+		if settings.Profiles[i].ID == profile.ID {
+			settings.Profiles[i] = profile
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		settings.Profiles = append(settings.Profiles, profile)
+	}
+	if strings.TrimSpace(defaultProfileID) != "" {
+		settings.DefaultProfileID = defaultProfileID
+	}
+	return s.UpdateResourceAccessSettings(ctx, settings)
+}
+
+func (s *Service) DeleteResourceAccessProfile(ctx context.Context, profileID string) (ResourceAccessSettings, error) {
+	settings, err := s.ResourceAccessSettings(ctx)
+	if err != nil {
+		return settings, err
+	}
+	profileID = normalizeResourceAccessProfileID(profileID)
+	if profileID == "" {
+		return settings, ErrResourceAccessProfileNotFound
+	}
+	next := make([]ResourceAccessProfile, 0, len(settings.Profiles))
+	removed := false
+	for _, profile := range settings.Profiles {
+		if profile.ID == profileID {
+			removed = true
+			continue
+		}
+		next = append(next, profile)
+	}
+	if !removed {
+		return settings, ErrResourceAccessProfileNotFound
+	}
+	settings.Profiles = next
+	if settings.DefaultProfileID == profileID {
+		settings.DefaultProfileID = ""
+	}
+	return s.UpdateResourceAccessSettings(ctx, settings)
+}
+
+func NormalizeResourceAccessProfileID(value string) string {
+	return normalizeResourceAccessProfileID(value)
+}
+
+func (s *Service) UsagePolicySettings(ctx context.Context) (UsagePolicySettings, error) {
+	settings := DefaultUsagePolicySettings()
+	record, err := s.repo.Get(ctx, UsagePolicySettingsKey)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return settings, nil
+		}
+		return settings, err
+	}
+	if err := json.Unmarshal([]byte(record.ValueJSON), &settings); err != nil {
+		return DefaultUsagePolicySettings(), nil
+	}
+	return normalizeUsagePolicySettings(settings), nil
+}
+
+func (s *Service) UpdateUsagePolicySettings(ctx context.Context, settings UsagePolicySettings) (UsagePolicySettings, error) {
+	settings = normalizeUsagePolicySettings(settings)
+	if err := validateUsagePolicySettings(settings); err != nil {
+		return settings, err
+	}
+	raw, err := json.Marshal(settings)
+	if err != nil {
+		return settings, err
+	}
+	if err := s.repo.Save(ctx, settingRecord{Key: UsagePolicySettingsKey, ValueJSON: string(raw)}); err != nil {
+		return settings, err
 	}
 	return settings, nil
 }
@@ -578,6 +692,61 @@ func validateSystemHealthThresholds(thresholds SystemHealthThresholds) error {
 	if thresholds.FailedJobsWarn < 0 || thresholds.FailedJobsCritical < thresholds.FailedJobsWarn ||
 		thresholds.SlowRequestsWarn < 0 || thresholds.SlowRequestsCritical < thresholds.SlowRequestsWarn {
 		return ErrInvalidSystemHealthThresholds
+	}
+	return nil
+}
+
+func normalizeUsagePolicySettings(settings UsagePolicySettings) UsagePolicySettings {
+	mode := strings.TrimSpace(settings.Mode)
+	switch mode {
+	case "off", "observe", "enforce":
+		settings.Mode = mode
+	default:
+		settings.Mode = "off"
+	}
+	settings.Notes = strings.TrimSpace(settings.Notes)
+	settings.AlertThresholds = normalizeUsagePolicyAlertThresholds(settings.AlertThresholds)
+	return settings
+}
+
+func normalizeUsagePolicyAlertThresholds(values []float64) []float64 {
+	if len(values) == 0 {
+		return []float64{80, 100}
+	}
+	out := make([]float64, 0, len(values))
+	seen := map[float64]struct{}{}
+	for _, value := range values {
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
+}
+
+func validateUsagePolicySettings(settings UsagePolicySettings) error {
+	if settings.Mode != "off" && settings.Mode != "observe" && settings.Mode != "enforce" {
+		return ErrInvalidUsagePolicySettings
+	}
+	floatValues := []float64{
+		settings.DefaultUsageCreditLimit,
+		settings.DefaultMonthlyCreditLimit,
+		settings.DefaultDailyCreditLimit,
+		settings.Gateway.MaxEstimatedCostPerCall,
+	}
+	for _, value := range floatValues {
+		if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
+			return ErrInvalidUsagePolicySettings
+		}
+	}
+	if settings.Gateway.MaxRequestsPerMinute < 0 || settings.Gateway.MaxConcurrentRequests < 0 {
+		return ErrInvalidUsagePolicySettings
+	}
+	for _, threshold := range settings.AlertThresholds {
+		if math.IsNaN(threshold) || math.IsInf(threshold, 0) || threshold < 0 || threshold > 100 {
+			return ErrInvalidUsagePolicySettings
+		}
 	}
 	return nil
 }
@@ -830,6 +999,15 @@ func normalizeResourceAccessProfiles(values []ResourceAccessProfile) []ResourceA
 		out = append(out, profile)
 	}
 	return out
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func normalizeResourceAccessProfileID(value string) string {

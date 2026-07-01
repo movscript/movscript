@@ -7,7 +7,7 @@ import {
   type AgentSurfaceSnapshot,
 } from '@movscript/project-surface/data'
 import type { MovScriptContextEnvelope } from '@movscript/shared'
-import { movScriptContextProjectCwd, movScriptContextProjectId } from '@movscript/shared'
+import { movScriptContextProjectCwd, movScriptContextProjectKey } from '@movscript/shared'
 import type { MovScriptNormalizedFocus } from '@movscript/domain'
 import {
   ProjectSurfaceProvider,
@@ -51,18 +51,20 @@ export function ProjectSurfaceHostRoute() {
   const recentProjects = useLocalProjectRecentsStore((state) => state.projects)
   const fallbackProjectHref = useMemo(() => {
     if (routeContext.projectDir) return undefined
-    const fallback = fallbackProjectForRoute(routeContext.projectId, recentProjects)
+    const fallback = fallbackProjectForRoute(routeContext.projectKey, recentProjects)
     if (!fallback) return undefined
     const projectDir = projectDirForRecentProject(fallback)
     if (!projectDir) return undefined
     const nextQuery = new URLSearchParams(query)
     nextQuery.set('projectDir', projectDir)
-    if (!nextQuery.get('projectId') && routeContext.projectId !== 'local-project') {
-      nextQuery.set('projectId', routeContext.projectId)
+    if (!nextQuery.get('projectKey')) nextQuery.set('projectKey', routeContext.projectKey)
+    if (!nextQuery.get('routeProjectKey')) nextQuery.set('routeProjectKey', routeContext.routeProjectKey)
+    if (!nextQuery.get('projectId') && routeContext.projectKey !== 'local-project') {
+      nextQuery.set('projectId', routeContext.projectKey)
     }
     if (fallback.name && !nextQuery.get('projectName')) nextQuery.set('projectName', fallback.name)
     return hrefWithSearch(location.pathname, nextQuery)
-  }, [location.pathname, query, recentProjects, routeContext.projectDir, routeContext.projectId])
+  }, [location.pathname, query, recentProjects, routeContext.projectDir, routeContext.projectKey, routeContext.routeProjectKey])
   const title = routeContext.projectDir
     ? routeContext.projectDir.split('/').filter(Boolean).pop() ?? routeContext.projectDir
     : 'Project Home'
@@ -88,15 +90,15 @@ export function ProjectSurfaceHostRoute() {
 }
 
 function fallbackProjectForRoute(
-  projectId: string,
+  projectKey: string,
   recentProjects: ReturnType<typeof useLocalProjectRecentsStore.getState>['projects'],
 ) {
-  const numericProjectId = Number(projectId)
+  const numericProjectId = Number(projectKey)
   if (Number.isInteger(numericProjectId) && numericProjectId > 0) {
     const match = recentProjects.find((project) => project.ID === numericProjectId && projectDirForRecentProject(project))
     if (match) return match
   }
-  return projectId === 'local-project' && recentProjects.length === 1
+  return projectKey === 'local-project' && recentProjects.length === 1
     ? recentProjects.find((project) => projectDirForRecentProject(project))
     : undefined
 }
@@ -116,9 +118,9 @@ function ProjectSurfaceHostView({
   const daemonContext = useDaemonContextSession({ query, routeContext })
   const contextEnvelope = daemonContext.status === 'ready' ? daemonContext.envelope : undefined
   const contextProjectDir = movScriptContextProjectCwd(contextEnvelope)
-  const contextProjectId = movScriptContextProjectId(contextEnvelope) ?? routeContext.projectId
+  const contextProjectKey = movScriptContextProjectKey(contextEnvelope) ?? routeContext.projectKey
   const projectSurfaceRuntime = useMemo(() => createLocalHostProjectSurfaceRuntime({
-    projectId: contextProjectId,
+    projectKey: contextProjectKey,
     projectDir: contextProjectDir,
     projectUid: contextEnvelope?.session?.project?.uid ?? query.get('projectUid') ?? query.get('project_uid') ?? undefined,
     productionId: routeContext.productionId,
@@ -128,7 +130,7 @@ function ProjectSurfaceHostView({
   }), [
     contextEnvelope,
     contextProjectDir,
-    contextProjectId,
+    contextProjectKey,
     query,
     routeContext.productionId,
     mcpApiBaseURL,
@@ -142,16 +144,16 @@ function ProjectSurfaceHostView({
   useEffect(() => {
     if (!contextProjectDir) return
     ensureLocalProjectContentAPI({
-      projectId: contextProjectId,
+      projectId: contextProjectKey,
       projectDir: contextProjectDir,
       projectUid: contextEnvelope?.session?.project?.uid ?? query.get('projectUid') ?? query.get('project_uid') ?? undefined,
     })
-  }, [contextEnvelope, contextProjectDir, contextProjectId, query])
+  }, [contextEnvelope, contextProjectDir, contextProjectKey, query])
 
   useEffect(() => {
     const projectPath = contextProjectDir || undefined
     if (!projectPath) return
-    const numericProjectId = localNumericProjectId(contextProjectId, projectPath)
+    const numericProjectId = localNumericProjectId(contextProjectKey, projectPath)
     const projectName = query.get('projectName')
       ?? query.get('project_name')
       ?? contextEnvelope?.session?.project?.title
@@ -173,7 +175,7 @@ function ProjectSurfaceHostView({
     }
     useProjectStore.getState().setCurrent(project)
     rememberLocalProject(project)
-  }, [contextEnvelope, contextProjectDir, contextProjectId, query])
+  }, [contextEnvelope, contextProjectDir, contextProjectKey, query])
 
   let content: React.ReactNode
   if (daemonContext.status === 'loading' || daemonContext.status === 'idle') {
@@ -235,7 +237,11 @@ function useDaemonContextSession({
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        projectId: routeContext.projectId,
+        projectKey: routeContext.projectKey,
+        project_key: routeContext.projectKey,
+        routeProjectKey: routeContext.routeProjectKey,
+        route_project_key: routeContext.routeProjectKey,
+        projectId: routeContext.projectKey,
         projectDir,
         projectUid: query.get('projectUid') ?? query.get('project_uid') ?? undefined,
         projectTitle: query.get('projectName') ?? query.get('project_name') ?? undefined,
@@ -266,7 +272,7 @@ function useDaemonContextSession({
     return () => {
       cancelled = true
     }
-  }, [query, routeContext.projectDir, routeContext.projectId])
+  }, [query, routeContext.projectDir, routeContext.projectKey, routeContext.routeProjectKey])
 
   return state
 }
@@ -286,7 +292,7 @@ function InvalidProjectSurfaceRoute({ query }: { query: URLSearchParams }) {
     <section className="surface-host-empty-route">
       <div className="surface-host-empty-route__icon"><FolderArchive size={22} /></div>
       <h1>Project surface route not found</h1>
-      <p>Open projects through /studio/:projectId/overview or another explicit Project Surface route.</p>
+      <p>Open projects through /studio/:projectKey/overview or another explicit Project Surface route.</p>
       <div className="surface-host-empty-route__actions">
         <Button asChild size="sm" variant="outline">
           <Link to={hrefWithSearch(ROUTES.root, query)}>Back to App Home</Link>

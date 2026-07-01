@@ -2,15 +2,37 @@ import { createServer } from 'node:http'
 import {
   MEDIA_PIPELINE_CAPABILITIES_ENDPOINT,
   MEDIA_PIPELINE_PROBE_ENDPOINT,
+  MEDIA_PIPELINE_RESULT_GET_ENDPOINT,
+  MEDIA_PIPELINE_RESULT_LIST_ENDPOINT,
+  MEDIA_PIPELINE_RESULT_REGISTER_ENDPOINT,
+  MEDIA_PIPELINE_RESULT_WATCH_CANCEL_ENDPOINT,
+  MEDIA_PIPELINE_RESULT_WATCH_CREATE_ENDPOINT,
+  MEDIA_PIPELINE_RESULT_WATCH_GET_ENDPOINT,
+  MEDIA_PIPELINE_RESULT_WATCH_LIST_ENDPOINT,
   MEDIA_PIPELINE_SERVICE_NAME,
   MEDIA_PIPELINE_TASK_ACTION_ENDPOINT,
   MEDIA_PIPELINE_TASK_CREATE_ENDPOINT,
 } from '@movscript/editing'
 import { createHeadlessMediaPipelineRuntimePort } from './headlessRuntime.mjs'
+import {
+  createFileMediaPipelineResultRegistry,
+  createInMemoryMediaPipelineResultRegistry,
+} from './resultRegistry.mjs'
+import {
+  createFileMediaPipelineResultWatchRegistry,
+  createInMemoryMediaPipelineResultWatchRegistry,
+} from './resultWatchRegistry.mjs'
 
 export {
   MEDIA_PIPELINE_CAPABILITIES_ENDPOINT,
   MEDIA_PIPELINE_PROBE_ENDPOINT,
+  MEDIA_PIPELINE_RESULT_GET_ENDPOINT,
+  MEDIA_PIPELINE_RESULT_LIST_ENDPOINT,
+  MEDIA_PIPELINE_RESULT_REGISTER_ENDPOINT,
+  MEDIA_PIPELINE_RESULT_WATCH_CANCEL_ENDPOINT,
+  MEDIA_PIPELINE_RESULT_WATCH_CREATE_ENDPOINT,
+  MEDIA_PIPELINE_RESULT_WATCH_GET_ENDPOINT,
+  MEDIA_PIPELINE_RESULT_WATCH_LIST_ENDPOINT,
   MEDIA_PIPELINE_SERVICE_NAME,
   MEDIA_PIPELINE_TASK_ACTION_ENDPOINT,
   MEDIA_PIPELINE_TASK_CREATE_ENDPOINT,
@@ -23,6 +45,9 @@ export const MEDIA_PIPELINE_SERVICE_CAPABILITIES = Object.freeze([
   'transcode',
   'render',
   'timeline-materialization',
+  'result-registry',
+  'result-watch',
+  'backend-preview',
 ])
 
 export const MEDIA_PIPELINE_SUPPORTED_TASK_TYPES = Object.freeze([
@@ -30,6 +55,8 @@ export const MEDIA_PIPELINE_SUPPORTED_TASK_TYPES = Object.freeze([
   'timeline_hls',
   'media_transcode',
   'media_reframe',
+  'backend_project_render',
+  'backend_project_preview',
 ])
 
 export const MEDIA_PIPELINE_SUPPORTED_OUTPUTS = Object.freeze(['mp4', 'hls'])
@@ -41,6 +68,10 @@ export function createMediaPipelineServiceHandler(options = {}) {
   const supportedOutputs = options.supportedOutputs ?? MEDIA_PIPELINE_SUPPORTED_OUTPUTS
   const probe = options.probe ?? defaultProbe
   const runtimePort = options.runtimePort
+  const resultRegistry = options.resultRegistry ?? createInMemoryMediaPipelineResultRegistry()
+  const resultWatchRegistry = options.resultWatchRegistry ?? createInMemoryMediaPipelineResultWatchRegistry({
+    resultRegistry: mediaPipelineResultRegistry(runtimePort, resultRegistry),
+  })
   return async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1')
     try {
@@ -154,6 +185,102 @@ export function createMediaPipelineServiceHandler(options = {}) {
         }
         throw httpError(400, 'media_pipeline_task_action_unsupported', `unsupported media pipeline task action: ${action}`)
       }
+      if (request.method === 'POST' && url.pathname === MEDIA_PIPELINE_RESULT_REGISTER_ENDPOINT) {
+        const body = await readJSONBody(request)
+        const registry = mediaPipelineResultRegistry(runtimePort, resultRegistry)
+        assertRegistryMethod(registry, 'registerResult')
+        const result = await registry.registerResult(recordValue(body.result) ?? body)
+        writeJSON(response, 200, {
+          schema: 'movscript.media-pipeline-result-register.v1',
+          status: 'registered',
+          result,
+        })
+        return
+      }
+      if (request.method === 'POST' && url.pathname === MEDIA_PIPELINE_RESULT_GET_ENDPOINT) {
+        const body = await readJSONBody(request)
+        const resultId = stringValue(body.resultId ?? body.result_id)
+        if (!resultId) {
+          throw httpError(400, 'media_pipeline_result_id_required', 'media pipeline result get requires resultId')
+        }
+        const registry = mediaPipelineResultRegistry(runtimePort, resultRegistry)
+        assertRegistryMethod(registry, 'getResult')
+        const result = await registry.getResult(resultId)
+        writeJSON(response, 200, {
+          schema: 'movscript.media-pipeline-result-get.v1',
+          status: result ? 'found' : 'not_found',
+          result,
+        })
+        return
+      }
+      if (request.method === 'POST' && url.pathname === MEDIA_PIPELINE_RESULT_LIST_ENDPOINT) {
+        const body = await readJSONBody(request)
+        const filter = recordValue(body.filter) ?? body
+        const registry = mediaPipelineResultRegistry(runtimePort, resultRegistry)
+        assertRegistryMethod(registry, 'listResults')
+        const results = await registry.listResults(filter)
+        writeJSON(response, 200, {
+          schema: 'movscript.media-pipeline-result-list.v1',
+          status: 'ok',
+          results,
+          count: results.length,
+        })
+        return
+      }
+      if (request.method === 'POST' && url.pathname === MEDIA_PIPELINE_RESULT_WATCH_CREATE_ENDPOINT) {
+        const body = await readJSONBody(request)
+        assertRegistryMethod(resultWatchRegistry, 'createWatch')
+        const watch = await resultWatchRegistry.createWatch(recordValue(body.watch) ?? body)
+        writeJSON(response, 200, {
+          schema: 'movscript.media-pipeline-result-watch-create.v1',
+          status: watch.status === 'succeeded' ? 'succeeded' : 'watching',
+          watch,
+        })
+        return
+      }
+      if (request.method === 'POST' && url.pathname === MEDIA_PIPELINE_RESULT_WATCH_GET_ENDPOINT) {
+        const body = await readJSONBody(request)
+        const watchId = stringValue(body.watchId ?? body.watch_id)
+        if (!watchId) {
+          throw httpError(400, 'media_pipeline_result_watch_id_required', 'media pipeline result watch get requires watchId')
+        }
+        assertRegistryMethod(resultWatchRegistry, 'getWatch')
+        const watch = await resultWatchRegistry.getWatch(watchId)
+        writeJSON(response, 200, {
+          schema: 'movscript.media-pipeline-result-watch-get.v1',
+          status: watch ? 'found' : 'not_found',
+          watch,
+        })
+        return
+      }
+      if (request.method === 'POST' && url.pathname === MEDIA_PIPELINE_RESULT_WATCH_LIST_ENDPOINT) {
+        const body = await readJSONBody(request)
+        const filter = recordValue(body.filter) ?? body
+        assertRegistryMethod(resultWatchRegistry, 'listWatches')
+        const watches = await resultWatchRegistry.listWatches(filter)
+        writeJSON(response, 200, {
+          schema: 'movscript.media-pipeline-result-watch-list.v1',
+          status: 'ok',
+          watches,
+          count: watches.length,
+        })
+        return
+      }
+      if (request.method === 'POST' && url.pathname === MEDIA_PIPELINE_RESULT_WATCH_CANCEL_ENDPOINT) {
+        const body = await readJSONBody(request)
+        const watchId = stringValue(body.watchId ?? body.watch_id)
+        if (!watchId) {
+          throw httpError(400, 'media_pipeline_result_watch_id_required', 'media pipeline result watch cancel requires watchId')
+        }
+        assertRegistryMethod(resultWatchRegistry, 'cancelWatch')
+        const watch = await resultWatchRegistry.cancelWatch(watchId)
+        writeJSON(response, 200, {
+          schema: 'movscript.media-pipeline-result-watch-cancel.v1',
+          status: watch ? 'canceled' : 'not_found',
+          watch,
+        })
+        return
+      }
       writeJSON(response, 404, {
         error: 'not_found',
       })
@@ -178,6 +305,35 @@ async function defaultProbe(context = {}) {
   if (runtimePort?.getCapabilities) {
     try {
       const runtimeCapabilities = await runtimePort.getCapabilities()
+      const requestedTaskType = stringValue(context.taskType)
+      const supportedTaskTypes = Array.isArray(runtimeCapabilities.supportedTaskTypes)
+        ? runtimeCapabilities.supportedTaskTypes
+        : (Array.isArray(runtimeCapabilities.supported_task_types) ? runtimeCapabilities.supported_task_types : [])
+      if (requestedTaskType === 'backend_project_render' && supportedTaskTypes.includes('backend_project_render')) {
+        return {
+          status: 'available',
+          available: true,
+          backendProjectRender: {
+            available: true,
+          },
+          ffmpeg: runtimeCapabilities.ffmpeg,
+        }
+      }
+      if (requestedTaskType === 'backend_project_preview' && supportedTaskTypes.includes('backend_project_preview')) {
+        return {
+          status: 'available',
+          available: true,
+          backendProjectPreview: {
+            available: true,
+            managedProcess: true,
+          },
+          backend_project_preview: {
+            available: true,
+            managed_process: true,
+          },
+          ffmpeg: runtimeCapabilities.ffmpeg,
+        }
+      }
       return {
         status: runtimeCapabilities.available ? 'available' : 'unavailable',
         available: runtimeCapabilities.available,
@@ -222,13 +378,26 @@ function normalizeProbeResult(result, context) {
     ...(context.feature ? { requestedFeature: context.feature } : {}),
     ...(stringValue(result?.reason) ? { reason: stringValue(result.reason) } : {}),
     ...(recordValue(result?.ffmpeg) ? { ffmpeg: result.ffmpeg } : {}),
+    ...(recordValue(result?.backendProjectRender) ? { backendProjectRender: result.backendProjectRender } : {}),
+    ...(recordValue(result?.backend_project_render) ? { backend_project_render: result.backend_project_render } : {}),
+    ...(recordValue(result?.backendProjectPreview) ? { backendProjectPreview: result.backendProjectPreview } : {}),
+    ...(recordValue(result?.backend_project_preview) ? { backend_project_preview: result.backend_project_preview } : {}),
   }
 }
 
 export function startMediaPipelineService(options = {}) {
   const host = options.host ?? '127.0.0.1'
   const port = Number(options.port ?? 0)
-  const server = createServer(createMediaPipelineServiceHandler(options))
+  const resultRegistry = options.resultRegistry ?? createInMemoryMediaPipelineResultRegistry()
+  const runtimePort = options.runtimePort
+  const resultWatchRegistry = options.resultWatchRegistry ?? createInMemoryMediaPipelineResultWatchRegistry({
+    resultRegistry: mediaPipelineResultRegistry(runtimePort, resultRegistry),
+  })
+  const server = createServer(createMediaPipelineServiceHandler({
+    ...options,
+    resultRegistry,
+    resultWatchRegistry,
+  }))
   return new Promise((resolve, reject) => {
     server.once('error', reject)
     server.listen(port, host, () => {
@@ -241,7 +410,18 @@ export function startMediaPipelineService(options = {}) {
         port: actualPort,
         url: `http://${host}:${actualPort}`,
         close: () => new Promise((closeResolve, closeReject) => {
-          server.close(error => error ? closeReject(error) : closeResolve())
+          server.close(async (error) => {
+            if (error) {
+              closeReject(error)
+              return
+            }
+            try {
+              if (typeof resultWatchRegistry.close === 'function') await resultWatchRegistry.close()
+              closeResolve()
+            } catch (closeError) {
+              closeReject(closeError)
+            }
+          })
         }),
       })
     })
@@ -255,10 +435,13 @@ export async function runMediaPipelineServiceCLI(argv = [], env = process.env) {
   }
   const host = env.MOVSCRIPT_MEDIA_PIPELINE_HOST || '127.0.0.1'
   const port = Number(env.MOVSCRIPT_MEDIA_PIPELINE_PORT || env.PORT || 0)
+  const resultRegistry = createFileMediaPipelineResultRegistry({ env })
+  const resultWatchRegistry = createFileMediaPipelineResultWatchRegistry({ env, resultRegistry })
+  await resultWatchRegistry.startPendingWatches()
   const runtimePort = env.MOVSCRIPT_MEDIA_PIPELINE_RUNTIME === 'none'
     ? undefined
-    : createHeadlessMediaPipelineRuntimePort({ env })
-  const runtime = await startMediaPipelineService({ host, port, runtimePort })
+    : createHeadlessMediaPipelineRuntimePort({ env, resultRegistry })
+  const runtime = await startMediaPipelineService({ host, port, runtimePort, resultRegistry, resultWatchRegistry })
   process.stdout.write(JSON.stringify({
     serviceName: MEDIA_PIPELINE_SERVICE_NAME,
     url: runtime.url,
@@ -324,6 +507,24 @@ function mediaPipelineTaskOptions(value) {
 function assertRuntimeMethod(runtimePort, method) {
   if (!runtimePort || typeof runtimePort[method] !== 'function') {
     throw httpError(503, 'media_pipeline_runtime_unavailable', `media pipeline runtime method is unavailable: ${method}`)
+  }
+}
+
+function mediaPipelineResultRegistry(runtimePort, fallbackRegistry) {
+  if (
+    runtimePort
+    && typeof runtimePort.registerResult === 'function'
+    && typeof runtimePort.getResult === 'function'
+    && typeof runtimePort.listResults === 'function'
+  ) {
+    return runtimePort
+  }
+  return fallbackRegistry
+}
+
+function assertRegistryMethod(registry, method) {
+  if (!registry || typeof registry[method] !== 'function') {
+    throw httpError(503, 'media_pipeline_result_registry_unavailable', `media pipeline result registry method is unavailable: ${method}`)
   }
 }
 

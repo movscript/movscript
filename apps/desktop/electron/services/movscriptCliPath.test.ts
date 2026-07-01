@@ -15,21 +15,21 @@ import {
 const posixPathDelimiter = ':'
 
 test('resolveMovScriptCliBinDir prefers explicit override', () => {
-  const binDir = resolve('/tools/movcli/bin')
+  const binDir = resolve('/tools/movscript-cli/bin')
   assert.equal(resolveMovScriptCliBinDir({
     env: { MOVSCRIPT_CLI_BIN_DIR: binDir },
     platform: 'darwin',
-    exists: (path) => path === resolve(binDir, 'movcli'),
+    exists: (path) => path === resolve(binDir, 'movscript'),
   }), binDir)
 })
 
-test('resolveMovScriptCliBinDir uses movcli.cmd for Windows overrides', () => {
-  const binDir = 'C:\\tools\\movcli\\bin'
+test('resolveMovScriptCliBinDir uses movscript.cmd for Windows overrides', () => {
+  const binDir = 'C:\\tools\\movscript\\bin'
   const resolvedBinDir = pathWin32.resolve(binDir)
   assert.equal(resolveMovScriptCliBinDir({
     env: { MOVSCRIPT_CLI_BIN_DIR: binDir },
     platform: 'win32',
-    exists: (path) => path === pathWin32.join(resolvedBinDir, 'movcli.cmd'),
+    exists: (path) => path === pathWin32.join(resolvedBinDir, 'movscript.cmd'),
   }), resolvedBinDir)
 })
 
@@ -40,7 +40,7 @@ test('resolveMovScriptCliBinDir uses packaged plugin CLI resources when availabl
   assert.equal(resolveMovScriptCliBinDir({
     resourcesPath,
     platform: 'darwin',
-    exists: (path) => path === resolve(binDir, 'movcli') || path === resolve(binDir, 'movscript.mjs'),
+    exists: (path) => path === resolve(binDir, 'movscript') || path === resolve(binDir, 'movscript.mjs'),
   }), binDir)
 })
 
@@ -54,8 +54,8 @@ test('resolveMovScriptCliBinDir prefers workspace bin before packaged resources'
     resourcesPath,
     platform: 'darwin',
     exists: (path) => (
-      path === resolve(workspaceBinDir, 'movcli')
-      || path === resolve(packagedBinDir, 'movcli')
+      path === resolve(workspaceBinDir, 'movscript')
+      || path === resolve(packagedBinDir, 'movscript')
       || path === resolve(packagedBinDir, 'movscript.mjs')
     ),
   }), workspaceBinDir)
@@ -68,7 +68,7 @@ test('resolveMovScriptCliBinDir finds repository plugin cli bin in development',
     cwd: resolve(repo, 'apps/desktop'),
     dirname: resolve(repo, 'apps/desktop/out/main'),
     platform: 'darwin',
-    exists: (path) => path === resolve(binDir, 'movcli') || path === resolve(binDir, 'movscript.mjs'),
+    exists: (path) => path === resolve(binDir, 'movscript') || path === resolve(binDir, 'movscript.mjs'),
   }), binDir)
 })
 
@@ -79,7 +79,7 @@ test('resolveMovScriptCliBinDir ignores unbuilt repository cli wrapper', () => {
     cwd: resolve(repo, 'apps/desktop'),
     dirname: resolve(repo, 'apps/desktop/out/main'),
     platform: 'darwin',
-    exists: (path) => path === resolve(binDir, 'movcli'),
+    exists: (path) => path === resolve(binDir, 'movscript'),
   }), undefined)
 })
 
@@ -90,9 +90,9 @@ test('ensureWorkspaceMovScriptCliBin writes a workspace shim that points at pack
     const packageDir = join(root, 'resources', 'provider-plugins', 'movscript')
     const sourceBinDir = join(packageDir, 'bin')
     mkdirSync(sourceBinDir, { recursive: true })
-    writeFileSync(join(sourceBinDir, 'movcli'), '#!/bin/sh\nexec node "$0.mjs" "$@"\n')
+    writeFileSync(join(sourceBinDir, 'movscript'), '#!/bin/sh\nexec node "$0.mjs" "$@"\n')
     writeFileSync(join(sourceBinDir, 'movscript.mjs'), 'export {}\n')
-    chmodSync(join(sourceBinDir, 'movcli'), 0o755)
+    chmodSync(join(sourceBinDir, 'movscript'), 0o755)
 
     const binDir = ensureWorkspaceMovScriptCliBin({
       workspaceDir,
@@ -101,10 +101,12 @@ test('ensureWorkspaceMovScriptCliBin writes a workspace shim that points at pack
     })
 
     assert.equal(binDir, join(workspaceDir, 'bin'))
-    assert.equal(existsSync(join(binDir!, 'movcli')), true)
-    assert.equal(existsSync(join(binDir!, 'movcli.mjs')), true)
-    assert.match(readFileSync(join(binDir!, 'movcli.mjs'), 'utf8'), /movscript\.mjs/)
-    assert.match(readFileSync(join(binDir!, 'movcli.mjs'), 'utf8'), /__movscript_movcli/)
+    assert.equal(existsSync(join(binDir!, 'movscript')), true)
+    assert.equal(existsSync(join(binDir!, 'movscript.mjs')), true)
+    const shim = readFileSync(join(binDir!, 'movscript.mjs'), 'utf8')
+    assert.match(shim, /movscript\.mjs/)
+    assert.match(shim, /pluginEntry, \.\.\.process\.argv\.slice\(2\)/)
+    assert.doesNotMatch(shim, /movcli/)
     assert.equal(resolveMovScriptCliBinDir({ workspaceDir, platform: 'darwin' }), binDir)
   } finally {
     rmSync(root, { recursive: true, force: true })
@@ -118,7 +120,7 @@ test('ensureWorkspaceMovScriptCliBin writes a Windows cmd shim', () => {
     const packageDir = join(root, 'resources', 'provider-plugins', 'movscript')
     const sourceBinDir = join(packageDir, 'bin')
     mkdirSync(sourceBinDir, { recursive: true })
-    writeFileSync(join(sourceBinDir, 'movcli'), '#!/bin/sh\nexec node "$0.mjs" "$@"\n')
+    writeFileSync(join(sourceBinDir, 'movscript'), '#!/bin/sh\nexec node "$0.mjs" "$@"\n')
     writeFileSync(join(sourceBinDir, 'movscript.mjs'), 'export {}\n')
 
     const binDir = ensureWorkspaceMovScriptCliBin({
@@ -128,15 +130,15 @@ test('ensureWorkspaceMovScriptCliBin writes a Windows cmd shim', () => {
     })
 
     assert.equal(binDir, join(workspaceDir, 'bin'))
-    assert.equal(existsSync(join(binDir!, 'movcli.cmd')), true)
-    assert.equal(existsSync(join(binDir!, 'movcli.mjs')), true)
-    assert.match(readFileSync(join(binDir!, 'movcli.cmd'), 'utf8'), /MOVSCRIPT_ELECTRON_BIN/)
+    assert.equal(existsSync(join(binDir!, 'movscript.cmd')), true)
+    assert.equal(existsSync(join(binDir!, 'movscript.mjs')), true)
+    assert.match(readFileSync(join(binDir!, 'movscript.cmd'), 'utf8'), /MOVSCRIPT_ELECTRON_BIN/)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
 })
 
-test('movScriptCliPathEnv prepends movcli bin to PATH', () => {
+test('movScriptCliPathEnv prepends movscript bin to PATH', () => {
   const binDir = resolve('/repo/movscript/apps/cli/bin')
   const original = [resolve('/usr/bin'), binDir, resolve('/bin')].join(posixPathDelimiter)
   const env = movScriptCliPathEnv({
@@ -150,7 +152,7 @@ test('movScriptCliPathEnv prepends movcli bin to PATH', () => {
 })
 
 test('movScriptCliPathEnv preserves Windows Path casing and delimiter', () => {
-  const binDir = 'C:\\Users\\me\\AppData\\Local\\Movscript\\Home\\bin'
+  const binDir = 'C:\\Users\\me\\AppData\\Local\\MovScript\\Home\\bin'
   const env = movScriptCliPathEnv({
     cliBinDir: binDir,
     env: { Path: 'C:\\Windows;C:\\Tools' },

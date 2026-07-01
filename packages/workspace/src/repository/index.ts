@@ -32,6 +32,8 @@ export {
   type MovScriptContentUnitEditPrompt,
   type MovScriptContentUnitEditPromptUpdateInput,
   type MovScriptContentUnitEditPromptUpdateResult,
+  type MovScriptContentUnitGenerationReference,
+  type MovScriptContentUnitReferenceAsset,
 } from './contentUnitPrompt.js'
 
 export {

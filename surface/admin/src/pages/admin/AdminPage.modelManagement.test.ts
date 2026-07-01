@@ -3,8 +3,31 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
+function readModelManagementSource() {
+  return [
+    'src/features/model-management/pages/ModelManagementPage.tsx',
+    'src/features/model-management/model/modelManagementModel.ts',
+    'src/features/model-management/components/ModelCatalogSection.tsx',
+    'src/features/model-management/components/ModelManagementControls.tsx',
+    'src/features/model-management/components/ModelRouteDialogs.tsx',
+    'src/features/model-management/components/ModelRouteMatrix.tsx',
+    'src/features/model-management/components/ModelRoutesSection.tsx',
+    'src/features/model-management/components/ProviderOnboarding.tsx',
+    'src/features/model-management/components/ProviderRuntimePanels.tsx',
+  ].map((file) => readFileSync(resolve(process.cwd(), file), 'utf8')).join('\n')
+}
+
+function readCloudFileConfigSource() {
+  return [
+    'src/features/cloud-files-admin/pages/CloudFileConfigPage.tsx',
+    'src/features/cloud-files-admin/components/ResourceAccessSettingsPanel.tsx',
+    'src/features/cloud-files-admin/model/cloudFileConfig.ts',
+    'src/features/cloud-files-admin/model/resourceAccess.ts',
+  ].map((file) => readFileSync(resolve(process.cwd(), file), 'utf8')).join('\n')
+}
+
 test('model management view is owned by routes instead of query parameter tabs', () => {
-  const source = readFileSync(resolve(process.cwd(), 'src/pages/admin/AdminPage.tsx'), 'utf8')
+  const source = readModelManagementSource()
 
   assert.match(source, /function defaultModelManagementViewMode\(\): ModelManagementViewMode \{[\s\S]*runtimeCapabilities\.relayGatewayGroup \? 'routes' : 'providers'/)
   assert.match(source, /function modelManagementRoute\(view: ModelManagementViewMode\): string/)
@@ -19,33 +42,63 @@ test('model management view is owned by routes instead of query parameter tabs',
 })
 
 test('model catalog templates come from backend and keep public id separate from provider model id', () => {
-	const source = readFileSync(resolve(process.cwd(), 'src/pages/admin/AdminPage.tsx'), 'utf8')
+	const source = readModelManagementSource()
 	const types = readFileSync(resolve(process.cwd(), 'src/types/index.ts'), 'utf8')
 	const templateType = types.match(/export interface AIModelCatalogTemplate \{[\s\S]*?\n\}/)?.[0] ?? ''
 
 	assert.match(templateType, /default_public_model_id: string[\s\S]*model_id: string/)
 	assert.match(templateType, /lab: string/)
 	assert.match(templateType, /source_status\?: string/)
-	assert.doesNotMatch(templateType, /route_adapter_hint/)
+	assert.match(templateType, /route_adapter_hint\?: string/)
 	assert.doesNotMatch(templateType, /adapter_type/)
   assert.match(source, /api\.get\('\/admin\/model-catalog\/templates'\)/)
   assert.match(source, /templateLabOptions/)
   assert.match(source, /filterCatalogTemplates\(catalogTemplates, templateSearch, templateLab\)/)
   assert.match(source, /function catalogTemplateIsRuntimeReady\(template: AIModelCatalogTemplate\): boolean/)
   assert.match(source, /if \(!catalogTemplateIsRuntimeReady\(template\)\) return false/)
-  assert.match(source, /catalogTemplateSourceStatusLabel\(template\)/)
+  assert.doesNotMatch(source, /catalogTemplateSourceStatusLabel/)
+  assert.doesNotMatch(source, /catalogTemplateSourceStatusIntent/)
+  assert.doesNotMatch(source, /可路由/)
   assert.match(source, /public_model_id: publicModelID/)
   assert.match(source, /firstNonEmptyString\(template\.default_public_model_id, template\.model_id, template\.id\)/)
   assert.match(source, /routeTemplateSuggestion\.model_id/)
   assert.match(source, /suggestedProviderModelIDForEntry/)
+  assert.match(source, /defaultModelCapabilitiesJSONForCapabilities\([\s\S]*adapter\)/)
   assert.doesNotMatch(source, /public_model_id:\s*template\.id/)
-  assert.doesNotMatch(source, /templateAdapter/)
   assert.doesNotMatch(source, /adapter:\s*\{template\.adapter_type\}/)
   assert.doesNotMatch(source, /candidates\.find\(\(template\) => template\.adapter_type === adapterType\)/)
 })
 
+test('model catalog dialog uses structured capability config with scoped scroll panes', () => {
+  const source = readModelManagementSource()
+  const catalog = readFileSync(resolve(process.cwd(), 'src/features/model-management/components/ModelCatalogSection.tsx'), 'utf8')
+  const zh = readFileSync(resolve(process.cwd(), 'src/i18n/locales/zh-CN.json'), 'utf8')
+  const en = readFileSync(resolve(process.cwd(), 'src/i18n/locales/en-US.json'), 'utf8')
+
+  assert.match(source, /export type ModelCapabilityDraft = \{/)
+  assert.match(source, /function parseModelCapabilityDrafts\(raw: string\): ModelCapabilityParseResult/)
+  assert.match(source, /function modelCapabilityDraftsToJSON\(drafts: ModelCapabilityDraft\[\]\): string/)
+  assert.match(catalog, /function ModelCapabilitiesEditor\(/)
+  assert.match(catalog, /parseModelCapabilityDrafts\(value\)/)
+  assert.match(catalog, /modelCapabilityDraftsToJSON/)
+  assert.match(catalog, /function ModelOperationContractPreview\(/)
+  assert.match(catalog, /adapterOperationContract\(adapter, draft\.capability, operation\)/)
+  assert.match(catalog, /modelOperationInputSlots\(operation\)/)
+  assert.doesNotMatch(catalog, /referenceRoles/)
+  assert.doesNotMatch(catalog, /resultOptionsTitle/)
+  assert.match(catalog, /flex max-h-\[calc\(100vh-32px\)\][\s\S]*overflow-hidden/)
+  assert.match(catalog, /grid min-h-0 flex-1[\s\S]*lg:grid-cols-\[320px_minmax\(0,1fr\)\]/)
+  assert.match(catalog, /min-h-0 flex-1 overflow-y-auto overscroll-contain/)
+  assert.doesNotMatch(catalog, /catalogForm\.accepts_image/)
+  assert.doesNotMatch(catalog, /catalogForm\.max_input_images/)
+  assert.doesNotMatch(catalog, /catalogForm\.max_input_videos/)
+  assert.doesNotMatch(catalog, /catalogForm\.input_image_field/)
+  assert.match(zh, /"maxInputImages": "最大图片输入数"/)
+  assert.match(en, /"maxInputImages": "Max input images"/)
+})
+
 test('route binding view allows adapter override per route binding', () => {
-  const source = readFileSync(resolve(process.cwd(), 'src/pages/admin/AdminPage.tsx'), 'utf8')
+  const source = readModelManagementSource()
 
   assert.match(source, /function routeProviderAdapterLabel\(option\?: RouteProviderOption\): string/)
   assert.match(source, /function routeProviderAdapterValue\(option\?: RouteProviderOption\): string/)
@@ -57,7 +110,7 @@ test('route binding view allows adapter override per route binding', () => {
 })
 
 test('route management exposes operation-based route diagnostics', () => {
-  const source = readFileSync(resolve(process.cwd(), 'src/pages/admin/AdminPage.tsx'), 'utf8')
+  const source = readModelManagementSource()
   const types = readFileSync(resolve(process.cwd(), 'src/types/index.ts'), 'utf8')
 
   assert.match(types, /export interface AIModelRouteDiagnosis/)
@@ -76,18 +129,19 @@ test('route management exposes operation-based route diagnostics', () => {
 })
 
 test('resource access panel can verify public raw resource URLs', () => {
-  const source = readFileSync(resolve(process.cwd(), 'src/pages/admin/AdminPage.tsx'), 'utf8')
+  const source = readCloudFileConfigSource()
 
   assert.match(source, /type ResourceAccessCheckResult = \{[\s\S]*reachable: boolean[\s\S]*status_code\?: number[\s\S]*content_type\?: string[\s\S]*content_length\?: number/)
   assert.match(source, /api\.post\('\/resource-access\/check'/)
   assert.match(source, /resource_id: resourceID/)
   assert.match(source, /Test public URL/)
   assert.match(source, /HTTP \{checkResult\.status_code\}/)
-  assert.match(source, /\{checkResult\.content_length\} bytes/)
+  assert.match(source, /admin\.resourceAccess\.check\.bytes/)
+  assert.match(source, /count: checkResult\.content_length/)
 })
 
 test('Yunwu model import can start from API key and preserves unmapped routes for diagnosis', () => {
-  const source = readFileSync(resolve(process.cwd(), 'src/pages/admin/AdminPage.tsx'), 'utf8')
+  const source = readModelManagementSource()
 
   assert.match(source, /const \[importProviderKind, setImportProviderKind\] = useState\('openai_compat_gateway'\)/)
   assert.match(source, /importProviderKind === 'yunwu_gateway'[\s\S]*\? 'yunwu_gateway'[\s\S]*: providerKindForImportBaseURL\(baseURL\)/)
@@ -98,7 +152,7 @@ test('Yunwu model import can start from API key and preserves unmapped routes fo
 })
 
 test('model management uses API account model route workspaces with filters and pagination', () => {
-  const source = readFileSync(resolve(process.cwd(), 'src/pages/admin/AdminPage.tsx'), 'utf8')
+  const source = readModelManagementSource()
   const zh = readFileSync(resolve(process.cwd(), 'src/i18n/locales/zh-CN.json'), 'utf8')
 
   assert.match(source, /label: 'API账号管理'/)
@@ -108,7 +162,9 @@ test('model management uses API account model route workspaces with filters and 
   assert.match(source, /ModelAdminSearchInput/)
   assert.match(source, /ModelAdminPageSizeSelect/)
   assert.match(source, /PaginationControls/)
-  assert.match(source, /providerAccountRows/)
+  assert.match(source, /credentialPagination/)
+  assert.match(source, /Provider 能力/)
+  assert.match(source, /快速接入/)
   assert.match(source, /filteredEntries/)
   assert.match(source, /filteredRouteEntries/)
   assert.match(source, /导入模型/)
@@ -117,6 +173,9 @@ test('model management uses API account model route workspaces with filters and 
   assert.match(source, /待适配/)
   assert.doesNotMatch(source, /Provider \/ Catalog \/ Route/)
   assert.doesNotMatch(source, /ModelManagementBoundaryOverview\(/)
+  assert.doesNotMatch(source, /ProviderRegistrySummary/)
+  assert.doesNotMatch(source, /combo-templates/)
+  assert.doesNotMatch(source, /providerAccountRows/)
 
   assert.match(zh, /"modelProviders": "API账号管理"/)
   assert.match(zh, /"modelCatalog": "模型管理"/)

@@ -1,11 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { KeyRound, Settings } from 'lucide-react'
+import { Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { AppIconFrame, AppInlineError } from '@movscript/ui/business/app'
-import { Button, StatusBadge } from '@movscript/ui/primitives'
+import { StatusBadge } from '@movscript/ui/primitives'
 import { api } from '@admin/lib/api'
 import { translateAPIRequestError } from '@admin/lib/apiError'
-import { adminHref } from '@admin/lib/adminRoutes'
 import { readListPayload, readRecordPayload } from '@admin/lib/listPayload'
 
 type ProviderAssemblyItem = {
@@ -158,26 +157,6 @@ export function SystemSettingsPage() {
             loading={providerAssemblyQuery.isLoading || providerDescriptorsQuery.isLoading || providerHealthQuery.isLoading || providerInstancesQuery.isLoading}
           />
         )}
-      </section>
-
-      <section className="rounded-lg border border-border bg-card p-4">
-        <div className="mb-4 flex items-center gap-2">
-          <KeyRound size={16} className="text-primary" />
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">{t('admin.settings.providerAssets')}</h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {t('admin.settings.providerAssetsMovedHint', { defaultValue: '素材库、asset:// 与原始产物信任现在按 Provider 管理。请在 Provider 页面配置火山方舟素材库。' })}
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2">
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            {t('admin.settings.providerAssetsMovedDetail', { defaultValue: '系统设置只保留部署级状态；Provider 页面会展示素材库能力、缺失配置、global group 与认证诊断。' })}
-          </p>
-          <Button type="button" size="sm" variant="outline" onClick={() => window.location.assign(adminHref('/models/providers'))}>
-            {t('admin.settings.openProviderManagement', { defaultValue: '打开 Provider 管理' })}
-          </Button>
-        </div>
       </section>
     </div>
   )

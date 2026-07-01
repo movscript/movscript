@@ -67,10 +67,10 @@ export const projectEntryDefinitions: ProjectEntryDefinition[] = [
     headerTitleKey: 'header.titles.productionOrchestration',
     stage: 'orchestration_production',
     icon: Clapperboard,
-    purpose: '把手记、设定、素材约束组织成 timeline namespace、scene moment 和 assembly 边界，并继续沉淀表达方案、时间轴和镜头列表。',
+    purpose: '把手记、设定、素材约束组织成 timeline namespace、scene moment 和 production 边界，并继续沉淀表达方案、时间轴和镜头列表。',
     decision: '手动维护时间结构、scene moments、引用关系和镜头方案；production/segment 仅作为旧项目的 namespace 投影。',
-    output: '可进入创作继续细化执行的时间结构、场面锚点和装配方案。',
-    owns: ['timeline_namespace', 'scene_moment', 'timeline_assembly', 'setting_usage', 'asset_usage', 'local_requirement', 'content_unit', 'keyframe', 'preview_timeline_item'],
+    output: '可进入创作继续细化执行的时间结构、场面锚点和 production editing workspace 输入。',
+    owns: ['timeline_namespace', 'scene_moment', 'production', 'setting_usage', 'asset_usage', 'local_requirement', 'content_unit', 'keyframe', 'preview_timeline_item'],
     reads: ['project_standards', 'setting_namespace', 'asset', 'script'],
     primarySelection: {
       queryParam: 'scopeRef',
@@ -252,9 +252,6 @@ function projectEntryReviewTargetParams(input: ProjectEntryReviewInput): Record<
   if (input.targetCategory && String(input.targetCategory).trim()) params.targetCategory = input.targetCategory
   if (input.targetKind && String(input.targetKind).trim()) params.targetKind = input.targetKind
   if (input.targetRef !== undefined && String(input.targetRef).trim()) params.targetRef = input.targetRef
-  if (input.targetKind === 'timeline_assembly' && input.targetRef !== undefined && String(input.targetRef).trim()) {
-    params.timeline_assembly_ref = input.targetRef
-  }
   return params
 }
 

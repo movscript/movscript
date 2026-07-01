@@ -18,7 +18,7 @@
     "movscript-media-pipeline": "./bin/movscript-media-pipeline.mjs"
   },
   "scripts": {
-    "build": "node --check src/server.mjs && node --check src/headlessRuntime.mjs && node --check bin/movscript-media-pipeline.mjs",
+    "build": "node --check src/server.mjs && node --check src/headlessRuntime.mjs && node --check src/resultRegistry.mjs && node --check src/resultWatchRegistry.mjs && node --check bin/movscript-media-pipeline.mjs",
     "test": "pnpm --filter @movscript/editing build && node --test tests/*.test.mjs"
   },
   "dependencies": {

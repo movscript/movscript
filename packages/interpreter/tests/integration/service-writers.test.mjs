@@ -229,7 +229,7 @@ test('workspace content unit writer rejects namespace targets', async () => {
   assert.equal(files.has('content_units/final_video/content_unit.json'), false)
 })
 
-test('workspace content unit writer stores timeline assembly refs from scope fields', async () => {
+test('workspace content unit writer rejects timeline assembly refs from scope fields', async () => {
   const files = new Map()
   const repository = memoryWorkspaceFileRepository(files)
   const service = createMovScriptWorkspaceService({
@@ -237,7 +237,7 @@ test('workspace content unit writer stores timeline assembly refs from scope fie
     now: () => new Date('2026-06-07T00:00:00.000Z'),
   })
 
-  const result = await service.upsertContentUnit({
+  await assert.rejects(() => service.upsertContentUnit({
     unit: {
       id: 'episode_assembly',
       title: 'Episode assembly',
@@ -246,15 +246,9 @@ test('workspace content unit writer stores timeline assembly refs from scope fie
       scope_ref: 'episode_01',
       edit_prompt: { text: 'Compose this episode.' },
     },
-  })
+  }), /timeline_assembly_ref is removed/)
 
-  const record = JSON.parse(files.get(result.contentUnitPath))
-  assert.equal(record.content_unit_type, 'timeline_assembly_ref')
-  assert.equal(record.output_kind, 'video')
-  assert.equal(record.target_kind, 'timeline_assembly')
-  assert.equal(record.target_ref, 'timeline_assembly:episode:episode_01')
-  assert.equal(record.scope_kind, 'episode')
-  assert.equal(record.scope_ref, 'episode_01')
+  assert.equal(files.has('content_units/episode_assembly/content_unit.json'), false)
 })
 
 test('workspace content candidate creation requires backend decision store', async () => {

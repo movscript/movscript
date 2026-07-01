@@ -61,11 +61,8 @@ const MEDIA_PREVIEW_ALWAYS_ON_NODE_BUDGET = 8
 
 const TOOL_CARD_NODE_TYPES = new Set<string>([
   'canvas',
-  'ref_image_gen',
-  'ref_video_gen',
-  'multi_angle',
-  'style_transfer',
-  'motion_imitation',
+  'reference_to_image',
+  'reference_to_video',
   'plugin_card',
   'text_gen',
   'ai_gen',

@@ -7,6 +7,7 @@ export const MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME = 'providers'
 export const MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME = 'backend'
 export const MOVSCRIPT_WORKSPACE_BIN_DIR_NAME = 'bin'
 export const MOVSCRIPT_WORKSPACE_REALMS_DIR_NAME = 'realms'
+export const MOVSCRIPT_WORKSPACE_LOGS_DIR_NAME = 'logs'
 
 export type MovScriptWorkspaceScope = 'global' | 'project' | 'production'
 export type MovScriptWorkspaceRealmKind = 'local' | 'cloud'
@@ -52,6 +53,7 @@ export interface MovScriptWorkspaceRootPaths {
   providersDir: string
   backendDir: string
   binDir: string
+  logsDir: string
 }
 
 export interface MovScriptWorkspaceRootManifest {
