@@ -337,14 +337,66 @@ function generationReferenceMatchesRequirement(
 }
 
 function promptBlockerMessage(blocker: unknown): string {
+  return generationPromptBlockerUserMessage(blocker)
+}
+
+export function generationPromptBlockerUserMessage(blocker: unknown): string {
   if (!isRecord(blocker)) return '提示词引用尚未解析'
+  const code = stringValue(blocker.code)
+  const ref = stringValue(blocker.ref)
+  const target = promptBlockerTargetLabel(ref, stringValue(blocker.content_unit_id ?? blocker.contentUnitId))
+  switch (code) {
+    case 'decision_context_missing':
+      return `${target}还没有可用候选。请先生成、上传或从资源库选择候选，并设为当前。`
+    case 'upstream_selection_missing':
+      return `${target}还没有设为当前的候选。请先选择一个候选作为稳定引用。`
+    case 'upstream_selection_stale':
+      return `${target}的当前候选已过期。请确认继续使用，或重新生成候选。`
+    case 'upstream_candidate_missing':
+      return `${target}选中的候选不存在。请重新选择一个可用候选。`
+    case 'upstream_resource_missing':
+      return `${target}的候选没有可用资源。请重新生成、上传或选择资源库候选。`
+    case 'unsupported_prompt_ref_kind':
+      return ref ? `不支持这种提示词引用：${ref}` : '不支持这种提示词引用'
+    case 'primary_ref_missing':
+      return '当前创作片段缺少主引用，请先补齐目标对象。'
+    default:
+      break
+  }
   const message = stringValue(blocker.message)
   if (message) return message
-  const ref = stringValue(blocker.ref)
   if (ref) return `提示词引用尚未解析：${ref}`
-  const code = stringValue(blocker.code)
   if (code) return `提示词引用尚未解析：${code}`
   return '提示词引用尚未解析'
+}
+
+function promptBlockerTargetLabel(ref: string | undefined, contentUnitId: string | undefined): string {
+  const kind = promptRefKindLabel(ref)
+  if (ref) return `${kind} ${ref} `
+  if (contentUnitId) return `创作片段 ${contentUnitId} `
+  return '引用内容 '
+}
+
+function promptRefKindLabel(ref: string | undefined): string {
+  const kind = ref?.match(/^\{\{\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*:{1,2}/)?.[1]
+  switch (kind) {
+    case 'asset':
+      return '引用资产'
+    case 'keyframe':
+      return '引用关键帧'
+    case 'storyboard':
+      return '引用分镜'
+    case 'scene_moment':
+      return '引用情节'
+    case 'expression_unit':
+      return '引用表达单元'
+    case 'content_unit':
+      return '引用创作片段'
+    case 'candidate':
+      return '引用候选'
+    default:
+      return '引用内容'
+  }
 }
 
 function stringValue(value: unknown): string | undefined {

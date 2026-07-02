@@ -15,7 +15,7 @@ var catalogTemplateSources = []ModelDef{
 		SourceStatus:      "unofficial",
 		AcceptsImageInput: true,
 		MaxInputImages:    -1,
-		SupportedParams:   mustGeneratedCatalogParamDefs("[{\"key\":\"duration\",\"label\":\"时长(秒)\",\"type\":\"select\",\"options\":[\"5\",\"10\"],\"default\":\"5\"},{\"key\":\"aspect_ratio\",\"label\":\"画面比例\",\"type\":\"select\",\"options\":[\"16:9\",\"9:16\",\"1:1\"],\"default\":\"16:9\"},{\"key\":\"generate_audio\",\"label\":\"生成音频\",\"type\":\"boolean\",\"default\":true}]"),
+		SupportedParams:   mustGeneratedCatalogParamDefs("[{\"key\":\"duration\",\"label\":\"时长(秒)\",\"type\":\"select\",\"options\":[\"5\",\"10\"],\"default\":\"5\"},{\"key\":\"aspect_ratio\",\"label\":\"画面比例\",\"type\":\"select\",\"options\":[\"16:9\",\"9:16\",\"1:1\"],\"default\":\"16:9\"},{\"key\":\"resolution\",\"label\":\"分辨率\",\"type\":\"select\",\"options\":[\"720p\",\"1080p\"],\"default\":\"720p\"},{\"key\":\"generate_audio\",\"label\":\"生成音频\",\"type\":\"boolean\",\"default\":true}]"),
 	},
 	{
 		ID:              "elevenlabs:eleven-v3-tts",

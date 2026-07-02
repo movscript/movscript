@@ -18,6 +18,8 @@ export type {
 export { ProjectSettingsSurface } from './components/settings/ProjectSettingsSurface.js'
 export { ProjectScriptsSurface } from './components/scripts/ProjectScriptsSurface.js'
 export { ProjectStandardsSurface } from './components/standards/ProjectStandardsSurface.js'
+export { ProjectRemotionStudioSurface } from './components/remotion/ProjectRemotionStudioSurface.js'
+export type { ProjectRemotionStudioSurfaceProps } from './components/remotion/ProjectRemotionStudioSurface.js'
 export { ProjectEntryDeckHeader } from './features/project/components/ProjectEntryDeckHeader.js'
 export { ProjectStandardsContent } from './features/project-standards/components/ProjectStandardsPage.js'
 export { ProjectResourceViewSurface } from './components/resource-view/ProjectResourceViewSurface.js'

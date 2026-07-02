@@ -179,11 +179,19 @@ export interface EditingServiceGateway {
   export?(input: unknown): Promise<unknown>
 }
 
+export interface RemotionStudioSessionGateway {
+  open(input: Record<string, unknown>): Promise<unknown>
+  get(input: Record<string, unknown>): Promise<unknown>
+  logs(input: Record<string, unknown>): Promise<unknown>
+  stop(input: Record<string, unknown>): Promise<unknown>
+}
+
 export interface ProjectSurfaceGateways {
   project: ProjectServiceGateway
   resources?: ResourceServiceGateway
   generation?: GenerationServiceGateway
   editing?: EditingServiceGateway
+  remotionStudio?: RemotionStudioSessionGateway
 }
 
 export interface ProjectSurfaceRuntime {

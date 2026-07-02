@@ -3084,13 +3084,13 @@ import { dirname as dirname23, join as join23, resolve as resolve24 } from "path
 import { randomUUID as randomUUID3 } from "crypto";
 import { existsSync as existsSync6, mkdirSync as mkdirSync6, readFileSync as readFileSync7, readdirSync as readdirSync3, renameSync as renameSync5, rmSync as rmSync4, writeFileSync as writeFileSync6 } from "fs";
 import { homedir as homedir2 } from "os";
-import { dirname as dirname13, join as join14, resolve as resolve14, win32 as pathWin322 } from "path";
+import { dirname as dirname15, join as join15, resolve as resolve16, win32 as pathWin322 } from "path";
 import { mkdirSync as mkdirSync42, readFileSync as readFileSync42, renameSync as renameSync42, writeFileSync as writeFileSync42 } from "fs";
 import { dirname as dirname42, join as join42, resolve as resolve33 } from "path";
 import { randomUUID as randomUUID22 } from "crypto";
 import { mkdirSync as mkdirSync52, readFileSync as readFileSync52, renameSync as renameSync52, rmSync as rmSync32, writeFileSync as writeFileSync52 } from "fs";
 import { dirname as dirname52, join as join52 } from "path";
-import { mkdir as mkdir8, readdir as readdir7, readFile as readFile8, rename as rename4, rm as rm4, stat as stat7, writeFile as writeFile8 } from "fs/promises";
+import { mkdir as mkdir10, readdir as readdir8, readFile as readFile10, rename as rename4, rm as rm4, stat as stat8, writeFile as writeFile10 } from "fs/promises";
 import { dirname as dirname62, join as join62, relative as relative4, resolve as resolve43 } from "path";
 import { execFile as execFile2 } from "child_process";
 import { resolve as resolve53 } from "path";
@@ -3273,24 +3273,24 @@ function validateScenarioPolicyManifest2(value) {
 function resolveMovScriptHomeDir3(options = {}) {
   const env = options.env ?? process.env;
   const explicit = stringValue20(env.MOVSCRIPT_HOME);
-  if (explicit) return resolve14(explicit);
+  if (explicit) return resolve16(explicit);
   const legacy = stringValue20(env.MOVSCRIPT_WORKSPACE_DIR);
-  if (legacy) return resolve14(legacy);
+  if (legacy) return resolve16(legacy);
   const userHomeDir = options.userHomeDir ?? homedir2();
   if ((options.platform ?? process.platform) === "win32") {
     const localAppData = stringValue20(env.LOCALAPPDATA) ?? pathWin322.join(userHomeDir, "AppData", "Local");
     return pathWin322.resolve(localAppData, "MovScript", "Home");
   }
-  return resolve14(userHomeDir, MOVSCRIPT_DEFAULT_HOME_DIR_NAME2);
+  return resolve16(userHomeDir, MOVSCRIPT_DEFAULT_HOME_DIR_NAME2);
 }
 function resolveRuntimeHomePaths2(homeDir = resolveMovScriptHomeDir3()) {
-  const runtimeDir = join14(homeDir, MOVSCRIPT_RUNTIME_DIR_NAME2);
+  const runtimeDir = join15(homeDir, MOVSCRIPT_RUNTIME_DIR_NAME2);
   return {
     homeDir,
     runtimeDir,
-    appsDir: join14(runtimeDir, MOVSCRIPT_RUNTIME_APPS_DIR_NAME2),
-    servicesDir: join14(runtimeDir, MOVSCRIPT_RUNTIME_SERVICES_DIR_NAME2),
-    endpointsDir: join14(runtimeDir, MOVSCRIPT_RUNTIME_ENDPOINTS_DIR_NAME2)
+    appsDir: join15(runtimeDir, MOVSCRIPT_RUNTIME_APPS_DIR_NAME2),
+    servicesDir: join15(runtimeDir, MOVSCRIPT_RUNTIME_SERVICES_DIR_NAME2),
+    endpointsDir: join15(runtimeDir, MOVSCRIPT_RUNTIME_ENDPOINTS_DIR_NAME2)
   };
 }
 function readRuntimeHomeSnapshot2(homeDir = resolveMovScriptHomeDir3()) {
@@ -3305,7 +3305,7 @@ function readRuntimeHomeSnapshot2(homeDir = resolveMovScriptHomeDir3()) {
 function writeRuntimeAppRecord2(homeDir, input3) {
   const paths = resolveRuntimeHomePaths2(homeDir);
   const now = (/* @__PURE__ */ new Date()).toISOString();
-  const path = join14(paths.appsDir, `${safeRecordFileName2(input3.applicationId)}.json`);
+  const path = join15(paths.appsDir, `${safeRecordFileName2(input3.applicationId)}.json`);
   writeJSONAtomic4(path, compactRecord5({
     applicationId: input3.applicationId,
     owner: input3.owner,
@@ -3327,8 +3327,8 @@ function writeRuntimeAppRecord2(homeDir, input3) {
 function writeRuntimeServiceRecord2(homeDir, input3) {
   const paths = resolveRuntimeHomePaths2(homeDir);
   const now = (/* @__PURE__ */ new Date()).toISOString();
-  const serviceDir = join14(paths.servicesDir, safeRecordFileName2(input3.serviceName));
-  const path = join14(serviceDir, `${safeRecordFileName2(input3.instanceId)}.json`);
+  const serviceDir = join15(paths.servicesDir, safeRecordFileName2(input3.serviceName));
+  const path = join15(serviceDir, `${safeRecordFileName2(input3.instanceId)}.json`);
   writeJSONAtomic4(path, compactRecord5({
     serviceName: input3.serviceName,
     instanceId: input3.instanceId,
@@ -3355,7 +3355,7 @@ function writeRuntimeEndpointRecord2(homeDir, input3) {
   const id = input3.serviceName ?? input3.applicationId ?? input3.instanceId;
   if (!id) throw new Error("Runtime endpoint record requires serviceName, applicationId, or instanceId");
   const now = (/* @__PURE__ */ new Date()).toISOString();
-  const path = join14(paths.endpointsDir, `${safeRecordFileName2(id)}.json`);
+  const path = join15(paths.endpointsDir, `${safeRecordFileName2(id)}.json`);
   writeJSONAtomic4(path, compactRecord5({
     ...input3,
     status: input3.status ?? "ready",
@@ -3437,7 +3437,7 @@ function staleRuntimeRecordReason2(record) {
 }
 function removeRuntimeRecordFile2(path) {
   rmSync4(path, { force: true });
-  pruneEmptyRuntimeRecordDir2(dirname13(path));
+  pruneEmptyRuntimeRecordDir2(dirname15(path));
 }
 function pruneEmptyRuntimeRecordDir2(dir) {
   if (safeReaddir2(dir).length > 0) return;
@@ -3468,7 +3468,7 @@ function readServiceRecords2(servicesDir) {
   if (!existsSync6(servicesDir)) return [];
   const records = [];
   for (const serviceName of safeReaddir2(servicesDir)) {
-    const serviceDir = join14(servicesDir, serviceName);
+    const serviceDir = join15(servicesDir, serviceName);
     for (const { path, value } of readJSONFiles2(serviceDir)) {
       const raw = asRecord2(value);
       if (!raw) continue;
@@ -3531,7 +3531,7 @@ function endpointRecordFrom2(value, path, defaults) {
 function readJSONFiles2(dir) {
   if (!existsSync6(dir)) return [];
   return safeReaddir2(dir).filter((name) => name.endsWith(".json")).map((name) => {
-    const path = join14(dir, name);
+    const path = join15(dir, name);
     return { path, value: readJSON5(path) };
   });
 }
@@ -12990,7 +12990,7 @@ function createNodeMovScriptWorkspaceFileRepository2(rootDir = process.cwd()) {
     async list(input3 = {}) {
       const path = normalizeWorkspacePath8(input3.path ?? "");
       const absolutePath = resolveWorkspacePath2(root, path);
-      const entries = await readdir7(absolutePath, { withFileTypes: true }).catch(() => []);
+      const entries = await readdir8(absolutePath, { withFileTypes: true }).catch(() => []);
       return {
         path,
         entries: entries.map((entry) => ({
@@ -13005,18 +13005,18 @@ function createNodeMovScriptWorkspaceFileRepository2(rootDir = process.cwd()) {
     async read(input3) {
       const path = normalizeWorkspacePath8(input3.path);
       const absolutePath = resolveWorkspacePath2(root, path);
-      const content = await readFile8(absolutePath, "utf8");
-      const fileStat = await stat7(absolutePath);
+      const content = await readFile10(absolutePath, "utf8");
+      const fileStat = await stat8(absolutePath);
       const version = fileVersion2(fileStat.mtimeMs, fileStat.size);
       return { path, content, size: content.length, updatedAt: fileStat.mtime.toISOString(), version };
     },
     async write(input3) {
       const path = normalizeWorkspacePath8(input3.path);
       const absolutePath = resolveWorkspacePath2(root, path);
-      await mkdir8(dirname62(absolutePath), { recursive: true });
+      await mkdir10(dirname62(absolutePath), { recursive: true });
       await assertExpectedFileVersion2(absolutePath, input3.expectedVersion);
       await writeTextFileAtomic2(absolutePath, input3.content);
-      const fileStat = await stat7(absolutePath);
+      const fileStat = await stat8(absolutePath);
       const version = fileVersion2(fileStat.mtimeMs, fileStat.size);
       return { path, content: input3.content, size: input3.content.length, updatedAt: fileStat.mtime.toISOString(), version };
     },
@@ -13044,7 +13044,7 @@ function resolveWorkspacePath2(root, path) {
 async function writeTextFileAtomic2(filePath, content) {
   const tmpPath = join62(dirname62(filePath), `.${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`);
   try {
-    await writeFile8(tmpPath, content, "utf8");
+    await writeFile10(tmpPath, content, "utf8");
     await rename4(tmpPath, filePath);
   } catch (error) {
     await rm4(tmpPath, { force: true }).catch(() => void 0);
@@ -13053,7 +13053,7 @@ async function writeTextFileAtomic2(filePath, content) {
 }
 async function assertExpectedFileVersion2(filePath, expectedVersion) {
   if (expectedVersion === void 0) return;
-  const fileStat = await stat7(filePath).catch((error) => {
+  const fileStat = await stat8(filePath).catch((error) => {
     if (isNotFoundError52(error)) return void 0;
     throw error;
   });
@@ -26594,7 +26594,9 @@ function withProductionEditingHandoff2(response, fallbackKind) {
   const workspaceId = stringValue24(workspace?.workspaceId ?? workspace?.workspace_id ?? response.workspaceId ?? response.workspace_id);
   const productionId = response.productionId ?? response.production_id ?? workspace?.productionId ?? workspace?.production_id;
   const mediaProjectId = workspace?.mediaEditingProjectProjectId ?? workspace?.media_editing_project_project_id ?? response.mediaProjectId ?? response.media_project_id ?? response.projectId ?? response.project_id;
-  const handoff = {
+  const responseHandoff = isRecord43(response.handoff) ? response.handoff : void 0;
+  const responseHandoffPreflight = isRecord43(response.handoffPreflight) ? response.handoffPreflight : isRecord43(response.handoff_preflight) ? response.handoff_preflight : void 0;
+  const handoff = responseHandoff ?? {
     fromSkill: "production-editing",
     from_skill: "production-editing",
     toSkill: kind === "remotion" ? "remotion" : "system_edit",
@@ -26621,7 +26623,7 @@ function withProductionEditingHandoff2(response, fallbackKind) {
       manifest_path: workspace?.manifestPath ?? workspace?.manifest_path
     }
   };
-  const handoffPreflight = {
+  const handoffPreflight = responseHandoffPreflight ?? {
     schema: "movscript.production_editing_handoff_preflight.v1",
     workspaceKind: kind,
     workspace_kind: kind,
@@ -35743,6 +35745,10 @@ async function handleLocalSurfaceGatewayRequest2(staticRoot, homeDir, request, r
     await handleDaemonMCPRequest2(homeDir, request, response, url);
     return true;
   }
+  if (url.pathname === REMOTION_STUDIO_SESSIONS_ENDPOINT2 || url.pathname.startsWith(`${REMOTION_STUDIO_SESSIONS_ENDPOINT2}/`)) {
+    await handleRemotionStudioSessionRequest2(request, response, url);
+    return true;
+  }
   if (projectServiceProxyUpstreamPath2(url.pathname)) {
     await proxyProjectServiceRequest2(homeDir, request, response, url);
     return true;
@@ -35800,7 +35806,7 @@ async function handleLocalSurfaceGatewayRequest2(staticRoot, homeDir, request, r
   return false;
 }
 function isGatewayAPIPath2(pathname) {
-  return pathname === "/api/v1" || pathname.startsWith("/api/v1/") || pathname === "/local-api/data" || pathname.startsWith("/local-api/data/") || pathname === "/local-api/canvas" || pathname.startsWith("/local-api/canvas/") || pathname === "/v1/canvas" || pathname.startsWith("/v1/canvas/") || pathname === DAEMON_CONTEXT_ENDPOINT2 || pathname === DAEMON_CONTEXT_SESSIONS_ENDPOINT2 || pathname.startsWith(`${DAEMON_CONTEXT_SESSIONS_ENDPOINT2}/`) || pathname === DAEMON_RUNTIME_DESCRIPTOR_ENDPOINT2 || pathname === DAEMON_RUNTIME_STATUS_ENDPOINT2 || pathname === DAEMON_RUNTIME_DIAGNOSTICS_ENDPOINT2 || pathname === DAEMON_RUNTIME_CONFIGURE_ENDPOINT2 || pathname === DAEMON_MCP_ENDPOINT2 || pathname === DAEMON_MCP_HEALTH_ENDPOINT2 || pathname === LEGACY_MCP_ENDPOINT2 || pathname === LOCAL_PROJECT_SERVICE_PROXY_PREFIX2 || pathname.startsWith(`${LOCAL_PROJECT_SERVICE_PROXY_PREFIX2}/`) || pathname === "/v1/editing" || pathname.startsWith("/v1/editing/") || pathname === "/v1/media-pipeline" || pathname.startsWith("/v1/media-pipeline/") || pathname === "/v1/host/editing" || pathname.startsWith("/v1/host/editing/") || pathname === "/local-api/editing" || pathname.startsWith("/local-api/editing/") || pathname === LOCAL_PROJECT_SERVICE_ALIAS_PREFIX2 || pathname.startsWith(`${LOCAL_PROJECT_SERVICE_ALIAS_PREFIX2}/`);
+  return pathname === "/api/v1" || pathname.startsWith("/api/v1/") || pathname === "/local-api/data" || pathname.startsWith("/local-api/data/") || pathname === "/local-api/canvas" || pathname.startsWith("/local-api/canvas/") || pathname === "/v1/canvas" || pathname.startsWith("/v1/canvas/") || pathname === DAEMON_CONTEXT_ENDPOINT2 || pathname === DAEMON_CONTEXT_SESSIONS_ENDPOINT2 || pathname.startsWith(`${DAEMON_CONTEXT_SESSIONS_ENDPOINT2}/`) || pathname === DAEMON_RUNTIME_DESCRIPTOR_ENDPOINT2 || pathname === DAEMON_RUNTIME_STATUS_ENDPOINT2 || pathname === DAEMON_RUNTIME_DIAGNOSTICS_ENDPOINT2 || pathname === DAEMON_RUNTIME_CONFIGURE_ENDPOINT2 || pathname === DAEMON_MCP_ENDPOINT2 || pathname === DAEMON_MCP_HEALTH_ENDPOINT2 || pathname === LEGACY_MCP_ENDPOINT2 || pathname === REMOTION_STUDIO_SESSIONS_ENDPOINT2 || pathname.startsWith(`${REMOTION_STUDIO_SESSIONS_ENDPOINT2}/`) || pathname === LOCAL_PROJECT_SERVICE_PROXY_PREFIX2 || pathname.startsWith(`${LOCAL_PROJECT_SERVICE_PROXY_PREFIX2}/`) || pathname === "/v1/editing" || pathname.startsWith("/v1/editing/") || pathname === "/v1/media-pipeline" || pathname.startsWith("/v1/media-pipeline/") || pathname === "/v1/host/editing" || pathname.startsWith("/v1/host/editing/") || pathname === "/local-api/editing" || pathname.startsWith("/local-api/editing/") || pathname === LOCAL_PROJECT_SERVICE_ALIAS_PREFIX2 || pathname.startsWith(`${LOCAL_PROJECT_SERVICE_ALIAS_PREFIX2}/`);
 }
 async function serveLocalSurfaceStaticFile2(staticRoot, request, response, url) {
   const filePath = resolveStaticFilePath2(staticRoot, url.pathname);
@@ -36539,6 +36545,351 @@ async function serveLocalSurfaceEditingMediaFile2(homeDir, request, response, ur
       message: errorMessage222(error)
     });
   }
+}
+async function handleRemotionStudioSessionRequest2(request, response, url) {
+  if (request.method !== "POST") {
+    writeLocalSurfaceJSON2(response, 405, {
+      error: "method_not_allowed",
+      message: "Remotion Studio session endpoints only support POST."
+    });
+    return;
+  }
+  try {
+    if (url.pathname === REMOTION_STUDIO_SESSION_OPEN_ENDPOINT2) {
+      const body = await readJSONRequestRecord2(request);
+      const session = await openRemotionStudioSession2(body);
+      writeLocalSurfaceJSON2(response, 200, remotionStudioSessionPayload2(session, { includeLogs: true }));
+      return;
+    }
+    if (url.pathname === REMOTION_STUDIO_SESSION_GET_ENDPOINT2) {
+      const body = await readJSONRequestRecord2(request);
+      const session = remotionStudioSessionByInput2(body);
+      if (!session) {
+        writeLocalSurfaceJSON2(response, 404, {
+          error: "remotion_studio_session_not_found",
+          message: "Remotion Studio session was not found."
+        });
+        return;
+      }
+      writeLocalSurfaceJSON2(response, 200, remotionStudioSessionPayload2(session, { includeLogs: true }));
+      return;
+    }
+    if (url.pathname === REMOTION_STUDIO_SESSION_LOGS_ENDPOINT2) {
+      const body = await readJSONRequestRecord2(request);
+      const session = remotionStudioSessionByInput2(body);
+      if (!session) {
+        writeLocalSurfaceJSON2(response, 404, {
+          error: "remotion_studio_session_not_found",
+          message: "Remotion Studio session was not found."
+        });
+        return;
+      }
+      const cursor = trimmedString22(body.cursor);
+      const logs = cursor ? session.logs.filter((entry) => Number(entry.cursor) > Number(cursor)) : session.logs;
+      writeLocalSurfaceJSON2(response, 200, {
+        schema: "movscript.remotion_studio_session_logs.v1",
+        sessionId: session.sessionId,
+        session_id: session.sessionId,
+        logs,
+        cursor: logs.at(-1)?.cursor ?? cursor ?? null
+      });
+      return;
+    }
+    if (url.pathname === REMOTION_STUDIO_SESSION_STOP_ENDPOINT2) {
+      const body = await readJSONRequestRecord2(request);
+      const session = remotionStudioSessionByInput2(body);
+      if (!session) {
+        writeLocalSurfaceJSON2(response, 404, {
+          error: "remotion_studio_session_not_found",
+          message: "Remotion Studio session was not found."
+        });
+        return;
+      }
+      stopRemotionStudioSession2(session, "user_stop");
+      writeLocalSurfaceJSON2(response, 200, remotionStudioSessionPayload2(session, { includeLogs: true }));
+      return;
+    }
+    writeLocalSurfaceJSON2(response, 404, {
+      error: "remotion_studio_endpoint_not_found",
+      message: `Unknown Remotion Studio session endpoint: ${url.pathname}`
+    });
+  } catch (error) {
+    writeLocalSurfaceJSON2(response, 400, {
+      error: "remotion_studio_session_request_failed",
+      message: errorMessage222(error)
+    });
+  }
+}
+async function openRemotionStudioSession2(body) {
+  const input3 = remotionStudioOpenInput2(body);
+  const workspaceId = trimmedString22(input3.workspaceId ?? input3.workspace_id);
+  const productionId = trimmedString22(input3.productionId ?? input3.production_id);
+  const projectDirectory = trimmedString22(input3.projectDirectory ?? input3.project_directory);
+  const entrypoint = trimmedString22(input3.entrypoint) ?? "src/Root.tsx";
+  const compositionId = trimmedString22(input3.compositionId ?? input3.composition_id);
+  const existing = reusableRemotionStudioSession2({ workspaceId, projectDirectory });
+  if (existing) return existing;
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const sessionId = [
+    workspaceId ?? "workspace",
+    "studio",
+    randomBytes2(5).toString("hex")
+  ].join(":");
+  const session = {
+    schema: "movscript.remotion_studio_session.v1",
+    sessionId,
+    session_id: sessionId,
+    ...workspaceId ? { workspaceId, workspace_id: workspaceId } : {},
+    ...productionId ? { productionId, production_id: productionId } : {},
+    status: "checking",
+    ...projectDirectory ? { projectDirectory, project_directory: projectDirectory } : {},
+    entrypoint,
+    ...compositionId ? { compositionId, composition_id: compositionId } : {},
+    startedAt: now,
+    started_at: now,
+    updatedAt: now,
+    updated_at: now,
+    logs: []
+  };
+  remotionStudioSessions2.set(sessionId, session);
+  appendRemotionStudioLog2(session, "system", "Checking Remotion Studio workspace.");
+  const blocker = remotionStudioWorkspaceBlocker2(projectDirectory, entrypoint);
+  if (blocker) {
+    blockRemotionStudioSession2(session, blocker);
+    return session;
+  }
+  const dependencyBlocker = remotionStudioDependencyBlocker2(projectDirectory);
+  if (dependencyBlocker) {
+    blockRemotionStudioSession2(session, dependencyBlocker);
+    return session;
+  }
+  const port = await reservePort2();
+  const previewUrl = `http://127.0.0.1:${port}`;
+  const command = remotionStudioCommand2(input3, projectDirectory, entrypoint, port);
+  session.port = port;
+  session.previewUrl = previewUrl;
+  session.preview_url = previewUrl;
+  session.command = command;
+  session.commandText = command.join(" ");
+  session.command_text = session.commandText;
+  session.status = "starting";
+  touchRemotionStudioSession2(session);
+  appendRemotionStudioLog2(session, "system", `Starting ${session.commandText}`);
+  const child = spawn52(command[0], command.slice(1), {
+    cwd: projectDirectory,
+    env: {
+      ...process.env,
+      BROWSER: "none",
+      NO_UPDATE_NOTIFIER: "1"
+    },
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  session.child = child;
+  child.stdout?.setEncoding("utf8");
+  child.stderr?.setEncoding("utf8");
+  child.stdout?.on("data", (chunk) => appendRemotionStudioLog2(session, "stdout", String(chunk)));
+  child.stderr?.on("data", (chunk) => appendRemotionStudioLog2(session, "stderr", String(chunk)));
+  child.once("error", (error) => {
+    failRemotionStudioSession2(session, "REMOTION_STUDIO_PROCESS_FAILED", errorMessage222(error));
+  });
+  child.once("exit", (code) => {
+    session.child = void 0;
+    session.exitCode = code;
+    session.exit_code = code;
+    if (session.status === "ready" || session.status === "stopped") {
+      stopRemotionStudioSession2(session, "process_exit");
+      return;
+    }
+    failRemotionStudioSession2(session, "REMOTION_STUDIO_PROCESS_FAILED", `Remotion Studio exited with code ${code ?? 0}.`);
+  });
+  void watchRemotionStudioReadiness2(session);
+  return session;
+}
+function remotionStudioOpenInput2(body) {
+  return recordFromUnknown2(body.openAction) ?? recordFromUnknown2(body.open_action) ?? recordFromUnknown2(body.input) ?? body;
+}
+function reusableRemotionStudioSession2(input3) {
+  for (const session of remotionStudioSessions2.values()) {
+    if (session.status !== "starting" && session.status !== "ready") continue;
+    if (input3.workspaceId && session.workspaceId === input3.workspaceId) return session;
+    if (input3.projectDirectory && session.projectDirectory === input3.projectDirectory) return session;
+  }
+  return void 0;
+}
+function remotionStudioSessionByInput2(input3) {
+  const sessionId = trimmedString22(input3.sessionId ?? input3.session_id);
+  if (sessionId) return remotionStudioSessions2.get(sessionId);
+  const workspaceId = trimmedString22(input3.workspaceId ?? input3.workspace_id);
+  const projectDirectory = trimmedString22(input3.projectDirectory ?? input3.project_directory);
+  return reusableRemotionStudioSession2({ workspaceId, projectDirectory });
+}
+function remotionStudioWorkspaceBlocker2(projectDirectory, entrypoint) {
+  if (!projectDirectory) {
+    return {
+      code: "REMOTION_PROJECT_DIRECTORY_MISSING",
+      message: "The Remotion workspace is missing projectDirectory."
+    };
+  }
+  if (!existsSync9(projectDirectory) || !statSync22(projectDirectory).isDirectory()) {
+    return {
+      code: "REMOTION_PROJECT_DIRECTORY_MISSING",
+      message: `The Remotion workspace directory was not found: ${projectDirectory}`,
+      projectDirectory,
+      project_directory: projectDirectory
+    };
+  }
+  const missing = [
+    "package.json",
+    entrypoint
+  ].filter((relativePath) => !existsSync9(resolve122(projectDirectory, ...relativePath.split("/"))));
+  if (missing.length > 0) {
+    return {
+      code: "REMOTION_PROJECT_FILES_MISSING",
+      message: `The Remotion workspace is missing required project files: ${missing.join(", ")}`,
+      projectDirectory,
+      project_directory: projectDirectory
+    };
+  }
+  return void 0;
+}
+function remotionStudioDependencyBlocker2(projectDirectory) {
+  const packageJsonPath = resolve122(projectDirectory, "package.json");
+  if (!existsSync9(packageJsonPath)) return void 0;
+  const remotionBinary = resolve122(projectDirectory, "node_modules", ".bin", process.platform === "win32" ? "remotion.cmd" : "remotion");
+  const remotionPackage = resolve122(projectDirectory, "node_modules", "remotion");
+  if (existsSync9(remotionBinary) || existsSync9(remotionPackage)) return void 0;
+  const installCommand = remotionStudioInstallCommand2(projectDirectory);
+  return {
+    code: "REMOTION_DEPENDENCIES_MISSING",
+    message: "Remotion workspace dependencies are not installed. Install dependencies before opening Studio.",
+    installCommand,
+    install_command: installCommand,
+    projectDirectory,
+    project_directory: projectDirectory
+  };
+}
+function remotionStudioInstallCommand2(projectDirectory) {
+  if (existsSync9(resolve122(projectDirectory, "pnpm-lock.yaml"))) return ["pnpm", "install"];
+  if (existsSync9(resolve122(projectDirectory, "yarn.lock"))) return ["yarn", "install"];
+  return ["npm", "install"];
+}
+function remotionStudioCommand2(input3, projectDirectory, entrypoint, port) {
+  const explicit = commandArrayValue2(input3.command) ?? commandArrayValue2(input3.previewCommand) ?? commandArrayValue2(input3.preview_command);
+  const base = explicit ?? defaultRemotionStudioCommand2(projectDirectory, entrypoint);
+  return appendRemotionStudioRuntimeFlags2(base, port);
+}
+function defaultRemotionStudioCommand2(projectDirectory, entrypoint) {
+  const packageJson = readPackageJSON2(projectDirectory);
+  if (packageJson?.scripts && typeof packageJson.scripts === "object" && "studio" in packageJson.scripts) {
+    if (existsSync9(resolve122(projectDirectory, "pnpm-lock.yaml"))) return ["pnpm", "run", "studio", "--"];
+    if (existsSync9(resolve122(projectDirectory, "yarn.lock"))) return ["yarn", "studio"];
+    return ["npm", "run", "studio", "--"];
+  }
+  if (existsSync9(resolve122(projectDirectory, "pnpm-lock.yaml"))) return ["pnpm", "exec", "remotion", "studio", entrypoint];
+  return ["npx", "remotion", "studio", entrypoint];
+}
+function readPackageJSON2(projectDirectory) {
+  try {
+    return recordFromUnknown2(JSON.parse(readFileSync11(resolve122(projectDirectory, "package.json"), "utf8")));
+  } catch {
+    return void 0;
+  }
+}
+function commandArrayValue2(value) {
+  if (Array.isArray(value)) {
+    const command = value.filter((item) => typeof item === "string" && item.trim()).map((item) => item.trim());
+    return command.length > 0 ? command : void 0;
+  }
+  return void 0;
+}
+function appendRemotionStudioRuntimeFlags2(command, port) {
+  const next = [...command];
+  if (!next.some((arg) => arg === "--port" || arg.startsWith("--port="))) {
+    next.push("--port", String(port));
+  }
+  if (!next.includes("--no-open")) next.push("--no-open");
+  return next;
+}
+async function watchRemotionStudioReadiness2(session) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < 12e4) {
+    if (session.status !== "starting") return;
+    if (session.child?.exitCode !== null && session.child?.exitCode !== void 0) return;
+    try {
+      const response = session.previewUrl ? await fetch(session.previewUrl) : void 0;
+      if (response?.ok) {
+        const now = (/* @__PURE__ */ new Date()).toISOString();
+        session.status = "ready";
+        session.readyAt = now;
+        session.ready_at = now;
+        touchRemotionStudioSession2(session);
+        appendRemotionStudioLog2(session, "system", `Remotion Studio is ready at ${session.previewUrl}.`);
+        return;
+      }
+    } catch {
+    }
+    await new Promise((resolvePoll) => setTimeout(resolvePoll, 500));
+  }
+  failRemotionStudioSession2(session, "REMOTION_STUDIO_READY_TIMEOUT", "Remotion Studio did not become ready before the startup timeout.");
+  session.child?.kill("SIGTERM");
+}
+function blockRemotionStudioSession2(session, blocker) {
+  session.status = "blocked";
+  session.blockers = [blocker];
+  touchRemotionStudioSession2(session);
+  appendRemotionStudioLog2(session, "system", blocker.message);
+}
+function failRemotionStudioSession2(session, code, message) {
+  if (session.status === "stopped") return;
+  session.status = "failed";
+  session.error = message;
+  session.blockers = [{
+    code,
+    message,
+    ...session.command ? { command: session.command } : {},
+    ...session.projectDirectory ? { projectDirectory: session.projectDirectory, project_directory: session.projectDirectory } : {}
+  }];
+  touchRemotionStudioSession2(session);
+  appendRemotionStudioLog2(session, "system", message);
+}
+function stopRemotionStudioSession2(session, reason) {
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  if (session.child && session.child.exitCode === null) session.child.kill("SIGTERM");
+  session.child = void 0;
+  session.status = "stopped";
+  session.stoppedAt = now;
+  session.stopped_at = now;
+  touchRemotionStudioSession2(session);
+  appendRemotionStudioLog2(session, "system", `Remotion Studio session stopped: ${reason}.`);
+}
+function touchRemotionStudioSession2(session) {
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  session.updatedAt = now;
+  session.updated_at = now;
+}
+function appendRemotionStudioLog2(session, stream, text) {
+  const chunks = text.split(/\r?\n/).filter((line, index, lines) => line || index < lines.length - 1);
+  for (const chunk of chunks.length ? chunks : [text]) {
+    session.logs.push({
+      cursor: String(++nextRemotionStudioLogCursor2),
+      at: (/* @__PURE__ */ new Date()).toISOString(),
+      stream,
+      text: chunk
+    });
+  }
+  if (session.logs.length > 500) session.logs.splice(0, session.logs.length - 500);
+}
+function remotionStudioSessionPayload2(session, options = {}) {
+  const { child: _child, logs, ...payload } = session;
+  return {
+    ...payload,
+    ...options.includeLogs ? { logs } : {}
+  };
+}
+async function readJSONRequestRecord2(request) {
+  const text = (await readRequestText2(request)).trim();
+  if (!text) return {};
+  return recordFromUnknown2(JSON.parse(text)) ?? {};
 }
 async function proxyCanvasServiceRequest2(homeDir, request, response, url, gatewayPrefix) {
   const baseURL = await waitForRuntimeServiceURL2(homeDir, CANVAS_SERVICE_NAME3);
@@ -37531,7 +37882,7 @@ function isDirectMovScriptCliInvocation() {
   if (["movscript", "movscript.cmd", "movscript.mjs"].includes(invokedName)) return true;
   return invokedName === "index.cjs" || invokedName === "index.js" || invokedName === "index.ts";
 }
-var BackendHTTPError2, MOVSCRIPT_DEFAULT_HOME_DIR_NAME2, MOVSCRIPT_RUNTIME_DIR_NAME2, MOVSCRIPT_RUNTIME_APPS_DIR_NAME2, MOVSCRIPT_RUNTIME_SERVICES_DIR_NAME2, MOVSCRIPT_RUNTIME_ENDPOINTS_DIR_NAME2, MOVSCRIPT_APPLICATION_MANIFEST_SCHEMA2, MOVSCRIPT_PROGRAM_MANIFEST_SCHEMA2, MOVSCRIPT_SCENARIO_POLICY_SCHEMA2, MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME3, MOVSCRIPT_WORKSPACE_CONFIG_TOML_FILE_NAME2, MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA3, MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME3, MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME2, MOVSCRIPT_WORKSPACE_BIN_DIR_NAME2, MOVSCRIPT_WORKSPACE_REALMS_DIR_NAME2, MOVSCRIPT_WORKSPACE_LOGS_DIR_NAME2, MOVSCRIPT_BACKEND_CONFIG_SCHEMA2, MOVSCRIPT_BACKEND_AUTH_SCHEMA2, MOVSCRIPT_BACKEND_CONFIG_FILE_NAME2, MOVSCRIPT_BACKEND_AUTH_FILE_NAME2, MOVSCRIPT_DEFAULT_BACKEND_BASE_URL2, workspaceLocator3, contentCandidateStatuses2, entityQuery2, inspectOptions2, projectLocator3, editingProjectInput2, projectLocator22, productionLocator2, workspaceLocator22, GENERATION_CAPABILITIES2, MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME22, MOVSCRIPT_WORKSPACE_CONFIG_TOML_FILE_NAME22, MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA22, MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME22, MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME22, MOVSCRIPT_WORKSPACE_BIN_DIR_NAME22, MOVSCRIPT_WORKSPACE_REALMS_DIR_NAME22, MOVSCRIPT_WORKSPACE_LOGS_DIR_NAME22, BackendHTTPError22, MOVSCRIPT_BACKEND_CONFIG_SCHEMA22, MOVSCRIPT_BACKEND_AUTH_SCHEMA22, MOVSCRIPT_BACKEND_CONFIG_FILE_NAME22, MOVSCRIPT_BACKEND_AUTH_FILE_NAME22, MOVSCRIPT_DEFAULT_BACKEND_BASE_URL22, MOVSCRIPT_TIMELINE_NAMESPACE_ENTITY_KINDS2, MOVSCRIPT_SETTING_NAMESPACE_ENTITY_KINDS2, MOVSCRIPT_SYSTEM_PRIMITIVE_KINDS2, TIMELINE_NAMESPACE_KINDS2, SETTING_NAMESPACE_KINDS2, SYSTEM_PRIMITIVE_KINDS2, MOVSCRIPT_SPECIALIZED_CONTENT_UNIT_TYPES2, CONTENT_UNIT_TARGET_ADAPTERS2, PROMPT_REF_KINDS2, MOVSCRIPT_EXPRESSION_UNIT_SLOT_KINDS2, SLOT_KIND_SET2, MOVSCRIPT_DOMAIN_PATH_SEMANTICS2, MOVSCRIPT_PRODUCTION_TYPE_TEMPLATES2, MOVSCRIPT_TIMELINE_NAMESPACE_TEMPLATES2, MOVSCRIPT_TIMELINE_NAMESPACE_TEMPLATE_STRATEGIES2, MOVSCRIPT_NAMESPACE_FORBIDDEN_CONTENT_UNIT_FIELDS2, MOVSCRIPT_NAMESPACE_FORBIDDEN_PRODUCTION_STATE_FIELDS2, ENTITY_KIND_FALLBACK_PREFIXES2, AGENT_SURFACE_ROUTES2, MOVSCRIPT_INTERPRET_CURRENT_DIR2, MOVSCRIPT_INTERPRET_MANIFESTS_DIR2, MOVSCRIPT_DOMAIN_TREE_PATH2, MOVSCRIPT_EDITOR_STATE_PATH2, MOVSCRIPT_DOMAIN_INDEX_PATH2, MOVSCRIPT_ASSET_INDEX_PATH2, MOVSCRIPT_RELATION_GRAPH_PATH2, MOVSCRIPT_SOURCE_COLLECTION_DIRS3, MOVSCRIPT_SOURCE_ROOT_FILES3, MOVSCRIPT_SOURCE_ENTITY_FILES2, WORKSPACE_ENTITY_KIND2, MOVSCRIPT_DOMAIN_WORKSPACE_MODELS2, ENTITY_WORKSPACE_KIND2, schemaEntityKinds2, RESOURCE_MENTION_RE2, RESOURCE_MEDIA_TYPES2, DEFAULT_SELECTION_FIELD2, CANDIDATE_SCHEMA2, assetPath2, PROMPT_REF_PATTERN4, MOVSCRIPT_PROJECT_STANDARD_SKILL_PATHS2, MOVSCRIPT_GITIGNORE_PATH2, MOVSCRIPT_INTERPRET_GITIGNORE_ENTRY2, MOVSCRIPT_LOCAL_CONTROL_GITIGNORE_ENTRY2, MOVSCRIPT_INTERPRET_GITIGNORE_BLOCK2, IMAGE_REFERENCE_ROLES2, VIDEO_REFERENCE_ROLES2, AUDIO_REFERENCE_ROLES2, DEFAULT_GENERATION_TOOLS_SETTINGS2, defaultFetch3, PROJECT_SERVICE_NAME3, PROJECT_SERVICE_CAPABILITIES_ENDPOINT2, PROJECT_SERVICE_SOURCE_SNAPSHOT_ENDPOINT2, PROJECT_SERVICE_SOURCE_INSPECT_ENDPOINT2, PROJECT_SERVICE_SOURCE_OVERVIEW_ENDPOINT2, PROJECT_SERVICE_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_HOME_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_CONTENT_CANVAS_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_SCRIPTS_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNITS_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_LOCATOR_RESOLVE_ENDPOINT2, PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT2, PROJECT_SERVICE_LIFECYCLE_COMMAND_ENDPOINT2, PROJECT_SERVICE_SOURCE_INTERPRET_ENDPOINT2, PROJECT_SERVICE_SOURCE_REGENERATION_PLAN_ENDPOINT2, PROJECT_SERVICE_SOURCE_PRODUCTION_WORK_PLAN_ENDPOINT2, PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT2, PROJECT_SERVICE_ENTITIES_QUERY_ENDPOINT2, PROJECT_SERVICE_SETTINGS_QUERY_ENDPOINT2, PROJECT_SERVICE_ASSETS_QUERY_ENDPOINT2, PROJECT_SERVICE_CONTENT_WORKSPACE_SNAPSHOT_ENDPOINT2, PROJECT_SERVICE_CONTENT_WORKSPACE_READ_ENDPOINT2, PROJECT_SERVICE_STANDARDS_UPSERT_ENDPOINT2, PROJECT_SERVICE_SCRIPT_SOURCE_READ_ENDPOINT2, PROJECT_SERVICE_SCRIPT_UPSERT_ENDPOINT2, PROJECT_SERVICE_SCRIPT_VERSION_SNAPSHOT_ENDPOINT2, PROJECT_SERVICE_SETTING_UPSERT_ENDPOINT2, PROJECT_SERVICE_SETTING_CREATE_ENDPOINT2, PROJECT_SERVICE_SETTING_STATE_CREATE_ENDPOINT2, PROJECT_SERVICE_ASSET_UPSERT_ENDPOINT2, PROJECT_SERVICE_ASSET_CREATE_ENDPOINT2, PROJECT_SERVICE_ASSET_PROVIDER_CERTIFICATION_PATCH_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_UPSERT_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_CREATE_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_ENSURE_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_LIST_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_CREATE_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_OPEN_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_DELETE_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_EDITING_RESOURCES_REFRESH_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_EDIT_PROMPT_UPDATE_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_CREATE_ENDPOINT2, PROJECT_SERVICE_SEGMENT_CREATE_ENDPOINT2, PROJECT_SERVICE_SCENE_MOMENT_CREATE_ENDPOINT2, PROJECT_SERVICE_EXPRESSION_UNIT_CREATE_ENDPOINT2, PROJECT_SERVICE_KEYFRAME_CREATE_ENDPOINT2, PROJECT_SERVICE_STORYBOARD_CREATE_ENDPOINT2, PROJECT_SERVICE_STORYBOARD_TIMELINE_UPDATE_ENDPOINT2, PROJECT_SERVICE_AUDIO_CUE_CREATE_ENDPOINT2, PROJECT_SERVICE_ENTITY_TRANSITION_UPDATE_ENDPOINT2, PROJECT_SERVICE_ENTITY_DELETE_ENDPOINT2, PROJECT_SERVICE_HIERARCHY_WRITE_ENDPOINT2, PROJECT_SERVICE_NAMESPACE_WRITE_ENDPOINT2, PROJECT_SERVICE_WORKSPACE_CANDIDATE_SELECT_ENDPOINT2, PROJECT_SERVICE_WORKSPACE_CANDIDATE_APPEND_ENDPOINT2, PROJECT_SERVICE_WORKSPACE_ASSET_SLOT_CANDIDATE_CREATE_ENDPOINT2, PROJECT_SERVICE_WORKSPACE_KEYFRAME_CANDIDATE_CREATE_ENDPOINT2, PROJECT_SERVICE_CONTENT_CANDIDATE_CREATE_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_SELECT_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT2, PROJECT_SERVICE_CANDIDATE_COMMAND_ENDPOINT2, PROJECT_SERVICE_CANDIDATE_VIEW_ENDPOINT2, PROJECT_SERVICE_PROMPT_CONTEXT_ENDPOINT2, ProjectServiceClient2, ProjectServiceHTTPError2, defaultFetch22, EDITING_SERVICE_NAME3, EDITING_SERVICE_CAPABILITIES_ENDPOINT2, EDITING_SERVICE_PROJECT_COMMAND_ENDPOINT2, EDITING_SERVICE_TIMELINE_VIEW_ENDPOINT2, EDITING_SERVICE_TASK_REQUEST_ENDPOINT2, EDITING_SERVICE_TASK_ACTION_ENDPOINT2, MEDIA_PIPELINE_SERVICE_NAME3, MEDIA_PIPELINE_CAPABILITIES_ENDPOINT2, MEDIA_PIPELINE_PROBE_ENDPOINT2, MEDIA_PIPELINE_TASK_CREATE_ENDPOINT2, MEDIA_PIPELINE_TASK_ACTION_ENDPOINT2, MEDIA_PIPELINE_RESULT_REGISTER_ENDPOINT2, MEDIA_PIPELINE_RESULT_GET_ENDPOINT2, MEDIA_PIPELINE_RESULT_LIST_ENDPOINT2, MEDIA_PIPELINE_RESULT_WATCH_CREATE_ENDPOINT2, MEDIA_PIPELINE_RESULT_WATCH_GET_ENDPOINT2, MEDIA_PIPELINE_RESULT_WATCH_LIST_ENDPOINT2, MEDIA_PIPELINE_RESULT_WATCH_CANCEL_ENDPOINT2, EditingServiceClient2, MediaPipelineServiceClient2, EditingServiceHTTPError2, MediaPipelineServiceHTTPError2, execFileAsync2, MOVSCRIPT_GIT_SOURCE_PATHS2, PROMPT_REF_PATTERN22, CONTENT_UNIT_ADAPTERS2, INTERPRETER_VERSION2, MOVSCRIPT_CHECKPOINT_DIR2, MOVSCRIPT_CHECKPOINT_CURRENT_SOURCE_DIR2, MOVSCRIPT_CHECKPOINT_CURRENT_MANIFEST_PATH2, FIELD_SEMANTIC_RULES2, sourceRefSchema2, transitionSchema2, projectEntitySchema2, projectStandardsEntitySchema2, settingEntitySchema2, settingStateEntitySchema2, assetEntitySchema2, scriptEntitySchema2, scriptVersionEntitySchema2, scriptBlockEntitySchema2, productionEntitySchema2, segmentEntitySchema2, sceneMomentEntitySchema2, storyboardEntitySchema2, audioCueEntitySchema2, expressionUnitEntitySchema2, contentUnitEntitySchema2, keyframeEntitySchema2, SEMANTIC_ENTITY_SCHEMA_REGISTRY2, SEMANTIC_ENTITY_SCHEMA_IDS2, SEMANTIC_ENTITY_KIND_VALUES2, PROMPT_REF_PATTERN32, NodeMovScriptEngineRegistry2, contextSnapshot2, contextAuthToken2, persistContextAuth2, movScriptDomainEngineRegistry2, configuredMCPDefaultWorkspaceDir2, ensuredProjectBindings2, ENSURED_PROJECT_BINDING_LIMIT2, RESOURCE_AGENT_ROUTES2, CONTENT_CANDIDATE_STATUSES2, TIMELINE_PRIMITIVE_SPECS2, focusResourceReaders2, projectResourceReaders2, DEFAULT_SCENE_THRESHOLD2, DEFAULT_MIN_SHOT_DURATION_SEC2, DEFAULT_MAX_SHOT_DURATION_SEC2, DEFAULT_TARGET_SHOT_DURATION_SEC2, DEFAULT_MAX_VIDEO_BYTES3, ABSOLUTE_MAX_VIDEO_BYTES3, shotLibraryResourceReaders2, resourceLibraryResourceReaders2, DEFAULT_MAX_IMAGE_BYTES2, ABSOLUTE_MAX_IMAGE_BYTES2, DEFAULT_MAX_IMAGE_WIDTH2, DEFAULT_MAX_IMAGE_HEIGHT2, ABSOLUTE_MAX_IMAGE_DIMENSION2, DEFAULT_MAX_UPLOAD_BYTES2, ABSOLUTE_MAX_UPLOAD_BYTES2, DEFAULT_MAX_VIDEO_BYTES22, ABSOLUTE_MAX_VIDEO_BYTES22, DEFAULT_VIDEO_FRAME_COUNT2, DEFAULT_VIDEO_FRAME_INTERVAL_SEC2, DEFAULT_MAX_WIDTH2, DEFAULT_MAX_FRAMES2, ABSOLUTE_MAX_VIDEO_FRAMES2, DEFAULT_RANGE_FPS2, MAX_FPS2, DEFAULT_BURST_WINDOW_SEC2, DEFAULT_ANNOTATION_WIDTH2, DEFAULT_ANNOTATION_HEIGHT2, resourceMediaResourceReaders2, externalResourceReaders2, resourceReaders2, currentEditingRuntimePort2, STANDALONE_EDITING_PROJECT_ID2, LOCATOR_KEYS2, generationCapabilities2, TERMINAL_STATUSES2, SUCCESS_STATUSES2, MCP_DEBUG3, MCP_DEBUG22, ApplicationRunner2, LOCAL_RUNTIME_DAEMON_APP_ID2, LOCAL_RUNTIME_DAEMON_CONTROL_SERVICE2, LOCAL_RUNTIME_DAEMON_GATEWAY_SERVICE2, REQUIRED_LOCAL_RUNTIME_DAEMON_SERVICES2, LOCAL_DATA_SERVICE2, LOCAL_RUNTIME_LOG_DIR_NAME2, LOCAL_RUNTIME_DAEMON_LOG_FILE2, DEFAULT_LOCAL_RUNTIME_LOG_MAX_BYTES2, DEFAULT_LOCAL_RUNTIME_LOG_RETAIN2, MOVSCRIPT_SOURCE_COLLECTION_DIRS22, MOVSCRIPT_SOURCE_ROOT_FILES22, LOCAL_NODE_GATEWAY_SERVICE5, LOCAL_NODE_CONTROL_SERVICE5, DEFAULT_LOCAL_BACKEND2, DATA_SERVICE3, PROJECT_SERVICE3, EDITING_SERVICE3, LOCAL_SURFACE_HOST_SERVICE3, MEDIA_PIPELINE_SERVICE3, RUNTIME_GATEWAY_SERVICE3, CLOUD_RUNTIME_GATEWAY_SERVICE3, EXTERNAL_RUNTIME_GATEWAY_SERVICE3, COMMAND_RUNNER_SERVICE2, runtimeCommandSpecs2, contextCommandSpecs2, adminCommandSpecs2, systemCommandSpecs2, domainCommandSpecs2, editingCommandSpecs2, productionEditingCommandSpecs2, workspaceCommandSpecs2, runtimeCommandByMCPToolName2, runtimeCommandById2, contextCommandByMCPToolName2, contextCommandById2, adminCommandByMCPToolName2, adminCommandById2, systemCommandByMCPToolName2, systemCommandById2, domainCommandByMCPToolName2, domainCommandById2, editingCommandByMCPToolName2, editingCommandById2, productionEditingCommandByMCPToolName2, productionEditingCommandById2, workspaceCommandByMCPToolName2, workspaceCommandById2, bindAdminBackendRuntime2, SEMANTIC_ENTITY_KINDS2, CONTENT_UNIT_OUTPUT_KINDS, INTERACTIVE_PROMPT, LOCAL_NODE_CONTROL_SERVICE23, adminTools3, contextTools22, domainTools22, editingTools22, productionEditingTools22, runtimeTools3, systemTools3, workspaceTools3, daemonMCPCommandTools3, daemonMCPRuntimeBootstrapToolNames3, daemonMCPRuntimeBootstrapTools3, MCP_HOST_DEBUG2, MCP_PROXY_TIMEOUT_MS2, LOCAL_NODE_CONTROL_SERVICE32, LOCAL_NODE_GATEWAY_SERVICE22, RUNTIME_GATEWAY_SERVICE22, CLOUD_RUNTIME_GATEWAY_SERVICE22, EXTERNAL_RUNTIME_GATEWAY_SERVICE22, DATA_SERVICE22, PROJECT_SERVICE22, EDITING_SERVICE22, LOCAL_SURFACE_HOST_SERVICE22, MEDIA_PIPELINE_SERVICE22, runtimeBootstrapToolNames2, runtimeBootstrapTools2, MCP_HOST_HTTP_DEBUG, LOCAL_NODE_CONTROL_SERVICE42, adminTools22, contextTools32, domainTools32, editingTools32, productionEditingTools32, runtimeTools22, systemTools22, workspaceTools22, daemonMCPCommandTools22, daemonMCPRuntimeBootstrapToolNames22, daemonMCPRuntimeBootstrapTools22, MEDIA_PIPELINE_SERVICE_NAME22, LOCAL_NODE_APP_ID2, LOCAL_NODE_CONTROL_SERVICE222, LOCAL_NODE_GATEWAY_SERVICE32, PROJECT_SERVICE_NAME22, EDITING_SERVICE_NAME22, CANVAS_SERVICE_NAME3, DATA_SERVICE_NAME3, DEFAULT_LOCAL_NODE_GATEWAY_PORT2, RUNTIME_ENDPOINT_WAIT_TIMEOUT_MS2, RUNTIME_ENDPOINT_WAIT_INTERVAL_MS2, DAEMON_RUNTIME_DESCRIPTOR_ENDPOINT2, DAEMON_RUNTIME_STATUS_ENDPOINT2, DAEMON_RUNTIME_DIAGNOSTICS_ENDPOINT2, DAEMON_RUNTIME_CONFIGURE_ENDPOINT2, DAEMON_MCP_ENDPOINT2, DAEMON_MCP_HEALTH_ENDPOINT2, LEGACY_MCP_ENDPOINT2, DAEMON_CONTEXT_ENDPOINT2, DAEMON_CONTEXT_SESSIONS_ENDPOINT2, LOCAL_PROJECT_SERVICE_PROXY_PREFIX2, LOCAL_PROJECT_SERVICE_ALIAS_PREFIX2, LOCAL_PROJECT_SERVICE_PROXY_ROUTES2, daemonContextSessions2, localNodeApplicationManifest2, localNodeStartupPolicy2, localNodeCloudDataStartupPolicy2, dataServiceProgramManifest2, localNodeControlProgramManifest2, projectServiceProgramManifest2, editingServiceProgramManifest2, canvasServiceProgramManifest2, localSurfaceHostProgramManifest2, mediaPipelineProgramManifest2;
+var BackendHTTPError2, MOVSCRIPT_DEFAULT_HOME_DIR_NAME2, MOVSCRIPT_RUNTIME_DIR_NAME2, MOVSCRIPT_RUNTIME_APPS_DIR_NAME2, MOVSCRIPT_RUNTIME_SERVICES_DIR_NAME2, MOVSCRIPT_RUNTIME_ENDPOINTS_DIR_NAME2, MOVSCRIPT_APPLICATION_MANIFEST_SCHEMA2, MOVSCRIPT_PROGRAM_MANIFEST_SCHEMA2, MOVSCRIPT_SCENARIO_POLICY_SCHEMA2, MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME3, MOVSCRIPT_WORKSPACE_CONFIG_TOML_FILE_NAME2, MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA3, MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME3, MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME2, MOVSCRIPT_WORKSPACE_BIN_DIR_NAME2, MOVSCRIPT_WORKSPACE_REALMS_DIR_NAME2, MOVSCRIPT_WORKSPACE_LOGS_DIR_NAME2, MOVSCRIPT_BACKEND_CONFIG_SCHEMA2, MOVSCRIPT_BACKEND_AUTH_SCHEMA2, MOVSCRIPT_BACKEND_CONFIG_FILE_NAME2, MOVSCRIPT_BACKEND_AUTH_FILE_NAME2, MOVSCRIPT_DEFAULT_BACKEND_BASE_URL2, workspaceLocator3, contentCandidateStatuses2, entityQuery2, inspectOptions2, projectLocator3, editingProjectInput2, projectLocator22, productionLocator2, workspaceLocator22, GENERATION_CAPABILITIES2, MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME22, MOVSCRIPT_WORKSPACE_CONFIG_TOML_FILE_NAME22, MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA22, MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME22, MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME22, MOVSCRIPT_WORKSPACE_BIN_DIR_NAME22, MOVSCRIPT_WORKSPACE_REALMS_DIR_NAME22, MOVSCRIPT_WORKSPACE_LOGS_DIR_NAME22, BackendHTTPError22, MOVSCRIPT_BACKEND_CONFIG_SCHEMA22, MOVSCRIPT_BACKEND_AUTH_SCHEMA22, MOVSCRIPT_BACKEND_CONFIG_FILE_NAME22, MOVSCRIPT_BACKEND_AUTH_FILE_NAME22, MOVSCRIPT_DEFAULT_BACKEND_BASE_URL22, MOVSCRIPT_TIMELINE_NAMESPACE_ENTITY_KINDS2, MOVSCRIPT_SETTING_NAMESPACE_ENTITY_KINDS2, MOVSCRIPT_SYSTEM_PRIMITIVE_KINDS2, TIMELINE_NAMESPACE_KINDS2, SETTING_NAMESPACE_KINDS2, SYSTEM_PRIMITIVE_KINDS2, MOVSCRIPT_SPECIALIZED_CONTENT_UNIT_TYPES2, CONTENT_UNIT_TARGET_ADAPTERS2, PROMPT_REF_KINDS2, MOVSCRIPT_EXPRESSION_UNIT_SLOT_KINDS2, SLOT_KIND_SET2, MOVSCRIPT_DOMAIN_PATH_SEMANTICS2, MOVSCRIPT_PRODUCTION_TYPE_TEMPLATES2, MOVSCRIPT_TIMELINE_NAMESPACE_TEMPLATES2, MOVSCRIPT_TIMELINE_NAMESPACE_TEMPLATE_STRATEGIES2, MOVSCRIPT_NAMESPACE_FORBIDDEN_CONTENT_UNIT_FIELDS2, MOVSCRIPT_NAMESPACE_FORBIDDEN_PRODUCTION_STATE_FIELDS2, ENTITY_KIND_FALLBACK_PREFIXES2, AGENT_SURFACE_ROUTES2, MOVSCRIPT_INTERPRET_CURRENT_DIR2, MOVSCRIPT_INTERPRET_MANIFESTS_DIR2, MOVSCRIPT_DOMAIN_TREE_PATH2, MOVSCRIPT_EDITOR_STATE_PATH2, MOVSCRIPT_DOMAIN_INDEX_PATH2, MOVSCRIPT_ASSET_INDEX_PATH2, MOVSCRIPT_RELATION_GRAPH_PATH2, MOVSCRIPT_SOURCE_COLLECTION_DIRS3, MOVSCRIPT_SOURCE_ROOT_FILES3, MOVSCRIPT_SOURCE_ENTITY_FILES2, WORKSPACE_ENTITY_KIND2, MOVSCRIPT_DOMAIN_WORKSPACE_MODELS2, ENTITY_WORKSPACE_KIND2, schemaEntityKinds2, RESOURCE_MENTION_RE2, RESOURCE_MEDIA_TYPES2, DEFAULT_SELECTION_FIELD2, CANDIDATE_SCHEMA2, assetPath2, PROMPT_REF_PATTERN4, MOVSCRIPT_PROJECT_STANDARD_SKILL_PATHS2, MOVSCRIPT_GITIGNORE_PATH2, MOVSCRIPT_INTERPRET_GITIGNORE_ENTRY2, MOVSCRIPT_LOCAL_CONTROL_GITIGNORE_ENTRY2, MOVSCRIPT_INTERPRET_GITIGNORE_BLOCK2, IMAGE_REFERENCE_ROLES2, VIDEO_REFERENCE_ROLES2, AUDIO_REFERENCE_ROLES2, DEFAULT_GENERATION_TOOLS_SETTINGS2, defaultFetch3, PROJECT_SERVICE_NAME3, PROJECT_SERVICE_CAPABILITIES_ENDPOINT2, PROJECT_SERVICE_SOURCE_SNAPSHOT_ENDPOINT2, PROJECT_SERVICE_SOURCE_INSPECT_ENDPOINT2, PROJECT_SERVICE_SOURCE_OVERVIEW_ENDPOINT2, PROJECT_SERVICE_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_HOME_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_CONTENT_CANVAS_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_SCRIPTS_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNITS_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_LOCATOR_RESOLVE_ENDPOINT2, PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT2, PROJECT_SERVICE_LIFECYCLE_COMMAND_ENDPOINT2, PROJECT_SERVICE_SOURCE_INTERPRET_ENDPOINT2, PROJECT_SERVICE_SOURCE_REGENERATION_PLAN_ENDPOINT2, PROJECT_SERVICE_SOURCE_PRODUCTION_WORK_PLAN_ENDPOINT2, PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT2, PROJECT_SERVICE_ENTITIES_QUERY_ENDPOINT2, PROJECT_SERVICE_SETTINGS_QUERY_ENDPOINT2, PROJECT_SERVICE_ASSETS_QUERY_ENDPOINT2, PROJECT_SERVICE_CONTENT_WORKSPACE_SNAPSHOT_ENDPOINT2, PROJECT_SERVICE_CONTENT_WORKSPACE_READ_ENDPOINT2, PROJECT_SERVICE_STANDARDS_UPSERT_ENDPOINT2, PROJECT_SERVICE_SCRIPT_SOURCE_READ_ENDPOINT2, PROJECT_SERVICE_SCRIPT_UPSERT_ENDPOINT2, PROJECT_SERVICE_SCRIPT_VERSION_SNAPSHOT_ENDPOINT2, PROJECT_SERVICE_SETTING_UPSERT_ENDPOINT2, PROJECT_SERVICE_SETTING_CREATE_ENDPOINT2, PROJECT_SERVICE_SETTING_STATE_CREATE_ENDPOINT2, PROJECT_SERVICE_ASSET_UPSERT_ENDPOINT2, PROJECT_SERVICE_ASSET_CREATE_ENDPOINT2, PROJECT_SERVICE_ASSET_PROVIDER_CERTIFICATION_PATCH_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_UPSERT_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_CREATE_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_ENSURE_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_LIST_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_CREATE_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_OPEN_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_DELETE_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_EDITING_RESOURCES_REFRESH_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_EDIT_PROMPT_UPDATE_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_CREATE_ENDPOINT2, PROJECT_SERVICE_SEGMENT_CREATE_ENDPOINT2, PROJECT_SERVICE_SCENE_MOMENT_CREATE_ENDPOINT2, PROJECT_SERVICE_EXPRESSION_UNIT_CREATE_ENDPOINT2, PROJECT_SERVICE_KEYFRAME_CREATE_ENDPOINT2, PROJECT_SERVICE_STORYBOARD_CREATE_ENDPOINT2, PROJECT_SERVICE_STORYBOARD_TIMELINE_UPDATE_ENDPOINT2, PROJECT_SERVICE_AUDIO_CUE_CREATE_ENDPOINT2, PROJECT_SERVICE_ENTITY_TRANSITION_UPDATE_ENDPOINT2, PROJECT_SERVICE_ENTITY_DELETE_ENDPOINT2, PROJECT_SERVICE_HIERARCHY_WRITE_ENDPOINT2, PROJECT_SERVICE_NAMESPACE_WRITE_ENDPOINT2, PROJECT_SERVICE_WORKSPACE_CANDIDATE_SELECT_ENDPOINT2, PROJECT_SERVICE_WORKSPACE_CANDIDATE_APPEND_ENDPOINT2, PROJECT_SERVICE_WORKSPACE_ASSET_SLOT_CANDIDATE_CREATE_ENDPOINT2, PROJECT_SERVICE_WORKSPACE_KEYFRAME_CANDIDATE_CREATE_ENDPOINT2, PROJECT_SERVICE_CONTENT_CANDIDATE_CREATE_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_SELECT_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT2, PROJECT_SERVICE_CANDIDATE_COMMAND_ENDPOINT2, PROJECT_SERVICE_CANDIDATE_VIEW_ENDPOINT2, PROJECT_SERVICE_PROMPT_CONTEXT_ENDPOINT2, ProjectServiceClient2, ProjectServiceHTTPError2, defaultFetch22, EDITING_SERVICE_NAME3, EDITING_SERVICE_CAPABILITIES_ENDPOINT2, EDITING_SERVICE_PROJECT_COMMAND_ENDPOINT2, EDITING_SERVICE_TIMELINE_VIEW_ENDPOINT2, EDITING_SERVICE_TASK_REQUEST_ENDPOINT2, EDITING_SERVICE_TASK_ACTION_ENDPOINT2, MEDIA_PIPELINE_SERVICE_NAME3, MEDIA_PIPELINE_CAPABILITIES_ENDPOINT2, MEDIA_PIPELINE_PROBE_ENDPOINT2, MEDIA_PIPELINE_TASK_CREATE_ENDPOINT2, MEDIA_PIPELINE_TASK_ACTION_ENDPOINT2, MEDIA_PIPELINE_RESULT_REGISTER_ENDPOINT2, MEDIA_PIPELINE_RESULT_GET_ENDPOINT2, MEDIA_PIPELINE_RESULT_LIST_ENDPOINT2, MEDIA_PIPELINE_RESULT_WATCH_CREATE_ENDPOINT2, MEDIA_PIPELINE_RESULT_WATCH_GET_ENDPOINT2, MEDIA_PIPELINE_RESULT_WATCH_LIST_ENDPOINT2, MEDIA_PIPELINE_RESULT_WATCH_CANCEL_ENDPOINT2, EditingServiceClient2, MediaPipelineServiceClient2, EditingServiceHTTPError2, MediaPipelineServiceHTTPError2, execFileAsync2, MOVSCRIPT_GIT_SOURCE_PATHS2, PROMPT_REF_PATTERN22, CONTENT_UNIT_ADAPTERS2, INTERPRETER_VERSION2, MOVSCRIPT_CHECKPOINT_DIR2, MOVSCRIPT_CHECKPOINT_CURRENT_SOURCE_DIR2, MOVSCRIPT_CHECKPOINT_CURRENT_MANIFEST_PATH2, FIELD_SEMANTIC_RULES2, sourceRefSchema2, transitionSchema2, projectEntitySchema2, projectStandardsEntitySchema2, settingEntitySchema2, settingStateEntitySchema2, assetEntitySchema2, scriptEntitySchema2, scriptVersionEntitySchema2, scriptBlockEntitySchema2, productionEntitySchema2, segmentEntitySchema2, sceneMomentEntitySchema2, storyboardEntitySchema2, audioCueEntitySchema2, expressionUnitEntitySchema2, contentUnitEntitySchema2, keyframeEntitySchema2, SEMANTIC_ENTITY_SCHEMA_REGISTRY2, SEMANTIC_ENTITY_SCHEMA_IDS2, SEMANTIC_ENTITY_KIND_VALUES2, PROMPT_REF_PATTERN32, NodeMovScriptEngineRegistry2, contextSnapshot2, contextAuthToken2, persistContextAuth2, movScriptDomainEngineRegistry2, configuredMCPDefaultWorkspaceDir2, ensuredProjectBindings2, ENSURED_PROJECT_BINDING_LIMIT2, RESOURCE_AGENT_ROUTES2, CONTENT_CANDIDATE_STATUSES2, TIMELINE_PRIMITIVE_SPECS2, focusResourceReaders2, projectResourceReaders2, DEFAULT_SCENE_THRESHOLD2, DEFAULT_MIN_SHOT_DURATION_SEC2, DEFAULT_MAX_SHOT_DURATION_SEC2, DEFAULT_TARGET_SHOT_DURATION_SEC2, DEFAULT_MAX_VIDEO_BYTES3, ABSOLUTE_MAX_VIDEO_BYTES3, shotLibraryResourceReaders2, resourceLibraryResourceReaders2, DEFAULT_MAX_IMAGE_BYTES2, ABSOLUTE_MAX_IMAGE_BYTES2, DEFAULT_MAX_IMAGE_WIDTH2, DEFAULT_MAX_IMAGE_HEIGHT2, ABSOLUTE_MAX_IMAGE_DIMENSION2, DEFAULT_MAX_UPLOAD_BYTES2, ABSOLUTE_MAX_UPLOAD_BYTES2, DEFAULT_MAX_VIDEO_BYTES22, ABSOLUTE_MAX_VIDEO_BYTES22, DEFAULT_VIDEO_FRAME_COUNT2, DEFAULT_VIDEO_FRAME_INTERVAL_SEC2, DEFAULT_MAX_WIDTH2, DEFAULT_MAX_FRAMES2, ABSOLUTE_MAX_VIDEO_FRAMES2, DEFAULT_RANGE_FPS2, MAX_FPS2, DEFAULT_BURST_WINDOW_SEC2, DEFAULT_ANNOTATION_WIDTH2, DEFAULT_ANNOTATION_HEIGHT2, resourceMediaResourceReaders2, externalResourceReaders2, resourceReaders2, currentEditingRuntimePort2, STANDALONE_EDITING_PROJECT_ID2, LOCATOR_KEYS2, generationCapabilities2, TERMINAL_STATUSES2, SUCCESS_STATUSES2, MCP_DEBUG3, MCP_DEBUG22, ApplicationRunner2, LOCAL_RUNTIME_DAEMON_APP_ID2, LOCAL_RUNTIME_DAEMON_CONTROL_SERVICE2, LOCAL_RUNTIME_DAEMON_GATEWAY_SERVICE2, REQUIRED_LOCAL_RUNTIME_DAEMON_SERVICES2, LOCAL_DATA_SERVICE2, LOCAL_RUNTIME_LOG_DIR_NAME2, LOCAL_RUNTIME_DAEMON_LOG_FILE2, DEFAULT_LOCAL_RUNTIME_LOG_MAX_BYTES2, DEFAULT_LOCAL_RUNTIME_LOG_RETAIN2, MOVSCRIPT_SOURCE_COLLECTION_DIRS22, MOVSCRIPT_SOURCE_ROOT_FILES22, LOCAL_NODE_GATEWAY_SERVICE5, LOCAL_NODE_CONTROL_SERVICE5, DEFAULT_LOCAL_BACKEND2, DATA_SERVICE3, PROJECT_SERVICE3, EDITING_SERVICE3, LOCAL_SURFACE_HOST_SERVICE3, MEDIA_PIPELINE_SERVICE3, RUNTIME_GATEWAY_SERVICE3, CLOUD_RUNTIME_GATEWAY_SERVICE3, EXTERNAL_RUNTIME_GATEWAY_SERVICE3, COMMAND_RUNNER_SERVICE2, runtimeCommandSpecs2, contextCommandSpecs2, adminCommandSpecs2, systemCommandSpecs2, domainCommandSpecs2, editingCommandSpecs2, productionEditingCommandSpecs2, workspaceCommandSpecs2, runtimeCommandByMCPToolName2, runtimeCommandById2, contextCommandByMCPToolName2, contextCommandById2, adminCommandByMCPToolName2, adminCommandById2, systemCommandByMCPToolName2, systemCommandById2, domainCommandByMCPToolName2, domainCommandById2, editingCommandByMCPToolName2, editingCommandById2, productionEditingCommandByMCPToolName2, productionEditingCommandById2, workspaceCommandByMCPToolName2, workspaceCommandById2, bindAdminBackendRuntime2, SEMANTIC_ENTITY_KINDS2, CONTENT_UNIT_OUTPUT_KINDS, INTERACTIVE_PROMPT, LOCAL_NODE_CONTROL_SERVICE23, adminTools3, contextTools22, domainTools22, editingTools22, productionEditingTools22, runtimeTools3, systemTools3, workspaceTools3, daemonMCPCommandTools3, daemonMCPRuntimeBootstrapToolNames3, daemonMCPRuntimeBootstrapTools3, MCP_HOST_DEBUG2, MCP_PROXY_TIMEOUT_MS2, LOCAL_NODE_CONTROL_SERVICE32, LOCAL_NODE_GATEWAY_SERVICE22, RUNTIME_GATEWAY_SERVICE22, CLOUD_RUNTIME_GATEWAY_SERVICE22, EXTERNAL_RUNTIME_GATEWAY_SERVICE22, DATA_SERVICE22, PROJECT_SERVICE22, EDITING_SERVICE22, LOCAL_SURFACE_HOST_SERVICE22, MEDIA_PIPELINE_SERVICE22, runtimeBootstrapToolNames2, runtimeBootstrapTools2, MCP_HOST_HTTP_DEBUG, LOCAL_NODE_CONTROL_SERVICE42, adminTools22, contextTools32, domainTools32, editingTools32, productionEditingTools32, runtimeTools22, systemTools22, workspaceTools22, daemonMCPCommandTools22, daemonMCPRuntimeBootstrapToolNames22, daemonMCPRuntimeBootstrapTools22, MEDIA_PIPELINE_SERVICE_NAME22, LOCAL_NODE_APP_ID2, LOCAL_NODE_CONTROL_SERVICE222, LOCAL_NODE_GATEWAY_SERVICE32, PROJECT_SERVICE_NAME22, EDITING_SERVICE_NAME22, CANVAS_SERVICE_NAME3, DATA_SERVICE_NAME3, DEFAULT_LOCAL_NODE_GATEWAY_PORT2, RUNTIME_ENDPOINT_WAIT_TIMEOUT_MS2, RUNTIME_ENDPOINT_WAIT_INTERVAL_MS2, DAEMON_RUNTIME_DESCRIPTOR_ENDPOINT2, DAEMON_RUNTIME_STATUS_ENDPOINT2, DAEMON_RUNTIME_DIAGNOSTICS_ENDPOINT2, DAEMON_RUNTIME_CONFIGURE_ENDPOINT2, DAEMON_MCP_ENDPOINT2, DAEMON_MCP_HEALTH_ENDPOINT2, LEGACY_MCP_ENDPOINT2, DAEMON_CONTEXT_ENDPOINT2, DAEMON_CONTEXT_SESSIONS_ENDPOINT2, REMOTION_STUDIO_SESSIONS_ENDPOINT2, REMOTION_STUDIO_SESSION_OPEN_ENDPOINT2, REMOTION_STUDIO_SESSION_GET_ENDPOINT2, REMOTION_STUDIO_SESSION_LOGS_ENDPOINT2, REMOTION_STUDIO_SESSION_STOP_ENDPOINT2, LOCAL_PROJECT_SERVICE_PROXY_PREFIX2, LOCAL_PROJECT_SERVICE_ALIAS_PREFIX2, LOCAL_PROJECT_SERVICE_PROXY_ROUTES2, daemonContextSessions2, remotionStudioSessions2, nextRemotionStudioLogCursor2, localNodeApplicationManifest2, localNodeStartupPolicy2, localNodeCloudDataStartupPolicy2, dataServiceProgramManifest2, localNodeControlProgramManifest2, projectServiceProgramManifest2, editingServiceProgramManifest2, canvasServiceProgramManifest2, localSurfaceHostProgramManifest2, mediaPipelineProgramManifest2;
 var init_dist = __esm({
   "../cli/dist/index.js"() {
     "use strict";
@@ -41708,6 +42059,11 @@ ${programValidation.errors.join("\n")}`);
     LEGACY_MCP_ENDPOINT2 = "/mcp";
     DAEMON_CONTEXT_ENDPOINT2 = "/v1/context";
     DAEMON_CONTEXT_SESSIONS_ENDPOINT2 = "/v1/context/sessions";
+    REMOTION_STUDIO_SESSIONS_ENDPOINT2 = "/v1/remotion-studio/sessions";
+    REMOTION_STUDIO_SESSION_OPEN_ENDPOINT2 = "/v1/remotion-studio/sessions/open";
+    REMOTION_STUDIO_SESSION_GET_ENDPOINT2 = "/v1/remotion-studio/sessions/get";
+    REMOTION_STUDIO_SESSION_LOGS_ENDPOINT2 = "/v1/remotion-studio/sessions/logs";
+    REMOTION_STUDIO_SESSION_STOP_ENDPOINT2 = "/v1/remotion-studio/sessions/stop";
     LOCAL_PROJECT_SERVICE_PROXY_PREFIX2 = "/v1/project";
     LOCAL_PROJECT_SERVICE_ALIAS_PREFIX2 = "/local-api/project";
     LOCAL_PROJECT_SERVICE_PROXY_ROUTES2 = /* @__PURE__ */ new Map([
@@ -41847,6 +42203,8 @@ ${programValidation.errors.join("\n")}`);
       ["/local-api/project/prompt/context", "/v1/project/prompt/context"]
     ]);
     daemonContextSessions2 = /* @__PURE__ */ new Map();
+    remotionStudioSessions2 = /* @__PURE__ */ new Map();
+    nextRemotionStudioLogCursor2 = 0;
     localNodeApplicationManifest2 = {
       schema: MOVSCRIPT_APPLICATION_MANIFEST_SCHEMA2,
       applicationId: LOCAL_NODE_APP_ID2,
@@ -41975,7 +42333,7 @@ ${programValidation.errors.join("\n")}`);
 
 // src/agent-mcp.ts
 import { existsSync as existsSync11, lstatSync, readFileSync as readFileSync13, readlinkSync, realpathSync, renameSync as renameSync6, rmSync as rmSync5, symlinkSync, writeFileSync as writeFileSync7 } from "fs";
-import { basename as basename10, isAbsolute as isAbsolute4, resolve as resolve15 } from "path";
+import { basename as basename10, isAbsolute as isAbsolute4, resolve as resolve17 } from "path";
 
 // ../../packages/runtime-contracts/dist/index.js
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "fs";
@@ -51273,7 +51631,7 @@ function pruneUndefined12(value) {
   return output3;
 }
 
-// ../../packages/core/dist/chunk-VCBAQ5O5.js
+// ../../packages/core/dist/chunk-WH3TXT2O.js
 var IMAGE_REFERENCE_ROLES = /* @__PURE__ */ new Set([
   "generic",
   "reference_image",
@@ -69189,7 +69547,9 @@ function withProductionEditingHandoff(response, fallbackKind) {
   const workspaceId = stringValue2(workspace?.workspaceId ?? workspace?.workspace_id ?? response.workspaceId ?? response.workspace_id);
   const productionId = response.productionId ?? response.production_id ?? workspace?.productionId ?? workspace?.production_id;
   const mediaProjectId = workspace?.mediaEditingProjectProjectId ?? workspace?.media_editing_project_project_id ?? response.mediaProjectId ?? response.media_project_id ?? response.projectId ?? response.project_id;
-  const handoff = {
+  const responseHandoff = isRecord4(response.handoff) ? response.handoff : void 0;
+  const responseHandoffPreflight = isRecord4(response.handoffPreflight) ? response.handoffPreflight : isRecord4(response.handoff_preflight) ? response.handoff_preflight : void 0;
+  const handoff = responseHandoff ?? {
     fromSkill: "production-editing",
     from_skill: "production-editing",
     toSkill: kind === "remotion" ? "remotion" : "system_edit",
@@ -69216,7 +69576,7 @@ function withProductionEditingHandoff(response, fallbackKind) {
       manifest_path: workspace?.manifestPath ?? workspace?.manifest_path
     }
   };
-  const handoffPreflight = {
+  const handoffPreflight = responseHandoffPreflight ?? {
     schema: "movscript.production_editing_handoff_preflight.v1",
     workspaceKind: kind,
     workspace_kind: kind,
@@ -76110,6 +76470,11 @@ var DAEMON_MCP_HEALTH_ENDPOINT = "/v1/mcp/health";
 var LEGACY_MCP_ENDPOINT = "/mcp";
 var DAEMON_CONTEXT_ENDPOINT = "/v1/context";
 var DAEMON_CONTEXT_SESSIONS_ENDPOINT = "/v1/context/sessions";
+var REMOTION_STUDIO_SESSIONS_ENDPOINT = "/v1/remotion-studio/sessions";
+var REMOTION_STUDIO_SESSION_OPEN_ENDPOINT = "/v1/remotion-studio/sessions/open";
+var REMOTION_STUDIO_SESSION_GET_ENDPOINT = "/v1/remotion-studio/sessions/get";
+var REMOTION_STUDIO_SESSION_LOGS_ENDPOINT = "/v1/remotion-studio/sessions/logs";
+var REMOTION_STUDIO_SESSION_STOP_ENDPOINT = "/v1/remotion-studio/sessions/stop";
 var LOCAL_PROJECT_SERVICE_PROXY_PREFIX = "/v1/project";
 var LOCAL_PROJECT_SERVICE_ALIAS_PREFIX = "/local-api/project";
 var LOCAL_PROJECT_SERVICE_PROXY_ROUTES = /* @__PURE__ */ new Map([
@@ -76249,6 +76614,8 @@ var LOCAL_PROJECT_SERVICE_PROXY_ROUTES = /* @__PURE__ */ new Map([
   ["/local-api/project/prompt/context", "/v1/project/prompt/context"]
 ]);
 var daemonContextSessions = /* @__PURE__ */ new Map();
+var remotionStudioSessions = /* @__PURE__ */ new Map();
+var nextRemotionStudioLogCursor = 0;
 function resolveLocalDaemonServicePlanePaths(options = {}) {
   const repoRoot = options.repoRoot ? resolve8(options.repoRoot) : resolve8(process.env.MOVSCRIPT_REPO_ROOT ?? process.cwd());
   const bundleRoot = options.bundleRoot ? resolve8(options.bundleRoot) : repoRoot;
@@ -76814,6 +77181,10 @@ async function handleLocalSurfaceGatewayRequest(staticRoot, homeDir, request, re
     await handleDaemonMCPRequest(homeDir, request, response, url);
     return true;
   }
+  if (url.pathname === REMOTION_STUDIO_SESSIONS_ENDPOINT || url.pathname.startsWith(`${REMOTION_STUDIO_SESSIONS_ENDPOINT}/`)) {
+    await handleRemotionStudioSessionRequest(request, response, url);
+    return true;
+  }
   if (projectServiceProxyUpstreamPath(url.pathname)) {
     await proxyProjectServiceRequest(homeDir, request, response, url);
     return true;
@@ -76871,7 +77242,7 @@ async function handleLocalSurfaceGatewayRequest(staticRoot, homeDir, request, re
   return false;
 }
 function isGatewayAPIPath(pathname) {
-  return pathname === "/api/v1" || pathname.startsWith("/api/v1/") || pathname === "/local-api/data" || pathname.startsWith("/local-api/data/") || pathname === "/local-api/canvas" || pathname.startsWith("/local-api/canvas/") || pathname === "/v1/canvas" || pathname.startsWith("/v1/canvas/") || pathname === DAEMON_CONTEXT_ENDPOINT || pathname === DAEMON_CONTEXT_SESSIONS_ENDPOINT || pathname.startsWith(`${DAEMON_CONTEXT_SESSIONS_ENDPOINT}/`) || pathname === DAEMON_RUNTIME_DESCRIPTOR_ENDPOINT || pathname === DAEMON_RUNTIME_STATUS_ENDPOINT || pathname === DAEMON_RUNTIME_DIAGNOSTICS_ENDPOINT || pathname === DAEMON_RUNTIME_CONFIGURE_ENDPOINT || pathname === DAEMON_MCP_ENDPOINT || pathname === DAEMON_MCP_HEALTH_ENDPOINT || pathname === LEGACY_MCP_ENDPOINT || pathname === LOCAL_PROJECT_SERVICE_PROXY_PREFIX || pathname.startsWith(`${LOCAL_PROJECT_SERVICE_PROXY_PREFIX}/`) || pathname === "/v1/editing" || pathname.startsWith("/v1/editing/") || pathname === "/v1/media-pipeline" || pathname.startsWith("/v1/media-pipeline/") || pathname === "/v1/host/editing" || pathname.startsWith("/v1/host/editing/") || pathname === "/local-api/editing" || pathname.startsWith("/local-api/editing/") || pathname === LOCAL_PROJECT_SERVICE_ALIAS_PREFIX || pathname.startsWith(`${LOCAL_PROJECT_SERVICE_ALIAS_PREFIX}/`);
+  return pathname === "/api/v1" || pathname.startsWith("/api/v1/") || pathname === "/local-api/data" || pathname.startsWith("/local-api/data/") || pathname === "/local-api/canvas" || pathname.startsWith("/local-api/canvas/") || pathname === "/v1/canvas" || pathname.startsWith("/v1/canvas/") || pathname === DAEMON_CONTEXT_ENDPOINT || pathname === DAEMON_CONTEXT_SESSIONS_ENDPOINT || pathname.startsWith(`${DAEMON_CONTEXT_SESSIONS_ENDPOINT}/`) || pathname === DAEMON_RUNTIME_DESCRIPTOR_ENDPOINT || pathname === DAEMON_RUNTIME_STATUS_ENDPOINT || pathname === DAEMON_RUNTIME_DIAGNOSTICS_ENDPOINT || pathname === DAEMON_RUNTIME_CONFIGURE_ENDPOINT || pathname === DAEMON_MCP_ENDPOINT || pathname === DAEMON_MCP_HEALTH_ENDPOINT || pathname === LEGACY_MCP_ENDPOINT || pathname === REMOTION_STUDIO_SESSIONS_ENDPOINT || pathname.startsWith(`${REMOTION_STUDIO_SESSIONS_ENDPOINT}/`) || pathname === LOCAL_PROJECT_SERVICE_PROXY_PREFIX || pathname.startsWith(`${LOCAL_PROJECT_SERVICE_PROXY_PREFIX}/`) || pathname === "/v1/editing" || pathname.startsWith("/v1/editing/") || pathname === "/v1/media-pipeline" || pathname.startsWith("/v1/media-pipeline/") || pathname === "/v1/host/editing" || pathname.startsWith("/v1/host/editing/") || pathname === "/local-api/editing" || pathname.startsWith("/local-api/editing/") || pathname === LOCAL_PROJECT_SERVICE_ALIAS_PREFIX || pathname.startsWith(`${LOCAL_PROJECT_SERVICE_ALIAS_PREFIX}/`);
 }
 async function serveLocalSurfaceStaticFile(staticRoot, request, response, url) {
   const filePath = resolveStaticFilePath(staticRoot, url.pathname);
@@ -77569,15 +77940,15 @@ async function serveLocalSurfaceEditingMediaFile(homeDir, request, response, url
       });
       return;
     }
-    const stat8 = statSync2(filePath);
-    if (!stat8.isFile()) {
+    const stat9 = statSync2(filePath);
+    if (!stat9.isFile()) {
       writeLocalSurfaceJSON(response, 404, {
         error: "editing_media_file_not_found",
         message: "Imported editing media path is not a file."
       });
       return;
     }
-    const range = parseRangeHeader(request.headers.range, stat8.size);
+    const range = parseRangeHeader(request.headers.range, stat9.size);
     const headers = {
       "accept-ranges": "bytes",
       "content-type": contentType(filePath)
@@ -77586,7 +77957,7 @@ async function serveLocalSurfaceEditingMediaFile(homeDir, request, response, url
       response.writeHead(206, {
         ...headers,
         "content-length": String(range.end - range.start + 1),
-        "content-range": `bytes ${range.start}-${range.end}/${stat8.size}`
+        "content-range": `bytes ${range.start}-${range.end}/${stat9.size}`
       });
       if (request.method === "HEAD") {
         response.end();
@@ -77597,7 +77968,7 @@ async function serveLocalSurfaceEditingMediaFile(homeDir, request, response, url
     }
     response.writeHead(200, {
       ...headers,
-      "content-length": String(stat8.size)
+      "content-length": String(stat9.size)
     });
     if (request.method === "HEAD") {
       response.end();
@@ -77610,6 +77981,351 @@ async function serveLocalSurfaceEditingMediaFile(homeDir, request, response, url
       message: errorMessage22(error)
     });
   }
+}
+async function handleRemotionStudioSessionRequest(request, response, url) {
+  if (request.method !== "POST") {
+    writeLocalSurfaceJSON(response, 405, {
+      error: "method_not_allowed",
+      message: "Remotion Studio session endpoints only support POST."
+    });
+    return;
+  }
+  try {
+    if (url.pathname === REMOTION_STUDIO_SESSION_OPEN_ENDPOINT) {
+      const body = await readJSONRequestRecord(request);
+      const session = await openRemotionStudioSession(body);
+      writeLocalSurfaceJSON(response, 200, remotionStudioSessionPayload(session, { includeLogs: true }));
+      return;
+    }
+    if (url.pathname === REMOTION_STUDIO_SESSION_GET_ENDPOINT) {
+      const body = await readJSONRequestRecord(request);
+      const session = remotionStudioSessionByInput(body);
+      if (!session) {
+        writeLocalSurfaceJSON(response, 404, {
+          error: "remotion_studio_session_not_found",
+          message: "Remotion Studio session was not found."
+        });
+        return;
+      }
+      writeLocalSurfaceJSON(response, 200, remotionStudioSessionPayload(session, { includeLogs: true }));
+      return;
+    }
+    if (url.pathname === REMOTION_STUDIO_SESSION_LOGS_ENDPOINT) {
+      const body = await readJSONRequestRecord(request);
+      const session = remotionStudioSessionByInput(body);
+      if (!session) {
+        writeLocalSurfaceJSON(response, 404, {
+          error: "remotion_studio_session_not_found",
+          message: "Remotion Studio session was not found."
+        });
+        return;
+      }
+      const cursor = trimmedString2(body.cursor);
+      const logs = cursor ? session.logs.filter((entry) => Number(entry.cursor) > Number(cursor)) : session.logs;
+      writeLocalSurfaceJSON(response, 200, {
+        schema: "movscript.remotion_studio_session_logs.v1",
+        sessionId: session.sessionId,
+        session_id: session.sessionId,
+        logs,
+        cursor: logs.at(-1)?.cursor ?? cursor ?? null
+      });
+      return;
+    }
+    if (url.pathname === REMOTION_STUDIO_SESSION_STOP_ENDPOINT) {
+      const body = await readJSONRequestRecord(request);
+      const session = remotionStudioSessionByInput(body);
+      if (!session) {
+        writeLocalSurfaceJSON(response, 404, {
+          error: "remotion_studio_session_not_found",
+          message: "Remotion Studio session was not found."
+        });
+        return;
+      }
+      stopRemotionStudioSession(session, "user_stop");
+      writeLocalSurfaceJSON(response, 200, remotionStudioSessionPayload(session, { includeLogs: true }));
+      return;
+    }
+    writeLocalSurfaceJSON(response, 404, {
+      error: "remotion_studio_endpoint_not_found",
+      message: `Unknown Remotion Studio session endpoint: ${url.pathname}`
+    });
+  } catch (error) {
+    writeLocalSurfaceJSON(response, 400, {
+      error: "remotion_studio_session_request_failed",
+      message: errorMessage22(error)
+    });
+  }
+}
+async function openRemotionStudioSession(body) {
+  const input3 = remotionStudioOpenInput(body);
+  const workspaceId = trimmedString2(input3.workspaceId ?? input3.workspace_id);
+  const productionId = trimmedString2(input3.productionId ?? input3.production_id);
+  const projectDirectory = trimmedString2(input3.projectDirectory ?? input3.project_directory);
+  const entrypoint = trimmedString2(input3.entrypoint) ?? "src/Root.tsx";
+  const compositionId = trimmedString2(input3.compositionId ?? input3.composition_id);
+  const existing = reusableRemotionStudioSession({ workspaceId, projectDirectory });
+  if (existing) return existing;
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const sessionId = [
+    workspaceId ?? "workspace",
+    "studio",
+    randomBytes(5).toString("hex")
+  ].join(":");
+  const session = {
+    schema: "movscript.remotion_studio_session.v1",
+    sessionId,
+    session_id: sessionId,
+    ...workspaceId ? { workspaceId, workspace_id: workspaceId } : {},
+    ...productionId ? { productionId, production_id: productionId } : {},
+    status: "checking",
+    ...projectDirectory ? { projectDirectory, project_directory: projectDirectory } : {},
+    entrypoint,
+    ...compositionId ? { compositionId, composition_id: compositionId } : {},
+    startedAt: now,
+    started_at: now,
+    updatedAt: now,
+    updated_at: now,
+    logs: []
+  };
+  remotionStudioSessions.set(sessionId, session);
+  appendRemotionStudioLog(session, "system", "Checking Remotion Studio workspace.");
+  const blocker = remotionStudioWorkspaceBlocker(projectDirectory, entrypoint);
+  if (blocker) {
+    blockRemotionStudioSession(session, blocker);
+    return session;
+  }
+  const dependencyBlocker = remotionStudioDependencyBlocker(projectDirectory);
+  if (dependencyBlocker) {
+    blockRemotionStudioSession(session, dependencyBlocker);
+    return session;
+  }
+  const port = await reservePort();
+  const previewUrl = `http://127.0.0.1:${port}`;
+  const command = remotionStudioCommand(input3, projectDirectory, entrypoint, port);
+  session.port = port;
+  session.previewUrl = previewUrl;
+  session.preview_url = previewUrl;
+  session.command = command;
+  session.commandText = command.join(" ");
+  session.command_text = session.commandText;
+  session.status = "starting";
+  touchRemotionStudioSession(session);
+  appendRemotionStudioLog(session, "system", `Starting ${session.commandText}`);
+  const child = spawn5(command[0], command.slice(1), {
+    cwd: projectDirectory,
+    env: {
+      ...process.env,
+      BROWSER: "none",
+      NO_UPDATE_NOTIFIER: "1"
+    },
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  session.child = child;
+  child.stdout?.setEncoding("utf8");
+  child.stderr?.setEncoding("utf8");
+  child.stdout?.on("data", (chunk) => appendRemotionStudioLog(session, "stdout", String(chunk)));
+  child.stderr?.on("data", (chunk) => appendRemotionStudioLog(session, "stderr", String(chunk)));
+  child.once("error", (error) => {
+    failRemotionStudioSession(session, "REMOTION_STUDIO_PROCESS_FAILED", errorMessage22(error));
+  });
+  child.once("exit", (code) => {
+    session.child = void 0;
+    session.exitCode = code;
+    session.exit_code = code;
+    if (session.status === "ready" || session.status === "stopped") {
+      stopRemotionStudioSession(session, "process_exit");
+      return;
+    }
+    failRemotionStudioSession(session, "REMOTION_STUDIO_PROCESS_FAILED", `Remotion Studio exited with code ${code ?? 0}.`);
+  });
+  void watchRemotionStudioReadiness(session);
+  return session;
+}
+function remotionStudioOpenInput(body) {
+  return recordFromUnknown(body.openAction) ?? recordFromUnknown(body.open_action) ?? recordFromUnknown(body.input) ?? body;
+}
+function reusableRemotionStudioSession(input3) {
+  for (const session of remotionStudioSessions.values()) {
+    if (session.status !== "starting" && session.status !== "ready") continue;
+    if (input3.workspaceId && session.workspaceId === input3.workspaceId) return session;
+    if (input3.projectDirectory && session.projectDirectory === input3.projectDirectory) return session;
+  }
+  return void 0;
+}
+function remotionStudioSessionByInput(input3) {
+  const sessionId = trimmedString2(input3.sessionId ?? input3.session_id);
+  if (sessionId) return remotionStudioSessions.get(sessionId);
+  const workspaceId = trimmedString2(input3.workspaceId ?? input3.workspace_id);
+  const projectDirectory = trimmedString2(input3.projectDirectory ?? input3.project_directory);
+  return reusableRemotionStudioSession({ workspaceId, projectDirectory });
+}
+function remotionStudioWorkspaceBlocker(projectDirectory, entrypoint) {
+  if (!projectDirectory) {
+    return {
+      code: "REMOTION_PROJECT_DIRECTORY_MISSING",
+      message: "The Remotion workspace is missing projectDirectory."
+    };
+  }
+  if (!existsSync5(projectDirectory) || !statSync2(projectDirectory).isDirectory()) {
+    return {
+      code: "REMOTION_PROJECT_DIRECTORY_MISSING",
+      message: `The Remotion workspace directory was not found: ${projectDirectory}`,
+      projectDirectory,
+      project_directory: projectDirectory
+    };
+  }
+  const missing = [
+    "package.json",
+    entrypoint
+  ].filter((relativePath) => !existsSync5(resolve8(projectDirectory, ...relativePath.split("/"))));
+  if (missing.length > 0) {
+    return {
+      code: "REMOTION_PROJECT_FILES_MISSING",
+      message: `The Remotion workspace is missing required project files: ${missing.join(", ")}`,
+      projectDirectory,
+      project_directory: projectDirectory
+    };
+  }
+  return void 0;
+}
+function remotionStudioDependencyBlocker(projectDirectory) {
+  const packageJsonPath = resolve8(projectDirectory, "package.json");
+  if (!existsSync5(packageJsonPath)) return void 0;
+  const remotionBinary = resolve8(projectDirectory, "node_modules", ".bin", process.platform === "win32" ? "remotion.cmd" : "remotion");
+  const remotionPackage = resolve8(projectDirectory, "node_modules", "remotion");
+  if (existsSync5(remotionBinary) || existsSync5(remotionPackage)) return void 0;
+  const installCommand = remotionStudioInstallCommand(projectDirectory);
+  return {
+    code: "REMOTION_DEPENDENCIES_MISSING",
+    message: "Remotion workspace dependencies are not installed. Install dependencies before opening Studio.",
+    installCommand,
+    install_command: installCommand,
+    projectDirectory,
+    project_directory: projectDirectory
+  };
+}
+function remotionStudioInstallCommand(projectDirectory) {
+  if (existsSync5(resolve8(projectDirectory, "pnpm-lock.yaml"))) return ["pnpm", "install"];
+  if (existsSync5(resolve8(projectDirectory, "yarn.lock"))) return ["yarn", "install"];
+  return ["npm", "install"];
+}
+function remotionStudioCommand(input3, projectDirectory, entrypoint, port) {
+  const explicit = commandArrayValue(input3.command) ?? commandArrayValue(input3.previewCommand) ?? commandArrayValue(input3.preview_command);
+  const base = explicit ?? defaultRemotionStudioCommand(projectDirectory, entrypoint);
+  return appendRemotionStudioRuntimeFlags(base, port);
+}
+function defaultRemotionStudioCommand(projectDirectory, entrypoint) {
+  const packageJson = readPackageJSON(projectDirectory);
+  if (packageJson?.scripts && typeof packageJson.scripts === "object" && "studio" in packageJson.scripts) {
+    if (existsSync5(resolve8(projectDirectory, "pnpm-lock.yaml"))) return ["pnpm", "run", "studio", "--"];
+    if (existsSync5(resolve8(projectDirectory, "yarn.lock"))) return ["yarn", "studio"];
+    return ["npm", "run", "studio", "--"];
+  }
+  if (existsSync5(resolve8(projectDirectory, "pnpm-lock.yaml"))) return ["pnpm", "exec", "remotion", "studio", entrypoint];
+  return ["npx", "remotion", "studio", entrypoint];
+}
+function readPackageJSON(projectDirectory) {
+  try {
+    return recordFromUnknown(JSON.parse(readFileSync6(resolve8(projectDirectory, "package.json"), "utf8")));
+  } catch {
+    return void 0;
+  }
+}
+function commandArrayValue(value) {
+  if (Array.isArray(value)) {
+    const command = value.filter((item) => typeof item === "string" && item.trim()).map((item) => item.trim());
+    return command.length > 0 ? command : void 0;
+  }
+  return void 0;
+}
+function appendRemotionStudioRuntimeFlags(command, port) {
+  const next = [...command];
+  if (!next.some((arg) => arg === "--port" || arg.startsWith("--port="))) {
+    next.push("--port", String(port));
+  }
+  if (!next.includes("--no-open")) next.push("--no-open");
+  return next;
+}
+async function watchRemotionStudioReadiness(session) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < 12e4) {
+    if (session.status !== "starting") return;
+    if (session.child?.exitCode !== null && session.child?.exitCode !== void 0) return;
+    try {
+      const response = session.previewUrl ? await fetch(session.previewUrl) : void 0;
+      if (response?.ok) {
+        const now = (/* @__PURE__ */ new Date()).toISOString();
+        session.status = "ready";
+        session.readyAt = now;
+        session.ready_at = now;
+        touchRemotionStudioSession(session);
+        appendRemotionStudioLog(session, "system", `Remotion Studio is ready at ${session.previewUrl}.`);
+        return;
+      }
+    } catch {
+    }
+    await new Promise((resolvePoll) => setTimeout(resolvePoll, 500));
+  }
+  failRemotionStudioSession(session, "REMOTION_STUDIO_READY_TIMEOUT", "Remotion Studio did not become ready before the startup timeout.");
+  session.child?.kill("SIGTERM");
+}
+function blockRemotionStudioSession(session, blocker) {
+  session.status = "blocked";
+  session.blockers = [blocker];
+  touchRemotionStudioSession(session);
+  appendRemotionStudioLog(session, "system", blocker.message);
+}
+function failRemotionStudioSession(session, code, message) {
+  if (session.status === "stopped") return;
+  session.status = "failed";
+  session.error = message;
+  session.blockers = [{
+    code,
+    message,
+    ...session.command ? { command: session.command } : {},
+    ...session.projectDirectory ? { projectDirectory: session.projectDirectory, project_directory: session.projectDirectory } : {}
+  }];
+  touchRemotionStudioSession(session);
+  appendRemotionStudioLog(session, "system", message);
+}
+function stopRemotionStudioSession(session, reason) {
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  if (session.child && session.child.exitCode === null) session.child.kill("SIGTERM");
+  session.child = void 0;
+  session.status = "stopped";
+  session.stoppedAt = now;
+  session.stopped_at = now;
+  touchRemotionStudioSession(session);
+  appendRemotionStudioLog(session, "system", `Remotion Studio session stopped: ${reason}.`);
+}
+function touchRemotionStudioSession(session) {
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  session.updatedAt = now;
+  session.updated_at = now;
+}
+function appendRemotionStudioLog(session, stream, text) {
+  const chunks = text.split(/\r?\n/).filter((line, index, lines) => line || index < lines.length - 1);
+  for (const chunk of chunks.length ? chunks : [text]) {
+    session.logs.push({
+      cursor: String(++nextRemotionStudioLogCursor),
+      at: (/* @__PURE__ */ new Date()).toISOString(),
+      stream,
+      text: chunk
+    });
+  }
+  if (session.logs.length > 500) session.logs.splice(0, session.logs.length - 500);
+}
+function remotionStudioSessionPayload(session, options = {}) {
+  const { child: _child, logs, ...payload } = session;
+  return {
+    ...payload,
+    ...options.includeLogs ? { logs } : {}
+  };
+}
+async function readJSONRequestRecord(request) {
+  const text = (await readRequestText(request)).trim();
+  if (!text) return {};
+  return recordFromUnknown(JSON.parse(text)) ?? {};
 }
 async function proxyCanvasServiceRequest(homeDir, request, response, url, gatewayPrefix) {
   const baseURL = await waitForRuntimeServiceURL(homeDir, CANVAS_SERVICE_NAME);
@@ -78822,16 +79538,16 @@ async function startCanvasService(options = {}) {
   const server = createServer2(handler);
   const host = options.host ?? "127.0.0.1";
   const port = options.port ?? 0;
-  await new Promise((resolve16, reject) => {
+  await new Promise((resolve18, reject) => {
     server.once("error", reject);
-    server.listen(port, host, resolve16);
+    server.listen(port, host, resolve18);
   });
   const address = server.address();
   const actualPort = typeof address === "object" && address ? address.port : port;
   return {
     server,
     url: `http://${host}:${actualPort}`,
-    close: () => new Promise((resolve16, reject) => server.close((error) => error ? reject(error) : resolve16()))
+    close: () => new Promise((resolve18, reject) => server.close((error) => error ? reject(error) : resolve18()))
   };
 }
 async function runCanvasServiceCLI(args = [], env = process.env) {
@@ -78850,13 +79566,13 @@ async function runCanvasServiceCLI(args = [], env = process.env) {
   await waitForShutdown(runtime);
 }
 function waitForShutdown(runtime) {
-  return new Promise((resolve16) => {
+  return new Promise((resolve18) => {
     let closing = false;
     const close = async () => {
       if (closing) return;
       closing = true;
       await runtime.close();
-      resolve16();
+      resolve18();
     };
     process.once("SIGINT", close);
     process.once("SIGTERM", close);
@@ -79458,13 +80174,13 @@ function startEditingService(options = {}) {
   const host = options.host ?? "127.0.0.1";
   const port = Number(options.port ?? 0);
   const server = createServer3(createEditingServiceHandler(options));
-  return new Promise((resolve16, reject) => {
+  return new Promise((resolve18, reject) => {
     server.once("error", reject);
     server.listen(port, host, () => {
       server.off("error", reject);
       const address = server.address();
       const actualPort = typeof address === "object" && address ? address.port : port;
-      resolve16({
+      resolve18({
         server,
         host,
         port: actualPort,
@@ -80651,13 +81367,13 @@ function writeEditingServiceError(response, error) {
   });
 }
 function waitForShutdown2(runtime) {
-  return new Promise((resolve16) => {
+  return new Promise((resolve18) => {
     let closing = false;
     const close = async () => {
       if (closing) return;
       closing = true;
       await runtime.close();
-      resolve16();
+      resolve18();
     };
     process.once("SIGINT", close);
     process.once("SIGTERM", close);
@@ -82620,13 +83336,13 @@ function startMediaPipelineService(options = {}) {
     resultRegistry,
     resultWatchRegistry
   }));
-  return new Promise((resolve16, reject) => {
+  return new Promise((resolve18, reject) => {
     server.once("error", reject);
     server.listen(port, host, () => {
       server.off("error", reject);
       const address = server.address();
       const actualPort = typeof address === "object" && address ? address.port : port;
-      resolve16({
+      resolve18({
         server,
         host,
         port: actualPort,
@@ -82731,12 +83447,12 @@ function assertRegistryMethod(registry, method) {
   }
 }
 async function waitForShutdown3(runtime) {
-  await new Promise((resolve16) => {
+  await new Promise((resolve18) => {
     const stop = async () => {
       process.off("SIGINT", stop);
       process.off("SIGTERM", stop);
       await runtime.close();
-      resolve16();
+      resolve18();
     };
     process.on("SIGINT", stop);
     process.on("SIGTERM", stop);
@@ -82745,8 +83461,8 @@ async function waitForShutdown3(runtime) {
 
 // ../../services/project-service/src/server.mjs
 import { createServer as createServer5 } from "http";
-import { cp, mkdir as mkdir7, readdir as readdir6, readFile as readFile7, rm as rm3, stat as stat6, writeFile as writeFile7 } from "fs/promises";
-import { basename as basename8, dirname as dirname12, isAbsolute as isAbsolute2, join as join13, relative as relative3, resolve as resolve13 } from "path";
+import { mkdir as mkdir9, readdir as readdir7, readFile as readFile9, stat as stat7, writeFile as writeFile9 } from "fs/promises";
+import { basename as basename8, dirname as dirname14, join as join14, resolve as resolve15 } from "path";
 
 // ../../packages/core/dist/content/node.js
 import { readFile as readFile6 } from "fs/promises";
@@ -82993,15 +83709,2030 @@ function sameId7(left, right) {
   return left !== void 0 && right !== void 0 && String(left) === String(right);
 }
 
-// ../../services/project-service/src/server.mjs
-var DATA_SERVICE_NAME2 = "movscript.data.service";
-var LOCAL_NODE_GATEWAY_SERVICE4 = "movscript.local-node.gateway";
+// ../../services/project-service/src/common.mjs
+import { mkdir as mkdir7, readFile as readFile7, writeFile as writeFile7 } from "fs/promises";
+import { dirname as dirname12, resolve as resolve13 } from "path";
+function pathStringValue(value) {
+  const raw = stringValue19(value);
+  return raw ? resolve13(raw) : void 0;
+}
+function stableJSONString(value) {
+  if (Array.isArray(value)) return `[${value.map(stableJSONString).join(",")}]`;
+  if (!recordValue8(value)) return JSON.stringify(value);
+  return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJSONString(value[key])}`).join(",")}}`;
+}
+function normalizeProjectAssetSourcePath(value) {
+  const raw = stringValue19(value);
+  if (!raw) throw httpError3(400, "project_asset_path_required", "assetPath is required");
+  const normalized = raw.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.includes("..") || !normalized.endsWith("/asset.json") || !parts.includes("assets")) {
+    throw httpError3(400, "project_asset_path_invalid", "assetPath must point to a project asset.json file");
+  }
+  return normalized;
+}
+function parseJSONObjectFile(content, path) {
+  try {
+    const parsed = JSON.parse(content);
+    const record = recordValue8(parsed);
+    if (record) return record;
+  } catch {
+  }
+  throw httpError3(400, "project_source_json_invalid", `source JSON is invalid: ${path}`);
+}
+async function readJSONFile(path) {
+  try {
+    const parsed = JSON.parse(await readFile7(path, "utf8"));
+    return recordValue8(parsed);
+  } catch {
+    return void 0;
+  }
+}
+async function writeProjectJSONFile(path, value) {
+  await mkdir7(dirname12(path), { recursive: true });
+  await writeFile7(path, `${JSON.stringify(value, null, 2)}
+`, "utf8");
+}
+async function readJSONBody4(request) {
+  const chunks = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.from(chunk));
+  }
+  const text = Buffer.concat(chunks).toString("utf8").trim();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw httpError3(400, "invalid_json", "request body must be valid JSON");
+  }
+}
+function stringValue19(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function providerCertificationStorageKey2(provider, certification) {
+  const model = stringValue19(certification.model ?? certification.public_model_id ?? certification.publicModelId ?? certification.provider_model_id ?? certification.providerModelId);
+  return model ? `${provider}::model:${model}` : provider;
+}
+function errorMessage11(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+function idValue4(value) {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  return void 0;
+}
+function numberValue8(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string" || !value.trim()) return void 0;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : void 0;
+}
+function recordValue8(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
+}
+function pathSegmentAfter9(path, segment) {
+  const parts = String(path ?? "").split("/").filter(Boolean);
+  const index = parts.indexOf(segment);
+  return index >= 0 ? parts[index + 1] : void 0;
+}
+function pruneUndefinedRecord3(record) {
+  return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== void 0 && value !== ""));
+}
+function stringRecord2(value) {
+  const record = recordValue8(value);
+  if (!record) return {};
+  return Object.fromEntries(Object.entries(record).filter(([, item]) => typeof item === "string").map(([key, item]) => [key, item]));
+}
+function isNotFoundError5(error) {
+  return typeof error === "object" && error !== null && error.code === "ENOENT";
+}
+function httpError3(statusCode, code, message) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  error.code = code;
+  return error;
+}
+
+// ../../services/project-service/src/contentCanvas.mjs
 var CONTENT_CANVAS_DIRECTORY = "content_canvases";
 var CONTENT_CANVAS_FILE_NAME = "canvas.json";
 var CONTENT_CANVAS_SCHEMA = "movscript.content_canvas.v1";
 var CONTENT_CANVASES_SCHEMA = "movscript.content_canvases.v1";
 var CONTENT_CANVAS_TITLE_MAX_LENGTH = 80;
 var CONTENT_CANVAS_TITLE_INVALID_PATTERN = /[<>:"/\\|?*\u0000-\u001F]/;
+async function listProjectContentCanvases(fileRepository) {
+  const root = await fileRepository.list({ path: CONTENT_CANVAS_DIRECTORY });
+  const canvases = [];
+  for (const entry of root.entries) {
+    if (entry.kind !== "directory") continue;
+    const path = `${entry.path}/${CONTENT_CANVAS_FILE_NAME}`;
+    const file = await fileRepository.read({ path }).catch((error) => {
+      if (isNotFoundError5(error)) return void 0;
+      throw error;
+    });
+    if (!file) continue;
+    const record = parseProjectContentCanvasFile(file.content, path);
+    canvases.push({
+      canvasKind: "content",
+      canvas_kind: "content",
+      owner: "project-service",
+      path: file.path,
+      version: file.version,
+      updatedAt: file.updatedAt,
+      record
+    });
+  }
+  canvases.sort((left, right) => {
+    const updated = String(right.record.updated_at ?? "").localeCompare(String(left.record.updated_at ?? ""));
+    return updated || String(left.record.title ?? left.record.id).localeCompare(String(right.record.title ?? right.record.id));
+  });
+  return {
+    schema: CONTENT_CANVASES_SCHEMA,
+    canvases
+  };
+}
+async function writeProjectContentCanvas(fileRepository, input3) {
+  const record = projectContentCanvasRecordFromInput(input3);
+  const titleValidationError = validateProjectContentCanvasTitle(record.title);
+  if (titleValidationError) throw titleValidationError;
+  const path = contentCanvasProjectFilePath(record.id);
+  const source = recordValue8(input3) ?? {};
+  const expectedVersion = stringValue19(source.expectedVersion ?? source.expected_version);
+  const written = await fileRepository.write({
+    path,
+    content: `${JSON.stringify(record, null, 2)}
+`,
+    ...expectedVersion !== void 0 ? { expectedVersion } : {}
+  });
+  return {
+    status: "written",
+    canvasKind: "content",
+    canvas_kind: "content",
+    path: written.path,
+    version: written.version,
+    title: record.title,
+    normalizedTitle: record.title,
+    record,
+    diagnostics: []
+  };
+}
+async function patchProjectAssetProviderCertification(fileRepository, input3) {
+  const source = recordValue8(input3) ?? {};
+  const path = normalizeProjectAssetSourcePath(source.assetPath ?? source.asset_path ?? source.path);
+  const provider = stringValue19(source.provider ?? source.provider_id ?? source.providerId);
+  if (!provider) throw httpError3(400, "project_asset_provider_required", "provider is required");
+  const certification = recordValue8(source.certification);
+  if (!certification) throw httpError3(400, "project_asset_certification_required", "certification is required");
+  const file = await fileRepository.read({ path }).catch((error) => {
+    if (isNotFoundError5(error)) return void 0;
+    throw error;
+  });
+  const current = file ? parseJSONObjectFile(file.content, path) : recordValue8(source.fallbackRecord ?? source.fallback_record);
+  if (!current) throw httpError3(404, "project_asset_source_not_found", `asset source not found: ${path}`);
+  const providerCertifications = recordValue8(current.provider_certifications) ? { ...current.provider_certifications } : {};
+  const storageKey = stringValue19(source.storageKey ?? source.storage_key) ?? providerCertificationStorageKey2(provider, certification);
+  providerCertifications[storageKey] = certification;
+  const next = {
+    ...current,
+    provider_certifications: providerCertifications
+  };
+  const expectedVersion = stringValue19(source.expectedVersion ?? source.expected_version);
+  const written = await fileRepository.write({
+    path,
+    content: `${JSON.stringify(next, null, 2)}
+`,
+    ...expectedVersion !== void 0 ? { expectedVersion } : {}
+  });
+  return {
+    status: "patched",
+    path: written.path,
+    version: written.version,
+    provider,
+    provider_id: provider,
+    storage_key: storageKey,
+    certification,
+    record: next
+  };
+}
+async function renameProjectContentCanvas(fileRepository, input3) {
+  const source = recordValue8(input3) ?? {};
+  const id = stringValue19(source.id ?? source.canvasId ?? source.canvas_id);
+  if (!id) throw httpError3(400, "project_content_canvas_id_required", "canvas id is required");
+  const title = normalizeProjectContentCanvasTitle(source.title ?? source.name);
+  const titleValidationError = validateProjectContentCanvasTitle(title);
+  if (titleValidationError) throw titleValidationError;
+  const path = contentCanvasProjectFilePath(id);
+  const file = await fileRepository.read({ path }).catch((error) => {
+    if (isNotFoundError5(error)) return void 0;
+    throw error;
+  });
+  if (!file) throw httpError3(404, "project_content_canvas_not_found", `content canvas not found: ${id}`);
+  const current = parseProjectContentCanvasFile(file.content, path);
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const record = {
+    ...current,
+    title,
+    name: title,
+    updated_at: now
+  };
+  const expectedVersion = stringValue19(source.expectedVersion ?? source.expected_version);
+  const written = await fileRepository.write({
+    path,
+    content: `${JSON.stringify(record, null, 2)}
+`,
+    ...expectedVersion !== void 0 ? { expectedVersion } : {}
+  });
+  return {
+    status: "renamed",
+    canvasKind: "content",
+    canvas_kind: "content",
+    path: written.path,
+    version: written.version,
+    title,
+    normalizedTitle: title,
+    record,
+    diagnostics: []
+  };
+}
+async function runProjectContentCanvas({ projectDir, fileRepository, engine, input: input3, now }) {
+  const source = recordValue8(input3) ?? {};
+  const canvasId = stringValue19(source.id ?? source.canvasId ?? source.canvas_id);
+  if (!canvasId) throw httpError3(400, "project_content_canvas_id_required", "canvas id is required");
+  const canvas = await readProjectContentCanvas(fileRepository, canvasId);
+  const interpretation = await engine.interpret();
+  const contentSnapshot = await loadContentSourceWorkspaceSnapshotFromEngine(engine);
+  const contentData = buildContentSourceWorkspaceData(contentSnapshot);
+  const contentUnitSummaries = contentSourceWorkspaceContentUnitStatusSummaries(contentSnapshot);
+  const affectedContentUnitIds = contentCanvasRunAffectedContentUnitIds(canvas.record, contentSnapshot);
+  const candidateImpact = contentCanvasRunCandidateImpact({
+    affectedContentUnitIds,
+    contentUnitSummaries,
+    contentData
+  });
+  const projectTimelineStatus = buildContentSourceWorkspaceProjectTimelineStatus(contentSnapshot, contentUnitSummaries);
+  const operationId = `content-canvas-run:${contentCanvasProjectPathSegment(canvas.record.id)}:${now.getTime()}`;
+  return {
+    schema: "movscript.content_canvas_run.v1",
+    status: "completed",
+    operationId,
+    operation_id: operationId,
+    canvasId: canvas.record.id,
+    canvas_id: canvas.record.id,
+    canvas: {
+      canvasKind: "content",
+      canvas_kind: "content",
+      owner: "project-service",
+      path: canvas.path,
+      version: canvas.version,
+      record: canvas.record
+    },
+    trace: {
+      projectDir,
+      command: "runContentCanvas",
+      interpretationId: interpretation?.manifest?.interpretationId,
+      interpretation_id: interpretation?.manifest?.interpretationId,
+      editorStatePath: interpretation?.manifest?.output?.editorStatePath,
+      completedAt: now.toISOString(),
+      completed_at: now.toISOString()
+    },
+    readModel: {
+      schema: "movscript.content_canvas_run_read_model_summary.v1",
+      status: projectTimelineStatus.status,
+      timelineNamespaceCount: projectTimelineStatus.timeline_namespace_count,
+      timeline_namespace_count: projectTimelineStatus.timeline_namespace_count,
+      systemPrimitives: projectTimelineStatus.system_primitives,
+      system_primitives: projectTimelineStatus.system_primitives
+    },
+    candidateImpact,
+    candidate_impact: candidateImpact
+  };
+}
+async function deleteProjectContentCanvas(fileRepository, input3) {
+  const id = stringValue19(input3.id ?? input3.canvasId ?? input3.canvas_id);
+  if (!id) throw httpError3(400, "project_content_canvas_id_required", "canvas id is required");
+  const path = contentCanvasProjectFilePath(id);
+  await fileRepository.delete({ path });
+  return {
+    status: "deleted",
+    canvasKind: "content",
+    canvas_kind: "content",
+    path
+  };
+}
+async function readProjectContentCanvas(fileRepository, id) {
+  const path = contentCanvasProjectFilePath(id);
+  const file = await fileRepository.read({ path }).catch((error) => {
+    if (isNotFoundError5(error)) return void 0;
+    throw error;
+  });
+  if (!file) throw httpError3(404, "project_content_canvas_not_found", `content canvas not found: ${id}`);
+  return {
+    canvasKind: "content",
+    canvas_kind: "content",
+    owner: "project-service",
+    path: file.path,
+    version: file.version,
+    updatedAt: file.updatedAt,
+    record: parseProjectContentCanvasFile(file.content, path)
+  };
+}
+function parseProjectContentCanvasFile(content, path) {
+  try {
+    return projectContentCanvasRecordFromInput(JSON.parse(content), { path });
+  } catch (error) {
+    if (error?.statusCode) throw error;
+    throw httpError3(400, "project_content_canvas_invalid", `content canvas file is invalid: ${path}`);
+  }
+}
+function contentCanvasRunAffectedContentUnitIds(canvasRecord, snapshot) {
+  const nodeRefs = /* @__PURE__ */ new Set();
+  for (const node of Array.isArray(canvasRecord.nodes) ? canvasRecord.nodes : []) {
+    const nodeId2 = stringValue19(node.node_id ?? node.nodeId ?? node.id);
+    const kind = stringValue19(node.kind);
+    if (!nodeId2) continue;
+    const suffix = contentCanvasNodeIdSuffix(nodeId2);
+    nodeRefs.add(nodeId2);
+    nodeRefs.add(suffix);
+    if (kind) {
+      nodeRefs.add(`${kind}:${suffix}`);
+      nodeRefs.add(`${kind}:${nodeId2}`);
+    }
+  }
+  const affected = [];
+  for (const unit of snapshot.contentUnits ?? []) {
+    const unitId = idValue4(unit.id ?? unit.record?.id ?? pathSegmentAfter9(unit.path, "content_units"));
+    if (unitId === void 0) continue;
+    const refs = contentUnitRunRefs(unit);
+    if (refs.some((ref) => nodeRefs.has(ref) || nodeRefs.has(contentCanvasNodeIdSuffix(ref)))) {
+      affected.push(String(unitId));
+    }
+  }
+  return affected;
+}
+function contentUnitRunRefs(unit) {
+  const record = recordValue8(unit.record) ?? {};
+  const id = idValue4(unit.id ?? record.id ?? pathSegmentAfter9(unit.path, "content_units"));
+  const refs = [
+    id,
+    id !== void 0 ? `content_unit:${id}` : void 0,
+    unit.path,
+    id !== void 0 ? `content_units/${id}` : void 0,
+    record.target_ref,
+    record.targetRef,
+    record.expression_unit_ref,
+    record.expressionUnitRef,
+    record.storyboard_ref,
+    record.storyboardRef,
+    record.keyframe_ref,
+    record.keyframeRef,
+    record.audio_cue_ref,
+    record.audioCueRef,
+    record.asset_ref,
+    record.assetRef,
+    record.scene_moment_ref,
+    record.sceneMomentRef
+  ].map(idValue4).filter((value) => value !== void 0).map(String);
+  return [...new Set(refs.flatMap((ref) => [ref, contentCanvasNodeIdSuffix(ref)]))];
+}
+function contentCanvasNodeIdSuffix(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  const colonParts = text.split(":").filter(Boolean);
+  if (colonParts.length > 1) return colonParts[colonParts.length - 1];
+  const slashParts = text.split("/").filter(Boolean);
+  return slashParts[slashParts.length - 1] ?? text;
+}
+function contentCanvasRunCandidateImpact({ affectedContentUnitIds, contentUnitSummaries, contentData }) {
+  const affected = new Set(affectedContentUnitIds.map(String));
+  const summaries = contentUnitSummaries.filter((summary) => {
+    if (affected.size === 0) return false;
+    return affected.has(String(summary.content_unit_id));
+  });
+  const candidateCounts = Object.fromEntries(summaries.map((summary) => [
+    String(summary.content_unit_id),
+    numberValue8(summary.candidate_count) ?? 0
+  ]));
+  const selectedContentUnitIds = summaries.filter((summary) => summary.selected_candidate !== void 0).map((summary) => String(summary.content_unit_id));
+  const missingSelectionContentUnitIds = summaries.filter((summary) => Array.isArray(summary.blocking_refs) && summary.blocking_refs.includes("selection_missing")).map((summary) => String(summary.content_unit_id));
+  return {
+    schema: "movscript.content_canvas_candidate_impact.v1",
+    affectedContentUnitIds: summaries.map((summary) => String(summary.content_unit_id)),
+    affected_content_unit_ids: summaries.map((summary) => String(summary.content_unit_id)),
+    affectedContentUnitCount: summaries.length,
+    affected_content_unit_count: summaries.length,
+    candidateCounts,
+    candidate_counts: candidateCounts,
+    selectedContentUnitIds,
+    selected_content_unit_ids: selectedContentUnitIds,
+    missingSelectionContentUnitIds,
+    missing_selection_content_unit_ids: missingSelectionContentUnitIds,
+    totalCandidateCount: summaries.reduce((sum, summary) => sum + (numberValue8(summary.candidate_count) ?? 0), 0),
+    total_candidate_count: summaries.reduce((sum, summary) => sum + (numberValue8(summary.candidate_count) ?? 0), 0),
+    workspaceCandidateMapCount: Object.keys(recordValue8(contentData.contentUnitCandidates) ?? {}).length,
+    workspace_candidate_map_count: Object.keys(recordValue8(contentData.contentUnitCandidates) ?? {}).length
+  };
+}
+function projectContentCanvasRecordFromInput(input3, options = {}) {
+  const source = recordValue8(input3);
+  const record = source ? recordValue8(source.canvas ?? source.record) ?? source : void 0;
+  if (!record) throw httpError3(400, "project_content_canvas_required", "content canvas record is required");
+  const id = stringValue19(record.id ?? record.canvasId ?? record.canvas_id) ?? contentCanvasProjectIdFromPath(options.path) ?? createProjectContentCanvasId();
+  const updatedAt = stringValue19(record.updated_at ?? record.updatedAt) ?? (/* @__PURE__ */ new Date()).toISOString();
+  const titleInput = contentCanvasTitleInput(record);
+  const title = titleInput === void 0 ? contentCanvasTitleFromProjectPath(options.path) ?? "Untitled Canvas" : normalizeProjectContentCanvasTitle(titleInput);
+  return pruneUndefinedRecord3({
+    schema: CONTENT_CANVAS_SCHEMA,
+    kind: "content_canvas",
+    canvasKind: "content",
+    canvas_kind: "content",
+    id,
+    title,
+    name: title,
+    scope: projectContentCanvasScope(record.scope),
+    nodes: projectContentCanvasNodes(record.nodes),
+    groups: projectContentCanvasGroups(record.groups ?? record.group_nodes ?? record.groupNodes),
+    layouts: projectContentCanvasLayouts(record.layouts ?? record.node_layouts ?? record.nodeLayouts),
+    updated_at: updatedAt,
+    created_at: stringValue19(record.created_at ?? record.createdAt)
+  });
+}
+function contentCanvasTitleInput(record) {
+  if (Object.prototype.hasOwnProperty.call(record, "title")) return record.title;
+  if (Object.prototype.hasOwnProperty.call(record, "name")) return record.name;
+  return void 0;
+}
+function normalizeProjectContentCanvasTitle(value) {
+  return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+}
+function validateProjectContentCanvasTitle(title) {
+  if (!title) return httpError3(400, "project_content_canvas_title_required", "content canvas title is required");
+  if (title.length > CONTENT_CANVAS_TITLE_MAX_LENGTH) {
+    return httpError3(400, "project_content_canvas_title_too_long", `content canvas title must be at most ${CONTENT_CANVAS_TITLE_MAX_LENGTH} characters`);
+  }
+  if (CONTENT_CANVAS_TITLE_INVALID_PATTERN.test(title)) {
+    return httpError3(400, "project_content_canvas_title_invalid", "content canvas title contains unsupported characters");
+  }
+  return void 0;
+}
+function projectContentCanvasScope(value) {
+  const scope = recordValue8(value);
+  if (!scope || scope.kind === "global") return { kind: "global" };
+  if (scope.kind !== "production") return { kind: "global" };
+  const productionId = stringValue19(scope.production_id ?? scope.productionId);
+  if (!productionId) return { kind: "global" };
+  return pruneUndefinedRecord3({
+    kind: "production",
+    production_id: productionId,
+    production_title: stringValue19(scope.production_title ?? scope.productionTitle),
+    production_node_id: stringValue19(scope.production_node_id ?? scope.productionNodeId),
+    production_path: stringValue19(scope.production_path ?? scope.productionPath)
+  });
+}
+function projectContentCanvasNodes(value) {
+  const values = Array.isArray(value) ? value : Object.values(recordValue8(value) ?? {});
+  return values.map(projectContentCanvasNode).filter(Boolean).sort((left, right) => left.node_id.localeCompare(right.node_id));
+}
+function projectContentCanvasNode(value) {
+  const node = recordValue8(value);
+  if (!node) return void 0;
+  const nodeId2 = stringValue19(node.node_id ?? node.nodeId ?? node.id);
+  if (!nodeId2) return void 0;
+  return pruneUndefinedRecord3({
+    node_id: nodeId2,
+    kind: stringValue19(node.kind),
+    added_at: stringValue19(node.added_at ?? node.addedAt)
+  });
+}
+function projectContentCanvasGroups(value) {
+  const values = Array.isArray(value) ? value : Object.values(recordValue8(value) ?? {});
+  return values.map(projectContentCanvasGroup).filter(Boolean).sort((left, right) => left.id.localeCompare(right.id));
+}
+function projectContentCanvasGroup(value) {
+  const group = recordValue8(value);
+  if (!group) return void 0;
+  const id = stringValue19(group.id ?? group.groupId ?? group.group_id);
+  if (!id) return void 0;
+  const memberNodeIds = uniqueStringValues(group.member_node_ids ?? group.memberNodeIds ?? group.nodes ?? group.node_ids ?? group.nodeIds);
+  if (memberNodeIds.length < 2) return void 0;
+  return pruneUndefinedRecord3({
+    id,
+    title: stringValue19(group.title ?? group.name ?? group.label),
+    member_node_ids: memberNodeIds,
+    created_at: stringValue19(group.created_at ?? group.createdAt),
+    updated_at: stringValue19(group.updated_at ?? group.updatedAt)
+  });
+}
+function projectContentCanvasLayouts(value) {
+  const layouts = recordValue8(value);
+  if (!layouts) return {};
+  return Object.fromEntries(Object.entries(layouts).map(([nodeId2, layout]) => [nodeId2, projectContentCanvasLayout(layout)]).filter(([, layout]) => Boolean(layout)));
+}
+function projectContentCanvasLayout(value) {
+  const layout = recordValue8(value);
+  if (!layout) return void 0;
+  const x = numberValue8(layout.x);
+  const y = numberValue8(layout.y);
+  const width = numberValue8(layout.width);
+  const height = numberValue8(layout.height);
+  if (x === void 0 || y === void 0 || width === void 0 || height === void 0) return void 0;
+  return pruneUndefinedRecord3({
+    x,
+    y,
+    width,
+    height,
+    manual: layout.manual === true,
+    source: stringValue19(layout.source),
+    updated_at: stringValue19(layout.updated_at ?? layout.updatedAt)
+  });
+}
+function uniqueStringValues(value) {
+  if (!Array.isArray(value)) return [];
+  const output3 = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const next = item.trim();
+    if (!next || seen.has(next)) continue;
+    seen.add(next);
+    output3.push(next);
+  }
+  return output3;
+}
+function contentCanvasProjectFilePath(id) {
+  return `${CONTENT_CANVAS_DIRECTORY}/${contentCanvasProjectPathSegment(id)}/${CONTENT_CANVAS_FILE_NAME}`;
+}
+function contentCanvasProjectPathSegment(id) {
+  const safe = String(id).trim().replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
+  return safe || "canvas";
+}
+function contentCanvasProjectIdFromPath(path) {
+  const segment = contentCanvasProjectPathSegmentFromPath(path);
+  return segment ? String(segment).trim() : void 0;
+}
+function contentCanvasTitleFromProjectPath(path) {
+  const segment = contentCanvasProjectPathSegmentFromPath(path);
+  if (!segment) return void 0;
+  return segment.replace(/^canvas[_-]?/i, "").replace(/[_-]+/g, " ").trim() || void 0;
+}
+function contentCanvasProjectPathSegmentFromPath(path) {
+  const parts = String(path ?? "").split(/[\\/]+/).filter(Boolean);
+  const candidate = parts.at(-1) === CONTENT_CANVAS_FILE_NAME ? parts.at(-2) : parts.at(-1);
+  return stringValue19(candidate);
+}
+function createProjectContentCanvasId() {
+  return `canvas:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// ../../services/project-service/src/productionEditing.mjs
+import { cp, mkdir as mkdir8, readdir as readdir6, readFile as readFile8, rm as rm3, stat as stat6, writeFile as writeFile8 } from "fs/promises";
+import { dirname as dirname13, isAbsolute as isAbsolute2, join as join13, relative as relative3, resolve as resolve14 } from "path";
+async function exportBackendProjectWorkspace({ projectDir, fileRepository, input: input3 }) {
+  const resolved = await backendProjectWorkspaceForExport({ projectDir, fileRepository, input: input3 });
+  const backendProject = resolved.backendProject;
+  const backend = stringValue19(backendProject.backend) ?? stringValue19(input3.backend) ?? stringValue19(resolved.materialized?.backend) ?? "unknown";
+  const projectId = stringValue19(backendProject.project_id ?? backendProject.projectId) ?? projectEditingPathSegment(stringValue19(backendProject.title) ?? backend);
+  const targetRef = backendProjectTargetRefFromInput(input3) ?? stringValue19(recordValue8(backendProject.source)?.target_ref ?? recordValue8(backendProject.source)?.targetRef);
+  const exportDirectory = backendProjectWorkspaceExportDirectory(projectDir, input3, backendProject, targetRef);
+  const overwrite = input3.overwrite === true;
+  const files = backendProjectWorkspaceExportFiles({
+    backendProject,
+    materialized: resolved.materialized
+  });
+  const writtenFiles = [];
+  for (const file of files) {
+    const relativePath = safeBackendProjectFilePath(file.path);
+    const absolutePath = resolve14(exportDirectory, ...relativePath.split("/"));
+    assertPathInsideDirectory(exportDirectory, absolutePath);
+    if (!overwrite && await pathExists(absolutePath)) {
+      throw httpError3(409, "project_backend_project_export_file_exists", `backend project export file already exists: ${relativePath}`);
+    }
+    await mkdir8(dirname13(absolutePath), { recursive: true });
+    await writeFile8(absolutePath, file.content, "utf8");
+    writtenFiles.push({
+      path: relativePath,
+      absolute_path: absolutePath,
+      role: file.role,
+      ...file.language ? { language: file.language } : {},
+      bytes: Buffer.byteLength(file.content, "utf8")
+    });
+  }
+  return {
+    schema: "movscript.production_editing.backend_project_export_result.v1",
+    status: "exported",
+    backend,
+    project_id: projectId,
+    title: stringValue19(backendProject.title),
+    export_directory: exportDirectory,
+    file_count: writtenFiles.length,
+    files: writtenFiles,
+    entrypoint: stringValue19(backendProject.entrypoint),
+    entrypoint_path: backendProject.entrypoint ? resolve14(exportDirectory, ...safeBackendProjectFilePath(backendProject.entrypoint).split("/")) : void 0,
+    source: targetRef ? { target_ref: targetRef } : void 0,
+    materialized: Boolean(resolved.materialized),
+    persisted: Boolean(resolved.materialized?.persisted),
+    rendered: false,
+    candidate_created: false,
+    service_owner: "project-service"
+  };
+}
+async function refreshProjectProductionEditingResources({ projectDir, body = {}, input: input3 = {}, decisionStore, requestScope, now, runtime }) {
+  const productionId = productionEditingProductionId(input3);
+  const engine = runtime.createProjectWorkspaceEngine({ projectDir, decisionStore, body, requestScope });
+  const index = await runtime.observeProjectServicePhase(requestScope, "indexLoadMs", () => engine.workspaceService.loadIndex());
+  const productionContext = queryMovScriptWorkspaceProductionContext(index, {
+    productionId,
+    include: ["productions", "storyboards", "keyframes", "content_units"],
+    limit: 5e3
+  });
+  const production = (productionContext.productions ?? []).find((entity) => sameLooseId(entity.id ?? entity.record?.id ?? entity.record?.ID, productionId));
+  const contentUnits = (productionContext.content_units ?? []).filter((entity) => productionEditingContentUnitKind(entity) !== void 0).filter((entity) => productionEditingContentUnitMatchesProduction(entity, productionId, productionContext));
+  const contentUnitIds = contentUnits.map((entity) => productionEditingContentUnitId(entity)).filter(Boolean);
+  const decisionContexts = decisionStore && contentUnitIds.length > 0 ? await runtime.readCandidateContexts(decisionStore, contentUnitIds, requestScope) : [];
+  const decisionContextByContentUnitId = projectDecisionContextsByContentUnitId(decisionContexts);
+  const items = contentUnits.map((entity) => {
+    const id = productionEditingContentUnitId(entity);
+    return productionEditingResourceItem({
+      entity,
+      productionId,
+      decisionContext: id ? decisionContextByContentUnitId.get(id) : void 0
+    });
+  });
+  const refreshedAt = now.toISOString();
+  const resources = {
+    schema: "movscript.production_editing_resources.v1",
+    projectDir,
+    project_dir: projectDir,
+    productionId,
+    production_id: productionId,
+    refreshedAt,
+    refreshed_at: refreshedAt,
+    sourceHash: productionEditingResourceSourceHash(items),
+    source_hash: productionEditingResourceSourceHash(items),
+    production: production ? projectHomeRecord(production) : void 0,
+    items,
+    counts: {
+      items: items.length,
+      asset: items.filter((item) => item.kind === "asset").length,
+      keyframe: items.filter((item) => item.kind === "keyframe").length,
+      storyboard: items.filter((item) => item.kind === "storyboard").length,
+      selected: items.filter((item) => item.selectedResourceId !== void 0 || item.selected_resource_id !== void 0).length
+    }
+  };
+  await writeProjectJSONFile(productionEditingResourcesPath(projectDir, productionId), resources);
+  return {
+    schema: "movscript.production_editing_resources_refresh.v1",
+    status: "ok",
+    productionId,
+    production_id: productionId,
+    resources
+  };
+}
+async function listProjectProductionEditingWorkspaces({ projectDir, input: input3 = {} }) {
+  const productionId = productionEditingProductionId(input3);
+  const page = Math.max(1, Math.floor(numberValue8(input3.page) ?? 1));
+  const pageSize = Math.min(100, Math.max(1, Math.floor(numberValue8(input3.pageSize ?? input3.page_size) ?? 20)));
+  const query = stringValue19(input3.query)?.toLowerCase();
+  const kind = productionEditingOptionalWorkspaceKind(input3.kind ?? input3.workspaceKind ?? input3.workspace_kind);
+  const workspaces = await readProjectProductionEditingWorkspaces(projectDir, productionId);
+  const filtered = workspaces.filter((workspace) => {
+    if (kind && workspace.kind !== kind) return false;
+    if (!query) return true;
+    return [
+      workspace.workspaceId,
+      workspace.workspace_id,
+      workspace.title,
+      workspace.kind,
+      workspace.editingProjectId,
+      workspace.editing_project_id
+    ].some((value) => String(value ?? "").toLowerCase().includes(query));
+  });
+  const start = (page - 1) * pageSize;
+  const paged = filtered.slice(start, start + pageSize);
+  return {
+    schema: "movscript.production_editing_workspaces_list.v1",
+    status: "ok",
+    productionId,
+    production_id: productionId,
+    workspaces: paged,
+    pagination: {
+      page,
+      pageSize,
+      page_size: pageSize,
+      total: filtered.length,
+      total_unfiltered: workspaces.length,
+      hasNextPage: start + pageSize < filtered.length,
+      has_next_page: start + pageSize < filtered.length
+    }
+  };
+}
+async function createProjectProductionEditingWorkspace({ projectDir, fileRepository, body = {}, input: input3 = {}, decisionStore, requestScope, now, runtime }) {
+  const productionId = productionEditingProductionId(input3);
+  const kind = productionEditingWorkspaceKind(input3.kind ?? input3.workspaceKind ?? input3.workspace_kind);
+  const workspaceId = productionEditingWorkspaceId(input3, kind, now);
+  const workspaceDirectory = productionEditingWorkspaceDirectory(projectDir, productionId, workspaceId);
+  const workspacePath6 = productionEditingWorkspacePath(projectDir, productionId, workspaceId);
+  const exists = await pathExists(workspacePath6);
+  if (exists && input3.overwrite !== true) {
+    throw httpError3(409, "project_production_editing_workspace_exists", `production editing workspace already exists: ${workspaceId}`);
+  }
+  const resourceRefresh = await refreshProjectProductionEditingResources({
+    runtime,
+    projectDir,
+    body,
+    input: { ...input3, productionId },
+    decisionStore,
+    requestScope,
+    now
+  });
+  const resources = resourceRefresh.resources;
+  const title = stringValue19(input3.title ?? input3.name) ?? `${kind === "remotion" ? "Remotion" : "\u7CFB\u7EDF\u526A\u8F91"} ${productionId}`;
+  const createdAt = now.toISOString();
+  const baseWorkspace = {
+    schema: "movscript.production_editing_workspace.v1",
+    version: 1,
+    workspaceId,
+    workspace_id: workspaceId,
+    kind,
+    productionId,
+    production_id: productionId,
+    title,
+    status: "ready",
+    createdAt,
+    created_at: createdAt,
+    updatedAt: createdAt,
+    updated_at: createdAt,
+    rootPath: workspaceDirectory,
+    root_path: workspaceDirectory,
+    seedSourceHash: resources.sourceHash,
+    seed_source_hash: resources.sourceHash,
+    lastSeenResourceSourceHash: resources.sourceHash,
+    last_seen_resource_source_hash: resources.sourceHash,
+    resourceSourceHash: resources.sourceHash,
+    resource_source_hash: resources.sourceHash,
+    stale: false,
+    staleHints: [],
+    stale_hints: [],
+    resourceSnapshotPath: productionEditingWorkspaceResourceSnapshotPath(projectDir, productionId, workspaceId),
+    resource_snapshot_path: productionEditingWorkspaceResourceSnapshotPath(projectDir, productionId, workspaceId),
+    autoImportRenderResult: true,
+    auto_import_render_result: true,
+    candidateDecisionRequired: true,
+    candidate_decision_required: true
+  };
+  await writeProjectJSONFile(productionEditingWorkspaceResourceSnapshotPath(projectDir, productionId, workspaceId), resources);
+  let workspace;
+  let mediaEditingProject;
+  let exportResult;
+  if (kind === "system_editing") {
+    const editingProjectId = stringValue19(input3.editingProjectId ?? input3.editing_project_id) ?? workspaceId;
+    mediaEditingProject = createProductionBoundMediaEditingProject({
+      input: input3,
+      projectId: productionEditingProjectId(input3, body),
+      productionId,
+      productionPath: stringValue19(resources.production?.__workspace_path ?? resources.production?.path),
+      workspaceId,
+      workspaceDirectory,
+      editingProjectId,
+      title,
+      resources,
+      now
+    });
+    const mediaEditingProjectPath = productionEditingWorkspaceMediaProjectPath(projectDir, productionId, workspaceId);
+    await writeProjectJSONFile(mediaEditingProjectPath, {
+      schema: "movscript.media_editing_project.v1",
+      editingProject: mediaEditingProject,
+      editing_project: mediaEditingProject
+    });
+    workspace = pruneUndefinedRecord3({
+      ...baseWorkspace,
+      editingProjectId,
+      editing_project_id: editingProjectId,
+      mediaEditingProjectProjectId: mediaEditingProject.projectId,
+      media_editing_project_project_id: mediaEditingProject.projectId,
+      mediaEditingProjectPath,
+      media_editing_project_path: mediaEditingProjectPath
+    });
+  } else {
+    const projectDirectory = productionEditingRemotionProjectDirectory(projectDir, productionId, workspaceId);
+    await mkdir8(projectDirectory, { recursive: true });
+    if (productionEditingShouldMaterializeRemotion(input3)) {
+      exportResult = await exportBackendProjectWorkspace({
+        projectDir,
+        fileRepository,
+        input: {
+          ...input3,
+          backend: "remotion",
+          exportDirectory: projectDirectory,
+          export_directory: projectDirectory,
+          overwrite: input3.overwrite === true
+        }
+      });
+    } else {
+      exportResult = await writeProductionEditingRemotionStarterProject({
+        projectDirectory,
+        input: input3,
+        productionId,
+        workspaceId,
+        title,
+        resources
+      });
+    }
+    const compositionId = stringValue19(input3.compositionId ?? input3.composition_id) ?? "MovScriptRoughCut";
+    const defaultPreviewCommand = ["npx", "remotion", "studio", "src/Root.tsx", "--no-open"];
+    const defaultRenderCommand = `npx remotion render src/Root.tsx ${compositionId} out/rough-cut.mp4`;
+    workspace = pruneUndefinedRecord3({
+      ...baseWorkspace,
+      backend: "remotion",
+      projectDirectory,
+      project_directory: projectDirectory,
+      entrypoint: stringValue19(exportResult?.entrypoint ?? input3.entrypoint) ?? "src/Root.tsx",
+      compositionId,
+      composition_id: compositionId,
+      previewCommand: input3.previewCommand ?? input3.preview_command ?? defaultPreviewCommand,
+      preview_command: input3.previewCommand ?? input3.preview_command ?? defaultPreviewCommand,
+      renderCommand: input3.renderCommand ?? input3.render_command ?? defaultRenderCommand,
+      render_command: input3.renderCommand ?? input3.render_command ?? defaultRenderCommand,
+      ...exportResult ? { exportResult, export_result: exportResult } : {}
+    });
+  }
+  workspace = withProductionEditingWorkspaceStaleState(workspace, resources.sourceHash);
+  await writeProjectJSONFile(workspacePath6, workspace);
+  const handoffEnvelope = await productionEditingWorkspaceHandoffEnvelope(workspace, { projectDir, mediaEditingProject });
+  return {
+    schema: "movscript.production_editing_workspace_create.v1",
+    status: "created",
+    productionId,
+    production_id: productionId,
+    workspace,
+    stale: workspace.stale === true,
+    staleHints: workspace.staleHints,
+    stale_hints: workspace.stale_hints,
+    ...handoffEnvelope,
+    ...mediaEditingProject ? { mediaEditingProject, media_editing_project: mediaEditingProject } : {},
+    resources
+  };
+}
+async function openProjectProductionEditingWorkspace({ projectDir, body = {}, input: input3 = {}, decisionStore, requestScope, now, runtime }) {
+  const productionId = productionEditingProductionId(input3);
+  const workspaceId = requiredProductionEditingWorkspaceId(input3);
+  const workspacePath6 = productionEditingWorkspacePath(projectDir, productionId, workspaceId);
+  const workspace = await readJSONFile(workspacePath6);
+  if (!workspace) {
+    return {
+      schema: "movscript.production_editing_workspace_open.v1",
+      status: "not_found",
+      productionId,
+      production_id: productionId,
+      workspaceId,
+      workspace_id: workspaceId
+    };
+  }
+  const mediaEditingProject = await readProjectProductionEditingWorkspaceMediaProject(projectDir, productionId, workspaceId);
+  const resourceRefresh = await refreshProjectProductionEditingResources({
+    runtime,
+    projectDir,
+    body,
+    input: { ...input3, productionId },
+    decisionStore,
+    requestScope,
+    now
+  });
+  const resources = resourceRefresh.resources;
+  const openedAt = now.toISOString();
+  const staleWorkspace = withProductionEditingWorkspaceStaleState(workspace, resources.sourceHash);
+  const updatedWorkspace = pruneUndefinedRecord3({
+    ...staleWorkspace,
+    lastOpenedAt: openedAt,
+    last_opened_at: openedAt,
+    updatedAt: openedAt,
+    updated_at: openedAt,
+    ...mediaEditingProject?.projectId ? {
+      mediaEditingProjectProjectId: mediaEditingProject.projectId,
+      media_editing_project_project_id: mediaEditingProject.projectId
+    } : {}
+  });
+  await writeProjectJSONFile(workspacePath6, updatedWorkspace);
+  await writeProjectJSONFile(productionEditingWorkspaceResourceSnapshotPath(projectDir, productionId, workspaceId), resources);
+  const handoffEnvelope = await productionEditingWorkspaceHandoffEnvelope(updatedWorkspace, { projectDir, mediaEditingProject });
+  return {
+    schema: "movscript.production_editing_workspace_open.v1",
+    status: "ready",
+    productionId,
+    production_id: productionId,
+    workspace: updatedWorkspace,
+    stale: updatedWorkspace.stale === true,
+    staleHints: updatedWorkspace.staleHints,
+    stale_hints: updatedWorkspace.stale_hints,
+    ...handoffEnvelope,
+    ...mediaEditingProject ? { mediaEditingProject, media_editing_project: mediaEditingProject } : {},
+    resources,
+    open_action: productionEditingWorkspaceOpenAction(updatedWorkspace, mediaEditingProject)
+  };
+}
+async function deleteProjectProductionEditingWorkspace({ projectDir, input: input3 = {} }) {
+  const productionId = productionEditingProductionId(input3);
+  const workspaceId = requiredProductionEditingWorkspaceId(input3);
+  const workspaceDirectory = productionEditingWorkspaceDirectory(projectDir, productionId, workspaceId);
+  const existed = await pathExists(workspaceDirectory);
+  if (existed) await rm3(workspaceDirectory, { recursive: true, force: true });
+  return {
+    schema: "movscript.production_editing_workspace_delete.v1",
+    status: existed ? "deleted" : "not_found",
+    productionId,
+    production_id: productionId,
+    workspaceId,
+    workspace_id: workspaceId,
+    workspaceDirectory,
+    workspace_directory: workspaceDirectory
+  };
+}
+async function backendProjectWorkspaceForExport({ input: input3 }) {
+  const inlineProject = recordValue8(input3.backendProject ?? input3.backend_project);
+  if (inlineProject) return { backendProject: inlineProject };
+  const compileResult = recordValue8(input3.compileResult ?? input3.compile_result);
+  const resultProject = recordValue8(compileResult?.backend_project);
+  if (resultProject) {
+    return { backendProject: resultProject };
+  }
+  throw httpError3(400, "project_backend_project_required", "backendProject or compileResult.backend_project is required to materialize a backend editing workspace");
+}
+function backendProjectWorkspaceExportDirectory(projectDir, input3, backendProject, targetRef) {
+  const explicit = pathStringValue(input3.exportDirectory ?? input3.export_directory ?? input3.outputDir ?? input3.output_dir);
+  if (explicit) return explicit;
+  const backend = stringValue19(backendProject.backend) ?? stringValue19(input3.backend) ?? "backend";
+  const projectId = stringValue19(backendProject.project_id ?? backendProject.projectId) ?? projectEditingPathSegment(stringValue19(backendProject.title) ?? backend);
+  const targetSegment = projectEditingPathSegment(targetRef ?? stringValue19(recordValue8(backendProject.source)?.target_ref) ?? projectId);
+  return resolve14(projectDir, "backend_projects", targetSegment, projectEditingPathSegment(backend), projectEditingPathSegment(projectId));
+}
+function backendProjectTargetRefFromInput(input3) {
+  const record = recordValue8(input3);
+  if (!record) return void 0;
+  const source = recordValue8(record.source);
+  return stringValue19(
+    record.targetRef ?? record.target_ref ?? source?.targetRef ?? source?.target_ref
+  );
+}
+function productionEditingProductionId(input3) {
+  const productionId = idValue4(input3.productionId ?? input3.production_id ?? input3.scopeRef ?? input3.scope_ref);
+  if (productionId !== void 0) return String(productionId);
+  throw httpError3(400, "project_production_editing_production_required", "productionId is required");
+}
+function productionEditingProjectId(input3, body = {}) {
+  return stringValue19(
+    input3.mediaProjectId ?? input3.media_project_id ?? body.mediaProjectId ?? body.media_project_id ?? input3.projectId ?? input3.project_id ?? body.projectId ?? body.project_id
+  ) ?? "movscript_project";
+}
+function productionEditingWorkspaceKind(value) {
+  const kind = productionEditingOptionalWorkspaceKind(value);
+  if (kind) return kind;
+  throw httpError3(400, "project_production_editing_workspace_kind_required", "workspace kind is required");
+}
+function productionEditingOptionalWorkspaceKind(value) {
+  const raw = stringValue19(value);
+  if (!raw) return void 0;
+  if (raw === "system_editing" || raw === "remotion") return raw;
+  throw httpError3(400, "project_production_editing_workspace_kind_invalid", `unsupported production editing workspace kind: ${raw}`);
+}
+function productionEditingWorkspaceId(input3, kind, now) {
+  return stringValue19(input3.workspaceId ?? input3.workspace_id) ?? `${kind}_${projectEditingPathSegment(productionEditingProductionId(input3))}_${now.getTime().toString(36)}`;
+}
+function requiredProductionEditingWorkspaceId(input3) {
+  const workspaceId = stringValue19(input3.workspaceId ?? input3.workspace_id);
+  if (workspaceId) return workspaceId;
+  throw httpError3(400, "project_production_editing_workspace_id_required", "workspaceId is required");
+}
+function productionEditingWorkspaceRoot(projectDir, productionId) {
+  return resolve14(projectDir, "editing_projects", "productions", projectEditingPathSegment(productionId));
+}
+function productionEditingResourcesPath(projectDir, productionId) {
+  return resolve14(productionEditingWorkspaceRoot(projectDir, productionId), "resources.json");
+}
+function productionEditingWorkspacesDirectory(projectDir, productionId) {
+  return resolve14(productionEditingWorkspaceRoot(projectDir, productionId), "workspaces");
+}
+function productionEditingWorkspaceDirectory(projectDir, productionId, workspaceId) {
+  return resolve14(productionEditingWorkspacesDirectory(projectDir, productionId), projectEditingPathSegment(workspaceId));
+}
+function productionEditingWorkspacePath(projectDir, productionId, workspaceId) {
+  return resolve14(productionEditingWorkspaceDirectory(projectDir, productionId, workspaceId), "workspace.json");
+}
+function productionEditingWorkspaceResourceSnapshotPath(projectDir, productionId, workspaceId) {
+  return resolve14(productionEditingWorkspaceDirectory(projectDir, productionId, workspaceId), "resources.snapshot.json");
+}
+function productionEditingWorkspaceMediaProjectPath(projectDir, productionId, workspaceId) {
+  return resolve14(productionEditingWorkspaceDirectory(projectDir, productionId, workspaceId), "media-editing-project.json");
+}
+function productionEditingRemotionProjectDirectory(projectDir, productionId, workspaceId) {
+  return resolve14(productionEditingWorkspaceDirectory(projectDir, productionId, workspaceId), "remotion");
+}
+function withProductionEditingWorkspaceStaleState(workspace, currentResourceSourceHash) {
+  const seedSourceHash = productionEditingWorkspaceSeedSourceHash(workspace);
+  const lastSeenResourceSourceHash = stringValue19(currentResourceSourceHash) ?? stringValue19(workspace.lastSeenResourceSourceHash ?? workspace.last_seen_resource_source_hash) ?? seedSourceHash;
+  const stale = Boolean(seedSourceHash && lastSeenResourceSourceHash && seedSourceHash !== lastSeenResourceSourceHash);
+  const staleHints = stale ? [{
+    code: "production_resources_changed",
+    message: "Production resources changed since this workspace was seeded. Create a new workspace version or import changes in the handoff skill.",
+    seedSourceHash,
+    seed_source_hash: seedSourceHash,
+    lastSeenResourceSourceHash,
+    last_seen_resource_source_hash: lastSeenResourceSourceHash
+  }] : [];
+  return pruneUndefinedRecord3({
+    ...workspace,
+    seedSourceHash,
+    seed_source_hash: seedSourceHash,
+    lastSeenResourceSourceHash,
+    last_seen_resource_source_hash: lastSeenResourceSourceHash,
+    resourceSourceHash: seedSourceHash,
+    resource_source_hash: seedSourceHash,
+    stale,
+    staleHints,
+    stale_hints: staleHints
+  });
+}
+function productionEditingWorkspaceSeedSourceHash(workspace) {
+  return stringValue19(
+    workspace.seedSourceHash ?? workspace.seed_source_hash ?? workspace.resourceSourceHash ?? workspace.resource_source_hash
+  );
+}
+async function readProjectProductionEditingWorkspaces(projectDir, productionId) {
+  const directory = productionEditingWorkspacesDirectory(projectDir, productionId);
+  const entries = await readdir6(directory, { withFileTypes: true }).catch((error) => {
+    if (isNotFoundError5(error)) return [];
+    throw error;
+  });
+  const workspaces = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const workspace = await readJSONFile(resolve14(directory, entry.name, "workspace.json"));
+    if (workspace) workspaces.push(withProductionEditingWorkspaceStaleState(workspace));
+  }
+  return workspaces.sort((left, right) => {
+    const leftTime = Date.parse(stringValue19(left.updatedAt ?? left.updated_at) ?? "");
+    const rightTime = Date.parse(stringValue19(right.updatedAt ?? right.updated_at) ?? "");
+    const leftSort = Number.isFinite(leftTime) ? leftTime : 0;
+    const rightSort = Number.isFinite(rightTime) ? rightTime : 0;
+    return rightSort - leftSort || String(left.workspaceId ?? left.workspace_id ?? "").localeCompare(String(right.workspaceId ?? right.workspace_id ?? ""));
+  });
+}
+async function readProjectProductionEditingWorkspaceMediaProject(projectDir, productionId, workspaceId) {
+  const envelope = await readJSONFile(productionEditingWorkspaceMediaProjectPath(projectDir, productionId, workspaceId));
+  const project = recordValue8(envelope?.editingProject ?? envelope?.editing_project);
+  return project ?? void 0;
+}
+function createProductionBoundMediaEditingProject({
+  input: input3,
+  projectId,
+  productionId,
+  productionPath,
+  workspaceId,
+  workspaceDirectory,
+  editingProjectId,
+  title,
+  resources,
+  now
+}) {
+  const project = createMediaEditingProjectFromProductionTimelineClips({
+    productionId,
+    productionPath,
+    scopeKind: "production",
+    scopeRef: productionId,
+    id: editingProjectId,
+    projectId,
+    title,
+    clips: [],
+    now: now.toISOString(),
+    fps: numberValue8(input3.fps),
+    width: numberValue8(input3.width),
+    height: numberValue8(input3.height)
+  });
+  return {
+    ...project,
+    workspace: {
+      workspaceId,
+      rootPath: workspaceDirectory,
+      productionId,
+      autoImportRenderResult: true,
+      candidateDecisionRequired: true
+    },
+    provenance: {
+      ...recordValue8(project.provenance) ?? {},
+      sourceHash: resources.sourceHash,
+      targetKind: "production",
+      targetRef: productionId,
+      scopeKind: "production",
+      scopeRef: productionId,
+      productionPath
+    }
+  };
+}
+function productionEditingShouldMaterializeRemotion(input3) {
+  return Boolean(
+    recordValue8(input3.backendProject ?? input3.backend_project) || recordValue8(input3.compileResult ?? input3.compile_result)
+  );
+}
+async function writeProductionEditingRemotionStarterProject({
+  projectDirectory,
+  input: input3,
+  productionId,
+  workspaceId,
+  title,
+  resources
+}) {
+  const compositionId = stringValue19(input3.compositionId ?? input3.composition_id) ?? "MovScriptRoughCut";
+  const width = Math.floor(numberValue8(input3.width) ?? 1920);
+  const height = Math.floor(numberValue8(input3.height) ?? 1080);
+  const fps = Math.floor(numberValue8(input3.fps) ?? 30);
+  const durationInFrames = Math.max(150, Math.min(3600, (resources.items?.length ?? 0) * 90 || 150));
+  const seed = {
+    schema: "movscript.production_editing.remotion_seed.v1",
+    productionId,
+    production_id: productionId,
+    workspaceId,
+    workspace_id: workspaceId,
+    title,
+    compositionId,
+    composition_id: compositionId,
+    width,
+    height,
+    fps,
+    durationInFrames,
+    duration_in_frames: durationInFrames,
+    resources: {
+      schema: resources.schema,
+      refreshedAt: resources.refreshedAt,
+      refreshed_at: resources.refreshed_at,
+      sourceHash: resources.sourceHash,
+      source_hash: resources.source_hash,
+      counts: resources.counts,
+      items: Array.isArray(resources.items) ? resources.items : []
+    }
+  };
+  const files = [
+    {
+      path: "package.json",
+      role: "package",
+      language: "json",
+      content: `${JSON.stringify(productionEditingRemotionPackageJson(workspaceId, compositionId), null, 2)}
+`
+    },
+    {
+      path: "src/Root.tsx",
+      role: "entrypoint",
+      language: "tsx",
+      content: productionEditingRemotionRootTsx(compositionId)
+    },
+    {
+      path: "src/MovScriptProduction.tsx",
+      role: "source",
+      language: "tsx",
+      content: productionEditingRemotionCompositionTsx()
+    },
+    {
+      path: "src/production-seed.ts",
+      role: "data",
+      language: "ts",
+      content: `export const productionSeed = ${JSON.stringify(seed, null, 2)} as const;
+`
+    },
+    {
+      path: "movscript-remotion-workspace.json",
+      role: "metadata",
+      language: "json",
+      content: `${JSON.stringify(seed, null, 2)}
+`
+    }
+  ];
+  const writtenFiles = [];
+  for (const file of files) {
+    const relativePath = safeBackendProjectFilePath(file.path);
+    const absolutePath = resolve14(projectDirectory, ...relativePath.split("/"));
+    assertPathInsideDirectory(projectDirectory, absolutePath);
+    await mkdir8(dirname13(absolutePath), { recursive: true });
+    await writeFile8(absolutePath, file.content, "utf8");
+    writtenFiles.push({
+      path: relativePath,
+      absolute_path: absolutePath,
+      role: file.role,
+      language: file.language,
+      bytes: Buffer.byteLength(file.content, "utf8")
+    });
+  }
+  return {
+    schema: "movscript.production_editing.remotion_project_scaffold.v1",
+    status: "created",
+    backend: "remotion",
+    project_id: workspaceId,
+    title,
+    export_directory: projectDirectory,
+    file_count: writtenFiles.length,
+    files: writtenFiles,
+    entrypoint: "src/Root.tsx",
+    entrypoint_path: resolve14(projectDirectory, "src", "Root.tsx"),
+    composition_id: compositionId,
+    rendered: false,
+    candidate_created: false,
+    scaffolded: true,
+    service_owner: "project-service"
+  };
+}
+function productionEditingRemotionPackageJson(workspaceId, compositionId) {
+  return {
+    private: true,
+    name: projectEditingPathSegment(`movscript-remotion-${workspaceId}`).toLowerCase().replace(/_/g, "-"),
+    scripts: {
+      studio: "remotion studio src/Root.tsx",
+      render: `remotion render src/Root.tsx ${compositionId} out/rough-cut.mp4`
+    },
+    dependencies: {
+      "@remotion/cli": "latest",
+      remotion: "latest",
+      react: "latest",
+      "react-dom": "latest"
+    },
+    devDependencies: {
+      typescript: "latest"
+    }
+  };
+}
+function productionEditingRemotionRootTsx(compositionId) {
+  return `import React from 'react';
+import { Composition, registerRoot } from 'remotion';
+import { MovScriptProduction } from './MovScriptProduction';
+import { productionSeed } from './production-seed';
+
+export const RemotionRoot: React.FC = () => {
+  return (
+    <Composition
+      id={${JSON.stringify(compositionId)}}
+      component={MovScriptProduction}
+      width={productionSeed.width}
+      height={productionSeed.height}
+      fps={productionSeed.fps}
+      durationInFrames={productionSeed.durationInFrames}
+      defaultProps={{ seed: productionSeed }}
+    />
+  );
+};
+
+registerRoot(RemotionRoot);
+`;
+}
+function productionEditingRemotionCompositionTsx() {
+  return `import React from 'react';
+import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import type { productionSeed } from './production-seed';
+
+type ProductionSeed = typeof productionSeed;
+type ResourceItem = ProductionSeed['resources']['items'][number];
+
+export const MovScriptProduction: React.FC<{ seed: ProductionSeed }> = ({ seed }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const items = seed.resources.items;
+  const intro = spring({ frame, fps, config: { damping: 18, stiffness: 90 } });
+  const progress = interpolate(frame, [0, Math.max(1, seed.durationInFrames - 1)], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  return (
+    <AbsoluteFill style={styles.stage}>
+      <div style={{ ...styles.backplate, opacity: 0.5 + intro * 0.35 }} />
+      <main style={{ ...styles.content, transform: \`translateY(\${(1 - intro) * 24}px)\` }}>
+        <p style={styles.eyebrow}>MovScript Production Editing</p>
+        <h1 style={styles.title}>{seed.title}</h1>
+        <p style={styles.meta}>
+          {seed.productionId} \xB7 {items.length} resources \xB7 {seed.width}x{seed.height}@{seed.fps}
+        </p>
+        <section style={styles.grid}>
+          {items.slice(0, 6).map((item, index) => (
+            <ResourceCard key={String(item.id ?? item.contentUnitId ?? index)} item={item} index={index} />
+          ))}
+          {items.length === 0 ? <div style={styles.empty}>No production resources yet</div> : null}
+        </section>
+      </main>
+      <div style={styles.progressTrack}>
+        <div style={{ ...styles.progressFill, width: \`\${progress * 100}%\` }} />
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+const ResourceCard: React.FC<{ item: ResourceItem; index: number }> = ({ item, index }) => {
+  const label = item.title ?? item.contentUnitId ?? item.id ?? \`Resource \${index + 1}\`;
+  const detail = [
+    item.kind,
+    item.mediaKind ?? item.media_kind,
+    item.selectedResourceId ?? item.selected_resource_id ? \`resource \${item.selectedResourceId ?? item.selected_resource_id}\` : undefined,
+  ].filter(Boolean).join(' \xB7 ');
+
+  return (
+    <article style={styles.card}>
+      <div style={styles.cardIndex}>{String(index + 1).padStart(2, '0')}</div>
+      <div>
+        <h2 style={styles.cardTitle}>{String(label)}</h2>
+        <p style={styles.cardDetail}>{detail || 'available content unit'}</p>
+      </div>
+    </article>
+  );
+};
+
+const styles: Record<string, React.CSSProperties> = {
+  stage: {
+    background: '#101014',
+    color: '#f7f2ea',
+    fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    overflow: 'hidden',
+  },
+  backplate: {
+    position: 'absolute',
+    inset: 0,
+    background: 'linear-gradient(135deg, #202436 0%, #101014 45%, #263126 100%)',
+  },
+  content: {
+    position: 'relative',
+    zIndex: 1,
+    padding: 72,
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    gap: 20,
+  },
+  eyebrow: {
+    margin: 0,
+    color: '#9bd6c5',
+    fontSize: 28,
+    fontWeight: 700,
+    letterSpacing: 0,
+  },
+  title: {
+    margin: 0,
+    maxWidth: 1320,
+    fontSize: 88,
+    lineHeight: 1.02,
+    fontWeight: 800,
+    letterSpacing: 0,
+  },
+  meta: {
+    margin: 0,
+    color: '#c9c2b8',
+    fontSize: 30,
+  },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gap: 14,
+    maxWidth: 1280,
+    marginTop: 18,
+  },
+  card: {
+    minHeight: 126,
+    border: '1px solid rgba(247, 242, 234, 0.18)',
+    background: 'rgba(247, 242, 234, 0.08)',
+    borderRadius: 8,
+    padding: 22,
+    display: 'grid',
+    gridTemplateColumns: '54px 1fr',
+    gap: 16,
+    alignItems: 'start',
+  },
+  cardIndex: {
+    color: '#f1c75b',
+    fontSize: 26,
+    fontWeight: 800,
+  },
+  cardTitle: {
+    margin: 0,
+    fontSize: 26,
+    lineHeight: 1.15,
+    fontWeight: 750,
+  },
+  cardDetail: {
+    margin: '8px 0 0',
+    color: '#c9c2b8',
+    fontSize: 20,
+    lineHeight: 1.25,
+  },
+  empty: {
+    border: '1px solid rgba(247, 242, 234, 0.18)',
+    borderRadius: 8,
+    padding: 24,
+    color: '#c9c2b8',
+    fontSize: 24,
+  },
+  progressTrack: {
+    position: 'absolute',
+    left: 72,
+    right: 72,
+    bottom: 54,
+    height: 6,
+    background: 'rgba(247, 242, 234, 0.18)',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    background: '#9bd6c5',
+  },
+};
+`;
+}
+function productionEditingWorkspaceOpenAction(workspace, mediaEditingProject) {
+  const kind = stringValue19(workspace.kind);
+  if (kind === "remotion") {
+    return pruneUndefinedRecord3({
+      kind: "remotion_studio_session",
+      backend: "remotion",
+      workspaceId: stringValue19(workspace.workspaceId ?? workspace.workspace_id),
+      workspace_id: stringValue19(workspace.workspaceId ?? workspace.workspace_id),
+      productionId: stringValue19(workspace.productionId ?? workspace.production_id),
+      production_id: stringValue19(workspace.productionId ?? workspace.production_id),
+      projectDirectory: stringValue19(workspace.projectDirectory ?? workspace.project_directory),
+      project_directory: stringValue19(workspace.projectDirectory ?? workspace.project_directory),
+      entrypoint: stringValue19(workspace.entrypoint),
+      compositionId: stringValue19(workspace.compositionId ?? workspace.composition_id),
+      composition_id: stringValue19(workspace.compositionId ?? workspace.composition_id),
+      preferredPort: 0,
+      preferred_port: 0,
+      command: workspace.previewCommand ?? workspace.preview_command
+    });
+  }
+  const editingProjectId = stringValue19(workspace.editingProjectId ?? workspace.editing_project_id);
+  const editingProjectProjectId = stringValue19(workspace.mediaEditingProjectProjectId ?? workspace.media_editing_project_project_id) ?? stringValue19(mediaEditingProject?.projectId ?? mediaEditingProject?.project_id);
+  return pruneUndefinedRecord3({
+    kind: "desktop_route",
+    route: editingProjectId ? productionEditingSystemRoute(editingProjectId, editingProjectProjectId) : "/editing",
+    editingProjectId,
+    editing_project_id: editingProjectId,
+    editingProjectProjectId,
+    editing_project_project_id: editingProjectProjectId,
+    workspaceId: stringValue19(workspace.workspaceId ?? workspace.workspace_id),
+    workspace_id: stringValue19(workspace.workspaceId ?? workspace.workspace_id)
+  });
+}
+async function productionEditingWorkspaceHandoffEnvelope(workspace, { projectDir, mediaEditingProject } = {}) {
+  const handoff = productionEditingWorkspaceHandoff(workspace, mediaEditingProject);
+  const handoffPreflight = await productionEditingWorkspaceHandoffPreflight(workspace, { projectDir, mediaEditingProject });
+  return {
+    handoff,
+    handoff_preflight: handoffPreflight,
+    handoffPreflight
+  };
+}
+function productionEditingWorkspaceHandoff(workspace, mediaEditingProject) {
+  const kind = stringValue19(workspace.kind);
+  const workspaceId = stringValue19(workspace.workspaceId ?? workspace.workspace_id);
+  const productionId = stringValue19(workspace.productionId ?? workspace.production_id);
+  const mediaProjectId = stringValue19(workspace.mediaEditingProjectProjectId ?? workspace.media_editing_project_project_id) ?? stringValue19(mediaEditingProject?.projectId ?? mediaEditingProject?.project_id);
+  return pruneUndefinedRecord3({
+    fromSkill: "production-editing",
+    from_skill: "production-editing",
+    toSkill: kind === "remotion" ? "remotion" : "system_edit",
+    to_skill: kind === "remotion" ? "remotion" : "system_edit",
+    reason: "workspace_ready",
+    workspaceKind: kind,
+    workspace_kind: kind,
+    workspaceId,
+    workspace_id: workspaceId,
+    requiredContext: pruneUndefinedRecord3({
+      mediaProjectId,
+      media_project_id: mediaProjectId,
+      projectId: mediaProjectId,
+      project_id: mediaProjectId,
+      productionId,
+      production_id: productionId,
+      workspaceId,
+      workspace_id: workspaceId,
+      projectDirectory: workspace.projectDirectory ?? workspace.project_directory,
+      project_directory: workspace.projectDirectory ?? workspace.project_directory,
+      mediaEditingProjectId: workspace.editingProjectId ?? workspace.editing_project_id,
+      media_editing_project_id: workspace.editingProjectId ?? workspace.editing_project_id,
+      manifestPath: workspace.manifestPath ?? workspace.manifest_path,
+      manifest_path: workspace.manifestPath ?? workspace.manifest_path
+    })
+  });
+}
+async function productionEditingWorkspaceHandoffPreflight(workspace, { projectDir, mediaEditingProject } = {}) {
+  const kind = stringValue19(workspace.kind);
+  const agentSkill = await productionEditingWorkspaceAgentSkillStatus(kind, { projectDir });
+  const projectRuntime = await productionEditingWorkspaceProjectRuntimeStatus(workspace, { mediaEditingProject });
+  const blockers = [
+    ...productionEditingAgentSkillBlockers(agentSkill),
+    ...Array.isArray(projectRuntime.blockers) ? projectRuntime.blockers : []
+  ];
+  const warnings = [
+    ...Array.isArray(projectRuntime.warnings) ? projectRuntime.warnings : []
+  ];
+  return {
+    schema: "movscript.production_editing_handoff_preflight.v1",
+    workspaceKind: kind,
+    workspace_kind: kind,
+    ready: agentSkill.status === "available" && blockers.length === 0,
+    blockers,
+    warnings,
+    agentSkill,
+    agent_skill: agentSkill,
+    projectRuntime,
+    project_runtime: projectRuntime
+  };
+}
+async function productionEditingWorkspaceAgentSkillStatus(kind, { projectDir } = {}) {
+  const skillName = kind === "remotion" ? "remotion" : "system_edit";
+  const skillDirectory = kind === "remotion" ? "remotion" : "system-edit";
+  if (kind === "remotion") {
+    return productionEditingEnsureCodexSkill({ projectDir, skillName, skillDirectory });
+  }
+  return {
+    status: "available",
+    provider: "unknown",
+    skillName,
+    skill_name: skillName,
+    skillDirectory,
+    skill_directory: skillDirectory,
+    source: "movscript_plugin_bundled_skill"
+  };
+}
+function productionEditingAgentSkillBlockers(agentSkill) {
+  if (!agentSkill || agentSkill.status === "available") return [];
+  const skillName = stringValue19(agentSkill.skillName ?? agentSkill.skill_name) ?? "workspace skill";
+  if (agentSkill.status === "installed_restart_required") {
+    return [{
+      code: "REMOTION_SKILL_INSTALL_RESTART_REQUIRED",
+      message: `${skillName} skill was installed, but the current agent session may need restart or skill reindex before handoff.`,
+      installAction: agentSkill.installAction,
+      install_action: agentSkill.install_action
+    }];
+  }
+  if (agentSkill.status === "install_failed") {
+    return [{
+      code: "REMOTION_SKILL_INSTALL_FAILED",
+      message: `${skillName} skill installation failed.`,
+      error: agentSkill.error,
+      installAction: agentSkill.installAction,
+      install_action: agentSkill.install_action
+    }];
+  }
+  return [{
+    code: "REMOTION_SKILL_MISSING",
+    message: `${skillName} skill is missing and could not be installed automatically.`,
+    installAction: agentSkill.installAction,
+    install_action: agentSkill.install_action
+  }];
+}
+async function productionEditingEnsureCodexSkill({ projectDir, skillName, skillDirectory }) {
+  const targetDir = stringValue19(projectDir) ? resolve14(projectDir, ".codex", "skills", "plugins", "movscript_movscript-bundled", skillDirectory) : void 0;
+  const targetSkillPath = targetDir ? resolve14(targetDir, "SKILL.md") : void 0;
+  if (targetSkillPath && await pathExists(targetSkillPath)) {
+    return {
+      status: "available",
+      provider: "codex",
+      skillName,
+      skill_name: skillName,
+      skillDirectory,
+      skill_directory: skillDirectory,
+      source: "project_codex_skill",
+      path: targetSkillPath
+    };
+  }
+  const sourceDir = await productionEditingBundledSkillSourceDirectory(skillDirectory);
+  if (!sourceDir || !targetDir || !targetSkillPath) {
+    return {
+      status: "missing",
+      provider: "codex",
+      skillName,
+      skill_name: skillName,
+      skillDirectory,
+      skill_directory: skillDirectory,
+      source: sourceDir ? "movscript_plugin_bundled_skill" : "missing_bundled_skill",
+      installAction: {
+        kind: "manual_instruction",
+        requiresRestart: true,
+        instruction: `Install the MovScript ${skillName} skill into the current Codex project and restart or reindex Codex skills.`
+      },
+      install_action: {
+        kind: "manual_instruction",
+        requires_restart: true,
+        instruction: `Install the MovScript ${skillName} skill into the current Codex project and restart or reindex Codex skills.`
+      }
+    };
+  }
+  try {
+    await mkdir8(dirname13(targetDir), { recursive: true });
+    await cp(sourceDir, targetDir, { recursive: true, force: true });
+    return {
+      status: "installed_restart_required",
+      provider: "codex",
+      skillName,
+      skill_name: skillName,
+      skillDirectory,
+      skill_directory: skillDirectory,
+      source: "movscript_plugin_bundled_skill",
+      sourcePath: sourceDir,
+      source_path: sourceDir,
+      path: targetSkillPath,
+      installAction: {
+        kind: "codex_skill_install",
+        command: `Installed MovScript ${skillName} skill at ${targetSkillPath}. Restart Codex or reload skills before handing off.`,
+        requiresRestart: true
+      },
+      install_action: {
+        kind: "codex_skill_install",
+        command: `Installed MovScript ${skillName} skill at ${targetSkillPath}. Restart Codex or reload skills before handing off.`,
+        requires_restart: true
+      }
+    };
+  } catch (error) {
+    return {
+      status: "install_failed",
+      provider: "codex",
+      skillName,
+      skill_name: skillName,
+      skillDirectory,
+      skill_directory: skillDirectory,
+      source: "movscript_plugin_bundled_skill",
+      sourcePath: sourceDir,
+      source_path: sourceDir,
+      path: targetSkillPath,
+      error: errorMessage11(error),
+      installAction: {
+        kind: "manual_instruction",
+        requiresRestart: true,
+        instruction: `Copy ${sourceDir} to ${targetDir}, then restart or reindex Codex skills.`
+      },
+      install_action: {
+        kind: "manual_instruction",
+        requires_restart: true,
+        instruction: `Copy ${sourceDir} to ${targetDir}, then restart or reindex Codex skills.`
+      }
+    };
+  }
+}
+async function productionEditingBundledSkillSourceDirectory(skillDirectory) {
+  const candidates = [
+    resolve14(import.meta.dirname, "..", "skills", skillDirectory),
+    resolve14(import.meta.dirname, "..", "..", "..", "apps", "plugin", "skills", skillDirectory),
+    resolve14(process.cwd(), "apps", "plugin", "skills", skillDirectory),
+    resolve14(process.cwd(), "plugins", "movscript", "skills", skillDirectory)
+  ];
+  for (const candidate of candidates) {
+    if (await pathExists(resolve14(candidate, "SKILL.md"))) return candidate;
+  }
+  return void 0;
+}
+async function productionEditingWorkspaceProjectRuntimeStatus(workspace, { mediaEditingProject } = {}) {
+  const kind = stringValue19(workspace.kind);
+  if (kind === "remotion") return productionEditingRemotionProjectRuntimeStatus(workspace);
+  const mediaEditingProjectPath = stringValue19(workspace.mediaEditingProjectPath ?? workspace.media_editing_project_path);
+  const hasMediaEditingProject = Boolean(mediaEditingProject) || (mediaEditingProjectPath ? await pathExists(mediaEditingProjectPath) : false);
+  if (hasMediaEditingProject) {
+    return {
+      status: "ready",
+      ready: true,
+      backend: "system_editing",
+      mediaEditingProjectPath,
+      media_editing_project_path: mediaEditingProjectPath
+    };
+  }
+  return {
+    status: "blocked",
+    ready: false,
+    backend: "system_editing",
+    mediaEditingProjectPath,
+    media_editing_project_path: mediaEditingProjectPath,
+    blockers: [{
+      code: "SYSTEM_EDITING_MEDIA_PROJECT_MISSING",
+      message: "The system_editing workspace is missing its MediaEditingProject file.",
+      mediaEditingProjectPath,
+      media_editing_project_path: mediaEditingProjectPath
+    }]
+  };
+}
+async function productionEditingRemotionProjectRuntimeStatus(workspace) {
+  const projectDirectory = stringValue19(workspace.projectDirectory ?? workspace.project_directory);
+  const entrypoint = stringValue19(workspace.entrypoint) ?? "src/Root.tsx";
+  const blockers = [];
+  const checks = [];
+  if (!projectDirectory) {
+    blockers.push({
+      code: "REMOTION_PROJECT_DIRECTORY_MISSING",
+      message: "The Remotion workspace is missing projectDirectory."
+    });
+  } else {
+    const requiredFiles = ["package.json", entrypoint, "movscript-remotion-workspace.json"];
+    for (const file of requiredFiles) {
+      let relativePath;
+      try {
+        relativePath = safeBackendProjectFilePath(file);
+      } catch (error) {
+        blockers.push({
+          code: "REMOTION_PROJECT_FILE_PATH_INVALID",
+          message: errorMessage11(error),
+          path: file
+        });
+        continue;
+      }
+      const absolutePath = resolve14(projectDirectory, ...relativePath.split("/"));
+      const exists = await pathExists(absolutePath);
+      checks.push({
+        path: relativePath,
+        absolutePath,
+        absolute_path: absolutePath,
+        exists
+      });
+      if (!exists) {
+        blockers.push({
+          code: "REMOTION_PROJECT_FILES_MISSING",
+          message: `The Remotion workspace is missing required project file: ${relativePath}`,
+          path: relativePath,
+          absolutePath,
+          absolute_path: absolutePath,
+          projectDirectory,
+          project_directory: projectDirectory
+        });
+      }
+    }
+  }
+  return {
+    status: blockers.length > 0 ? "blocked" : "ready",
+    ready: blockers.length === 0,
+    backend: "remotion",
+    projectDirectory,
+    project_directory: projectDirectory,
+    entrypoint,
+    checks,
+    blockers
+  };
+}
+function productionEditingSystemRoute(editingProjectId, projectId) {
+  const base = `/editing/${encodeURIComponent(editingProjectId)}`;
+  return projectId ? `${base}?projectId=${encodeURIComponent(projectId)}` : base;
+}
+function productionEditingContentUnitKind(entity) {
+  const type = stringValue19(entity?.record?.content_unit_type ?? entity?.record?.contentUnitType);
+  if (type === "asset_ref") return "asset";
+  if (type === "keyframe_ref") return "keyframe";
+  if (type === "storyboard_ref") return "storyboard";
+  return void 0;
+}
+function productionEditingContentUnitId(entity) {
+  return contentUnitRefValue(entity?.id ?? entity?.record?.id ?? entity?.record?.ID ?? pathSegmentAfter9(entity?.path, "content_units"));
+}
+function productionEditingContentUnitMatchesProduction(entity, productionId, productionContext) {
+  const kind = productionEditingContentUnitKind(entity);
+  if (kind === "asset") return true;
+  const record = recordValue8(entity?.record) ?? {};
+  const values = [
+    entity?.path,
+    record.production_id,
+    record.productionId,
+    record.target_ref,
+    record.targetRef,
+    record.scope_ref,
+    record.scopeRef,
+    record.scene_moment_ref,
+    record.sceneMomentRef,
+    record.expression_unit_ref,
+    record.expressionUnitRef,
+    record.storyboard_ref,
+    record.storyboardRef,
+    record.keyframe_ref,
+    record.keyframeRef
+  ].filter((value) => value !== void 0 && value !== null);
+  if (values.some((value) => productionEditingValueReferencesProduction(value, productionId))) return true;
+  if (kind === "keyframe") {
+    return productionEditingRefMatchesScopedEntity(record.keyframe_ref ?? record.keyframeRef, productionContext.keyframes ?? [], productionId);
+  }
+  if (kind === "storyboard") {
+    return productionEditingRefMatchesScopedEntity(record.storyboard_ref ?? record.storyboardRef, productionContext.storyboards ?? [], productionId);
+  }
+  return false;
+}
+function productionEditingValueReferencesProduction(value, productionId) {
+  const text = String(value);
+  return sameLooseId(text, productionId) || text.includes(`productions/${productionId}`) || text.includes(`production:${productionId}`);
+}
+function productionEditingRefMatchesScopedEntity(ref, entities, productionId) {
+  const refText = stringValue19(ref);
+  if (!refText) return false;
+  return entities.some((entity) => {
+    const candidates = [
+      entity.id,
+      entity.record?.id,
+      entity.record?.ID,
+      entity.path
+    ].filter((value) => value !== void 0 && value !== null);
+    return candidates.some((candidate) => sameLooseId(candidate, refText) || String(candidate).endsWith(`/${refText}`)) && productionEditingValueReferencesProduction(entity.path, productionId);
+  });
+}
+function productionEditingResourceItem({ entity, productionId, decisionContext }) {
+  const record = recordValue8(entity?.record) ?? {};
+  const contentUnitId = productionEditingContentUnitId(entity) ?? String(record.id ?? entity?.path ?? "content_unit");
+  const contentUnitType2 = stringValue19(record.content_unit_type ?? record.contentUnitType) ?? "content_unit";
+  const kind = productionEditingContentUnitKind(entity) ?? "asset";
+  const selection = recordValue8(decisionContext?.selection);
+  const selectedCandidateId = stringValue19(selection?.candidate_id ?? selection?.candidateId);
+  const selectedResourceId3 = numberValue8(selection?.resource_id ?? selection?.resourceId);
+  const candidates = Array.isArray(decisionContext?.candidates) ? decisionContext.candidates.filter(recordValue8) : [];
+  const resourceIds3 = uniqueNumbers2([
+    selectedResourceId3,
+    ...candidates.flatMap((candidate) => productionEditingCandidateResourceIds(candidate))
+  ]);
+  const mediaKind = productionEditingMediaKind(record.output_kind ?? record.outputKind) ?? productionEditingMediaKind(candidates.flatMap((candidate) => productionEditingCandidateOutputKinds(candidate)).find(Boolean));
+  return pruneUndefinedRecord3({
+    id: `${kind}:${contentUnitId}`,
+    kind,
+    contentUnitId,
+    content_unit_id: contentUnitId,
+    contentUnitType: contentUnitType2,
+    content_unit_type: contentUnitType2,
+    title: stringValue19(record.title ?? record.name) ?? contentUnitId,
+    scopeRef: productionId,
+    scope_ref: productionId,
+    sourcePath: stringValue19(entity?.path),
+    source_path: stringValue19(entity?.path),
+    assetRef: stringValue19(record.asset_ref ?? record.assetRef),
+    asset_ref: stringValue19(record.asset_ref ?? record.assetRef),
+    keyframeRef: stringValue19(record.keyframe_ref ?? record.keyframeRef),
+    keyframe_ref: stringValue19(record.keyframe_ref ?? record.keyframeRef),
+    storyboardRef: stringValue19(record.storyboard_ref ?? record.storyboardRef),
+    storyboard_ref: stringValue19(record.storyboard_ref ?? record.storyboardRef),
+    selectedCandidateId,
+    selected_candidate_id: selectedCandidateId,
+    candidateIds: candidates.map((candidate) => stringValue19(candidate.id ?? candidate.candidate_id ?? candidate.candidateId)).filter(Boolean),
+    candidate_ids: candidates.map((candidate) => stringValue19(candidate.id ?? candidate.candidate_id ?? candidate.candidateId)).filter(Boolean),
+    selectedResourceId: selectedResourceId3,
+    selected_resource_id: selectedResourceId3,
+    resourceIds: resourceIds3,
+    resource_ids: resourceIds3,
+    mediaKind,
+    media_kind: mediaKind,
+    thumbnailResourceId: mediaKind === "image" ? selectedResourceId3 ?? resourceIds3[0] : void 0,
+    thumbnail_resource_id: mediaKind === "image" ? selectedResourceId3 ?? resourceIds3[0] : void 0,
+    stale: stringValue19(selection?.stale_policy ?? selection?.stalePolicy) === "stale"
+  });
+}
+function productionEditingCandidateResourceIds(candidate) {
+  const outputs = Array.isArray(candidate.outputs) ? candidate.outputs.filter(recordValue8) : [];
+  return [
+    numberValue8(candidate.resource_id ?? candidate.resourceId),
+    ...outputs.map((output3) => numberValue8(output3.resource_id ?? output3.resourceId))
+  ].filter((value) => value !== void 0);
+}
+function productionEditingCandidateOutputKinds(candidate) {
+  const outputs = Array.isArray(candidate.outputs) ? candidate.outputs.filter(recordValue8) : [];
+  return [
+    candidate.kind,
+    candidate.output_kind,
+    candidate.outputKind,
+    candidate.resource_kind,
+    candidate.resourceKind,
+    ...outputs.map((output3) => output3.kind ?? output3.output_kind ?? output3.outputKind)
+  ];
+}
+function productionEditingMediaKind(value) {
+  const text = stringValue19(value);
+  if (!text) return void 0;
+  if (text.includes("image") || text.includes("frame") || text === "asset_ref" || text === "keyframe_ref") return "image";
+  if (text.includes("video") || text === "storyboard_ref") return "video";
+  if (text.includes("audio")) return "audio";
+  return "file";
+}
+function productionEditingResourceSourceHash(items) {
+  return stableJSONString(items.map((item) => ({
+    id: item.id,
+    selectedCandidateId: item.selectedCandidateId,
+    selectedResourceId: item.selectedResourceId,
+    resourceIds: item.resourceIds
+  })));
+}
+function uniqueNumbers2(values) {
+  return [...new Set(values.filter((value) => typeof value === "number" && Number.isFinite(value)))];
+}
+function sameLooseId(left, right) {
+  return String(left ?? "").trim() === String(right ?? "").trim();
+}
+function backendProjectWorkspaceExportFiles({ backendProject, materialized }) {
+  const projectFiles = Array.isArray(backendProject.files) ? backendProject.files.map((file) => recordValue8(file)).filter(Boolean).map((file) => ({
+    path: stringValue19(file.path),
+    role: stringValue19(file.role) ?? "source",
+    language: stringValue19(file.language),
+    content: typeof file.content === "string" ? file.content : void 0
+  })).filter((file) => file.path && file.content !== void 0) : [];
+  const existingPaths = new Set(projectFiles.map((file) => safeBackendProjectFilePath(file.path)));
+  const extraFiles = [];
+  const mediaEditingProject = recordValue8(backendProject.media_editing_project) ?? recordValue8(materialized?.media_editing_project);
+  if (mediaEditingProject && !existingPaths.has("media-editing-project.json")) {
+    extraFiles.push({
+      path: "media-editing-project.json",
+      role: "source",
+      language: "json",
+      content: `${JSON.stringify(mediaEditingProject, null, 2)}
+`
+    });
+  }
+  extraFiles.push({
+    path: "movscript-backend-project.json",
+    role: "metadata",
+    language: "json",
+    content: `${JSON.stringify(backendProject, null, 2)}
+`
+  });
+  extraFiles.push({
+    path: "export-manifest.json",
+    role: "metadata",
+    language: "json",
+    content: `${JSON.stringify({
+      schema: "movscript.production_editing.backend_project_export_manifest.v1",
+      backend: backendProject.backend,
+      project_id: backendProject.project_id,
+      title: backendProject.title,
+      entrypoint: backendProject.entrypoint,
+      file_count: projectFiles.length + extraFiles.length + 1,
+      rendered: false,
+      candidate_created: false
+    }, null, 2)}
+`
+  });
+  return [...projectFiles, ...extraFiles];
+}
+function safeBackendProjectFilePath(value) {
+  const raw = stringValue19(value);
+  if (!raw) throw httpError3(400, "project_backend_project_file_path_required", "backend project file path is required");
+  if (isAbsolute2(raw)) {
+    throw httpError3(400, "project_backend_project_file_path_invalid", `backend project file path must be relative: ${raw}`);
+  }
+  const normalized = raw.replace(/\\/g, "/");
+  const parts = normalized.split("/").filter((part) => part && part !== ".");
+  if (parts.length === 0 || parts.some((part) => part === "..")) {
+    throw httpError3(400, "project_backend_project_file_path_invalid", `backend project file path is invalid: ${raw}`);
+  }
+  return parts.join("/");
+}
+function assertPathInsideDirectory(directory, path) {
+  const relativePath = relative3(directory, path);
+  if (relativePath.startsWith("..") || isAbsolute2(relativePath)) {
+    throw httpError3(400, "project_backend_project_file_path_invalid", "backend project export attempted to write outside exportDirectory");
+  }
+}
+function projectEditingPathSegment(value) {
+  const safe = String(value ?? "").trim().replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
+  return safe || "project";
+}
+async function pathExists(path) {
+  try {
+    await stat6(path);
+    return true;
+  } catch (error) {
+    if (isNotFoundError5(error)) return false;
+    throw error;
+  }
+}
+function projectHomeRecord(entity) {
+  return {
+    ...entity.record,
+    __workspace_entity_type: entity.entityKind,
+    __workspace_path: entity.path,
+    ...entity.id !== void 0 ? { id: entity.id } : {},
+    ...entity.clientId !== void 0 ? { client_id: entity.clientId } : {},
+    ...entity.schema !== void 0 ? { schema: entity.schema } : {}
+  };
+}
+function projectDecisionContextsByContentUnitId(contexts) {
+  const output3 = /* @__PURE__ */ new Map();
+  for (const context of contexts) {
+    for (const ref of projectDecisionContextContentUnitRefs(context)) {
+      output3.set(ref, context);
+    }
+  }
+  return output3;
+}
+function projectDecisionContextContentUnitRefs(context) {
+  return [
+    context.contentUnitId,
+    context.content_unit_id,
+    context.target_ref,
+    context.targetRef
+  ].flatMap((value) => [
+    contentUnitRefValue(value),
+    contentUnitRefValue(pathSegmentAfter9(value, "content_units"))
+  ]).filter(Boolean);
+}
+function contentUnitRefValue(value) {
+  const ref = idValue4(value);
+  if (ref === void 0) return void 0;
+  const text = String(ref).trim();
+  if (!text) return void 0;
+  const suffix = pathSegmentAfter9(text, "content_units");
+  const normalized = suffix || text;
+  return normalized.startsWith("content_unit_") ? normalized.replace(/^content_unit_/, "") : normalized;
+}
+
+// ../../services/project-service/src/server.mjs
+var DATA_SERVICE_NAME2 = "movscript.data.service";
+var LOCAL_NODE_GATEWAY_SERVICE4 = "movscript.local-node.gateway";
 var PROJECT_SERVICE_ENGINE_CACHE_LIMIT = 32;
 var PROJECT_SERVICE_ENGINE_CACHE_SEPARATOR = "";
 var projectServiceEngineRegistry = new NodeMovScriptEngineRegistry();
@@ -83479,6 +86210,7 @@ function createProjectServiceHandler(options = {}) {
         writeJSON4(response, 200, projectProductionEditingEnvelope(
           context.projectDir,
           await refreshProjectProductionEditingResources({
+            runtime: projectProductionEditingRuntime(),
             projectDir: context.projectDir,
             body: context.body,
             input: projectSourceOperationInput(context.body),
@@ -83507,6 +86239,7 @@ function createProjectServiceHandler(options = {}) {
         writeJSON4(response, 200, projectProductionEditingEnvelope(
           context.projectDir,
           await createProjectProductionEditingWorkspace({
+            runtime: projectProductionEditingRuntime(),
             projectDir: context.projectDir,
             fileRepository: context.fileRepository,
             body: context.body,
@@ -83524,6 +86257,7 @@ function createProjectServiceHandler(options = {}) {
         writeJSON4(response, 200, projectProductionEditingEnvelope(
           context.projectDir,
           await openProjectProductionEditingWorkspace({
+            runtime: projectProductionEditingRuntime(),
             projectDir: context.projectDir,
             body: context.body,
             input: projectSourceOperationInput(context.body),
@@ -83734,13 +86468,13 @@ function startProjectService(options = {}) {
   const host = options.host ?? "127.0.0.1";
   const port = Number(options.port ?? 0);
   const server = createServer5(createProjectServiceHandler(options));
-  return new Promise((resolve16, reject) => {
+  return new Promise((resolve18, reject) => {
     server.once("error", reject);
     server.listen(port, host, () => {
       server.off("error", reject);
       const address = server.address();
       const actualPort = typeof address === "object" && address ? address.port : port;
-      resolve16({
+      resolve18({
         server,
         host,
         port: actualPort,
@@ -83876,6 +86610,13 @@ function projectServiceCORSHeaders() {
     vary: "Origin, Access-Control-Request-Method, Access-Control-Request-Headers"
   };
 }
+function projectProductionEditingRuntime() {
+  return {
+    createProjectWorkspaceEngine,
+    observeProjectServicePhase,
+    readCandidateContexts
+  };
+}
 async function readProjectSourceContext(request) {
   const body = await readJSONBody4(request);
   const projectDir = projectDirFromBody2(body);
@@ -83955,7 +86696,7 @@ function projectWorkspaceEngineCacheKey(context) {
 function decisionStoreCacheKeyFromBody(body = {}) {
   const explicit = recordValue8(body.decisionStore ?? body.decision_store);
   if (explicit) {
-    return stableJSONString({
+    return stableJSONString2({
       kind: explicit.kind,
       baseUrl: explicit.baseUrl ?? explicit.base_url,
       projectUid: explicit.projectUid ?? explicit.project_uid,
@@ -83965,7 +86706,7 @@ function decisionStoreCacheKeyFromBody(body = {}) {
       headers: explicit.headers
     });
   }
-  return stableJSONString({
+  return stableJSONString2({
     projectUid: body.projectUid ?? body.project_uid,
     dataServiceBaseURL: body.dataServiceBaseURL ?? body.dataServiceBaseUrl ?? body.data_service_base_url,
     scopeKind: body.scopeKind ?? body.scope_kind,
@@ -83973,10 +86714,10 @@ function decisionStoreCacheKeyFromBody(body = {}) {
     movScriptHomeDir: body.movScriptHomeDir ?? body.movscript_home_dir ?? body.workspaceDir ?? body.workspace_dir
   });
 }
-function stableJSONString(value) {
-  if (Array.isArray(value)) return `[${value.map(stableJSONString).join(",")}]`;
+function stableJSONString2(value) {
+  if (Array.isArray(value)) return `[${value.map(stableJSONString2).join(",")}]`;
   if (!recordValue8(value)) return JSON.stringify(value);
-  return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJSONString(value[key])}`).join(",")}}`;
+  return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJSONString2(value[key])}`).join(",")}}`;
 }
 function projectSourceOperationInput(body) {
   const explicit = recordValue8(body.input);
@@ -84131,1866 +86872,6 @@ function requiredContentUnitId2(input3) {
   if (typeof contentUnitId === "number" && Number.isFinite(contentUnitId)) return contentUnitId;
   throw httpError3(400, "project_content_unit_required", "contentUnitId is required");
 }
-async function listProjectContentCanvases(fileRepository) {
-  const root = await fileRepository.list({ path: CONTENT_CANVAS_DIRECTORY });
-  const canvases = [];
-  for (const entry of root.entries) {
-    if (entry.kind !== "directory") continue;
-    const path = `${entry.path}/${CONTENT_CANVAS_FILE_NAME}`;
-    const file = await fileRepository.read({ path }).catch((error) => {
-      if (isNotFoundError5(error)) return void 0;
-      throw error;
-    });
-    if (!file) continue;
-    const record = parseProjectContentCanvasFile(file.content, path);
-    canvases.push({
-      canvasKind: "content",
-      canvas_kind: "content",
-      owner: "project-service",
-      path: file.path,
-      version: file.version,
-      updatedAt: file.updatedAt,
-      record
-    });
-  }
-  canvases.sort((left, right) => {
-    const updated = String(right.record.updated_at ?? "").localeCompare(String(left.record.updated_at ?? ""));
-    return updated || String(left.record.title ?? left.record.id).localeCompare(String(right.record.title ?? right.record.id));
-  });
-  return {
-    schema: CONTENT_CANVASES_SCHEMA,
-    canvases
-  };
-}
-async function writeProjectContentCanvas(fileRepository, input3) {
-  const record = projectContentCanvasRecordFromInput(input3);
-  const titleValidationError = validateProjectContentCanvasTitle(record.title);
-  if (titleValidationError) throw titleValidationError;
-  const path = contentCanvasProjectFilePath(record.id);
-  const source = recordValue8(input3) ?? {};
-  const expectedVersion = stringValue19(source.expectedVersion ?? source.expected_version);
-  const written = await fileRepository.write({
-    path,
-    content: `${JSON.stringify(record, null, 2)}
-`,
-    ...expectedVersion !== void 0 ? { expectedVersion } : {}
-  });
-  return {
-    status: "written",
-    canvasKind: "content",
-    canvas_kind: "content",
-    path: written.path,
-    version: written.version,
-    title: record.title,
-    normalizedTitle: record.title,
-    record,
-    diagnostics: []
-  };
-}
-async function patchProjectAssetProviderCertification(fileRepository, input3) {
-  const source = recordValue8(input3) ?? {};
-  const path = normalizeProjectAssetSourcePath(source.assetPath ?? source.asset_path ?? source.path);
-  const provider = stringValue19(source.provider ?? source.provider_id ?? source.providerId);
-  if (!provider) throw httpError3(400, "project_asset_provider_required", "provider is required");
-  const certification = recordValue8(source.certification);
-  if (!certification) throw httpError3(400, "project_asset_certification_required", "certification is required");
-  const file = await fileRepository.read({ path }).catch((error) => {
-    if (isNotFoundError5(error)) return void 0;
-    throw error;
-  });
-  const current = file ? parseJSONObjectFile(file.content, path) : recordValue8(source.fallbackRecord ?? source.fallback_record);
-  if (!current) throw httpError3(404, "project_asset_source_not_found", `asset source not found: ${path}`);
-  const providerCertifications = recordValue8(current.provider_certifications) ? { ...current.provider_certifications } : {};
-  const storageKey = stringValue19(source.storageKey ?? source.storage_key) ?? providerCertificationStorageKey2(provider, certification);
-  providerCertifications[storageKey] = certification;
-  const next = {
-    ...current,
-    provider_certifications: providerCertifications
-  };
-  const expectedVersion = stringValue19(source.expectedVersion ?? source.expected_version);
-  const written = await fileRepository.write({
-    path,
-    content: `${JSON.stringify(next, null, 2)}
-`,
-    ...expectedVersion !== void 0 ? { expectedVersion } : {}
-  });
-  return {
-    status: "patched",
-    path: written.path,
-    version: written.version,
-    provider,
-    provider_id: provider,
-    storage_key: storageKey,
-    certification,
-    record: next
-  };
-}
-async function renameProjectContentCanvas(fileRepository, input3) {
-  const source = recordValue8(input3) ?? {};
-  const id = stringValue19(source.id ?? source.canvasId ?? source.canvas_id);
-  if (!id) throw httpError3(400, "project_content_canvas_id_required", "canvas id is required");
-  const title = normalizeProjectContentCanvasTitle(source.title ?? source.name);
-  const titleValidationError = validateProjectContentCanvasTitle(title);
-  if (titleValidationError) throw titleValidationError;
-  const path = contentCanvasProjectFilePath(id);
-  const file = await fileRepository.read({ path }).catch((error) => {
-    if (isNotFoundError5(error)) return void 0;
-    throw error;
-  });
-  if (!file) throw httpError3(404, "project_content_canvas_not_found", `content canvas not found: ${id}`);
-  const current = parseProjectContentCanvasFile(file.content, path);
-  const now = (/* @__PURE__ */ new Date()).toISOString();
-  const record = {
-    ...current,
-    title,
-    name: title,
-    updated_at: now
-  };
-  const expectedVersion = stringValue19(source.expectedVersion ?? source.expected_version);
-  const written = await fileRepository.write({
-    path,
-    content: `${JSON.stringify(record, null, 2)}
-`,
-    ...expectedVersion !== void 0 ? { expectedVersion } : {}
-  });
-  return {
-    status: "renamed",
-    canvasKind: "content",
-    canvas_kind: "content",
-    path: written.path,
-    version: written.version,
-    title,
-    normalizedTitle: title,
-    record,
-    diagnostics: []
-  };
-}
-async function runProjectContentCanvas({ projectDir, fileRepository, engine, input: input3, now }) {
-  const source = recordValue8(input3) ?? {};
-  const canvasId = stringValue19(source.id ?? source.canvasId ?? source.canvas_id);
-  if (!canvasId) throw httpError3(400, "project_content_canvas_id_required", "canvas id is required");
-  const canvas = await readProjectContentCanvas(fileRepository, canvasId);
-  const interpretation = await engine.interpret();
-  const contentSnapshot = await loadContentSourceWorkspaceSnapshotFromEngine(engine);
-  const contentData = buildContentSourceWorkspaceData(contentSnapshot);
-  const contentUnitSummaries = contentSourceWorkspaceContentUnitStatusSummaries(contentSnapshot);
-  const affectedContentUnitIds = contentCanvasRunAffectedContentUnitIds(canvas.record, contentSnapshot);
-  const candidateImpact = contentCanvasRunCandidateImpact({
-    affectedContentUnitIds,
-    contentUnitSummaries,
-    contentData
-  });
-  const projectTimelineStatus = buildContentSourceWorkspaceProjectTimelineStatus(contentSnapshot, contentUnitSummaries);
-  const operationId = `content-canvas-run:${contentCanvasProjectPathSegment(canvas.record.id)}:${now.getTime()}`;
-  return {
-    schema: "movscript.content_canvas_run.v1",
-    status: "completed",
-    operationId,
-    operation_id: operationId,
-    canvasId: canvas.record.id,
-    canvas_id: canvas.record.id,
-    canvas: {
-      canvasKind: "content",
-      canvas_kind: "content",
-      owner: "project-service",
-      path: canvas.path,
-      version: canvas.version,
-      record: canvas.record
-    },
-    trace: {
-      projectDir,
-      command: "runContentCanvas",
-      interpretationId: interpretation?.manifest?.interpretationId,
-      interpretation_id: interpretation?.manifest?.interpretationId,
-      editorStatePath: interpretation?.manifest?.output?.editorStatePath,
-      completedAt: now.toISOString(),
-      completed_at: now.toISOString()
-    },
-    readModel: {
-      schema: "movscript.content_canvas_run_read_model_summary.v1",
-      status: projectTimelineStatus.status,
-      timelineNamespaceCount: projectTimelineStatus.timeline_namespace_count,
-      timeline_namespace_count: projectTimelineStatus.timeline_namespace_count,
-      systemPrimitives: projectTimelineStatus.system_primitives,
-      system_primitives: projectTimelineStatus.system_primitives
-    },
-    candidateImpact,
-    candidate_impact: candidateImpact
-  };
-}
-async function deleteProjectContentCanvas(fileRepository, input3) {
-  const id = stringValue19(input3.id ?? input3.canvasId ?? input3.canvas_id);
-  if (!id) throw httpError3(400, "project_content_canvas_id_required", "canvas id is required");
-  const path = contentCanvasProjectFilePath(id);
-  await fileRepository.delete({ path });
-  return {
-    status: "deleted",
-    canvasKind: "content",
-    canvas_kind: "content",
-    path
-  };
-}
-async function readProjectContentCanvas(fileRepository, id) {
-  const path = contentCanvasProjectFilePath(id);
-  const file = await fileRepository.read({ path }).catch((error) => {
-    if (isNotFoundError5(error)) return void 0;
-    throw error;
-  });
-  if (!file) throw httpError3(404, "project_content_canvas_not_found", `content canvas not found: ${id}`);
-  return {
-    canvasKind: "content",
-    canvas_kind: "content",
-    owner: "project-service",
-    path: file.path,
-    version: file.version,
-    updatedAt: file.updatedAt,
-    record: parseProjectContentCanvasFile(file.content, path)
-  };
-}
-async function exportBackendProjectWorkspace({ projectDir, fileRepository, input: input3 }) {
-  const resolved = await backendProjectWorkspaceForExport({ projectDir, fileRepository, input: input3 });
-  const backendProject = resolved.backendProject;
-  const backend = stringValue19(backendProject.backend) ?? stringValue19(input3.backend) ?? stringValue19(resolved.materialized?.backend) ?? "unknown";
-  const projectId = stringValue19(backendProject.project_id ?? backendProject.projectId) ?? projectEditingPathSegment(stringValue19(backendProject.title) ?? backend);
-  const targetRef = backendProjectTargetRefFromInput(input3) ?? stringValue19(recordValue8(backendProject.source)?.target_ref ?? recordValue8(backendProject.source)?.targetRef);
-  const exportDirectory = backendProjectWorkspaceExportDirectory(projectDir, input3, backendProject, targetRef);
-  const overwrite = input3.overwrite === true;
-  const files = backendProjectWorkspaceExportFiles({
-    backendProject,
-    materialized: resolved.materialized
-  });
-  const writtenFiles = [];
-  for (const file of files) {
-    const relativePath = safeBackendProjectFilePath(file.path);
-    const absolutePath = resolve13(exportDirectory, ...relativePath.split("/"));
-    assertPathInsideDirectory(exportDirectory, absolutePath);
-    if (!overwrite && await pathExists(absolutePath)) {
-      throw httpError3(409, "project_backend_project_export_file_exists", `backend project export file already exists: ${relativePath}`);
-    }
-    await mkdir7(dirname12(absolutePath), { recursive: true });
-    await writeFile7(absolutePath, file.content, "utf8");
-    writtenFiles.push({
-      path: relativePath,
-      absolute_path: absolutePath,
-      role: file.role,
-      ...file.language ? { language: file.language } : {},
-      bytes: Buffer.byteLength(file.content, "utf8")
-    });
-  }
-  return {
-    schema: "movscript.production_editing.backend_project_export_result.v1",
-    status: "exported",
-    backend,
-    project_id: projectId,
-    title: stringValue19(backendProject.title),
-    export_directory: exportDirectory,
-    file_count: writtenFiles.length,
-    files: writtenFiles,
-    entrypoint: stringValue19(backendProject.entrypoint),
-    entrypoint_path: backendProject.entrypoint ? resolve13(exportDirectory, ...safeBackendProjectFilePath(backendProject.entrypoint).split("/")) : void 0,
-    source: targetRef ? { target_ref: targetRef } : void 0,
-    materialized: Boolean(resolved.materialized),
-    persisted: Boolean(resolved.materialized?.persisted),
-    rendered: false,
-    candidate_created: false,
-    service_owner: "project-service"
-  };
-}
-async function refreshProjectProductionEditingResources({ projectDir, body = {}, input: input3 = {}, decisionStore, requestScope, now }) {
-  const productionId = productionEditingProductionId(input3);
-  const engine = createProjectWorkspaceEngine({ projectDir, decisionStore, body, requestScope });
-  const index = await observeProjectServicePhase(requestScope, "indexLoadMs", () => engine.workspaceService.loadIndex());
-  const productionContext = queryMovScriptWorkspaceProductionContext(index, {
-    productionId,
-    include: ["productions", "storyboards", "keyframes", "content_units"],
-    limit: 5e3
-  });
-  const production = (productionContext.productions ?? []).find((entity) => sameLooseId(entity.id ?? entity.record?.id ?? entity.record?.ID, productionId));
-  const contentUnits = (productionContext.content_units ?? []).filter((entity) => productionEditingContentUnitKind(entity) !== void 0).filter((entity) => productionEditingContentUnitMatchesProduction(entity, productionId, productionContext));
-  const contentUnitIds = contentUnits.map((entity) => productionEditingContentUnitId(entity)).filter(Boolean);
-  const decisionContexts = decisionStore && contentUnitIds.length > 0 ? await readCandidateContexts(decisionStore, contentUnitIds, requestScope) : [];
-  const decisionContextByContentUnitId = projectDecisionContextsByContentUnitId(decisionContexts);
-  const items = contentUnits.map((entity) => {
-    const id = productionEditingContentUnitId(entity);
-    return productionEditingResourceItem({
-      entity,
-      productionId,
-      decisionContext: id ? decisionContextByContentUnitId.get(id) : void 0
-    });
-  });
-  const refreshedAt = now.toISOString();
-  const resources = {
-    schema: "movscript.production_editing_resources.v1",
-    projectDir,
-    project_dir: projectDir,
-    productionId,
-    production_id: productionId,
-    refreshedAt,
-    refreshed_at: refreshedAt,
-    sourceHash: productionEditingResourceSourceHash(items),
-    source_hash: productionEditingResourceSourceHash(items),
-    production: production ? projectHomeRecord(production) : void 0,
-    items,
-    counts: {
-      items: items.length,
-      asset: items.filter((item) => item.kind === "asset").length,
-      keyframe: items.filter((item) => item.kind === "keyframe").length,
-      storyboard: items.filter((item) => item.kind === "storyboard").length,
-      selected: items.filter((item) => item.selectedResourceId !== void 0 || item.selected_resource_id !== void 0).length
-    }
-  };
-  await writeProjectJSONFile(productionEditingResourcesPath(projectDir, productionId), resources);
-  return {
-    schema: "movscript.production_editing_resources_refresh.v1",
-    status: "ok",
-    productionId,
-    production_id: productionId,
-    resources
-  };
-}
-async function listProjectProductionEditingWorkspaces({ projectDir, input: input3 = {} }) {
-  const productionId = productionEditingProductionId(input3);
-  const page = Math.max(1, Math.floor(numberValue8(input3.page) ?? 1));
-  const pageSize = Math.min(100, Math.max(1, Math.floor(numberValue8(input3.pageSize ?? input3.page_size) ?? 20)));
-  const query = stringValue19(input3.query)?.toLowerCase();
-  const kind = productionEditingOptionalWorkspaceKind(input3.kind ?? input3.workspaceKind ?? input3.workspace_kind);
-  const workspaces = await readProjectProductionEditingWorkspaces(projectDir, productionId);
-  const filtered = workspaces.filter((workspace) => {
-    if (kind && workspace.kind !== kind) return false;
-    if (!query) return true;
-    return [
-      workspace.workspaceId,
-      workspace.workspace_id,
-      workspace.title,
-      workspace.kind,
-      workspace.editingProjectId,
-      workspace.editing_project_id
-    ].some((value) => String(value ?? "").toLowerCase().includes(query));
-  });
-  const start = (page - 1) * pageSize;
-  const paged = filtered.slice(start, start + pageSize);
-  return {
-    schema: "movscript.production_editing_workspaces_list.v1",
-    status: "ok",
-    productionId,
-    production_id: productionId,
-    workspaces: paged,
-    pagination: {
-      page,
-      pageSize,
-      page_size: pageSize,
-      total: filtered.length,
-      total_unfiltered: workspaces.length,
-      hasNextPage: start + pageSize < filtered.length,
-      has_next_page: start + pageSize < filtered.length
-    }
-  };
-}
-async function createProjectProductionEditingWorkspace({ projectDir, fileRepository, body = {}, input: input3 = {}, decisionStore, requestScope, now }) {
-  const productionId = productionEditingProductionId(input3);
-  const kind = productionEditingWorkspaceKind(input3.kind ?? input3.workspaceKind ?? input3.workspace_kind);
-  const workspaceId = productionEditingWorkspaceId(input3, kind, now);
-  const workspaceDirectory = productionEditingWorkspaceDirectory(projectDir, productionId, workspaceId);
-  const workspacePath6 = productionEditingWorkspacePath(projectDir, productionId, workspaceId);
-  const exists = await pathExists(workspacePath6);
-  if (exists && input3.overwrite !== true) {
-    throw httpError3(409, "project_production_editing_workspace_exists", `production editing workspace already exists: ${workspaceId}`);
-  }
-  const resourceRefresh = await refreshProjectProductionEditingResources({
-    projectDir,
-    body,
-    input: { ...input3, productionId },
-    decisionStore,
-    requestScope,
-    now
-  });
-  const resources = resourceRefresh.resources;
-  const title = stringValue19(input3.title ?? input3.name) ?? `${kind === "remotion" ? "Remotion" : "\u7CFB\u7EDF\u526A\u8F91"} ${productionId}`;
-  const createdAt = now.toISOString();
-  const baseWorkspace = {
-    schema: "movscript.production_editing_workspace.v1",
-    version: 1,
-    workspaceId,
-    workspace_id: workspaceId,
-    kind,
-    productionId,
-    production_id: productionId,
-    title,
-    status: "ready",
-    createdAt,
-    created_at: createdAt,
-    updatedAt: createdAt,
-    updated_at: createdAt,
-    rootPath: workspaceDirectory,
-    root_path: workspaceDirectory,
-    seedSourceHash: resources.sourceHash,
-    seed_source_hash: resources.sourceHash,
-    lastSeenResourceSourceHash: resources.sourceHash,
-    last_seen_resource_source_hash: resources.sourceHash,
-    resourceSourceHash: resources.sourceHash,
-    resource_source_hash: resources.sourceHash,
-    stale: false,
-    staleHints: [],
-    stale_hints: [],
-    resourceSnapshotPath: productionEditingWorkspaceResourceSnapshotPath(projectDir, productionId, workspaceId),
-    resource_snapshot_path: productionEditingWorkspaceResourceSnapshotPath(projectDir, productionId, workspaceId),
-    autoImportRenderResult: true,
-    auto_import_render_result: true,
-    candidateDecisionRequired: true,
-    candidate_decision_required: true
-  };
-  await writeProjectJSONFile(productionEditingWorkspaceResourceSnapshotPath(projectDir, productionId, workspaceId), resources);
-  let workspace;
-  let mediaEditingProject;
-  let exportResult;
-  if (kind === "system_editing") {
-    const editingProjectId = stringValue19(input3.editingProjectId ?? input3.editing_project_id) ?? workspaceId;
-    mediaEditingProject = createProductionBoundMediaEditingProject({
-      input: input3,
-      projectId: productionEditingProjectId(input3, body),
-      productionId,
-      productionPath: stringValue19(resources.production?.__workspace_path ?? resources.production?.path),
-      workspaceId,
-      workspaceDirectory,
-      editingProjectId,
-      title,
-      resources,
-      now
-    });
-    const mediaEditingProjectPath = productionEditingWorkspaceMediaProjectPath(projectDir, productionId, workspaceId);
-    await writeProjectJSONFile(mediaEditingProjectPath, {
-      schema: "movscript.media_editing_project.v1",
-      editingProject: mediaEditingProject,
-      editing_project: mediaEditingProject
-    });
-    workspace = pruneUndefinedRecord3({
-      ...baseWorkspace,
-      editingProjectId,
-      editing_project_id: editingProjectId,
-      mediaEditingProjectProjectId: mediaEditingProject.projectId,
-      media_editing_project_project_id: mediaEditingProject.projectId,
-      mediaEditingProjectPath,
-      media_editing_project_path: mediaEditingProjectPath
-    });
-  } else {
-    const projectDirectory = productionEditingRemotionProjectDirectory(projectDir, productionId, workspaceId);
-    await mkdir7(projectDirectory, { recursive: true });
-    if (productionEditingShouldMaterializeRemotion(input3)) {
-      exportResult = await exportBackendProjectWorkspace({
-        projectDir,
-        fileRepository,
-        input: {
-          ...input3,
-          backend: "remotion",
-          exportDirectory: projectDirectory,
-          export_directory: projectDirectory,
-          overwrite: input3.overwrite === true
-        }
-      });
-    } else {
-      exportResult = await writeProductionEditingRemotionStarterProject({
-        projectDirectory,
-        input: input3,
-        productionId,
-        workspaceId,
-        title,
-        resources
-      });
-    }
-    const compositionId = stringValue19(input3.compositionId ?? input3.composition_id) ?? "MovScriptRoughCut";
-    const defaultRenderCommand = `npx remotion render src/Root.tsx ${compositionId} out/rough-cut.mp4`;
-    workspace = pruneUndefinedRecord3({
-      ...baseWorkspace,
-      backend: "remotion",
-      projectDirectory,
-      project_directory: projectDirectory,
-      entrypoint: stringValue19(exportResult?.entrypoint ?? input3.entrypoint) ?? "src/Root.tsx",
-      compositionId,
-      composition_id: compositionId,
-      previewCommand: input3.previewCommand ?? input3.preview_command ?? "npx remotion studio",
-      preview_command: input3.previewCommand ?? input3.preview_command ?? "npx remotion studio",
-      renderCommand: input3.renderCommand ?? input3.render_command ?? defaultRenderCommand,
-      render_command: input3.renderCommand ?? input3.render_command ?? defaultRenderCommand,
-      ...exportResult ? { exportResult, export_result: exportResult } : {}
-    });
-  }
-  workspace = withProductionEditingWorkspaceStaleState(workspace, resources.sourceHash);
-  await writeProjectJSONFile(workspacePath6, workspace);
-  const handoffEnvelope = await productionEditingWorkspaceHandoffEnvelope(workspace, { projectDir, mediaEditingProject });
-  return {
-    schema: "movscript.production_editing_workspace_create.v1",
-    status: "created",
-    productionId,
-    production_id: productionId,
-    workspace,
-    stale: workspace.stale === true,
-    staleHints: workspace.staleHints,
-    stale_hints: workspace.stale_hints,
-    ...handoffEnvelope,
-    ...mediaEditingProject ? { mediaEditingProject, media_editing_project: mediaEditingProject } : {},
-    resources
-  };
-}
-async function openProjectProductionEditingWorkspace({ projectDir, body = {}, input: input3 = {}, decisionStore, requestScope, now }) {
-  const productionId = productionEditingProductionId(input3);
-  const workspaceId = requiredProductionEditingWorkspaceId(input3);
-  const workspacePath6 = productionEditingWorkspacePath(projectDir, productionId, workspaceId);
-  const workspace = await readJSONFile(workspacePath6);
-  if (!workspace) {
-    return {
-      schema: "movscript.production_editing_workspace_open.v1",
-      status: "not_found",
-      productionId,
-      production_id: productionId,
-      workspaceId,
-      workspace_id: workspaceId
-    };
-  }
-  const mediaEditingProject = await readProjectProductionEditingWorkspaceMediaProject(projectDir, productionId, workspaceId);
-  const resourceRefresh = await refreshProjectProductionEditingResources({
-    projectDir,
-    body,
-    input: { ...input3, productionId },
-    decisionStore,
-    requestScope,
-    now
-  });
-  const resources = resourceRefresh.resources;
-  const openedAt = now.toISOString();
-  const staleWorkspace = withProductionEditingWorkspaceStaleState(workspace, resources.sourceHash);
-  const updatedWorkspace = pruneUndefinedRecord3({
-    ...staleWorkspace,
-    lastOpenedAt: openedAt,
-    last_opened_at: openedAt,
-    updatedAt: openedAt,
-    updated_at: openedAt,
-    ...mediaEditingProject?.projectId ? {
-      mediaEditingProjectProjectId: mediaEditingProject.projectId,
-      media_editing_project_project_id: mediaEditingProject.projectId
-    } : {}
-  });
-  await writeProjectJSONFile(workspacePath6, updatedWorkspace);
-  await writeProjectJSONFile(productionEditingWorkspaceResourceSnapshotPath(projectDir, productionId, workspaceId), resources);
-  const handoffEnvelope = await productionEditingWorkspaceHandoffEnvelope(updatedWorkspace, { projectDir, mediaEditingProject });
-  return {
-    schema: "movscript.production_editing_workspace_open.v1",
-    status: "ready",
-    productionId,
-    production_id: productionId,
-    workspace: updatedWorkspace,
-    stale: updatedWorkspace.stale === true,
-    staleHints: updatedWorkspace.staleHints,
-    stale_hints: updatedWorkspace.stale_hints,
-    ...handoffEnvelope,
-    ...mediaEditingProject ? { mediaEditingProject, media_editing_project: mediaEditingProject } : {},
-    resources,
-    open_action: productionEditingWorkspaceOpenAction(updatedWorkspace, mediaEditingProject)
-  };
-}
-async function deleteProjectProductionEditingWorkspace({ projectDir, input: input3 = {} }) {
-  const productionId = productionEditingProductionId(input3);
-  const workspaceId = requiredProductionEditingWorkspaceId(input3);
-  const workspaceDirectory = productionEditingWorkspaceDirectory(projectDir, productionId, workspaceId);
-  const existed = await pathExists(workspaceDirectory);
-  if (existed) await rm3(workspaceDirectory, { recursive: true, force: true });
-  return {
-    schema: "movscript.production_editing_workspace_delete.v1",
-    status: existed ? "deleted" : "not_found",
-    productionId,
-    production_id: productionId,
-    workspaceId,
-    workspace_id: workspaceId,
-    workspaceDirectory,
-    workspace_directory: workspaceDirectory
-  };
-}
-async function backendProjectWorkspaceForExport({ input: input3 }) {
-  const inlineProject = recordValue8(input3.backendProject ?? input3.backend_project);
-  if (inlineProject) return { backendProject: inlineProject };
-  const compileResult = recordValue8(input3.compileResult ?? input3.compile_result);
-  const resultProject = recordValue8(compileResult?.backend_project);
-  if (resultProject) {
-    return { backendProject: resultProject };
-  }
-  throw httpError3(400, "project_backend_project_required", "backendProject or compileResult.backend_project is required to materialize a backend editing workspace");
-}
-function backendProjectWorkspaceExportDirectory(projectDir, input3, backendProject, targetRef) {
-  const explicit = pathStringValue(input3.exportDirectory ?? input3.export_directory ?? input3.outputDir ?? input3.output_dir);
-  if (explicit) return explicit;
-  const backend = stringValue19(backendProject.backend) ?? stringValue19(input3.backend) ?? "backend";
-  const projectId = stringValue19(backendProject.project_id ?? backendProject.projectId) ?? projectEditingPathSegment(stringValue19(backendProject.title) ?? backend);
-  const targetSegment = projectEditingPathSegment(targetRef ?? stringValue19(recordValue8(backendProject.source)?.target_ref) ?? projectId);
-  return resolve13(projectDir, "backend_projects", targetSegment, projectEditingPathSegment(backend), projectEditingPathSegment(projectId));
-}
-function backendProjectTargetRefFromInput(input3) {
-  const record = recordValue8(input3);
-  if (!record) return void 0;
-  const source = recordValue8(record.source);
-  return stringValue19(
-    record.targetRef ?? record.target_ref ?? source?.targetRef ?? source?.target_ref
-  );
-}
-function productionEditingProductionId(input3) {
-  const productionId = idValue4(input3.productionId ?? input3.production_id ?? input3.scopeRef ?? input3.scope_ref);
-  if (productionId !== void 0) return String(productionId);
-  throw httpError3(400, "project_production_editing_production_required", "productionId is required");
-}
-function productionEditingProjectId(input3, body = {}) {
-  return stringValue19(
-    input3.mediaProjectId ?? input3.media_project_id ?? body.mediaProjectId ?? body.media_project_id ?? input3.projectId ?? input3.project_id ?? body.projectId ?? body.project_id
-  ) ?? "movscript_project";
-}
-function productionEditingWorkspaceKind(value) {
-  const kind = productionEditingOptionalWorkspaceKind(value);
-  if (kind) return kind;
-  throw httpError3(400, "project_production_editing_workspace_kind_required", "workspace kind is required");
-}
-function productionEditingOptionalWorkspaceKind(value) {
-  const raw = stringValue19(value);
-  if (!raw) return void 0;
-  if (raw === "system_editing" || raw === "remotion") return raw;
-  throw httpError3(400, "project_production_editing_workspace_kind_invalid", `unsupported production editing workspace kind: ${raw}`);
-}
-function productionEditingWorkspaceId(input3, kind, now) {
-  return stringValue19(input3.workspaceId ?? input3.workspace_id) ?? `${kind}_${projectEditingPathSegment(productionEditingProductionId(input3))}_${now.getTime().toString(36)}`;
-}
-function requiredProductionEditingWorkspaceId(input3) {
-  const workspaceId = stringValue19(input3.workspaceId ?? input3.workspace_id);
-  if (workspaceId) return workspaceId;
-  throw httpError3(400, "project_production_editing_workspace_id_required", "workspaceId is required");
-}
-function productionEditingWorkspaceRoot(projectDir, productionId) {
-  return resolve13(projectDir, "editing_projects", "productions", projectEditingPathSegment(productionId));
-}
-function productionEditingResourcesPath(projectDir, productionId) {
-  return resolve13(productionEditingWorkspaceRoot(projectDir, productionId), "resources.json");
-}
-function productionEditingWorkspacesDirectory(projectDir, productionId) {
-  return resolve13(productionEditingWorkspaceRoot(projectDir, productionId), "workspaces");
-}
-function productionEditingWorkspaceDirectory(projectDir, productionId, workspaceId) {
-  return resolve13(productionEditingWorkspacesDirectory(projectDir, productionId), projectEditingPathSegment(workspaceId));
-}
-function productionEditingWorkspacePath(projectDir, productionId, workspaceId) {
-  return resolve13(productionEditingWorkspaceDirectory(projectDir, productionId, workspaceId), "workspace.json");
-}
-function productionEditingWorkspaceResourceSnapshotPath(projectDir, productionId, workspaceId) {
-  return resolve13(productionEditingWorkspaceDirectory(projectDir, productionId, workspaceId), "resources.snapshot.json");
-}
-function productionEditingWorkspaceMediaProjectPath(projectDir, productionId, workspaceId) {
-  return resolve13(productionEditingWorkspaceDirectory(projectDir, productionId, workspaceId), "media-editing-project.json");
-}
-function productionEditingRemotionProjectDirectory(projectDir, productionId, workspaceId) {
-  return resolve13(productionEditingWorkspaceDirectory(projectDir, productionId, workspaceId), "remotion");
-}
-function withProductionEditingWorkspaceStaleState(workspace, currentResourceSourceHash) {
-  const seedSourceHash = productionEditingWorkspaceSeedSourceHash(workspace);
-  const lastSeenResourceSourceHash = stringValue19(currentResourceSourceHash) ?? stringValue19(workspace.lastSeenResourceSourceHash ?? workspace.last_seen_resource_source_hash) ?? seedSourceHash;
-  const stale = Boolean(seedSourceHash && lastSeenResourceSourceHash && seedSourceHash !== lastSeenResourceSourceHash);
-  const staleHints = stale ? [{
-    code: "production_resources_changed",
-    message: "Production resources changed since this workspace was seeded. Create a new workspace version or import changes in the handoff skill.",
-    seedSourceHash,
-    seed_source_hash: seedSourceHash,
-    lastSeenResourceSourceHash,
-    last_seen_resource_source_hash: lastSeenResourceSourceHash
-  }] : [];
-  return pruneUndefinedRecord3({
-    ...workspace,
-    seedSourceHash,
-    seed_source_hash: seedSourceHash,
-    lastSeenResourceSourceHash,
-    last_seen_resource_source_hash: lastSeenResourceSourceHash,
-    resourceSourceHash: seedSourceHash,
-    resource_source_hash: seedSourceHash,
-    stale,
-    staleHints,
-    stale_hints: staleHints
-  });
-}
-function productionEditingWorkspaceSeedSourceHash(workspace) {
-  return stringValue19(
-    workspace.seedSourceHash ?? workspace.seed_source_hash ?? workspace.resourceSourceHash ?? workspace.resource_source_hash
-  );
-}
-async function readProjectProductionEditingWorkspaces(projectDir, productionId) {
-  const directory = productionEditingWorkspacesDirectory(projectDir, productionId);
-  const entries = await readdir6(directory, { withFileTypes: true }).catch((error) => {
-    if (isNotFoundError5(error)) return [];
-    throw error;
-  });
-  const workspaces = [];
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const workspace = await readJSONFile(resolve13(directory, entry.name, "workspace.json"));
-    if (workspace) workspaces.push(withProductionEditingWorkspaceStaleState(workspace));
-  }
-  return workspaces.sort((left, right) => {
-    const leftTime = Date.parse(stringValue19(left.updatedAt ?? left.updated_at) ?? "");
-    const rightTime = Date.parse(stringValue19(right.updatedAt ?? right.updated_at) ?? "");
-    const leftSort = Number.isFinite(leftTime) ? leftTime : 0;
-    const rightSort = Number.isFinite(rightTime) ? rightTime : 0;
-    return rightSort - leftSort || String(left.workspaceId ?? left.workspace_id ?? "").localeCompare(String(right.workspaceId ?? right.workspace_id ?? ""));
-  });
-}
-async function readProjectProductionEditingWorkspaceMediaProject(projectDir, productionId, workspaceId) {
-  const envelope = await readJSONFile(productionEditingWorkspaceMediaProjectPath(projectDir, productionId, workspaceId));
-  const project = recordValue8(envelope?.editingProject ?? envelope?.editing_project);
-  return project ?? void 0;
-}
-function createProductionBoundMediaEditingProject({
-  input: input3,
-  projectId,
-  productionId,
-  productionPath,
-  workspaceId,
-  workspaceDirectory,
-  editingProjectId,
-  title,
-  resources,
-  now
-}) {
-  const project = createMediaEditingProjectFromProductionTimelineClips({
-    productionId,
-    productionPath,
-    scopeKind: "production",
-    scopeRef: productionId,
-    id: editingProjectId,
-    projectId,
-    title,
-    clips: [],
-    now: now.toISOString(),
-    fps: numberValue8(input3.fps),
-    width: numberValue8(input3.width),
-    height: numberValue8(input3.height)
-  });
-  return {
-    ...project,
-    workspace: {
-      workspaceId,
-      rootPath: workspaceDirectory,
-      productionId,
-      autoImportRenderResult: true,
-      candidateDecisionRequired: true
-    },
-    provenance: {
-      ...recordValue8(project.provenance) ?? {},
-      sourceHash: resources.sourceHash,
-      targetKind: "production",
-      targetRef: productionId,
-      scopeKind: "production",
-      scopeRef: productionId,
-      productionPath
-    }
-  };
-}
-function productionEditingShouldMaterializeRemotion(input3) {
-  return Boolean(
-    recordValue8(input3.backendProject ?? input3.backend_project) || recordValue8(input3.compileResult ?? input3.compile_result)
-  );
-}
-async function writeProductionEditingRemotionStarterProject({
-  projectDirectory,
-  input: input3,
-  productionId,
-  workspaceId,
-  title,
-  resources
-}) {
-  const compositionId = stringValue19(input3.compositionId ?? input3.composition_id) ?? "MovScriptRoughCut";
-  const width = Math.floor(numberValue8(input3.width) ?? 1920);
-  const height = Math.floor(numberValue8(input3.height) ?? 1080);
-  const fps = Math.floor(numberValue8(input3.fps) ?? 30);
-  const durationInFrames = Math.max(150, Math.min(3600, (resources.items?.length ?? 0) * 90 || 150));
-  const seed = {
-    schema: "movscript.production_editing.remotion_seed.v1",
-    productionId,
-    production_id: productionId,
-    workspaceId,
-    workspace_id: workspaceId,
-    title,
-    compositionId,
-    composition_id: compositionId,
-    width,
-    height,
-    fps,
-    durationInFrames,
-    duration_in_frames: durationInFrames,
-    resources: {
-      schema: resources.schema,
-      refreshedAt: resources.refreshedAt,
-      refreshed_at: resources.refreshed_at,
-      sourceHash: resources.sourceHash,
-      source_hash: resources.source_hash,
-      counts: resources.counts,
-      items: Array.isArray(resources.items) ? resources.items : []
-    }
-  };
-  const files = [
-    {
-      path: "package.json",
-      role: "package",
-      language: "json",
-      content: `${JSON.stringify(productionEditingRemotionPackageJson(workspaceId, compositionId), null, 2)}
-`
-    },
-    {
-      path: "src/Root.tsx",
-      role: "entrypoint",
-      language: "tsx",
-      content: productionEditingRemotionRootTsx(compositionId)
-    },
-    {
-      path: "src/MovScriptProduction.tsx",
-      role: "source",
-      language: "tsx",
-      content: productionEditingRemotionCompositionTsx()
-    },
-    {
-      path: "src/production-seed.ts",
-      role: "data",
-      language: "ts",
-      content: `export const productionSeed = ${JSON.stringify(seed, null, 2)} as const;
-`
-    },
-    {
-      path: "movscript-remotion-workspace.json",
-      role: "metadata",
-      language: "json",
-      content: `${JSON.stringify(seed, null, 2)}
-`
-    }
-  ];
-  const writtenFiles = [];
-  for (const file of files) {
-    const relativePath = safeBackendProjectFilePath(file.path);
-    const absolutePath = resolve13(projectDirectory, ...relativePath.split("/"));
-    assertPathInsideDirectory(projectDirectory, absolutePath);
-    await mkdir7(dirname12(absolutePath), { recursive: true });
-    await writeFile7(absolutePath, file.content, "utf8");
-    writtenFiles.push({
-      path: relativePath,
-      absolute_path: absolutePath,
-      role: file.role,
-      language: file.language,
-      bytes: Buffer.byteLength(file.content, "utf8")
-    });
-  }
-  return {
-    schema: "movscript.production_editing.remotion_project_scaffold.v1",
-    status: "created",
-    backend: "remotion",
-    project_id: workspaceId,
-    title,
-    export_directory: projectDirectory,
-    file_count: writtenFiles.length,
-    files: writtenFiles,
-    entrypoint: "src/Root.tsx",
-    entrypoint_path: resolve13(projectDirectory, "src", "Root.tsx"),
-    composition_id: compositionId,
-    rendered: false,
-    candidate_created: false,
-    scaffolded: true,
-    service_owner: "project-service"
-  };
-}
-function productionEditingRemotionPackageJson(workspaceId, compositionId) {
-  return {
-    private: true,
-    name: projectEditingPathSegment(`movscript-remotion-${workspaceId}`).toLowerCase().replace(/_/g, "-"),
-    scripts: {
-      studio: "remotion studio src/Root.tsx",
-      render: `remotion render src/Root.tsx ${compositionId} out/rough-cut.mp4`
-    },
-    dependencies: {
-      "@remotion/cli": "latest",
-      remotion: "latest",
-      react: "latest",
-      "react-dom": "latest"
-    },
-    devDependencies: {
-      typescript: "latest"
-    }
-  };
-}
-function productionEditingRemotionRootTsx(compositionId) {
-  return `import React from 'react';
-import { Composition, registerRoot } from 'remotion';
-import { MovScriptProduction } from './MovScriptProduction';
-import { productionSeed } from './production-seed';
-
-export const RemotionRoot: React.FC = () => {
-  return (
-    <Composition
-      id={${JSON.stringify(compositionId)}}
-      component={MovScriptProduction}
-      width={productionSeed.width}
-      height={productionSeed.height}
-      fps={productionSeed.fps}
-      durationInFrames={productionSeed.durationInFrames}
-      defaultProps={{ seed: productionSeed }}
-    />
-  );
-};
-
-registerRoot(RemotionRoot);
-`;
-}
-function productionEditingRemotionCompositionTsx() {
-  return `import React from 'react';
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import type { productionSeed } from './production-seed';
-
-type ProductionSeed = typeof productionSeed;
-type ResourceItem = ProductionSeed['resources']['items'][number];
-
-export const MovScriptProduction: React.FC<{ seed: ProductionSeed }> = ({ seed }) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const items = seed.resources.items;
-  const intro = spring({ frame, fps, config: { damping: 18, stiffness: 90 } });
-  const progress = interpolate(frame, [0, Math.max(1, seed.durationInFrames - 1)], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  return (
-    <AbsoluteFill style={styles.stage}>
-      <div style={{ ...styles.backplate, opacity: 0.5 + intro * 0.35 }} />
-      <main style={{ ...styles.content, transform: \`translateY(\${(1 - intro) * 24}px)\` }}>
-        <p style={styles.eyebrow}>MovScript Production Editing</p>
-        <h1 style={styles.title}>{seed.title}</h1>
-        <p style={styles.meta}>
-          {seed.productionId} \xB7 {items.length} resources \xB7 {seed.width}x{seed.height}@{seed.fps}
-        </p>
-        <section style={styles.grid}>
-          {items.slice(0, 6).map((item, index) => (
-            <ResourceCard key={String(item.id ?? item.contentUnitId ?? index)} item={item} index={index} />
-          ))}
-          {items.length === 0 ? <div style={styles.empty}>No production resources yet</div> : null}
-        </section>
-      </main>
-      <div style={styles.progressTrack}>
-        <div style={{ ...styles.progressFill, width: \`\${progress * 100}%\` }} />
-      </div>
-    </AbsoluteFill>
-  );
-};
-
-const ResourceCard: React.FC<{ item: ResourceItem; index: number }> = ({ item, index }) => {
-  const label = item.title ?? item.contentUnitId ?? item.id ?? \`Resource \${index + 1}\`;
-  const detail = [
-    item.kind,
-    item.mediaKind ?? item.media_kind,
-    item.selectedResourceId ?? item.selected_resource_id ? \`resource \${item.selectedResourceId ?? item.selected_resource_id}\` : undefined,
-  ].filter(Boolean).join(' \xB7 ');
-
-  return (
-    <article style={styles.card}>
-      <div style={styles.cardIndex}>{String(index + 1).padStart(2, '0')}</div>
-      <div>
-        <h2 style={styles.cardTitle}>{String(label)}</h2>
-        <p style={styles.cardDetail}>{detail || 'available content unit'}</p>
-      </div>
-    </article>
-  );
-};
-
-const styles: Record<string, React.CSSProperties> = {
-  stage: {
-    background: '#101014',
-    color: '#f7f2ea',
-    fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    overflow: 'hidden',
-  },
-  backplate: {
-    position: 'absolute',
-    inset: 0,
-    background: 'linear-gradient(135deg, #202436 0%, #101014 45%, #263126 100%)',
-  },
-  content: {
-    position: 'relative',
-    zIndex: 1,
-    padding: 72,
-    width: '100%',
-    height: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-    gap: 20,
-  },
-  eyebrow: {
-    margin: 0,
-    color: '#9bd6c5',
-    fontSize: 28,
-    fontWeight: 700,
-    letterSpacing: 0,
-  },
-  title: {
-    margin: 0,
-    maxWidth: 1320,
-    fontSize: 88,
-    lineHeight: 1.02,
-    fontWeight: 800,
-    letterSpacing: 0,
-  },
-  meta: {
-    margin: 0,
-    color: '#c9c2b8',
-    fontSize: 30,
-  },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-    gap: 14,
-    maxWidth: 1280,
-    marginTop: 18,
-  },
-  card: {
-    minHeight: 126,
-    border: '1px solid rgba(247, 242, 234, 0.18)',
-    background: 'rgba(247, 242, 234, 0.08)',
-    borderRadius: 8,
-    padding: 22,
-    display: 'grid',
-    gridTemplateColumns: '54px 1fr',
-    gap: 16,
-    alignItems: 'start',
-  },
-  cardIndex: {
-    color: '#f1c75b',
-    fontSize: 26,
-    fontWeight: 800,
-  },
-  cardTitle: {
-    margin: 0,
-    fontSize: 26,
-    lineHeight: 1.15,
-    fontWeight: 750,
-  },
-  cardDetail: {
-    margin: '8px 0 0',
-    color: '#c9c2b8',
-    fontSize: 20,
-    lineHeight: 1.25,
-  },
-  empty: {
-    border: '1px solid rgba(247, 242, 234, 0.18)',
-    borderRadius: 8,
-    padding: 24,
-    color: '#c9c2b8',
-    fontSize: 24,
-  },
-  progressTrack: {
-    position: 'absolute',
-    left: 72,
-    right: 72,
-    bottom: 54,
-    height: 6,
-    background: 'rgba(247, 242, 234, 0.18)',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    background: '#9bd6c5',
-  },
-};
-`;
-}
-function productionEditingWorkspaceOpenAction(workspace, mediaEditingProject) {
-  const kind = stringValue19(workspace.kind);
-  if (kind === "remotion") {
-    return pruneUndefinedRecord3({
-      kind: "media_pipeline_task_request",
-      taskType: "backend_project_preview",
-      task_type: "backend_project_preview",
-      backend: "remotion",
-      projectDirectory: stringValue19(workspace.projectDirectory ?? workspace.project_directory),
-      project_directory: stringValue19(workspace.projectDirectory ?? workspace.project_directory),
-      entrypoint: stringValue19(workspace.entrypoint),
-      compositionId: stringValue19(workspace.compositionId ?? workspace.composition_id),
-      composition_id: stringValue19(workspace.compositionId ?? workspace.composition_id),
-      previewCommand: workspace.previewCommand ?? workspace.preview_command,
-      preview_command: workspace.previewCommand ?? workspace.preview_command
-    });
-  }
-  const editingProjectId = stringValue19(workspace.editingProjectId ?? workspace.editing_project_id);
-  const editingProjectProjectId = stringValue19(workspace.mediaEditingProjectProjectId ?? workspace.media_editing_project_project_id) ?? stringValue19(mediaEditingProject?.projectId ?? mediaEditingProject?.project_id);
-  return pruneUndefinedRecord3({
-    kind: "desktop_route",
-    route: editingProjectId ? productionEditingSystemRoute(editingProjectId, editingProjectProjectId) : "/editing",
-    editingProjectId,
-    editing_project_id: editingProjectId,
-    editingProjectProjectId,
-    editing_project_project_id: editingProjectProjectId,
-    workspaceId: stringValue19(workspace.workspaceId ?? workspace.workspace_id),
-    workspace_id: stringValue19(workspace.workspaceId ?? workspace.workspace_id)
-  });
-}
-async function productionEditingWorkspaceHandoffEnvelope(workspace, { projectDir, mediaEditingProject } = {}) {
-  const handoff = productionEditingWorkspaceHandoff(workspace, mediaEditingProject);
-  const handoffPreflight = await productionEditingWorkspaceHandoffPreflight(workspace, { projectDir, mediaEditingProject });
-  return {
-    handoff,
-    handoff_preflight: handoffPreflight,
-    handoffPreflight
-  };
-}
-function productionEditingWorkspaceHandoff(workspace, mediaEditingProject) {
-  const kind = stringValue19(workspace.kind);
-  const workspaceId = stringValue19(workspace.workspaceId ?? workspace.workspace_id);
-  const productionId = stringValue19(workspace.productionId ?? workspace.production_id);
-  const mediaProjectId = stringValue19(workspace.mediaEditingProjectProjectId ?? workspace.media_editing_project_project_id) ?? stringValue19(mediaEditingProject?.projectId ?? mediaEditingProject?.project_id);
-  return pruneUndefinedRecord3({
-    fromSkill: "production-editing",
-    from_skill: "production-editing",
-    toSkill: kind === "remotion" ? "remotion" : "system_edit",
-    to_skill: kind === "remotion" ? "remotion" : "system_edit",
-    reason: "workspace_ready",
-    workspaceKind: kind,
-    workspace_kind: kind,
-    workspaceId,
-    workspace_id: workspaceId,
-    requiredContext: pruneUndefinedRecord3({
-      mediaProjectId,
-      media_project_id: mediaProjectId,
-      projectId: mediaProjectId,
-      project_id: mediaProjectId,
-      productionId,
-      production_id: productionId,
-      workspaceId,
-      workspace_id: workspaceId,
-      projectDirectory: workspace.projectDirectory ?? workspace.project_directory,
-      project_directory: workspace.projectDirectory ?? workspace.project_directory,
-      mediaEditingProjectId: workspace.editingProjectId ?? workspace.editing_project_id,
-      media_editing_project_id: workspace.editingProjectId ?? workspace.editing_project_id,
-      manifestPath: workspace.manifestPath ?? workspace.manifest_path,
-      manifest_path: workspace.manifestPath ?? workspace.manifest_path
-    })
-  });
-}
-async function productionEditingWorkspaceHandoffPreflight(workspace, { projectDir, mediaEditingProject } = {}) {
-  const kind = stringValue19(workspace.kind);
-  const agentSkill = await productionEditingWorkspaceAgentSkillStatus(kind, { projectDir });
-  const projectRuntime = await productionEditingWorkspaceProjectRuntimeStatus(workspace, { mediaEditingProject });
-  const blockers = [
-    ...productionEditingAgentSkillBlockers(agentSkill),
-    ...Array.isArray(projectRuntime.blockers) ? projectRuntime.blockers : []
-  ];
-  const warnings = [
-    ...Array.isArray(projectRuntime.warnings) ? projectRuntime.warnings : []
-  ];
-  return {
-    schema: "movscript.production_editing_handoff_preflight.v1",
-    workspaceKind: kind,
-    workspace_kind: kind,
-    ready: agentSkill.status === "available" && blockers.length === 0,
-    blockers,
-    warnings,
-    agentSkill,
-    agent_skill: agentSkill,
-    projectRuntime,
-    project_runtime: projectRuntime
-  };
-}
-async function productionEditingWorkspaceAgentSkillStatus(kind, { projectDir } = {}) {
-  const skillName = kind === "remotion" ? "remotion" : "system_edit";
-  const skillDirectory = kind === "remotion" ? "remotion" : "system-edit";
-  if (kind === "remotion") {
-    return productionEditingEnsureCodexSkill({ projectDir, skillName, skillDirectory });
-  }
-  return {
-    status: "available",
-    provider: "unknown",
-    skillName,
-    skill_name: skillName,
-    skillDirectory,
-    skill_directory: skillDirectory,
-    source: "movscript_plugin_bundled_skill"
-  };
-}
-function productionEditingAgentSkillBlockers(agentSkill) {
-  if (!agentSkill || agentSkill.status === "available") return [];
-  const skillName = stringValue19(agentSkill.skillName ?? agentSkill.skill_name) ?? "workspace skill";
-  if (agentSkill.status === "installed_restart_required") {
-    return [{
-      code: "REMOTION_SKILL_INSTALL_RESTART_REQUIRED",
-      message: `${skillName} skill was installed, but the current agent session may need restart or skill reindex before handoff.`,
-      installAction: agentSkill.installAction,
-      install_action: agentSkill.install_action
-    }];
-  }
-  if (agentSkill.status === "install_failed") {
-    return [{
-      code: "REMOTION_SKILL_INSTALL_FAILED",
-      message: `${skillName} skill installation failed.`,
-      error: agentSkill.error,
-      installAction: agentSkill.installAction,
-      install_action: agentSkill.install_action
-    }];
-  }
-  return [{
-    code: "REMOTION_SKILL_MISSING",
-    message: `${skillName} skill is missing and could not be installed automatically.`,
-    installAction: agentSkill.installAction,
-    install_action: agentSkill.install_action
-  }];
-}
-async function productionEditingEnsureCodexSkill({ projectDir, skillName, skillDirectory }) {
-  const targetDir = stringValue19(projectDir) ? resolve13(projectDir, ".codex", "skills", "plugins", "movscript_movscript-bundled", skillDirectory) : void 0;
-  const targetSkillPath = targetDir ? resolve13(targetDir, "SKILL.md") : void 0;
-  if (targetSkillPath && await pathExists(targetSkillPath)) {
-    return {
-      status: "available",
-      provider: "codex",
-      skillName,
-      skill_name: skillName,
-      skillDirectory,
-      skill_directory: skillDirectory,
-      source: "project_codex_skill",
-      path: targetSkillPath
-    };
-  }
-  const sourceDir = await productionEditingBundledSkillSourceDirectory(skillDirectory);
-  if (!sourceDir || !targetDir || !targetSkillPath) {
-    return {
-      status: "missing",
-      provider: "codex",
-      skillName,
-      skill_name: skillName,
-      skillDirectory,
-      skill_directory: skillDirectory,
-      source: sourceDir ? "movscript_plugin_bundled_skill" : "missing_bundled_skill",
-      installAction: {
-        kind: "manual_instruction",
-        requiresRestart: true,
-        instruction: `Install the MovScript ${skillName} skill into the current Codex project and restart or reindex Codex skills.`
-      },
-      install_action: {
-        kind: "manual_instruction",
-        requires_restart: true,
-        instruction: `Install the MovScript ${skillName} skill into the current Codex project and restart or reindex Codex skills.`
-      }
-    };
-  }
-  try {
-    await mkdir7(dirname12(targetDir), { recursive: true });
-    await cp(sourceDir, targetDir, { recursive: true, force: true });
-    return {
-      status: "installed_restart_required",
-      provider: "codex",
-      skillName,
-      skill_name: skillName,
-      skillDirectory,
-      skill_directory: skillDirectory,
-      source: "movscript_plugin_bundled_skill",
-      sourcePath: sourceDir,
-      source_path: sourceDir,
-      path: targetSkillPath,
-      installAction: {
-        kind: "codex_skill_install",
-        command: `Installed MovScript ${skillName} skill at ${targetSkillPath}. Restart Codex or reload skills before handing off.`,
-        requiresRestart: true
-      },
-      install_action: {
-        kind: "codex_skill_install",
-        command: `Installed MovScript ${skillName} skill at ${targetSkillPath}. Restart Codex or reload skills before handing off.`,
-        requires_restart: true
-      }
-    };
-  } catch (error) {
-    return {
-      status: "install_failed",
-      provider: "codex",
-      skillName,
-      skill_name: skillName,
-      skillDirectory,
-      skill_directory: skillDirectory,
-      source: "movscript_plugin_bundled_skill",
-      sourcePath: sourceDir,
-      source_path: sourceDir,
-      path: targetSkillPath,
-      error: errorMessage11(error),
-      installAction: {
-        kind: "manual_instruction",
-        requiresRestart: true,
-        instruction: `Copy ${sourceDir} to ${targetDir}, then restart or reindex Codex skills.`
-      },
-      install_action: {
-        kind: "manual_instruction",
-        requires_restart: true,
-        instruction: `Copy ${sourceDir} to ${targetDir}, then restart or reindex Codex skills.`
-      }
-    };
-  }
-}
-async function productionEditingBundledSkillSourceDirectory(skillDirectory) {
-  const candidates = [
-    resolve13(import.meta.dirname, "..", "skills", skillDirectory),
-    resolve13(import.meta.dirname, "..", "..", "..", "apps", "plugin", "skills", skillDirectory),
-    resolve13(process.cwd(), "apps", "plugin", "skills", skillDirectory),
-    resolve13(process.cwd(), "plugins", "movscript", "skills", skillDirectory)
-  ];
-  for (const candidate of candidates) {
-    if (await pathExists(resolve13(candidate, "SKILL.md"))) return candidate;
-  }
-  return void 0;
-}
-async function productionEditingWorkspaceProjectRuntimeStatus(workspace, { mediaEditingProject } = {}) {
-  const kind = stringValue19(workspace.kind);
-  if (kind === "remotion") return productionEditingRemotionProjectRuntimeStatus(workspace);
-  const mediaEditingProjectPath = stringValue19(workspace.mediaEditingProjectPath ?? workspace.media_editing_project_path);
-  const hasMediaEditingProject = Boolean(mediaEditingProject) || (mediaEditingProjectPath ? await pathExists(mediaEditingProjectPath) : false);
-  if (hasMediaEditingProject) {
-    return {
-      status: "ready",
-      ready: true,
-      backend: "system_editing",
-      mediaEditingProjectPath,
-      media_editing_project_path: mediaEditingProjectPath
-    };
-  }
-  return {
-    status: "blocked",
-    ready: false,
-    backend: "system_editing",
-    mediaEditingProjectPath,
-    media_editing_project_path: mediaEditingProjectPath,
-    blockers: [{
-      code: "SYSTEM_EDITING_MEDIA_PROJECT_MISSING",
-      message: "The system_editing workspace is missing its MediaEditingProject file.",
-      mediaEditingProjectPath,
-      media_editing_project_path: mediaEditingProjectPath
-    }]
-  };
-}
-async function productionEditingRemotionProjectRuntimeStatus(workspace) {
-  const projectDirectory = stringValue19(workspace.projectDirectory ?? workspace.project_directory);
-  const entrypoint = stringValue19(workspace.entrypoint) ?? "src/Root.tsx";
-  const blockers = [];
-  const checks = [];
-  if (!projectDirectory) {
-    blockers.push({
-      code: "REMOTION_PROJECT_DIRECTORY_MISSING",
-      message: "The Remotion workspace is missing projectDirectory."
-    });
-  } else {
-    const requiredFiles = ["package.json", entrypoint, "movscript-remotion-workspace.json"];
-    for (const file of requiredFiles) {
-      let relativePath;
-      try {
-        relativePath = safeBackendProjectFilePath(file);
-      } catch (error) {
-        blockers.push({
-          code: "REMOTION_PROJECT_FILE_PATH_INVALID",
-          message: errorMessage11(error),
-          path: file
-        });
-        continue;
-      }
-      const absolutePath = resolve13(projectDirectory, ...relativePath.split("/"));
-      const exists = await pathExists(absolutePath);
-      checks.push({
-        path: relativePath,
-        absolutePath,
-        absolute_path: absolutePath,
-        exists
-      });
-      if (!exists) {
-        blockers.push({
-          code: "REMOTION_PROJECT_FILES_MISSING",
-          message: `The Remotion workspace is missing required project file: ${relativePath}`,
-          path: relativePath,
-          absolutePath,
-          absolute_path: absolutePath,
-          projectDirectory,
-          project_directory: projectDirectory
-        });
-      }
-    }
-  }
-  return {
-    status: blockers.length > 0 ? "blocked" : "ready",
-    ready: blockers.length === 0,
-    backend: "remotion",
-    projectDirectory,
-    project_directory: projectDirectory,
-    entrypoint,
-    checks,
-    blockers
-  };
-}
-function productionEditingSystemRoute(editingProjectId, projectId) {
-  const base = `/editing/${encodeURIComponent(editingProjectId)}`;
-  return projectId ? `${base}?projectId=${encodeURIComponent(projectId)}` : base;
-}
-function productionEditingContentUnitKind(entity) {
-  const type = stringValue19(entity?.record?.content_unit_type ?? entity?.record?.contentUnitType);
-  if (type === "asset_ref") return "asset";
-  if (type === "keyframe_ref") return "keyframe";
-  if (type === "storyboard_ref") return "storyboard";
-  return void 0;
-}
-function productionEditingContentUnitId(entity) {
-  return contentUnitRefValue(entity?.id ?? entity?.record?.id ?? entity?.record?.ID ?? pathSegmentAfter9(entity?.path, "content_units"));
-}
-function productionEditingContentUnitMatchesProduction(entity, productionId, productionContext) {
-  const kind = productionEditingContentUnitKind(entity);
-  if (kind === "asset") return true;
-  const record = recordValue8(entity?.record) ?? {};
-  const values = [
-    entity?.path,
-    record.production_id,
-    record.productionId,
-    record.target_ref,
-    record.targetRef,
-    record.scope_ref,
-    record.scopeRef,
-    record.scene_moment_ref,
-    record.sceneMomentRef,
-    record.expression_unit_ref,
-    record.expressionUnitRef,
-    record.storyboard_ref,
-    record.storyboardRef,
-    record.keyframe_ref,
-    record.keyframeRef
-  ].filter((value) => value !== void 0 && value !== null);
-  if (values.some((value) => productionEditingValueReferencesProduction(value, productionId))) return true;
-  if (kind === "keyframe") {
-    return productionEditingRefMatchesScopedEntity(record.keyframe_ref ?? record.keyframeRef, productionContext.keyframes ?? [], productionId);
-  }
-  if (kind === "storyboard") {
-    return productionEditingRefMatchesScopedEntity(record.storyboard_ref ?? record.storyboardRef, productionContext.storyboards ?? [], productionId);
-  }
-  return false;
-}
-function productionEditingValueReferencesProduction(value, productionId) {
-  const text = String(value);
-  return sameLooseId(text, productionId) || text.includes(`productions/${productionId}`) || text.includes(`production:${productionId}`);
-}
-function productionEditingRefMatchesScopedEntity(ref, entities, productionId) {
-  const refText = stringValue19(ref);
-  if (!refText) return false;
-  return entities.some((entity) => {
-    const candidates = [
-      entity.id,
-      entity.record?.id,
-      entity.record?.ID,
-      entity.path
-    ].filter((value) => value !== void 0 && value !== null);
-    return candidates.some((candidate) => sameLooseId(candidate, refText) || String(candidate).endsWith(`/${refText}`)) && productionEditingValueReferencesProduction(entity.path, productionId);
-  });
-}
-function productionEditingResourceItem({ entity, productionId, decisionContext }) {
-  const record = recordValue8(entity?.record) ?? {};
-  const contentUnitId = productionEditingContentUnitId(entity) ?? String(record.id ?? entity?.path ?? "content_unit");
-  const contentUnitType2 = stringValue19(record.content_unit_type ?? record.contentUnitType) ?? "content_unit";
-  const kind = productionEditingContentUnitKind(entity) ?? "asset";
-  const selection = recordValue8(decisionContext?.selection);
-  const selectedCandidateId = stringValue19(selection?.candidate_id ?? selection?.candidateId);
-  const selectedResourceId3 = numberValue8(selection?.resource_id ?? selection?.resourceId);
-  const candidates = Array.isArray(decisionContext?.candidates) ? decisionContext.candidates.filter(recordValue8) : [];
-  const resourceIds3 = uniqueNumbers2([
-    selectedResourceId3,
-    ...candidates.flatMap((candidate) => productionEditingCandidateResourceIds(candidate))
-  ]);
-  const mediaKind = productionEditingMediaKind(record.output_kind ?? record.outputKind) ?? productionEditingMediaKind(candidates.flatMap((candidate) => productionEditingCandidateOutputKinds(candidate)).find(Boolean));
-  return pruneUndefinedRecord3({
-    id: `${kind}:${contentUnitId}`,
-    kind,
-    contentUnitId,
-    content_unit_id: contentUnitId,
-    contentUnitType: contentUnitType2,
-    content_unit_type: contentUnitType2,
-    title: stringValue19(record.title ?? record.name) ?? contentUnitId,
-    scopeRef: productionId,
-    scope_ref: productionId,
-    sourcePath: stringValue19(entity?.path),
-    source_path: stringValue19(entity?.path),
-    assetRef: stringValue19(record.asset_ref ?? record.assetRef),
-    asset_ref: stringValue19(record.asset_ref ?? record.assetRef),
-    keyframeRef: stringValue19(record.keyframe_ref ?? record.keyframeRef),
-    keyframe_ref: stringValue19(record.keyframe_ref ?? record.keyframeRef),
-    storyboardRef: stringValue19(record.storyboard_ref ?? record.storyboardRef),
-    storyboard_ref: stringValue19(record.storyboard_ref ?? record.storyboardRef),
-    selectedCandidateId,
-    selected_candidate_id: selectedCandidateId,
-    candidateIds: candidates.map((candidate) => stringValue19(candidate.id ?? candidate.candidate_id ?? candidate.candidateId)).filter(Boolean),
-    candidate_ids: candidates.map((candidate) => stringValue19(candidate.id ?? candidate.candidate_id ?? candidate.candidateId)).filter(Boolean),
-    selectedResourceId: selectedResourceId3,
-    selected_resource_id: selectedResourceId3,
-    resourceIds: resourceIds3,
-    resource_ids: resourceIds3,
-    mediaKind,
-    media_kind: mediaKind,
-    thumbnailResourceId: mediaKind === "image" ? selectedResourceId3 ?? resourceIds3[0] : void 0,
-    thumbnail_resource_id: mediaKind === "image" ? selectedResourceId3 ?? resourceIds3[0] : void 0,
-    stale: stringValue19(selection?.stale_policy ?? selection?.stalePolicy) === "stale"
-  });
-}
-function productionEditingCandidateResourceIds(candidate) {
-  const outputs = Array.isArray(candidate.outputs) ? candidate.outputs.filter(recordValue8) : [];
-  return [
-    numberValue8(candidate.resource_id ?? candidate.resourceId),
-    ...outputs.map((output3) => numberValue8(output3.resource_id ?? output3.resourceId))
-  ].filter((value) => value !== void 0);
-}
-function productionEditingCandidateOutputKinds(candidate) {
-  const outputs = Array.isArray(candidate.outputs) ? candidate.outputs.filter(recordValue8) : [];
-  return [
-    candidate.kind,
-    candidate.output_kind,
-    candidate.outputKind,
-    candidate.resource_kind,
-    candidate.resourceKind,
-    ...outputs.map((output3) => output3.kind ?? output3.output_kind ?? output3.outputKind)
-  ];
-}
-function productionEditingMediaKind(value) {
-  const text = stringValue19(value);
-  if (!text) return void 0;
-  if (text.includes("image") || text.includes("frame") || text === "asset_ref" || text === "keyframe_ref") return "image";
-  if (text.includes("video") || text === "storyboard_ref") return "video";
-  if (text.includes("audio")) return "audio";
-  return "file";
-}
-function productionEditingResourceSourceHash(items) {
-  return stableJSONString(items.map((item) => ({
-    id: item.id,
-    selectedCandidateId: item.selectedCandidateId,
-    selectedResourceId: item.selectedResourceId,
-    resourceIds: item.resourceIds
-  })));
-}
-function uniqueNumbers2(values) {
-  return [...new Set(values.filter((value) => typeof value === "number" && Number.isFinite(value)))];
-}
-function sameLooseId(left, right) {
-  return String(left ?? "").trim() === String(right ?? "").trim();
-}
-function backendProjectWorkspaceExportFiles({ backendProject, materialized }) {
-  const projectFiles = Array.isArray(backendProject.files) ? backendProject.files.map((file) => recordValue8(file)).filter(Boolean).map((file) => ({
-    path: stringValue19(file.path),
-    role: stringValue19(file.role) ?? "source",
-    language: stringValue19(file.language),
-    content: typeof file.content === "string" ? file.content : void 0
-  })).filter((file) => file.path && file.content !== void 0) : [];
-  const existingPaths = new Set(projectFiles.map((file) => safeBackendProjectFilePath(file.path)));
-  const extraFiles = [];
-  const mediaEditingProject = recordValue8(backendProject.media_editing_project) ?? recordValue8(materialized?.media_editing_project);
-  if (mediaEditingProject && !existingPaths.has("media-editing-project.json")) {
-    extraFiles.push({
-      path: "media-editing-project.json",
-      role: "source",
-      language: "json",
-      content: `${JSON.stringify(mediaEditingProject, null, 2)}
-`
-    });
-  }
-  extraFiles.push({
-    path: "movscript-backend-project.json",
-    role: "metadata",
-    language: "json",
-    content: `${JSON.stringify(backendProject, null, 2)}
-`
-  });
-  extraFiles.push({
-    path: "export-manifest.json",
-    role: "metadata",
-    language: "json",
-    content: `${JSON.stringify({
-      schema: "movscript.production_editing.backend_project_export_manifest.v1",
-      backend: backendProject.backend,
-      project_id: backendProject.project_id,
-      title: backendProject.title,
-      entrypoint: backendProject.entrypoint,
-      file_count: projectFiles.length + extraFiles.length + 1,
-      rendered: false,
-      candidate_created: false
-    }, null, 2)}
-`
-  });
-  return [...projectFiles, ...extraFiles];
-}
-function safeBackendProjectFilePath(value) {
-  const raw = stringValue19(value);
-  if (!raw) throw httpError3(400, "project_backend_project_file_path_required", "backend project file path is required");
-  if (isAbsolute2(raw)) {
-    throw httpError3(400, "project_backend_project_file_path_invalid", `backend project file path must be relative: ${raw}`);
-  }
-  const normalized = raw.replace(/\\/g, "/");
-  const parts = normalized.split("/").filter((part) => part && part !== ".");
-  if (parts.length === 0 || parts.some((part) => part === "..")) {
-    throw httpError3(400, "project_backend_project_file_path_invalid", `backend project file path is invalid: ${raw}`);
-  }
-  return parts.join("/");
-}
-function assertPathInsideDirectory(directory, path) {
-  const relativePath = relative3(directory, path);
-  if (relativePath.startsWith("..") || isAbsolute2(relativePath)) {
-    throw httpError3(400, "project_backend_project_file_path_invalid", "backend project export attempted to write outside exportDirectory");
-  }
-}
-async function pathExists(path) {
-  try {
-    await stat6(path);
-    return true;
-  } catch (error) {
-    if (isNotFoundError5(error)) return false;
-    throw error;
-  }
-}
-function parseProjectContentCanvasFile(content, path) {
-  try {
-    return projectContentCanvasRecordFromInput(JSON.parse(content), { path });
-  } catch (error) {
-    if (error?.statusCode) throw error;
-    throw httpError3(400, "project_content_canvas_invalid", `content canvas file is invalid: ${path}`);
-  }
-}
-function projectEditingPathSegment(value) {
-  const safe = String(value ?? "").trim().replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
-  return safe || "project";
-}
-function contentCanvasRunAffectedContentUnitIds(canvasRecord, snapshot) {
-  const nodeRefs = /* @__PURE__ */ new Set();
-  for (const node of Array.isArray(canvasRecord.nodes) ? canvasRecord.nodes : []) {
-    const nodeId2 = stringValue19(node.node_id ?? node.nodeId ?? node.id);
-    const kind = stringValue19(node.kind);
-    if (!nodeId2) continue;
-    const suffix = contentCanvasNodeIdSuffix(nodeId2);
-    nodeRefs.add(nodeId2);
-    nodeRefs.add(suffix);
-    if (kind) {
-      nodeRefs.add(`${kind}:${suffix}`);
-      nodeRefs.add(`${kind}:${nodeId2}`);
-    }
-  }
-  const affected = [];
-  for (const unit of snapshot.contentUnits ?? []) {
-    const unitId = idValue4(unit.id ?? unit.record?.id ?? pathSegmentAfter9(unit.path, "content_units"));
-    if (unitId === void 0) continue;
-    const refs = contentUnitRunRefs(unit);
-    if (refs.some((ref) => nodeRefs.has(ref) || nodeRefs.has(contentCanvasNodeIdSuffix(ref)))) {
-      affected.push(String(unitId));
-    }
-  }
-  return affected;
-}
-function contentUnitRunRefs(unit) {
-  const record = recordValue8(unit.record) ?? {};
-  const id = idValue4(unit.id ?? record.id ?? pathSegmentAfter9(unit.path, "content_units"));
-  const refs = [
-    id,
-    id !== void 0 ? `content_unit:${id}` : void 0,
-    unit.path,
-    id !== void 0 ? `content_units/${id}` : void 0,
-    record.target_ref,
-    record.targetRef,
-    record.expression_unit_ref,
-    record.expressionUnitRef,
-    record.storyboard_ref,
-    record.storyboardRef,
-    record.keyframe_ref,
-    record.keyframeRef,
-    record.audio_cue_ref,
-    record.audioCueRef,
-    record.asset_ref,
-    record.assetRef,
-    record.scene_moment_ref,
-    record.sceneMomentRef
-  ].map(idValue4).filter((value) => value !== void 0).map(String);
-  return [...new Set(refs.flatMap((ref) => [ref, contentCanvasNodeIdSuffix(ref)]))];
-}
-function contentCanvasNodeIdSuffix(value) {
-  const text = String(value ?? "").trim();
-  if (!text) return "";
-  const colonParts = text.split(":").filter(Boolean);
-  if (colonParts.length > 1) return colonParts[colonParts.length - 1];
-  const slashParts = text.split("/").filter(Boolean);
-  return slashParts[slashParts.length - 1] ?? text;
-}
-function contentCanvasRunCandidateImpact({ affectedContentUnitIds, contentUnitSummaries, contentData }) {
-  const affected = new Set(affectedContentUnitIds.map(String));
-  const summaries = contentUnitSummaries.filter((summary) => {
-    if (affected.size === 0) return false;
-    return affected.has(String(summary.content_unit_id));
-  });
-  const candidateCounts = Object.fromEntries(summaries.map((summary) => [
-    String(summary.content_unit_id),
-    numberValue8(summary.candidate_count) ?? 0
-  ]));
-  const selectedContentUnitIds = summaries.filter((summary) => summary.selected_candidate !== void 0).map((summary) => String(summary.content_unit_id));
-  const missingSelectionContentUnitIds = summaries.filter((summary) => Array.isArray(summary.blocking_refs) && summary.blocking_refs.includes("selection_missing")).map((summary) => String(summary.content_unit_id));
-  return {
-    schema: "movscript.content_canvas_candidate_impact.v1",
-    affectedContentUnitIds: summaries.map((summary) => String(summary.content_unit_id)),
-    affected_content_unit_ids: summaries.map((summary) => String(summary.content_unit_id)),
-    affectedContentUnitCount: summaries.length,
-    affected_content_unit_count: summaries.length,
-    candidateCounts,
-    candidate_counts: candidateCounts,
-    selectedContentUnitIds,
-    selected_content_unit_ids: selectedContentUnitIds,
-    missingSelectionContentUnitIds,
-    missing_selection_content_unit_ids: missingSelectionContentUnitIds,
-    totalCandidateCount: summaries.reduce((sum, summary) => sum + (numberValue8(summary.candidate_count) ?? 0), 0),
-    total_candidate_count: summaries.reduce((sum, summary) => sum + (numberValue8(summary.candidate_count) ?? 0), 0),
-    workspaceCandidateMapCount: Object.keys(recordValue8(contentData.contentUnitCandidates) ?? {}).length,
-    workspace_candidate_map_count: Object.keys(recordValue8(contentData.contentUnitCandidates) ?? {}).length
-  };
-}
-function projectContentCanvasRecordFromInput(input3, options = {}) {
-  const source = recordValue8(input3);
-  const record = source ? recordValue8(source.canvas ?? source.record) ?? source : void 0;
-  if (!record) throw httpError3(400, "project_content_canvas_required", "content canvas record is required");
-  const id = stringValue19(record.id ?? record.canvasId ?? record.canvas_id) ?? contentCanvasProjectIdFromPath(options.path) ?? createProjectContentCanvasId();
-  const updatedAt = stringValue19(record.updated_at ?? record.updatedAt) ?? (/* @__PURE__ */ new Date()).toISOString();
-  const titleInput = contentCanvasTitleInput(record);
-  const title = titleInput === void 0 ? contentCanvasTitleFromProjectPath(options.path) ?? "Untitled Canvas" : normalizeProjectContentCanvasTitle(titleInput);
-  return pruneUndefinedRecord3({
-    schema: CONTENT_CANVAS_SCHEMA,
-    kind: "content_canvas",
-    canvasKind: "content",
-    canvas_kind: "content",
-    id,
-    title,
-    name: title,
-    scope: projectContentCanvasScope(record.scope),
-    nodes: projectContentCanvasNodes(record.nodes),
-    groups: projectContentCanvasGroups(record.groups ?? record.group_nodes ?? record.groupNodes),
-    layouts: projectContentCanvasLayouts(record.layouts ?? record.node_layouts ?? record.nodeLayouts),
-    updated_at: updatedAt,
-    created_at: stringValue19(record.created_at ?? record.createdAt)
-  });
-}
-function contentCanvasTitleInput(record) {
-  if (Object.prototype.hasOwnProperty.call(record, "title")) return record.title;
-  if (Object.prototype.hasOwnProperty.call(record, "name")) return record.name;
-  return void 0;
-}
-function normalizeProjectContentCanvasTitle(value) {
-  return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
-}
-function validateProjectContentCanvasTitle(title) {
-  if (!title) return httpError3(400, "project_content_canvas_title_required", "content canvas title is required");
-  if (title.length > CONTENT_CANVAS_TITLE_MAX_LENGTH) {
-    return httpError3(400, "project_content_canvas_title_too_long", `content canvas title must be at most ${CONTENT_CANVAS_TITLE_MAX_LENGTH} characters`);
-  }
-  if (CONTENT_CANVAS_TITLE_INVALID_PATTERN.test(title)) {
-    return httpError3(400, "project_content_canvas_title_invalid", "content canvas title contains unsupported characters");
-  }
-  return void 0;
-}
-function projectContentCanvasScope(value) {
-  const scope = recordValue8(value);
-  if (!scope || scope.kind === "global") return { kind: "global" };
-  if (scope.kind !== "production") return { kind: "global" };
-  const productionId = stringValue19(scope.production_id ?? scope.productionId);
-  if (!productionId) return { kind: "global" };
-  return pruneUndefinedRecord3({
-    kind: "production",
-    production_id: productionId,
-    production_title: stringValue19(scope.production_title ?? scope.productionTitle),
-    production_node_id: stringValue19(scope.production_node_id ?? scope.productionNodeId),
-    production_path: stringValue19(scope.production_path ?? scope.productionPath)
-  });
-}
-function projectContentCanvasNodes(value) {
-  const values = Array.isArray(value) ? value : Object.values(recordValue8(value) ?? {});
-  return values.map(projectContentCanvasNode).filter(Boolean).sort((left, right) => left.node_id.localeCompare(right.node_id));
-}
-function projectContentCanvasNode(value) {
-  const node = recordValue8(value);
-  if (!node) return void 0;
-  const nodeId2 = stringValue19(node.node_id ?? node.nodeId ?? node.id);
-  if (!nodeId2) return void 0;
-  return pruneUndefinedRecord3({
-    node_id: nodeId2,
-    kind: stringValue19(node.kind),
-    added_at: stringValue19(node.added_at ?? node.addedAt)
-  });
-}
-function projectContentCanvasGroups(value) {
-  const values = Array.isArray(value) ? value : Object.values(recordValue8(value) ?? {});
-  return values.map(projectContentCanvasGroup).filter(Boolean).sort((left, right) => left.id.localeCompare(right.id));
-}
-function projectContentCanvasGroup(value) {
-  const group = recordValue8(value);
-  if (!group) return void 0;
-  const id = stringValue19(group.id ?? group.groupId ?? group.group_id);
-  if (!id) return void 0;
-  const memberNodeIds = uniqueStringValues(group.member_node_ids ?? group.memberNodeIds ?? group.nodes ?? group.node_ids ?? group.nodeIds);
-  if (memberNodeIds.length < 2) return void 0;
-  return pruneUndefinedRecord3({
-    id,
-    title: stringValue19(group.title ?? group.name ?? group.label),
-    member_node_ids: memberNodeIds,
-    created_at: stringValue19(group.created_at ?? group.createdAt),
-    updated_at: stringValue19(group.updated_at ?? group.updatedAt)
-  });
-}
-function projectContentCanvasLayouts(value) {
-  const layouts = recordValue8(value);
-  if (!layouts) return {};
-  return Object.fromEntries(Object.entries(layouts).map(([nodeId2, layout]) => [nodeId2, projectContentCanvasLayout(layout)]).filter(([, layout]) => Boolean(layout)));
-}
-function projectContentCanvasLayout(value) {
-  const layout = recordValue8(value);
-  if (!layout) return void 0;
-  const x = numberValue8(layout.x);
-  const y = numberValue8(layout.y);
-  const width = numberValue8(layout.width);
-  const height = numberValue8(layout.height);
-  if (x === void 0 || y === void 0 || width === void 0 || height === void 0) return void 0;
-  return pruneUndefinedRecord3({
-    x,
-    y,
-    width,
-    height,
-    manual: layout.manual === true,
-    source: stringValue19(layout.source),
-    updated_at: stringValue19(layout.updated_at ?? layout.updatedAt)
-  });
-}
-function uniqueStringValues(value) {
-  if (!Array.isArray(value)) return [];
-  const output3 = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const item of value) {
-    if (typeof item !== "string") continue;
-    const next = item.trim();
-    if (!next || seen.has(next)) continue;
-    seen.add(next);
-    output3.push(next);
-  }
-  return output3;
-}
-function contentCanvasProjectFilePath(id) {
-  return `${CONTENT_CANVAS_DIRECTORY}/${contentCanvasProjectPathSegment(id)}/${CONTENT_CANVAS_FILE_NAME}`;
-}
-function contentCanvasProjectPathSegment(id) {
-  const safe = String(id).trim().replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
-  return safe || "canvas";
-}
-function contentCanvasProjectIdFromPath(path) {
-  const segment = contentCanvasProjectPathSegmentFromPath(path);
-  return segment ? String(segment).trim() : void 0;
-}
-function contentCanvasTitleFromProjectPath(path) {
-  const segment = contentCanvasProjectPathSegmentFromPath(path);
-  if (!segment) return void 0;
-  return segment.replace(/^canvas[_-]?/i, "").replace(/[_-]+/g, " ").trim() || void 0;
-}
-function contentCanvasProjectPathSegmentFromPath(path) {
-  const parts = String(path ?? "").split(/[\\/]+/).filter(Boolean);
-  const candidate = parts.at(-1) === CONTENT_CANVAS_FILE_NAME ? parts.at(-2) : parts.at(-1);
-  return stringValue19(candidate);
-}
-function createProjectContentCanvasId() {
-  return `canvas:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
-}
 function rejectRemovedNamespacePlaybackContentUnitInput2(input3) {
   const payload = recordValue8(input3.payload ?? input3.record ?? input3.entity) ?? {};
   const contentUnitType2 = stringValue19(input3.contentUnitType ?? input3.content_unit_type ?? payload.contentUnitType ?? payload.content_unit_type);
@@ -86112,16 +86993,16 @@ async function readProjectHomeReadModel(context, now) {
   const index = await observeProjectServicePhase(context.requestScope, "indexLoadMs", () => engine.workspaceService.loadIndex());
   return observeProjectServicePhase(context.requestScope, "deriveMs", async () => {
     const project = queryMovScriptWorkspaceEntities(index, { entityKind: "project", limit: 1 })[0];
-    const scripts = queryMovScriptWorkspaceEntities(index, { entityKind: "script", limit: 500 }).map((entity) => projectHomeRecord(entity));
-    const settings = queryMovScriptWorkspaceSettings(index, { limit: 500 }).map((entity) => projectHomeRecord(entity));
-    const assets = queryMovScriptWorkspaceAssets(index, { limit: 500 }).assets.map((entity) => projectHomeRecord(entity));
+    const scripts = queryMovScriptWorkspaceEntities(index, { entityKind: "script", limit: 500 }).map((entity) => projectHomeRecord2(entity));
+    const settings = queryMovScriptWorkspaceSettings(index, { limit: 500 }).map((entity) => projectHomeRecord2(entity));
+    const assets = queryMovScriptWorkspaceAssets(index, { limit: 500 }).assets.map((entity) => projectHomeRecord2(entity));
     const productionContext = queryMovScriptWorkspaceProductionContext(index, {
       include: ["productions", "scene_moments", "content_units"],
       limit: 1e3
     });
-    const productions = (productionContext.productions ?? []).map((entity) => projectHomeRecord(entity));
-    const sceneMoments = (productionContext.scene_moments ?? []).map((entity) => projectHomeRecord(entity));
-    const contentUnits = (productionContext.content_units ?? []).map((entity) => projectHomeRecord(entity));
+    const productions = (productionContext.productions ?? []).map((entity) => projectHomeRecord2(entity));
+    const sceneMoments = (productionContext.scene_moments ?? []).map((entity) => projectHomeRecord2(entity));
+    const contentUnits = (productionContext.content_units ?? []).map((entity) => projectHomeRecord2(entity));
     return {
       schema: "movscript.project-home-read-model.v1",
       generatedAt: now.toISOString(),
@@ -86131,7 +87012,7 @@ async function readProjectHomeReadModel(context, now) {
         title: stringValue19(project?.record.title ?? project?.record.name),
         documentCount: index.documents.length
       },
-      project: project ? projectHomeRecord(project) : void 0,
+      project: project ? projectHomeRecord2(project) : void 0,
       scripts,
       settings,
       assets,
@@ -86157,16 +87038,16 @@ async function readProjectStandardsReadModel(context, now) {
   const index = await observeProjectServicePhase(context.requestScope, "indexLoadMs", () => engine.workspaceService.loadIndex());
   return observeProjectServicePhase(context.requestScope, "deriveMs", async () => {
     const project = queryMovScriptWorkspaceEntities(index, { entityKind: "project", limit: 1 })[0];
-    const settings = queryMovScriptWorkspaceSettings(index, { limit: 500 }).map((entity) => projectHomeRecord(entity));
-    const assets = queryMovScriptWorkspaceAssets(index, { limit: 500 }).assets.map((entity) => projectHomeRecord(entity));
+    const settings = queryMovScriptWorkspaceSettings(index, { limit: 500 }).map((entity) => projectHomeRecord2(entity));
+    const assets = queryMovScriptWorkspaceAssets(index, { limit: 500 }).assets.map((entity) => projectHomeRecord2(entity));
     const productionContext = queryMovScriptWorkspaceProductionContext(index, {
       include: ["productions", "segments", "scene_moments", "content_units"],
       limit: 1e3
     });
-    const productions = (productionContext.productions ?? []).map((entity) => projectHomeRecord(entity));
-    const segments = (productionContext.segments ?? []).map((entity) => projectHomeRecord(entity));
-    const sceneMoments = (productionContext.scene_moments ?? []).map((entity) => projectHomeRecord(entity));
-    const contentUnits = (productionContext.content_units ?? []).map((entity) => projectHomeRecord(entity));
+    const productions = (productionContext.productions ?? []).map((entity) => projectHomeRecord2(entity));
+    const segments = (productionContext.segments ?? []).map((entity) => projectHomeRecord2(entity));
+    const sceneMoments = (productionContext.scene_moments ?? []).map((entity) => projectHomeRecord2(entity));
+    const contentUnits = (productionContext.content_units ?? []).map((entity) => projectHomeRecord2(entity));
     return {
       schema: "movscript.project-standards-read-model.v1",
       generatedAt: now.toISOString(),
@@ -86176,7 +87057,7 @@ async function readProjectStandardsReadModel(context, now) {
         title: stringValue19(project?.record.title ?? project?.record.name),
         documentCount: index.documents.length
       },
-      project: project ? projectHomeRecord(project) : null,
+      project: project ? projectHomeRecord2(project) : null,
       settings,
       assetSlots: assets,
       productions,
@@ -86277,7 +87158,7 @@ async function readProjectScriptsReadModel(context, now) {
         title: stringValue19(project?.record.title ?? project?.record.name),
         documentCount: index.documents.length
       },
-      project: project ? projectHomeRecord(project) : null,
+      project: project ? projectHomeRecord2(project) : null,
       scripts,
       versions,
       counts: {
@@ -86292,11 +87173,11 @@ async function readProjectContentUnitsReadModel({ projectDir, body = {}, content
   const engine = createProjectWorkspaceEngine({ projectDir, decisionStore, body, requestScope });
   const index = await observeProjectServicePhase(requestScope, "indexLoadMs", () => engine.workspaceService.loadIndex());
   const decisionContexts = decisionStore ? await readCandidateContexts(decisionStore, contentUnitIds, requestScope) : [];
-  const decisionContextByContentUnitId = projectDecisionContextsByContentUnitId(decisionContexts);
+  const decisionContextByContentUnitId = projectDecisionContextsByContentUnitId2(decisionContexts);
   return observeProjectServicePhase(requestScope, "deriveMs", async () => {
     const contentUnitsById = new Map(queryMovScriptWorkspaceEntities(index, { entityKind: "content_unit", limit: 5e3 }).flatMap((entity) => projectContentUnitRefValues(entity).map((ref) => [ref, entity])));
     const contentUnits = contentUnitIds.map((contentUnitId) => {
-      const ref = contentUnitRefValue(contentUnitId);
+      const ref = contentUnitRefValue2(contentUnitId);
       const entity = ref ? contentUnitsById.get(ref) : void 0;
       return projectContentUnitReadModelRecord({
         contentUnitId,
@@ -86416,7 +87297,7 @@ function sortProjectCanvasEntities(items) {
 function projectCanvasEntityTitle(entity) {
   return String(entity.record.title ?? entity.record.name ?? entity.record.label ?? entity.id ?? entity.path);
 }
-function projectHomeRecord(entity) {
+function projectHomeRecord2(entity) {
   return {
     ...entity.record,
     __workspace_entity_type: entity.entityKind,
@@ -86565,29 +87446,29 @@ function projectScriptCurrentVersionSummary(version) {
     updated_at: stringValue19(version.updated_at ?? version.UpdatedAt)
   });
 }
-function projectDecisionContextsByContentUnitId(contexts) {
+function projectDecisionContextsByContentUnitId2(contexts) {
   const output3 = /* @__PURE__ */ new Map();
   for (const context of contexts) {
-    for (const ref of projectDecisionContextContentUnitRefs(context)) {
+    for (const ref of projectDecisionContextContentUnitRefs2(context)) {
       output3.set(ref, context);
     }
   }
   return output3;
 }
-function projectDecisionContextContentUnitRefs(context) {
+function projectDecisionContextContentUnitRefs2(context) {
   return [
     context.contentUnitId,
     context.content_unit_id,
     context.target_ref,
     context.targetRef
   ].flatMap((value) => [
-    contentUnitRefValue(value),
-    contentUnitRefValue(pathSegmentAfter9(value, "content_units"))
+    contentUnitRefValue2(value),
+    contentUnitRefValue2(pathSegmentAfter9(value, "content_units"))
   ]).filter(Boolean);
 }
 function projectContentUnitReadModelRecord({ contentUnitId, entity, decisionContext }) {
   const record = recordValue8(entity?.record) ?? {};
-  const id = contentUnitRefValue(entity?.id ?? record.id ?? record.ID ?? contentUnitId) ?? String(contentUnitId);
+  const id = contentUnitRefValue2(entity?.id ?? record.id ?? record.ID ?? contentUnitId) ?? String(contentUnitId);
   const candidates = projectContentUnitCandidateSummaries(decisionContext);
   const selection = recordValue8(decisionContext?.selection);
   return {
@@ -86655,10 +87536,10 @@ function projectContentUnitRefValues(entity) {
     record.content_unit_id,
     record.contentUnitId,
     pathSegmentAfter9(entity?.path, "content_units")
-  ].map(contentUnitRefValue).filter(Boolean);
+  ].map(contentUnitRefValue2).filter(Boolean);
   return [...new Set(refs)];
 }
-function contentUnitRefValue(value) {
+function contentUnitRefValue2(value) {
   const ref = idValue4(value);
   if (ref === void 0) return void 0;
   const text = String(ref).trim();
@@ -86881,7 +87762,7 @@ function projectResourceEntityKind(kind) {
   }
 }
 async function openLocalProject(projectDir, now) {
-  const projectStat = await stat6(projectDir).catch(() => void 0);
+  const projectStat = await stat7(projectDir).catch(() => void 0);
   if (!projectStat?.isDirectory()) {
     throw httpError3(400, "project_dir_not_found", "projectDir must be an existing directory");
   }
@@ -86899,7 +87780,7 @@ async function openLocalProject(projectDir, now) {
   };
 }
 async function createLocalProject(projectDir, input3, now) {
-  await mkdir7(projectDir, { recursive: true });
+  await mkdir9(projectDir, { recursive: true });
   const metadata = await readLocalProjectMetadata(projectDir);
   if (metadata.hasMetadata && input3.overwrite !== true) {
     throw httpError3(409, "project_lifecycle_project_exists", "project metadata already exists; set overwrite to true to replace it");
@@ -86908,7 +87789,7 @@ async function createLocalProject(projectDir, input3, now) {
   return localProjectInitializedResult("created", projectDir, initialized, now);
 }
 async function importLocalProject(projectDir, input3, now) {
-  const projectStat = await stat6(projectDir).catch(() => void 0);
+  const projectStat = await stat7(projectDir).catch(() => void 0);
   if (!projectStat?.isDirectory()) {
     throw httpError3(400, "project_dir_not_found", "projectDir must be an existing directory");
   }
@@ -86965,8 +87846,8 @@ function localProjectTitleFromInitialized(projectDir, initialized) {
   return stringValue19(workspaceFile?.record?.title) ?? basename8(projectDir) ?? "MovScript Project";
 }
 async function readLocalProjectMetadata(projectDir) {
-  const workspace = await readJSONFile(resolve13(projectDir, "workspace.json"));
-  const project = await readJSONFile(resolve13(projectDir, "project.json"));
+  const workspace = await readJSONFile(resolve15(projectDir, "workspace.json"));
+  const project = await readJSONFile(resolve15(projectDir, "project.json"));
   const hasMetadata = Boolean(recordValue8(workspace) || recordValue8(project));
   return {
     hasMetadata,
@@ -87237,102 +88118,7 @@ function projectDirFromBody2(body) {
   if (!projectDir || !projectDir.trim()) {
     throw httpError3(400, "project_dir_required", "projectDir is required");
   }
-  return resolve13(projectDir);
-}
-function pathStringValue(value) {
-  const raw = stringValue19(value);
-  return raw ? resolve13(raw) : void 0;
-}
-function normalizeProjectAssetSourcePath(value) {
-  const raw = stringValue19(value);
-  if (!raw) throw httpError3(400, "project_asset_path_required", "assetPath is required");
-  const normalized = raw.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+/g, "/");
-  const parts = normalized.split("/").filter(Boolean);
-  if (parts.includes("..") || !normalized.endsWith("/asset.json") || !parts.includes("assets")) {
-    throw httpError3(400, "project_asset_path_invalid", "assetPath must point to a project asset.json file");
-  }
-  return normalized;
-}
-function parseJSONObjectFile(content, path) {
-  try {
-    const parsed = JSON.parse(content);
-    const record = recordValue8(parsed);
-    if (record) return record;
-  } catch {
-  }
-  throw httpError3(400, "project_source_json_invalid", `source JSON is invalid: ${path}`);
-}
-async function readJSONFile(path) {
-  try {
-    const parsed = JSON.parse(await readFile7(path, "utf8"));
-    return recordValue8(parsed);
-  } catch {
-    return void 0;
-  }
-}
-async function writeProjectJSONFile(path, value) {
-  await mkdir7(dirname12(path), { recursive: true });
-  await writeFile7(path, `${JSON.stringify(value, null, 2)}
-`, "utf8");
-}
-async function readJSONBody4(request) {
-  const chunks = [];
-  for await (const chunk of request) {
-    chunks.push(Buffer.from(chunk));
-  }
-  const text = Buffer.concat(chunks).toString("utf8").trim();
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw httpError3(400, "invalid_json", "request body must be valid JSON");
-  }
-}
-function stringValue19(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : void 0;
-}
-function providerCertificationStorageKey2(provider, certification) {
-  const model = stringValue19(certification.model ?? certification.public_model_id ?? certification.publicModelId ?? certification.provider_model_id ?? certification.providerModelId);
-  return model ? `${provider}::model:${model}` : provider;
-}
-function errorMessage11(error) {
-  return error instanceof Error ? error.message : String(error);
-}
-function idValue4(value) {
-  if (typeof value === "string" && value.trim()) return value.trim();
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  return void 0;
-}
-function numberValue8(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value !== "string" || !value.trim()) return void 0;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : void 0;
-}
-function recordValue8(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
-}
-function pathSegmentAfter9(path, segment) {
-  const parts = String(path ?? "").split("/").filter(Boolean);
-  const index = parts.indexOf(segment);
-  return index >= 0 ? parts[index + 1] : void 0;
-}
-function pruneUndefinedRecord3(record) {
-  return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== void 0 && value !== ""));
-}
-function stringRecord2(value) {
-  const record = recordValue8(value);
-  if (!record) return {};
-  return Object.fromEntries(Object.entries(record).filter(([, item]) => typeof item === "string").map(([key, item]) => [key, item]));
-}
-function isNotFoundError5(error) {
-  return typeof error === "object" && error !== null && error.code === "ENOENT";
-}
-function httpError3(statusCode, code, message) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  error.code = code;
-  return error;
+  return resolve15(projectDir);
 }
 function writeProjectServiceError(response, error) {
   if (isWorkspaceFileVersionConflict(error)) {
@@ -87352,13 +88138,13 @@ function isWorkspaceFileVersionConflict(error) {
   return error instanceof Error && /^workspace file changed:/.test(error.message);
 }
 function waitForShutdown4(runtime) {
-  return new Promise((resolve16) => {
+  return new Promise((resolve18) => {
     let closing = false;
     const close = async () => {
       if (closing) return;
       closing = true;
       await runtime.close();
-      resolve16();
+      resolve18();
     };
     process.once("SIGINT", close);
     process.once("SIGTERM", close);
@@ -87366,11 +88152,11 @@ function waitForShutdown4(runtime) {
 }
 
 // src/agent-mcp.ts
-var PLUGIN_ROOT = resolve15(import.meta.dirname, "..");
-var DEV_REPO_ROOT = resolve15(import.meta.dirname, "../../..");
-var BUNDLED_RUNTIME_ROOT = resolve15(PLUGIN_ROOT, "runtime");
+var PLUGIN_ROOT = resolve17(import.meta.dirname, "..");
+var DEV_REPO_ROOT = resolve17(import.meta.dirname, "../../..");
+var BUNDLED_RUNTIME_ROOT = resolve17(PLUGIN_ROOT, "runtime");
 var HAS_BUNDLED_RUNTIME = existsSync11(BUNDLED_RUNTIME_ROOT);
-var AGENT_MCP_ENTRYPOINT = resolve15(import.meta.dirname, "movscript.mjs");
+var AGENT_MCP_ENTRYPOINT = resolve17(import.meta.dirname, "movscript.mjs");
 var RUN_CWD = HAS_BUNDLED_RUNTIME ? PLUGIN_ROOT : DEV_REPO_ROOT;
 function errorMessage17(error) {
   return error instanceof Error ? error.message : String(error);
@@ -87380,7 +88166,7 @@ function currentPluginIdentity() {
 }
 function pluginIdentityForRoot(pluginRoot) {
   return {
-    pluginVersion: readPluginVersion(resolve15(pluginRoot, "manifest.runtime.json")) ?? readPluginVersion(resolve15(pluginRoot, ".codex-plugin/plugin.json")) ?? readPluginVersion(resolve15(pluginRoot, ".provider-plugin/plugin.json")) ?? "unknown",
+    pluginVersion: readPluginVersion(resolve17(pluginRoot, "manifest.runtime.json")) ?? readPluginVersion(resolve17(pluginRoot, ".codex-plugin/plugin.json")) ?? readPluginVersion(resolve17(pluginRoot, ".provider-plugin/plugin.json")) ?? "unknown",
     pluginRoot
   };
 }
@@ -87573,7 +88359,7 @@ function parseLocalDaemonArgs(command, rawArgs) {
       return next;
     };
     if (arg === "--home" || arg === "--home-dir" || arg.startsWith("--home=") || arg.startsWith("--home-dir=")) {
-      options.homeDir = resolve15(optionValue(arg.startsWith("--home-dir") ? "--home-dir" : "--home"));
+      options.homeDir = resolve17(optionValue(arg.startsWith("--home-dir") ? "--home-dir" : "--home"));
       continue;
     }
     if (arg === "--data-plane" || arg.startsWith("--data-plane=")) {
@@ -87615,11 +88401,11 @@ function parseLocalDaemonArgs(command, rawArgs) {
       continue;
     }
     if (arg === "--workspace" || arg.startsWith("--workspace=")) {
-      options.workspaceDir = resolve15(optionValue("--workspace"));
+      options.workspaceDir = resolve17(optionValue("--workspace"));
       continue;
     }
     if (arg === "--project-dir" || arg.startsWith("--project-dir=")) {
-      options.projectDir = resolve15(optionValue("--project-dir"));
+      options.projectDir = resolve17(optionValue("--project-dir"));
       continue;
     }
     throw new Error(`unknown ${command} option: ${arg}`);
@@ -87714,7 +88500,7 @@ async function ensureLocalNode(homeDir, options = {}) {
   } catch (error) {
     const rollback = rollbackCurrentPluginForStartupFailure(homeDir, error);
     if (!rollback.rolledBack) throw error;
-    const previousEntrypoint = resolve15(rollback.previousRoot, "bin/movscript.mjs");
+    const previousEntrypoint = resolve17(rollback.previousRoot, "bin/movscript.mjs");
     if (!existsSync11(previousEntrypoint)) {
       throw new Error(`MovScript local daemon startup failed, plugin rollback switched current to ${rollback.previousRoot}, but previous entrypoint is missing: ${previousEntrypoint}; original error: ${errorMessage17(error)}`);
     }
@@ -87738,13 +88524,13 @@ async function ensureLocalNode(homeDir, options = {}) {
   }
 }
 function pluginRunCwdForRoot(pluginRoot) {
-  return existsSync11(resolve15(pluginRoot, "runtime")) ? pluginRoot : DEV_REPO_ROOT;
+  return existsSync11(resolve17(pluginRoot, "runtime")) ? pluginRoot : DEV_REPO_ROOT;
 }
 function rollbackCurrentPluginForStartupFailure(homeDir, error) {
   if (!pluginStartupFailureRollbackEnabled()) return { rolledBack: false, reason: "disabled" };
-  const pluginStore = resolve15(homeDir, "plugins/movscript");
-  const currentLink = resolve15(pluginStore, "current");
-  const previousLink = resolve15(pluginStore, "previous");
+  const pluginStore = resolve17(homeDir, "plugins/movscript");
+  const currentLink = resolve17(pluginStore, "current");
+  const previousLink = resolve17(pluginStore, "previous");
   const currentRoot = pluginPointerTarget(currentLink, pluginStore);
   const previousRoot = pluginPointerTarget(previousLink, pluginStore);
   if (!currentRoot) return { rolledBack: false, reason: "current_pointer_missing" };
@@ -87779,7 +88565,7 @@ function pluginPointerTarget(linkPath, pluginStore) {
   try {
     if (!lstatSync(linkPath).isSymbolicLink()) return void 0;
     const target = readlinkSync(linkPath);
-    return isAbsolute4(target) ? target : resolve15(pluginStore, target);
+    return isAbsolute4(target) ? target : resolve17(pluginStore, target);
   } catch {
     return void 0;
   }
@@ -87795,16 +88581,16 @@ function sameDirectory(left, right) {
   try {
     return realpathSync(left) === realpathSync(right);
   } catch {
-    return resolve15(left) === resolve15(right);
+    return resolve17(left) === resolve17(right);
   }
 }
 function writePluginBundleIdentity(input3) {
-  const identityPath = resolve15(input3.pluginStore, "current.identity");
+  const identityPath = resolve17(input3.pluginStore, "current.identity");
   const content = [
     "schema=movscript.agent-plugin-bundle.v1",
     `version=${input3.version}`,
     `pluginRoot=${input3.targetRoot}`,
-    `currentLink=${resolve15(input3.pluginStore, "current")}`,
+    `currentLink=${resolve17(input3.pluginStore, "current")}`,
     `previousRoot=${input3.previousRoot}`,
     `installedAt=${(/* @__PURE__ */ new Date()).toISOString()}`,
     `reason=${input3.reason}`,

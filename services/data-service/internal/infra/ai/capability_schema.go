@@ -352,7 +352,7 @@ func inferredImageGenerationOperations(refs []RouteReferenceAssetIntent) []strin
 
 func inferredVideoGenerationOperations(refs []RouteReferenceAssetIntent) []string {
 	if len(refs) == 0 {
-		return []string{VideoOperationPromptToVideo}
+		return []string{VideoOperationPromptToVideo, VideoOperationReferenceToVideo}
 	}
 	hasFirst := hasReferenceAsset(refs, "first_frame", "image")
 	hasLast := hasReferenceAsset(refs, "last_frame", "image")
@@ -578,10 +578,6 @@ func videoOperationInputsMatchIntent(operation string, refs []RouteReferenceAsse
 		}
 		if !hasReferenceAssetRole(refs, "last_frame") {
 			return "missing_reference_role:last_frame"
-		}
-	case VideoOperationReferenceToVideo:
-		if len(refs) == 0 {
-			return "invalid_operation_inputs"
 		}
 	}
 	return ""

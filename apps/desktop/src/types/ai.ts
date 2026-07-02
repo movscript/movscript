@@ -105,6 +105,8 @@ export interface PublicModel {
   accepts_image_input: boolean // true when a generation route accepts image references
   is_default?: boolean         // true when admin-pinned as the default for this capability
   supported_params?: ParamDef[]
+  supported_params_by_operation?: Record<string, ParamDef[]>
   input_requirements?: ModelInputRequirements
   params_schema?: Record<string, unknown>
+  params_schema_by_operation?: Record<string, Record<string, unknown>>
 }

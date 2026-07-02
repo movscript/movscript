@@ -19,6 +19,10 @@ export interface GenerationJobDecisionModelLike {
     key: string
     default?: GenerationParamValue
   }[] | null
+  supported_params_by_operation?: Record<string, readonly {
+    key: string
+    default?: GenerationParamValue
+  }[] | null | undefined> | null
 }
 
 export interface GenerationJobDecisionResourceLike {
@@ -71,12 +75,25 @@ export function resolveGenerationCapabilityForResourceCount(
   return resolveGenerationJobTypeFromResourceCount(input)
 }
 
+export function generationModelSupportedParams<T extends { key: string }>(
+  model?: {
+    supported_params?: readonly T[] | null
+    supported_params_by_operation?: Record<string, readonly T[] | null | undefined> | null
+  } | null,
+  operation?: string | null,
+): T[] {
+  const operationKey = operation?.trim()
+  const operationParams = operationKey ? model?.supported_params_by_operation?.[operationKey] : undefined
+  if (Array.isArray(operationParams)) return [...operationParams]
+  return Array.isArray(model?.supported_params) ? [...model.supported_params] : []
+}
+
 export function generationParamDefaults(
-  model?: Pick<GenerationJobDecisionModelLike, 'supported_params'> | null,
+  model?: Pick<GenerationJobDecisionModelLike, 'supported_params' | 'supported_params_by_operation'> | null,
+  operation?: string | null,
 ): Record<string, GenerationParamValue> {
   const defaults: Record<string, GenerationParamValue> = {}
-  if (!Array.isArray(model?.supported_params)) return defaults
-  for (const param of model.supported_params) {
+  for (const param of generationModelSupportedParams(model, operation)) {
     if (typeof param.key === 'string' && param.key && param.default !== undefined) {
       defaults[param.key] = param.default
     }

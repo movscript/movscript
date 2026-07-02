@@ -49,6 +49,10 @@ const PROJECT_SERVICE_PRODUCTION_EDITING_RESOURCES_REFRESH_ENDPOINT = '/v1/proje
 const EDITING_SERVICE_PROJECT_COMMAND_ENDPOINT = '/v1/editing/project/command'
 const MEDIA_PIPELINE_TASK_CREATE_ENDPOINT = '/v1/media-pipeline/task/create'
 const DAEMON_CONTEXT_SESSIONS_ENDPOINT = '/v1/context/sessions'
+const REMOTION_STUDIO_SESSION_OPEN_ENDPOINT = '/v1/remotion-studio/sessions/open'
+const REMOTION_STUDIO_SESSION_GET_ENDPOINT = '/v1/remotion-studio/sessions/get'
+const REMOTION_STUDIO_SESSION_LOGS_ENDPOINT = '/v1/remotion-studio/sessions/logs'
+const REMOTION_STUDIO_SESSION_STOP_ENDPOINT = '/v1/remotion-studio/sessions/stop'
 
 export interface DesktopProjectSurfaceProviderProps {
   children: ReactNode
@@ -165,7 +169,11 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
       const resultRecord = recordValue(openResult)
       const openAction = recordValue(resultRecord?.open_action)
       const openActionKind = readString(openAction?.kind)
-      if (openActionKind !== 'desktop_route' && openActionKind !== 'media_pipeline_task_request') return openResult
+      if (
+        openActionKind !== 'desktop_route'
+        && openActionKind !== 'media_pipeline_task_request'
+        && openActionKind !== 'remotion_studio_session'
+      ) return openResult
       const latestConfig = await refreshRuntimeConfigSnapshot()
       const daemonGatewayBaseURL = readDesktopDaemonGatewayBaseURL(latestConfig ?? runtimeConfig)
       if (!daemonGatewayBaseURL) throw new Error('Daemon gateway endpoint is not available in Desktop runtime config.')
@@ -184,6 +192,24 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
           ...resultRecord,
           open_action_result: recordValue(saved.result) ?? saved,
           editing_project_saved: true,
+        }
+      }
+      if (openActionKind === 'remotion_studio_session') {
+        const sessionResult = await postDaemonGateway(
+          daemonGatewayBaseURL,
+          REMOTION_STUDIO_SESSION_OPEN_ENDPOINT,
+          {
+            openAction,
+            open_action: openAction,
+            projectId: String(input.projectId ?? contextProjectKey),
+            project_id: String(input.projectId ?? contextProjectKey),
+          },
+        )
+        return {
+          ...resultRecord,
+          open_action_result: sessionResult,
+          remotionStudioSession: sessionResult,
+          remotion_studio_session: sessionResult,
         }
       }
       const projectDirectory = readString(openAction?.projectDirectory ?? openAction?.project_directory)
@@ -214,6 +240,13 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
         media_pipeline_task: task,
         preview_started: true,
       }
+    }
+
+    const postRemotionStudioSessionOperation = async (endpoint: string, input: Record<string, unknown> = {}) => {
+      const latestConfig = await refreshRuntimeConfigSnapshot()
+      const daemonGatewayBaseURL = readDesktopDaemonGatewayBaseURL(latestConfig ?? runtimeConfig)
+      if (!daemonGatewayBaseURL) throw new Error('Daemon gateway endpoint is not available in Desktop runtime config.')
+      return postDaemonGateway(daemonGatewayBaseURL, endpoint, input)
     }
 
     return createHostedProjectSurfaceRuntime({
@@ -457,6 +490,12 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
           }
           },
         },
+        remotionStudio: {
+          open: (input) => postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_OPEN_ENDPOINT, input),
+          get: (input) => postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_GET_ENDPOINT, input),
+          logs: (input) => postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_LOGS_ENDPOINT, input),
+          stop: (input) => postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_STOP_ENDPOINT, input),
+        },
       },
     })
   }, [
@@ -578,6 +617,7 @@ export function desktopProjectSurfacePath(route: ProjectSurfaceRouteKey, project
   if (route === 'content') return ROUTES.project.content
   if (route === 'contentCanvas') return ROUTES.project.contentCanvas
   if (route === 'contentPreview') return ROUTES.project.contentPreview
+  if (route === 'remotionStudio') return ROUTES.project.remotionStudio
   if (route === 'settingPreview') return ROUTES.project.settingPreview
   return projectSurfacePath(route, projectKey)
 }

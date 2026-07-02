@@ -1137,9 +1137,11 @@ func applyListIntentDescriptorMetadata(descriptor *providercontract.AIModelDescr
 	if operation != "" {
 		descriptor.InferredOperation = operation
 		descriptor.ResolverOperations = []string{operation}
+		applyDescriptorOperationParamContract(descriptor, operation)
 		return
 	}
 	if !resolveIntent {
+		applyDescriptorSingleOperationParamContract(descriptor)
 		return
 	}
 	for _, capability := range capabilities {
@@ -1154,7 +1156,37 @@ func applyListIntentDescriptorMetadata(descriptor *providercontract.AIModelDescr
 		descriptor.ResolverOperations = mergeCapabilities(descriptor.ResolverOperations, operations)
 		if descriptor.InferredOperation == "" {
 			descriptor.InferredOperation = operations[0]
+			applyDescriptorOperationParamContract(descriptor, operations[0])
 		}
+	}
+	if descriptor.InferredOperation == "" {
+		applyDescriptorSingleOperationParamContract(descriptor)
+	}
+}
+
+func applyDescriptorOperationParamContract(descriptor *providercontract.AIModelDescriptor, operation string) {
+	if descriptor == nil {
+		return
+	}
+	operation = strings.TrimSpace(operation)
+	if operation == "" {
+		return
+	}
+	if params, ok := descriptor.SupportedParamsByOperation[operation]; ok {
+		descriptor.SupportedParams = params
+	}
+	if schema, ok := descriptor.ParamsSchemaByOperation[operation]; ok {
+		descriptor.ParamsSchema = schema
+	}
+}
+
+func applyDescriptorSingleOperationParamContract(descriptor *providercontract.AIModelDescriptor) {
+	if descriptor == nil || len(descriptor.SupportedParamsByOperation) != 1 {
+		return
+	}
+	for operation := range descriptor.SupportedParamsByOperation {
+		applyDescriptorOperationParamContract(descriptor, operation)
+		return
 	}
 }
 

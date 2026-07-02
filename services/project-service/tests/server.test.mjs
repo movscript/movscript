@@ -1382,6 +1382,21 @@ test('project-service manages production-bound editing workspaces and refreshes 
   assert.match(await readFile(join(remotion.workspace.projectDirectory, 'src', 'Root.tsx'), 'utf8'), /registerRoot/)
   assert.match(await readFile(join(remotion.workspace.projectDirectory, 'src', 'production-seed.ts'), 'utf8'), /cu_wet_hair_ref/)
 
+  const remotionOpened = await postJSON(`${runtime.url}${PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_OPEN_ENDPOINT}`, {
+    projectDir,
+    input: {
+      productionId: 'p8f3',
+      workspaceId: 'remotion_title_v1',
+    },
+  })
+  assert.equal(remotionOpened.open_action.kind, 'remotion_studio_session')
+  assert.equal(remotionOpened.open_action.backend, 'remotion')
+  assert.equal(remotionOpened.open_action.workspaceId, 'remotion_title_v1')
+  assert.equal(remotionOpened.open_action.productionId, 'p8f3')
+  assert.equal(remotionOpened.open_action.projectDirectory, remotion.workspace.projectDirectory)
+  assert.equal(remotionOpened.open_action.entrypoint, 'src/Root.tsx')
+  assert.deepEqual(remotionOpened.open_action.command, ['npx', 'remotion', 'studio', 'src/Root.tsx', '--no-open'])
+
   await rm(join(remotion.workspace.projectDirectory, 'src', 'Root.tsx'), { force: true })
   const remotionBlocked = await postJSON(`${runtime.url}${PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_OPEN_ENDPOINT}`, {
     projectDir,

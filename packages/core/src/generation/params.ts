@@ -205,9 +205,9 @@ export function canvasGenerationParamDefs(
   operation?: string,
 ): GenerationParamDef[] {
   const operationKey = operation?.trim()
-  if (operationKey && model?.supported_params_by_operation?.[operationKey]) {
-    return model.supported_params_by_operation[operationKey]
-  }
+  const operationParams = operationKey ? model?.supported_params_by_operation?.[operationKey] : undefined
+  if (Array.isArray(operationParams)) return [...operationParams]
+  if (Array.isArray(model?.supported_params)) return [...model.supported_params]
   if (nodeType === 'ai_gen') {
     if (outputType === 'video') return COMMON_VIDEO_PARAMS
     if (outputType === 'audio') return COMMON_AUDIO_PARAMS

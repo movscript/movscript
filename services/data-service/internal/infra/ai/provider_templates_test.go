@@ -286,6 +286,25 @@ func TestComboTemplatesIncludeSeedASR(t *testing.T) {
 	}
 }
 
+func TestComboTemplatesInclude83ziSeedance20ProviderModelOverride(t *testing.T) {
+	var found ComboTemplate
+	for _, template := range ComboTemplates() {
+		if template.ModelTemplateKey == "volcengine:seedance-2-0" && template.ProviderKind == "83zi_sd2_gateway" {
+			found = template
+			break
+		}
+	}
+	if found.ModelTemplateKey == "" {
+		t.Fatal("expected 83zi Seedance 2.0 combo template")
+	}
+	if found.AdapterType != AdapterVyroSeedance || found.DefaultPublicModelID != "seedance-2-0" {
+		t.Fatalf("83zi seedance combo = %#v", found)
+	}
+	if found.ProviderModelID != "Seedance-2.0" {
+		t.Fatalf("provider_model_id = %q, want Seedance-2.0", found.ProviderModelID)
+	}
+}
+
 func TestComboTemplatesIncludeMurekaOfficialMusic(t *testing.T) {
 	var song ComboTemplate
 	var instrumental ComboTemplate

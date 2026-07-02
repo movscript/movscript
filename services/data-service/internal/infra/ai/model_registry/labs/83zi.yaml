@@ -28,6 +28,13 @@ templates:
     - '9:16'
     - '1:1'
     type: select
+  - default: 720p
+    key: resolution
+    label: 分辨率
+    options:
+    - 720p
+    - 1080p
+    type: select
   - default: true
     key: generate_audio
     label: 生成音频

@@ -16,6 +16,8 @@ import {
   buildGenerationIntentForOutputKind,
   generationCapabilityForOutputKind,
   generationExecutionJobTypeForIntent,
+  generationModelSupportedParams,
+  generationPromptBlockerUserMessage,
   type ContentUnitGenerationOutputKind,
   type GenerationBackendPreflightResult,
   type GenerationIntentPayload,
@@ -370,7 +372,7 @@ async function buildContentUnitCandidateGenerationForCanvas(
     : await resolveContentUnitGenerationModel(modelCapability, outputKind, modelOperation, generationIntent.reference_assets)
   const modelId = input.modelId ?? (resolvedModel ? publicModelId(resolvedModel) : '')
   if (!modelId) throw new Error(`没有可用于 ${jobType} 的生成模型`)
-  const supportedParams = input.supportedParams ?? resolvedModel?.supported_params
+  const supportedParams = input.supportedParams ?? generationModelSupportedParams(resolvedModel, generationIntent.operation)
   const built = buildContentUnitGenerationJobPayload({
     projectId: input.projectId,
     contentUnitId: input.contentUnitId,
@@ -588,17 +590,7 @@ function promptBlockers(prompt: Record<string, unknown>): Array<Record<string, u
 }
 
 function promptBlockerLabel(blocker: Record<string, unknown>): string {
-  const message = stringValue(blocker.message)
-  if (message) return message
-  const ref = stringValue(blocker.ref)
-  if (ref) return ref
-  return stringValue(blocker.code) ?? '未解析引用'
-}
-
-function stringValue(value: unknown): string | undefined {
-  if (typeof value === 'string' && value.trim()) return value.trim()
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-  return undefined
+  return generationPromptBlockerUserMessage(blocker)
 }
 
 async function resolveContentUnitGenerationModel(

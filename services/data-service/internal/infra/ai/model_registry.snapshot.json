@@ -10,6 +10,7 @@
     "param_keys": [
       "duration",
       "aspect_ratio",
+      "resolution",
       "generate_audio"
     ],
     "source": {

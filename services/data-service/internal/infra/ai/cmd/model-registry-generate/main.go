@@ -56,6 +56,7 @@ type comboRuleSource struct {
 	Lab               string   `yaml:"lab,omitempty" json:"lab,omitempty"`
 	ExcludeLabs       []string `yaml:"exclude_labs,omitempty" json:"exclude_labs,omitempty"`
 	ModelTemplateKey  string   `yaml:"model_template_key,omitempty" json:"model_template_key,omitempty"`
+	ProviderModelID   string   `yaml:"provider_model_id,omitempty" json:"provider_model_id,omitempty"`
 	IDPrefix          string   `yaml:"id_prefix,omitempty" json:"id_prefix,omitempty"`
 	ExcludeIDPrefixes []string `yaml:"exclude_id_prefixes,omitempty" json:"exclude_id_prefixes,omitempty"`
 	ProviderKind      string   `yaml:"provider_kind,omitempty" json:"provider_kind,omitempty"`
@@ -787,6 +788,9 @@ func writeProviderGeneratedGo(path string, providers []providerTemplateSource, r
 		writeGoStringSliceField(&buf, "ExcludeLabs", rule.ExcludeLabs)
 		if rule.ModelTemplateKey != "" {
 			writeGoStringField(&buf, "ModelTemplateKey", rule.ModelTemplateKey)
+		}
+		if rule.ProviderModelID != "" {
+			writeGoStringField(&buf, "ProviderModelID", rule.ProviderModelID)
 		}
 		if rule.IDPrefix != "" {
 			writeGoStringField(&buf, "IDPrefix", rule.IDPrefix)

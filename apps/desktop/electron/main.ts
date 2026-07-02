@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog } from 'electron'
+import { app, dialog } from 'electron'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { installChromiumRenderDiagnostics } from './diagnostics/rendering'
@@ -30,6 +30,16 @@ import {
 } from '../runtime/desktopApplicationRuntime'
 
 const desktopSmokeTest = process.argv.includes('--movscript-desktop-smoke-test') || process.env.MOVSCRIPT_DESKTOP_SMOKE_TEST === '1'
+const hasSingleInstanceLock = desktopSmokeTest || app.requestSingleInstanceLock()
+
+if (!hasSingleInstanceLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (app.isReady()) openHomeWindow()
+  })
+  startDesktopApp()
+}
 
 async function shutdownFromSignal(signal: NodeJS.Signals): Promise<void> {
   uninstallAppUpdateScheduler()
@@ -39,81 +49,83 @@ async function shutdownFromSignal(signal: NodeJS.Signals): Promise<void> {
   app.exit(exitCode)
 }
 
-installChromiumRenderDiagnostics()
-installProviderActivationHost({ broadcastBackendStatus })
-registerAdminProtocolPrivileges()
-registerMediaProtocolPrivileges()
-installDesktopIdentity()
+function startDesktopApp(): void {
+  installChromiumRenderDiagnostics()
+  installProviderActivationHost({ broadcastBackendStatus })
+  registerAdminProtocolPrivileges()
+  registerMediaProtocolPrivileges()
+  installDesktopIdentity()
 
-app.whenReady().then(async () => {
-  installApplicationMenu()
-  installAppTray()
-  installDockShortcutMenu()
-  installAdminProtocol()
-  installMediaProtocol()
-  try {
-    const bootstrap = await bootstrapManagedServicesBeforeWindow()
-    await startDesktopApplicationRuntime({
-      ...(bootstrap.localRuntime ? { localRuntime: bootstrap.localRuntime } : {}),
-    })
-    markBootstrapRuntimeReady(bootstrap)
-  } catch (error) {
-    console.error('[bootstrap] failed to start desktop services', error)
-    dialog.showErrorBox('MovScript failed to start', error instanceof Error ? error.message : String(error))
-    app.quit()
-    return
-  }
+  app.whenReady().then(async () => {
+    installApplicationMenu()
+    installAppTray()
+    installDockShortcutMenu()
+    installAdminProtocol()
+    installMediaProtocol()
+    try {
+      const bootstrap = await bootstrapManagedServicesBeforeWindow()
+      await startDesktopApplicationRuntime({
+        ...(bootstrap.localRuntime ? { localRuntime: bootstrap.localRuntime } : {}),
+      })
+      markBootstrapRuntimeReady(bootstrap)
+    } catch (error) {
+      console.error('[bootstrap] failed to start desktop services', error)
+      dialog.showErrorBox('MovScript failed to start', error instanceof Error ? error.message : String(error))
+      app.quit()
+      return
+    }
 
-  if (desktopSmokeTest) {
-    writeDesktopSmokeMarker()
-    console.log('MOVSCRIPT_DESKTOP_SMOKE_OK')
-    await shutdownManagedServices()
-    await shutdownDesktopApplicationRuntime()
-    app.exit(0)
-    return
-  }
-
-  installAppUpdateScheduler()
-  await flushPendingProviderActivationURLs()
-  openHomeWindow()
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) openHomeWindow()
-  })
-}).catch((error) => {
-  console.error('[bootstrap] failed to start desktop app', error)
-  app.quit()
-})
-
-app.on('window-all-closed', () => {
-  // Windows are disposable work surfaces. Keep the app and managed services
-  // alive until the user explicitly quits so project/agent windows can be
-  // reopened without treating an empty desktop as process shutdown.
-})
-
-app.on('before-quit', (event) => {
-  uninstallAppUpdateScheduler()
-  if (hasManagedServicesShutdownCompleted()) return
-  event.preventDefault()
-  void shutdownManagedServices().finally(() => {
-    void shutdownDesktopApplicationRuntime().finally(() => {
+    if (desktopSmokeTest) {
+      writeDesktopSmokeMarker()
+      console.log('MOVSCRIPT_DESKTOP_SMOKE_OK')
+      await shutdownManagedServices()
+      await shutdownDesktopApplicationRuntime()
       app.exit(0)
+      return
+    }
+
+    installAppUpdateScheduler()
+    await flushPendingProviderActivationURLs()
+    openHomeWindow()
+
+    app.on('activate', () => {
+      openHomeWindow()
+    })
+  }).catch((error) => {
+    console.error('[bootstrap] failed to start desktop app', error)
+    app.quit()
+  })
+
+  app.on('window-all-closed', () => {
+    // Windows are disposable work surfaces. Keep the app and managed services
+    // alive until the user explicitly quits so project/agent windows can be
+    // reopened without treating an empty desktop as process shutdown.
+  })
+
+  app.on('before-quit', (event) => {
+    uninstallAppUpdateScheduler()
+    if (hasManagedServicesShutdownCompleted()) return
+    event.preventDefault()
+    void shutdownManagedServices().finally(() => {
+      void shutdownDesktopApplicationRuntime().finally(() => {
+        app.exit(0)
+      })
     })
   })
-})
 
-process.once('SIGINT', () => {
-  void shutdownFromSignal('SIGINT')
-})
+  process.once('SIGINT', () => {
+    void shutdownFromSignal('SIGINT')
+  })
 
-process.once('SIGTERM', () => {
-  void shutdownFromSignal('SIGTERM')
-})
+  process.once('SIGTERM', () => {
+    void shutdownFromSignal('SIGTERM')
+  })
 
-registerIpcHandlers({
-  broadcastBackendStatus,
-  ensureMCPServerReady,
-})
+  registerIpcHandlers({
+    broadcastBackendStatus,
+    ensureMCPServerReady,
+  })
+}
 
 function markBootstrapRuntimeReady(
   bootstrap: Awaited<ReturnType<typeof bootstrapManagedServicesBeforeWindow>>,

@@ -529,8 +529,10 @@ type AIModelDescriptor struct {
 	Priority                   int                         `json:"priority,omitempty"`
 	CapacityWeight             int                         `json:"capacity_weight,omitempty"`
 	MaxConcurrency             int                         `json:"max_concurrency,omitempty"`
+	SupportedParams            []map[string]any            `json:"supported_params,omitempty"`
 	SupportedParamsByOperation map[string][]map[string]any `json:"supported_params_by_operation,omitempty"`
 	InputRequirements          AIModelInputRequirements    `json:"input_requirements,omitempty"`
+	ParamsSchema               map[string]any              `json:"params_schema,omitempty"`
 	ParamsSchemaByOperation    map[string]map[string]any   `json:"params_schema_by_operation,omitempty"`
 }
 

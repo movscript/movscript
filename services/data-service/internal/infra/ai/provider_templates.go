@@ -49,6 +49,7 @@ type comboProviderRule struct {
 	Lab               string
 	ExcludeLabs       []string
 	ModelTemplateKey  string
+	ProviderModelID   string
 	IDPrefix          string
 	ExcludeIDPrefixes []string
 	ProviderKind      string
@@ -90,7 +91,7 @@ func ComboTemplates() []ComboTemplate {
 				ProviderCategory:     rule.ProviderCategory,
 				AdapterType:          comboRuleAdapterType(rule),
 				DefaultPublicModelID: template.DefaultPublicModelID,
-				ProviderModelID:      template.ModelID,
+				ProviderModelID:      comboRuleProviderModelID(rule, template),
 				APIKinds:             comboAPIKindsForTemplate(template),
 				RouteGroup:           "default",
 				Priority:             0,
@@ -144,6 +145,13 @@ func comboRuleAdapterType(rule comboProviderRule) string {
 		}
 	}
 	return ""
+}
+
+func comboRuleProviderModelID(rule comboProviderRule, template CatalogTemplate) string {
+	if providerModelID := strings.TrimSpace(rule.ProviderModelID); providerModelID != "" {
+		return providerModelID
+	}
+	return template.ModelID
 }
 
 func cloneProviderTemplateMap(in map[string]any) map[string]any {

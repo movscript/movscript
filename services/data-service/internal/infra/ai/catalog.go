@@ -512,6 +512,8 @@ func vyroSeedanceVideoParams() []ParamDef {
 			Options: []string{"5", "10"}, Default: "5"},
 		{Key: "aspect_ratio", Label: "画面比例", Type: "select",
 			Options: []string{"16:9", "9:16", "1:1"}, Default: "16:9"},
+		{Key: "resolution", Label: "分辨率", Type: "select",
+			Options: []string{"720p", "1080p"}, Default: "720p"},
 		{Key: "generate_audio", Label: "生成音频", Type: "boolean", Default: true},
 	}
 }
@@ -870,7 +872,7 @@ var AdapterDefs = []AdapterDef{
 	{
 		AdapterType:    AdapterVyroSeedance,
 		DisplayName:    "Vyro Seedance 中转",
-		Description:    "Vyro/83zi Seedance 2.0 Fast 视频任务接口：/v1/videos multipart + /v1/videos/{id} 查询。",
+		Description:    "Vyro/83zi Seedance 视频任务接口：Seedance-2.0 全能参考 JSON/multipart + 旧 Fast multipart。",
 		DefaultBaseURL: "http://115.190.186.95:3002/v1",
 		CredFields: []CredField{
 			{Key: "api_key", Label: "API Key", Required: true},
@@ -881,6 +883,7 @@ var AdapterDefs = []AdapterDef{
 		},
 		OperationParamSets: []AdapterOperationParamSet{
 			{Capability: CapabilityFamilyVideoGeneration, Operation: VideoOperationPromptToVideo, Params: vyroSeedanceVideoParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Operation: VideoOperationImageToVideo, Params: vyroSeedanceVideoParams()},
 			{Capability: CapabilityFamilyVideoGeneration, Operation: VideoOperationReferenceToVideo, Params: vyroSeedanceVideoParams()},
 		},
 		OperationContracts: []AdapterOperationContract{
@@ -889,6 +892,13 @@ var AdapterDefs = []AdapterDef{
 				Operation:   VideoOperationPromptToVideo,
 				ResultMode:  AdapterResultModeAsyncTask,
 				OutputMedia: []string{AdapterOutputMediaProviderURL, AdapterOutputMediaArtifactURL},
+			},
+			{
+				Capability:          CapabilityFamilyVideoGeneration,
+				Operation:           VideoOperationImageToVideo,
+				InputMediaTransport: []string{AssetTransportMultipart},
+				ResultMode:          AdapterResultModeAsyncTask,
+				OutputMedia:         []string{AdapterOutputMediaProviderURL, AdapterOutputMediaArtifactURL},
 			},
 			{
 				Capability:          CapabilityFamilyVideoGeneration,
@@ -1382,7 +1392,7 @@ func defaultVideoOperationsForAdapter(adapterType string) []string {
 	case AdapterDoubao2API:
 		return []string{VideoOperationPromptToVideo, VideoOperationImageToVideo}
 	case AdapterVyroSeedance:
-		return []string{VideoOperationPromptToVideo, VideoOperationReferenceToVideo}
+		return []string{VideoOperationPromptToVideo, VideoOperationImageToVideo, VideoOperationReferenceToVideo}
 	default:
 		return allVideoGenerationOperations()
 	}

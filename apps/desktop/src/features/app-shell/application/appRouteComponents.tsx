@@ -56,6 +56,7 @@ export const EditingWorkspaceSurfaceRoute = lazyWithRetry(() => import('@movscri
 export const ProjectOverviewPage = lazyWithRetry(() => import('./DesktopProjectSurfaceRoutes').then((module) => ({ default: module.ProjectOverviewPage })))
 export const ProjectSettingsPage = lazyWithRetry(() => import('./DesktopProjectSurfaceRoutes').then((module) => ({ default: module.ProjectSettingsPage })))
 export const ProjectStandardsPage = lazyWithRetry(() => import('./DesktopProjectSurfaceRoutes').then((module) => ({ default: module.ProjectStandardsPage })))
+export const ProjectRemotionStudioPage = lazyWithRetry(() => import('./DesktopProjectSurfaceRoutes').then((module) => ({ default: module.ProjectRemotionStudioPage })))
 export const AgentModePage = lazyWithRetry(() => import('@/pages/agent-mode/AgentModePage'))
 export const AgentModeCanvasListPage = lazyWithRetry(() => import('@/pages/agent-mode/AgentModeCanvasListPage'))
 export const ScriptsPage = lazyWithRetry(() => import('./DesktopProjectSurfaceRoutes').then((module) => ({ default: module.ScriptsPage })))

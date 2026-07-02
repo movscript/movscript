@@ -154,8 +154,10 @@ func (s *AIService) ResolveModelRoutePlan(req ModelRouteRequest) (ModelRoutePlan
 	if capability == "" {
 		return ModelRoutePlan{}, fmt.Errorf("model capability is required")
 	}
+	var inferredOperations []string
 	if isStructuredCapabilityFamily(capability) && strings.TrimSpace(req.Operation) == "" {
 		if operations := inferredStructuredCapabilityOperations(capability, req.ReferenceAssets); len(operations) > 0 {
+			inferredOperations = operations
 			req.Operation = operations[0]
 		}
 	}
@@ -166,6 +168,9 @@ func (s *AIService) ResolveModelRoutePlan(req ModelRouteRequest) (ModelRoutePlan
 	if modelID != "" {
 		if plan, handled, err := s.resolveCatalogModelRoutePlan(req, capability, modelID); handled || err != nil {
 			if err != nil {
+				if fallbackPlan, ok := s.resolveModelRoutePlanByInferredFallback(req, capability, modelID, inferredOperations, err); ok {
+					return fallbackPlan, nil
+				}
 				return ModelRoutePlan{}, err
 			}
 			return plan, nil
@@ -180,6 +185,9 @@ func (s *AIService) ResolveModelRoutePlan(req ModelRouteRequest) (ModelRoutePlan
 	}
 	if plan, handled, err := s.resolveCatalogModelRoutePlan(req, capability, ""); handled || err != nil {
 		if err != nil {
+			if fallbackPlan, ok := s.resolveModelRoutePlanByInferredFallback(req, capability, "", inferredOperations, err); ok {
+				return fallbackPlan, nil
+			}
 			return ModelRoutePlan{}, err
 		}
 		return plan, nil
@@ -194,6 +202,40 @@ func (s *AIService) ResolveModelRoutePlan(req ModelRouteRequest) (ModelRoutePlan
 		return ModelRoutePlan{}, fmt.Errorf("catalog_entry_id is required for catalog-only routing")
 	}
 	return ModelRoutePlan{}, fmt.Errorf("catalog_entry_id or route_binding_id is required")
+}
+
+func (s *AIService) resolveModelRoutePlanByInferredFallback(req ModelRouteRequest, capability, modelID string, operations []string, firstErr error) (ModelRoutePlan, bool) {
+	if len(operations) <= 1 || !isMissingStructuredRouteCapabilityError(firstErr) {
+		return ModelRoutePlan{}, false
+	}
+	currentOperation := strings.TrimSpace(req.Operation)
+	for _, operation := range operations[1:] {
+		operation = strings.TrimSpace(operation)
+		if operation == "" || operation == currentOperation {
+			continue
+		}
+		retryReq := req
+		retryReq.Operation = operation
+		if err := validateStructuredCapabilityRequest(capability, retryReq.Operation, retryReq.ReferenceAssets); err != nil {
+			continue
+		}
+		plan, handled, err := s.resolveCatalogModelRoutePlan(retryReq, capability, modelID)
+		if err == nil && handled {
+			return plan, true
+		}
+		if err != nil && !isMissingStructuredRouteCapabilityError(err) {
+			return ModelRoutePlan{}, false
+		}
+	}
+	return ModelRoutePlan{}, false
+}
+
+func isMissingStructuredRouteCapabilityError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "missing_route_capability:") || strings.Contains(msg, "missing_model_capability:")
 }
 
 func (s *AIService) ResolveTextModelRoute(modelID string) (ModelRoute, error) {

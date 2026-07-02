@@ -302,8 +302,10 @@ export interface PublicModel {
   resolver_operations?: string[]
   is_default?: boolean
   supported_params?: ParamDef[]
+  supported_params_by_operation?: Record<string, ParamDef[]>
   input_requirements?: ModelInputRequirements
   params_schema?: Record<string, unknown>
+  params_schema_by_operation?: Record<string, Record<string, unknown>>
 }
 
 export interface Job {

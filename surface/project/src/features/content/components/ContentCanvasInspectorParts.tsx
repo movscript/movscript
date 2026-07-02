@@ -6,9 +6,11 @@ import {
   generationBackendPreflightBlockerMessages,
   generationBackendPreflightIsReady,
   generationReferenceAssetsFromPromptText,
+  generationPromptBlockerUserMessage,
   generationReferenceRoleLabel,
   generationReadinessBlockerMessages,
   generationReadinessIsReady,
+  generationModelSupportedParams,
   generationParamDefaults,
   type GenerationBackendPreflightResult,
   type GenerationIntentPayload,
@@ -44,6 +46,7 @@ import {
   contentCanvasGenerationCapability,
   contentCanvasGenerationIntent,
   contentCanvasGenerationOperationOptions,
+  contentCanvasReferenceAssetsForModelIntent,
   contentCanvasReferenceAssetsForOperation,
 } from './contentCanvasGenerationOptions'
 import { expressionUnitKindValue } from './contentCanvasWorkspaceDisplayModel'
@@ -790,6 +793,7 @@ export function GenerationCandidateDialog({
   const capability = contentCanvasGenerationCapability(mediaKind)
   const [compiledPrompt, setCompiledPrompt] = useState<string | null>(null)
   const [compiledPromptPreview, setCompiledPromptPreview] = useState<ContentCanvasCandidatePromptPreview | null>(null)
+  const [compiledPromptBlockers, setCompiledPromptBlockers] = useState<Array<Record<string, unknown>>>([])
   const compiledPromptResourceIds = compiledPromptPreview?.resourceIds ?? []
   const compiledPromptResourceKey = compiledPromptResourceIds.join(',')
   const compiledPromptReferenceAssets = useMemo(
@@ -801,20 +805,26 @@ export function GenerationCandidateDialog({
     },
     [compiledPrompt, compiledPromptPreview?.referenceAssets, compiledPromptResourceKey],
   )
+  const modelReferenceAssets = useMemo(
+    () => contentCanvasReferenceAssetsForModelIntent(mediaKind, compiledPromptReferenceAssets, compiledPromptBlockers),
+    [compiledPromptBlockers, compiledPromptReferenceAssets, mediaKind],
+  )
   const operationOptions = useMemo(
-    () => contentCanvasGenerationOperationOptions(mediaKind, compiledPromptReferenceAssets),
-    [compiledPromptReferenceAssets, mediaKind],
+    () => contentCanvasGenerationOperationOptions(mediaKind, modelReferenceAssets),
+    [mediaKind, modelReferenceAssets],
   )
   const [operation, setOperation] = useState(() => operationOptions[0]?.value ?? '')
   const [operationExplicit, setOperationExplicit] = useState(false)
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
   const [selectedModel, setSelectedModel] = useState<PublicModel | null>(null)
   const [params, setParams] = useState<Record<string, string | number | boolean>>({})
-  const [compiledPromptBlockers, setCompiledPromptBlockers] = useState<Array<Record<string, unknown>>>([])
   const [compiledPromptError, setCompiledPromptError] = useState<string | null>(null)
   const [backendPreflight, setBackendPreflight] = useState<GenerationBackendPreflightResult | null>(null)
   const [backendPreflightPending, setBackendPreflightPending] = useState(false)
-  const supportedParams = useMemo(() => selectedModel?.supported_params ?? [], [selectedModel?.supported_params])
+  const supportedParams = useMemo(
+    () => generationModelSupportedParams(selectedModel, operation),
+    [operation, selectedModel],
+  )
   const generationIntent = useMemo(
     () => contentCanvasGenerationIntent(mediaKind, operation, compiledPromptResourceIds, compiledPromptReferenceAssets),
     [compiledPromptReferenceAssets, compiledPromptResourceKey, mediaKind, operation],
@@ -848,14 +858,16 @@ export function GenerationCandidateDialog({
       setParams({})
       return
     }
-    setParams(generationParamDefaults(selectedModel))
-  }, [selectedModel?.model_id])
+    setParams(generationParamDefaults(selectedModel, operation))
+  }, [operation, selectedModel])
 
   useEffect(() => {
     const nextOperation = operationOptions[0]?.value ?? ''
     if (!operationOptions.some((option) => option.value === operation)) {
       setOperation(nextOperation)
       setOperationExplicit(false)
+      setSelectedModelId(null)
+      setSelectedModel(null)
     }
   }, [operation, operationOptions])
 
@@ -1028,7 +1040,7 @@ export function GenerationCandidateDialog({
                   operation={operationExplicit ? operation : ''}
                   targetOutput={mediaKind}
                   resolveIntent={!operationExplicit}
-                  referenceAssets={generationIntent?.reference_assets ?? compiledPromptReferenceAssets}
+                  referenceAssets={modelReferenceAssets}
                   value={selectedModelId}
                   onChange={setSelectedModelId}
                   onModelChange={setSelectedModel}
@@ -1070,14 +1082,7 @@ export function GenerationCandidateDialog({
 }
 
 function promptBlockerLabel(blocker: Record<string, unknown>): string {
-  const ref = stringValue(blocker.ref)
-  const contentUnitId = stringValue(blocker.content_unit_id ?? blocker.contentUnitId)
-  const message = stringValue(blocker.message)
-  if (message) return message
-  if (ref && contentUnitId) return `引用 ${ref} 暂无可用候选资源（${contentUnitId}）`
-  if (ref) return `引用 ${ref} 暂无可用候选资源`
-  if (contentUnitId) return `创作片段 ${contentUnitId} 暂无可用候选资源`
-  return '提示词引用尚未解析'
+  return generationPromptBlockerUserMessage(blocker)
 }
 
 function CompiledPromptPreview({

@@ -42,6 +42,10 @@ export const LOCAL_PROJECT_PRODUCTION_EDITING_WORKSPACES_CREATE_ENDPOINT = '/v1/
 export const LOCAL_PROJECT_PRODUCTION_EDITING_WORKSPACES_OPEN_ENDPOINT = '/v1/project/productions/editing-workspaces/open'
 export const LOCAL_PROJECT_PRODUCTION_EDITING_WORKSPACES_DELETE_ENDPOINT = '/v1/project/productions/editing-workspaces/delete'
 export const LOCAL_PROJECT_PRODUCTION_EDITING_RESOURCES_REFRESH_ENDPOINT = '/v1/project/productions/editing-resources/refresh'
+export const REMOTION_STUDIO_SESSION_OPEN_ENDPOINT = '/v1/remotion-studio/sessions/open'
+export const REMOTION_STUDIO_SESSION_GET_ENDPOINT = '/v1/remotion-studio/sessions/get'
+export const REMOTION_STUDIO_SESSION_LOGS_ENDPOINT = '/v1/remotion-studio/sessions/logs'
+export const REMOTION_STUDIO_SESSION_STOP_ENDPOINT = '/v1/remotion-studio/sessions/stop'
 
 export interface LocalHostProjectSurfaceRuntimeInput {
   projectKey?: string
@@ -106,7 +110,22 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
         editing_project_saved: true,
       }
     }
-    if (stringValue(openAction?.kind) !== 'media_pipeline_task_request') return openResult
+    const openActionKind = stringValue(openAction?.kind)
+    if (openActionKind === 'remotion_studio_session') {
+      const sessionResult = await postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_OPEN_ENDPOINT, {
+        openAction,
+        open_action: openAction,
+        projectId: String(request.projectId ?? projectKey),
+        project_id: String(request.projectId ?? projectKey),
+      })
+      return {
+        ...resultRecord,
+        open_action_result: sessionResult,
+        remotionStudioSession: sessionResult,
+        remotion_studio_session: sessionResult,
+      }
+    }
+    if (openActionKind !== 'media_pipeline_task_request') return openResult
     if (!mediaPipeline) throw new Error('当前环境不支持 MediaPipeline')
     const projectDirectory = stringValue(openAction?.projectDirectory ?? openAction?.project_directory)
     if (!projectDirectory) throw new Error('Remotion open action requires projectDirectory.')
@@ -132,6 +151,10 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
       preview_started: true,
     }
   }
+  const postRemotionStudioSessionOperation = async (
+    endpoint: string,
+    body: Record<string, unknown> = {},
+  ): Promise<unknown> => fetchProjectServiceEndpoint({ endpoint, body })
 
   return createHostedProjectSurfaceRuntime({
     context: input.context,
@@ -418,6 +441,12 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
           })
           return response.logs ?? response
         },
+      },
+      remotionStudio: {
+        open: (request) => postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_OPEN_ENDPOINT, request),
+        get: (request) => postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_GET_ENDPOINT, request),
+        logs: (request) => postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_LOGS_ENDPOINT, request),
+        stop: (request) => postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_STOP_ENDPOINT, request),
       },
     },
   })

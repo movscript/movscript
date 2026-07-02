@@ -7,7 +7,7 @@
     "movscript-project-service": "./bin/movscript-project-service.mjs"
   },
   "scripts": {
-    "build": "node --check src/server.mjs && node --check bin/movscript-project-service.mjs",
+    "build": "node --check src/server.mjs && node --check src/common.mjs && node --check src/contentCanvas.mjs && node --check src/productionEditing.mjs && node --check bin/movscript-project-service.mjs",
     "test": "pnpm --filter @movscript/project build && pnpm --filter @movscript/editing build && pnpm --filter @movscript/workspace build && pnpm --filter @movscript/interpreter build && pnpm --filter @movscript/prompt build && pnpm --filter @movscript/engine build && pnpm --filter @movscript/core build && node --test tests/*.test.mjs"
   },
   "dependencies": {

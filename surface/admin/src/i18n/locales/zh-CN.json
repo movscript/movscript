@@ -2144,7 +2144,7 @@
       "image_to_video": "图生视频",
       "first_frame_to_video": "首帧生视频",
       "first_last_frame_to_video": "首尾帧生视频",
-      "reference_to_video": "参考素材生视频",
+      "reference_to_video": "全能参考生视频",
       "edit_video": "视频编辑",
       "extend_video": "视频延展",
       "upscale_video": "视频放大",
@@ -2442,6 +2442,8 @@
         "lastFrame": "尾帧图片",
         "referenceImages": "参考图片",
         "referenceImagesHint": "按顺序上传参考图，例如环境图、主角图、其他参考。",
+        "referenceMedia": "参考素材",
+        "referenceMediaHint": "按顺序上传图片、视频或音频参考素材，例如角色图、动作视频或声音参考。",
         "targetVideo": "待编辑视频",
         "targetImage": "待编辑图片"
       },

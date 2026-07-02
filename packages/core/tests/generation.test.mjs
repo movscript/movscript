@@ -19,6 +19,7 @@ import {
   DEFAULT_GENERATION_TOOLS_SETTINGS,
   generationModelAcceptsImageInput,
   generationModelAcceptsVideoInput,
+  generationModelSupportedParams,
   generationParamDefaults,
   evaluateGenerationReadiness,
   buildGenerationIntentForOutputKind,
@@ -556,6 +557,22 @@ test('core generation job decisions expose model media support and param default
   }), {
     quality: 'high',
     steps: 24,
+  })
+  const operationAwareModel = {
+    supported_params: [
+      { key: 'duration', default: '5' },
+    ],
+    supported_params_by_operation: {
+      image_to_video: [
+        { key: 'duration', default: '10' },
+        { key: 'aspect_ratio', default: '16:9' },
+      ],
+    },
+  }
+  assert.deepEqual(generationModelSupportedParams(operationAwareModel, 'image_to_video').map((param) => param.key), ['duration', 'aspect_ratio'])
+  assert.deepEqual(generationParamDefaults(operationAwareModel, 'image_to_video'), {
+    duration: '10',
+    aspect_ratio: '16:9',
   })
 })
 

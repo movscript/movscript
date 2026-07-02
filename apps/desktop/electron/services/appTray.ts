@@ -18,6 +18,7 @@ import { writeDesktopState } from './desktopStateStore'
 
 let tray: Tray | null = null
 let nativeTrayProcess: ChildProcess | null = null
+let nativeTrayOutputBuffer = ''
 let installing = false
 let trayLanguage: 'zh-CN' | 'en-US' = 'en-US'
 let trayDiagnostics: AppTrayDiagnostics = initialTrayDiagnostics()
@@ -27,6 +28,25 @@ const DEFAULT_MACOS_TRAY_TITLE = 'MovScript'
 
 type TrayRuntimeAction = 'download' | 'update' | 'uninstall'
 type TrayRuntimeOperationStatus = 'running' | 'success' | 'error'
+type TrayCommandId =
+  | 'open-home'
+  | 'install-codex-plugin'
+  | 'copy-codex-install-command'
+  | 'quit'
+  | `runtime:${TrayRuntimeAgent['id']}:${TrayRuntimeAction}`
+
+interface TrayMenuItemModel {
+  id?: TrayCommandId
+  type?: 'separator'
+  label?: string
+  enabled?: boolean
+  submenu?: TrayMenuItemModel[]
+}
+
+interface NativeTrayCommandMessage {
+  type: 'command'
+  id: string
+}
 
 interface TrayRuntimeAgent {
   id: 'mova' | 'codex' | 'claude'
@@ -123,8 +143,8 @@ export function installAppTray(): void {
     tray?.popUpContextMenu()
   })
   recordTrayDiagnostics(trayDiagnosticsFromImage(trayImage, true))
-  refreshTrayMenu()
   installNativeMacTray()
+  refreshTrayMenu()
 }
 
 export function isAppTrayInstalled(): boolean {
@@ -140,46 +160,65 @@ export function refreshAppTrayMenu(): void {
 }
 
 function refreshTrayMenu(): void {
-  if (!tray) return
-  tray.setContextMenu(Menu.buildFromTemplate([
+  const items = buildTrayMenuItems()
+  if (tray) {
+    tray.setContextMenu(Menu.buildFromTemplate(toElectronMenuTemplate(items)))
+  }
+  sendNativeTrayMenu(items)
+}
+
+function buildTrayMenuItems(): TrayMenuItemModel[] {
+  return [
     {
+      id: 'open-home',
       label: trayLabel('打开 MovScript', 'Open MovScript'),
-      click: () => {
-        openHomeWindow()
-      },
     },
     { type: 'separator' },
     {
       label: trayLabel('内置 Agent 运行时', 'Built-in Agent runtimes'),
-      submenu: TRAY_RUNTIME_AGENTS.map(runtimeAgentSubmenu),
+      submenu: TRAY_RUNTIME_AGENTS.map(runtimeAgentSubmenuModel),
     },
     { type: 'separator' },
     {
+      id: 'install-codex-plugin',
       label: installing
         ? trayLabel('正在安装 Codex 的 MovScript 插件...', 'Installing MovScript plugin for Codex...')
         : trayLabel('安装 Codex 的 MovScript 插件', 'Install MovScript plugin for Codex'),
       enabled: !installing,
-      click: () => {
-        void installCodexPluginFromTray()
-      },
     },
     {
+      id: 'copy-codex-install-command',
       label: trayLabel('复制 Codex 安装命令', 'Copy Codex install command'),
-      click: () => {
-        clipboard.writeText(codexPluginInstallCommand())
-      },
     },
     { type: 'separator' },
     {
+      id: 'quit',
       label: trayLabel('退出 MovScript', 'Quit MovScript'),
-      click: () => {
-        app.quit()
-      },
     },
-  ]))
+  ]
 }
 
-function runtimeAgentSubmenu(agent: TrayRuntimeAgent): Electron.MenuItemConstructorOptions {
+function toElectronMenuTemplate(items: TrayMenuItemModel[]): Electron.MenuItemConstructorOptions[] {
+  return items.map((item) => {
+    if (item.type === 'separator') return { type: 'separator' }
+    const menuItem: Electron.MenuItemConstructorOptions = {
+      label: item.label ?? '',
+      enabled: item.enabled ?? true,
+    }
+    if (item.submenu) {
+      menuItem.submenu = toElectronMenuTemplate(item.submenu)
+    }
+    if (item.id) {
+      const commandId = item.id
+      menuItem.click = () => {
+        dispatchTrayCommand(commandId)
+      }
+    }
+    return menuItem
+  })
+}
+
+function runtimeAgentSubmenuModel(agent: TrayRuntimeAgent): TrayMenuItemModel {
   const status = runtimeAgentStatus(agent)
   const busy = runtimeOperationBusy(agent)
   return {
@@ -191,28 +230,48 @@ function runtimeAgentSubmenu(agent: TrayRuntimeAgent): Electron.MenuItemConstruc
       },
       { type: 'separator' },
       {
+        id: runtimeCommandId(agent, 'download'),
         label: trayLabel('下载', 'Download'),
         enabled: !busy && !status.installed,
-        click: () => {
-          void runRuntimeOperation(agent, 'download')
-        },
       },
       {
+        id: runtimeCommandId(agent, 'update'),
         label: trayLabel('更新', 'Update'),
         enabled: !busy && status.installed,
-        click: () => {
-          void runRuntimeOperation(agent, 'update')
-        },
       },
       {
+        id: runtimeCommandId(agent, 'uninstall'),
         label: trayLabel('卸载', 'Uninstall'),
         enabled: !busy && status.installed,
-        click: () => {
-          void runRuntimeOperation(agent, 'uninstall')
-        },
       },
     ],
   }
+}
+
+function dispatchTrayCommand(id: string): void {
+  if (id === 'open-home') {
+    openHomeWindow()
+    return
+  }
+  if (id === 'install-codex-plugin') {
+    void installCodexPluginFromTray()
+    return
+  }
+  if (id === 'copy-codex-install-command') {
+    clipboard.writeText(codexPluginInstallCommand())
+    return
+  }
+  if (id === 'quit') {
+    app.quit()
+    return
+  }
+
+  const runtimeCommand = parseRuntimeCommandId(id)
+  if (!runtimeCommand) {
+    console.warn(`[tray] ignored unknown tray command: ${id}`)
+    return
+  }
+  void runRuntimeOperation(runtimeCommand.agent, runtimeCommand.action)
 }
 
 function runtimeAgentStatus(agent: TrayRuntimeAgent): { installed: boolean; installedVersion?: string } {
@@ -359,6 +418,21 @@ function runtimeAgentPackageName(agent: TrayRuntimeAgent): string {
   return agent.packageName
 }
 
+function runtimeCommandId(agent: TrayRuntimeAgent, action: TrayRuntimeAction): TrayCommandId {
+  return `runtime:${agent.id}:${action}`
+}
+
+function parseRuntimeCommandId(id: string): { agent: TrayRuntimeAgent; action: TrayRuntimeAction } | null {
+  const match = /^runtime:(mova|codex|claude):(download|update|uninstall)$/.exec(id)
+  if (!match) return null
+  const agent = TRAY_RUNTIME_AGENTS.find((candidate) => candidate.id === match[1])
+  if (!agent) return null
+  return {
+    agent,
+    action: match[2] as TrayRuntimeAction,
+  }
+}
+
 function runtimeActionLabel(action: TrayRuntimeAction): string {
   if (action === 'download') return trayLabel('下载', 'Download')
   if (action === 'update') return trayLabel('更新', 'Update')
@@ -405,16 +479,34 @@ function installNativeMacTray(): void {
     return
   }
 
+  nativeTrayOutputBuffer = ''
   const child = spawn(helperPath, [
     String(process.pid),
     resolveMacOSAppBundlePath(),
     DEFAULT_MACOS_TRAY_TITLE,
   ], {
-    stdio: 'ignore',
+    stdio: ['pipe', 'pipe', 'pipe'],
   })
   nativeTrayProcess = child
+  child.stdout?.setEncoding('utf8')
+  child.stdout?.on('data', handleNativeTrayOutput)
+  child.stderr?.setEncoding('utf8')
+  child.stderr?.on('data', (chunk) => {
+    const text = String(chunk).trim()
+    if (text) console.warn(`[tray/native] ${text}`)
+  })
+  child.stdin?.on('error', (error) => {
+    console.warn('[tray/native] failed to write menu update', error)
+  })
   child.once('exit', () => {
-    if (nativeTrayProcess === child) nativeTrayProcess = null
+    if (nativeTrayProcess === child) {
+      nativeTrayProcess = null
+      recordTrayDiagnostics({
+        ...trayDiagnostics,
+        nativeHelperRunning: false,
+        updatedAt: new Date().toISOString(),
+      })
+    }
   })
   app.once('before-quit', () => {
     child.kill()
@@ -426,6 +518,38 @@ function installNativeMacTray(): void {
     nativeHelperRunning: true,
     updatedAt: new Date().toISOString(),
   })
+}
+
+function sendNativeTrayMenu(items = buildTrayMenuItems()): void {
+  if (!nativeTrayProcess?.stdin?.writable) return
+  nativeTrayProcess.stdin.write(`${JSON.stringify({ type: 'menu', items })}\n`)
+}
+
+function handleNativeTrayOutput(chunk: string): void {
+  nativeTrayOutputBuffer += chunk
+  let lineEnd = nativeTrayOutputBuffer.indexOf('\n')
+  while (lineEnd >= 0) {
+    const line = nativeTrayOutputBuffer.slice(0, lineEnd).trim()
+    nativeTrayOutputBuffer = nativeTrayOutputBuffer.slice(lineEnd + 1)
+    if (line) handleNativeTrayLine(line)
+    lineEnd = nativeTrayOutputBuffer.indexOf('\n')
+  }
+}
+
+function handleNativeTrayLine(line: string): void {
+  let message: NativeTrayCommandMessage
+  try {
+    message = JSON.parse(line) as NativeTrayCommandMessage
+  } catch (error) {
+    console.warn(`[tray/native] ignored invalid helper message: ${errorMessage(error)}`)
+    return
+  }
+
+  if (message.type !== 'command' || typeof message.id !== 'string') {
+    console.warn(`[tray/native] ignored unsupported helper message: ${line}`)
+    return
+  }
+  dispatchTrayCommand(message.id)
 }
 
 function resolveMacOSAppBundlePath(): string {

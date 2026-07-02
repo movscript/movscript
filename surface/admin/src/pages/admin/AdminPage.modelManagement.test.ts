@@ -71,9 +71,11 @@ test('model catalog templates come from backend and keep public id separate from
 
 test('model catalog dialog uses structured capability config with scoped scroll panes', () => {
   const source = readModelManagementSource()
+  const model = readFileSync(resolve(process.cwd(), 'src/features/model-management/model/modelManagementModel.ts'), 'utf8')
   const catalog = readFileSync(resolve(process.cwd(), 'src/features/model-management/components/ModelCatalogSection.tsx'), 'utf8')
   const zh = readFileSync(resolve(process.cwd(), 'src/i18n/locales/zh-CN.json'), 'utf8')
   const en = readFileSync(resolve(process.cwd(), 'src/i18n/locales/en-US.json'), 'utf8')
+  const sample = model.match(/export const STRUCTURED_VIDEO_CAPABILITY_SAMPLE = JSON\.stringify\([\s\S]*?\n\}, null, 2\)/)?.[0] ?? ''
 
   assert.match(source, /export type ModelCapabilityDraft = \{/)
   assert.match(source, /function parseModelCapabilityDrafts\(raw: string\): ModelCapabilityParseResult/)
@@ -93,6 +95,13 @@ test('model catalog dialog uses structured capability config with scoped scroll 
   assert.doesNotMatch(catalog, /catalogForm\.max_input_images/)
   assert.doesNotMatch(catalog, /catalogForm\.max_input_videos/)
   assert.doesNotMatch(catalog, /catalogForm\.input_image_field/)
+  assert.match(sample, /'image_to_video'/)
+  assert.doesNotMatch(sample, /'reference_to_video'/)
+  assert.match(model, /case 'image_to_video':[\s\S]*id: 'reference_images'[\s\S]*roles: \['generic', 'reference_image'\][\s\S]*case 'first_frame_to_video':/)
+  assert.match(model, /case 'reference_to_video':[\s\S]*id: 'reference_media'[\s\S]*mediaTypes: \['image', 'video', 'audio'\][\s\S]*roles: \['generic', 'reference_image', 'reference_video', 'reference_audio'\]/)
+  assert.match(zh, /"reference_to_video": "全能参考生视频"/)
+  assert.match(zh, /"referenceMedia": "参考素材"/)
+  assert.match(en, /"referenceMedia": "Reference media"/)
   assert.match(zh, /"maxInputImages": "最大图片输入数"/)
   assert.match(en, /"maxInputImages": "Max input images"/)
 })

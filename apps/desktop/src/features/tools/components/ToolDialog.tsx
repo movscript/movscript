@@ -39,6 +39,7 @@ import {
   generationModelAcceptsImageInput,
   generationModelAcceptsVideoInput,
   generationDefaultOperationForOutputKind,
+  generationModelSupportedParams,
   generationParamDefaults,
   evaluateGenerationReadiness,
   generationBackendPreflightBlockerMessages,
@@ -394,14 +395,6 @@ export function ToolDialog({
     }
   }, [jobs, activeJobId, qc, t])
 
-  useEffect(() => {
-    if (!selectedModel?.supported_params) {
-      setExtraParams({})
-      return
-    }
-    setExtraParams(generationParamDefaults(selectedModel))
-  }, [selectedModel?.model_id])
-
   async function uploadFile(file: File) {
     setUploading(true)
     try {
@@ -437,9 +430,20 @@ export function ToolDialog({
   // Check that all required input slots are filled.
   const requiredSlots = inputSlots?.filter((s) => s.required) ?? []
   const slotGroups = inputSlots ? slotGroupsFor(attachments) : []
-  const supportedParams = selectedModel?.supported_params ?? []
   const selectedResourceIds = attachments.map((a) => a.ID)
   const currentGenerationIntent = generationIntentForTool(outputType, modelOperation, attachments, inputSlots, referenceRoleOverrides)
+  const supportedParams = useMemo(
+    () => generationModelSupportedParams(selectedModel, currentGenerationIntent?.operation ?? modelOperation),
+    [currentGenerationIntent?.operation, modelOperation, selectedModel],
+  )
+
+  useEffect(() => {
+    if (!selectedModel) {
+      setExtraParams({})
+      return
+    }
+    setExtraParams(generationParamDefaults(selectedModel, currentGenerationIntent?.operation ?? modelOperation))
+  }, [currentGenerationIntent?.operation, modelOperation, selectedModel])
   function changeReferenceAssetRole(resourceId: number, role: string) {
     setReferenceRoleOverrides((current) => {
       const next = { ...current, [resourceId]: role }
@@ -494,7 +498,7 @@ export function ToolDialog({
           title: generationJobTitle,
           prompt: submitPrompt,
           params: extraParams,
-          supportedParams: selectedModel.supported_params,
+          supportedParams,
           generationIntent: currentGenerationIntent,
           inputResourceIds: selectedResourceIds,
           sourceKey: _nodeType,

@@ -61,6 +61,7 @@ import {
   OrgSelectPage,
   ProjectDataPage,
   ProjectOverviewPage,
+  ProjectRemotionStudioPage,
   ProjectSettingsPage,
   ProjectStandardsPage,
   ProjectsPage,
@@ -157,6 +158,7 @@ export function AuthenticatedAppRouter() {
                   <Route path={ROUTES.project.content} element={<ProjectGuard><ContentCanvasPreviewPage /></ProjectGuard>} />
                   <Route path={ROUTES.project.contentCanvas} element={<ProjectGuard><ContentCanvasPage /></ProjectGuard>} />
                   <Route path={ROUTES.project.contentPreview} element={<ProjectGuard><ContentCanvasPreviewPage /></ProjectGuard>} />
+                  <Route path={ROUTES.project.remotionStudio} element={<ProjectGuard><ProjectRemotionStudioPage /></ProjectGuard>} />
                   <Route path={ROUTES.project.settingPreview} element={<ProjectGuard><ContentCanvasPreviewPage /></ProjectGuard>} />
                   <Route path={ROUTES.project.contentLegacy} element={<Navigate to={ROUTES.project.contentCanvas} replace />} />
                   <Route path={ROUTES.project.contentLegacyNext} element={<Navigate to={ROUTES.project.contentCanvas} replace />} />
@@ -167,6 +169,7 @@ export function AuthenticatedAppRouter() {
                   <Route path={ROUTES.studioContent} element={<ProjectGuard><ContentCanvasPreviewPage /></ProjectGuard>} />
                   <Route path={ROUTES.studioContentCanvas} element={<ProjectGuard><ContentCanvasPage /></ProjectGuard>} />
                   <Route path={ROUTES.studioContentPreview} element={<ProjectGuard><ContentCanvasPreviewPage /></ProjectGuard>} />
+                  <Route path={ROUTES.studioRemotionStudio} element={<ProjectGuard><ProjectRemotionStudioPage /></ProjectGuard>} />
                   <Route path={ROUTES.studioSettingPreview} element={<ProjectGuard><ContentCanvasPreviewPage /></ProjectGuard>} />
 
                   {runtimeRoutes.map((route) => {

@@ -42,6 +42,41 @@ func TestCatalogTemplateJSONExposesPublicModelAndParams(t *testing.T) {
 	}
 }
 
+func TestVyroSeedanceAdapterExposesImageReferenceVideoOperation(t *testing.T) {
+	if !AdapterSupportsOperation(AdapterVyroSeedance, CapabilityFamilyVideoGeneration, VideoOperationImageToVideo) {
+		t.Fatal("expected Vyro Seedance adapter to support image_to_video")
+	}
+	if !AdapterSupportsOperation(AdapterVyroSeedance, CapabilityFamilyVideoGeneration, VideoOperationReferenceToVideo) {
+		t.Fatal("expected Vyro Seedance adapter to support reference_to_video")
+	}
+
+	var imageContract AdapterOperationContract
+	var referenceContract AdapterOperationContract
+	for _, contract := range AdapterOperationContracts(AdapterVyroSeedance) {
+		if contract.Capability == CapabilityFamilyVideoGeneration && contract.Operation == VideoOperationImageToVideo {
+			imageContract = contract
+		}
+		if contract.Capability == CapabilityFamilyVideoGeneration && contract.Operation == VideoOperationReferenceToVideo {
+			referenceContract = contract
+		}
+	}
+	if imageContract.Operation == "" {
+		t.Fatal("expected image_to_video operation contract")
+	}
+	if !containsString(imageContract.InputMediaTransport, AssetTransportMultipart) {
+		t.Fatalf("image_to_video transport = %#v, want multipart", imageContract.InputMediaTransport)
+	}
+	if imageContract.ResultMode != AdapterResultModeAsyncTask {
+		t.Fatalf("image_to_video result mode = %q, want async task", imageContract.ResultMode)
+	}
+	if referenceContract.Operation == "" {
+		t.Fatal("expected reference_to_video operation contract")
+	}
+	if !containsString(referenceContract.InputMediaTransport, AssetTransportMultipart) {
+		t.Fatalf("reference_to_video transport = %#v, want multipart", referenceContract.InputMediaTransport)
+	}
+}
+
 func TestCatalogTemplatesExposeDisplaySafeDefaultPublicModelID(t *testing.T) {
 	templates := CatalogTemplates()
 	if len(templates) == 0 {

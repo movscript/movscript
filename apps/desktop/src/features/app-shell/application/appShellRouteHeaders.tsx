@@ -25,6 +25,7 @@ export function projectRouteHeaderTitle(pathname: string): ReactNode | undefined
     { match: (value) => value === ROUTES.project.content, icon: GitBranch, title: '创作' },
     { match: (value) => value === ROUTES.project.contentCanvas, icon: Wand2, title: '创作画布' },
     { match: (value) => value === ROUTES.project.contentPreview, icon: Video, title: '预览' },
+    { match: (value) => value === ROUTES.project.remotionStudio, icon: Video, title: 'Remotion Studio' },
     { match: (value) => value === ROUTES.project.settingPreview, icon: Video, title: '设定预览' },
     { match: (value) => value === ROUTES.project.contentLegacy, icon: GitBranch, title: '创作' },
     { match: (value) => value === ROUTES.project.contentLegacyNext, icon: GitBranch, title: '创作' },

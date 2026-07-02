@@ -278,7 +278,7 @@ providers:
     provider_kind: 83zi_sd2_gateway
     provider_category: aggregator_gateway
     display_name: 83zi Seedance 2.0 中转
-    description: 83zi Seedance 2.0 Fast relay gateway using Vyro-style multipart video task endpoints.
+    description: 83zi Seedance 2.0 relay gateway for Seedance-2.0 reference_to_video JSON/multipart tasks and legacy Fast multipart tasks.
     default_adapter_type: vyro_seedance
     default_base_url_prefix: http://115.190.186.95:3002/v1
     capabilities:

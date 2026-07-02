@@ -2559,6 +2559,8 @@
         "lastFrame": "Last frame image",
         "referenceImages": "Reference images",
         "referenceImagesHint": "Upload reference images in order, for example environment, subject, then other references.",
+        "referenceMedia": "Reference media",
+        "referenceMediaHint": "Upload image, video, or audio reference media in order, for example character images, motion videos, or voice references.",
         "targetVideo": "Video to edit",
         "targetImage": "Image to edit"
       },

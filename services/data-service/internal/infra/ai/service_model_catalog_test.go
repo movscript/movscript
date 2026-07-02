@@ -225,6 +225,23 @@ func TestAIServiceModelCatalogUsesCatalogEntriesAndRouteBindings(t *testing.T) {
 	if schema := model.ParamsSchemaByOperation[VideoOperationPromptToVideo]; schema["type"] != "object" {
 		t.Fatalf("params schema by operation = %#v, want object schema for %s", model.ParamsSchemaByOperation, VideoOperationPromptToVideo)
 	}
+	operationModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{
+		Capability: CapabilityFamilyVideoGeneration,
+		Operation:  VideoOperationPromptToVideo,
+		RouteGroup: "priority",
+	})
+	if err != nil {
+		t.Fatalf("ListModels(operation) error = %v", err)
+	}
+	if len(operationModels) != 1 {
+		t.Fatalf("operation models = %#v, want one model", operationModels)
+	}
+	if len(operationModels[0].SupportedParams) != 1 || operationModels[0].SupportedParams[0]["key"] != "duration" {
+		t.Fatalf("operation supported params = %#v, want top-level duration compatibility params", operationModels[0].SupportedParams)
+	}
+	if schema := operationModels[0].ParamsSchema; schema["type"] != "object" {
+		t.Fatalf("operation params schema = %#v, want top-level object schema compatibility", schema)
+	}
 
 	route, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "video-fast", Capability: CapabilityFamilyVideoGeneration, RouteGroup: "priority"})
 	if err != nil {

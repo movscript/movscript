@@ -15,6 +15,7 @@ import { ProjectProgressSurface } from '../progress/ProjectProgressSurface.js'
 import { ProjectOverviewSurface } from '../overview/ProjectOverviewSurface.js'
 import { ProjectSettingsSurface } from '../settings/ProjectSettingsSurface.js'
 import { ProjectResourceViewSurface } from '../resource-view/ProjectResourceViewSurface.js'
+import { ProjectRemotionStudioSurface } from '../remotion/ProjectRemotionStudioSurface.js'
 import { ProjectScriptsSurface } from '../scripts/ProjectScriptsSurface.js'
 import { ProjectStandardsSurface } from '../standards/ProjectStandardsSurface.js'
 
@@ -72,6 +73,10 @@ export function ProjectSurfaceRouteView({
 
   if (route.key === 'standards') {
     return <ProjectStandardsSurface />
+  }
+
+  if (route.key === 'remotionStudio') {
+    return <ProjectRemotionStudioSurface params={params} />
   }
 
   return (

@@ -197,10 +197,10 @@ export const STRUCTURED_VIDEO_CAPABILITY_SAMPLE = JSON.stringify({
   video_generation: {
     operations: [
       'prompt_to_video',
-      'reference_to_video',
+      'image_to_video',
     ],
     operation_slots: {
-      reference_to_video: [
+      image_to_video: [
         {
           id: 'reference_images',
           label: '参考图片',
@@ -361,6 +361,16 @@ export function adapterOperationContract(adapter: AdapterDef | undefined, capabi
 export function modelOperationInputSlots(operation: string): ModelOperationInputSlot[] {
   switch (operation.trim()) {
     case 'image_to_video':
+      return [{
+        id: 'reference_images',
+        labelKey: 'admin.models.inputSlots.referenceImages',
+        mediaTypes: ['image'],
+        min: 1,
+        max: -1,
+        roles: ['generic', 'reference_image'],
+        ordered: true,
+        descriptionKey: 'admin.models.inputSlots.referenceImagesHint',
+      }]
     case 'first_frame_to_video':
       return [{
         id: 'first_frame',
@@ -391,14 +401,14 @@ export function modelOperationInputSlots(operation: string): ModelOperationInput
       ]
     case 'reference_to_video':
       return [{
-        id: 'reference_images',
-        labelKey: 'admin.models.inputSlots.referenceImages',
-        mediaTypes: ['image'],
+        id: 'reference_media',
+        labelKey: 'admin.models.inputSlots.referenceMedia',
+        mediaTypes: ['image', 'video', 'audio'],
         min: 1,
         max: -1,
-        roles: ['reference_image'],
+        roles: ['generic', 'reference_image', 'reference_video', 'reference_audio'],
         ordered: true,
-        descriptionKey: 'admin.models.inputSlots.referenceImagesHint',
+        descriptionKey: 'admin.models.inputSlots.referenceMediaHint',
       }]
     case 'edit_video':
       return [{

@@ -1,5 +1,6 @@
 import {
   ProjectScriptsSurface,
+  ProjectRemotionStudioSurface,
   ProjectSettingsSurface,
   ProjectStandardsSurface,
 } from '@movscript/project-surface/react'
@@ -40,6 +41,16 @@ export function ScriptsPage() {
   return (
     <DesktopProjectSurfaceProvider>
       <ProjectScriptsSurface params={searchParams} />
+    </DesktopProjectSurfaceProvider>
+  )
+}
+
+export function ProjectRemotionStudioPage() {
+  const [searchParams] = useSearchParams()
+
+  return (
+    <DesktopProjectSurfaceProvider>
+      <ProjectRemotionStudioSurface params={searchParams} />
     </DesktopProjectSurfaceProvider>
   )
 }

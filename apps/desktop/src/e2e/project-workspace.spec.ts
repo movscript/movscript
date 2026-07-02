@@ -87,8 +87,9 @@ test('project surface creates and opens production editing workspaces through De
 
   await page.goto('/project/home')
 
-  await expect(page.getByText('E2E 制作', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '剪辑台' }).click()
+  const editingWorkspacesButton = page.getByRole('button', { name: '剪辑台' })
+  await expect(editingWorkspacesButton).toBeVisible()
+  await editingWorkspacesButton.click()
 
   const editingDialog = page.getByRole('dialog', { name: 'E2E 制作 剪辑台' })
   await expect(editingDialog).toBeVisible()
@@ -102,10 +103,15 @@ test('project surface creates and opens production editing workspaces through De
 
   await editingDialog.getByRole('button', { name: '打开' }).click()
   await expect.poll(() => productionEditingCalls.open.map((call) => call.workspaceId ?? call.workspace_id)).toContain('remotion-e2e')
-  await expect.poll(() => productionEditingCalls.mediaTasks.map((call) => call.request?.backend)).toContain('remotion')
-  expect(productionEditingCalls.mediaTasks[0]?.request).toMatchObject({
+  await expect.poll(() => productionEditingCalls.remotionSessions.map((call) => {
+    const openAction = call.openAction ?? call.open_action
+    return typeof openAction === 'object' && openAction ? (openAction as Record<string, unknown>).kind : undefined
+  })).toContain('remotion_studio_session')
+  expect(productionEditingCalls.mediaTasks).toHaveLength(0)
+  await expect(page).toHaveURL(/\/project\/remotion-studio\?/)
+  await expect(page.getByRole('heading', { name: 'Remotion Studio' })).toBeVisible()
+  expect(productionEditingCalls.remotionSessions[0]?.openAction).toMatchObject({
     backend: 'remotion',
-    taskType: 'backend_project_preview',
     projectDirectory: '/tmp/movscript-e2e-production-editing/.movscript/production-editing/remotion-e2e',
   })
 })
@@ -430,10 +436,12 @@ async function mockProductionEditingGateway(page: Parameters<typeof mockGenerati
   const calls: {
     create: Array<Record<string, unknown>>
     open: Array<Record<string, unknown>>
+    remotionSessions: Array<Record<string, unknown>>
     mediaTasks: Array<{ request?: Record<string, unknown> }>
   } = {
     create: [],
     open: [],
+    remotionSessions: [],
     mediaTasks: [],
   }
   const remotionWorkspace = {
@@ -574,17 +582,52 @@ async function mockProductionEditingGateway(page: Parameters<typeof mockGenerati
           },
         },
         open_action: {
-          kind: 'media_pipeline_task_request',
+          kind: 'remotion_studio_session',
           backend: 'remotion',
-          taskType: 'backend_project_preview',
-          task_type: 'backend_project_preview',
+          workspaceId: remotionWorkspace.workspaceId,
+          workspace_id: remotionWorkspace.workspace_id,
+          productionId: 'pilot',
+          production_id: 'pilot',
           projectDirectory: remotionWorkspace.projectDirectory,
           project_directory: remotionWorkspace.project_directory,
-          previewCommand: ['pnpm', 'remotion', 'studio'],
-          preview_command: ['pnpm', 'remotion', 'studio'],
+          entrypoint: 'src/Root.tsx',
+          command: ['pnpm', 'remotion', 'studio', 'src/Root.tsx', '--no-open'],
         },
       },
     })
+  })
+
+  const remotionSession = {
+    schema: 'movscript.remotion_studio_session.v1',
+    sessionId: 'remotion-session-e2e',
+    session_id: 'remotion-session-e2e',
+    workspaceId: remotionWorkspace.workspaceId,
+    workspace_id: remotionWorkspace.workspace_id,
+    productionId: 'pilot',
+    production_id: 'pilot',
+    status: 'ready',
+    previewUrl: 'about:blank',
+    preview_url: 'about:blank',
+    projectDirectory: remotionWorkspace.projectDirectory,
+    project_directory: remotionWorkspace.project_directory,
+    commandText: 'pnpm remotion studio src/Root.tsx --no-open --port 7777',
+    command_text: 'pnpm remotion studio src/Root.tsx --no-open --port 7777',
+    logs: [{
+      cursor: '1',
+      at: NOW,
+      stream: 'system',
+      text: 'Remotion Studio is ready.',
+    }],
+  }
+
+  await page.route('**/v1/remotion-studio/sessions/open', async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>
+    calls.remotionSessions.push(body)
+    await fulfillRouteJSON(route, remotionSession)
+  })
+
+  await page.route('**/v1/remotion-studio/sessions/get', async (route) => {
+    await fulfillRouteJSON(route, remotionSession)
   })
 
   await page.route('**/v1/media-pipeline/task/create', async (route) => {

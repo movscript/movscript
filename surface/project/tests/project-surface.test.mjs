@@ -26,6 +26,16 @@ import {
   unwrapProjectSurfaceGatewayResult,
 } from '../dist/runtime.js'
 
+function readContentPromptCanvasPanelSource() {
+  return [
+    'ContentPromptCanvasPanel.tsx',
+    'ContentPromptCanvasPanelParts.tsx',
+    'ContentPromptCanvasPanelModel.tsx',
+  ]
+    .map((fileName) => readFileSync(new URL(`../src/features/content/components/${fileName}`, import.meta.url), 'utf8'))
+    .join('\n')
+}
+
 test('project surface exposes studio routes independent of legacy agent routes', () => {
   assert.equal(PROJECT_SURFACE_ROUTES.overview, '/studio/:projectKey/overview')
   assert.equal(PROJECT_SURFACE_ROUTES.progress, '/studio/:projectKey/progress')
@@ -35,12 +45,14 @@ test('project surface exposes studio routes independent of legacy agent routes',
   assert.equal(PROJECT_SURFACE_ROUTES.content, '/studio/:projectKey/content')
   assert.equal(PROJECT_SURFACE_ROUTES.contentCanvas, '/studio/:projectKey/content/canvas')
   assert.equal(PROJECT_SURFACE_ROUTES.contentPreview, '/studio/:projectKey/content/preview')
+  assert.equal(PROJECT_SURFACE_ROUTES.remotionStudio, '/studio/:projectKey/remotion-studio')
   assert.equal(projectSurfacePath('overview', 'rain/night'), '/studio/rain%2Fnight/overview')
   assert.equal(projectSurfacePath('scripts', 'rain/night'), '/studio/rain%2Fnight/scripts')
   assert.equal(projectSurfacePath('standards', 'rain/night'), '/studio/rain%2Fnight/standards')
   assert.equal(projectSurfacePath('content', 'rain/night'), '/studio/rain%2Fnight/content')
   assert.equal(projectSurfacePath('contentCanvas', 'rain/night'), '/studio/rain%2Fnight/content/canvas')
   assert.equal(projectSurfacePath('contentPreview', 'rain/night'), '/studio/rain%2Fnight/content/preview')
+  assert.equal(projectSurfacePath('remotionStudio', 'rain/night'), '/studio/rain%2Fnight/remotion-studio')
   assert.equal(projectSurfacePath('impact', 'rain/night'), '/studio/rain%2Fnight/impact')
 })
 
@@ -292,7 +304,7 @@ test('content canvas domain graph treats namespaces as structure, not candidate 
 })
 
 test('content prompt canvas inline generation compiles prompt refs before choosing operation', () => {
-  const source = readFileSync(new URL('../src/features/content/components/ContentPromptCanvasPanel.tsx', import.meta.url), 'utf8')
+  const source = readContentPromptCanvasPanelSource()
 
   assert.match(source, /onCandidatePromptPreview/)
   assert.doesNotMatch(source, /void onCandidatePromptPreview/)
@@ -303,7 +315,7 @@ test('content prompt canvas inline generation compiles prompt refs before choosi
 })
 
 test('content prompt canvas does not recompile generation prompt on node drag identity churn', () => {
-  const source = readFileSync(new URL('../src/features/content/components/ContentPromptCanvasPanel.tsx', import.meta.url), 'utf8')
+  const source = readContentPromptCanvasPanelSource()
   const css = readFileSync(new URL('../src/features/content/components/ContentCanvasWorkspacePage.prompt-canvas.css', import.meta.url), 'utf8')
 
   assert.match(source, /contentPromptGenerationNodeKey/)
@@ -317,7 +329,7 @@ test('content prompt canvas does not recompile generation prompt on node drag id
 })
 
 test('content prompt reference drops add reference pool entries instead of inserting prompt tokens', () => {
-  const panelSource = readFileSync(new URL('../src/features/content/components/ContentPromptCanvasPanel.tsx', import.meta.url), 'utf8')
+  const panelSource = readContentPromptCanvasPanelSource()
   const editorSource = readFileSync(new URL('../src/features/content/components/ContentCanvasPromptReferences.tsx', import.meta.url), 'utf8')
   const nodeModelSource = readFileSync(new URL('../src/features/content/components/contentCanvasWorkspaceNodeModel.ts', import.meta.url), 'utf8')
 
@@ -334,7 +346,7 @@ test('content prompt reference drops add reference pool entries instead of inser
 })
 
 test('content prompt and candidate generation use the shared call composer layout', () => {
-  const promptPanelSource = readFileSync(new URL('../src/features/content/components/ContentPromptCanvasPanel.tsx', import.meta.url), 'utf8')
+  const promptPanelSource = readContentPromptCanvasPanelSource()
   const inspectorSource = readFileSync(new URL('../src/features/content/components/ContentCanvasInspectorParts.tsx', import.meta.url), 'utf8')
   const promptCss = readFileSync(new URL('../src/features/content/components/ContentCanvasWorkspacePage.prompt-canvas.css', import.meta.url), 'utf8')
   const inspectorCss = readFileSync(new URL('../src/features/content/components/ContentCanvasWorkspacePage.inspector-candidates.css', import.meta.url), 'utf8')

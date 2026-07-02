@@ -87,6 +87,123 @@ func TestVyroSeedanceVideoStartUsesReferenceImagesField(t *testing.T) {
 	}
 }
 
+func TestVyroSeedance20VideoStartUsesJSONForReferenceURLs(t *testing.T) {
+	var gotBody map[string]any
+
+	adapter := NewVyroSeedanceAdapter("test-key", "https://vyro.test/v1")
+	adapter.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if ct := r.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+			t.Fatalf("Content-Type = %q, want application/json", ct)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		var body bytes.Buffer
+		_ = json.NewEncoder(&body).Encode(map[string]any{"id": "task_json", "status": "created"})
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(&body),
+			Request:    r,
+		}, nil
+	})}
+
+	generateAudio := false
+	resp, err := adapter.VideoStart(context.Background(), VideoRequest{
+		Model:          "Seedance-2.0",
+		Operation:      VideoOperationReferenceToVideo,
+		Prompt:         "make a video",
+		AspectRatio:    "16:9",
+		Duration:       10,
+		ResolutionName: "1080p",
+		GenerateAudio:  &generateAudio,
+		InputImageDataList: []MediaData{{
+			PresignedURL: "https://cdn.test/ref.png",
+		}},
+		InputAudio: "https://cdn.test/ref.mp3",
+		ReferenceAssets: []ReferenceAsset{
+			{Role: "reference_image", MediaType: "image", ResourceID: 31},
+			{Role: "reference_audio", MediaType: "audio", ResourceID: 32},
+		},
+	})
+	if err != nil {
+		t.Fatalf("VideoStart() error = %v", err)
+	}
+	if resp.TaskID != "task_json" || resp.Status != VideoStatusQueued {
+		t.Fatalf("resp = %+v", resp)
+	}
+	if gotBody["model"] != "Seedance-2.0" || gotBody["prompt"] != "make a video" {
+		t.Fatalf("model/prompt = %#v/%#v", gotBody["model"], gotBody["prompt"])
+	}
+	if gotBody["generate_audio"] != false || gotBody["resolution"] != "1080p" {
+		t.Fatalf("generate_audio/resolution = %#v/%#v", gotBody["generate_audio"], gotBody["resolution"])
+	}
+	medias, ok := gotBody["medias"].([]any)
+	if !ok || len(medias) != 2 {
+		t.Fatalf("medias = %#v, want image+audio refs", gotBody["medias"])
+	}
+}
+
+func TestVyroSeedance20VideoStartUsesMultipartForLocalReferenceBytes(t *testing.T) {
+	var gotImageFiles int
+	var gotAudioFiles int
+	var gotVideoFiles int
+	var gotGenerateAudio string
+	var gotResolution string
+	var gotLegacyFiles int
+
+	adapter := NewVyroSeedanceAdapter("test-key", "https://vyro.test/v1")
+	adapter.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if err := r.ParseMultipartForm(8 << 20); err != nil {
+			t.Fatalf("ParseMultipartForm() error = %v", err)
+		}
+		gotImageFiles = len(r.MultipartForm.File["image"])
+		gotAudioFiles = len(r.MultipartForm.File["audio"])
+		gotVideoFiles = len(r.MultipartForm.File["video"])
+		gotLegacyFiles = len(r.MultipartForm.File["reference_images"])
+		gotGenerateAudio = r.FormValue("generate_audio")
+		gotResolution = r.FormValue("resolution")
+		var body bytes.Buffer
+		_ = json.NewEncoder(&body).Encode(map[string]any{"id": "task_multipart", "status": "created"})
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(&body),
+			Request:    r,
+		}, nil
+	})}
+
+	resp, err := adapter.VideoStart(context.Background(), VideoRequest{
+		Model:          "seedance2-0",
+		Operation:      VideoOperationReferenceToVideo,
+		Prompt:         "make a video",
+		ResolutionName: "720p",
+		InputImageDataList: []MediaData{{
+			Bytes:    []byte("fake image bytes"),
+			MimeType: "image/png",
+		}},
+		InputAudioData: &MediaData{Bytes: []byte("fake audio bytes"), MimeType: "audio/mpeg"},
+		InputVideoData: &MediaData{Bytes: []byte("fake video bytes"), MimeType: "video/mp4"},
+		ReferenceAssets: []ReferenceAsset{
+			{Role: "reference_image", MediaType: "image", ResourceID: 31},
+			{Role: "reference_audio", MediaType: "audio", ResourceID: 32},
+			{Role: "reference_video", MediaType: "video", ResourceID: 33},
+		},
+	})
+	if err != nil {
+		t.Fatalf("VideoStart() error = %v", err)
+	}
+	if resp.TaskID != "task_multipart" || resp.Status != VideoStatusQueued {
+		t.Fatalf("resp = %+v", resp)
+	}
+	if gotImageFiles != 1 || gotAudioFiles != 1 || gotVideoFiles != 1 || gotLegacyFiles != 0 {
+		t.Fatalf("file fields image/audio/video/reference_images = %d/%d/%d/%d", gotImageFiles, gotAudioFiles, gotVideoFiles, gotLegacyFiles)
+	}
+	if gotGenerateAudio != "true" || gotResolution != "720p" {
+		t.Fatalf("generate_audio/resolution = %q/%q, want true/720p", gotGenerateAudio, gotResolution)
+	}
+}
+
 func TestVyroSeedanceDebugBodyIsMultipartProviderSummary(t *testing.T) {
 	var gotFiles int
 	adapter := NewVyroSeedanceAdapter("test-key", "https://vyro.test/v1")

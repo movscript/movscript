@@ -100,6 +100,25 @@ func TestCapabilityJSONAllowsOmniReferenceVideoInputs(t *testing.T) {
 	}
 }
 
+func TestCapabilityJSONAllowsReferenceVideoWithoutRefsWhenMinZero(t *testing.T) {
+	raw := `{
+		"video_generation": {
+			"operations": ["reference_to_video"],
+			"reference_assets": {
+				"min": 0,
+				"max": 8,
+				"roles": ["generic", "reference_image", "reference_video", "reference_audio"],
+				"modalities": ["image", "video", "audio"]
+			}
+		}
+	}`
+
+	ok, reason := capabilityJSONSupportsIntent(raw, CapabilityFamilyVideoGeneration, VideoOperationReferenceToVideo, nil)
+	if !ok || reason != "" {
+		t.Fatalf("reference video without refs supported = %v reason=%q, want supported", ok, reason)
+	}
+}
+
 func TestCapabilityJSONOperationSlotsOverrideCoarseReferenceAssets(t *testing.T) {
 	raw := `{
 		"video_generation": {

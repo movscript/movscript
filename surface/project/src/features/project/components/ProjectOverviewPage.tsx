@@ -80,7 +80,7 @@ import {
   type ContentCanvasTimelineProfileId,
 } from '../../content/domain/contentCanvasTimelineProfiles'
 import { useOptionalProjectSurfaceRuntime } from '../../../runtime/ProjectSurfaceProvider'
-import type { ProjectServiceGateway } from '../../../runtime'
+import type { ProjectServiceGateway, ProjectSurfaceRuntime } from '../../../runtime'
 
 const PROJECT_HOME_CARD_PAGE_SIZE = 3
 const PROJECT_HOME_CANVAS_PAGE_SIZE = 8
@@ -405,6 +405,9 @@ export default function ProjectOverviewPage() {
         projectDir={projectDir}
         projectUid={projectUid}
         projectGateway={projectSurfaceRuntime?.gateways.project}
+        remotionStudioHref={(session) => projectOverviewRemotionStudioHref(projectSurfaceRuntime, session, {
+          productionId: editingWorkspaceProduction?.id,
+        })}
         onOpenChange={(open) => {
           if (!open) setEditingWorkspaceProduction(null)
         }}
@@ -1072,6 +1075,7 @@ function ProjectOverviewProductionEditingDialog({
   projectDir,
   projectUid,
   projectGateway,
+  remotionStudioHref,
   onOpenChange,
   onNavigate,
 }: {
@@ -1081,6 +1085,7 @@ function ProjectOverviewProductionEditingDialog({
   projectDir?: string
   projectUid?: string
   projectGateway?: ProjectServiceGateway
+  remotionStudioHref?: (session: Record<string, unknown>) => string | undefined
   onOpenChange: (open: boolean) => void
   onNavigate: (to: string) => void
 }) {
@@ -1209,6 +1214,13 @@ function ProjectOverviewProductionEditingDialog({
       if (route) {
         onOpenChange(false)
         onNavigate(route)
+        return
+      }
+      const remotionSession = recordValue(record.remotionStudioSession ?? record.remotion_studio_session ?? record.open_action_result)
+      const remotionRoute = remotionSession ? remotionStudioHref?.(remotionSession) : undefined
+      if (remotionRoute) {
+        onOpenChange(false)
+        onNavigate(remotionRoute)
         return
       }
       toast.success('剪辑台已打开')
@@ -2237,6 +2249,23 @@ function projectHomeDefaultChildNamespaceTitle(rootTitle: string, namespaceKind:
 
 function pruneUndefinedRecord(record: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined))
+}
+
+function projectOverviewRemotionStudioHref(
+  runtime: ProjectSurfaceRuntime | undefined,
+  session: Record<string, unknown>,
+  fallback: { productionId?: string } = {},
+): string | undefined {
+  if (!runtime) return undefined
+  const sessionId = stringValue(session.sessionId ?? session.session_id)
+  if (!sessionId) return undefined
+  const workspaceId = stringValue(session.workspaceId ?? session.workspace_id)
+  const productionId = stringValue(session.productionId ?? session.production_id) ?? fallback.productionId
+  return runtime.navigator.href('remotionStudio', {
+    sessionId,
+    ...(workspaceId ? { workspaceId } : {}),
+    ...(productionId ? { productionId } : {}),
+  })
 }
 
 function safeProjectHomeToken(value: string): string {

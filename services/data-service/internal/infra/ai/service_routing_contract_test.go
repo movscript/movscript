@@ -171,6 +171,73 @@ func TestAIServiceRoutingPolicyContractRoutesOmniReferenceVideoOperation(t *test
 	}
 }
 
+func TestAIServiceRoutingPolicyContractFallsBackToReferenceVideoForSeedance20(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-routing-seedance20-reference-fallback-contract.db",
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+	)
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID: "seedance-2-0",
+		DisplayName:   "Seedance 2.0",
+		IsEnabled:     true,
+		Capabilities:  CapabilityFamilyVideoGeneration,
+		ModelCapabilitiesJSON: `{
+			"video_generation": {
+				"operations": ["reference_to_video"],
+				"reference_assets": {
+					"min": 0,
+					"max": 8,
+					"modalities": ["image", "video", "audio"],
+					"roles": ["generic", "reference_image", "reference_video", "reference_audio"]
+				}
+			}
+		}`,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	routeBinding := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
+		ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
+		AdapterType:     AdapterVyroSeedance,
+		ProviderModelID: "Seedance-2.0",
+		IsEnabled:       true,
+		Priority:        1,
+		CapacityWeight:  1,
+	}
+	if err := db.Create(&routeBinding).Error; err != nil {
+		t.Fatalf("create route: %v", err)
+	}
+	service := NewAIService(db, NewRegistry(db, nil))
+
+	textRoute, err := service.ResolveModelRoute(ModelRouteRequest{
+		ModelID:    "seedance-2-0",
+		Capability: CapabilityFamilyVideoGeneration,
+	})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute(text intent) error = %v", err)
+	}
+	if textRoute.RouteBindingID != routeBinding.ID || textRoute.Operation != VideoOperationReferenceToVideo {
+		t.Fatalf("text route = %#v, want reference_to_video route", textRoute)
+	}
+
+	imageRoute, err := service.ResolveModelRoute(ModelRouteRequest{
+		ModelID:    "seedance-2-0",
+		Capability: CapabilityFamilyVideoGeneration,
+		ReferenceAssets: []RouteReferenceAssetIntent{{
+			Role:      "generic",
+			MediaType: "image",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute(image intent) error = %v", err)
+	}
+	if imageRoute.RouteBindingID != routeBinding.ID || imageRoute.Operation != VideoOperationReferenceToVideo {
+		t.Fatalf("image route = %#v, want reference_to_video route", imageRoute)
+	}
+}
+
 func TestAIServiceRoutingPolicyContractExposesFallbackRoutePlan(t *testing.T) {
 	resetFailoverTestState()
 	db := testutil.OpenSQLite(t, "ai-routing-fallback-plan-contract.db",
