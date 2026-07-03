@@ -4,10 +4,10 @@ package db
 
 import "gorm.io/gorm"
 
-func editionMigrations() []Migration {
+func distributionProfileMigrations() []Migration {
 	return nil
 }
 
-func editionBeforeMigrations(_ *gorm.DB) error {
+func distributionProfileBeforeMigrations(_ *gorm.DB) error {
 	return nil
 }

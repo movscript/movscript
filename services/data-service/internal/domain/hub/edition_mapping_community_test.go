@@ -8,20 +8,20 @@ import (
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
-func TestCommunityHubEditionMappingHooksAreNoop(t *testing.T) {
+func TestCommunityHubDistributionProfileMappingHooksAreNoop(t *testing.T) {
 	row := HubPackage{
 		PackageID:         "pkg",
 		SHA256:            "9b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde",
-		RequiredProductID: "enterprise-plan",
+		RequiredProductID: "self-hosted-plan",
 	}
 	var model persistencemodel.HubPackage
-	row.editionApplyToModel(&model)
+	row.distributionProfileApplyToModel(&model)
 	if model.PackageID != "" {
-		t.Fatalf("editionApplyToModel mutated community model: %+v", model)
+		t.Fatalf("distributionProfileApplyToModel mutated community model: %+v", model)
 	}
 	out := HubPackage{PackageID: "pkg"}
-	editionApplyHubPackageFromModel(model, &out)
+	distributionProfileApplyHubPackageFromModel(model, &out)
 	if out.SHA256 != "" || out.RequiredProductID != "" {
-		t.Fatalf("editionApplyHubPackageFromModel mutated community domain row: %+v", out)
+		t.Fatalf("distributionProfileApplyHubPackageFromModel mutated community domain row: %+v", out)
 	}
 }

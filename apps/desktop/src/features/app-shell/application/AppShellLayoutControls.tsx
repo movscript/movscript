@@ -3,15 +3,19 @@ import { AppWindowIconButton } from '@movscript/ui/business/app'
 import i18n from '@/i18n'
 import { openHomeWindow } from '@/shared/infrastructure/appWindowContext'
 
-export function AppShellTerminalToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+export function AppShellShellWorkbenchToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
     <AppWindowIconButton
       type="button"
-      className="app-window-terminal-toggle"
+      className="app-window-shell-workbench-toggle"
       data-active={open ? 'true' : undefined}
-      onClick={onToggle}
-      title={open ? '收起 Terminal' : '展开 Terminal'}
-      aria-label={open ? '收起 Terminal' : '展开 Terminal'}
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation()
+        onToggle()
+      }}
+      title={open ? '收起 MovScript Shell' : '展开 MovScript Shell'}
+      aria-label={open ? '收起 MovScript Shell' : '展开 MovScript Shell'}
     >
       <Terminal size={13} />
     </AppWindowIconButton>

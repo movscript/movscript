@@ -17,7 +17,7 @@ export function registerCodexPluginIpcHandlers(): void {
         type: 'info',
         title: 'MovScript 插件已安装',
         message: '已为 Codex 安装 MovScript 插件。',
-        detail: `安装来源 ${result.paths.marketplaceRoot}.\n是否现在打开 Codex？`,
+        detail: `${codexPluginInstallDetail(result.paths)}\n是否现在打开 Codex？`,
         buttons: ['打开 Codex', '稍后'],
         defaultId: 0,
         cancelId: 1,
@@ -41,7 +41,13 @@ export function registerCodexPluginIpcHandlers(): void {
       return {
         ok: true,
         openedCodex,
+        homeDir: result.paths.homeDir,
         marketplaceRoot: result.paths.marketplaceRoot,
+        marketplacePath: result.paths.marketplacePath,
+        pluginRoot: result.paths.pluginRoot,
+        homeCurrentPluginRoot: result.paths.homeCurrentPluginRoot,
+        homeCurrentPluginVersion: result.paths.homeCurrentPluginVersion,
+        ...(result.paths.homeCurrentBundleHash ? { homeCurrentBundleHash: result.paths.homeCurrentBundleHash } : {}),
         installCommand: result.installCommand,
       }
     } catch (error) {
@@ -58,6 +64,19 @@ export function registerCodexPluginIpcHandlers(): void {
       throw error
     }
   })
+}
+
+function codexPluginInstallDetail(paths: {
+  homeDir: string
+  marketplaceRoot: string
+  homeCurrentPluginRoot: string
+  homeCurrentPluginVersion: string
+}): string {
+  return [
+    `Home: ${paths.homeDir}`,
+    `Current: ${paths.homeCurrentPluginVersion} (${paths.homeCurrentPluginRoot})`,
+    `Codex marketplace: ${paths.marketplaceRoot}`,
+  ].join('\n')
 }
 
 function showMessageBox(

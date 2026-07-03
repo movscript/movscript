@@ -16,6 +16,10 @@ export function getAPIBaseURL(): string {
   return typeof window === 'undefined' ? '' : window.location.origin
 }
 
+export function getDaemonGatewayBaseURL(): string {
+  return getAPIBaseURL()
+}
+
 export function getAPIV1BaseURL(): string {
   return `${getAPIBaseURL()}/api/v1`
 }

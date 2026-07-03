@@ -25,7 +25,7 @@ func NewRegistry(db *gorm.DB, encryptionKey []byte) *Registry {
 
 func NewRegistryWithProviderMode(db *gorm.DB, encryptionKey []byte, providerMode string) *Registry {
 	providerMode = strings.TrimSpace(providerMode)
-	if normalized, ok := editionRegistryProviderMode(providerMode); ok {
+	if normalized, ok := distributionProfileRegistryProviderMode(providerMode); ok {
 		providerMode = normalized
 	} else if providerMode != "" {
 		providerMode = AdapterLocal
@@ -51,7 +51,7 @@ func (r *Registry) BuildForGatewayProvider() (Provider, error) {
 	if r.providerMode == AdapterLocal || r.providerMode == "local" || r.providerMode == "" {
 		return NewLocalAdapter(), nil
 	}
-	if provider, handled, err := r.editionBuildGatewayProvider(); handled || err != nil {
+	if provider, handled, err := r.distributionProfileBuildGatewayProvider(); handled || err != nil {
 		return provider, err
 	}
 	return nil, fmt.Errorf("ai gateway provider %q is not supported", r.providerMode)
@@ -64,7 +64,7 @@ func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelD
 	if cred.AdapterType == AdapterLocal {
 		return NewLocalAdapter(), nil
 	}
-	if provider, handled, err := r.editionBuildProvider(cred, def); handled || err != nil {
+	if provider, handled, err := r.distributionProfileBuildProvider(cred, def); handled || err != nil {
 		return provider, err
 	}
 	apiKey := ""
@@ -129,10 +129,10 @@ func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelD
 }
 
 // GetFileUploaderForCredential returns a FileUploader configured for a provider credential.
-// Returns nil if FilesAPIEnabled is not set on the credential. Enterprise gateway
+// Returns nil if FilesAPIEnabled is not set on the credential. Hosted gateway
 // mode may provide a per-user relay uploader without using the local credential.
 func (r *Registry) GetFileUploaderForCredential(ctx context.Context, userID uint, cred persistencemodel.AICredential) FileUploader {
-	if uploader, handled := r.editionFileUploader(ctx, userID); handled {
+	if uploader, handled := r.distributionProfileFileUploader(ctx, userID); handled {
 		return uploader
 	}
 	if !cred.FilesAPIEnabled {

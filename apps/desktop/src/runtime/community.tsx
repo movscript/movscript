@@ -1,4 +1,4 @@
-import type { FrontendAppTopControls, FrontendNavItem, FrontendRouteItem, FrontendRuntimeEdition } from './contract'
+import type { FrontendAppTopControls, FrontendNavItem, FrontendRouteItem, FrontendRuntimeDistributionProfile } from './contract'
 
 export const runtimeNavItems: FrontendNavItem[] = []
 
@@ -8,4 +8,4 @@ export const runtimeTitleKeys: Record<string, string> = {}
 
 export const runtimeAppTopControls: FrontendAppTopControls = {}
 
-export const runtimeEdition: FrontendRuntimeEdition = 'community'
+export const runtimeDistributionProfile: FrontendRuntimeDistributionProfile = 'default-local'

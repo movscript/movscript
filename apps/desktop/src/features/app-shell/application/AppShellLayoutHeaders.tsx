@@ -7,7 +7,7 @@ import {
   AppShellHomeControl,
   AppShellLeftPaneToggle,
   AppShellProjectAgentToggle,
-  AppShellTerminalToggle,
+  AppShellShellWorkbenchToggle,
 } from '@/features/app-shell/application/AppShellLayoutControls'
 import {
   accountSettingsRouteHeaderTitle,
@@ -30,7 +30,8 @@ interface AppShellLayoutHeadersInput {
   toolSidebarHidden: boolean
   settingsSidebarHidden: boolean
   agentSidebarVisible: boolean
-  terminalOpen: boolean
+  shellWorkbenchOpen: boolean
+  shellWorkbenchSupported: boolean
   agentModeContentPanelOpen: boolean
   agentContentPanelClosed: boolean
   projectAgentPanelClosed: boolean
@@ -41,7 +42,7 @@ interface AppShellLayoutHeadersInput {
   projectAgentPane: RouteLayoutPaneController
   navigateProjectHome: () => void
   onShowProjectAgentPane: () => void
-  onToggleTerminal: () => void
+  onToggleShellWorkbench: () => void
 }
 
 interface AppShellLayoutHeaders {
@@ -69,7 +70,8 @@ export function createAppShellLayoutHeaders({
   toolSidebarHidden,
   settingsSidebarHidden,
   agentSidebarVisible,
-  terminalOpen,
+  shellWorkbenchOpen,
+  shellWorkbenchSupported,
   agentModeContentPanelOpen,
   agentContentPanelClosed,
   projectAgentPanelClosed,
@@ -80,11 +82,11 @@ export function createAppShellLayoutHeaders({
   projectAgentPane,
   navigateProjectHome,
   onShowProjectAgentPane,
-  onToggleTerminal,
+  onToggleShellWorkbench,
 }: AppShellLayoutHeadersInput): AppShellLayoutHeaders {
-  const terminalHeaderControl = (
-    <AppShellTerminalToggle open={terminalOpen} onToggle={onToggleTerminal} />
-  )
+  const shellWorkbenchHeaderControl = shellWorkbenchSupported ? (
+    <AppShellShellWorkbenchToggle open={shellWorkbenchOpen} onToggle={onToggleShellWorkbench} />
+  ) : null
   const homeHeaderControl = <AppShellHomeControl />
   const projectHomeHeaderControl = (
     <AppShellHomeControl
@@ -154,7 +156,7 @@ export function createAppShellLayoutHeaders({
       showSettingsAction={false}
       navigationControls={toolCenterNavigationControls}
       layoutControls={toolCenterLayoutControls}
-      contextActions={terminalHeaderControl}
+      contextActions={shellWorkbenchHeaderControl}
       centerContent={toolCenterContent}
     />
   )
@@ -175,7 +177,7 @@ export function createAppShellLayoutHeaders({
       showSettingsAction={false}
       navigationControls={settingsSidebarHidden ? navigationHomeControl : undefined}
       layoutControls={settingsSidebarHidden ? settingsSidebarLayoutControls : undefined}
-      contextActions={terminalHeaderControl}
+      contextActions={shellWorkbenchHeaderControl}
       centerContent={accountSettingsActiveTab ? accountSettingsRouteHeaderTitle(accountSettingsActiveTab) : undefined}
     />
   )
@@ -194,7 +196,7 @@ export function createAppShellLayoutHeaders({
       showFallbackBrand={false}
       navigationControls={<>{navigationHomeControl}{projectHistoryNavigationControls}</>}
       primaryActions={<ProjectGitHeaderActions compact />}
-      contextActions={projectAgentPanelClosed ? <>{projectAgentPanelHeaderControl}{terminalHeaderControl}</> : undefined}
+      contextActions={projectAgentPanelClosed ? <>{projectAgentPanelHeaderControl}{shellWorkbenchHeaderControl}</> : undefined}
       globalActions={projectAgentPanelClosed ? undefined : <></>}
       centerContent={projectCenterContent}
     />
@@ -204,7 +206,7 @@ export function createAppShellLayoutHeaders({
       showWindowControls={false}
       showAppControls
       showFallbackBrand={false}
-      contextActions={<>{projectAgentPanelHeaderControl}{terminalHeaderControl}</>}
+      contextActions={<>{projectAgentPanelHeaderControl}{shellWorkbenchHeaderControl}</>}
     />
   ) : undefined
   const agentLeftHeader = agentSidebarVisible ? (
@@ -224,7 +226,7 @@ export function createAppShellLayoutHeaders({
       showFallbackBrand={false}
       navigationControls={!agentSidebarVisible ? agentNavigationControls : undefined}
       layoutControls={!agentSidebarVisible ? agentSidebarLayoutControls : undefined}
-      contextActions={<>{agentContentPanelClosed ? agentContentPanelHeaderControl : null}{terminalHeaderControl}</>}
+      contextActions={<>{agentContentPanelClosed ? agentContentPanelHeaderControl : null}{shellWorkbenchHeaderControl}</>}
     />
   )
   const agentRightHeader = agentModeContentPanelOpen ? (
@@ -232,7 +234,7 @@ export function createAppShellLayoutHeaders({
       showWindowControls={false}
       showAppControls
       showFallbackBrand={false}
-      contextActions={<>{agentContentPanelHeaderControl}{terminalHeaderControl}</>}
+      contextActions={<>{agentContentPanelHeaderControl}{shellWorkbenchHeaderControl}</>}
     />
   ) : undefined
 

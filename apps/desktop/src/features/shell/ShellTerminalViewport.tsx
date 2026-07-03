@@ -4,10 +4,16 @@ import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 
 import {
-  AGENT_TERMINAL_DEFAULT_COLS,
-  AGENT_TERMINAL_DEFAULT_ROWS,
+  SHELL_TERMINAL_FONT_FAMILY,
+  SHELL_TERMINAL_FONT_SIZE,
+  SHELL_TERMINAL_LINE_HEIGHT,
+  shellTerminalThemeFromStyle,
+} from '@/features/shell/shellTheme'
+import {
+  SHELL_WORKBENCH_DEFAULT_COLS,
+  SHELL_WORKBENCH_DEFAULT_ROWS,
   type ShellRuntime,
-} from '@/features/agent/components/AgentTerminalRuntimeModel'
+} from '@/features/shell/ShellWorkbenchModel'
 
 export function ShellTerminalViewport({
   active,
@@ -40,11 +46,11 @@ export function ShellTerminalViewport({
       convertEol: true,
       cursorBlink: true,
       disableStdin: disabled,
-      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
-      fontSize: 12,
-      lineHeight: 1.42,
-      rows: AGENT_TERMINAL_DEFAULT_ROWS,
-      cols: AGENT_TERMINAL_DEFAULT_COLS,
+      fontFamily: SHELL_TERMINAL_FONT_FAMILY,
+      fontSize: SHELL_TERMINAL_FONT_SIZE,
+      lineHeight: SHELL_TERMINAL_LINE_HEIGHT,
+      rows: SHELL_WORKBENCH_DEFAULT_ROWS,
+      cols: SHELL_WORKBENCH_DEFAULT_COLS,
       scrollback: 5000,
       theme: terminalTheme(host),
     })
@@ -85,7 +91,7 @@ export function ShellTerminalViewport({
   return (
     <div
       ref={hostRef}
-      className="agent-terminal-panel__xterm"
+      className="shell-workbench-panel__xterm"
       data-active={active ? 'true' : undefined}
       aria-hidden={active ? undefined : true}
     />
@@ -131,7 +137,7 @@ function disposeTerminal(terminal: Terminal): void {
     disableTerminalViewportSync(terminal)
     terminal.dispose()
   } catch (disposeError) {
-    console.warn('[agent-terminal] failed to dispose terminal', disposeError)
+    console.warn('[shell-workbench] failed to dispose terminal', disposeError)
   }
 }
 
@@ -148,37 +154,7 @@ function disableTerminalViewportSync(terminal: Terminal): void {
 }
 
 function terminalTheme(host: HTMLElement) {
-  const style = window.getComputedStyle(host)
-  const value = (name: string, fallback: string) => cssColorValue(style.getPropertyValue(name), fallback)
-  const primary = value('--agent-terminal-primary', '#38bdf8')
-  const accent = value('--agent-terminal-accent', '#f5c542')
-  return {
-    background: value('--agent-terminal-background', '#14161a'),
-    foreground: value('--agent-terminal-text', '#e5e7eb'),
-    cursor: accent,
-    selectionBackground: value('--agent-terminal-selection', '#334155'),
-    black: '#0b0d10',
-    red: '#ef4444',
-    green: '#22c55e',
-    yellow: '#eab308',
-    blue: primary,
-    magenta: '#d946ef',
-    cyan: '#2dd4bf',
-    white: '#e5e7eb',
-    brightBlack: '#64748b',
-    brightRed: '#f87171',
-    brightGreen: '#4ade80',
-    brightYellow: '#facc15',
-    brightBlue: primary,
-    brightMagenta: '#e879f9',
-    brightCyan: '#67e8f9',
-    brightWhite: '#ffffff',
-  }
-}
-
-function cssColorValue(value: string, fallback: string): string {
-  const trimmed = value.trim()
-  return trimmed || fallback
+  return shellTerminalThemeFromStyle(window.getComputedStyle(host))
 }
 
 function observeTerminalTheme(host: HTMLElement, terminal: Terminal): () => void {

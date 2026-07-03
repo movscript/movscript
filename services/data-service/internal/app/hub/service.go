@@ -173,7 +173,7 @@ func (s *Service) List(ctx context.Context, admin bool) ([]Package, error) {
 	}
 	out := make([]Package, 0, len(rows))
 	for _, row := range rows {
-		item, err := s.editionPackageForList(ctx, row)
+		item, err := s.distributionProfilePackageForList(ctx, row)
 		if err != nil {
 			return nil, err
 		}
@@ -187,14 +187,14 @@ func (s *Service) Download(ctx context.Context, id string, workbenchVersion ...s
 	if err != nil {
 		return Download{}, err
 	}
-	if err := s.editionValidateDownload(ctx, row, workbenchVersion...); err != nil {
+	if err := s.distributionProfileValidateDownload(ctx, row, workbenchVersion...); err != nil {
 		return Download{}, err
 	}
-	item, err := s.editionPackageForDownload(ctx, row)
+	item, err := s.distributionProfilePackageForDownload(ctx, row)
 	if err != nil {
 		return Download{}, err
 	}
-	if s.editionDownloadCountsInline() {
+	if s.distributionProfileDownloadCountsInline() {
 		_ = s.repo.IncrementDownloads(ctx, row.ID)
 	}
 	return Download{

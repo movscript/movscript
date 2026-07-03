@@ -387,6 +387,13 @@ body.ui-resizable-panel-resizing .app-shell-pane {
   background: var(--app-shell-slot-center-background);
 }
 
+@media (max-width: 520px) {
+  .app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-shell__slot--center {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
 .app-content-frame--immersive,
 .app-content-frame--canvas {
   border-radius: var(--app-shell-slot-radius) 0 0 0;
@@ -436,12 +443,12 @@ body.ui-resizable-panel-resizing .app-shell-pane {
   overflow: hidden;
 }
 
-.app-shell__slot-group--center-right[data-terminal-host="center-right"] > .app-shell__slot-group-row > .app-shell__slot {
+.app-shell__slot-group--center-right[data-shell-workbench-host="center-right"] > .app-shell__slot-group-row > .app-shell__slot {
   border-bottom-right-radius: 0;
   border-bottom-left-radius: 0;
 }
 
-.app-shell-terminal-region {
+.app-shell-shell-workbench-region {
   display: flex;
   min-width: 0;
   flex: 0 0 auto;
@@ -449,16 +456,16 @@ body.ui-resizable-panel-resizing .app-shell-pane {
   background: var(--app-shell-slot-center-background);
 }
 
-.app-shell-terminal-region[data-open="false"] {
+.app-shell-shell-workbench-region[data-open="false"] {
   display: none;
 }
 
-.app-shell-terminal-region > * {
+.app-shell-shell-workbench-region > * {
   min-width: 0;
   flex: 1 1 auto;
 }
 
-.app-shell-terminal-panel-frame {
+.app-shell-shell-workbench-panel-frame {
   position: relative;
   display: flex;
   min-width: 0;
@@ -466,7 +473,7 @@ body.ui-resizable-panel-resizing .app-shell-pane {
   flex: 1 1 auto;
 }
 
-.app-shell-terminal-resize-handle {
+.app-shell-shell-workbench-resize-handle {
   position: absolute;
   top: -5px;
   right: 0;
@@ -479,7 +486,7 @@ body.ui-resizable-panel-resizing .app-shell-pane {
   user-select: none;
 }
 
-.app-shell-terminal-resize-handle::after {
+.app-shell-shell-workbench-resize-handle::after {
   position: absolute;
   top: 4px;
   right: 12px;
@@ -493,9 +500,9 @@ body.ui-resizable-panel-resizing .app-shell-pane {
     box-shadow var(--ms-duration-fast) var(--ms-easing-standard);
 }
 
-.app-shell-terminal-resize-handle:hover::after,
-.app-shell-terminal-resize-handle:focus-visible::after,
-.app-shell-terminal-resize-handle[data-active="true"]::after {
+.app-shell-shell-workbench-resize-handle:hover::after,
+.app-shell-shell-workbench-resize-handle:focus-visible::after,
+.app-shell-shell-workbench-resize-handle[data-active="true"]::after {
   background: var(--ms-color-primary);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--ms-color-primary) 18%, transparent);
 }

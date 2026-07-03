@@ -1073,16 +1073,17 @@ func capabilitiesEqual(left, right []string) bool {
 
 func modelImportPlanFromTemplate(providerModelID string, template infraai.CatalogTemplate) ModelImportModelPlan {
 	plan := ModelImportModelPlan{
-		ProviderModelID: providerModelID,
-		PublicModelID:   firstNonEmpty(template.DefaultPublicModelID, providerModelID),
-		DisplayName:     firstNonEmpty(template.DisplayName, template.DefaultPublicModelID, providerModelID),
-		Capabilities:    append([]string(nil), template.Capabilities...),
-		TemplateID:      template.ID,
-		TemplateVersion: modelCatalogTemplateVersion(template),
-		TemplateStatus:  template.SourceStatus,
-		AdapterType:     modelImportDefaultAdapterForCapabilities(template.Capabilities),
-		Status:          modelImportStatusNew,
-		Recommended:     true,
+		ProviderModelID:       providerModelID,
+		PublicModelID:         firstNonEmpty(template.DefaultPublicModelID, providerModelID),
+		DisplayName:           firstNonEmpty(template.DisplayName, template.DefaultPublicModelID, providerModelID),
+		Capabilities:          append([]string(nil), template.Capabilities...),
+		TemplateID:            template.ID,
+		TemplateVersion:       modelCatalogTemplateVersion(template),
+		TemplateStatus:        template.SourceStatus,
+		AdapterType:           modelImportDefaultAdapterForCapabilities(template.Capabilities),
+		ModelCapabilitiesJSON: strings.TrimSpace(template.ModelCapabilitiesJSON),
+		Status:                modelImportStatusNew,
+		Recommended:           true,
 	}
 	if !modelImportTemplateIsRuntimeReady(template) {
 		plan.Recommended = false

@@ -10,11 +10,6 @@ rules:
   - provider_type: 83zi
     profile: sd2
     lab: 83zi
-  - provider_type: 83zi
-    profile: sd2
-    model_template_key: volcengine:seedance-2-0
-    adapter_type: vyro_seedance
-    provider_model_id: Seedance-2.0
   - provider_type: volcen
     profile: ark
     lab: seed

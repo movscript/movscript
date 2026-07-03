@@ -81,6 +81,7 @@ import {
 } from '../../content/domain/contentCanvasTimelineProfiles'
 import { useOptionalProjectSurfaceRuntime } from '../../../runtime/ProjectSurfaceProvider'
 import type { ProjectServiceGateway, ProjectSurfaceRuntime } from '../../../runtime'
+import './ProjectOverviewProductionEditingDialog.css'
 
 const PROJECT_HOME_CARD_PAGE_SIZE = 3
 const PROJECT_HOME_CANVAS_PAGE_SIZE = 8
@@ -1256,16 +1257,47 @@ function ProjectOverviewProductionEditingDialog({
     },
   })
   const busy = refreshResources.isPending || createWorkspace.isPending || openWorkspace.isPending || deleteWorkspace.isPending
+  const systemWorkspaceCount = workspaces.filter((workspace) => stringValue(workspace.kind) === 'system_editing').length
+  const remotionWorkspaceCount = workspaces.filter((workspace) => stringValue(workspace.kind) === 'remotion').length
+  const staleWorkspaceCount = workspaces.filter((workspace) => Boolean(workspace.stale)).length
+  const activeFilterLabel = kind === PROJECT_HOME_FILTER_ALL ? '全部类型' : projectHomeProductionEditingKindLabel(kind)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>{production ? `${production.title} 剪辑台` : '剪辑台'}</DialogTitle>
+      <DialogContent className="project-production-editing-dialog">
+        <DialogHeader className="project-production-editing-dialog__header">
+          <div className="project-production-editing-dialog__heading">
+            <span className="project-production-editing-dialog__icon" aria-hidden="true">
+              <Scissors size={18} />
+            </span>
+            <div>
+              <DialogTitle>{production ? `${production.title} 剪辑台` : '剪辑台'}</DialogTitle>
+              <p>{production ? `${production.kind} / ${production.id}` : '管理 production 下的剪辑工作台。'}</p>
+            </div>
+          </div>
+          <dl className="project-production-editing-dialog__metrics">
+            <div>
+              <dt>全部</dt>
+              <dd>{total}</dd>
+            </div>
+            <div>
+              <dt>系统剪辑</dt>
+              <dd>{systemWorkspaceCount}</dd>
+            </div>
+            <div>
+              <dt>Remotion</dt>
+              <dd>{remotionWorkspaceCount}</dd>
+            </div>
+            <div data-attention={staleWorkspaceCount > 0 ? 'true' : undefined}>
+              <dt>需刷新</dt>
+              <dd>{staleWorkspaceCount}</dd>
+            </div>
+          </dl>
         </DialogHeader>
-        <div className="grid gap-4">
-          <div className="flex flex-wrap items-end gap-2">
-            <Label className="grid min-w-48 flex-1 gap-2" htmlFor="project-home-production-editing-search">
+
+        <div className="project-production-editing-dialog__body">
+          <div className="project-production-editing-dialog__toolbar">
+            <Label className="project-production-editing-dialog__search" htmlFor="project-home-production-editing-search">
               <span>搜索</span>
               <Input
                 id="project-home-production-editing-search"
@@ -1277,7 +1309,7 @@ function ProjectOverviewProductionEditingDialog({
                 }}
               />
             </Label>
-            <div className="grid gap-2">
+            <div className="project-production-editing-dialog__filter">
               <Label htmlFor="project-home-production-editing-kind">类型</Label>
               <Select
                 value={kind}
@@ -1286,7 +1318,7 @@ function ProjectOverviewProductionEditingDialog({
                   setPage(1)
                 }}
               >
-                <SelectTrigger id="project-home-production-editing-kind" className="w-40">
+                <SelectTrigger id="project-home-production-editing-kind">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1302,59 +1334,130 @@ function ProjectOverviewProductionEditingDialog({
             </Button>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" className="gap-2" disabled={!canUseGateway || busy} onClick={() => createWorkspace.mutate('system_editing')}>
-              <Plus size={14} />
-              新建系统剪辑
-            </Button>
-            <Button type="button" variant="outline" className="gap-2" disabled={!canUseGateway || busy} onClick={() => createWorkspace.mutate('remotion')}>
-              <Plus size={14} />
-              新建 Remotion
-            </Button>
+          <div className="project-production-editing-dialog__create-grid">
+            <button
+              type="button"
+              className="project-production-editing-dialog__create-card"
+              disabled={!canUseGateway || busy}
+              onClick={() => createWorkspace.mutate('system_editing')}
+            >
+              <span className="project-production-editing-dialog__create-icon" aria-hidden="true">
+                <Scissors size={16} />
+              </span>
+              <span>
+                <strong>系统剪辑台</strong>
+                <small>打开 MovScript 内置时间线、素材库和导出流程。</small>
+              </span>
+              <Plus size={15} />
+            </button>
+            <button
+              type="button"
+              className="project-production-editing-dialog__create-card"
+              data-kind="remotion"
+              disabled={!canUseGateway || busy}
+              onClick={() => createWorkspace.mutate('remotion')}
+            >
+              <span className="project-production-editing-dialog__create-icon" aria-hidden="true">
+                <MonitorPlay size={16} />
+              </span>
+              <span>
+                <strong>Remotion Studio</strong>
+                <small>启动外部 React composition 工作台并嵌入预览。</small>
+              </span>
+              <Plus size={15} />
+            </button>
           </div>
 
-          <div className="grid gap-2">
-            {workspaceList.isLoading ? (
-              <div className="rounded-md border px-3 py-4 type-caption text-muted-foreground">正在读取剪辑台...</div>
-            ) : workspaces.length === 0 ? (
-              <div className="rounded-md border px-3 py-4 type-caption text-muted-foreground">还没有剪辑台。</div>
-            ) : workspaces.map((workspace) => {
-              const workspaceId = stringValue(workspace.workspaceId ?? workspace.workspace_id) ?? 'workspace'
-              return (
-                <div key={workspaceId} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-md border px-3 py-2">
-                  <div className="min-w-0">
-                    <div className="truncate type-label">{stringValue(workspace.title) ?? workspaceId}</div>
-                    <div className="truncate type-caption text-muted-foreground">
-                      {projectHomeProductionEditingKindLabel(workspace.kind)} / {workspaceId}
-                      {workspace.stale ? ' / stale' : ''}
-                    </div>
-                  </div>
-                  <Button type="button" size="sm" className="gap-2" disabled={busy} onClick={() => openWorkspace.mutate(workspace)}>
-                    <MonitorPlay size={14} />
-                    打开
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="gap-2"
-                    disabled={busy}
-                    onClick={() => {
-                      if (typeof window !== 'undefined' && !window.confirm(`删除剪辑台 ${stringValue(workspace.title) ?? workspaceId}？`)) return
-                      deleteWorkspace.mutate(workspace)
-                    }}
+          <section className="project-production-editing-dialog__workspace-section" aria-label="剪辑工作台">
+            <div className="project-production-editing-dialog__section-head">
+              <div>
+                <strong>工作台</strong>
+                <span>{activeFilterLabel} / 第 {page} 页</span>
+              </div>
+              <span>{workspaceList.isFetching ? '同步中' : `${total} 个`}</span>
+            </div>
+
+            <div className="project-production-editing-dialog__workspace-list">
+              {workspaceList.isLoading ? (
+                <div className="project-production-editing-dialog__state">正在读取剪辑台...</div>
+              ) : workspaces.length === 0 ? (
+                <div className="project-production-editing-dialog__state">还没有匹配的剪辑台。</div>
+              ) : workspaces.map((workspace) => {
+                const workspaceId = stringValue(workspace.workspaceId ?? workspace.workspace_id) ?? 'workspace'
+                const workspaceKind = stringValue(workspace.kind) ?? ''
+                const workspaceTitle = stringValue(workspace.title) ?? workspaceId
+                const workspaceUpdated = projectHomeProductionEditingWorkspaceTime(workspace)
+                const workspaceDetails = projectHomeProductionEditingWorkspaceDetails(workspace)
+                const workspaceSummary = projectHomeProductionEditingWorkspaceSummary(workspace)
+                const stale = Boolean(workspace.stale)
+                return (
+                  <article
+                    key={workspaceId}
+                    className="project-production-editing-dialog__workspace-row"
+                    data-kind={workspaceKind === 'remotion' ? 'remotion' : 'system'}
+                    data-stale={stale ? 'true' : undefined}
                   >
-                    <Trash2 size={14} />
-                    删除
-                  </Button>
-                </div>
-              )
-            })}
-          </div>
+                    <span className="project-production-editing-dialog__workspace-icon" aria-hidden="true">
+                      {workspaceKind === 'remotion' ? <MonitorPlay size={15} /> : <Scissors size={15} />}
+                    </span>
+                    <div className="project-production-editing-dialog__workspace-copy">
+                      <div className="project-production-editing-dialog__workspace-title">
+                        <strong>{workspaceTitle}</strong>
+                        <span>{projectHomeProductionEditingKindLabel(workspace.kind)}</span>
+                      </div>
+                      <div className="project-production-editing-dialog__workspace-meta">
+                        <span>{workspaceId}</span>
+                        {workspaceUpdated ? <span>{workspaceUpdated}</span> : null}
+                        {stale ? <span>资源需刷新</span> : null}
+                      </div>
+                      <div className="project-production-editing-dialog__workspace-summary" data-stale={stale ? 'true' : undefined}>
+                        <span className="project-production-editing-dialog__workspace-summary-dot" aria-hidden="true" />
+                        <div>
+                          <strong>{workspaceSummary.title}</strong>
+                          <span>{workspaceSummary.detail}</span>
+                        </div>
+                        <em>{workspaceSummary.status}</em>
+                      </div>
+                      {workspaceDetails.length > 0 ? (
+                        <dl className="project-production-editing-dialog__workspace-details">
+                          {workspaceDetails.map((detail) => (
+                            <div key={detail.label}>
+                              <dt>{detail.label}</dt>
+                              <dd title={detail.value}>{detail.value}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      ) : null}
+                    </div>
+                    <div className="project-production-editing-dialog__workspace-actions">
+                      <Button type="button" size="sm" className="gap-2" disabled={busy} onClick={() => openWorkspace.mutate(workspace)}>
+                        <MonitorPlay size={14} />
+                        打开
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="gap-2"
+                        disabled={busy}
+                        onClick={() => {
+                          if (typeof window !== 'undefined' && !window.confirm(`删除剪辑台 ${workspaceTitle}？`)) return
+                          deleteWorkspace.mutate(workspace)
+                        }}
+                      >
+                        <Trash2 size={14} />
+                        删除
+                      </Button>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          </section>
 
-          <div className="flex items-center justify-between gap-2">
-            <span className="type-caption text-muted-foreground">共 {total} 个</span>
-            <div className="flex gap-2">
+          <div className="project-production-editing-dialog__pager">
+            <span>共 {total} 个工作台</span>
+            <div>
               <Button type="button" size="sm" variant="outline" disabled={page <= 1 || workspaceList.isFetching} onClick={() => setPage((value) => Math.max(1, value - 1))}>
                 上一页
               </Button>
@@ -1364,6 +1467,7 @@ function ProjectOverviewProductionEditingDialog({
             </div>
           </div>
         </div>
+
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>关闭</Button>
         </DialogFooter>
@@ -1511,6 +1615,109 @@ function projectHomeProductionEditingKindLabel(value: unknown): string {
   if (kind === 'system_editing') return '系统剪辑'
   if (kind === 'remotion') return 'Remotion'
   return kind ?? '剪辑台'
+}
+
+type ProjectHomeProductionEditingWorkspaceDetail = {
+  label: string
+  value: string
+}
+
+type ProjectHomeProductionEditingWorkspaceSummary = {
+  title: string
+  detail: string
+  status: string
+}
+
+function projectHomeProductionEditingWorkspaceSummary(workspace: Record<string, unknown>): ProjectHomeProductionEditingWorkspaceSummary {
+  const kind = stringValue(workspace.kind)
+  const stale = Boolean(workspace.stale)
+  const entrypoint = stringValue(workspace.entrypoint) ?? 'src/Root.tsx'
+  const compositionId = stringValue(workspace.compositionId ?? workspace.composition_id) ?? '默认合成'
+  const previewCommand = projectHomeProductionEditingCommandText(workspace.previewCommand ?? workspace.preview_command)
+  const editingProjectId = stringValue(workspace.editingProjectId ?? workspace.editing_project_id)
+  const mediaProjectPath = stringValue(workspace.mediaEditingProjectPath ?? workspace.media_editing_project_path)
+
+  if (stale) {
+    return {
+      title: '资源需要刷新',
+      detail: '刷新素材索引后再打开，可以避免剪辑台引用旧资源。',
+      status: '需刷新',
+    }
+  }
+
+  if (kind === 'remotion') {
+    return {
+      title: 'Remotion 预览工作台',
+      detail: `${compositionId} / ${entrypoint}`,
+      status: previewCommand ? '已配置启动命令' : '待生成启动命令',
+    }
+  }
+
+  return {
+    title: '系统剪辑流程',
+    detail: editingProjectId
+      ? `剪辑项目 ${editingProjectId}`
+      : mediaProjectPath
+        ? projectHomeProductionEditingCompactPath(mediaProjectPath)
+        : '内置时间线、素材库和导出流程。',
+    status: '可打开',
+  }
+}
+
+function projectHomeProductionEditingWorkspaceDetails(workspace: Record<string, unknown>): ProjectHomeProductionEditingWorkspaceDetail[] {
+  const kind = stringValue(workspace.kind)
+  const projectDirectory = stringValue(workspace.projectDirectory ?? workspace.project_directory)
+  const entrypoint = stringValue(workspace.entrypoint)
+  const compositionId = stringValue(workspace.compositionId ?? workspace.composition_id)
+  const previewCommand = projectHomeProductionEditingCommandText(workspace.previewCommand ?? workspace.preview_command)
+  const editingProjectId = stringValue(workspace.editingProjectId ?? workspace.editing_project_id)
+  const mediaProjectPath = stringValue(workspace.mediaEditingProjectPath ?? workspace.media_editing_project_path)
+  const details: ProjectHomeProductionEditingWorkspaceDetail[] = []
+
+  if (kind === 'remotion') {
+    if (projectDirectory) details.push({ label: '工作目录', value: projectHomeProductionEditingCompactPath(projectDirectory) })
+    if (entrypoint) details.push({ label: '入口', value: entrypoint })
+    if (compositionId) details.push({ label: '合成', value: compositionId })
+    if (previewCommand) details.push({ label: '启动', value: previewCommand })
+    return details.slice(0, 4)
+  }
+
+  if (editingProjectId) details.push({ label: '剪辑项目', value: editingProjectId })
+  if (mediaProjectPath) details.push({ label: '项目文件', value: projectHomeProductionEditingCompactPath(mediaProjectPath) })
+  return details.slice(0, 4)
+}
+
+function projectHomeProductionEditingCommandText(value: unknown): string | undefined {
+  if (Array.isArray(value)) {
+    const command = value.map((part) => stringValue(part)).filter(Boolean).join(' ')
+    return command || undefined
+  }
+  return stringValue(value)
+}
+
+function projectHomeProductionEditingCompactPath(value: string): string {
+  const normalized = value.replace(/\\/g, '/')
+  const parts = normalized.split('/').filter(Boolean)
+  if (parts.length <= 3) return value
+  return `.../${parts.slice(-3).join('/')}`
+}
+
+function projectHomeProductionEditingWorkspaceTime(workspace: Record<string, unknown>): string {
+  const value = stringValue(
+    workspace.updatedAt
+      ?? workspace.updated_at
+      ?? workspace.createdAt
+      ?? workspace.created_at,
+  )
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString([], {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 function projectHomeProductionFilterValue(production: ProjectHomeProductionSummary): string {
@@ -2261,10 +2468,16 @@ function projectOverviewRemotionStudioHref(
   if (!sessionId) return undefined
   const workspaceId = stringValue(session.workspaceId ?? session.workspace_id)
   const productionId = stringValue(session.productionId ?? session.production_id) ?? fallback.productionId
+  const projectDirectory = stringValue(session.projectDirectory ?? session.project_directory)
+  const entrypoint = stringValue(session.entrypoint)
+  const compositionId = stringValue(session.compositionId ?? session.composition_id)
   return runtime.navigator.href('remotionStudio', {
     sessionId,
     ...(workspaceId ? { workspaceId } : {}),
     ...(productionId ? { productionId } : {}),
+    ...(projectDirectory ? { projectDirectory } : {}),
+    ...(entrypoint ? { entrypoint } : {}),
+    ...(compositionId ? { compositionId } : {}),
   })
 }
 

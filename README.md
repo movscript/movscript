@@ -26,7 +26,7 @@
 
 Movscript helps creators turn scripts, references, and creative direction into a plannable, editable, previewable video workflow. It is built around describing the intent, feeling, rhythm, and structure of motion instead of starting from timelines and keyframes.
 
-The community edition currently focuses on desktop video creation workflows: project planning, scripts, assets, storyboards, shots, generation jobs, model configuration, assistant workflows, and rough-cut assembly.
+The public distribution currently focuses on desktop video creation workflows: project planning, scripts, assets, storyboards, shots, generation jobs, model configuration, assistant workflows, and rough-cut assembly.
 
 Movscript is still early. Features, file formats, plugin behavior, and workflows may change before a stable release.
 
@@ -49,6 +49,7 @@ Current desktop release target:
 - macOS Apple Silicon / arm64
 - macOS Intel / x64
 - Windows x64
+- Linux x64 AppImage
 
 Download the latest desktop package from [GitHub Releases](https://github.com/movscript/movscript/releases/latest).
 
@@ -60,9 +61,9 @@ curl -fsSL https://movscript.github.io/movscript/install-desktop.sh | sh
 
 On Windows, download the latest x64 `.exe` installer from [GitHub Releases](https://github.com/movscript/movscript/releases/latest).
 
-All release notes, known issues, checksums, and previous versions are listed on the [Movscript releases page](https://github.com/movscript/movscript/releases).
+On Linux, download the latest x64 `.AppImage`, mark it executable, and open it from your desktop environment or terminal.
 
-Linux desktop packages are not published yet. They will be added in later releases.
+All release notes, known issues, checksums, and previous versions are listed on the [Movscript releases page](https://github.com/movscript/movscript/releases).
 
 ## Docker
 
@@ -118,8 +119,13 @@ docker compose down -v
 
 ## Docs
 
-- [MovScript Agent Runtime architecture](docs/movscript-agent-runtime-architecture.zh-CN.md)
-- [Codex creative surfaces design](docs/codex-creative-surfaces-design.zh-CN.md)
+- [Product transformation plan](docs/product-transformation-plan.zh-CN.md)
+- [Install surface and release assets](docs/install.md)
+- [Product runtime distribution standard](docs/product-runtime-distribution-standard.zh-CN.md)
+- [Movscript Agent runtime architecture](docs/movscript-agent-runtime-architecture.zh-CN.md)
+- [Model adapter route/provider architecture](docs/model-adapter-route-provider-architecture.zh-CN.md)
+- [Shell frontend design](docs/shell-frontend-design.zh-CN.md)
+- [Shell session integration](docs/shell-session-integration.zh-CN.md)
 
 ## License
 

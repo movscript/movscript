@@ -91,6 +91,7 @@ func TestCallResponsesWithRouteUsageFallsBackToChatWhenProviderResponsesFails(t 
 		IsEnabled:             true,
 		Capabilities:          CapabilityFamilyTextGeneration,
 		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
+		SupportedParams:       testSupportedParamsProfile(CapabilityFamilyTextGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -164,6 +165,7 @@ func createProviderVariant(t *testing.T, db *gorm.DB, id uint, providerName stri
 			IsEnabled:             true,
 			Capabilities:          strings.Join(capabilities, ","),
 			ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(capabilities...),
+			SupportedParams:       testSupportedParamsProfile(capabilities...),
 		}
 		if err := db.Create(&entry).Error; err != nil {
 			t.Fatalf("create catalog entry: %v", err)

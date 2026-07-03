@@ -6,6 +6,6 @@ func runtimeMigrationModels() []any {
 	return nil
 }
 
-func editionCoreSchemaModels(entities []any) []any {
+func distributionProfileCoreSchemaModels(entities []any) []any {
 	return entities
 }

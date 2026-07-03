@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { createReadStream, existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { basename, dirname, extname, join, resolve } from 'node:path'
 import {
@@ -26,16 +26,23 @@ import {
 import {
   MOVSCRIPT_PROGRAM_MANIFEST_SCHEMA,
   MOVSCRIPT_APPLICATION_MANIFEST_SCHEMA,
+  MOVSCRIPT_RUNTIME_API_VERSION,
   MOVSCRIPT_SCENARIO_POLICY_SCHEMA,
   findRuntimeApp,
   findRuntimeEndpoint,
   pidIsAlive,
   readRuntimeHomeSnapshot,
+  runtimeBundleCompatibility,
+  runtimeBundleIdentityFromManifest,
+  validateRuntimeBundleManifest,
   writeRuntimeEndpointRecord,
   writeRuntimeServiceRecord,
   type ApplicationManifest,
   type ApplicationOwnerKind,
   type ProgramManifest,
+  type RuntimeBundleCompatibility,
+  type RuntimeBundleIdentity,
+  type RuntimeBundleManifest,
   type ScenarioPolicyManifest,
 } from '@movscript/runtime-contracts'
 import {
@@ -211,7 +218,7 @@ const daemonContextSessions = new Map<string, DaemonContextEnvelope>()
 const remotionStudioSessions = new Map<string, RemotionStudioSessionEntry>()
 let nextRemotionStudioLogCursor = 0
 
-type RemotionStudioSessionStatus = 'checking' | 'installing' | 'starting' | 'ready' | 'failed' | 'stopped' | 'blocked'
+type RemotionStudioSessionStatus = 'checking' | 'installing' | 'starting' | 'ready' | 'failed' | 'stopped' | 'blocked' | 'needs_external_shell'
 
 interface RemotionStudioSessionLogEntry {
   cursor: string
@@ -228,6 +235,25 @@ interface RemotionStudioSessionBlocker {
   install_command?: string[]
   projectDirectory?: string
   project_directory?: string
+  shellIntent?: RemotionStudioShellIntent
+  shell_intent?: RemotionStudioShellIntent
+}
+
+interface RemotionStudioShellIntent {
+  schema: 'movscript.shell_intent.v1'
+  intentId: string
+  intent_id: string
+  title: string
+  cwd: string
+  command: string[]
+  commandText: string
+  command_text: string
+  ownerFeature: 'remotion_studio'
+  owner_feature: 'remotion_studio'
+  expectedPreviewUrl?: string
+  expected_preview_url?: string
+  reason: string
+  destructive: boolean
 }
 
 interface RemotionStudioSessionEntry {
@@ -250,6 +276,10 @@ interface RemotionStudioSessionEntry {
   command?: string[]
   commandText?: string
   command_text?: string
+  shellOwner?: string
+  shell_owner?: string
+  shellIntent?: RemotionStudioShellIntent
+  shell_intent?: RemotionStudioShellIntent
   blockers?: RemotionStudioSessionBlocker[]
   error?: string
   startedAt: string
@@ -260,10 +290,7 @@ interface RemotionStudioSessionEntry {
   ready_at?: string
   stoppedAt?: string
   stopped_at?: string
-  exitCode?: number | null
-  exit_code?: number | null
   logs: RemotionStudioSessionLogEntry[]
-  child?: ChildProcess
 }
 export interface LocalDaemonServicePlaneOptions {
   homeDir?: string
@@ -369,6 +396,9 @@ interface DaemonContextEnvelope {
 
 interface DaemonRuntimeDescriptor {
   schema: 'movscript.runtime-descriptor.v1'
+  apiVersion: string
+  bundleHash?: string
+  compatibility: RuntimeBundleCompatibility
   runtime: {
     owner: 'movscript.local-node'
     appId: 'movscript.local-node'
@@ -1350,8 +1380,12 @@ function issueDaemonRuntimeDescriptor(
   localNodeState?: LocalNodeControlState,
 ): DaemonRuntimeDescriptor {
   const identity = daemonRuntimeIdentity(homeDir, localNodeState)
+  const bundle = daemonRuntimeBundleCompatibility(homeDir, identity)
   return {
     schema: 'movscript.runtime-descriptor.v1',
+    apiVersion: MOVSCRIPT_RUNTIME_API_VERSION,
+    ...(bundle.actual?.bundleHash ? { bundleHash: bundle.actual.bundleHash } : {}),
+    compatibility: bundle.compatibility,
     runtime: {
       owner: 'movscript.local-node',
       appId: 'movscript.local-node',
@@ -1395,10 +1429,91 @@ function normalizedRuntimeIdentity(input: Record<string, unknown> | LocalRuntime
   const identity: LocalRuntimeIdentity = {
     ...(trimmedString(input.pluginVersion) ? { pluginVersion: trimmedString(input.pluginVersion) } : {}),
     ...(trimmedString(input.pluginRoot) ? { pluginRoot: trimmedString(input.pluginRoot) } : {}),
+    ...(trimmedString(input.apiVersion) ? { apiVersion: trimmedString(input.apiVersion) } : {}),
+    ...(trimmedString(input.minDaemonApiVersion) ? { minDaemonApiVersion: trimmedString(input.minDaemonApiVersion) } : {}),
+    ...(trimmedString(input.bundleHash) ? { bundleHash: trimmedString(input.bundleHash) } : {}),
     ...(trimmedString(input.runtimeVersion) ? { runtimeVersion: trimmedString(input.runtimeVersion) } : {}),
     ...(trimmedString(input.runtimeRoot) ? { runtimeRoot: trimmedString(input.runtimeRoot) } : {}),
   }
   return Object.keys(identity).length > 0 ? identity : undefined
+}
+
+function daemonRuntimeBundleCompatibility(
+  homeDir: string,
+  identity: LocalRuntimeIdentity | undefined,
+): { actual?: RuntimeBundleIdentity; expected?: RuntimeBundleIdentity; compatibility: RuntimeBundleCompatibility } {
+  const actual = daemonRuntimeBundleIdentity(identity)
+  const expected = homeCurrentRuntimeBundleIdentity(homeDir)
+  const compatibility = runtimeBundleCompatibility({
+    actual,
+    expected,
+    actualIsRepairSource: isRuntimeRepairSource(homeDir, actual, expected),
+  })
+  return {
+    ...(actual ? { actual } : {}),
+    ...(expected ? { expected } : {}),
+    compatibility,
+  }
+}
+
+function daemonRuntimeBundleIdentity(identity: LocalRuntimeIdentity | undefined): RuntimeBundleIdentity | undefined {
+  if (!identity) return undefined
+  const pluginRoot = trimmedString(identity.pluginRoot)
+  const manifest = pluginRoot ? runtimeBundleManifestForRoot(pluginRoot) : undefined
+  if (manifest && pluginRoot) return runtimeBundleIdentityFromManifest(manifest, { pluginRoot: canonicalRuntimePath(pluginRoot) })
+  return {
+    ...(trimmedString(identity.pluginVersion) ? { version: trimmedString(identity.pluginVersion) } : {}),
+    ...(trimmedString(identity.apiVersion) ? { apiVersion: trimmedString(identity.apiVersion) } : {}),
+    ...(trimmedString(identity.minDaemonApiVersion) ? { minDaemonApiVersion: trimmedString(identity.minDaemonApiVersion) } : {}),
+    ...(trimmedString(identity.bundleHash) ? { bundleHash: trimmedString(identity.bundleHash) } : {}),
+    ...(pluginRoot ? { pluginRoot: canonicalRuntimePath(pluginRoot) } : {}),
+  }
+}
+
+function homeCurrentRuntimeBundleIdentity(homeDir: string): RuntimeBundleIdentity | undefined {
+  const currentRoot = homeCurrentPluginRoot(homeDir)
+  if (!currentRoot) return undefined
+  const manifest = runtimeBundleManifestForRoot(currentRoot)
+  if (!manifest) return { pluginRoot: currentRoot }
+  return runtimeBundleIdentityFromManifest(manifest, { pluginRoot: currentRoot })
+}
+
+function homeCurrentPluginRoot(homeDir: string): string | undefined {
+  const currentRoot = resolve(homeDir, 'plugins/movscript/current')
+  if (!existsSync(currentRoot)) return undefined
+  return canonicalRuntimePath(currentRoot)
+}
+
+function runtimeBundleManifestForRoot(pluginRoot: string): RuntimeBundleManifest | undefined {
+  try {
+    const parsed = JSON.parse(readFileSync(resolve(pluginRoot, 'manifest.runtime.json'), 'utf8')) as unknown
+    const result = validateRuntimeBundleManifest(parsed)
+    return result.ok ? result.manifest : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function isRuntimeRepairSource(
+  homeDir: string,
+  actual: RuntimeBundleIdentity | undefined,
+  expected: RuntimeBundleIdentity | undefined,
+): boolean {
+  if (!actual?.pluginRoot || !expected?.pluginRoot) return false
+  if (sameRuntimePath(actual.pluginRoot, expected.pluginRoot)) return false
+  return !sameRuntimePath(actual.pluginRoot, resolve(homeDir, 'plugins/movscript/current'))
+}
+
+function sameRuntimePath(left: string, right: string): boolean {
+  return canonicalRuntimePath(left) === canonicalRuntimePath(right)
+}
+
+function canonicalRuntimePath(path: string): string {
+  try {
+    return realpathSync(path)
+  } catch {
+    return resolve(path)
+  }
 }
 
 function daemonGatewayBaseURL(homeDir: string, request?: IncomingMessage): string {
@@ -1892,6 +2007,13 @@ function numberValue(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
+function booleanValue(value: unknown): boolean {
+  if (typeof value === 'boolean') return value
+  if (typeof value !== 'string') return false
+  const normalized = value.trim().toLowerCase()
+  return normalized === 'true' || normalized === '1' || normalized === 'yes'
+}
+
 function trimmedString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
@@ -2049,7 +2171,9 @@ async function handleRemotionStudioSessionRequest(
         })
         return
       }
-      writeLocalSurfaceJSON(response, 200, remotionStudioSessionPayload(session, { includeLogs: true }))
+      const refreshedSession = await refreshBlockedRemotionStudioSession(session)
+      await probeRemotionStudioReadiness(refreshedSession)
+      writeLocalSurfaceJSON(response, 200, remotionStudioSessionPayload(refreshedSession, { includeLogs: true }))
       return
     }
     if (url.pathname === REMOTION_STUDIO_SESSION_LOGS_ENDPOINT) {
@@ -2103,16 +2227,24 @@ async function handleRemotionStudioSessionRequest(
 
 async function openRemotionStudioSession(body: Record<string, unknown>): Promise<RemotionStudioSessionEntry> {
   const input = remotionStudioOpenInput(body)
-  const workspaceId = trimmedString(input.workspaceId ?? input.workspace_id)
-  const productionId = trimmedString(input.productionId ?? input.production_id)
-  const projectDirectory = trimmedString(input.projectDirectory ?? input.project_directory)
-  const entrypoint = trimmedString(input.entrypoint) ?? 'src/Root.tsx'
-  const compositionId = trimmedString(input.compositionId ?? input.composition_id)
-  const existing = reusableRemotionStudioSession({ workspaceId, projectDirectory })
-  if (existing) return existing
+  const requestedSessionId = trimmedString(input.sessionId ?? input.session_id)
+  const forceRestart = booleanValue(input.restart) || booleanValue(input.forceRestart) || booleanValue(input.force_restart)
+  const restartTarget = forceRestart && requestedSessionId ? remotionStudioSessions.get(requestedSessionId) : undefined
+  const workspaceId = trimmedString(input.workspaceId ?? input.workspace_id) ?? restartTarget?.workspaceId
+  const productionId = trimmedString(input.productionId ?? input.production_id) ?? restartTarget?.productionId
+  const projectDirectory = trimmedString(input.projectDirectory ?? input.project_directory) ?? restartTarget?.projectDirectory
+  const entrypoint = trimmedString(input.entrypoint) ?? restartTarget?.entrypoint ?? 'src/Root.tsx'
+  const compositionId = trimmedString(input.compositionId ?? input.composition_id) ?? restartTarget?.compositionId
+  const existing = forceRestart
+    ? restartTarget
+    : reusableRemotionStudioSession({ workspaceId, projectDirectory })
+  if (existing && !forceRestart) {
+    await probeRemotionStudioReadiness(existing)
+    return existing
+  }
 
   const now = new Date().toISOString()
-  const sessionId = [
+  const sessionId = existing?.sessionId ?? (forceRestart ? requestedSessionId : undefined) ?? [
     workspaceId ?? 'workspace',
     'studio',
     randomBytes(5).toString('hex'),
@@ -2134,7 +2266,7 @@ async function openRemotionStudioSession(body: Record<string, unknown>): Promise
     logs: [],
   }
   remotionStudioSessions.set(sessionId, session)
-  appendRemotionStudioLog(session, 'system', 'Checking Remotion Studio workspace.')
+  appendRemotionStudioLog(session, 'system', forceRestart ? '正在重启 Remotion Studio 工作区。' : '正在检查 Remotion Studio 工作区。')
 
   const blocker = remotionStudioWorkspaceBlocker(projectDirectory, entrypoint)
   if (blocker) {
@@ -2148,7 +2280,7 @@ async function openRemotionStudioSession(body: Record<string, unknown>): Promise
     return session
   }
 
-  const port = await reservePort()
+  const port = await reserveRemotionStudioPort()
   const previewUrl = `http://127.0.0.1:${port}`
   const command = remotionStudioCommand(input, projectDirectory!, entrypoint, port)
   session.port = port
@@ -2157,38 +2289,14 @@ async function openRemotionStudioSession(body: Record<string, unknown>): Promise
   session.command = command
   session.commandText = command.join(' ')
   session.command_text = session.commandText
-  session.status = 'starting'
+  const shellIntent = remotionStudioShellIntent(session, command)
+  session.status = 'needs_external_shell'
+  session.shellOwner = 'external_shell'
+  session.shell_owner = 'external_shell'
+  session.shellIntent = shellIntent
+  session.shell_intent = shellIntent
   touchRemotionStudioSession(session)
-  appendRemotionStudioLog(session, 'system', `Starting ${session.commandText}`)
-
-  const child = spawn(command[0]!, command.slice(1), {
-    cwd: projectDirectory,
-    env: {
-      ...process.env,
-      BROWSER: 'none',
-      NO_UPDATE_NOTIFIER: '1',
-    },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
-  session.child = child
-  child.stdout?.setEncoding('utf8')
-  child.stderr?.setEncoding('utf8')
-  child.stdout?.on('data', (chunk) => appendRemotionStudioLog(session, 'stdout', String(chunk)))
-  child.stderr?.on('data', (chunk) => appendRemotionStudioLog(session, 'stderr', String(chunk)))
-  child.once('error', (error) => {
-    failRemotionStudioSession(session, 'REMOTION_STUDIO_PROCESS_FAILED', errorMessage(error))
-  })
-  child.once('exit', (code) => {
-    session.child = undefined
-    session.exitCode = code
-    session.exit_code = code
-    if (session.status === 'ready' || session.status === 'stopped') {
-      stopRemotionStudioSession(session, 'process_exit')
-      return
-    }
-    failRemotionStudioSession(session, 'REMOTION_STUDIO_PROCESS_FAILED', `Remotion Studio exited with code ${code ?? 0}.`)
-  })
-  void watchRemotionStudioReadiness(session)
+  appendRemotionStudioLog(session, 'system', `已准备外部 Shell 命令：${session.commandText}`)
   return session
 }
 
@@ -2204,7 +2312,12 @@ function reusableRemotionStudioSession(input: {
   projectDirectory?: string
 }): RemotionStudioSessionEntry | undefined {
   for (const session of remotionStudioSessions.values()) {
-    if (session.status !== 'starting' && session.status !== 'ready') continue
+    if (
+      session.status !== 'checking'
+      && session.status !== 'starting'
+      && session.status !== 'ready'
+      && session.status !== 'needs_external_shell'
+    ) continue
     if (input.workspaceId && session.workspaceId === input.workspaceId) return session
     if (input.projectDirectory && session.projectDirectory === input.projectDirectory) return session
   }
@@ -2219,17 +2332,47 @@ function remotionStudioSessionByInput(input: Record<string, unknown>): RemotionS
   return reusableRemotionStudioSession({ workspaceId, projectDirectory })
 }
 
+async function refreshBlockedRemotionStudioSession(
+  session: RemotionStudioSessionEntry,
+): Promise<RemotionStudioSessionEntry> {
+  if (session.status !== 'blocked') return session
+  if (!remotionStudioSessionHasBlocker(session, 'REMOTION_DEPENDENCIES_MISSING')) return session
+  const projectDirectory = session.projectDirectory
+  const entrypoint = session.entrypoint ?? 'src/Root.tsx'
+  if (remotionStudioWorkspaceBlocker(projectDirectory, entrypoint)) return session
+  if (!projectDirectory || remotionStudioDependencyBlocker(projectDirectory)) return session
+  appendRemotionStudioLog(session, 'system', 'Remotion 工作区依赖已安装，正在准备启动 Studio。')
+  return openRemotionStudioSession({
+    sessionId: session.sessionId,
+    session_id: session.sessionId,
+    ...(session.workspaceId ? { workspaceId: session.workspaceId, workspace_id: session.workspaceId } : {}),
+    ...(session.productionId ? { productionId: session.productionId, production_id: session.productionId } : {}),
+    projectDirectory,
+    project_directory: projectDirectory,
+    entrypoint,
+    ...(session.compositionId ? { compositionId: session.compositionId, composition_id: session.compositionId } : {}),
+    restart: true,
+    forceRestart: true,
+    force_restart: true,
+  })
+}
+
+function remotionStudioSessionHasBlocker(session: RemotionStudioSessionEntry, code: string): boolean {
+  return Array.isArray(session.blockers)
+    && session.blockers.some((blocker) => blocker.code === code)
+}
+
 function remotionStudioWorkspaceBlocker(projectDirectory: string | undefined, entrypoint: string): RemotionStudioSessionBlocker | undefined {
   if (!projectDirectory) {
     return {
       code: 'REMOTION_PROJECT_DIRECTORY_MISSING',
-      message: 'The Remotion workspace is missing projectDirectory.',
+      message: 'Remotion 工作区缺少 projectDirectory。',
     }
   }
   if (!existsSync(projectDirectory) || !statSync(projectDirectory).isDirectory()) {
     return {
       code: 'REMOTION_PROJECT_DIRECTORY_MISSING',
-      message: `The Remotion workspace directory was not found: ${projectDirectory}`,
+      message: `未找到 Remotion 工作区目录：${projectDirectory}`,
       projectDirectory,
       project_directory: projectDirectory,
     }
@@ -2241,7 +2384,7 @@ function remotionStudioWorkspaceBlocker(projectDirectory: string | undefined, en
   if (missing.length > 0) {
     return {
       code: 'REMOTION_PROJECT_FILES_MISSING',
-      message: `The Remotion workspace is missing required project files: ${missing.join(', ')}`,
+      message: `Remotion 工作区缺少必要文件：${missing.join(', ')}`,
       projectDirectory,
       project_directory: projectDirectory,
     }
@@ -2256,13 +2399,17 @@ function remotionStudioDependencyBlocker(projectDirectory: string): RemotionStud
   const remotionPackage = resolve(projectDirectory, 'node_modules', 'remotion')
   if (existsSync(remotionBinary) || existsSync(remotionPackage)) return undefined
   const installCommand = remotionStudioInstallCommand(projectDirectory)
+  const message = 'Remotion 工作区依赖尚未安装。请先安装依赖，再打开 Studio。'
+  const shellIntent = remotionStudioInstallShellIntent(projectDirectory, installCommand, message)
   return {
     code: 'REMOTION_DEPENDENCIES_MISSING',
-    message: 'Remotion workspace dependencies are not installed. Install dependencies before opening Studio.',
+    message,
     installCommand,
     install_command: installCommand,
     projectDirectory,
     project_directory: projectDirectory,
+    shellIntent,
+    shell_intent: shellIntent,
   }
 }
 
@@ -2278,6 +2425,44 @@ function remotionStudioCommand(input: Record<string, unknown>, projectDirectory:
     ?? commandArrayValue(input.preview_command)
   const base = explicit ?? defaultRemotionStudioCommand(projectDirectory, entrypoint)
   return appendRemotionStudioRuntimeFlags(base, port)
+}
+
+function remotionStudioShellIntent(session: RemotionStudioSessionEntry, command: string[]): RemotionStudioShellIntent {
+  const intentId = `remotion-studio:${session.sessionId}`
+  return {
+    schema: 'movscript.shell_intent.v1',
+    intentId,
+    intent_id: intentId,
+    title: 'Remotion Studio',
+    cwd: session.projectDirectory ?? '',
+    command,
+    commandText: command.join(' '),
+    command_text: command.join(' '),
+    ownerFeature: 'remotion_studio',
+    owner_feature: 'remotion_studio',
+    ...(session.previewUrl ? { expectedPreviewUrl: session.previewUrl, expected_preview_url: session.previewUrl } : {}),
+    reason: '在可见 Shell 中启动 Remotion Studio，而不是由 local daemon 直接托管进程。',
+    destructive: false,
+  }
+}
+
+function remotionStudioInstallShellIntent(projectDirectory: string, command: string[], reason: string): RemotionStudioShellIntent {
+  const commandText = command.join(' ')
+  const intentId = `remotion-install-dependencies:${projectDirectory || commandText}`
+  return {
+    schema: 'movscript.shell_intent.v1',
+    intentId,
+    intent_id: intentId,
+    title: '安装 Remotion 工作区依赖',
+    cwd: projectDirectory,
+    command,
+    commandText,
+    command_text: commandText,
+    ownerFeature: 'remotion_studio',
+    owner_feature: 'remotion_studio',
+    reason,
+    destructive: false,
+  }
 }
 
 function defaultRemotionStudioCommand(projectDirectory: string, entrypoint: string): string[] {
@@ -2316,29 +2501,51 @@ function appendRemotionStudioRuntimeFlags(command: string[], port: number): stri
   return next
 }
 
-async function watchRemotionStudioReadiness(session: RemotionStudioSessionEntry): Promise<void> {
-  const startedAt = Date.now()
-  while (Date.now() - startedAt < 120000) {
-    if (session.status !== 'starting') return
-    if (session.child?.exitCode !== null && session.child?.exitCode !== undefined) return
-    try {
-      const response = session.previewUrl ? await fetch(session.previewUrl) : undefined
-      if (response?.ok) {
-        const now = new Date().toISOString()
-        session.status = 'ready'
-        session.readyAt = now
-        session.ready_at = now
-        touchRemotionStudioSession(session)
-        appendRemotionStudioLog(session, 'system', `Remotion Studio is ready at ${session.previewUrl}.`)
-        return
-      }
-    } catch {
-      // Keep polling until the Remotion dev server accepts connections.
-    }
-    await new Promise((resolvePoll) => setTimeout(resolvePoll, 500))
+async function probeRemotionStudioReadiness(session: RemotionStudioSessionEntry): Promise<boolean> {
+  if (session.status !== 'starting' && session.status !== 'needs_external_shell') return session.status === 'ready'
+  if (!session.previewUrl) return false
+  try {
+    const response = await fetch(session.previewUrl)
+    if (!response.ok) return false
+    const now = new Date().toISOString()
+    session.status = 'ready'
+    session.readyAt = now
+    session.ready_at = now
+    touchRemotionStudioSession(session)
+    appendRemotionStudioLog(session, 'system', `Remotion Studio is ready at ${session.previewUrl}.`)
+    return true
+  } catch {
+    return false
   }
-  failRemotionStudioSession(session, 'REMOTION_STUDIO_READY_TIMEOUT', 'Remotion Studio did not become ready before the startup timeout.')
-  session.child?.kill('SIGTERM')
+}
+
+async function reserveRemotionStudioPort(): Promise<number> {
+  const reservedPorts = remotionStudioReservedPorts()
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const port = await reservePort()
+    if (!reservedPorts.has(port)) return port
+  }
+  throw new Error('failed to reserve unique Remotion Studio port')
+}
+
+function remotionStudioReservedPorts(): Set<number> {
+  const ports = new Set<number>()
+  for (const session of remotionStudioSessions.values()) {
+    if (remotionStudioSessionReservesPort(session)) ports.add(session.port as number)
+  }
+  return ports
+}
+
+function remotionStudioSessionReservesPort(session: RemotionStudioSessionEntry): boolean {
+  return typeof session.port === 'number'
+    && Number.isInteger(session.port)
+    && session.port > 0
+    && (
+      session.status === 'checking'
+      || session.status === 'starting'
+      || session.status === 'ready'
+      || session.status === 'needs_external_shell'
+    )
 }
 
 function blockRemotionStudioSession(session: RemotionStudioSessionEntry, blocker: RemotionStudioSessionBlocker): void {
@@ -2348,29 +2555,13 @@ function blockRemotionStudioSession(session: RemotionStudioSessionEntry, blocker
   appendRemotionStudioLog(session, 'system', blocker.message)
 }
 
-function failRemotionStudioSession(session: RemotionStudioSessionEntry, code: string, message: string): void {
-  if (session.status === 'stopped') return
-  session.status = 'failed'
-  session.error = message
-  session.blockers = [{
-    code,
-    message,
-    ...(session.command ? { command: session.command } : {}),
-    ...(session.projectDirectory ? { projectDirectory: session.projectDirectory, project_directory: session.projectDirectory } : {}),
-  }]
-  touchRemotionStudioSession(session)
-  appendRemotionStudioLog(session, 'system', message)
-}
-
 function stopRemotionStudioSession(session: RemotionStudioSessionEntry, reason: string): void {
   const now = new Date().toISOString()
-  if (session.child && session.child.exitCode === null) session.child.kill('SIGTERM')
-  session.child = undefined
   session.status = 'stopped'
   session.stoppedAt = now
   session.stopped_at = now
   touchRemotionStudioSession(session)
-  appendRemotionStudioLog(session, 'system', `Remotion Studio session stopped: ${reason}.`)
+  appendRemotionStudioLog(session, 'system', `Remotion Studio 会话已停止：${reason}。`)
 }
 
 function touchRemotionStudioSession(session: RemotionStudioSessionEntry): void {
@@ -2396,7 +2587,7 @@ function remotionStudioSessionPayload(
   session: RemotionStudioSessionEntry,
   options: { includeLogs?: boolean } = {},
 ): Record<string, unknown> {
-  const { child: _child, logs, ...payload } = session
+  const { logs, ...payload } = session
   return {
     ...payload,
     ...(options.includeLogs ? { logs } : {}),

@@ -171,6 +171,69 @@ func TestAIServiceRoutingPolicyContractRoutesOmniReferenceVideoOperation(t *test
 	}
 }
 
+func TestAIServiceRoutingPolicyContractRejectsAudioOnlyReferenceVideoRule(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-routing-reference-video-no-audio-only-contract.db",
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+	)
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID: "seedance-2-0",
+		DisplayName:   "Seedance 2.0",
+		IsEnabled:     true,
+		Capabilities:  CapabilityFamilyVideoGeneration,
+		ModelCapabilitiesJSON: `{
+			"video_generation": {
+				"operations": ["reference_to_video"],
+				"reference_assets": {
+					"min": 0,
+					"max": 15,
+					"modalities": ["image", "video", "audio"],
+					"roles": ["reference_image", "reference_video", "reference_audio"]
+				},
+				"operation_slots": {
+					"reference_to_video": [
+						{"id": "reference_images", "max": 9, "roles": ["reference_image"], "media_types": ["image"]},
+						{"id": "reference_videos", "max": 3, "roles": ["reference_video"], "media_types": ["video"]},
+						{"id": "reference_audios", "max": 3, "roles": ["reference_audio"], "media_types": ["audio"]}
+					]
+				},
+				"operation_rules": {
+					"reference_to_video": [{"id": "no_audio_only"}]
+				}
+			}
+		}`,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	routeBinding := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
+		ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
+		AdapterType:     AdapterVolcen,
+		ProviderModelID: "doubao-seedance-2-0-260128",
+		IsEnabled:       true,
+		Priority:        1,
+		CapacityWeight:  1,
+	}
+	if err := db.Create(&routeBinding).Error; err != nil {
+		t.Fatalf("create route: %v", err)
+	}
+	service := NewAIService(db, NewRegistry(db, nil))
+
+	_, err := service.ResolveGatewayModelRoute(context.Background(), providercontract.AIGatewayRouteRequest{
+		ModelID:    "seedance-2-0",
+		Capability: CapabilityFamilyVideoGeneration,
+		Operation:  VideoOperationReferenceToVideo,
+		ReferenceAssets: []providercontract.AIReferenceAssetIntent{
+			{Role: "reference_audio", MediaType: "audio"},
+		},
+	})
+	if err == nil {
+		t.Fatalf("ResolveGatewayModelRoute(audio-only) succeeded, want audio-only reference rejected")
+	}
+}
+
 func TestAIServiceRoutingPolicyContractFallsBackToReferenceVideoForSeedance20(t *testing.T) {
 	db := testutil.OpenSQLite(t, "ai-routing-seedance20-reference-fallback-contract.db",
 		&persistencemodel.AIModelCatalogEntry{},
@@ -354,6 +417,7 @@ func createCatalogRouteVariantWithGroupAndCost(t *testing.T, db *gorm.DB, id uin
 		IsEnabled:             true,
 		Capabilities:          strings.Join(capabilities, ","),
 		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(capabilities...),
+		SupportedParams:       testSupportedParamsProfile(capabilities...),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -418,4 +482,48 @@ func testStructuredCapabilitiesJSON(capabilities ...string) string {
 	}
 	raw, _ := json.Marshal(domains)
 	return string(raw)
+}
+
+func testSupportedParamsProfile(capabilities ...string) string {
+	operations := []string{}
+	for _, capability := range capabilities {
+		switch strings.TrimSpace(capability) {
+		case CapabilityFamilyTextGeneration:
+			operations = append(operations, "chat", "responses")
+		case CapabilityFamilyImageGeneration:
+			operations = append(operations, ImageOperationTextToImage, ImageOperationReferenceToImage, ImageOperationEditImage)
+		case CapabilityFamilyVideoGeneration:
+			operations = append(operations,
+				VideoOperationPromptToVideo,
+				VideoOperationImageToVideo,
+				VideoOperationFirstFrameToVideo,
+				VideoOperationFirstLastFrameToVideo,
+				VideoOperationReferenceToVideo,
+			)
+		case CapabilityFamilyAudioGeneration:
+			operations = append(operations,
+				AudioOperationTextToSpeech,
+				AudioOperationMusicGeneration,
+				AudioOperationSoundEffectGeneration,
+				AudioOperationDubbing,
+				AudioOperationSpeechTranslate,
+				AudioOperationVoiceClone,
+				AudioOperationVoiceDesign,
+				AudioOperationForcedAlignment,
+			)
+		}
+	}
+	if len(operations) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(`{"version":2,"by_operation":{`)
+	for i, operation := range operations {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		fmt.Fprintf(&b, `%q:{"add":[{"key":"test_param","label":"Test Param","type":"string"}]}`, operation)
+	}
+	b.WriteString(`}}`)
+	return b.String()
 }

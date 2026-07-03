@@ -1,5 +1,5 @@
 import { BrowserWindow, ipcMain } from 'electron'
-import { writeMovScriptDataServiceConfig } from '@movscript/data-client'
+import { resolveMovScriptDataServiceSession, writeMovScriptDataServiceConfig } from '@movscript/data-client'
 import { findRuntimeEndpoint, readRuntimeHomeSnapshot } from '@movscript/runtime-contracts'
 import type { AppSettings } from '../../src/shared/contracts/appSettings'
 import { LOCAL_BACKEND_URL, setBackendStatus, stopBackend, type BackendStatus } from '../services/backend'
@@ -32,7 +32,7 @@ export function registerSettingsIpcHandlers(deps: SettingsIpcDependencies): void
     if (!settings?.onboardingCompleted) {
       return
     }
-    const dataConnection = runtimeDataConnectionFromSettings(settings)
+    const dataConnection = runtimeDataConnectionFromSettings(settings, movScriptHomeDir)
     const configuredByDaemon = await configureDaemonRuntime(movScriptHomeDir, dataConnection)
     if (dataConnection.kind === 'local') {
       deps.broadcastBackendStatus({ state: 'starting', baseURL: LOCAL_BACKEND_URL })
@@ -52,7 +52,7 @@ export function registerSettingsIpcHandlers(deps: SettingsIpcDependencies): void
           ...(dataConnection.url ? { dataServiceURL: dataConnection.url } : {}),
         })
       }
-      setBackendStatus({ state: 'ready', baseURL: resolveGatewayURL(movScriptHomeDir) ?? dataConnection.url ?? settings.apiBaseURL }, deps.broadcastBackendStatus)
+      setBackendStatus({ state: 'ready', baseURL: resolveGatewayURL(movScriptHomeDir) ?? dataConnection.url ?? resolveMovScriptDataServiceSession({ workspaceDir: movScriptHomeDir }).baseURL }, deps.broadcastBackendStatus)
     }
     if (dataConnection.kind !== 'local' && dataConnection.url) {
       writeMovScriptDataServiceConfig(movScriptHomeDir, { baseURL: dataConnection.url })
@@ -85,7 +85,7 @@ export function registerSettingsIpcHandlers(deps: SettingsIpcDependencies): void
   })
 }
 
-function runtimeDataConnectionFromSettings(settings: AppSettings): {
+function runtimeDataConnectionFromSettings(settings: AppSettings, movScriptHomeDir: string): {
   kind: 'local' | 'cloud'
   url?: string
 } {
@@ -93,7 +93,9 @@ function runtimeDataConnectionFromSettings(settings: AppSettings): {
   if (kind === 'local') {
     return { kind }
   }
-  const url = settings.dataConnection?.url ?? settings.cloudAPIBaseURL ?? settings.apiBaseURL
+  const url = settings.dataConnection?.url
+    ?? settings.cloudAPIBaseURL
+    ?? resolveMovScriptDataServiceSession({ workspaceDir: movScriptHomeDir }).baseURL
   return {
     kind,
     ...(url ? { url } : {}),

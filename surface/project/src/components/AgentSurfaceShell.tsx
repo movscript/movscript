@@ -1,10 +1,11 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import './AgentSurfaceShell.css'
 
 export function AgentSurfaceShell({
   title,
   description,
   chips = [],
+  chrome = 'default',
   ready,
   preparingLabel = 'Preparing Codex surface...',
   children,
@@ -12,13 +13,18 @@ export function AgentSurfaceShell({
   title: string
   description?: string
   chips?: string[]
+  chrome?: 'default' | 'immersive'
   ready: boolean
   preparingLabel?: string
   children: ReactNode
 }) {
+  useEffect(() => {
+    window.scrollTo({ left: 0, top: 0 })
+  }, [title])
+
   if (!ready) return <div className="agent-surface-status">{preparingLabel}</div>
   return (
-    <section className="agent-surface-shell">
+    <section className="agent-surface-shell" data-chrome={chrome === 'immersive' ? 'immersive' : undefined}>
       <div className="agent-surface-shell__inner">
         <header className="agent-surface-shell__header">
           <div className="agent-surface-shell__title">

@@ -316,19 +316,19 @@ func (w *Worker) execute(ctx context.Context, job *persistencemodel.Job) (err er
 			return err
 		}
 		var (
-			result providerResult
-			err    error
+			results []providerResult
+			err     error
 		)
 		if operation == "" || operation == ai.ImageOperationTextToImage {
-			result, err = w.runImageJob(debugCtx, job, params, imageData, sm, debugResult)
+			results, err = w.runImageJob(debugCtx, job, params, imageData, sm, debugResult)
 		} else {
-			result, err = w.runImageEditJob(debugCtx, job, params, imageData, sm, debugResult)
+			results, err = w.runImageEditJob(debugCtx, job, params, imageData, sm, debugResult)
 		}
 		if err != nil {
 			w.saveDebugInfo(job, debugResult)
 			return err
 		}
-		return w.completeProviderResult(callCtx, job, result, sm, debugResult)
+		return w.completeProviderResults(callCtx, job, results, sm, debugResult)
 
 	case domainjob.JobTypeVideo:
 		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {

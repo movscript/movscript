@@ -10,9 +10,9 @@ import (
 	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
 
-func TestGitHubEnterpriseAdapterHealthChecksCurrentUser(t *testing.T) {
+func TestGitHubSelfHostedAdapterHealthChecksCurrentUser(t *testing.T) {
 	var sawBearer bool
-	adapter := NewGitHubEnterpriseAdapter("https://github.example.com", "admin-token")
+	adapter := NewGitHubSelfHostedAdapter("https://github.example.com", "admin-token")
 	if adapter == nil {
 		t.Fatal("adapter is nil")
 	}
@@ -37,8 +37,8 @@ func TestGitHubEnterpriseAdapterHealthChecksCurrentUser(t *testing.T) {
 	}
 }
 
-func TestGitHubEnterpriseAdapterKeepsAPIBaseURL(t *testing.T) {
-	adapter := NewGitHubEnterpriseAdapter("https://github.example.com/api/v3", "admin-token")
+func TestGitHubSelfHostedAdapterKeepsAPIBaseURL(t *testing.T) {
+	adapter := NewGitHubSelfHostedAdapter("https://github.example.com/api/v3", "admin-token")
 	if adapter == nil {
 		t.Fatal("adapter is nil")
 	}
@@ -50,9 +50,9 @@ func TestGitHubEnterpriseAdapterKeepsAPIBaseURL(t *testing.T) {
 	}
 }
 
-func TestGitHubEnterpriseAdapterCreatesOrganizationRepo(t *testing.T) {
+func TestGitHubSelfHostedAdapterCreatesOrganizationRepo(t *testing.T) {
 	var requests []string
-	adapter := NewGitHubEnterpriseAdapter("https://github.example.com", "admin-token")
+	adapter := NewGitHubSelfHostedAdapter("https://github.example.com", "admin-token")
 	if adapter == nil {
 		t.Fatal("adapter is nil")
 	}
@@ -91,8 +91,8 @@ func TestGitHubEnterpriseAdapterCreatesOrganizationRepo(t *testing.T) {
 	})
 }
 
-func TestGitHubEnterpriseAdapterRejectsPersonalRepoOwnerMismatch(t *testing.T) {
-	adapter := NewGitHubEnterpriseAdapter("https://github.example.com", "admin-token")
+func TestGitHubSelfHostedAdapterRejectsPersonalRepoOwnerMismatch(t *testing.T) {
+	adapter := NewGitHubSelfHostedAdapter("https://github.example.com", "admin-token")
 	if adapter == nil {
 		t.Fatal("adapter is nil")
 	}
@@ -120,9 +120,9 @@ func TestGitHubEnterpriseAdapterRejectsPersonalRepoOwnerMismatch(t *testing.T) {
 	}
 }
 
-func TestGitHubEnterpriseAdapterEnsuresCollaboratorWithMappedPermission(t *testing.T) {
+func TestGitHubSelfHostedAdapterEnsuresCollaboratorWithMappedPermission(t *testing.T) {
 	var payload map[string]any
-	adapter := NewGitHubEnterpriseAdapter("https://github.example.com", "admin-token")
+	adapter := NewGitHubSelfHostedAdapter("https://github.example.com", "admin-token")
 	if adapter == nil {
 		t.Fatal("adapter is nil")
 	}
@@ -144,8 +144,8 @@ func TestGitHubEnterpriseAdapterEnsuresCollaboratorWithMappedPermission(t *testi
 	}
 }
 
-func TestGitHubEnterpriseAdapterChecksRepoAccess(t *testing.T) {
-	adapter := NewGitHubEnterpriseAdapter("https://github.example.com", "admin-token")
+func TestGitHubSelfHostedAdapterChecksRepoAccess(t *testing.T) {
+	adapter := NewGitHubSelfHostedAdapter("https://github.example.com", "admin-token")
 	if adapter == nil {
 		t.Fatal("adapter is nil")
 	}
@@ -171,8 +171,8 @@ func TestGitHubEnterpriseAdapterChecksRepoAccess(t *testing.T) {
 	}
 }
 
-func TestGitHubEnterpriseAdapterCloneURLStrategies(t *testing.T) {
-	adapter := NewGitHubEnterpriseAdapter("https://github.example.com", "admin-token")
+func TestGitHubSelfHostedAdapterCloneURLStrategies(t *testing.T) {
+	adapter := NewGitHubSelfHostedAdapter("https://github.example.com", "admin-token")
 	if adapter == nil {
 		t.Fatal("adapter is nil")
 	}
@@ -198,8 +198,8 @@ func TestGitHubEnterpriseAdapterCloneURLStrategies(t *testing.T) {
 	}
 }
 
-func TestGitHubEnterpriseAdapterProvidesGitHTTPProxyTarget(t *testing.T) {
-	adapter := NewGitHubEnterpriseAdapter("https://github.example.com", "admin-token")
+func TestGitHubSelfHostedAdapterProvidesGitHTTPProxyTarget(t *testing.T) {
+	adapter := NewGitHubSelfHostedAdapter("https://github.example.com", "admin-token")
 	if adapter == nil {
 		t.Fatal("adapter is nil")
 	}
@@ -211,7 +211,7 @@ func TestGitHubEnterpriseAdapterProvidesGitHTTPProxyTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetGitHTTPProxyTarget returned error: %v", err)
 	}
-	if target.Provider != ProviderGitHubEnterprise || target.BaseURL != "https://github.example.com" || target.AuthUsername != "x-access-token" || target.AuthSecret != "admin-token" {
-		t.Fatalf("target = %+v, want GitHub Enterprise proxy target with token auth", target)
+	if target.Provider != ProviderGitHubSelfHosted || target.BaseURL != "https://github.example.com" || target.AuthUsername != "x-access-token" || target.AuthSecret != "admin-token" {
+		t.Fatalf("target = %+v, want GitHub Self-hosted proxy target with token auth", target)
 	}
 }

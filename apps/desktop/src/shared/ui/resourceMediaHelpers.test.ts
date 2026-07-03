@@ -31,10 +31,19 @@ test('resolveResourceUrl leaves already displayable URLs untouched', () => {
   assert.equal(resolveResourceUrl(resource({ url: 'blob:http://localhost/blob-id' })), 'blob:http://localhost/blob-id')
 })
 
-test('resolveResourceUrl resolves backend resource paths against the API base', () => {
-  configureResourceMediaBrowser({ apiBaseURL: 'http://localhost:8765' })
+test('resolveResourceUrl resolves backend resource paths against the daemon gateway base', () => {
+  configureResourceMediaBrowser({ gatewayBaseURL: 'http://localhost:8765' })
   try {
     assert.equal(resolveResourceUrl(resource({ url: '/api/v1/resources/42/file' })), 'http://localhost:8765/api/v1/resources/42/file')
+  } finally {
+    configureResourceMediaBrowser({ gatewayBaseURL: '' })
+  }
+})
+
+test('resolveResourceUrl keeps legacy API base config as a compatibility fallback', () => {
+  configureResourceMediaBrowser({ gatewayBaseURL: '', apiBaseURL: 'http://legacy.example' })
+  try {
+    assert.equal(resolveResourceUrl(resource({ url: '/api/v1/resources/42/file' })), 'http://legacy.example/api/v1/resources/42/file')
   } finally {
     configureResourceMediaBrowser({ apiBaseURL: '' })
   }

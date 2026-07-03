@@ -5,6 +5,7 @@ import {
   adapterParamsForCapabilities,
   buildAgentCompactParamContract,
   buildParamContractAudit,
+  nextOperationBuilderParam,
   parseParamDefs,
   serializeParamDefs,
   summarizeParamRuleTypes,
@@ -38,6 +39,28 @@ test('model param contract audit normalizes aliases and preserves rule fields', 
     aliasParams.map((param) => param.key),
     ['duration', 'image_size', 'prompt_strength', 'image_count', 'fixed_camera', 'audio'],
   )
+})
+
+test('operation param builder can add more than one param without adapter defaults', () => {
+  const first = nextOperationBuilderParam([], [])
+  const second = nextOperationBuilderParam([first], [])
+  const third = nextOperationBuilderParam([first, second], [])
+
+  assert.equal(first.key, 'aspect_ratio')
+  assert.equal(second.key, 'duration')
+  assert.equal(third.key, 'image_size')
+})
+
+test('operation param builder falls back to global templates after adapter params are exhausted', () => {
+  const adapterParams = [
+    { key: 'duration', label: 'Duration', type: 'select', options: ['5'] },
+  ] as ParamDef[]
+
+  const first = nextOperationBuilderParam([], adapterParams)
+  const second = nextOperationBuilderParam([first], adapterParams)
+
+  assert.equal(first.key, 'duration')
+  assert.equal(second.key, 'aspect_ratio')
 })
 
 test('model param contract audit summarizes rule types for admin preview', () => {
@@ -144,6 +167,31 @@ test('agent compact contract type accepts schema-derived fixture fields', () => 
 
   assert.deepEqual(frames?.enum, [29, 33, 37])
   assert.equal(frames?.description, 'Frame count must match 25 + 4n.')
+})
+
+test('agent compact param contract summarizes json schema annotations', () => {
+  const contract = buildAgentCompactParamContract([
+    {
+      key: 'image_count',
+      label: 'Image Count',
+      type: 'number',
+      min: 1,
+      max: 15,
+      json_schema: {
+        description: 'Seedream group generation supports at most 15 total images.',
+        enum: [1, 2, 3],
+        x_movscript_total_limit: {
+          input_kind: 'image',
+          output_param: 'image_count',
+          max_total: 15,
+        },
+      },
+    },
+  ] as ParamDef[])
+  const imageCount = contract.supported_params.find((param) => param.key === 'image_count')
+
+  assert.deepEqual(imageCount?.enum, [1, 2, 3])
+  assert.equal(imageCount?.description, 'Seedream group generation supports at most 15 total images.')
 })
 
 test('model param admin aliases normalize current provider parameter names', () => {

@@ -380,13 +380,13 @@ func vyroSeedance20JSONBody(req VideoRequest) (map[string]any, bool) {
 
 	medias := make([]map[string]string, 0, len(refs.images)+2)
 	for _, imageURL := range refs.images {
-		medias = append(medias, map[string]string{"type": "image", "url": imageURL})
+		medias = append(medias, map[string]string{"role": "image", "url": imageURL})
 	}
 	if refs.audio != "" {
-		medias = append(medias, map[string]string{"type": "audio", "url": refs.audio})
+		medias = append(medias, map[string]string{"role": "audio", "url": refs.audio})
 	}
 	if refs.video != "" {
-		medias = append(medias, map[string]string{"type": "video", "url": refs.video})
+		medias = append(medias, map[string]string{"role": "video", "url": refs.video})
 	}
 	body["medias"] = medias
 	return body, true

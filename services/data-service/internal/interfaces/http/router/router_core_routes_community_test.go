@@ -2,7 +2,7 @@
 
 package router
 
-func expectedEditionCoreRoutesForTest() []string {
+func expectedDistributionProfileCoreRoutesForTest() []string {
 	return []string{
 		"GET /api/v1/admin/debug/jobs",
 	}

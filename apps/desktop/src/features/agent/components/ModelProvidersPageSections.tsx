@@ -57,7 +57,7 @@ export function ModelProviderManagementLayers({
       <AgentConsoleStack spacing="loose">
         <AgentConsoleIntroRow>
           <AgentConsoleDescription>
-            社区版通过 Provider 和 route group 组织调用来源；Catalog Entry 保存模型身份、能力和参数，Route 保存 Catalog 到 Provider 通道的映射。
+            默认本地分发通过 Provider 和 route group 组织调用来源；Catalog Entry 保存模型身份、能力和参数，Route 保存 Catalog 到 Provider 通道的映射。
           </AgentConsoleDescription>
           <AgentConsoleToolbar>
             {MODEL_PROVIDER_LAYERS.map((layer) => (
@@ -75,7 +75,7 @@ export function ModelProviderManagementLayers({
                 </AgentConsoleLocalToolCopy>
                 <AgentConsoleLocalToolControls>
                   <AgentConsoleStatusBadge intent={activeLayer === layer.id ? 'success' : 'neutral'} emphasis="soft">
-                    {activeLayer === layer.id ? '当前' : layer.edition}
+                    {activeLayer === layer.id ? '当前' : layer.scope}
                   </AgentConsoleStatusBadge>
                 </AgentConsoleLocalToolControls>
               </AgentConsoleLocalToolHeader>
@@ -110,11 +110,11 @@ export function ModelProviderProvidersSection({
         <AgentConsoleStack spacing="loose">
           <AgentConsoleIntroRow>
             <AgentConsoleDescription>
-              Provider 是运行时来源层。社区版使用本地后端保存 API Key、base URL 和 adapter，并通过 route group 组织不同供应商组。
+              Provider 是运行时来源层。默认本地分发使用本机 runtime 保存 API Key、base URL 和 adapter，并通过 route group 组织不同供应商组。
             </AgentConsoleDescription>
             <AgentConsoleToolbar>
               <AgentConsoleStatusBadge intent="neutral" emphasis="soft">
-                backend / models
+                runtime / models
               </AgentConsoleStatusBadge>
             </AgentConsoleToolbar>
           </AgentConsoleIntroRow>

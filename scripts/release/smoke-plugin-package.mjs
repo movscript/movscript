@@ -8,6 +8,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -44,12 +45,14 @@ export function runSmokePluginPackageCli(root = repoRoot, env = process.env, arg
     installFirst: !(args.includes('--no-install') || env.MOVSCRIPT_PLUGIN_SMOKE_INSTALL_FIRST === '0'),
     keepTemp: args.includes('--keep-temp') || env.MOVSCRIPT_PLUGIN_SMOKE_KEEP_TEMP === '1',
     log,
+    previousArtifactPath: argValue(args, '--previous-artifact') ?? env.MOVSCRIPT_PLUGIN_SMOKE_PREVIOUS_ARTIFACT,
     spawn,
     timeoutMs: Number(argValue(args, '--timeout-ms') ?? env.MOVSCRIPT_PLUGIN_SMOKE_TIMEOUT_MS ?? defaultTimeoutMs),
   }).then((result) => {
     log(`Agent Plugin package smoke passed: ${result.artifactPath}`)
     log(`- install: ${result.installed ? 'temporary Home current bundle' : 'direct zip extraction'}`)
     log(`- gateway: ${result.gatewayBaseURL}`)
+    log(`- rollback: ${result.rollbackExercised ? 'current/previous exercised' : 'not requested'}`)
     log(`- tools: ${result.toolCount}`)
   }).catch((error) => {
     logError(error instanceof Error ? error.message : String(error))
@@ -65,11 +68,15 @@ export async function smokePluginPackage(root = repoRoot, options = {}) {
     installFirst = true,
     keepTemp = false,
     log = console.log,
+    previousArtifactPath = '',
     spawn = spawnSync,
     timeoutMs = defaultTimeoutMs,
   } = options
   const normalizedDataPlane = normalizeDataPlane(dataPlane)
   const artifact = resolvePluginArtifact(root, artifactPath)
+  const artifactVersion = pluginVersionFromArtifact(artifact)
+  const previousArtifact = previousArtifactPath ? resolvePluginArtifact(root, previousArtifactPath) : ''
+  const previousArtifactVersion = previousArtifact ? pluginVersionFromArtifact(previousArtifact) : ''
   const tempRoot = mkdtempSync(join(tmpdir(), 'movscript-plugin-smoke.'))
   const extractDir = join(tempRoot, 'plugin')
   const homeDir = join(tempRoot, 'home')
@@ -77,6 +84,11 @@ export async function smokePluginPackage(root = repoRoot, options = {}) {
   const gatewayPort = await reservePort()
   let pluginRoot = ''
   let cliRoot = ''
+  let currentInstalledRoot = ''
+  let previousInstalledRoot = ''
+  let lastGatewayBaseURL = ''
+  let lastToolCount = 0
+  let rollbackExercised = false
 
   try {
     mkdirSync(homeDir, { recursive: true })
@@ -86,12 +98,22 @@ export async function smokePluginPackage(root = repoRoot, options = {}) {
     writeFileSync(join(projectDir, 'project.json'), `${JSON.stringify({ title: 'Plugin Package Smoke' }, null, 2)}\n`, 'utf8')
 
     if (installFirst) {
+      if (previousArtifact) {
+        log(`[smoke-plugin] Installing previous ${basename(previousArtifact)} into temporary MovScript Home`)
+        runInstaller(root, previousArtifact, homeDir, env, spawn)
+        previousInstalledRoot = locateInstalledPluginRoot(homeDir, previousArtifactVersion)
+        validateInstalledHomeCliShim(homeDir)
+        validatePluginRoot(previousInstalledRoot, normalizedDataPlane)
+      }
       log(`[smoke-plugin] Installing ${basename(artifact)} into temporary MovScript Home`)
       runInstaller(root, artifact, homeDir, env, spawn)
-      pluginRoot = locateInstalledPluginRoot(homeDir)
+      pluginRoot = locateInstalledPluginRoot(homeDir, artifactVersion)
+      currentInstalledRoot = realpathSync(pluginRoot)
+      if (previousInstalledRoot) validateInstalledPreviousBundle(homeDir, previousInstalledRoot, previousArtifactVersion)
       validateInstalledHomeCliShim(homeDir)
       cliRoot = homeDir
     } else {
+      if (previousArtifact) throw new Error('--previous-artifact requires the installer path; remove --no-install to smoke rollback')
       mkdirSync(extractDir, { recursive: true })
       unzipArtifact(artifact, extractDir, spawn)
       pluginRoot = locatePluginRoot(extractDir)
@@ -110,61 +132,44 @@ export async function smokePluginPackage(root = repoRoot, options = {}) {
       MOVSCRIPT_LOCAL_NODE_GATEWAY_PORT: String(gatewayPort),
       MOVSCRIPT_LOCAL_DAEMON_DATA_PLANE: normalizedDataPlane,
     }
-    const start = runMovscript(cliRoot, [
-      'daemon',
-      'start',
-      '--home',
+    const currentSmoke = await startAndValidateDaemon({
+      cliRoot,
+      commandEnv,
+      dataPlane: normalizedDataPlane,
+      expectedVersion: artifactVersion,
       homeDir,
-      '--data-plane',
-      normalizedDataPlane,
-      '--idle-timeout',
-      '2m',
-      '--startup-timeout-ms',
-      String(timeoutMs),
-    ], commandEnv, spawn, timeoutMs + 10_000)
-    const startPayload = parseCommandJSON(start, 'daemon start')
-    assertEqual(startPayload.status, 'ready', 'daemon start status')
-    assertEqual(startPayload.dataPlane, normalizedDataPlane, 'daemon data plane')
-
-    const status = parseCommandJSON(
-      runMovscript(cliRoot, ['daemon', 'status', '--home', homeDir], commandEnv, spawn, 30_000),
-      'daemon status',
-    )
-    assertEqual(status.available, true, 'daemon status availability')
-    assertEqual(status.dataPlane, normalizedDataPlane, 'daemon status data plane')
-    assertRequiredServices(status, normalizedDataPlane)
-
-    const gatewayBaseURL = gatewayURL(homeDir)
-    const descriptor = await fetchJSON(`${gatewayBaseURL}/v1/runtime/descriptor`)
-    assertEqual(descriptor.schema, 'movscript.runtime-descriptor.v1', 'runtime descriptor schema')
-    assertEqual(descriptor.gateway?.canonicalPrefix, '/v1', 'runtime descriptor canonical prefix')
-    assertEqual(descriptor.gateway?.mcpEndpoint, `${gatewayBaseURL}/v1/mcp`, 'runtime descriptor MCP endpoint')
-    assertEqual(descriptor.runtime?.identity?.pluginVersion, pluginVersionFromArtifact(artifact), 'runtime descriptor plugin identity version')
-    if (typeof descriptor.runtime?.identity?.pluginRoot !== 'string' || !descriptor.runtime.identity.pluginRoot.trim()) {
-      throw new Error(`runtime descriptor did not expose pluginRoot identity: ${JSON.stringify(descriptor.runtime?.identity)}`)
-    }
-
-    const health = await fetchJSON(`${gatewayBaseURL}/v1/mcp/health`)
-    assertEqual(health.status, 'ok', 'daemon MCP health')
-    if (!Number.isFinite(Number(health.toolCount)) || Number(health.toolCount) <= 0) {
-      throw new Error(`daemon MCP health returned invalid toolCount: ${JSON.stringify(health)}`)
-    }
-
-    const tools = await fetchJSON(`${gatewayBaseURL}/v1/mcp`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 'tools', method: 'tools/list', params: {} }),
+      spawn,
+      timeoutMs,
     })
-    const toolNames = new Set((tools.result?.tools ?? []).map((tool) => tool?.name).filter(Boolean))
-    for (const requiredTool of ['runtime_daemon_status', 'domain_inspect']) {
-      if (!toolNames.has(requiredTool)) throw new Error(`daemon MCP tools/list is missing ${requiredTool}`)
+    lastGatewayBaseURL = currentSmoke.gatewayBaseURL
+    lastToolCount = currentSmoke.toolCount
+
+    if (previousArtifact) {
+      runMovscript(cliRoot, ['daemon', 'stop', '--home', homeDir, '--force'], commandEnv, spawn, 30_000)
+      log(`[smoke-plugin] Rolling Home current back to previous ${basename(previousArtifact)}`)
+      runInstallerRollback(root, homeDir, env, spawn)
+      pluginRoot = locateInstalledPluginRoot(homeDir, previousArtifactVersion, { expectedReason: 'rollback' })
+      validateInstalledPreviousBundle(homeDir, currentInstalledRoot, artifactVersion)
+      const rollbackSmoke = await startAndValidateDaemon({
+        cliRoot,
+        commandEnv,
+        dataPlane: normalizedDataPlane,
+        expectedVersion: previousArtifactVersion,
+        homeDir,
+        spawn,
+        timeoutMs,
+      })
+      lastGatewayBaseURL = rollbackSmoke.gatewayBaseURL
+      lastToolCount = rollbackSmoke.toolCount
+      rollbackExercised = true
     }
 
     return {
       artifactPath: artifact,
-      gatewayBaseURL,
+      gatewayBaseURL: lastGatewayBaseURL,
       installed: installFirst,
-      toolCount: toolNames.size,
+      rollbackExercised,
+      toolCount: lastToolCount,
     }
   } finally {
     if (cliRoot) {
@@ -241,6 +246,37 @@ function runInstaller(root, artifact, homeDir, env, spawn) {
   }
 }
 
+function runInstallerRollback(root, homeDir, env, spawn) {
+  const installer = resolve(root, 'install-plugin.sh')
+  if (!existsSync(installer)) throw new Error(`Plugin installer is missing: ${installer}`)
+  const result = spawn('sh', [
+    installer,
+    '--home',
+    homeDir,
+    '--provider',
+    'codex',
+    '--rollback',
+  ], {
+    cwd: root,
+    encoding: 'utf8',
+    env: {
+      ...env,
+      MOVSCRIPT_HOME: homeDir,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: 60_000,
+  })
+  if (result.error || result.status !== 0 || result.signal) {
+    throw new Error([
+      'Plugin installer rollback smoke failed',
+      result.error?.message,
+      `status=${result.status ?? 'none'} signal=${result.signal ?? 'none'}`,
+      String(result.stdout ?? '').trim(),
+      String(result.stderr ?? '').trim(),
+    ].filter(Boolean).join('\n'))
+  }
+}
+
 function unzipArtifact(artifact, extractDir, spawn) {
   const result = spawn('unzip', ['-q', artifact, '-d', extractDir], {
     encoding: 'utf8',
@@ -257,19 +293,39 @@ function unzipArtifact(artifact, extractDir, spawn) {
   }
 }
 
-function locateInstalledPluginRoot(homeDir) {
+function locateInstalledPluginRoot(homeDir, expectedVersion = '', options = {}) {
+  const expectedReason = options.expectedReason ?? 'install'
   const pluginStore = resolve(homeDir, 'plugins/movscript')
   const pluginRoot = resolve(pluginStore, 'current')
   const identityPath = resolve(pluginStore, 'current.identity')
   const marketplacePath = resolve(homeDir, 'provider/codex/marketplace.json')
+  const codexPluginLink = resolve(homeDir, 'provider/codex/plugins/movscript')
   if (!existsSync(pluginRoot)) throw new Error(`Plugin installer did not create current pointer: ${pluginRoot}`)
   if (!existsSync(identityPath)) throw new Error(`Plugin installer did not write current.identity: ${identityPath}`)
   if (!existsSync(marketplacePath)) throw new Error(`Plugin installer did not write Codex marketplace: ${marketplacePath}`)
-  const identity = readFileSync(identityPath, 'utf8')
-  if (!/^schema=movscript\.agent-plugin-bundle\.v1$/m.test(identity)) {
-    throw new Error(`Plugin installer wrote an invalid bundle identity: ${identityPath}`)
+  if (!existsSync(codexPluginLink)) throw new Error(`Plugin installer did not write Codex plugin link: ${codexPluginLink}`)
+  const currentTarget = realpathSync(pluginRoot)
+  const identity = readBundleIdentity(identityPath)
+  assertEqual(identity.schema, 'movscript.agent-plugin-bundle.v1', 'installed bundle identity schema')
+  if (expectedVersion) assertEqual(identity.version, expectedVersion, 'installed bundle identity version')
+  assertEqual(resolve(identity.currentLink ?? ''), pluginRoot, 'installed bundle identity current link')
+  assertEqual(realpathSync(identity.pluginRoot ?? ''), currentTarget, 'installed bundle identity plugin root')
+  assertEqual(realpathSync(codexPluginLink), currentTarget, 'Codex marketplace plugin link target')
+  if (typeof identity.bundleHash !== 'string' || !identity.bundleHash.trim()) {
+    throw new Error(`Plugin installer wrote current.identity without bundleHash: ${identityPath}`)
   }
+  if (identity.reason !== expectedReason) throw new Error(`Plugin installer wrote unexpected identity reason: ${identity.reason}`)
   return pluginRoot
+}
+
+function validateInstalledPreviousBundle(homeDir, expectedRoot, expectedVersion = '') {
+  const previousLink = resolve(homeDir, 'plugins/movscript/previous')
+  if (!existsSync(previousLink)) throw new Error(`Plugin installer did not retain previous pointer: ${previousLink}`)
+  assertEqual(realpathSync(previousLink), realpathSync(expectedRoot), 'Home previous plugin link target')
+  if (expectedVersion) {
+    const previousManifest = readJSON(resolve(previousLink, 'manifest.runtime.json'))
+    assertEqual(previousManifest.version, expectedVersion, 'Home previous runtime manifest version')
+  }
 }
 
 function validateInstalledHomeCliShim(homeDir) {
@@ -294,6 +350,20 @@ function locatePluginRoot(extractDir) {
   return found
 }
 
+function readJSON(path) {
+  return JSON.parse(readFileSync(path, 'utf8'))
+}
+
+function readBundleIdentity(path) {
+  const fields = {}
+  for (const line of readFileSync(path, 'utf8').split(/\r?\n/)) {
+    const index = line.indexOf('=')
+    if (index <= 0) continue
+    fields[line.slice(0, index)] = line.slice(index + 1)
+  }
+  return fields
+}
+
 function validatePluginRoot(pluginRoot, dataPlane) {
   const required = [
     '.mcp.json',
@@ -312,6 +382,17 @@ function validatePluginRoot(pluginRoot, dataPlane) {
   const missing = required.filter((path) => !existsSync(resolve(pluginRoot, path)))
   if (missing.length > 0) {
     throw new Error(`Extracted plugin smoke artifact is missing required paths:\n${missing.map((path) => `- ${path}`).join('\n')}`)
+  }
+  const runtimeManifest = readJSON(resolve(pluginRoot, 'manifest.runtime.json'))
+  assertEqual(runtimeManifest.schema, 'movscript.runtime-bundle.v1', 'runtime manifest schema')
+  assertEqual(runtimeManifest.apiVersion, '1.0', 'runtime manifest API version')
+  assertEqual(runtimeManifest.minDaemonApiVersion, '1.0', 'runtime manifest minimum daemon API version')
+  assertEqual(runtimeManifest.bundleHashAlgorithm, 'sha256', 'runtime manifest hash algorithm')
+  if (typeof runtimeManifest.bundleHash !== 'string' || !runtimeManifest.bundleHash.trim()) {
+    throw new Error(`runtime manifest did not expose bundleHash: ${JSON.stringify(runtimeManifest)}`)
+  }
+  for (const capability of ['cli', 'mcp', 'daemon', 'project', 'timeline', 'canvas', 'resources', 'editing', 'media']) {
+    assertEqual(runtimeManifest.capabilities?.[capability], true, `runtime manifest capability ${capability}`)
   }
 }
 
@@ -368,6 +449,76 @@ function assertRequiredServices(status, dataPlane) {
   ]
   const missing = required.filter((serviceName) => !services.has(serviceName))
   if (missing.length > 0) throw new Error(`Plugin package smoke missing ready services: ${missing.join(', ')}`)
+}
+
+async function startAndValidateDaemon({
+  cliRoot,
+  commandEnv,
+  dataPlane,
+  expectedVersion,
+  homeDir,
+  spawn,
+  timeoutMs,
+}) {
+  const start = runMovscript(cliRoot, [
+    'daemon',
+    'start',
+    '--home',
+    homeDir,
+    '--data-plane',
+    dataPlane,
+    '--idle-timeout',
+    '2m',
+    '--startup-timeout-ms',
+    String(timeoutMs),
+  ], commandEnv, spawn, timeoutMs + 10_000)
+  const startPayload = parseCommandJSON(start, 'daemon start')
+  assertEqual(startPayload.status, 'ready', 'daemon start status')
+  assertEqual(startPayload.dataPlane, dataPlane, 'daemon data plane')
+
+  const status = parseCommandJSON(
+    runMovscript(cliRoot, ['daemon', 'status', '--home', homeDir], commandEnv, spawn, 30_000),
+    'daemon status',
+  )
+  assertEqual(status.available, true, 'daemon status availability')
+  assertEqual(status.dataPlane, dataPlane, 'daemon status data plane')
+  assertRequiredServices(status, dataPlane)
+
+  const gatewayBaseURL = gatewayURL(homeDir)
+  const descriptor = await fetchJSON(`${gatewayBaseURL}/v1/runtime/descriptor`)
+  assertEqual(descriptor.schema, 'movscript.runtime-descriptor.v1', 'runtime descriptor schema')
+  assertEqual(descriptor.apiVersion, '1.0', 'runtime descriptor API version')
+  assertEqual(descriptor.gateway?.canonicalPrefix, '/v1', 'runtime descriptor canonical prefix')
+  assertEqual(descriptor.gateway?.mcpEndpoint, `${gatewayBaseURL}/v1/mcp`, 'runtime descriptor MCP endpoint')
+  assertEqual(descriptor.runtime?.identity?.pluginVersion, expectedVersion, 'runtime descriptor plugin identity version')
+  if (typeof descriptor.runtime?.identity?.pluginRoot !== 'string' || !descriptor.runtime.identity.pluginRoot.trim()) {
+    throw new Error(`runtime descriptor did not expose pluginRoot identity: ${JSON.stringify(descriptor.runtime?.identity)}`)
+  }
+  if (typeof descriptor.bundleHash !== 'string' || !descriptor.bundleHash.trim()) {
+    throw new Error(`runtime descriptor did not expose bundleHash: ${JSON.stringify(descriptor)}`)
+  }
+  assertEqual(descriptor.compatibility?.kind, 'same', 'runtime descriptor bundle compatibility kind')
+  assertEqual(descriptor.compatibility?.compatible, true, 'runtime descriptor bundle compatibility result')
+
+  const health = await fetchJSON(`${gatewayBaseURL}/v1/mcp/health`)
+  assertEqual(health.status, 'ok', 'daemon MCP health')
+  if (!Number.isFinite(Number(health.toolCount)) || Number(health.toolCount) <= 0) {
+    throw new Error(`daemon MCP health returned invalid toolCount: ${JSON.stringify(health)}`)
+  }
+
+  const tools = await fetchJSON(`${gatewayBaseURL}/v1/mcp`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 'tools', method: 'tools/list', params: {} }),
+  })
+  const toolNames = new Set((tools.result?.tools ?? []).map((tool) => tool?.name).filter(Boolean))
+  for (const requiredTool of ['runtime_daemon_status', 'domain_inspect']) {
+    if (!toolNames.has(requiredTool)) throw new Error(`daemon MCP tools/list is missing ${requiredTool}`)
+  }
+  return {
+    gatewayBaseURL,
+    toolCount: toolNames.size,
+  }
 }
 
 function gatewayURL(homeDir) {
@@ -447,6 +598,7 @@ function helpText() {
     '  --artifact <zip>          Plugin zip to smoke. Defaults to plugins/movscript/release/movscript-agent-plugin-*.zip.',
     '  --data-plane <kind>       local, cloud, or external. Defaults to local.',
     '  --timeout-ms <ms>         Daemon startup timeout. Defaults to 120000.',
+    '  --previous-artifact <zip> Previous plugin zip; enables current/previous rollback smoke.',
     '  --no-install              Skip install-plugin.sh and smoke the extracted zip directly.',
     '  --keep-temp               Keep extracted plugin, Home, and project directories.',
   ].join('\n')

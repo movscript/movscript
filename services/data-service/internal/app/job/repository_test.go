@@ -266,6 +266,7 @@ func TestServiceEnqueueGenerationUsesCatalogRouteWithoutLegacyModelConfig(t *tes
 		IsEnabled:             true,
 		Capabilities:          ai.CapabilityFamilyImageGeneration,
 		ModelCapabilitiesJSON: `{"image_generation":{"operations":["text_to_image"]}}`,
+		SupportedParams:       testOperationSupportedParamsProfile(ai.ImageOperationTextToImage),
 	}
 	if err := db.Create(&defaultEntry).Error; err != nil {
 		t.Fatalf("create default catalog entry: %v", err)
@@ -276,6 +277,7 @@ func TestServiceEnqueueGenerationUsesCatalogRouteWithoutLegacyModelConfig(t *tes
 		IsEnabled:             true,
 		Capabilities:          ai.CapabilityFamilyImageGeneration,
 		ModelCapabilitiesJSON: `{"image_generation":{"operations":["text_to_image"]}}`,
+		SupportedParams:       testOperationSupportedParamsProfile(ai.ImageOperationTextToImage),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -309,9 +311,10 @@ func TestServiceEnqueueGenerationUsesCatalogRouteWithoutLegacyModelConfig(t *tes
 	svc := NewService(db, ai.NewAIService(db, ai.NewRegistry(db, nil)))
 	ctx := ai.WithProviderRouteGroup(context.Background(), "priority")
 	job, err := svc.EnqueueGeneration(ctx, EnqueueInput{
-		UserID:  1,
-		ModelID: "image-fast",
-		JobType: domainjob.JobTypeImage,
+		UserID:      1,
+		ModelID:     "image-fast",
+		JobType:     domainjob.JobTypeImage,
+		ExtraParams: `{"size":"1024x1024","source":"workspace_submit"}`,
 		GenerationIntent: &GenerationIntentInput{
 			Capability: ai.CapabilityFamilyImageGeneration,
 			Operation:  ai.ImageOperationTextToImage,
@@ -335,6 +338,19 @@ func TestServiceEnqueueGenerationUsesCatalogRouteWithoutLegacyModelConfig(t *tes
 	}
 	if !strings.Contains(job.RequestContext, "provider-image-v2") || !strings.Contains(job.RequestContext, model.ModelRouteSourceRelayGateway) {
 		t.Fatalf("request context = %s, want provider model and relay gateway source", job.RequestContext)
+	}
+	var params map[string]any
+	if err := json.Unmarshal([]byte(job.ExtraParams), &params); err != nil {
+		t.Fatalf("decode job extra params: %v; raw=%s", err, job.ExtraParams)
+	}
+	if params["image_size"] != "1024x1024" {
+		t.Fatalf("job extra params = %#v, want canonical image_size", params)
+	}
+	if _, ok := params["size"]; ok {
+		t.Fatalf("job extra params = %#v, must not keep legacy size alias", params)
+	}
+	if _, ok := params["source"]; ok {
+		t.Fatalf("job extra params = %#v, must not keep metadata source", params)
 	}
 }
 

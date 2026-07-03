@@ -8,6 +8,7 @@ import (
 	"github.com/movscript/movscript/internal/infra/ai"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -265,25 +266,39 @@ func (w *Worker) completeVideoSuccess(ctx context.Context, job *persistencemodel
 }
 
 func (w *Worker) completeProviderResult(ctx context.Context, job *persistencemodel.Job, result providerResult, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
+	return w.completeProviderResults(ctx, job, []providerResult{result}, sm, debugResult)
+}
+
+func (w *Worker) completeProviderResults(ctx context.Context, job *persistencemodel.Job, results []providerResult, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
 	sm.enter(StateValidatingProviderData, "validate provider result URL")
 	if err := w.abortIfCancelled(ctx, job, sm); err != nil {
 		return err
 	}
-	result.URL = strings.TrimSpace(result.URL)
-	if err := validateProviderResultURL(result.URL); err != nil {
-		return err
+	results = normalizeProviderResults(results)
+	if len(results) == 0 {
+		return fmt.Errorf("no result URL returned by provider")
 	}
-	sm.succeed("provider returned downloadable result")
+	for _, result := range results {
+		if err := validateProviderResultURL(result.URL); err != nil {
+			return err
+		}
+	}
+	sm.succeed(providerResultsReturnedMessage(len(results)))
 
-	sm.enter(StateSavingResult, "download and store provider result")
+	sm.enter(StateSavingResult, providerResultsSavingMessage(len(results)))
 	if err := w.abortIfCancelled(ctx, job, sm); err != nil {
 		return err
 	}
-	resourceID, err := w.saveResult(ctx, job, result.URL, result.MimeType)
-	if err != nil {
-		return fmt.Errorf("save result: %w", err)
+	resourceIDs := make([]uint, 0, len(results))
+	for _, result := range results {
+		resourceID, err := w.saveResult(ctx, job, result.URL, result.MimeType)
+		if err != nil {
+			return fmt.Errorf("save result: %w", err)
+		}
+		resourceIDs = append(resourceIDs, resourceID)
 	}
-	sm.succeed(fmt.Sprintf("stored resource #%d", resourceID))
+	primaryResourceID := resourceIDs[0]
+	sm.succeed(storedResourcesMessage(resourceIDs))
 
 	sm.enter(StatePersistingSuccess, "mark job succeeded")
 	if err := w.abortIfCancelled(ctx, job, sm); err != nil {
@@ -292,7 +307,7 @@ func (w *Worker) completeProviderResult(ctx context.Context, job *persistencemod
 	now := time.Now()
 	updates := map[string]any{
 		"status":             StatusSucceeded,
-		"output_resource_id": resourceID,
+		"output_resource_id": primaryResourceID,
 		"finished_at":        &now,
 		"locked_by":          "",
 		"lease_until":        nil,
@@ -307,14 +322,49 @@ func (w *Worker) completeProviderResult(ctx context.Context, job *persistencemod
 		sm.cancel("job cancelled")
 		return errJobCancelled
 	}
-	if err := appcontentcandidate.SyncJobSucceeded(ctx, w.db, job, resourceID); err != nil {
+	if err := appcontentcandidate.SyncJobSucceededWithResources(ctx, w.db, job, resourceIDs); err != nil {
 		log.Printf("[job] job #%d succeeded but content candidate sync failed: %v", job.ID, err)
 	}
 	sm.succeed("job marked succeeded")
-	sm.finish(StateSucceeded, fmt.Sprintf("resource #%d", resourceID))
-	w.publishGenerationJobStatus(job, fmt.Sprintf("resource #%d", resourceID))
-	log.Printf("[job] job #%d succeeded → resource #%d", job.ID, resourceID)
+	message := storedResourcesMessage(resourceIDs)
+	sm.finish(StateSucceeded, message)
+	w.publishGenerationJobStatus(job, message)
+	log.Printf("[job] job #%d succeeded → %s", job.ID, message)
 	return nil
+}
+
+func normalizeProviderResults(results []providerResult) []providerResult {
+	out := make([]providerResult, 0, len(results))
+	for _, result := range results {
+		result.URL = strings.TrimSpace(result.URL)
+		out = append(out, result)
+	}
+	return out
+}
+
+func providerResultsReturnedMessage(count int) string {
+	if count == 1 {
+		return "provider returned downloadable result"
+	}
+	return fmt.Sprintf("provider returned %d downloadable results", count)
+}
+
+func providerResultsSavingMessage(count int) string {
+	if count == 1 {
+		return "download and store provider result"
+	}
+	return fmt.Sprintf("download and store %d provider results", count)
+}
+
+func storedResourcesMessage(resourceIDs []uint) string {
+	if len(resourceIDs) == 1 {
+		return fmt.Sprintf("resource #%d", resourceIDs[0])
+	}
+	labels := make([]string, 0, len(resourceIDs))
+	for _, resourceID := range resourceIDs {
+		labels = append(labels, "#"+strconv.FormatUint(uint64(resourceID), 10))
+	}
+	return fmt.Sprintf("%d resources (%s)", len(resourceIDs), strings.Join(labels, ", "))
 }
 
 func (w *Worker) completeProviderBytes(ctx context.Context, job *persistencemodel.Job, data []byte, mimeType string, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {

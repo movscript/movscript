@@ -104,7 +104,7 @@ func RegisteredMigrations() []Migration {
 			Up:      migrateModelCatalogInputImageField,
 		},
 	}
-	return append(core, editionMigrations()...)
+	return append(core, distributionProfileMigrations()...)
 }
 
 func migrateBaselineSchema(db *gorm.DB) error {
@@ -621,7 +621,7 @@ func RunMigrations(db *gorm.DB) error {
 	if err := db.AutoMigrate(&AppliedMigration{}); err != nil {
 		return fmt.Errorf("create schema_migrations: %w", err)
 	}
-	if err := editionBeforeMigrations(db); err != nil {
+	if err := distributionProfileBeforeMigrations(db); err != nil {
 		return err
 	}
 
@@ -1006,6 +1006,6 @@ func allModels() []any {
 		&persistencemodel.UserGroupMember{},
 		&persistencemodel.OrgInvitation{},
 	}
-	entities = editionCoreSchemaModels(entities)
+	entities = distributionProfileCoreSchemaModels(entities)
 	return append(entities, runtimeMigrationModels()...)
 }

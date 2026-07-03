@@ -1101,7 +1101,7 @@ func (a *VolcenAdapter) GenerateAudio(ctx context.Context, req media.AudioGenera
 	createReq := buildVolcenAudioTaskRequest(req, prompt)
 	debugBody := map[string]any{
 		"model":   createReq.Model,
-		"content": volcenVideoDebugContent(prompt, nil, "", ""),
+		"content": volcenVideoDebugContent(prompt, nil, nil, nil),
 	}
 	if createReq.Duration != nil {
 		debugBody["duration"] = *createReq.Duration
@@ -1365,11 +1365,11 @@ func buildVolcenVideoTaskRequest(req VideoRequest) (arkmodel.CreateContentGenera
 		})
 	}
 
-	videoURL, err := volcenVideoURL(req)
+	videoURLs, err := volcenVideoURLs(req)
 	if err != nil {
 		return arkmodel.CreateContentGenerationTaskRequest{}, nil, err
 	}
-	if videoURL != "" {
+	for _, videoURL := range videoURLs {
 		role := volcenRoleReferenceVideo
 		content = append(content, &arkmodel.CreateContentGenerationContentItem{
 			Type:     arkmodel.ContentGenerationContentItemTypeVideo,
@@ -1378,11 +1378,11 @@ func buildVolcenVideoTaskRequest(req VideoRequest) (arkmodel.CreateContentGenera
 		})
 	}
 
-	audioURL, err := volcenAudioURL(req)
+	audioURLs, err := volcenAudioURLs(req)
 	if err != nil {
 		return arkmodel.CreateContentGenerationTaskRequest{}, nil, err
 	}
-	if audioURL != "" {
+	for _, audioURL := range audioURLs {
 		role := volcenRoleReferenceAudio
 		content = append(content, &arkmodel.CreateContentGenerationContentItem{
 			Type:     arkmodel.ContentGenerationContentItemTypeAudio,
@@ -1434,13 +1434,19 @@ func buildVolcenVideoTaskRequest(req VideoRequest) (arkmodel.CreateContentGenera
 		expires := int64(req.ExecutionExpiresAfter)
 		createReq.ExecutionExpiresAfter = &expires
 	}
+	if req.Priority > 0 {
+		createReq.ExtraBody = arkmodel.ExtraBody{"priority": req.Priority}
+	}
+	if req.Workspace != nil {
+		createReq.Draft = req.Workspace
+	}
 	if req.WebSearch {
 		createReq.Tools = []*arkmodel.ContentGenerationTool{{Type: arkmodel.ToolTypeWebSearch}}
 	}
 
 	debugBody := map[string]any{
 		"model":   req.Model,
-		"content": volcenVideoDebugContent(req.Prompt, imageURLs, videoURL, audioURL),
+		"content": volcenVideoDebugContent(req.Prompt, imageURLs, videoURLs, audioURLs),
 	}
 	if bindings := volcenReferenceAssetBindings(req.ReferenceAssets); len(bindings) > 0 {
 		debugBody["reference_asset_bindings"] = bindings
@@ -1477,8 +1483,11 @@ func buildVolcenVideoTaskRequest(req VideoRequest) (arkmodel.CreateContentGenera
 	if req.ExecutionExpiresAfter > 0 {
 		debugBody["execution_expires_after"] = req.ExecutionExpiresAfter
 	}
+	if req.Priority > 0 {
+		debugBody["priority"] = req.Priority
+	}
 	if req.Workspace != nil {
-		debugBody["workspace"] = *req.Workspace
+		debugBody["draft"] = *req.Workspace
 	}
 	if req.WebSearch {
 		debugBody["tools"] = []map[string]any{{"type": "web_search"}}
@@ -1664,14 +1673,30 @@ func volcenVideoImageURLs(req VideoRequest) []string {
 	return urls
 }
 
-func volcenVideoURL(req VideoRequest) (string, error) {
-	if req.InputVideo != "" {
-		return req.InputVideo, nil
+func volcenVideoURLs(req VideoRequest) ([]string, error) {
+	urls := compactTrimmed(req.InputVideos)
+	urls = appendUniqueTrimmed(urls, req.InputVideo)
+	if len(req.InputVideoDataList) > 0 {
+		for i := range req.InputVideoDataList {
+			url, err := volcenVideoURLFromData(&req.InputVideoDataList[i])
+			if err != nil {
+				return nil, err
+			}
+			urls = appendUniqueTrimmed(urls, url)
+		}
+		return urls, nil
 	}
-	if req.InputVideoData == nil {
+	url, err := volcenVideoURLFromData(req.InputVideoData)
+	if err != nil {
+		return nil, err
+	}
+	return appendUniqueTrimmed(urls, url), nil
+}
+
+func volcenVideoURLFromData(vd *MediaData) (string, error) {
+	if vd == nil {
 		return "", nil
 	}
-	vd := req.InputVideoData
 	if vd.PresignedURL != "" {
 		return vd.PresignedURL, nil
 	}
@@ -1684,14 +1709,30 @@ func volcenVideoURL(req VideoRequest) (string, error) {
 	return "", nil
 }
 
-func volcenAudioURL(req VideoRequest) (string, error) {
-	if req.InputAudio != "" {
-		return req.InputAudio, nil
+func volcenAudioURLs(req VideoRequest) ([]string, error) {
+	urls := compactTrimmed(req.InputAudios)
+	urls = appendUniqueTrimmed(urls, req.InputAudio)
+	if len(req.InputAudioDataList) > 0 {
+		for i := range req.InputAudioDataList {
+			url, err := volcenAudioURLFromData(&req.InputAudioDataList[i])
+			if err != nil {
+				return nil, err
+			}
+			urls = appendUniqueTrimmed(urls, url)
+		}
+		return urls, nil
 	}
-	if req.InputAudioData == nil {
+	url, err := volcenAudioURLFromData(req.InputAudioData)
+	if err != nil {
+		return nil, err
+	}
+	return appendUniqueTrimmed(urls, url), nil
+}
+
+func volcenAudioURLFromData(ad *MediaData) (string, error) {
+	if ad == nil {
 		return "", nil
 	}
-	ad := req.InputAudioData
 	if ad.PresignedURL != "" {
 		return ad.PresignedURL, nil
 	}
@@ -1701,7 +1742,7 @@ func volcenAudioURL(req VideoRequest) (string, error) {
 	return "", nil
 }
 
-func volcenVideoDebugContent(prompt string, imageURLs []string, videoURL, audioURL string) []map[string]any {
+func volcenVideoDebugContent(prompt string, imageURLs []string, videoURLs []string, audioURLs []string) []map[string]any {
 	items := []map[string]any{{"type": "text", "text": prompt}}
 	for _, url := range imageURLs {
 		items = append(items, map[string]any{
@@ -1710,14 +1751,14 @@ func volcenVideoDebugContent(prompt string, imageURLs []string, videoURL, audioU
 			"role":      volcenRoleReferenceImage,
 		})
 	}
-	if videoURL != "" {
+	for _, videoURL := range videoURLs {
 		items = append(items, map[string]any{
 			"type":      "video_url",
 			"video_url": map[string]any{"url": videoURL},
 			"role":      volcenRoleReferenceVideo,
 		})
 	}
-	if audioURL != "" {
+	for _, audioURL := range audioURLs {
 		items = append(items, map[string]any{
 			"type":      "audio_url",
 			"audio_url": map[string]any{"url": audioURL},

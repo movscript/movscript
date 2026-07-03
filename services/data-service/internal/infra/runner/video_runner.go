@@ -70,12 +70,15 @@ func (w *Worker) buildVideoRequest(job *persistencemodel.Job, params generationP
 		ReturnLastFrame:       params.BoolPtr("return_last_frame"),
 		ServiceTier:           params.String("service_tier"),
 		ExecutionExpiresAfter: params.Int("execution_expires_after"),
+		Priority:              params.Int("priority"),
 		Workspace:             params.BoolPtr("workspace"),
 		WebSearch:             params.Bool("web_search"),
 		MovementAmplitude:     params.String("movement_amplitude"),
 		OffPeak:               params.BoolPtr("off_peak"),
 		Payload:               params.String("payload"),
 		InputImageDataList:    imageData,
+		InputVideoDataList:    videoData,
+		InputAudioDataList:    audioData,
 		ReferenceAssets:       referenceAssets,
 	}
 	if len(videoData) > 0 {
@@ -310,11 +313,17 @@ func applyCertifiedProviderAssetsToVideoRequest(certifiedAssets []certifiedProvi
 		}
 		switch providerAssetModality(asset, imageIDs, videoIDs, audioIDs) {
 		case "video":
+			if !hasString(req.InputVideos, assetURI) {
+				req.InputVideos = append(req.InputVideos, assetURI)
+			}
 			if req.InputVideo == "" {
 				req.InputVideo = assetURI
 			}
 			mappedVideoIDs[asset.ResourceID] = true
 		case "audio":
+			if !hasString(req.InputAudios, assetURI) {
+				req.InputAudios = append(req.InputAudios, assetURI)
+			}
 			if req.InputAudio == "" {
 				req.InputAudio = assetURI
 			}
@@ -329,11 +338,23 @@ func applyCertifiedProviderAssetsToVideoRequest(certifiedAssets []certifiedProvi
 	if len(mappedImageIDs) > 0 {
 		req.InputImageDataList = filterUnmappedMediaData(req.InputImageDataList, mappedImageIDs)
 	}
+	if len(mappedVideoIDs) > 0 {
+		req.InputVideoDataList = filterUnmappedMediaData(req.InputVideoDataList, mappedVideoIDs)
+	}
+	if len(mappedAudioIDs) > 0 {
+		req.InputAudioDataList = filterUnmappedMediaData(req.InputAudioDataList, mappedAudioIDs)
+	}
 	if req.InputVideoData != nil && mappedVideoIDs[req.InputVideoData.ResourceID] {
 		req.InputVideoData = nil
 	}
 	if req.InputAudioData != nil && mappedAudioIDs[req.InputAudioData.ResourceID] {
 		req.InputAudioData = nil
+	}
+	if req.InputVideoData == nil && len(req.InputVideoDataList) > 0 {
+		req.InputVideoData = &req.InputVideoDataList[0]
+	}
+	if req.InputAudioData == nil && len(req.InputAudioDataList) > 0 {
+		req.InputAudioData = &req.InputAudioDataList[0]
 	}
 }
 

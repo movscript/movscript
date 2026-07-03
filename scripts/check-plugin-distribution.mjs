@@ -18,6 +18,7 @@ const mirroredPaths = [
   'skills',
   'README.md',
 ]
+const runtimeApiVersion = '1.0'
 const args = new Set(process.argv.slice(2))
 const write = args.has('--write')
 const check = args.has('--check') || !write
@@ -73,14 +74,30 @@ function distributionDifferences() {
   return errors
 }
 
-function expectedRuntimeManifest(generatedAt = new Date().toISOString()) {
+function expectedRuntimeManifest(pluginDir = distributionDir, generatedAt = new Date().toISOString()) {
   return {
+    schema: 'movscript.runtime-bundle.v1',
     appId: 'plugin',
     applicationId: 'movscript.agent-plugin',
     artifact: 'movscript-agent-plugin',
     version: String(rootPackage.version || pluginPackage.version || '0.0.0'),
     packageName: pluginPackage.name,
     generatedAt,
+    apiVersion: runtimeApiVersion,
+    minDaemonApiVersion: runtimeApiVersion,
+    bundleHash: pluginBundleHash(pluginDir),
+    bundleHashAlgorithm: 'sha256',
+    capabilities: {
+      cli: true,
+      mcp: true,
+      daemon: true,
+      project: true,
+      timeline: true,
+      canvas: true,
+      resources: true,
+      editing: true,
+      media: true,
+    },
     mcpServer: 'movscript',
     entrypoint: './bin/movscript',
     mcpArgs: ['mcp', 'stdio'],
@@ -91,7 +108,7 @@ function expectedRuntimeManifest(generatedAt = new Date().toISOString()) {
 }
 
 function writeRuntimeManifest(pluginDir) {
-  writeFileSync(resolve(pluginDir, 'manifest.runtime.json'), `${JSON.stringify(expectedRuntimeManifest(), null, 2)}\n`, 'utf8')
+  writeFileSync(resolve(pluginDir, 'manifest.runtime.json'), `${JSON.stringify(expectedRuntimeManifest(pluginDir), null, 2)}\n`, 'utf8')
 }
 
 function validateRuntimeManifest(pluginDir, errors) {
@@ -101,16 +118,21 @@ function validateRuntimeManifest(pluginDir, errors) {
     return
   }
   const actual = readJSON(manifestPath)
-  const expected = expectedRuntimeManifest(actual.generatedAt)
+  const expected = expectedRuntimeManifest(pluginDir, actual.generatedAt)
   if (Object.hasOwn(actual, 'legacyCliEntrypoint')) {
     errors.push('manifest.runtime.json must not declare legacyCliEntrypoint')
   }
   const fields = [
+    'schema',
     'appId',
     'applicationId',
     'artifact',
     'version',
     'packageName',
+    'apiVersion',
+    'minDaemonApiVersion',
+    'bundleHash',
+    'bundleHashAlgorithm',
     'mcpServer',
     'entrypoint',
     'cliEntrypoint',
@@ -125,6 +147,9 @@ function validateRuntimeManifest(pluginDir, errors) {
     if (JSON.stringify(actual[field]) !== JSON.stringify(expected[field])) {
       errors.push(`manifest.runtime.json ${field} is ${JSON.stringify(actual[field])}, expected ${JSON.stringify(expected[field])}`)
     }
+  }
+  if (JSON.stringify(actual.capabilities) !== JSON.stringify(expected.capabilities)) {
+    errors.push(`manifest.runtime.json capabilities is ${JSON.stringify(actual.capabilities)}, expected ${JSON.stringify(expected.capabilities)}`)
   }
 }
 
@@ -163,6 +188,49 @@ function visibleEntries(path) {
 
 function fileHash(path) {
   return createHash('sha256').update(readFileSync(path)).digest('hex')
+}
+
+function pluginBundleHash(pluginDir) {
+  const hash = createHash('sha256')
+  for (const file of pluginBundleFiles(pluginDir)) {
+    hash.update(file)
+    hash.update('\0')
+    hash.update(readFileSync(resolve(pluginDir, file)))
+    hash.update('\0')
+  }
+  return hash.digest('hex')
+}
+
+function pluginBundleFiles(pluginDir) {
+  const roots = [
+    '.codex-plugin',
+    '.provider-plugin',
+    '.mcp.json',
+    'assets',
+    'bin',
+    'runtime',
+    'skills',
+    'README.md',
+  ]
+  const files = []
+  for (const rootPath of roots) {
+    const absolute = resolve(pluginDir, rootPath)
+    if (!existsSync(absolute)) continue
+    collectBundleFiles(pluginDir, rootPath, files)
+  }
+  return files.sort()
+}
+
+function collectBundleFiles(pluginDir, relativePath, files) {
+  const absolute = resolve(pluginDir, relativePath)
+  const stat = statSync(absolute)
+  if (stat.isDirectory()) {
+    for (const entry of visibleEntries(absolute)) {
+      collectBundleFiles(pluginDir, `${relativePath}/${entry}`, files)
+    }
+    return
+  }
+  files.push(relativePath)
 }
 
 function readJSON(path) {

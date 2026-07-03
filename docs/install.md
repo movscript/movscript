@@ -39,14 +39,14 @@ sh install-plugin.sh --rollback-version 0.1.30
 
 This path is for users who want an Agent/provider entry first.
 
-## MovScript Home And Editions
+## MovScript Home And Distribution Profiles
 
-Community installs use one MovScript Home shared by Desktop, Agent Plugin, and CLI:
+Default local installs use one MovScript Home shared by Desktop, Agent Plugin, and CLI:
 
 - macOS/Linux: `~/.movscript`
 - Windows: `%LOCALAPPDATA%\MovScript\Home`
 
-Set `MOVSCRIPT_HOME` only when you intentionally want a separate local data root. Enterprise builds must use a separate Home, such as `~/.movscript-enterprise` on macOS/Linux or `%LOCALAPPDATA%\MovScript Enterprise\Home` on Windows, so local databases, provider credentials, runtime endpoint records, and plugin bundles do not mix with Community installs.
+Set `MOVSCRIPT_HOME` only when you intentionally want a separate local data root. Self-managed or custom distribution profiles must use a separate Home, such as `~/.movscript-self-hosted` on macOS/Linux or `%LOCALAPPDATA%\MovScript Self Hosted\Home` on Windows, so local databases, provider credentials, runtime endpoint records, and plugin bundles do not mix with the default local install.
 
 ## Desktop Install
 

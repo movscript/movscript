@@ -9,7 +9,7 @@ import (
 	domainhub "github.com/movscript/movscript/internal/domain/hub"
 )
 
-func TestCommunityServiceEditionHooksAreNoOp(t *testing.T) {
+func TestCommunityServiceDistributionProfileHooksAreNoOp(t *testing.T) {
 	service := &Service{}
 	row := domainhub.HubPackage{
 		PackageID: "demo",
@@ -17,26 +17,26 @@ func TestCommunityServiceEditionHooksAreNoOp(t *testing.T) {
 		Status:    StatusPublished,
 	}
 
-	item, err := service.editionPackageForList(context.Background(), row)
+	item, err := service.distributionProfilePackageForList(context.Background(), row)
 	if err != nil {
-		t.Fatalf("editionPackageForList() error = %v", err)
+		t.Fatalf("distributionProfilePackageForList() error = %v", err)
 	}
 	if item.ID != row.PackageID || item.Title != row.Title {
-		t.Fatalf("editionPackageForList() = %#v, want package %q/%q", item, row.PackageID, row.Title)
+		t.Fatalf("distributionProfilePackageForList() = %#v, want package %q/%q", item, row.PackageID, row.Title)
 	}
 
-	item, err = service.editionPackageForDownload(context.Background(), row)
+	item, err = service.distributionProfilePackageForDownload(context.Background(), row)
 	if err != nil {
-		t.Fatalf("editionPackageForDownload() error = %v", err)
+		t.Fatalf("distributionProfilePackageForDownload() error = %v", err)
 	}
 	if item.ID != row.PackageID || item.Title != row.Title {
-		t.Fatalf("editionPackageForDownload() = %#v, want package %q/%q", item, row.PackageID, row.Title)
+		t.Fatalf("distributionProfilePackageForDownload() = %#v, want package %q/%q", item, row.PackageID, row.Title)
 	}
 
-	if err := service.editionValidateDownload(context.Background(), row, "0.0.0"); err != nil {
-		t.Fatalf("editionValidateDownload() error = %v", err)
+	if err := service.distributionProfileValidateDownload(context.Background(), row, "0.0.0"); err != nil {
+		t.Fatalf("distributionProfileValidateDownload() error = %v", err)
 	}
-	if !service.editionDownloadCountsInline() {
-		t.Fatal("editionDownloadCountsInline() = false, want true")
+	if !service.distributionProfileDownloadCountsInline() {
+		t.Fatal("distributionProfileDownloadCountsInline() = false, want true")
 	}
 }

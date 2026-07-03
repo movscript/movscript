@@ -7,6 +7,10 @@ Release automation lives in `scripts/release/`. App-only automation belongs in t
 Desktop package resources are governed by `package-resources.manifest.json`.
 Run `pnpm run verify:package-resources` after changing `apps/desktop/electron-builder.yml`,
 desktop runtime binaries, plugin bundle layout, or release staging paths.
+When an Agent Plugin zip is available, run
+`node scripts/release/verify-package-resources.mjs --plugin-zip <zip>` or set
+`MOVSCRIPT_PACKAGE_RESOURCE_PLUGIN_ZIP` to verify the Desktop bundled provider
+plugin against the release zip's `manifest.runtime.json` and `bundleHash`.
 
 ## Release signing modes
 
@@ -43,11 +47,26 @@ the workspace gate with release readiness and the stable backend release gate
 Target-specific desktop assets such as ffmpeg are downloaded and verified
 inside each `release full` / package job before packaging and smoke testing
 that target.
+When `smoke-desktop-package` runs with `--local-runtime`, it also checks that
+the packaged Desktop seeded Home current, that `current.identity` matches the
+runtime bundle manifest, and that `/v1/runtime/descriptor` reports the same
+bundle identity. The same smoke verifies the Desktop-to-Codex marketplace
+handoff by ensuring the generated Codex marketplace plugin link targets that
+Home current bundle.
+Pass `--existing-home-current newer` or set
+`MOVSCRIPT_DESKTOP_SMOKE_EXISTING_HOME_CURRENT=newer` to preseed a newer Agent
+Plugin current and verify Desktop does not downgrade it while starting the
+same Home daemon. Pass `--existing-home-current older` to preseed an older
+Agent Plugin current and verify Desktop upgrades Home current to its bundled
+runtime while preserving the old bundle as `previous`.
 
 The Agent Plugin package gate runs `pnpm run release -- smoke-plugin-package`
 after `movscript-agent-plugin-<version>.zip` is built. It extracts the zip into
 a temporary Home, starts the bundled daemon, checks `/v1/runtime/descriptor`,
 checks `/v1/mcp/health`, and verifies a minimal MCP `tools/list` response.
+When a previous release zip is available, pass `--previous-artifact <zip>` or set
+`MOVSCRIPT_PLUGIN_SMOKE_PREVIOUS_ARTIFACT` to exercise `current`/`previous`
+rollback through the public installer before rechecking the daemon descriptor.
 
 The backend release gate runs data-service unit tests and the explicit model
 capability contract. Broader Go architecture checks are still available as

@@ -424,6 +424,8 @@ export function buildAgentCompactParamContract(
       ...(param.min !== undefined ? { min: param.min } : {}),
       ...(param.max !== undefined ? { max: param.max } : {}),
       ...(param.step !== undefined ? { step: param.step } : {}),
+      ...(paramJSONSchemaEnum(param).length ? { enum: paramJSONSchemaEnum(param) } : {}),
+      ...(paramJSONSchemaDescription(param) ? { description: paramJSONSchemaDescription(param)! } : {}),
       ...(param.conflicts_with?.length ? { conflicts_with: [...param.conflicts_with] } : {}),
       ...(param.conditional_enum?.length ? { conditional_enum: param.conditional_enum.map((rule) => ({ ...rule, options: [...rule.options] })) } : {}),
       ...(param.conditional_const?.length ? { conditional_const: param.conditional_const.map((rule) => ({ ...rule })) } : {}),
@@ -435,6 +437,19 @@ export function buildAgentCompactParamContract(
     supported_param_keys: supportedParams.map((param) => param.key).sort(),
     supported_params: supportedParams,
   }
+}
+
+function paramJSONSchemaDescription(param: ParamDef): string | undefined {
+  const description = param.json_schema?.description
+  return typeof description === 'string' && description.trim().length > 0 ? description.trim() : undefined
+}
+
+function paramJSONSchemaEnum(param: ParamDef): Array<string | number | boolean> {
+  const value = param.json_schema?.enum
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is string | number | boolean =>
+    typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean',
+  )
 }
 
 export function adapterParamsForCapabilities(adapter: AdapterDef | undefined, capabilities: string[]): ParamDef[] {
@@ -474,6 +489,34 @@ export function adapterParamsForOperation(adapter: AdapterDef | undefined, capab
       }
     })
   return out
+}
+
+export function nextOperationBuilderParam(activeParams: ParamDef[], adapterParams: ParamDef[]): ParamDef {
+  const used = new Set(activeParams.map((param) => normalizeAdminParamKey(param.key)).filter(Boolean))
+  const candidate = [
+    ...adapterParams,
+    ...Object.values(PARAM_TEMPLATES),
+  ].map(normalizeParamDefForAdmin).find((param) => {
+    const key = normalizeAdminParamKey(param.key)
+    return key && !used.has(key)
+  })
+  if (candidate) {
+    return {
+      ...candidate,
+      options: candidate.options ? [...candidate.options] : undefined,
+    }
+  }
+  let index = 1
+  let key = 'custom_param'
+  while (used.has(key)) {
+    index += 1
+    key = `custom_param_${index}`
+  }
+  return {
+    key,
+    label: index === 1 ? 'Custom Param' : `Custom Param ${index}`,
+    type: 'string',
+  }
 }
 
 export function operationParamProfileFromTemplateParams(params: ParamDef[], operations: Array<{ capability: string; operation: string }>, adapter?: AdapterDef): string {

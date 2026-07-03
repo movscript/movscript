@@ -370,8 +370,8 @@ func providerInstanceAdapterEnvPatch(instance ProviderInstance) map[string]strin
 		return map[string]string{"MOVSCRIPT_WORKSPACE_STORAGE_BACKEND": "http", "MOVSCRIPT_WORKSPACE_BACKEND": "http"}
 	case "workspace_repository:gitea":
 		return map[string]string{"MOVSCRIPT_WORKSPACE_STORAGE_BACKEND": "gitea", "MOVSCRIPT_WORKSPACE_BACKEND": "gitea"}
-	case "workspace_repository:github-enterprise":
-		return map[string]string{"MOVSCRIPT_WORKSPACE_STORAGE_BACKEND": "github-enterprise", "MOVSCRIPT_WORKSPACE_BACKEND": "github-enterprise"}
+	case "workspace_repository:github-self-hosted":
+		return map[string]string{"MOVSCRIPT_WORKSPACE_STORAGE_BACKEND": "github-self-hosted", "MOVSCRIPT_WORKSPACE_BACKEND": "github-self-hosted"}
 	case "workspace_repository:gitlab":
 		return map[string]string{"MOVSCRIPT_WORKSPACE_STORAGE_BACKEND": "gitlab", "MOVSCRIPT_WORKSPACE_BACKEND": "gitlab"}
 	case "ai_gateway:local":
@@ -445,16 +445,16 @@ func providerInstanceFieldEnvKey(key string) (string, bool) {
 		return "MOVSCRIPT_GITEA_TOKEN", true
 	case "gitea_admin_password":
 		return "MOVSCRIPT_GITEA_ADMIN_PASSWORD", true
-	case "github_enterprise_base_url":
-		return "MOVSCRIPT_GITHUB_ENTERPRISE_BASE_URL", true
-	case "github_enterprise_repo_prefix":
-		return "MOVSCRIPT_GITHUB_ENTERPRISE_REPO_PREFIX", true
-	case "github_enterprise_org_prefix":
-		return "MOVSCRIPT_GITHUB_ENTERPRISE_ORG_PREFIX", true
-	case "github_enterprise_branch":
-		return "MOVSCRIPT_GITHUB_ENTERPRISE_BRANCH", true
-	case "github_enterprise_token":
-		return "MOVSCRIPT_GITHUB_ENTERPRISE_TOKEN", true
+	case "github_self_hosted_base_url":
+		return "MOVSCRIPT_GITHUB_SELF_HOSTED_BASE_URL", true
+	case "github_self_hosted_repo_prefix":
+		return "MOVSCRIPT_GITHUB_SELF_HOSTED_REPO_PREFIX", true
+	case "github_self_hosted_org_prefix":
+		return "MOVSCRIPT_GITHUB_SELF_HOSTED_ORG_PREFIX", true
+	case "github_self_hosted_branch":
+		return "MOVSCRIPT_GITHUB_SELF_HOSTED_BRANCH", true
+	case "github_self_hosted_token":
+		return "MOVSCRIPT_GITHUB_SELF_HOSTED_TOKEN", true
 	case "gitlab_base_url":
 		return "MOVSCRIPT_GITLAB_BASE_URL", true
 	case "gitlab_repo_prefix":

@@ -295,7 +295,6 @@ function daemonGatewayBaseURL(runtimeConfig: unknown): string {
     ?? stringValue(runtimeGateway.baseURL)
     ?? stringValue(record.gatewayBaseURL)
     ?? stringValue(record.daemonGatewayBaseURL)
-    ?? stringValue(record.apiBaseURL)
   if (!baseURL) throw new Error('Daemon gateway endpoint is not available in Desktop runtime config')
   return baseURL.replace(/\/+$/, '')
 }

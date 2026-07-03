@@ -15,6 +15,7 @@ import {
   probeLocalRuntimeDaemon,
   stopLocalRuntimeDaemon,
   type LocalRuntimeDataPlane,
+  type LocalRuntimeIdentity,
 } from '@movscript/local-runtime'
 import { mcpHostProgramManifest } from '@movscript/mcp-host/program-manifest'
 import { callMCPHostTool, startMCPStdioHost } from '@movscript/mcp-host/stdio'
@@ -43,22 +44,46 @@ const AGENT_MCP_ENTRYPOINT = resolve(import.meta.dirname, 'movscript.mjs')
 const RUN_CWD = HAS_BUNDLED_RUNTIME ? PLUGIN_ROOT : DEV_REPO_ROOT
 
 type LocalDaemonDataPlane = LocalRuntimeDataPlane
+type PluginRuntimeIdentity = LocalRuntimeIdentity & { pluginVersion: string; pluginRoot: string }
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-function currentPluginIdentity(): { pluginVersion: string; pluginRoot: string } {
+function currentPluginIdentity(): PluginRuntimeIdentity {
   return pluginIdentityForRoot(PLUGIN_ROOT)
 }
 
-function pluginIdentityForRoot(pluginRoot: string): { pluginVersion: string; pluginRoot: string } {
+function pluginIdentityForRoot(pluginRoot: string): PluginRuntimeIdentity {
+  const runtimeManifest = readPluginRuntimeManifest(resolve(pluginRoot, 'manifest.runtime.json'))
   return {
-    pluginVersion: readPluginVersion(resolve(pluginRoot, 'manifest.runtime.json'))
+    pluginVersion: runtimeManifest?.version
       ?? readPluginVersion(resolve(pluginRoot, '.codex-plugin/plugin.json'))
       ?? readPluginVersion(resolve(pluginRoot, '.provider-plugin/plugin.json'))
       ?? 'unknown',
+    ...(runtimeManifest?.apiVersion ? { apiVersion: runtimeManifest.apiVersion } : {}),
+    ...(runtimeManifest?.minDaemonApiVersion ? { minDaemonApiVersion: runtimeManifest.minDaemonApiVersion } : {}),
+    ...(runtimeManifest?.bundleHash ? { bundleHash: runtimeManifest.bundleHash } : {}),
     pluginRoot,
+  }
+}
+
+function readPluginRuntimeManifest(manifestPath: string): {
+  version?: string
+  apiVersion?: string
+  minDaemonApiVersion?: string
+  bundleHash?: string
+} | undefined {
+  try {
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown>
+    return {
+      ...(typeof manifest.version === 'string' && manifest.version.trim() ? { version: manifest.version.trim() } : {}),
+      ...(typeof manifest.apiVersion === 'string' && manifest.apiVersion.trim() ? { apiVersion: manifest.apiVersion.trim() } : {}),
+      ...(typeof manifest.minDaemonApiVersion === 'string' && manifest.minDaemonApiVersion.trim() ? { minDaemonApiVersion: manifest.minDaemonApiVersion.trim() } : {}),
+      ...(typeof manifest.bundleHash === 'string' && manifest.bundleHash.trim() ? { bundleHash: manifest.bundleHash.trim() } : {}),
+    }
+  } catch {
+    return undefined
   }
 }
 

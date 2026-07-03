@@ -16,6 +16,8 @@ export interface ProjectPickerProject {
 }
 
 export interface ProjectPickerSurfaceProps {
+  gatewayBaseURL?: string
+  /** @deprecated Use gatewayBaseURL and let the surface append /api/v1. */
   apiV1BaseURL?: string
   projects?: ProjectPickerProject[]
   title?: string
@@ -30,7 +32,8 @@ type ProjectPickerState =
   | { status: 'error'; projects: ProjectPickerProject[]; error: Error }
 
 export function ProjectPickerSurface({
-  apiV1BaseURL = defaultAPIBaseURL(),
+  gatewayBaseURL = defaultDaemonGatewayBaseURL(),
+  apiV1BaseURL,
   projects: controlledProjects,
   title = '项目首页',
   description = '从这里进入具体项目的创作进展、素材、审片与生成工作台。',
@@ -42,11 +45,12 @@ export function ProjectPickerSurface({
   })
 
   const canFetch = !controlledProjects
+  const projectsAPIBaseURL = projectPickerProjectsAPIBaseURL({ gatewayBaseURL, apiV1BaseURL })
   const loadProjects = useCallback(() => {
     if (!canFetch) return
     let cancelled = false
     setState((current) => ({ status: 'loading', projects: current.projects }))
-    fetch(`${trimTrailingSlash(apiV1BaseURL)}/projects`)
+    fetch(`${projectsAPIBaseURL}/projects`)
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}))
         if (!response.ok) {
@@ -71,7 +75,7 @@ export function ProjectPickerSurface({
     return () => {
       cancelled = true
     }
-  }, [apiV1BaseURL, canFetch])
+  }, [canFetch, projectsAPIBaseURL])
 
   useEffect(() => {
     if (controlledProjects) {
@@ -164,9 +168,23 @@ function defaultProjectHref(project: ProjectPickerProject): string {
   return projectSurfacePath('overview', project.ID)
 }
 
-function defaultAPIBaseURL(): string {
-  if (typeof window === 'undefined') return '/api/v1'
-  return `${window.location.origin}/api/v1`
+function projectPickerProjectsAPIBaseURL({
+  gatewayBaseURL,
+  apiV1BaseURL,
+}: {
+  gatewayBaseURL?: string
+  apiV1BaseURL?: string
+}): string {
+  const legacyBaseURL = apiV1BaseURL?.trim()
+  if (legacyBaseURL) return trimTrailingSlash(legacyBaseURL)
+  const gateway = trimTrailingSlash(gatewayBaseURL || defaultDaemonGatewayBaseURL())
+  if (!gateway) return '/api/v1'
+  return gateway.endsWith('/api/v1') ? gateway : `${gateway}/api/v1`
+}
+
+function defaultDaemonGatewayBaseURL(): string {
+  if (typeof window === 'undefined') return ''
+  return window.location.origin
 }
 
 function trimTrailingSlash(value: string): string {

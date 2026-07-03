@@ -49,6 +49,7 @@ curl -fsSL https://movscript.github.io/movscript/install-plugin.sh | sh
 - macOS Apple Silicon / arm64
 - macOS Intel / x64
 - Windows x64
+- Linux x64 AppImage
 
 最新桌面包可以在 [GitHub Releases](https://github.com/movscript/movscript/releases/latest) 下载。
 
@@ -60,9 +61,9 @@ curl -fsSL https://movscript.github.io/movscript/install-desktop.sh | sh
 
 Windows 可以从 [GitHub Releases](https://github.com/movscript/movscript/releases/latest) 下载最新 x64 `.exe` 安装器。
 
-每个版本的更新内容、已知问题、校验文件和历史版本会记录在 [Movscript releases 页面](https://github.com/movscript/movscript/releases)。
+Linux 可以从 [GitHub Releases](https://github.com/movscript/movscript/releases/latest) 下载最新 x64 `.AppImage`，赋予可执行权限后打开。
 
-Linux 桌面包暂未发布，后续版本再补充。
+每个版本的更新内容、已知问题、校验文件和历史版本会记录在 [Movscript releases 页面](https://github.com/movscript/movscript/releases)。
 
 ## Docker
 
@@ -118,12 +119,13 @@ docker compose down -v
 
 ## 文档
 
+- [docs/product-transformation-plan.zh-CN.md](docs/product-transformation-plan.zh-CN.md)
+- [docs/install.md](docs/install.md)
+- [docs/product-runtime-distribution-standard.zh-CN.md](docs/product-runtime-distribution-standard.zh-CN.md)
 - [docs/movscript-agent-runtime-architecture.zh-CN.md](docs/movscript-agent-runtime-architecture.zh-CN.md)
-- [docs/codex-creative-surfaces-design.zh-CN.md](docs/codex-creative-surfaces-design.zh-CN.md)
-- [docs/admin-ai-provider-model-route-redesign.zh-CN.md](docs/admin-ai-provider-model-route-redesign.zh-CN.md)
 - [docs/model-adapter-route-provider-architecture.zh-CN.md](docs/model-adapter-route-provider-architecture.zh-CN.md)
-- [docs/model-provider-adapter-database-design.zh-CN.md](docs/model-provider-adapter-database-design.zh-CN.md)
-- [docs/provider-generated-artifact-trust-architecture.zh-CN.md](docs/provider-generated-artifact-trust-architecture.zh-CN.md)
+- [docs/shell-frontend-design.zh-CN.md](docs/shell-frontend-design.zh-CN.md)
+- [docs/shell-session-integration.zh-CN.md](docs/shell-session-integration.zh-CN.md)
 
 ## 许可证
 

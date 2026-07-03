@@ -194,6 +194,7 @@ type CandidateBuildInput struct {
 	ModelID        string
 	JobType        string
 	ResourceID     uint
+	ResourceIDs    []uint
 	PromptSnapshot json.RawMessage
 	CreatedAt      time.Time
 }
@@ -240,15 +241,25 @@ func BuildCandidate(input CandidateBuildInput) json.RawMessage {
 		}
 	}
 
-	outputs := []map[string]any{}
-	if input.ResourceID != 0 {
+	resourceIDs := candidateResourceIDs(input)
+	outputs := make([]map[string]any, 0, len(resourceIDs))
+	if len(resourceIDs) > 1 {
+		producer["output_count"] = len(resourceIDs)
+	}
+	for index, resourceID := range resourceIDs {
+		metadata := map[string]any{
+			"job_id": input.JobID,
+			"tool":   contentUnitGenerationMonitorToolName(input.OutputKind),
+		}
+		if len(resourceIDs) > 1 {
+			metadata["group_id"] = fmt.Sprintf("job:%d", input.JobID)
+			metadata["group_size"] = len(resourceIDs)
+			metadata["output_index"] = index
+		}
 		outputs = append(outputs, map[string]any{
 			"kind":        input.OutputKind,
-			"resource_id": input.ResourceID,
-			"metadata": map[string]any{
-				"job_id": input.JobID,
-				"tool":   contentUnitGenerationMonitorToolName(input.OutputKind),
-			},
+			"resource_id": resourceID,
+			"metadata":    metadata,
 		})
 	}
 	createdAt := input.CreatedAt
@@ -274,14 +285,18 @@ func BuildCandidate(input CandidateBuildInput) json.RawMessage {
 }
 
 func SyncJobSucceeded(ctx context.Context, db *gorm.DB, job *persistencemodel.Job, resourceID uint) error {
-	return syncJobCandidate(ctx, db, job, "succeeded", resourceID)
+	return SyncJobSucceededWithResources(ctx, db, job, []uint{resourceID})
+}
+
+func SyncJobSucceededWithResources(ctx context.Context, db *gorm.DB, job *persistencemodel.Job, resourceIDs []uint) error {
+	return syncJobCandidate(ctx, db, job, "succeeded", resourceIDs)
 }
 
 func SyncJobFailed(ctx context.Context, db *gorm.DB, job *persistencemodel.Job, status string) error {
-	return syncJobCandidate(ctx, db, job, statusOr(status, "failed"), 0)
+	return syncJobCandidate(ctx, db, job, statusOr(status, "failed"), nil)
 }
 
-func syncJobCandidate(ctx context.Context, db *gorm.DB, job *persistencemodel.Job, status string, resourceID uint) error {
+func syncJobCandidate(ctx context.Context, db *gorm.DB, job *persistencemodel.Job, status string, resourceIDs []uint) error {
 	binding, ok := ContentUnitCandidateBindingFromRequestContext(job.RequestContext)
 	if !ok {
 		return nil
@@ -298,7 +313,7 @@ func syncJobCandidate(ctx context.Context, db *gorm.DB, job *persistencemodel.Jo
 		JobID:          job.ID,
 		ModelID:        modelIDFromRequestContext(job.RequestContext),
 		JobType:        job.JobType,
-		ResourceID:     resourceID,
+		ResourceIDs:    resourceIDs,
 		StatusMessage:  statusMessage,
 		PromptSnapshot: binding.PromptSnapshot,
 		CreatedAt:      job.CreatedAt,
@@ -316,6 +331,23 @@ func syncJobCandidate(ctx context.Context, db *gorm.DB, job *persistencemodel.Jo
 	}
 	_, err = upsertProjectDataCandidateFromBinding(ctx, db, binding, job, candidate, nil)
 	return err
+}
+
+func candidateResourceIDs(input CandidateBuildInput) []uint {
+	ids := make([]uint, 0, len(input.ResourceIDs)+1)
+	seen := map[uint]bool{}
+	if input.ResourceID != 0 {
+		ids = append(ids, input.ResourceID)
+		seen[input.ResourceID] = true
+	}
+	for _, resourceID := range input.ResourceIDs {
+		if resourceID == 0 || seen[resourceID] {
+			continue
+		}
+		ids = append(ids, resourceID)
+		seen[resourceID] = true
+	}
+	return ids
 }
 
 type projectDataCandidateTarget struct {

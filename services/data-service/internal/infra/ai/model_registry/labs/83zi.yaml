@@ -4,6 +4,101 @@ templates:
 - route_adapter_hint: vyro_seedance
   capabilities:
   - video_generation
+  display_name: 83zi Seedance 2.0
+  id: 83zi:83zi-seedance-2-0
+  input:
+    accepts_image: true
+    max_images: 9
+    max_videos: 1
+  lab: 83zi
+  model_id: Seedance-2.0
+  model_capabilities_json:
+    video_generation:
+      operations:
+      - prompt_to_video
+      - image_to_video
+      - reference_to_video
+      reference_assets:
+        min: 0
+        max: 11
+        roles:
+        - generic
+        - reference_image
+        - reference_video
+        - reference_audio
+        modalities:
+        - image
+        - video
+        - audio
+      operation_slots:
+        image_to_video:
+        - id: reference_image
+          min: 1
+          max: 1
+          roles:
+          - generic
+          - reference_image
+          media_types:
+          - image
+        reference_to_video:
+        - id: reference_images
+          max: 9
+          roles:
+          - generic
+          - reference_image
+          media_types:
+          - image
+        - id: reference_video
+          max: 1
+          roles:
+          - reference_video
+          media_types:
+          - video
+        - id: reference_audio
+          max: 1
+          roles:
+          - reference_audio
+          media_types:
+          - audio
+      operation_rules:
+        reference_to_video:
+        - id: no_audio_only
+  order: 0
+  params:
+  - default: '5'
+    key: duration
+    label: 时长(秒)
+    options:
+    - '4'
+    - '5'
+    - '10'
+    - '11'
+    - '15'
+    type: select
+  - default: '9:16'
+    key: aspect_ratio
+    label: 画面比例
+    options:
+    - '9:16'
+    - '16:9'
+    type: select
+  - default: 720p
+    key: resolution
+    label: 分辨率
+    options:
+    - 720p
+    type: select
+  - default: true
+    key: audio
+    label: 生成音频
+    type: boolean
+  source:
+    status: unofficial
+    url: https://83zi.com/sd2/#params
+    verified_at: '2026-07-03'
+- route_adapter_hint: vyro_seedance
+  capabilities:
+  - video_generation
   display_name: 83zi Seedance 2.0 Fast
   id: 83zi:vyro-seedance-2-fast
   input:
@@ -36,7 +131,7 @@ templates:
     - 1080p
     type: select
   - default: true
-    key: generate_audio
+    key: audio
     label: 生成音频
     type: boolean
   source:

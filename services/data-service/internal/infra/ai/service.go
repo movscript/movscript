@@ -159,6 +159,9 @@ func (s *AIService) PreflightGenerationRoute(ctx context.Context, userID uint, r
 	if err != nil {
 		return GenerationPreflightResult{}, err
 	}
+	if err := ValidateGenerationOutputCardinality(definition.def, req.OutputType, params, req.ImageCount); err != nil {
+		return GenerationPreflightResult{}, err
+	}
 	return GenerationPreflightResult{
 		CredentialID: req.Route.CredentialID,
 		SnapshotModel: PreflightModelSnapshot{

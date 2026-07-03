@@ -2,6 +2,7 @@ import type { AgentConversationRegistryRecord } from '@movscript/core/agent'
 import type { AgentConversationWorkspace } from '@movscript/agent-protocol'
 import type {
   MovScriptDataConnectionContext,
+  MovScriptRuntimeBundleCompatibility,
   MovScriptRuntimeConnectionDescriptor,
   MovScriptRuntimeDescriptor,
 } from '@movscript/shared'
@@ -28,6 +29,7 @@ export type ElectronRuntimeConfig = {
   runtimeConnection: MovScriptRuntimeConnectionDescriptor
   runtime: MovScriptRuntimeDescriptor
   dataConnection: MovScriptDataConnectionContext
+  runtimeBundleStatus?: ElectronRuntimeBundleStatus
   /** @deprecated Use runtime.gateway.baseURL. */
   gatewayBaseURL?: string
   /** @deprecated Use runtime.gateway.baseURL for daemon calls and dataConnection for status/config intent. */
@@ -36,6 +38,46 @@ export type ElectronRuntimeConfig = {
   apiV1BaseURL: string
   providerRuntimeEnv?: Record<string, string>
   backendStatus: ElectronBackendStatus
+}
+
+export type ElectronRuntimeBundleAction = 'upgrade' | 'keep' | 'repair' | 'rollback' | 'unknown'
+
+export type ElectronRuntimeBundleIdentity = {
+  version?: string
+  apiVersion?: string
+  minDaemonApiVersion?: string
+  bundleHash?: string
+  pluginRoot?: string
+}
+
+export type ElectronRuntimeBundleStatus = {
+  action: ElectronRuntimeBundleAction
+  reason: string
+  homeCurrent?: ElectronRuntimeBundleIdentity
+  desktopBundled?: ElectronRuntimeBundleIdentity
+  previousRoot?: string
+  comparison?: MovScriptRuntimeBundleCompatibility
+}
+
+export type ElectronRuntimeBundleActionInput = {
+  action?: ElectronRuntimeBundleAction
+}
+
+export type ElectronRuntimeBundleActionResult = {
+  ok: boolean
+  action: ElectronRuntimeBundleAction
+  runtimeConfig: ElectronRuntimeConfig
+  installed?: {
+    version: string
+    pluginRoot: string
+    installed?: boolean
+    bundleHash?: string
+  }
+  daemon?: {
+    status?: string
+    detail?: Record<string, unknown>
+  }
+  error?: string
 }
 
 export type ElectronAppSettingsSecrets = {

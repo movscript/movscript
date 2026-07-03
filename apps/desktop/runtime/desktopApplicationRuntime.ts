@@ -12,6 +12,7 @@ import {
   type ProgramManifest,
   type ScenarioPolicyManifest,
 } from '@movscript/runtime-contracts'
+import { installMovScriptHomePluginBundle } from '@movscript/plugins/node'
 import * as desktopApplicationManifestModule from '../application.manifest'
 import * as desktopShellProgramManifestModule from '../programs/desktop-shell.program.manifest'
 import * as desktopStartupManifestModule from '../startup.manifest'
@@ -110,7 +111,9 @@ export async function ensureDesktopLocalRuntime(input: {
   forceRestart?: boolean
 }): Promise<Record<string, unknown>> {
   const homeDir = input.homeDir ?? resolveMovScriptHomeDir()
-  const entrypoint = input.entrypoint ?? resolveDesktopLocalRuntimeDaemonEntrypoint()
+  if (!input.entrypoint) seedDesktopHomePluginCurrent(homeDir)
+  const homeCurrentEntrypoint = resolve(homeDir, 'plugins/movscript/current/bin/movscript.mjs')
+  const entrypoint = input.entrypoint ?? (existsSync(homeCurrentEntrypoint) ? homeCurrentEntrypoint : resolveDesktopLocalRuntimeDaemonEntrypoint())
   return await ensureLocalRuntimeDaemon({
     homeDir,
     entrypoint,
@@ -127,9 +130,54 @@ export async function ensureDesktopLocalRuntime(input: {
 
 export function resolveDesktopLocalRuntimeIdentity(entrypoint: string): LocalRuntimeIdentity {
   const pluginRoot = resolve(entrypoint, '..', '..')
+  const runtimeManifest = readDesktopLocalRuntimeManifest(pluginRoot)
   return {
-    pluginVersion: readDesktopLocalRuntimePluginVersion(pluginRoot) ?? 'unknown',
+    pluginVersion: runtimeManifest?.version ?? readDesktopLocalRuntimePluginVersion(pluginRoot) ?? 'unknown',
+    ...(runtimeManifest?.apiVersion ? { apiVersion: runtimeManifest.apiVersion } : {}),
+    ...(runtimeManifest?.minDaemonApiVersion ? { minDaemonApiVersion: runtimeManifest.minDaemonApiVersion } : {}),
+    ...(runtimeManifest?.bundleHash ? { bundleHash: runtimeManifest.bundleHash } : {}),
     pluginRoot,
+  }
+}
+
+export function seedDesktopHomePluginCurrent(homeDir: string): void {
+  const sourcePluginRoot = resolveDesktopBundledPluginRoot()
+  if (!sourcePluginRoot) return
+  installMovScriptHomePluginBundle({
+    homeDir,
+    sourcePluginRoot,
+    mode: 'seed-or-upgrade',
+    reason: 'desktop-runtime-start',
+    provider: 'desktop',
+  })
+}
+
+export function resolveDesktopBundledPluginRoot(): string | undefined {
+  const resourcesPath = defaultElectronResourcesPath()
+  const candidates = [
+    resourcesPath ? resolve(resourcesPath, 'provider-plugins/movscript') : undefined,
+    resolve(REPO_ROOT, 'plugins/movscript'),
+    resolve(REPO_ROOT, 'apps/plugin'),
+  ]
+  return candidates.find((candidate): candidate is string => Boolean(candidate && existsSync(resolve(candidate, '.codex-plugin/plugin.json')) && existsSync(resolve(candidate, '.mcp.json'))))
+}
+
+function readDesktopLocalRuntimeManifest(pluginRoot: string): {
+  version?: string
+  apiVersion?: string
+  minDaemonApiVersion?: string
+  bundleHash?: string
+} | undefined {
+  try {
+    const manifest = JSON.parse(readFileSync(resolve(pluginRoot, 'manifest.runtime.json'), 'utf8')) as Record<string, unknown>
+    return {
+      ...(typeof manifest.version === 'string' && manifest.version.trim() ? { version: manifest.version.trim() } : {}),
+      ...(typeof manifest.apiVersion === 'string' && manifest.apiVersion.trim() ? { apiVersion: manifest.apiVersion.trim() } : {}),
+      ...(typeof manifest.minDaemonApiVersion === 'string' && manifest.minDaemonApiVersion.trim() ? { minDaemonApiVersion: manifest.minDaemonApiVersion.trim() } : {}),
+      ...(typeof manifest.bundleHash === 'string' && manifest.bundleHash.trim() ? { bundleHash: manifest.bundleHash.trim() } : {}),
+    }
+  } catch {
+    return undefined
   }
 }
 

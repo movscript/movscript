@@ -16,7 +16,7 @@ import (
 const (
 	ProviderGitea            = "gitea"
 	ProviderGitHTTP          = "http"
-	ProviderGitHubEnterprise = "github-enterprise"
+	ProviderGitHubSelfHosted = "github-self-hosted"
 	ProviderGitLab           = "gitlab"
 
 	StatusProvisioning = "provisioning"
@@ -462,9 +462,9 @@ func NormalizeProvider(provider string) string {
 	switch strings.TrimSpace(provider) {
 	case "git-http", "git-http-backend":
 		return ProviderGitHTTP
-	case "github", "github-enterprise-server", "ghe":
-		return ProviderGitHubEnterprise
-	case "gitlab-enterprise", "gitlab-self-hosted":
+	case "github", "github-self-hosted-server", "ghe":
+		return ProviderGitHubSelfHosted
+	case "gitlab", "gitlab-self-hosted":
 		return ProviderGitLab
 	default:
 		return strings.TrimSpace(provider)

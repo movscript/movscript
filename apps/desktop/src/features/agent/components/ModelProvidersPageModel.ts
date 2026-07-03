@@ -22,28 +22,28 @@ export const MODEL_PROVIDER_LAYERS: Array<{
   id: ModelProviderLayer
   label: string
   detail: string
-  edition: string
+  scope: string
   icon: typeof Database
 }> = [
   {
     id: 'providers',
     label: 'Provider',
     detail: '本地 provider credential、base URL 和上游认证来源。',
-    edition: '两版共享',
+    scope: '本地共享',
     icon: Database,
   },
   {
     id: 'catalog',
     label: 'Catalog Entry',
-    detail: '系统识别模型的标准档案，能力配置两版一致。',
-    edition: '两版一致',
+    detail: '系统识别模型的标准档案，能力配置随分发 profile 保持一致。',
+    scope: '默认一致',
     icon: Library,
   },
   {
     id: 'routes',
     label: '模型路由',
     detail: '把 Catalog Entry 映射到 Provider 通道或中转站分组。',
-    edition: 'Admin 管理',
+    scope: 'Admin 管理',
     icon: Route,
   },
 ]

@@ -205,7 +205,7 @@ test('providerSessionStatusLightForTargetKeys prefers the highest-priority light
   assert.equal(providerSessionStatusLightForTargetKeys({}, ['session:session_1']).state, 'stopped')
 })
 
-test('providerSessionStatusLightFromConversationState treats local terminal thread state as authoritative', () => {
+test('providerSessionStatusLightFromConversationState treats shell thread state as authoritative', () => {
   assert.deepEqual(providerSessionStatusLightFromConversationState({
     id: 'thread_done',
     userId: 'user_1',

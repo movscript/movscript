@@ -1,7 +1,7 @@
 import type { Project, Script } from '@/types'
 import { currentWorkspaceProjectDir } from '@/shared/infrastructure/session/workspaceOwnerContext'
 import {
-  getAPIBaseURL,
+  getDaemonGatewayBaseURL,
   getRuntimeConfigSnapshot,
   refreshRuntimeConfigSnapshot,
 } from '@/shared/infrastructure/config'
@@ -45,8 +45,7 @@ export async function loadProjectHomeReadModel(
   const baseURL = snapshot?.runtimeConnection.gatewayBaseURL
     ?? snapshot?.runtime.gateway.baseURL
     ?? snapshot?.gatewayBaseURL
-    ?? snapshot?.apiBaseURL
-    ?? getAPIBaseURL()
+    ?? getDaemonGatewayBaseURL()
   const response = await fetch(`${baseURL.replace(/\/+$/, '')}${PROJECT_HOME_READ_MODEL_ENDPOINT}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },

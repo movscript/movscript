@@ -161,26 +161,26 @@
     },
     "cloudConnect": {
       "title": "连接云服务",
-      "description": "使用 Movscript Cloud 或你的团队服务地址。",
+      "description": "使用 Movscript Cloud 或你的团队数据连接地址。",
       "continue": "继续登录"
     }
   },
   "appSettings": {
     "title": "应用设置",
-    "description": "配置当前客户端的启动方式和连接服务。该设置保存在本机，登录前也可以修改。",
+    "description": "配置当前客户端的启动方式和数据连接。该设置保存在本机，登录前也可以修改。",
     "launchMode": "启动方式",
     "launchModeTitle": "启动方式",
     "launchModeHint": "本地启动会在注册时请求初始化系统管理员；云端启动只连接远程服务。",
     "cloudMode": "云端启动",
     "cloudModeHelp": "连接 Movscript 云端或团队服务，不在注册时创建系统管理员。",
     "localMode": "本地启动",
-    "localModeHelp": "连接本机后端，注册时初始化一个系统管理员。",
-    "cloudApiTitle": "服务 API",
-    "cloudApiHint": "客户端登录、素材、项目和 Agent 请求都会连接到这个服务。",
-    "apiBaseURL": "服务 API 地址",
+    "localModeHelp": "通过本机 daemon 连接，注册时初始化一个系统管理员。",
+    "cloudApiTitle": "数据连接",
+    "cloudApiHint": "客户端登录、素材、项目和 Agent 请求都会通过 daemon 使用这个数据连接。",
+    "apiBaseURL": "数据连接地址",
     "apiBaseURLHelp": "云端或团队服务可使用 https://api.example.com；桌面本地模式会自动使用 daemon gateway。",
-    "currentApi": "当前 API",
-    "effectiveEndpoint": "实际接口",
+    "currentApi": "当前连接",
+    "effectiveEndpoint": "实际连接地址",
     "invalidURL": "请输入以 http:// 或 https:// 开头的地址。",
     "testConnection": "测试连接",
     "testing": "正在测试连接…",
@@ -194,8 +194,8 @@
   "backendBoot": {
     "startingTitle": "正在启动本地工作区",
     "startingDescription": "正在准备由前端托管的后端、SQLite 数据库和本地文件存储。",
-    "errorTitle": "本地后端启动失败",
-    "errorDescription": "请查看后端日志，或在应用设置中切换启动方式后重试。"
+    "errorTitle": "本机 runtime 启动失败",
+    "errorDescription": "请查看 runtime 日志，或在应用设置中切换启动方式后重试。"
   },
   "domain": {
     "assetTypes": {
@@ -2281,7 +2281,7 @@
       "viewProviders": "API账号管理",
       "viewCatalog": "模型管理",
       "providersHint": "这里管理 Provider 实例、Base URL 前缀、Key、能力边界和连接测试；模型身份和线路策略不在 Provider 页维护。",
-      "relayGatewayProvidersHint": "当前使用商业版中转站转发。Enterprise Admin 只展示中转站接入状态；供应商配置仍在外部中转站，模型身份在 Catalog，线路策略在 Route。",
+      "relayGatewayProvidersHint": "当前使用商业版中转站转发。Admin 只展示中转站接入状态；供应商配置仍在外部中转站，模型身份在 Catalog，线路策略在 Route。",
       "catalogHint": "Catalog Entry 是 MovScript 识别模型的标准档案，可从 Provider 获取模型 ID；它只维护模型能力和参数契约，不维护 route binding。",
       "routesHint": "这里维护 Catalog 层的路由策略。同优先级的 provider 或中转站候选会轮询分发，避开已饱和路由，并在错误时自动切换。",
       "routePoolTitle": "路由池",
@@ -2367,21 +2367,21 @@
       "secretKeepPlaceholder": "留空保留当前 secret",
       "applyConfig": "应用到启动配置",
       "applyingConfig": "应用中",
-      "providerConfigApplied": "启动 env overlay 已更新，重启后端后生效。",
+      "providerConfigApplied": "启动 env overlay 已更新，重启本机 runtime 后生效。",
       "providerActivationModes": {
-        "local_backend_restart": "下一步：在桌面端重启本地后端，让 Electron 重新加载这份启动 overlay。",
+        "local_backend_restart": "下一步：在桌面端重启本机 runtime，让 Electron 重新加载这份启动 overlay。",
         "deployment_rollout": "下一步：执行后端部署 rollout，让服务端进程加载新的启动 overlay。",
         "manual_restart": "下一步：重启承载当前启动 profile 的后端进程。"
       },
       "providerActivationActions": {
-        "restart_local_backend": "动作：重启本地后端",
+        "restart_local_backend": "动作：重启本机 runtime",
         "rollout_backend_deployment": "动作：执行后端部署 rollout",
         "restart_backend_process": "动作：重启后端进程"
       },
       "providerActivationHost": "执行宿主：{{host}}",
       "providerActivationAutoApplyAvailable": "当前宿主支持自动生效。",
       "providerActivationAutoApplyUnavailable": "自动生效尚未接通，请使用对应宿主的重启路径。",
-      "providerActivationAutoApplyOpen": "重启本地后端",
+      "providerActivationAutoApplyOpen": "重启本机 runtime",
       "providerActivationAutoApplyRun": "执行部署 rollout",
       "providerActivationAutoApplying": "生效中",
       "providerActivationAutoApplyDone": "生效请求已接受。",

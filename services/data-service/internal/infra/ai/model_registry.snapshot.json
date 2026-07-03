@@ -1,5 +1,105 @@
 [
   {
+    "id": "83zi:83zi-seedance-2-0",
+    "lab": "83zi",
+    "model_id": "Seedance-2.0",
+    "route_adapter_hint": "vyro_seedance",
+    "capabilities": [
+      "video_generation"
+    ],
+    "model_capabilities_json": {
+      "video_generation": {
+        "operation_rules": {
+          "reference_to_video": [
+            {
+              "id": "no_audio_only"
+            }
+          ]
+        },
+        "operation_slots": {
+          "image_to_video": [
+            {
+              "id": "reference_image",
+              "max": 1,
+              "media_types": [
+                "image"
+              ],
+              "min": 1,
+              "roles": [
+                "generic",
+                "reference_image"
+              ]
+            }
+          ],
+          "reference_to_video": [
+            {
+              "id": "reference_images",
+              "max": 9,
+              "media_types": [
+                "image"
+              ],
+              "roles": [
+                "generic",
+                "reference_image"
+              ]
+            },
+            {
+              "id": "reference_video",
+              "max": 1,
+              "media_types": [
+                "video"
+              ],
+              "roles": [
+                "reference_video"
+              ]
+            },
+            {
+              "id": "reference_audio",
+              "max": 1,
+              "media_types": [
+                "audio"
+              ],
+              "roles": [
+                "reference_audio"
+              ]
+            }
+          ]
+        },
+        "operations": [
+          "prompt_to_video",
+          "image_to_video",
+          "reference_to_video"
+        ],
+        "reference_assets": {
+          "max": 11,
+          "min": 0,
+          "modalities": [
+            "image",
+            "video",
+            "audio"
+          ],
+          "roles": [
+            "generic",
+            "reference_image",
+            "reference_video",
+            "reference_audio"
+          ]
+        }
+      }
+    },
+    "param_keys": [
+      "duration",
+      "aspect_ratio",
+      "resolution",
+      "audio"
+    ],
+    "source": {
+      "url": "https://83zi.com/sd2/#params",
+      "verified_at": "2026-07-03",
+      "status": "unofficial"
+    }
+  },
+  {
     "id": "83zi:vyro-seedance-2-fast",
     "lab": "83zi",
     "model_id": "vyro-seedance-2-fast",
@@ -11,7 +111,7 @@
       "duration",
       "aspect_ratio",
       "resolution",
-      "generate_audio"
+      "audio"
     ],
     "source": {
       "url": "https://83zi.com/sd2/",
@@ -1392,13 +1492,15 @@
     ],
     "param_keys": [
       "duration",
+      "frames",
       "aspect_ratio",
       "resolution",
       "seed",
       "watermark",
       "fixed_camera",
       "return_last_frame",
-      "service_tier"
+      "service_tier",
+      "execution_expires_after"
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/82379/1520757?lang=zh",
@@ -1430,12 +1532,14 @@
     ],
     "param_keys": [
       "duration",
+      "frames",
       "aspect_ratio",
       "resolution",
       "seed",
       "watermark",
       "return_last_frame",
-      "service_tier"
+      "service_tier",
+      "execution_expires_after"
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/82379/1520757?lang=zh",
@@ -1459,26 +1563,104 @@
     }
   },
   {
-    "id": "volcengine:seedance-1-0-pro-fast",
+    "id": "volcengine:seedance-1-0-pro",
     "lab": "seed",
-    "model_id": "doubao-seedance-1-0-pro-fast-251015",
+    "model_id": "doubao-seedance-1-0-pro-250528",
     "route_adapter_hint": "volcen",
     "capabilities": [
       "video_generation"
     ],
+    "model_capabilities_json": {
+      "video_generation": {
+        "operation_slots": {
+          "first_frame_to_video": [
+            {
+              "id": "first_frame",
+              "max": 1,
+              "media_types": [
+                "image"
+              ],
+              "required": true,
+              "roles": [
+                "first_frame"
+              ]
+            }
+          ],
+          "first_last_frame_to_video": [
+            {
+              "id": "first_frame",
+              "max": 1,
+              "media_types": [
+                "image"
+              ],
+              "required": true,
+              "roles": [
+                "first_frame"
+              ]
+            },
+            {
+              "id": "last_frame",
+              "max": 1,
+              "media_types": [
+                "image"
+              ],
+              "required": true,
+              "roles": [
+                "last_frame"
+              ]
+            }
+          ],
+          "image_to_video": [
+            {
+              "id": "reference_image",
+              "max": 1,
+              "media_types": [
+                "image"
+              ],
+              "min": 1,
+              "roles": [
+                "generic",
+                "reference_image"
+              ]
+            }
+          ]
+        },
+        "operations": [
+          "prompt_to_video",
+          "image_to_video",
+          "first_frame_to_video",
+          "first_last_frame_to_video"
+        ],
+        "reference_assets": {
+          "max": 2,
+          "min": 0,
+          "modalities": [
+            "image"
+          ],
+          "roles": [
+            "generic",
+            "reference_image",
+            "first_frame",
+            "last_frame"
+          ]
+        }
+      }
+    },
     "param_keys": [
       "duration",
+      "frames",
       "aspect_ratio",
       "resolution",
       "seed",
       "watermark",
       "fixed_camera",
       "return_last_frame",
-      "service_tier"
+      "service_tier",
+      "execution_expires_after"
     ],
     "source": {
-      "url": "https://www.volcengine.com/docs/82379/1520757?lang=zh",
-      "verified_at": "2026-06-25",
+      "url": "https://www.volcengine.com/docs/82379/1330310?lang=zh",
+      "verified_at": "2026-07-02",
       "status": "verified"
     }
   },
@@ -1498,24 +1680,74 @@
     }
   },
   {
-    "id": "volcengine:seedance-1-5-pro",
+    "id": "volcengine:seedance-1-0-pro-fast",
     "lab": "seed",
-    "model_id": "doubao-seedance-1-5-pro-251215",
+    "model_id": "doubao-seedance-1-0-pro-fast-251015",
     "route_adapter_hint": "volcen",
     "capabilities": [
       "video_generation"
     ],
+    "model_capabilities_json": {
+      "video_generation": {
+        "operation_slots": {
+          "first_frame_to_video": [
+            {
+              "id": "first_frame",
+              "max": 1,
+              "media_types": [
+                "image"
+              ],
+              "required": true,
+              "roles": [
+                "first_frame"
+              ]
+            }
+          ],
+          "image_to_video": [
+            {
+              "id": "reference_image",
+              "max": 1,
+              "media_types": [
+                "image"
+              ],
+              "min": 1,
+              "roles": [
+                "generic",
+                "reference_image"
+              ]
+            }
+          ]
+        },
+        "operations": [
+          "prompt_to_video",
+          "image_to_video",
+          "first_frame_to_video"
+        ],
+        "reference_assets": {
+          "max": 1,
+          "min": 0,
+          "modalities": [
+            "image"
+          ],
+          "roles": [
+            "generic",
+            "reference_image",
+            "first_frame"
+          ]
+        }
+      }
+    },
     "param_keys": [
       "duration",
+      "frames",
       "aspect_ratio",
       "resolution",
       "seed",
       "watermark",
-      "audio",
       "fixed_camera",
       "return_last_frame",
       "service_tier",
-      "workspace"
+      "execution_expires_after"
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/82379/1520757?lang=zh",
@@ -1562,13 +1794,89 @@
     }
   },
   {
-    "id": "volcengine:seedance-2-0",
+    "id": "volcengine:seedance-1-5-pro",
     "lab": "seed",
-    "model_id": "doubao-seedance-2-0-260128",
+    "model_id": "doubao-seedance-1-5-pro-251215",
     "route_adapter_hint": "volcen",
     "capabilities": [
       "video_generation"
     ],
+    "model_capabilities_json": {
+      "video_generation": {
+        "operation_slots": {
+          "first_frame_to_video": [
+            {
+              "id": "first_frame",
+              "max": 1,
+              "media_types": [
+                "image"
+              ],
+              "required": true,
+              "roles": [
+                "first_frame"
+              ]
+            }
+          ],
+          "first_last_frame_to_video": [
+            {
+              "id": "first_frame",
+              "max": 1,
+              "media_types": [
+                "image"
+              ],
+              "required": true,
+              "roles": [
+                "first_frame"
+              ]
+            },
+            {
+              "id": "last_frame",
+              "max": 1,
+              "media_types": [
+                "image"
+              ],
+              "required": true,
+              "roles": [
+                "last_frame"
+              ]
+            }
+          ],
+          "image_to_video": [
+            {
+              "id": "reference_image",
+              "max": 1,
+              "media_types": [
+                "image"
+              ],
+              "min": 1,
+              "roles": [
+                "generic",
+                "reference_image"
+              ]
+            }
+          ]
+        },
+        "operations": [
+          "prompt_to_video",
+          "image_to_video",
+          "first_frame_to_video",
+          "first_last_frame_to_video"
+        ],
+        "reference_assets": {
+          "max": 2,
+          "min": 0,
+          "modalities": [
+            "image"
+          ],
+          "roles": [
+            "generic",
+            "reference_image",
+            "first_frame",
+            "last_frame"
+          ]
+        }
+      }
+    },
     "param_keys": [
       "duration",
       "aspect_ratio",
@@ -1576,8 +1884,11 @@
       "seed",
       "watermark",
       "audio",
+      "fixed_camera",
       "return_last_frame",
-      "web_search"
+      "service_tier",
+      "execution_expires_after",
+      "workspace"
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/82379/1520757?lang=zh",
@@ -1625,22 +1936,144 @@
     }
   },
   {
-    "id": "volcengine:seedance-2-0-fast",
+    "id": "volcengine:seedance-2-0",
     "lab": "seed",
-    "model_id": "doubao-seedance-2-0-fast-260128",
+    "model_id": "doubao-seedance-2-0-260128",
     "route_adapter_hint": "volcen",
     "capabilities": [
       "video_generation"
     ],
+    "model_capabilities_json": {
+      "video_generation": {
+        "operation_rules": {
+          "reference_to_video": [
+            {
+              "id": "no_audio_only"
+            }
+          ]
+        },
+        "operation_slots": {
+          "first_frame_to_video": [
+            {
+              "id": "first_frame",
+              "max": 1,
+              "media_types": [
+                "image"
+              ],
+              "required": true,
+              "roles": [
+                "first_frame"
+              ]
+            }
+          ],
+          "first_last_frame_to_video": [
+            {
+              "id": "first_frame",
+              "max": 1,
+              "media_types": [
+                "image"
+              ],
+              "required": true,
+              "roles": [
+                "first_frame"
+              ]
+            },
+            {
+              "id": "last_frame",
+              "max": 1,
+              "media_types": [
+                "image"
+              ],
+              "required": true,
+              "roles": [
+                "last_frame"
+              ]
+            }
+          ],
+          "image_to_video": [
+            {
+              "id": "reference_image",
+              "max": 1,
+              "media_types": [
+                "image"
+              ],
+              "min": 1,
+              "roles": [
+                "generic",
+                "reference_image"
+              ]
+            }
+          ],
+          "reference_to_video": [
+            {
+              "id": "reference_images",
+              "max": 9,
+              "media_types": [
+                "image"
+              ],
+              "roles": [
+                "generic",
+                "reference_image"
+              ]
+            },
+            {
+              "id": "reference_videos",
+              "max": 3,
+              "media_types": [
+                "video"
+              ],
+              "roles": [
+                "reference_video"
+              ]
+            },
+            {
+              "id": "reference_audios",
+              "max": 3,
+              "media_types": [
+                "audio"
+              ],
+              "roles": [
+                "reference_audio"
+              ]
+            }
+          ]
+        },
+        "operations": [
+          "prompt_to_video",
+          "image_to_video",
+          "first_frame_to_video",
+          "first_last_frame_to_video",
+          "reference_to_video"
+        ],
+        "reference_assets": {
+          "max": 15,
+          "min": 0,
+          "modalities": [
+            "image",
+            "video",
+            "audio"
+          ],
+          "roles": [
+            "generic",
+            "reference_image",
+            "first_frame",
+            "last_frame",
+            "reference_video",
+            "reference_audio"
+          ]
+        }
+      }
+    },
     "param_keys": [
       "duration",
       "aspect_ratio",
       "resolution",
-      "seed",
       "watermark",
       "audio",
       "return_last_frame",
-      "web_search"
+      "web_search",
+      "execution_expires_after",
+      "priority"
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/82379/1520757?lang=zh",
@@ -1691,6 +2124,152 @@
     ],
     "source": {
       "url": "https://www.volcengine.com/docs/6561/1257584?lang=zh",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:seedance-2-0-fast",
+    "lab": "seed",
+    "model_id": "doubao-seedance-2-0-fast-260128",
+    "route_adapter_hint": "volcen",
+    "capabilities": [
+      "video_generation"
+    ],
+    "model_capabilities_json": {
+      "video_generation": {
+        "operation_rules": {
+          "reference_to_video": [
+            {
+              "id": "no_audio_only"
+            }
+          ]
+        },
+        "operation_slots": {
+          "first_frame_to_video": [
+            {
+              "id": "first_frame",
+              "max": 1,
+              "media_types": [
+                "image"
+              ],
+              "required": true,
+              "roles": [
+                "first_frame"
+              ]
+            }
+          ],
+          "first_last_frame_to_video": [
+            {
+              "id": "first_frame",
+              "max": 1,
+              "media_types": [
+                "image"
+              ],
+              "required": true,
+              "roles": [
+                "first_frame"
+              ]
+            },
+            {
+              "id": "last_frame",
+              "max": 1,
+              "media_types": [
+                "image"
+              ],
+              "required": true,
+              "roles": [
+                "last_frame"
+              ]
+            }
+          ],
+          "image_to_video": [
+            {
+              "id": "reference_image",
+              "max": 1,
+              "media_types": [
+                "image"
+              ],
+              "min": 1,
+              "roles": [
+                "generic",
+                "reference_image"
+              ]
+            }
+          ],
+          "reference_to_video": [
+            {
+              "id": "reference_images",
+              "max": 9,
+              "media_types": [
+                "image"
+              ],
+              "roles": [
+                "generic",
+                "reference_image"
+              ]
+            },
+            {
+              "id": "reference_videos",
+              "max": 3,
+              "media_types": [
+                "video"
+              ],
+              "roles": [
+                "reference_video"
+              ]
+            },
+            {
+              "id": "reference_audios",
+              "max": 3,
+              "media_types": [
+                "audio"
+              ],
+              "roles": [
+                "reference_audio"
+              ]
+            }
+          ]
+        },
+        "operations": [
+          "prompt_to_video",
+          "image_to_video",
+          "first_frame_to_video",
+          "first_last_frame_to_video",
+          "reference_to_video"
+        ],
+        "reference_assets": {
+          "max": 15,
+          "min": 0,
+          "modalities": [
+            "image",
+            "video",
+            "audio"
+          ],
+          "roles": [
+            "generic",
+            "reference_image",
+            "first_frame",
+            "last_frame",
+            "reference_video",
+            "reference_audio"
+          ]
+        }
+      }
+    },
+    "param_keys": [
+      "duration",
+      "aspect_ratio",
+      "resolution",
+      "watermark",
+      "audio",
+      "return_last_frame",
+      "web_search",
+      "execution_expires_after",
+      "priority"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379/1520757?lang=zh",
       "verified_at": "2026-06-25",
       "status": "verified"
     }

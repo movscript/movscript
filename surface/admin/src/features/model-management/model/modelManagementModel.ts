@@ -617,11 +617,13 @@ export function catalogEntryFormFromTemplate(template: AIModelCatalogTemplate): 
     max_input_videos: template.max_input_videos ?? 0,
     input_image_field: template.input_image_field ?? '',
     supported_params: catalogTemplateSupportedParamsValue(template),
-    model_capabilities_json: defaultModelCapabilitiesJSONForCapabilities(capabilities, {
-      acceptsImage: Boolean(template.accepts_image_input),
-      maxInputImages: template.max_input_images ?? 0,
-      maxInputVideos: template.max_input_videos ?? 0,
-    }),
+    model_capabilities_json: template.model_capabilities_json?.trim()
+      ? template.model_capabilities_json
+      : defaultModelCapabilitiesJSONForCapabilities(capabilities, {
+        acceptsImage: Boolean(template.accepts_image_input),
+        maxInputImages: template.max_input_images ?? 0,
+        maxInputVideos: template.max_input_videos ?? 0,
+      }),
   })
 }
 

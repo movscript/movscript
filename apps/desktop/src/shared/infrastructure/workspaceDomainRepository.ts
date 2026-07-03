@@ -5,7 +5,7 @@ import type {
 import { currentWorkspaceOwnerContext, currentWorkspaceProjectDir } from '@/shared/infrastructure/session/workspaceOwnerContext'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import {
-  getAPIBaseURL,
+  getDaemonGatewayBaseURL,
   getRuntimeConfigSnapshot,
   refreshRuntimeConfigSnapshot,
 } from '@/shared/infrastructure/config'
@@ -273,8 +273,7 @@ async function readDaemonGatewayBaseURL(): Promise<string> {
   return snapshot?.runtimeConnection.gatewayBaseURL
     ?? snapshot?.runtime.gateway.baseURL
     ?? snapshot?.gatewayBaseURL
-    ?? snapshot?.apiBaseURL
-    ?? getAPIBaseURL()
+    ?? getDaemonGatewayBaseURL()
 }
 
 function repositoryArgs(

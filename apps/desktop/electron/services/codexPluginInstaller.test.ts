@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -10,17 +10,23 @@ import {
   resolveCodexExecutable,
 } from './codexPluginInstaller'
 
-test('prepareMovScriptCodexMarketplace stages bundled plugin and marketplace manifest', () => {
+test('prepareMovScriptCodexMarketplace points Codex marketplace at Home current plugin', () => {
   const root = mkdtempSync(join(tmpdir(), 'movscript-codex-plugin-'))
   try {
     const source = writePluginSource(root)
+    const homeDir = join(root, 'home')
     const marketplaceRoot = join(root, 'marketplace')
 
-    const result = prepareMovScriptCodexMarketplace({ sourcePluginRoot: source, marketplaceRoot })
+    const result = prepareMovScriptCodexMarketplace({ sourcePluginRoot: source, homeDir, marketplaceRoot })
 
+    assert.equal(result.homeDir, homeDir)
     assert.equal(result.marketplaceRoot, marketplaceRoot)
     assert.equal(result.marketplacePath, join(marketplaceRoot, '.agents', 'plugins', 'marketplace.json'))
     assert.equal(result.pluginRoot, join(marketplaceRoot, 'plugins', 'movscript'))
+    assert.equal(result.homeCurrentPluginRoot, join(homeDir, 'plugins', 'movscript', '0.1.0+abcdef123456'))
+    assert.equal(result.homeCurrentPluginVersion, '0.1.0')
+    assert.equal(result.homeCurrentBundleHash, 'abcdef1234567890')
+    assert.equal(realpathSync(result.pluginRoot), realpathSync(result.homeCurrentPluginRoot))
     assert.equal(existsSync(join(result.pluginRoot, '.codex-plugin', 'plugin.json')), true)
     assert.equal(existsSync(join(result.pluginRoot, 'skills', 'generation', 'SKILL.md')), true)
     assert.equal(existsSync(join(marketplaceRoot, 'marketplace.json')), false)
@@ -40,11 +46,13 @@ test('installMovScriptCodexPlugin runs marketplace and plugin install commands',
   const root = mkdtempSync(join(tmpdir(), 'movscript-codex-plugin-'))
   try {
     const source = writePluginSource(root)
+    const homeDir = join(root, 'home')
     const marketplaceRoot = join(root, 'marketplace')
     const calls: string[][] = []
 
     await installMovScriptCodexPlugin({
       sourcePluginRoot: source,
+      homeDir,
       marketplaceRoot,
       execCodex: async (args) => {
         calls.push(args)
@@ -110,6 +118,38 @@ function writePluginSource(root: string): string {
   writeFileSync(join(source, '.codex-plugin', 'plugin.json'), JSON.stringify(manifest), 'utf8')
   writeFileSync(join(source, '.mcp.json'), JSON.stringify({ mcpServers: {} }), 'utf8')
   writeFileSync(join(source, 'skills', 'generation', 'SKILL.md'), '---\nname: generation\n---\n', 'utf8')
+  writeFileSync(join(source, 'bin', 'movscript'), '#!/bin/sh\n', 'utf8')
+  writeFileSync(join(source, 'bin', 'movscript.mjs'), 'export {}\n', 'utf8')
   writeFileSync(join(source, 'bin', 'movscript-agent-mcp'), '#!/bin/sh\n', 'utf8')
+  writeFileSync(join(source, 'manifest.runtime.json'), JSON.stringify({
+    schema: 'movscript.runtime-bundle.v1',
+    appId: 'plugin',
+    applicationId: 'movscript.agent-plugin',
+    artifact: 'movscript-agent-plugin',
+    version: '0.1.0',
+    packageName: '@movscript/plugin-movscript',
+    generatedAt: '2026-07-02T00:00:00.000Z',
+    apiVersion: '1.0',
+    minDaemonApiVersion: '1.0',
+    bundleHash: 'abcdef1234567890',
+    bundleHashAlgorithm: 'sha256',
+    capabilities: {
+      cli: true,
+      mcp: true,
+      daemon: true,
+      project: true,
+      timeline: true,
+      canvas: true,
+      resources: true,
+      editing: true,
+      media: true,
+    },
+    mcpServer: 'movscript',
+    entrypoint: './bin/movscript',
+    mcpArgs: ['mcp', 'stdio'],
+    daemonArgs: ['daemon', 'run'],
+    cliEntrypoint: './bin/movscript',
+    legacyMcpEntrypoint: './bin/movscript-agent-mcp',
+  }), 'utf8')
   return source
 }

@@ -7,11 +7,13 @@ import {
 import { authRealmKey } from '@/shared/infrastructure/session/authRealm'
 
 export async function installE2EBootstrapSeed(page: Page, seed: E2EBootstrapSeed): Promise<void> {
+  const seedDataConnection = seed.appSettings?.dataConnection ?? {
+    kind: seed.appSettings?.launchMode === 'local' ? 'local' : 'cloud',
+    url: seed.appSettings?.cloudAPIBaseURL ?? seed.appSettings?.apiBaseURL ?? '',
+  }
   const seedAuthRealmKey = authRealmKey({
-    launchMode: seed.appSettings?.launchMode === 'local' ? 'local' : 'cloud',
-    apiBaseURL: seed.appSettings?.apiBaseURL ?? '',
-    cloudAPIBaseURL: seed.appSettings?.cloudAPIBaseURL ?? '',
-    daemonGatewayBaseURL: seed.appSettings?.daemonGatewayBaseURL ?? '',
+    dataConnection: seedDataConnection,
+    cloudAPIBaseURL: seed.appSettings?.cloudAPIBaseURL ?? seed.appSettings?.apiBaseURL ?? '',
   })
   await page.addInitScript(({ bootstrapKey, seed, seedAuthRealmKey }) => {
     window.localStorage.setItem(bootstrapKey, JSON.stringify(seed))

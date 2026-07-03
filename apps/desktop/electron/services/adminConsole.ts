@@ -14,11 +14,11 @@ export function resolveAdminConsoleURL(
   input?: { baseURL?: string; path?: string; authSession?: ElectronAdminAuthSessionInput | null },
   options?: { rendererURL?: string },
 ): string {
-  const apiBaseURL = resolveAdminAPIBaseURL(input?.baseURL)
+  const gatewayBaseURL = resolveAdminGatewayBaseURL(input?.baseURL)
   const normalizedPath = normalizeAdminConsolePath(input?.path ?? '') || '/'
   const baseURL = options?.rendererURL?.trim() || ELECTRON_ADMIN_ORIGIN
   const url = new URL(normalizedPath, baseURL.endsWith('/') ? baseURL : `${baseURL}/`)
-  url.searchParams.set('apiBaseURL', apiBaseURL)
+  url.searchParams.set('gatewayBaseURL', gatewayBaseURL)
   if (input?.authSession?.user) {
     const hash = new URLSearchParams()
     hash.set('authSession', encodeAdminAuthSession(input.authSession))
@@ -27,11 +27,11 @@ export function resolveAdminConsoleURL(
   return url.toString()
 }
 
-export function resolveAdminAPIBaseURL(baseURL?: string): string {
+export function resolveAdminGatewayBaseURL(baseURL?: string): string {
   const normalized = normalizeAdminConsoleBaseURL(baseURL?.trim() || LOCAL_BACKEND_URL)
   const url = new URL(normalized)
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('Admin API base URL must use http or https')
+    throw new Error('Admin gateway base URL must use http or https')
   }
   return url.toString().replace(/\/$/, '')
 }

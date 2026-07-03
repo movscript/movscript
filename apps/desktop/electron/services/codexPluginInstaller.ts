@@ -1,9 +1,11 @@
 import { execFile, spawn } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { delimiter, dirname, isAbsolute, join } from 'node:path'
 import { promisify } from 'node:util'
+import { installMovScriptHomePluginBundle } from '@movscript/plugins/node'
 import { resolveMovScriptBundledPluginSource, validateMovScriptBundledPluginSource } from './movscriptBundledPluginSource'
+import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
 
 const execFileAsync = promisify(execFile)
 
@@ -11,10 +13,14 @@ export const MOVSCRIPT_CODEX_MARKETPLACE_NAME = 'movscript-local'
 export const MOVSCRIPT_CODEX_PLUGIN_NAME = 'movscript'
 
 export interface CodexPluginInstallPaths {
+  homeDir: string
   marketplaceRoot: string
   marketplacePath: string
   pluginRoot: string
   sourcePluginRoot: string
+  homeCurrentPluginRoot: string
+  homeCurrentPluginVersion: string
+  homeCurrentBundleHash?: string
 }
 
 export interface CodexPluginInstallResult {
@@ -24,6 +30,7 @@ export interface CodexPluginInstallResult {
 
 export interface InstallMovScriptCodexPluginOptions {
   sourcePluginRoot?: string
+  homeDir?: string
   marketplaceRoot?: string
   execCodex?: (args: string[]) => Promise<void>
 }
@@ -67,18 +74,26 @@ export async function openCodexApp(): Promise<void> {
 }
 
 export function prepareMovScriptCodexMarketplace(
-  options: Pick<InstallMovScriptCodexPluginOptions, 'sourcePluginRoot' | 'marketplaceRoot'> = {},
+  options: Pick<InstallMovScriptCodexPluginOptions, 'sourcePluginRoot' | 'homeDir' | 'marketplaceRoot'> = {},
 ): CodexPluginInstallPaths {
   const sourcePluginRoot = options.sourcePluginRoot ?? resolveMovScriptBundledPluginSource()
   validateMovScriptBundledPluginSource(sourcePluginRoot)
+  const homeDir = options.homeDir ?? resolveDesktopDefaultMovScriptWorkspaceDir()
+  const installed = installMovScriptHomePluginBundle({
+    homeDir,
+    sourcePluginRoot,
+    mode: 'seed-or-upgrade',
+    reason: 'desktop-codex-install',
+    provider: 'codex',
+  })
 
-  const marketplaceRoot = options.marketplaceRoot ?? defaultCodexMarketplaceRoot()
+  const marketplaceRoot = options.marketplaceRoot ?? defaultCodexMarketplaceRoot(homeDir)
   const pluginRoot = join(marketplaceRoot, 'plugins', MOVSCRIPT_CODEX_PLUGIN_NAME)
   const marketplacePath = join(marketplaceRoot, '.agents', 'plugins', 'marketplace.json')
   mkdirSync(join(marketplaceRoot, 'plugins'), { recursive: true })
   mkdirSync(join(marketplaceRoot, '.agents', 'plugins'), { recursive: true })
   rmSync(pluginRoot, { recursive: true, force: true })
-  cpSync(sourcePluginRoot, pluginRoot, { recursive: true })
+  symlinkSync(installed.paths.currentLink, pluginRoot, process.platform === 'win32' ? 'junction' : 'dir')
   rmSync(join(marketplaceRoot, 'marketplace.json'), { force: true })
   writeFileSync(marketplacePath, `${JSON.stringify(codexMarketplaceManifest(), null, 2)}\n`, 'utf8')
 
@@ -89,10 +104,14 @@ export function prepareMovScriptCodexMarketplace(
   }
 
   return {
+    homeDir,
     marketplaceRoot,
     marketplacePath,
     pluginRoot,
     sourcePluginRoot,
+    homeCurrentPluginRoot: installed.targetPluginRoot,
+    homeCurrentPluginVersion: installed.version,
+    ...(installed.bundleHash ? { homeCurrentBundleHash: installed.bundleHash } : {}),
   }
 }
 
@@ -126,8 +145,8 @@ function codexMarketplaceManifest(): Record<string, unknown> {
   }
 }
 
-function defaultCodexMarketplaceRoot(): string {
-  return join(homedir(), '.movscript', 'codex-marketplace')
+function defaultCodexMarketplaceRoot(homeDir = resolveDesktopDefaultMovScriptWorkspaceDir()): string {
+  return join(homeDir || join(homedir(), '.movscript'), 'codex-marketplace')
 }
 
 async function runCodexCommand(args: string[]): Promise<void> {

@@ -24,7 +24,7 @@ function lazyWithRetry<T extends React.ComponentType<any>>(
 export const ProjectAgentContentPanel = lazyWithRetry(() => import('@/features/agent/components/ProjectAgentModePage').then((module) => ({ default: module.ProjectAgentContentPanel })))
 export const ProjectAgentModeSidebar = lazyWithRetry(() => import('@/features/agent/components/ProjectAgentModePage').then((module) => ({ default: module.ProjectAgentModeSidebar })))
 export const ProjectAIAssistantPanel = lazyWithRetry(() => import('@/features/agent/components/ProjectAgentModePage').then((module) => ({ default: module.ProjectAIAssistantPanel })))
-export const AgentTerminalPanel = lazyWithRetry(() => import('@/features/agent/components/AgentTerminalPanel').then((module) => ({ default: module.AgentTerminalPanel })))
+export const ShellWorkbench = lazyWithRetry(() => import('@/features/shell/ShellWorkbench').then((module) => ({ default: module.ShellWorkbench })))
 
 export const AuthPage = lazyWithRetry(() => import('@/pages/AuthPage'))
 export const OnboardingPage = lazyWithRetry(() => import('@/pages/onboarding/OnboardingPage'))

@@ -75,8 +75,19 @@ func (a *YunwuUnifiedVideoAdapter) VideoStart(ctx context.Context, req VideoRequ
 	if err != nil {
 		return VideoResponse{}, err
 	}
-	if len(imageURLs) == 0 {
+	videoURLs, err := yunwuVideoVideoURLs(req)
+	if err != nil {
+		return VideoResponse{}, err
+	}
+	audioURLs, err := yunwuVideoAudioURLs(req)
+	if err != nil {
+		return VideoResponse{}, err
+	}
+	if len(imageURLs) == 0 && len(videoURLs) == 0 && len(audioURLs) == 0 {
 		return a.openai.VideoStart(ctx, req)
+	}
+	if len(audioURLs) > 0 && len(imageURLs) == 0 && len(videoURLs) == 0 {
+		return VideoResponse{}, fmt.Errorf("yunwu video generation cannot use audio references without at least one image or video reference")
 	}
 
 	body := map[string]any{
@@ -84,10 +95,18 @@ func (a *YunwuUnifiedVideoAdapter) VideoStart(ctx context.Context, req VideoRequ
 		"prompt":       req.Prompt,
 		"aspect_ratio": firstNonEmptyAI(req.AspectRatio, req.Ratio, "1:1"),
 		"size":         yunwuVideoSize(req),
-		"images":       imageURLs,
+	}
+	if len(imageURLs) > 0 {
+		body["images"] = imageURLs
+	}
+	if len(videoURLs) > 0 {
+		body["videos"] = videoURLs
+	}
+	if len(audioURLs) > 0 {
+		body["audios"] = audioURLs
 	}
 	debugBody := cloneDebugMap(body)
-	attachReferenceAssetDebugBindings(debugBody, req.ReferenceAssets, staticReferenceAssetProviderField("images[]"))
+	attachReferenceAssetDebugBindings(debugBody, req.ReferenceAssets, yunwuReferenceAssetProviderField)
 	endpoint := strings.TrimRight(a.BaseURL, "/") + "/video/create"
 	respBody, status, latency, err := a.postJSONWithDebugBody(ctx, http.MethodPost, endpoint, body, debugBody)
 	if err != nil {
@@ -230,14 +249,8 @@ func normalizeYunwuBaseURL(baseURL string) string {
 }
 
 func yunwuVideoImageURLs(req VideoRequest) ([]string, error) {
-	var urls []string
-	appendURL := func(value string) {
-		value = strings.TrimSpace(value)
-		if value == "" || !isHTTPURL(value) || hasString(urls, value) {
-			return
-		}
-		urls = append(urls, value)
-	}
+	urls := make([]string, 0, 1+len(req.InputImages)+len(req.InputImageDataList))
+	appendURL := func(value string) { urls = appendUniqueTrimmed(urls, value) }
 	appendURL(req.Image)
 	for _, image := range req.InputImages {
 		appendURL(image)
@@ -250,10 +263,87 @@ func yunwuVideoImageURLs(req VideoRequest) ([]string, error) {
 			missingPublicURL = true
 		}
 	}
-	if missingPublicURL && len(urls) == 0 {
-		return nil, fmt.Errorf("yunwu video generation requires public image URLs; configure a public cloud file relay for reference images")
+	if missingPublicURL {
+		return nil, fmt.Errorf("yunwu video generation requires public image URLs or provider asset URIs; configure a public cloud file relay for reference images")
 	}
 	return urls, nil
+}
+
+func yunwuVideoVideoURLs(req VideoRequest) ([]string, error) {
+	urls := compactTrimmed(req.InputVideos)
+	urls = appendUniqueTrimmed(urls, req.InputVideo)
+	if len(req.InputVideoDataList) > 0 {
+		for i := range req.InputVideoDataList {
+			url, err := yunwuVideoURLFromData(&req.InputVideoDataList[i])
+			if err != nil {
+				return nil, err
+			}
+			urls = appendUniqueTrimmed(urls, url)
+		}
+		return urls, nil
+	}
+	url, err := yunwuVideoURLFromData(req.InputVideoData)
+	if err != nil {
+		return nil, err
+	}
+	return appendUniqueTrimmed(urls, url), nil
+}
+
+func yunwuVideoURLFromData(vd *MediaData) (string, error) {
+	if vd == nil {
+		return "", nil
+	}
+	if strings.TrimSpace(vd.PresignedURL) != "" {
+		return vd.PresignedURL, nil
+	}
+	if len(vd.Bytes) > 0 {
+		return "", fmt.Errorf("yunwu video reference requires a public URL or provider asset URI; configure a public cloud file relay for reference videos")
+	}
+	return "", nil
+}
+
+func yunwuVideoAudioURLs(req VideoRequest) ([]string, error) {
+	urls := compactTrimmed(req.InputAudios)
+	urls = appendUniqueTrimmed(urls, req.InputAudio)
+	if len(req.InputAudioDataList) > 0 {
+		for i := range req.InputAudioDataList {
+			url, err := yunwuAudioURLFromData(&req.InputAudioDataList[i])
+			if err != nil {
+				return nil, err
+			}
+			urls = appendUniqueTrimmed(urls, url)
+		}
+		return urls, nil
+	}
+	url, err := yunwuAudioURLFromData(req.InputAudioData)
+	if err != nil {
+		return nil, err
+	}
+	return appendUniqueTrimmed(urls, url), nil
+}
+
+func yunwuAudioURLFromData(ad *MediaData) (string, error) {
+	if ad == nil {
+		return "", nil
+	}
+	if strings.TrimSpace(ad.PresignedURL) != "" {
+		return ad.PresignedURL, nil
+	}
+	if len(ad.Bytes) > 0 {
+		return "", fmt.Errorf("yunwu audio reference requires a public URL or provider asset URI; configure a public cloud file relay for reference audio")
+	}
+	return "", nil
+}
+
+func yunwuReferenceAssetProviderField(ref ReferenceAsset, _ int) string {
+	switch strings.ToLower(strings.TrimSpace(ref.MediaType)) {
+	case "video":
+		return "videos[]"
+	case "audio":
+		return "audios[]"
+	default:
+		return "images[]"
+	}
 }
 
 func yunwuVideoSize(req VideoRequest) string {

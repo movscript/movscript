@@ -3,6 +3,7 @@ import {
   AGENT_SETTINGS_DOCUMENT_ROUTE,
   APP_SHELL_AGENT_PANES,
   APP_SHELL_PROJECT_PANES,
+  APP_SHELL_REMOTION_STUDIO_SHELL_WORKBENCH_DOCK_PANE,
   APP_SHELL_TOOL_PANES,
   CANVAS_PANES,
   CONTENT_CANVAS_WORKBENCH_PANES,
@@ -17,6 +18,7 @@ import {
   TOOL_WORKBENCH_PANES,
   WORKSPACE_CONFIG_PANES,
   WORKSPACE_REVIEW_PANES,
+  withShellWorkbenchDock,
 } from './routeLayoutPanes'
 import { appRouteViewportScrollForMode as sharedAppRouteViewportScrollForMode } from '@movscript/ui/layout'
 import type { RouteLayoutSpec, RouteLayoutViewportScroll, RouteScrollMode } from './routeLayoutTypes'
@@ -33,12 +35,12 @@ export {
   APP_SHELL_PROJECT_AGENT_PANE_ID,
   APP_SHELL_SETTINGS_SIDEBAR_PANE_ID,
   APP_SHELL_SETTINGS_SIDEBAR_WIDTH_STORAGE_KEY,
-  APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT,
-  APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY,
-  APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
-  APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
-  APP_SHELL_TERMINAL_DOCK_PANE_ID,
-  APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY,
+  APP_SHELL_SHELL_WORKBENCH_DOCK_DEFAULT_HEIGHT,
+  APP_SHELL_SHELL_WORKBENCH_DOCK_HEIGHT_STORAGE_KEY,
+  APP_SHELL_SHELL_WORKBENCH_DOCK_MAX_HEIGHT,
+  APP_SHELL_SHELL_WORKBENCH_DOCK_MIN_HEIGHT,
+  APP_SHELL_SHELL_WORKBENCH_DOCK_PANE_ID,
+  APP_SHELL_SHELL_WORKBENCH_DOCK_STATE_STORAGE_KEY,
   APP_SHELL_TOOL_SIDEBAR_PANE_ID,
   CANVAS_PALETTE_PANE_ID,
   CANVAS_WORKFLOW_PANE_DEFAULT_WIDTH,
@@ -110,7 +112,7 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     scrollMode: 'workspace',
     shellLayout: 'stacked',
     projectEntryId: undefined,
-    panes: APP_SHELL_AGENT_PANES,
+    panes: withShellWorkbenchDock(APP_SHELL_AGENT_PANES),
   }, (pathname) => pathname === ROUTES.project.agent),
   route({
     routeId: 'project.agentCanvases',
@@ -155,6 +157,7 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     pathnamePattern: ROUTES.project.scripts,
     ...PROJECT_WORKSPACE_ROUTE,
     projectEntryId: 'orchestration_production',
+    panes: withShellWorkbenchDock(PROJECT_WORKSPACE_ROUTE.panes),
   }, exact(ROUTES.project.scripts)),
   route({
     routeId: 'project.content',
@@ -196,7 +199,7 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     surface: 'project',
     scrollMode: 'workspace',
     shellLayout: 'stacked',
-    panes: APP_SHELL_PROJECT_PANES,
+    panes: [...APP_SHELL_PROJECT_PANES, APP_SHELL_REMOTION_STUDIO_SHELL_WORKBENCH_DOCK_PANE],
   }, exact(ROUTES.project.remotionStudio)),
   route({
     routeId: 'project.setting.preview',

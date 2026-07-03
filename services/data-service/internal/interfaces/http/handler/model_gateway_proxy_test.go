@@ -60,6 +60,7 @@ func TestOpenAIProxyForwardsUnknownFieldsAndRewritesModel(t *testing.T) {
 		DisplayName:           "Logical Chat",
 		Capabilities:          ai.CapabilityFamilyTextGeneration,
 		ModelCapabilitiesJSON: testProxyCapabilitiesJSON(ai.CapabilityFamilyTextGeneration, "chat", "responses"),
+		SupportedParams:       testProxySupportedParamsProfile("chat", "responses"),
 		IsEnabled:             true,
 	}
 	if err := db.Create(&entry).Error; err != nil {
@@ -161,6 +162,7 @@ func TestOpenAIProxyRoutesImageGenerationByImageCapability(t *testing.T) {
 		DisplayName:           "Logical Image",
 		Capabilities:          ai.CapabilityFamilyImageGeneration,
 		ModelCapabilitiesJSON: testProxyCapabilitiesJSON(ai.CapabilityFamilyImageGeneration, ai.ImageOperationTextToImage),
+		SupportedParams:       testProxySupportedParamsProfile(ai.ImageOperationTextToImage),
 		IsEnabled:             true,
 	}
 	if err := db.Create(&entry).Error; err != nil {
@@ -216,6 +218,28 @@ func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 func testProxyCapabilitiesJSON(capability string, operations ...string) string {
 	raw, _ := json.Marshal(map[string]map[string][]string{
 		capability: {"operations": operations},
+	})
+	return string(raw)
+}
+
+func testProxySupportedParamsProfile(operations ...string) string {
+	byOperation := make(map[string]map[string][]map[string]string, len(operations))
+	for _, operation := range operations {
+		operation = strings.TrimSpace(operation)
+		if operation == "" {
+			continue
+		}
+		byOperation[operation] = map[string][]map[string]string{
+			"add": {{
+				"key":   "test_param",
+				"label": "Test Param",
+				"type":  "string",
+			}},
+		}
+	}
+	raw, _ := json.Marshal(map[string]any{
+		"version":      2,
+		"by_operation": byOperation,
 	})
 	return string(raw)
 }

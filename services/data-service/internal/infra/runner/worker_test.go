@@ -42,6 +42,10 @@ func testOperationCapabilitiesJSON(capability, operation string) string {
 	return fmt.Sprintf(`{%q:{"operations":[%q]}}`, capability, operation)
 }
 
+func testOperationSupportedParamsProfile(operation string) string {
+	return fmt.Sprintf(`{"version":2,"by_operation":{%q:{"add":[{"key":"test_param","label":"Test Param","type":"string"}]}}}`, operation)
+}
+
 func testGenerationIntentRequestContext(capability, operation string) string {
 	return fmt.Sprintf(`{"intent":{"capability":%q,"operation":%q}}`, capability, operation)
 }
@@ -851,6 +855,27 @@ func TestBuildVideoRequestIgnoresCertifiedProviderAssetsForNonImageResources(t *
 	}
 }
 
+func TestBuildVideoRequestPreservesMultipleVideoAudioInputs(t *testing.T) {
+	worker := NewWorker(nil, nil, nil, nil)
+	job := &model.Job{Prompt: "animate with several references"}
+	videoData := []ai.MediaData{
+		{ResourceID: 21, PresignedURL: "https://example.test/ref-a.mp4", MimeType: "video/mp4"},
+		{ResourceID: 22, PresignedURL: "https://example.test/ref-b.mp4", MimeType: "video/mp4"},
+	}
+	audioData := []ai.MediaData{
+		{ResourceID: 31, PresignedURL: "https://example.test/audio-a.mp3", MimeType: "audio/mpeg"},
+		{ResourceID: 32, PresignedURL: "https://example.test/audio-b.wav", MimeType: "audio/wav"},
+	}
+
+	req := worker.buildVideoRequest(job, parseGenerationParams(""), 5, nil, videoData, audioData, nil)
+	if len(req.InputVideoDataList) != 2 || req.InputVideoData == nil || req.InputVideoData.ResourceID != 21 {
+		t.Fatalf("video inputs = list:%#v first:%#v, want two videos with first selected", req.InputVideoDataList, req.InputVideoData)
+	}
+	if len(req.InputAudioDataList) != 2 || req.InputAudioData == nil || req.InputAudioData.ResourceID != 31 {
+		t.Fatalf("audio inputs = list:%#v first:%#v, want two audios with first selected", req.InputAudioDataList, req.InputAudioData)
+	}
+}
+
 func TestBuildVideoRequestIgnoresInactiveProviderAssetCertification(t *testing.T) {
 	const providerID = "volc-ark-main"
 	db := testutil.OpenSQLite(t, "worker_video_inactive_provider_asset.db", &model.RawResource{})
@@ -1407,6 +1432,7 @@ func TestWorkerExecutesOrthogonalSubtitleJobTypesAsResourceOutputs(t *testing.T)
 			IsEnabled:             true,
 			Capabilities:          ai.CapabilityFamilyAudioGeneration,
 			ModelCapabilitiesJSON: testOperationCapabilitiesJSON(ai.CapabilityFamilyAudioGeneration, tc.operation),
+			SupportedParams:       testOperationSupportedParamsProfile(tc.operation),
 		}
 		if err := db.Create(&entry).Error; err != nil {
 			t.Fatalf("create catalog entry %s: %v", tc.operation, err)
@@ -1517,6 +1543,7 @@ func TestWorkerExecutesVoiceProfileJobsAsJSONResources(t *testing.T) {
 			IsEnabled:             true,
 			Capabilities:          ai.CapabilityFamilyAudioGeneration,
 			ModelCapabilitiesJSON: testOperationCapabilitiesJSON(ai.CapabilityFamilyAudioGeneration, tc.operation),
+			SupportedParams:       testOperationSupportedParamsProfile(tc.operation),
 		}
 		if err := db.Create(&entry).Error; err != nil {
 			t.Fatalf("create catalog entry %s: %v", tc.operation, err)
@@ -1622,6 +1649,7 @@ func TestWorkerExecutesSpeechToSpeechJobAsAudioResource(t *testing.T) {
 		IsEnabled:             true,
 		Capabilities:          ai.CapabilityFamilyAudioGeneration,
 		ModelCapabilitiesJSON: testOperationCapabilitiesJSON(ai.CapabilityFamilyAudioGeneration, ai.AudioOperationSpeechToSpeech),
+		SupportedParams:       testOperationSupportedParamsProfile(ai.AudioOperationSpeechToSpeech),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)

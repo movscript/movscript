@@ -27,7 +27,18 @@ function withWindow(url: string, storage: Record<string, string> = {}): () => vo
   }
 }
 
-test('getAPIBaseURL prefers explicit apiBaseURL query parameter', () => {
+test('getAPIBaseURL prefers explicit gatewayBaseURL query parameter', () => {
+  const restore = withWindow('movscript-admin://app/models?gatewayBaseURL=https%3A%2F%2Fgateway.example.com%2Fapi%2Fv1&apiBaseURL=https%3A%2F%2Flegacy.example.com', {
+    [APP_SETTINGS_STORAGE_KEY]: JSON.stringify({ apiBaseURL: 'http://stored.example.com' }),
+  })
+  try {
+    assert.equal(getAPIBaseURL(), 'https://gateway.example.com')
+  } finally {
+    restore()
+  }
+})
+
+test('getAPIBaseURL keeps legacy apiBaseURL query fallback for older admin launchers', () => {
   const restore = withWindow('movscript-admin://app/models?apiBaseURL=https%3A%2F%2Fapi.example.com%2Fapi%2Fv1', {
     [APP_SETTINGS_STORAGE_KEY]: JSON.stringify({ apiBaseURL: 'http://stored.example.com' }),
   })

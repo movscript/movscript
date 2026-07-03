@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestLoadDefaultCacheBackendMatchesEditionDefaults(t *testing.T) {
+func TestLoadDefaultCacheBackendMatchesDistributionProfileDefaults(t *testing.T) {
 	t.Setenv("CACHE_BACKEND", "")
 	t.Setenv("MOVSCRIPT_DEPENDENCY_PROFILE", "")
 	t.Setenv("MOVSCRIPT_APP_MODE", "")
@@ -250,18 +250,18 @@ func TestLoadWorkspaceStorageBackendPrefersStorageEnv(t *testing.T) {
 	}
 }
 
-func TestLoadWorkspaceStorageBackendNormalizesGitHubEnterpriseAliases(t *testing.T) {
+func TestLoadWorkspaceStorageBackendNormalizesGitHubSelfHostedAliases(t *testing.T) {
 	t.Setenv("MOVSCRIPT_WORKSPACE_STORAGE_BACKEND", "ghe")
-	t.Setenv("MOVSCRIPT_GITHUB_ENTERPRISE_BASE_URL", "https://github.example.com")
-	t.Setenv("MOVSCRIPT_GITHUB_ENTERPRISE_TOKEN", "token")
+	t.Setenv("MOVSCRIPT_GITHUB_SELF_HOSTED_BASE_URL", "https://github.example.com")
+	t.Setenv("MOVSCRIPT_GITHUB_SELF_HOSTED_TOKEN", "token")
 
 	cfg := Load()
 
-	if cfg.WorkspaceStorageBackend != "github-enterprise" {
-		t.Fatalf("WorkspaceStorageBackend = %q, want github-enterprise", cfg.WorkspaceStorageBackend)
+	if cfg.WorkspaceStorageBackend != "github-self-hosted" {
+		t.Fatalf("WorkspaceStorageBackend = %q, want github-self-hosted", cfg.WorkspaceStorageBackend)
 	}
-	if cfg.GitHubEnterpriseBaseURL != "https://github.example.com" || cfg.GitHubEnterpriseToken != "token" {
-		t.Fatalf("GitHub Enterprise config = baseURL %q token %q", cfg.GitHubEnterpriseBaseURL, cfg.GitHubEnterpriseToken)
+	if cfg.GitHubSelfHostedBaseURL != "https://github.example.com" || cfg.GitHubSelfHostedToken != "token" {
+		t.Fatalf("GitHub Self-hosted config = baseURL %q token %q", cfg.GitHubSelfHostedBaseURL, cfg.GitHubSelfHostedToken)
 	}
 }
 
@@ -457,7 +457,7 @@ func TestValidateStartupRequiresGiteaManagementCredentialForGiteaWorkspaceStorag
 	}
 }
 
-func TestValidateStartupAcceptsGitHubEnterpriseWorkspaceStorage(t *testing.T) {
+func TestValidateStartupAcceptsGitHubSelfHostedWorkspaceStorage(t *testing.T) {
 	cfg := &Config{
 		DBDriver:                   "sqlite",
 		DBPath:                     t.TempDir() + "/movscript.db",
@@ -469,19 +469,19 @@ func TestValidateStartupAcceptsGitHubEnterpriseWorkspaceStorage(t *testing.T) {
 		RelayGatewayBaseURL:        "http://relay-gateway.local",
 		StorageBackend:             "filesystem",
 		FilesystemStorageRoot:      t.TempDir(),
-		WorkspaceStorageBackend:    "github-enterprise",
-		GitHubEnterpriseBaseURL:    "https://github.example.com",
-		GitHubEnterpriseToken:      "token",
-		GitHubEnterpriseOrgPrefix:  "movscript-org-",
-		GitHubEnterpriseRepoPrefix: "movscript-project-",
-		GitHubEnterpriseBranch:     "main",
+		WorkspaceStorageBackend:    "github-self-hosted",
+		GitHubSelfHostedBaseURL:    "https://github.example.com",
+		GitHubSelfHostedToken:      "token",
+		GitHubSelfHostedOrgPrefix:  "movscript-org-",
+		GitHubSelfHostedRepoPrefix: "movscript-project-",
+		GitHubSelfHostedBranch:     "main",
 	}
 	if err := cfg.ValidateStartup(); err != nil {
-		t.Fatalf("ValidateStartup returned error for GitHub Enterprise workspace storage: %v", err)
+		t.Fatalf("ValidateStartup returned error for GitHub Self-hosted workspace storage: %v", err)
 	}
 }
 
-func TestValidateStartupRequiresGitHubEnterpriseToken(t *testing.T) {
+func TestValidateStartupRequiresGitHubSelfHostedToken(t *testing.T) {
 	cfg := &Config{
 		DBDriver:                   "sqlite",
 		DBPath:                     t.TempDir() + "/movscript.db",
@@ -491,14 +491,14 @@ func TestValidateStartupRequiresGitHubEnterpriseToken(t *testing.T) {
 		GitProxyTokenTTLHours:      24,
 		StorageBackend:             "filesystem",
 		FilesystemStorageRoot:      t.TempDir(),
-		WorkspaceStorageBackend:    "github-enterprise",
-		GitHubEnterpriseBaseURL:    "https://github.example.com",
-		GitHubEnterpriseOrgPrefix:  "movscript-org-",
-		GitHubEnterpriseRepoPrefix: "movscript-project-",
-		GitHubEnterpriseBranch:     "main",
+		WorkspaceStorageBackend:    "github-self-hosted",
+		GitHubSelfHostedBaseURL:    "https://github.example.com",
+		GitHubSelfHostedOrgPrefix:  "movscript-org-",
+		GitHubSelfHostedRepoPrefix: "movscript-project-",
+		GitHubSelfHostedBranch:     "main",
 	}
 	if err := cfg.ValidateStartup(); err == nil {
-		t.Fatal("ValidateStartup returned nil for missing GitHub Enterprise token")
+		t.Fatal("ValidateStartup returned nil for missing GitHub Self-hosted token")
 	}
 }
 
@@ -595,7 +595,7 @@ func TestValidateStartupRejectsInvalidDependencyProfile(t *testing.T) {
 	}
 }
 
-func TestValidateStartupHandlesUnknownAIGatewayProviderByEdition(t *testing.T) {
+func TestValidateStartupHandlesUnknownAIGatewayProviderByDistributionProfile(t *testing.T) {
 	cfg := &Config{
 		DBDriver:              "sqlite",
 		DBPath:                t.TempDir() + "/movscript.db",
@@ -609,11 +609,11 @@ func TestValidateStartupHandlesUnknownAIGatewayProviderByEdition(t *testing.T) {
 		CacheBackend:          "memory",
 		AIGatewayProvider:     "mystery",
 	}
-	_, editionOwnsAIGateway := editionAIGatewayProvider(cfg)
+	_, distributionProfileOwnsAIGateway := distributionProfileAIGatewayProvider(cfg)
 	err := cfg.ValidateStartup()
-	if editionOwnsAIGateway {
+	if distributionProfileOwnsAIGateway {
 		if err == nil {
-			t.Fatal("ValidateStartup returned nil for unknown edition AI gateway provider")
+			t.Fatal("ValidateStartup returned nil for unknown distribution profile AI gateway provider")
 		}
 		return
 	}

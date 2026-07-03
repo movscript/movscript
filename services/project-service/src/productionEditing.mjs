@@ -1218,7 +1218,7 @@ async function productionEditingWorkspaceProjectRuntimeStatus(workspace, { media
     media_editing_project_path: mediaEditingProjectPath,
     blockers: [{
       code: 'SYSTEM_EDITING_MEDIA_PROJECT_MISSING',
-      message: 'The system_editing workspace is missing its MediaEditingProject file.',
+      message: '系统剪辑台缺少 MediaEditingProject 文件。',
       mediaEditingProjectPath,
       media_editing_project_path: mediaEditingProjectPath,
     }],
@@ -1233,7 +1233,7 @@ async function productionEditingRemotionProjectRuntimeStatus(workspace) {
   if (!projectDirectory) {
     blockers.push({
       code: 'REMOTION_PROJECT_DIRECTORY_MISSING',
-      message: 'The Remotion workspace is missing projectDirectory.',
+      message: 'Remotion 工作区缺少 projectDirectory。',
     })
   } else {
     const requiredFiles = ['package.json', entrypoint, 'movscript-remotion-workspace.json']
@@ -1260,7 +1260,7 @@ async function productionEditingRemotionProjectRuntimeStatus(workspace) {
       if (!exists) {
         blockers.push({
           code: 'REMOTION_PROJECT_FILES_MISSING',
-          message: `The Remotion workspace is missing required project file: ${relativePath}`,
+          message: `Remotion 工作区缺少必要文件：${relativePath}`,
           path: relativePath,
           absolutePath,
           absolute_path: absolutePath,
@@ -1577,4 +1577,3 @@ function contentUnitRefValue(value) {
   const normalized = suffix || text
   return normalized.startsWith('content_unit_') ? normalized.replace(/^content_unit_/, '') : normalized
 }
-

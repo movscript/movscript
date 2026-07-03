@@ -28,6 +28,10 @@ test('stacked app shell reserves overlap without shrinking pane content', () => 
     /\.app-shell\[data-layout="stacked"\] \.app-shell__slot\[data-has-next-slot="true"\] \{[\s\S]*box-sizing: content-box;[\s\S]*padding-right: var\(--app-shell-stack-overlap\);/,
   )
   assert.match(workspaceStyles, /\.app-shell\[data-layout="stacked"\] \.app-shell__slot\[data-next-slot-collapsed="true"\] \{[\s\S]*padding-right: 0;/)
+  assert.match(
+    workspaceStyles,
+    /@media \(max-width: 520px\) \{[\s\S]*\.app-shell:is\(\[data-surface="home"\], \[data-surface="tool"\], \[data-surface="project"\], \[data-surface="settings"\]\) \.app-shell__slot--center \{[\s\S]*min-width: 0;[\s\S]*width: 100%;/,
+  )
   assert.doesNotMatch(workspaceStyles, /\.app-shell[^\n{]*__slot:has\(/)
 })
 
@@ -205,7 +209,7 @@ test('app window header exposes semantic icon regions and left control fill layo
   assert.doesNotMatch(appSource, /<ProjectEntryDeckHeader/)
   assert.match(appSource, /const projectCenterContent = projectRouteHeaderTitle\(pathname\)/)
   assert.match(appSource, /const homeCenterHeader = \(\s*<Header\s*showWindowControls\s*showAppControls\s*showFallbackBrand=\{false\}\s*showAppUpdateAction\s*\/>\s*\)/)
-  assert.match(appSource, /navigationControls=\{<>\{navigationHomeControl\}\{projectHistoryNavigationControls\}<\/>\}[\s\S]*primaryActions=\{<ProjectGitHeaderActions compact \/>\}[\s\S]*contextActions=\{terminalHeaderControl\}/)
+  assert.match(appSource, /navigationControls=\{<>\{navigationHomeControl\}\{projectHistoryNavigationControls\}<\/>\}[\s\S]*primaryActions=\{<ProjectGitHeaderActions compact \/>\}[\s\S]*contextActions=\{projectAgentPanelClosed \? <>\{projectAgentPanelHeaderControl\}\{shellWorkbenchHeaderControl\}<\/> : undefined\}/)
   assert.match(appSource, /const agentNavigationControls = navigationHomeControl/)
   assert.match(appSource, /navigationControls=\{!agentSidebarVisible \? agentNavigationControls : undefined\}/)
   assert.match(appSource, /\{agentSettingsActive \? null : <AppShellHistoryNavigationControls navClassName="agent-sidebar-window-controls__nav" \/>\}/)
@@ -273,7 +277,10 @@ test('canvas list and tools are standalone page programs outside the main shell 
   assert.match(toolShellSource, /<Route path="text" element=\{<TextToolPage \/>\} \/>/)
   assert.match(toolShellSource, /<Route path="plugin\/:pluginId" element=\{<PluginToolPage \/>\} \/>/)
   assert.match(toolShellSource, /<Sidebar[\s\S]*onHide=\{hideToolSidebar\}/)
-  assert.match(toolShellSource, /terminalPanel=\{terminalPanel\}/)
+  assert.doesNotMatch(toolShellSource, /AppShellShellWorkbenchDock/)
+  assert.doesNotMatch(toolShellSource, /APP_SHELL_SHELL_WORKBENCH_DOCK/)
+  assert.doesNotMatch(toolShellSource, /shellPanel=/)
+  assert.doesNotMatch(toolShellSource, /app-window-shell-workbench-toggle/)
 
   assert.match(routeRegistrySource, /routeId: 'canvases'[\s\S]*surface: 'canvas'[\s\S]*shellLayout: 'flush'[\s\S]*panes: \[\]/)
   assert.match(routeRegistrySource, /routeId: 'editing'[\s\S]*shellLayout: 'flush'[\s\S]*panes: \[\]/)
@@ -351,7 +358,7 @@ test('app header icon architecture document maps page controls to semantic regio
   assert.match(headerArchitectureDoc, /Git 的 commit、pull、push 只属于项目模式/)
   assert.match(headerArchitectureDoc, /全局 Home 是模式入口，不继承项目模式的 `primaryActions`/)
   assert.doesNotMatch(headerArchitectureDoc, /退出设置/)
-  assert.match(headerArchitectureDoc, /Enterprise 不再 overlay `AppTopControls`/)
+  assert.match(headerArchitectureDoc, /定制分发 profile 不再 overlay `AppTopControls`/)
   assert.match(headerArchitectureDoc, /runtimeAppTopControls: FrontendAppTopControls[\s\S]*globalMenuItems/)
 })
 

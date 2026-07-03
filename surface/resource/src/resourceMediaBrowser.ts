@@ -24,6 +24,8 @@ export interface CachedMediaUrl {
 }
 
 export interface ResourceMediaBrowserConfig {
+  gatewayBaseURL?: string | (() => string)
+  /** @deprecated Use gatewayBaseURL for daemon-backed resource media. */
   apiBaseURL?: string | (() => string)
   authCacheScope?: string | (() => string)
   mediaAuthHeaders?: HeadersInit | (() => HeadersInit | undefined)
@@ -312,10 +314,15 @@ async function loadResourceTextUrlUncached(url: string): Promise<string> {
   return typeof response.data === 'string' ? response.data : String(response.data ?? '')
 }
 
-function readConfiguredAPIBaseURL(): string {
-  const value = browserConfig.apiBaseURL
+function readConfiguredBaseURL(value: string | (() => string) | undefined): string | undefined {
   const resolved = typeof value === 'function' ? value() : value
-  if (resolved?.trim()) return resolved.trim().replace(/\/+$/, '')
+  const trimmed = resolved?.trim()
+  return trimmed ? trimmed.replace(/\/+$/, '') : undefined
+}
+
+function readConfiguredAPIBaseURL(): string {
+  const configuredBaseURL = readConfiguredBaseURL(browserConfig.gatewayBaseURL) ?? readConfiguredBaseURL(browserConfig.apiBaseURL)
+  if (configuredBaseURL) return configuredBaseURL
   return typeof window === 'undefined' ? '' : window.location.origin
 }
 

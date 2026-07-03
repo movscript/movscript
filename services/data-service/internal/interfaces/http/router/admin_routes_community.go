@@ -27,7 +27,7 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.PUT("/model-catalog/:id/route-bindings/:bindingId", h.ai.UpdateModelRouteBinding)
 	admin.DELETE("/model-catalog/:id/route-bindings/:bindingId", h.ai.DeleteModelRouteBinding)
 
-	if !editionUsesModelCatalogOnly() {
+	if !distributionProfileUsesModelCatalogOnly() {
 		registerAIProviderAdminRoutes(admin, h)
 	}
 
@@ -46,9 +46,9 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.GET("/settings/usage-policy", h.adminSettings.GetUsagePolicySettings)
 	admin.GET("/settings/usage-policy/diagnose", h.adminSettings.DiagnoseUsagePolicy)
 	admin.PUT("/settings/usage-policy", h.adminSettings.UpdateUsagePolicySettings)
-	registerEditionAdminUserRoutes(admin, h)
+	registerDistributionProfileAdminUserRoutes(admin, h)
 	admin.GET("/users/:id/detail", h.userAdmin.Detail)
-	registerEditionAdminRoutes(admin, h)
+	registerDistributionProfileAdminRoutes(admin, h)
 	admin.GET("/orgs/:id/detail", h.orgAdmin.Detail)
 	admin.GET("/orgs/:id/invitations", h.orgAdmin.ListInvitations)
 	admin.POST("/orgs/:id/invitations", h.orgAdmin.CreateInvitation)

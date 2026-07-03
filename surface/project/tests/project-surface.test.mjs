@@ -19,7 +19,10 @@ import {
   contentCanvasNodeCanUseCandidateFlow,
   contentCanvasNodeIsNamespace,
 } from '../dist/data.js'
-import { agentImpactPreviewTimelineHref } from '../dist/react.js'
+import {
+  agentContentCandidateResourceIds,
+  agentImpactPreviewTimelineHref,
+} from '../dist/react.js'
 import {
   createHostedProjectSurfaceRuntime,
   projectSurfaceContextCommandEnvelope,
@@ -134,6 +137,27 @@ test('project scripts surface reads script selection from router search params',
   assert.doesNotMatch(source, /window\.location\.search/)
 })
 
+test('remotion studio shell reveal uses a single host event path', () => {
+  const source = readFileSync(new URL('../src/components/remotion/ProjectRemotionStudioSurface.tsx', import.meta.url), 'utf8')
+
+  assert.match(source, /async function revealRemotionShellSession\(shellGateway: ShellGateway, sessionId: string\): Promise<void>/)
+  assert.match(source, /if \(shellGateway\.reveal\) \{[\s\S]*await shellGateway\.reveal\(\{ sessionId \}\)[\s\S]*return[\s\S]*\}/)
+  assert.match(source, /requestHostShellWorkbenchReveal\(sessionId\)/)
+  assert.doesNotMatch(source, /await shellGateway\.reveal\(\{ sessionId: activeShellSessionId \}\)[\s\S]*requestHostShellWorkbenchReveal\(activeShellSessionId\)/)
+  assert.doesNotMatch(source, /await shellGateway\.reveal\?\.\(\{ sessionId: existingJob\.sessionId \}\)[\s\S]*requestHostShellWorkbenchReveal\(existingJob\.sessionId\)/)
+})
+
+test('project picker derives project list URL from daemon gateway before legacy apiV1BaseURL', () => {
+  const source = readFileSync(new URL('../src/components/home/ProjectPickerSurface.tsx', import.meta.url), 'utf8')
+
+  assert.match(source, /gatewayBaseURL\?: string/, 'ProjectPickerSurface must expose gatewayBaseURL as the primary runtime base')
+  assert.match(source, /@deprecated Use gatewayBaseURL/, 'ProjectPickerSurface legacy apiV1BaseURL must be marked deprecated')
+  assert.match(source, /const projectsAPIBaseURL = projectPickerProjectsAPIBaseURL\(\{ gatewayBaseURL, apiV1BaseURL \}\)/)
+  assert.match(source, /fetch\(`\$\{projectsAPIBaseURL\}\/projects`\)/)
+  assert.match(source, /return gateway\.endsWith\('\/api\/v1'\) \? gateway : `\$\{gateway\}\/api\/v1`/)
+  assert.doesNotMatch(source, /fetch\(`\$\{trimTrailingSlash\(apiV1BaseURL\)\}/, 'ProjectPickerSurface must not fetch directly from legacy apiV1BaseURL')
+})
+
 test('project surface descriptor carries host-neutral project intent', () => {
   assert.deepEqual(
     projectSurfaceDescriptor({
@@ -153,6 +177,31 @@ test('project surface descriptor carries host-neutral project intent', () => {
       source: 'agent',
     },
   )
+})
+
+test('agent content candidate surface preloads every output resource', () => {
+  const ids = agentContentCandidateResourceIds({
+    data: {
+      candidate_visibility: {
+        content_unit_candidates: [
+          {
+            id: 'candidate_group',
+            outputs: [
+              { resource_id: 101 },
+              { resourceId: '102' },
+              { resource_id: 101 },
+            ],
+          },
+          {
+            id: 'candidate_single',
+            outputs: [{ resource_id: 103 }],
+          },
+        ],
+      },
+    },
+  })
+
+  assert.deepEqual(ids, [101, 102, 103])
 })
 
 test('agent surface params carry normalized production scope focus', () => {

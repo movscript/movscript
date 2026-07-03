@@ -151,7 +151,7 @@ export const CANVAS_NODE_DEFINITIONS: CanvasNodeDefinition[] = [
     descriptionKey: 'canvas.catalog.nodes.reference_to_video.description',
     defaultLabelKey: 'canvas.nodeLabels.reference_to_video',
     category: 'ai',
-    inputs: [port('reference_images', 'image', { mediaType: 'image', role: 'reference_image', required: false, maxCount: 8 }), port('reference_video', 'video', { mediaType: 'video', role: 'reference_video', required: false, maxCount: 1 }), port('reference_audio', 'audio', { mediaType: 'audio', role: 'reference_audio', required: false, maxCount: 1 }), port('prompt', 'text')],
+    inputs: [port('reference_images', 'image', { mediaType: 'image', role: 'reference_image', required: false, maxCount: 9 }), port('reference_video', 'video', { mediaType: 'video', role: 'reference_video', required: false, maxCount: 3 }), port('reference_audio', 'audio', { mediaType: 'audio', role: 'reference_audio', required: false, maxCount: 3 }), port('prompt', 'text')],
     outputs: [port('video', 'video')],
     defaultData: { source: 'ai', label: 'Reference to Video', outputType: 'video', modelOperation: 'reference_to_video' },
   },

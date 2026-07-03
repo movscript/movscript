@@ -57,6 +57,7 @@ func TestEnqueueGenerationAcceptsAudioGenerationOperation(t *testing.T) {
 		Capabilities:          ai.CapabilityFamilyAudioGeneration,
 		IsEnabled:             true,
 		ModelCapabilitiesJSON: capabilitiesJSON,
+		SupportedParams:       testOperationSupportedParamsProfile(ai.AudioOperationTextToSpeech),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -129,6 +130,7 @@ func TestEnqueueGenerationTTSCatalogRouteWithoutLegacyModelConfig(t *testing.T) 
 		IsEnabled:             true,
 		Capabilities:          ai.CapabilityFamilyAudioGeneration,
 		ModelCapabilitiesJSON: `{"audio_generation":{"operations":["text_to_speech"]}}`,
+		SupportedParams:       testOperationSupportedParamsProfile(ai.AudioOperationTextToSpeech),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -206,6 +208,7 @@ func TestPreflightGenerationValidatesRouteWithoutCreatingJobOrReservation(t *tes
 		IsEnabled:             true,
 		Capabilities:          ai.CapabilityFamilyAudioGeneration,
 		ModelCapabilitiesJSON: `{"audio_generation":{"operations":["text_to_speech"]}}`,
+		SupportedParams:       testOperationSupportedParamsProfile(ai.AudioOperationTextToSpeech),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -352,6 +355,7 @@ func TestEnqueueGenerationIntentRoutesByOperationWithoutInputAwarePromotion(t *t
 		MaxInputImages:        2,
 		IsEnabled:             true,
 		ModelCapabilitiesJSON: `{"video_generation":{"operations":["image_to_video","first_last_frame_to_video"],"reference_assets":{"min":1,"max":2,"modalities":["image"],"roles":["generic","first_frame","last_frame"]}}}`,
+		SupportedParams:       testOperationSupportedParamsProfile(ai.VideoOperationImageToVideo, ai.VideoOperationFirstLastFrameToVideo),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -483,6 +487,7 @@ func TestEnqueueAudioGenerationIntentRoutesByCanonicalOperation(t *testing.T) {
 		Capabilities:          ai.CapabilityFamilyAudioGeneration,
 		IsEnabled:             true,
 		ModelCapabilitiesJSON: `{"audio_generation":{"operations":["text_to_speech","music_generation"]}}`,
+		SupportedParams:       testOperationSupportedParamsProfile(ai.AudioOperationTextToSpeech, ai.AudioOperationMusicGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)

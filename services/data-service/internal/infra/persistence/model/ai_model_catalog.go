@@ -29,7 +29,7 @@ type AIModelCatalogEntry struct {
 }
 
 // AIModelRouteBinding makes a provider model available through a source/route.
-// In community it points at a credential; in enterprise relay gateway mode it points
+// In community it points at a credential; in self-hosted relay gateway mode it points
 // at a relay gateway group.
 type AIModelRouteBinding struct {
 	gorm.Model

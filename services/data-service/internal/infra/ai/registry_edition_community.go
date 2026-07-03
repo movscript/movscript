@@ -8,18 +8,18 @@ import (
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
-func editionRegistryProviderMode(_ string) (string, bool) {
+func distributionProfileRegistryProviderMode(_ string) (string, bool) {
 	return "", false
 }
 
-func (r *Registry) editionBuildProvider(_ persistencemodel.AICredential, _ *ModelDef) (Provider, bool, error) {
+func (r *Registry) distributionProfileBuildProvider(_ persistencemodel.AICredential, _ *ModelDef) (Provider, bool, error) {
 	return nil, false, nil
 }
 
-func (r *Registry) editionBuildGatewayProvider() (Provider, bool, error) {
+func (r *Registry) distributionProfileBuildGatewayProvider() (Provider, bool, error) {
 	return nil, false, nil
 }
 
-func (r *Registry) editionFileUploader(_ context.Context, _ uint) (FileUploader, bool) {
+func (r *Registry) distributionProfileFileUploader(_ context.Context, _ uint) (FileUploader, bool) {
 	return nil, false
 }

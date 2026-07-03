@@ -142,6 +142,12 @@ func TestVyroSeedance20VideoStartUsesJSONForReferenceURLs(t *testing.T) {
 	if !ok || len(medias) != 2 {
 		t.Fatalf("medias = %#v, want image+audio refs", gotBody["medias"])
 	}
+	firstMedia, _ := medias[0].(map[string]any)
+	secondMedia, _ := medias[1].(map[string]any)
+	if firstMedia["role"] != "image" || firstMedia["type"] != nil ||
+		secondMedia["role"] != "audio" || secondMedia["type"] != nil {
+		t.Fatalf("medias = %#v, want 83zi role+url objects without type", gotBody["medias"])
+	}
 }
 
 func TestVyroSeedance20VideoStartUsesMultipartForLocalReferenceBytes(t *testing.T) {

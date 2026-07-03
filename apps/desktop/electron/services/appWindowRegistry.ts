@@ -12,6 +12,7 @@ import type {
 import { createWindow } from '../appWindow'
 import { loadRenderer } from '../appWindow/loadRenderer'
 import { isAppTrayInstalled } from './appTray'
+import { desktopShellHostManager } from './desktopShellHost'
 
 const HOME_ROUTE = '/'
 const AGENT_ROUTE = '/project/agent'
@@ -449,6 +450,7 @@ function createTrackedWindow(context: ElectronAppWindowContext): BrowserWindow {
   win.on('focus', emitWindowRegistryChanged)
   win.on('blur', emitWindowRegistryChanged)
   win.once('closed', () => {
+    desktopShellHostManager.stopWindowScopedSessions(String(win.id))
     trackedWindows.delete(win)
     win.removeListener('focus', emitWindowRegistryChanged)
     win.removeListener('blur', emitWindowRegistryChanged)

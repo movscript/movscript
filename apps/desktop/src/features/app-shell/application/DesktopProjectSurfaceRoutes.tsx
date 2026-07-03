@@ -10,6 +10,7 @@ import { useSearchParams } from 'react-router-dom'
 import {
   DesktopProjectSurfaceProvider,
 } from './desktopProjectSurfaceRuntime'
+import { DesktopRemotionStudioPreviewFrame } from './DesktopRemotionStudioPreviewFrame'
 
 export function ProjectOverviewPage() {
   return (
@@ -50,7 +51,10 @@ export function ProjectRemotionStudioPage() {
 
   return (
     <DesktopProjectSurfaceProvider>
-      <ProjectRemotionStudioSurface params={searchParams} />
+      <ProjectRemotionStudioSurface
+        params={searchParams}
+        renderPreviewFrame={(props) => <DesktopRemotionStudioPreviewFrame {...props} />}
+      />
     </DesktopProjectSurfaceProvider>
   )
 }

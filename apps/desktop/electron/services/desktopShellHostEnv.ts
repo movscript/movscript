@@ -5,7 +5,7 @@ import {
 } from '@movscript/data-client'
 import { movScriptCliPathEnv, pathEnvKey, resolveMovScriptCliBinDir } from './movscriptCliPath'
 
-export type LocalTerminalEnvInput = {
+export type DesktopShellHostEnvInput = {
   inheritedEnv?: NodeJS.ProcessEnv
   workspaceDir: string
   projectDir?: string
@@ -17,7 +17,7 @@ export type LocalTerminalEnvInput = {
   resolveCliBinDir?: typeof resolveMovScriptCliBinDir
 }
 
-export function localTerminalEnv(input: LocalTerminalEnvInput): NodeJS.ProcessEnv {
+export function desktopShellHostEnv(input: DesktopShellHostEnvInput): NodeJS.ProcessEnv {
   const inheritedEnv = input.inheritedEnv ?? process.env
   const platform = input.platform ?? process.platform
   const resolveBackend = input.resolveBackendSession ?? resolveMovScriptDataServiceSession
@@ -31,7 +31,7 @@ export function localTerminalEnv(input: LocalTerminalEnvInput): NodeJS.ProcessEn
     ...env,
     TERM: env.TERM || 'xterm-256color',
     COLORTERM: env.COLORTERM || 'truecolor',
-    [terminalPathKey]: env[terminalPathKey] || defaultTerminalPath(platform),
+    [terminalPathKey]: normalizeDesktopShellHostPath(env[terminalPathKey], platform),
     MOVSCRIPT_WORKSPACE_DIR: session.workspaceDir,
     ...(input.projectDir ? { MOVSCRIPT_PROJECT_DIR: input.projectDir } : {}),
     ...(input.userId || session.userId ? { MOVSCRIPT_USER_ID: input.userId ?? session.userId } : {}),
@@ -45,12 +45,27 @@ export function localTerminalEnv(input: LocalTerminalEnvInput): NodeJS.ProcessEn
   return next
 }
 
+function normalizeDesktopShellHostPath(currentPath: string | undefined, platform: NodeJS.Platform): string {
+  const delimiter = platform === 'win32' ? ';' : ':'
+  const entries = [
+    ...(currentPath ?? '').split(delimiter),
+    ...defaultTerminalPath(platform).split(delimiter),
+  ].map((entry) => entry.trim()).filter(Boolean)
+  const seen = new Set<string>()
+  return entries.filter((entry) => {
+    const key = platform === 'win32' ? entry.toLowerCase() : entry
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  }).join(delimiter)
+}
+
 function defaultTerminalPath(platform: NodeJS.Platform = process.platform): string {
   if (platform === 'win32') return [
     'C:\\Windows\\System32',
     'C:\\Windows',
     'C:\\Windows\\System32\\Wbem',
   ].join(';')
-  if (process.platform === 'darwin') return '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin'
+  if (platform === 'darwin') return '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin'
   return '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin'
 }

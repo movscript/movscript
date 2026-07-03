@@ -145,7 +145,7 @@
     },
     "cloud": {
       "title": "Cloud Service",
-      "description": "Connect to Movscript Cloud or a team service for sync, collaboration, and cloud capabilities.",
+      "description": "Connect to Movscript Cloud or a team data connection for sync, collaboration, and cloud capabilities.",
       "action": "Log in to cloud"
     },
     "localIdentity": {
@@ -161,26 +161,26 @@
     },
     "cloudConnect": {
       "title": "Connect to Cloud",
-      "description": "Use Movscript Cloud or your team service URL.",
+      "description": "Use Movscript Cloud or your team's data connection URL.",
       "continue": "Continue to login"
     }
   },
   "appSettings": {
     "title": "App Settings",
-    "description": "Configure how this client starts and which service it connects to. This is stored locally and can be changed before sign-in.",
+    "description": "Configure how this client starts and which data connection it uses. This is stored locally and can be changed before sign-in.",
     "launchMode": "Launch mode",
     "launchModeTitle": "Launch Mode",
-    "launchModeHint": "Local launch requests system admin initialization during registration. Cloud launch only connects to the remote service.",
+    "launchModeHint": "Local launch requests system admin initialization during registration. Cloud launch only connects to the remote data connection.",
     "cloudMode": "Cloud Launch",
-    "cloudModeHelp": "Connect to Movscript Cloud or a team service without creating a system admin during registration.",
+    "cloudModeHelp": "Connect to Movscript Cloud or a team data connection without creating a system admin during registration.",
     "localMode": "Local Launch",
-    "localModeHelp": "Connect to a local backend and initialize one system admin during registration.",
-    "cloudApiTitle": "Service API",
-    "cloudApiHint": "Login, assets, projects, and agent requests will use this service.",
-    "apiBaseURL": "Service API URL",
+    "localModeHelp": "Connect through the local daemon and initialize one system admin during registration.",
+    "cloudApiTitle": "Data Connection",
+    "cloudApiHint": "Login, assets, projects, and agent requests will use this data connection through the daemon.",
+    "apiBaseURL": "Data connection URL",
     "apiBaseURLHelp": "Cloud or team services can use https://api.example.com. Desktop local mode uses the daemon gateway automatically.",
-    "currentApi": "Current API",
-    "effectiveEndpoint": "Effective endpoint",
+    "currentApi": "Current connection",
+    "effectiveEndpoint": "Effective connection endpoint",
     "invalidURL": "Enter a URL that starts with http:// or https://.",
     "testConnection": "Test Connection",
     "testing": "Testing connection...",
@@ -194,8 +194,8 @@
   "backendBoot": {
     "startingTitle": "Starting local workspace",
     "startingDescription": "Preparing the frontend-managed backend, SQLite database, and local file storage.",
-    "errorTitle": "Local backend failed to start",
-    "errorDescription": "Check the backend logs and try switching modes from App Settings."
+    "errorTitle": "Local runtime failed to start",
+    "errorDescription": "Check the runtime logs and try switching modes from App Settings."
   },
   "domain": {
     "assetTypes": {
@@ -2398,7 +2398,7 @@
       "viewProviders": "API Accounts",
       "viewCatalog": "Models",
       "providersHint": "Manage Provider instances, Base URL prefixes, keys, capabilities, and connection tests here; model identity and route policy are maintained outside Provider.",
-      "relayGatewayProvidersHint": "Commercial relay gateway forwarding is active. Enterprise Admin only displays relay access status; provider setup stays in the external gateway, model identity stays in Catalog, and route policy stays in Route.",
+      "relayGatewayProvidersHint": "External relay gateway forwarding is active. Admin only displays relay access status; provider setup stays in the external gateway, model identity stays in Catalog, and route policy stays in Route.",
       "catalogHint": "Catalog Entries are the model records MovScript recognizes. Catalog can import model IDs from Provider and maintains capabilities and parameter contracts, not route bindings.",
       "routesHint": "Maintain route policy for the Catalog layer here. Provider and relay gateway candidates at the same priority rotate, avoid saturated routes, and fail over on errors.",
       "routePoolTitle": "Route Pools",
@@ -2484,21 +2484,21 @@
       "secretKeepPlaceholder": "Leave blank to keep current secret",
       "applyConfig": "Apply to startup",
       "applyingConfig": "Applying",
-      "providerConfigApplied": "Startup env overlay updated. Restart backend to apply.",
+      "providerConfigApplied": "Startup env overlay updated. Restart the local runtime to apply.",
       "providerActivationModes": {
-        "local_backend_restart": "Next step: restart the local backend from the desktop app so Electron reloads this startup overlay.",
+        "local_backend_restart": "Next step: restart the local runtime from the desktop app so Electron reloads this startup overlay.",
         "deployment_rollout": "Next step: run your backend deployment rollout so the new startup overlay is loaded by the server process.",
         "manual_restart": "Next step: restart the backend process that owns this startup profile."
       },
       "providerActivationActions": {
-        "restart_local_backend": "Action: restart local backend",
+        "restart_local_backend": "Action: restart local runtime",
         "rollout_backend_deployment": "Action: rollout backend deployment",
         "restart_backend_process": "Action: restart backend process"
       },
       "providerActivationHost": "Activation host: {{host}}",
       "providerActivationAutoApplyAvailable": "Automatic activation is available for this host.",
       "providerActivationAutoApplyUnavailable": "Automatic activation is not wired yet; use the host-specific restart path.",
-      "providerActivationAutoApplyOpen": "Restart local backend",
+      "providerActivationAutoApplyOpen": "Restart local runtime",
       "providerActivationAutoApplyRun": "Run deployment rollout",
       "providerActivationAutoApplying": "Activating",
       "providerActivationAutoApplyDone": "Activation request accepted.",
@@ -2594,7 +2594,7 @@
       "configureAdapter": "Configure {{name}}",
       "configureProvider": "Configure Provider: {{name}}",
       "customBaseURLRequired": "Custom Base URL required",
-      "relayGatewayCredentialHint": "In commercial relay gateway mode, Base URLs and provider keys are managed in the external gateway. Provider only displays access status; Catalog manages model identity, and Route manages route policy.",
+      "relayGatewayCredentialHint": "In external relay gateway mode, Base URLs and provider keys are managed in the external gateway. Provider only displays access status; Catalog manages model identity, and Route manages route policy.",
       "connectionOk": "✓ Connection OK ({{latency}}ms)",
       "enableFilesAPI": "Enable Files API pre-upload",
       "filesAPIHint": "(Upload images to provider /files and pass file_id to the model to avoid oversized multipart requests.)",
@@ -2809,7 +2809,7 @@
     "gatewayKeys": {
       "title": "Gateway API Keys",
       "description": "Create and manage keys for the OpenAI-compatible gateway, with optional project, model, and scope limits.",
-      "relayGatewayBoundary": "Enterprise can bind an external gateway group here. Provider channels, pricing multipliers, balances, and plan rules are owned by the commercial distribution layer.",
+      "relayGatewayBoundary": "Hosted can bind an external gateway group here. Provider channels, pricing multipliers, balances, and plan rules are owned by the external relay gateway layer.",
       "refresh": "Refresh",
       "create": "Create Key",
       "name": "Name",

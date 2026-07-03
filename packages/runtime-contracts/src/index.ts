@@ -10,12 +10,16 @@ export const MOVSCRIPT_RUNTIME_ENDPOINTS_DIR_NAME = 'endpoints'
 export const MOVSCRIPT_APPLICATION_MANIFEST_SCHEMA = 'movscript.application.v1'
 export const MOVSCRIPT_PROGRAM_MANIFEST_SCHEMA = 'movscript.program.v1'
 export const MOVSCRIPT_SCENARIO_POLICY_SCHEMA = 'movscript.scenario-policy.v1'
+export const MOVSCRIPT_RUNTIME_BUNDLE_MANIFEST_SCHEMA = 'movscript.runtime-bundle.v1'
+export const MOVSCRIPT_RUNTIME_API_VERSION = '1.0'
+export const MOVSCRIPT_RUNTIME_BUNDLE_HASH_ALGORITHM = 'sha256'
 
 export type RuntimeRecordStatus = 'starting' | 'ready' | 'stopping' | 'stopped' | 'error' | 'unknown'
 export type ApplicationOwnerKind = 'electron' | 'agent-provider' | 'cloud-orchestrator' | 'cli' | 'test'
 export type ProgramKind = 'service' | 'mcp-endpoint' | 'web' | 'cli' | 'worker' | 'desktop-shell'
 export type ProgramTransportKind = 'http' | 'stdio' | 'ipc' | 'embedded' | 'none'
 export type ProgramHealthKind = 'http' | 'process' | 'stdio_tool' | 'none'
+export type RuntimeBundleCompatibilityKind = 'same' | 'newer' | 'older' | 'incompatible' | 'repair-only' | 'unknown'
 
 export interface ProgramEntryManifest {
   command: string
@@ -61,6 +65,61 @@ export interface ScenarioPolicyManifest {
   scenarioId: string
   applicationId: string
   programs: ScenarioProgramPolicy[]
+}
+
+export interface RuntimeBundleCapabilities {
+  cli: boolean
+  mcp: boolean
+  daemon: boolean
+  project: boolean
+  timeline: boolean
+  canvas: boolean
+  resources: boolean
+  editing: boolean
+  media: boolean
+}
+
+export interface RuntimeBundleManifest {
+  schema: typeof MOVSCRIPT_RUNTIME_BUNDLE_MANIFEST_SCHEMA
+  appId: string
+  applicationId: string
+  artifact: string
+  version: string
+  packageName: string
+  generatedAt: string
+  apiVersion: string
+  minDaemonApiVersion: string
+  bundleHash: string
+  bundleHashAlgorithm: typeof MOVSCRIPT_RUNTIME_BUNDLE_HASH_ALGORITHM
+  capabilities: RuntimeBundleCapabilities
+  mcpServer: string
+  entrypoint: string
+  mcpArgs: string[]
+  daemonArgs: string[]
+  cliEntrypoint: string
+  legacyMcpEntrypoint: string
+}
+
+export interface RuntimeBundleIdentity {
+  version?: string
+  apiVersion?: string
+  minDaemonApiVersion?: string
+  bundleHash?: string
+  pluginRoot?: string
+}
+
+export interface RuntimeBundleCompatibilityInput {
+  actual?: RuntimeBundleIdentity
+  expected?: RuntimeBundleIdentity
+  actualIsRepairSource?: boolean
+}
+
+export interface RuntimeBundleCompatibility {
+  kind: RuntimeBundleCompatibilityKind
+  compatible: boolean
+  reason: string
+  actual?: RuntimeBundleIdentity
+  expected?: RuntimeBundleIdentity
 }
 
 export interface ManifestValidationResult<T> {
@@ -295,6 +354,187 @@ export function validateScenarioPolicyManifest(value: unknown): ManifestValidati
       applicationId,
       programs,
     },
+  }
+}
+
+export function validateRuntimeBundleManifest(value: unknown): ManifestValidationResult<RuntimeBundleManifest> {
+  const raw = asRecord(value)
+  const errors: string[] = []
+  if (!raw) return { ok: false, errors: ['manifest must be an object'] }
+  if (raw.schema !== MOVSCRIPT_RUNTIME_BUNDLE_MANIFEST_SCHEMA) errors.push(`schema must be ${MOVSCRIPT_RUNTIME_BUNDLE_MANIFEST_SCHEMA}`)
+  const appId = stringValue(raw.appId)
+  const applicationId = stringValue(raw.applicationId)
+  const artifact = stringValue(raw.artifact)
+  const version = stringValue(raw.version)
+  const packageName = stringValue(raw.packageName)
+  const generatedAt = stringValue(raw.generatedAt)
+  const apiVersion = stringValue(raw.apiVersion)
+  const minDaemonApiVersion = stringValue(raw.minDaemonApiVersion)
+  const bundleHash = stringValue(raw.bundleHash)
+  const bundleHashAlgorithm = raw.bundleHashAlgorithm === MOVSCRIPT_RUNTIME_BUNDLE_HASH_ALGORITHM
+    ? MOVSCRIPT_RUNTIME_BUNDLE_HASH_ALGORITHM
+    : undefined
+  const capabilities = runtimeBundleCapabilitiesValue(raw.capabilities)
+  const mcpServer = stringValue(raw.mcpServer)
+  const entrypoint = stringValue(raw.entrypoint)
+  const mcpArgs = stringArrayValue(raw.mcpArgs)
+  const daemonArgs = stringArrayValue(raw.daemonArgs)
+  const cliEntrypoint = stringValue(raw.cliEntrypoint)
+  const legacyMcpEntrypoint = stringValue(raw.legacyMcpEntrypoint)
+
+  if (!appId) errors.push('appId is required')
+  if (!applicationId) errors.push('applicationId is required')
+  if (!artifact) errors.push('artifact is required')
+  if (!version) errors.push('version is required')
+  if (!packageName) errors.push('packageName is required')
+  if (!generatedAt) errors.push('generatedAt is required')
+  if (!apiVersion) errors.push('apiVersion is required')
+  if (!minDaemonApiVersion) errors.push('minDaemonApiVersion is required')
+  if (!bundleHash) errors.push('bundleHash is required')
+  if (!bundleHashAlgorithm) errors.push(`bundleHashAlgorithm must be ${MOVSCRIPT_RUNTIME_BUNDLE_HASH_ALGORITHM}`)
+  if (!capabilities) errors.push('capabilities must declare all runtime bundle capability booleans')
+  if (!mcpServer) errors.push('mcpServer is required')
+  if (!entrypoint) errors.push('entrypoint is required')
+  if (!mcpArgs) errors.push('mcpArgs must be an array of strings')
+  if (!daemonArgs) errors.push('daemonArgs must be an array of strings')
+  if (!cliEntrypoint) errors.push('cliEntrypoint is required')
+  if (!legacyMcpEntrypoint) errors.push('legacyMcpEntrypoint is required')
+  if (errors.length > 0 || !appId || !applicationId || !artifact || !version || !packageName || !generatedAt || !apiVersion || !minDaemonApiVersion || !bundleHash || !bundleHashAlgorithm || !capabilities || !mcpServer || !entrypoint || !mcpArgs || !daemonArgs || !cliEntrypoint || !legacyMcpEntrypoint) {
+    return { ok: false, errors }
+  }
+
+  return {
+    ok: true,
+    errors: [],
+    manifest: {
+      schema: MOVSCRIPT_RUNTIME_BUNDLE_MANIFEST_SCHEMA,
+      appId,
+      applicationId,
+      artifact,
+      version,
+      packageName,
+      generatedAt,
+      apiVersion,
+      minDaemonApiVersion,
+      bundleHash,
+      bundleHashAlgorithm,
+      capabilities,
+      mcpServer,
+      entrypoint,
+      mcpArgs,
+      daemonArgs,
+      cliEntrypoint,
+      legacyMcpEntrypoint,
+    },
+  }
+}
+
+export function runtimeBundleIdentityFromManifest(
+  manifest: RuntimeBundleManifest,
+  input: { pluginRoot?: string } = {},
+): RuntimeBundleIdentity {
+  return compactRecord({
+    version: manifest.version,
+    apiVersion: manifest.apiVersion,
+    minDaemonApiVersion: manifest.minDaemonApiVersion,
+    bundleHash: manifest.bundleHash,
+    pluginRoot: input.pluginRoot,
+  })
+}
+
+export function runtimeBundleCompatibility(input: RuntimeBundleCompatibilityInput): RuntimeBundleCompatibility {
+  const actual = compactRecord(input.actual ?? {})
+  const expected = compactRecord(input.expected ?? {})
+  if (input.actualIsRepairSource) {
+    return {
+      kind: 'repair-only',
+      compatible: false,
+      reason: 'running bundle is a repair source and should be installed into Home current before reuse',
+      actual,
+      expected,
+    }
+  }
+  if (Object.keys(actual).length === 0 || Object.keys(expected).length === 0) {
+    return {
+      kind: 'unknown',
+      compatible: true,
+      reason: 'runtime bundle identity is not complete enough to compare',
+      actual,
+      expected,
+    }
+  }
+  if (actual.apiVersion && expected.apiVersion && !sameMajorVersion(actual.apiVersion, expected.apiVersion)) {
+    return {
+      kind: 'incompatible',
+      compatible: false,
+      reason: `runtime API major version mismatch: actual ${actual.apiVersion}, expected ${expected.apiVersion}`,
+      actual,
+      expected,
+    }
+  }
+  if (actual.minDaemonApiVersion && compareVersionStrings(MOVSCRIPT_RUNTIME_API_VERSION, actual.minDaemonApiVersion) < 0) {
+    return {
+      kind: 'incompatible',
+      compatible: false,
+      reason: `daemon API ${MOVSCRIPT_RUNTIME_API_VERSION} is older than bundle minimum ${actual.minDaemonApiVersion}`,
+      actual,
+      expected,
+    }
+  }
+  if (actual.bundleHash && expected.bundleHash) {
+    if (actual.bundleHash === expected.bundleHash) {
+      return {
+        kind: 'same',
+        compatible: true,
+        reason: 'running bundle hash matches Home current',
+        actual,
+        expected,
+      }
+    }
+    if (actual.version && expected.version && actual.version === expected.version) {
+      return {
+        kind: 'incompatible',
+        compatible: false,
+        reason: `same bundle version has different hashes: ${actual.bundleHash} != ${expected.bundleHash}`,
+        actual,
+        expected,
+      }
+    }
+  }
+  const versionComparison = compareVersionStrings(actual.version, expected.version)
+  if (versionComparison === 0) {
+    return {
+      kind: 'same',
+      compatible: true,
+      reason: 'running bundle version matches Home current',
+      actual,
+      expected,
+    }
+  }
+  if (versionComparison > 0) {
+    return {
+      kind: 'newer',
+      compatible: true,
+      reason: `running bundle ${actual.version} is newer than Home current ${expected.version}`,
+      actual,
+      expected,
+    }
+  }
+  if (versionComparison < 0) {
+    return {
+      kind: 'older',
+      compatible: false,
+      reason: `running bundle ${actual.version} is older than Home current ${expected.version}`,
+      actual,
+      expected,
+    }
+  }
+  return {
+    kind: 'unknown',
+    compatible: true,
+    reason: 'runtime bundle versions are not comparable',
+    actual,
+    expected,
   }
 }
 
@@ -611,7 +851,7 @@ function safeRecordFileName(value: string): string {
   return value.trim().replace(/[^A-Za-z0-9._-]+/g, '_') || 'unknown'
 }
 
-function compactRecord<T extends Record<string, unknown>>(record: T): T {
+function compactRecord<T extends object>(record: T): T {
   const out: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(record)) {
     if (value !== undefined) out[key] = value
@@ -658,6 +898,29 @@ function stringArrayValue(value: unknown): string[] | undefined {
   return items.every((item): item is string => Boolean(item)) ? items : undefined
 }
 
+function runtimeBundleCapabilitiesValue(value: unknown): RuntimeBundleCapabilities | undefined {
+  const raw = asRecord(value)
+  if (!raw) return undefined
+  const keys = [
+    'cli',
+    'mcp',
+    'daemon',
+    'project',
+    'timeline',
+    'canvas',
+    'resources',
+    'editing',
+    'media',
+  ] as const
+  const capabilities: Partial<RuntimeBundleCapabilities> = {}
+  for (const key of keys) {
+    const enabled = raw[key]
+    if (typeof enabled !== 'boolean') return undefined
+    capabilities[key] = enabled
+  }
+  return capabilities as RuntimeBundleCapabilities
+}
+
 function programEntryValue(value: unknown): ProgramEntryManifest | undefined {
   const raw = asRecord(value)
   if (!raw) return undefined
@@ -683,6 +946,32 @@ function programHealthValue(value: unknown): ProgramHealthManifest | undefined {
     kind,
     ...(target ? { target } : {}),
   }
+}
+
+function sameMajorVersion(left: string, right: string): boolean {
+  return versionParts(left)[0] === versionParts(right)[0]
+}
+
+function compareVersionStrings(left: string | undefined, right: string | undefined): number {
+  if (!left || !right) return Number.NaN
+  const leftParts = versionParts(left)
+  const rightParts = versionParts(right)
+  for (let index = 0; index < Math.max(leftParts.length, rightParts.length); index += 1) {
+    const leftPart = leftParts[index] ?? 0
+    const rightPart = rightParts[index] ?? 0
+    if (leftPart > rightPart) return 1
+    if (leftPart < rightPart) return -1
+  }
+  return 0
+}
+
+function versionParts(value: string): number[] {
+  const normalized = value.trim().replace(/^v/i, '')
+  const core = normalized.split(/[+-]/, 1)[0] ?? normalized
+  return core.split('.').map((part) => {
+    const parsed = Number(part.replace(/\D.*$/, ''))
+    return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0
+  })
 }
 
 function ownerKindValue(value: unknown): ApplicationOwnerKind | undefined {

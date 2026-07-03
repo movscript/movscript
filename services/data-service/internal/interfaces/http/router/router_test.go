@@ -97,7 +97,7 @@ func TestNewRegistersCoreRoutes(t *testing.T) {
 		"GET /api/hub/packages",
 		"GET /api/hub/packages/:id/download",
 	}
-	expected = append(expected, expectedEditionCoreRoutesForTest()...)
+	expected = append(expected, expectedDistributionProfileCoreRoutesForTest()...)
 
 	for _, route := range expected {
 		if !routes[route] {

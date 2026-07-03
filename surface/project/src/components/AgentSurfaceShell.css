@@ -1,19 +1,38 @@
 .agent-surface-shell {
   min-height: 100%;
+  overflow-x: hidden;
   background: var(--ms-color-background);
   color: var(--ms-color-foreground);
   padding: 18px;
 }
 
+.agent-surface-shell[data-chrome="immersive"] {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
 .agent-surface-shell__inner {
   display: grid;
   gap: 14px;
+  min-width: 0;
   max-width: 1180px;
   margin: 0 auto;
 }
 
+.agent-surface-shell[data-chrome="immersive"] .agent-surface-shell__inner {
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  max-width: none;
+  gap: 0;
+  margin: 0;
+}
+
 .agent-surface-shell__header {
   display: flex;
+  min-width: 0;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
@@ -21,8 +40,13 @@
   padding-bottom: 12px;
 }
 
+.agent-surface-shell[data-chrome="immersive"] .agent-surface-shell__header {
+  display: none;
+}
+
 .agent-surface-shell__title {
   display: grid;
+  min-width: 0;
   gap: 4px;
 }
 
@@ -59,6 +83,15 @@
 .agent-surface-shell__body {
   display: grid;
   gap: 12px;
+  min-width: 0;
+}
+
+.agent-surface-shell[data-chrome="immersive"] .agent-surface-shell__body {
+  display: flex;
+  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 0;
 }
 
 .agent-surface-panel {
@@ -171,6 +204,27 @@
 .agent-surface-candidate-card[data-selected="true"] {
   border-color: color-mix(in srgb, var(--ms-color-primary) 45%, var(--ms-color-border));
   background: color-mix(in srgb, var(--ms-color-primary) 5%, var(--ms-color-surface-raised));
+}
+
+.agent-surface-candidate-output-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.agent-surface-candidate-output {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid var(--ms-color-border);
+  border-radius: 8px;
+  padding: 8px;
+  background: var(--ms-color-surface);
+}
+
+.agent-surface-candidate-output[data-selected="true"] {
+  border-color: color-mix(in srgb, var(--ms-color-primary) 55%, var(--ms-color-border));
+  background: color-mix(in srgb, var(--ms-color-primary) 7%, var(--ms-color-surface));
 }
 
 .agent-surface-candidate-preview,

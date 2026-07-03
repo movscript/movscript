@@ -15,35 +15,35 @@ import (
 	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
 
-type GitHubEnterpriseAdapter struct {
+type GitHubSelfHostedAdapter struct {
 	baseURL    string
 	apiBaseURL string
 	token      string
 	httpClient *http.Client
 }
 
-func NewGitHubEnterpriseAdapter(baseURL string, token string) *GitHubEnterpriseAdapter {
+func NewGitHubSelfHostedAdapter(baseURL string, token string) *GitHubSelfHostedAdapter {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	token = strings.TrimSpace(token)
 	if baseURL == "" || token == "" {
 		return nil
 	}
-	return &GitHubEnterpriseAdapter{
-		baseURL:    githubEnterpriseWebBaseURL(baseURL),
-		apiBaseURL: githubEnterpriseAPIBaseURL(baseURL),
+	return &GitHubSelfHostedAdapter{
+		baseURL:    githubSelfHostedWebBaseURL(baseURL),
+		apiBaseURL: githubSelfHostedAPIBaseURL(baseURL),
 		token:      token,
 		httpClient: &http.Client{Timeout: 15 * time.Second},
 	}
 }
 
-func (a *GitHubEnterpriseAdapter) EnsureRepository(ctx context.Context, input EnsureRepositoryInput) (EnsureRepositoryResult, error) {
+func (a *GitHubSelfHostedAdapter) EnsureRepository(ctx context.Context, input EnsureRepositoryInput) (EnsureRepositoryResult, error) {
 	if a == nil {
-		return EnsureRepositoryResult{}, fmt.Errorf("github enterprise adapter is not configured")
+		return EnsureRepositoryResult{}, fmt.Errorf("github self-hosted adapter is not configured")
 	}
 	if repo, err := a.getRepo(ctx, input.Owner, input.Repo); err == nil {
 		head, _ := a.branchHead(ctx, input.Owner, input.Repo, input.DefaultBranch)
 		return EnsureRepositoryResult{ProviderRepoID: repo.IDString(), HeadCommit: head}, nil
-	} else if !githubEnterpriseIsNotFound(err) {
+	} else if !githubSelfHostedIsNotFound(err) {
 		return EnsureRepositoryResult{}, err
 	}
 
@@ -55,21 +55,21 @@ func (a *GitHubEnterpriseAdapter) EnsureRepository(ctx context.Context, input En
 	return EnsureRepositoryResult{ProviderRepoID: repo.IDString(), HeadCommit: head}, nil
 }
 
-func (a *GitHubEnterpriseAdapter) GetCloneURL(_ context.Context, request providercontract.RepositoryCloneURLRequest) (providercontract.RepositoryCloneURLResult, error) {
+func (a *GitHubSelfHostedAdapter) GetCloneURL(_ context.Context, request providercontract.RepositoryCloneURLRequest) (providercontract.RepositoryCloneURLResult, error) {
 	switch strings.TrimSpace(request.PreferredStrategy) {
 	case "", providercontract.RepositoryCloneURLStrategyDirect:
 	case providercontract.RepositoryCloneURLStrategyProxy:
 		if strings.TrimSpace(request.PublicURL) != "" {
 			return providercontract.RepositoryCloneURLResult{URL: strings.TrimSpace(request.PublicURL), Strategy: providercontract.RepositoryCloneURLStrategyProxy}, nil
 		}
-		return providercontract.RepositoryCloneURLResult{}, fmt.Errorf("github enterprise proxy clone URL requires public URL")
+		return providercontract.RepositoryCloneURLResult{}, fmt.Errorf("github self-hosted proxy clone URL requires public URL")
 	case providercontract.RepositoryCloneURLStrategyTemporary:
-		return providercontract.RepositoryCloneURLResult{}, fmt.Errorf("github enterprise temporary clone URL is not supported")
+		return providercontract.RepositoryCloneURLResult{}, fmt.Errorf("github self-hosted temporary clone URL is not supported")
 	default:
-		return providercontract.RepositoryCloneURLResult{}, fmt.Errorf("github enterprise clone URL strategy %q is not supported", request.PreferredStrategy)
+		return providercontract.RepositoryCloneURLResult{}, fmt.Errorf("github self-hosted clone URL strategy %q is not supported", request.PreferredStrategy)
 	}
 	if a == nil || strings.TrimSpace(a.baseURL) == "" {
-		return providercontract.RepositoryCloneURLResult{}, fmt.Errorf("github enterprise adapter is not configured")
+		return providercontract.RepositoryCloneURLResult{}, fmt.Errorf("github self-hosted adapter is not configured")
 	}
 	return providercontract.RepositoryCloneURLResult{
 		URL:      strings.TrimRight(a.baseURL, "/") + "/" + url.PathEscape(request.Ref.Owner) + "/" + url.PathEscape(request.Ref.Repo) + ".git",
@@ -77,12 +77,12 @@ func (a *GitHubEnterpriseAdapter) GetCloneURL(_ context.Context, request provide
 	}, nil
 }
 
-func (a *GitHubEnterpriseAdapter) GetGitHTTPProxyTarget(_ context.Context, request providercontract.GitHTTPProxyTargetRequest) (providercontract.GitHTTPProxyTarget, error) {
+func (a *GitHubSelfHostedAdapter) GetGitHTTPProxyTarget(_ context.Context, request providercontract.GitHTTPProxyTargetRequest) (providercontract.GitHTTPProxyTarget, error) {
 	if a == nil || strings.TrimSpace(a.baseURL) == "" || strings.TrimSpace(a.token) == "" {
-		return providercontract.GitHTTPProxyTarget{}, fmt.Errorf("github enterprise adapter is not configured")
+		return providercontract.GitHTTPProxyTarget{}, fmt.Errorf("github self-hosted adapter is not configured")
 	}
 	return providercontract.GitHTTPProxyTarget{
-		Provider:      ProviderGitHubEnterprise,
+		Provider:      ProviderGitHubSelfHosted,
 		Owner:         request.Ref.Owner,
 		Repo:          request.Ref.Repo,
 		DefaultBranch: request.Ref.DefaultBranch,
@@ -92,18 +92,18 @@ func (a *GitHubEnterpriseAdapter) GetGitHTTPProxyTarget(_ context.Context, reque
 	}, nil
 }
 
-func (a *GitHubEnterpriseAdapter) Health(ctx context.Context) providercontract.ProviderHealth {
+func (a *GitHubSelfHostedAdapter) Health(ctx context.Context) providercontract.ProviderHealth {
 	health := providercontract.ProviderHealth{
 		Type:         providercontract.TypeWorkspaceRepository,
-		Adapter:      providercontract.AdapterGitHubEnterprise,
+		Adapter:      providercontract.AdapterGitHubSelfHosted,
 		Assembly:     providercontract.AssemblyStartup,
 		Status:       providercontract.HealthStatusOK,
-		Message:      "github enterprise authentication succeeded",
+		Message:      "github self-hosted authentication succeeded",
 		Capabilities: []string{"repository.ensure", "repository.collaborator.ensure", "repository.access.probe", "repository.clone_url", "git.http_proxy", "health.probe"},
 	}
 	if a == nil || strings.TrimSpace(a.apiBaseURL) == "" || strings.TrimSpace(a.token) == "" {
 		health.Status = providercontract.HealthStatusMissingConfig
-		health.Message = "github enterprise base url and token are required"
+		health.Message = "github self-hosted base url and token are required"
 		return health
 	}
 	user, err := a.currentUser(ctx)
@@ -113,63 +113,63 @@ func (a *GitHubEnterpriseAdapter) Health(ctx context.Context) providercontract.P
 		return health
 	}
 	if strings.TrimSpace(user.Login) != "" {
-		health.Message = "github enterprise authentication succeeded as " + user.Login
+		health.Message = "github self-hosted authentication succeeded as " + user.Login
 	}
 	return health
 }
 
-func (a *GitHubEnterpriseAdapter) EnsureUser(context.Context, EnsureUserInput) (EnsureUserResult, error) {
-	return EnsureUserResult{}, fmt.Errorf("github enterprise user lifecycle is managed by GitHub Enterprise")
+func (a *GitHubSelfHostedAdapter) EnsureUser(context.Context, EnsureUserInput) (EnsureUserResult, error) {
+	return EnsureUserResult{}, fmt.Errorf("github self-hosted user lifecycle is managed by GitHub Self-hosted")
 }
 
-func (a *GitHubEnterpriseAdapter) EnsureRepoCollaborator(ctx context.Context, owner string, repo string, username string, permission string) error {
+func (a *GitHubSelfHostedAdapter) EnsureRepoCollaborator(ctx context.Context, owner string, repo string, username string, permission string) error {
 	if a == nil {
-		return fmt.Errorf("github enterprise adapter is not configured")
+		return fmt.Errorf("github self-hosted adapter is not configured")
 	}
 	username = strings.TrimSpace(username)
 	if username == "" {
-		return fmt.Errorf("github enterprise collaborator username is required")
+		return fmt.Errorf("github self-hosted collaborator username is required")
 	}
-	payload := map[string]any{"permission": githubEnterpriseCollaboratorPermission(permission)}
+	payload := map[string]any{"permission": githubSelfHostedCollaboratorPermission(permission)}
 	return a.doJSON(ctx, http.MethodPut, "/repos/"+url.PathEscape(owner)+"/"+url.PathEscape(repo)+"/collaborators/"+url.PathEscape(username), payload, nil)
 }
 
-func (a *GitHubEnterpriseAdapter) CheckRepoAccess(ctx context.Context, request RepositoryAccessRequest) (RepositoryAccessResult, error) {
+func (a *GitHubSelfHostedAdapter) CheckRepoAccess(ctx context.Context, request RepositoryAccessRequest) (RepositoryAccessResult, error) {
 	if a == nil {
-		return RepositoryAccessResult{}, fmt.Errorf("github enterprise adapter is not configured")
+		return RepositoryAccessResult{}, fmt.Errorf("github self-hosted adapter is not configured")
 	}
-	var out githubEnterpriseCollaboratorPermissionResponse
+	var out githubSelfHostedCollaboratorPermissionResponse
 	err := a.doJSON(ctx, http.MethodGet, "/repos/"+url.PathEscape(request.Owner)+"/"+url.PathEscape(request.Repo)+"/collaborators/"+url.PathEscape(request.Username)+"/permission", nil, &out)
 	if err != nil {
-		if githubEnterpriseIsNotFound(err) {
+		if githubSelfHostedIsNotFound(err) {
 			return RepositoryAccessResult{Allowed: false}, nil
 		}
 		return RepositoryAccessResult{}, err
 	}
-	permission := githubEnterpriseContractPermission(out.Permission)
+	permission := githubSelfHostedContractPermission(out.Permission)
 	return RepositoryAccessResult{
 		Allowed:    permissionSatisfies(permission, request.Permission),
 		Permission: permission,
 	}, nil
 }
 
-func (a *GitHubEnterpriseAdapter) currentUser(ctx context.Context) (githubEnterpriseUser, error) {
-	var out githubEnterpriseUser
+func (a *GitHubSelfHostedAdapter) currentUser(ctx context.Context) (githubSelfHostedUser, error) {
+	var out githubSelfHostedUser
 	if err := a.doJSON(ctx, http.MethodGet, "/user", nil, &out); err != nil {
-		return githubEnterpriseUser{}, err
+		return githubSelfHostedUser{}, err
 	}
 	return out, nil
 }
 
-func (a *GitHubEnterpriseAdapter) getRepo(ctx context.Context, owner string, repo string) (githubEnterpriseRepo, error) {
-	var out githubEnterpriseRepo
+func (a *GitHubSelfHostedAdapter) getRepo(ctx context.Context, owner string, repo string) (githubSelfHostedRepo, error) {
+	var out githubSelfHostedRepo
 	if err := a.doJSON(ctx, http.MethodGet, "/repos/"+url.PathEscape(owner)+"/"+url.PathEscape(repo), nil, &out); err != nil {
-		return githubEnterpriseRepo{}, err
+		return githubSelfHostedRepo{}, err
 	}
 	return out, nil
 }
 
-func (a *GitHubEnterpriseAdapter) createRepo(ctx context.Context, input EnsureRepositoryInput) (githubEnterpriseRepo, error) {
+func (a *GitHubSelfHostedAdapter) createRepo(ctx context.Context, input EnsureRepositoryInput) (githubSelfHostedRepo, error) {
 	payload := map[string]any{
 		"name":      input.Repo,
 		"private":   input.Private,
@@ -180,30 +180,30 @@ func (a *GitHubEnterpriseAdapter) createRepo(ctx context.Context, input EnsureRe
 	}
 	switch input.OwnerType {
 	case OwnerTypeOrganization:
-		var out githubEnterpriseRepo
+		var out githubSelfHostedRepo
 		if err := a.doJSON(ctx, http.MethodPost, "/orgs/"+url.PathEscape(input.Owner)+"/repos", payload, &out); err != nil {
-			return githubEnterpriseRepo{}, err
+			return githubSelfHostedRepo{}, err
 		}
 		return out, nil
 	case OwnerTypeUser:
 		user, err := a.currentUser(ctx)
 		if err != nil {
-			return githubEnterpriseRepo{}, err
+			return githubSelfHostedRepo{}, err
 		}
 		if strings.TrimSpace(user.Login) != input.Owner {
-			return githubEnterpriseRepo{}, fmt.Errorf("github enterprise owner %q does not match token user %q", input.Owner, user.Login)
+			return githubSelfHostedRepo{}, fmt.Errorf("github self-hosted owner %q does not match token user %q", input.Owner, user.Login)
 		}
-		var out githubEnterpriseRepo
+		var out githubSelfHostedRepo
 		if err := a.doJSON(ctx, http.MethodPost, "/user/repos", payload, &out); err != nil {
-			return githubEnterpriseRepo{}, err
+			return githubSelfHostedRepo{}, err
 		}
 		return out, nil
 	default:
-		return githubEnterpriseRepo{}, fmt.Errorf("github enterprise owner type is required")
+		return githubSelfHostedRepo{}, fmt.Errorf("github self-hosted owner type is required")
 	}
 }
 
-func (a *GitHubEnterpriseAdapter) branchHead(ctx context.Context, owner string, repo string, branch string) (string, error) {
+func (a *GitHubSelfHostedAdapter) branchHead(ctx context.Context, owner string, repo string, branch string) (string, error) {
 	branch = strings.TrimSpace(branch)
 	if branch == "" {
 		return "", nil
@@ -219,9 +219,9 @@ func (a *GitHubEnterpriseAdapter) branchHead(ctx context.Context, owner string, 
 	return out.Commit.SHA, nil
 }
 
-func (a *GitHubEnterpriseAdapter) doJSON(ctx context.Context, method string, path string, payload any, out any) error {
+func (a *GitHubSelfHostedAdapter) doJSON(ctx context.Context, method string, path string, payload any, out any) error {
 	if a == nil {
-		return fmt.Errorf("github enterprise adapter is not configured")
+		return fmt.Errorf("github self-hosted adapter is not configured")
 	}
 	var body io.Reader
 	if payload != nil {
@@ -250,18 +250,18 @@ func (a *GitHubEnterpriseAdapter) doJSON(ctx context.Context, method string, pat
 
 	responseBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return githubEnterpriseHTTPError{StatusCode: resp.StatusCode, Body: strings.TrimSpace(string(responseBody))}
+		return githubSelfHostedHTTPError{StatusCode: resp.StatusCode, Body: strings.TrimSpace(string(responseBody))}
 	}
 	if out == nil || len(responseBody) == 0 {
 		return nil
 	}
 	if err := json.Unmarshal(responseBody, out); err != nil {
-		return fmt.Errorf("decode github enterprise response: %w", err)
+		return fmt.Errorf("decode github self-hosted response: %w", err)
 	}
 	return nil
 }
 
-func githubEnterpriseAPIBaseURL(baseURL string) string {
+func githubSelfHostedAPIBaseURL(baseURL string) string {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if strings.HasSuffix(baseURL, "/api/v3") {
 		return baseURL
@@ -269,12 +269,12 @@ func githubEnterpriseAPIBaseURL(baseURL string) string {
 	return baseURL + "/api/v3"
 }
 
-func githubEnterpriseWebBaseURL(baseURL string) string {
+func githubSelfHostedWebBaseURL(baseURL string) string {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	return strings.TrimSuffix(baseURL, "/api/v3")
 }
 
-type githubEnterpriseRepo struct {
+type githubSelfHostedRepo struct {
 	ID    int64  `json:"id"`
 	Name  string `json:"name"`
 	Owner struct {
@@ -282,23 +282,23 @@ type githubEnterpriseRepo struct {
 	} `json:"owner"`
 }
 
-func (r githubEnterpriseRepo) IDString() string {
+func (r githubSelfHostedRepo) IDString() string {
 	if r.ID == 0 {
 		return ""
 	}
 	return strconv.FormatInt(r.ID, 10)
 }
 
-type githubEnterpriseUser struct {
+type githubSelfHostedUser struct {
 	ID    int64  `json:"id"`
 	Login string `json:"login"`
 }
 
-type githubEnterpriseCollaboratorPermissionResponse struct {
+type githubSelfHostedCollaboratorPermissionResponse struct {
 	Permission string `json:"permission"`
 }
 
-func githubEnterpriseCollaboratorPermission(permission string) string {
+func githubSelfHostedCollaboratorPermission(permission string) string {
 	switch strings.ToLower(strings.TrimSpace(permission)) {
 	case "admin", "maintain", "pull", "push", "triage":
 		return strings.ToLower(strings.TrimSpace(permission))
@@ -311,7 +311,7 @@ func githubEnterpriseCollaboratorPermission(permission string) string {
 	}
 }
 
-func githubEnterpriseContractPermission(permission string) string {
+func githubSelfHostedContractPermission(permission string) string {
 	switch strings.ToLower(strings.TrimSpace(permission)) {
 	case "admin":
 		return "admin"
@@ -324,19 +324,19 @@ func githubEnterpriseContractPermission(permission string) string {
 	}
 }
 
-type githubEnterpriseHTTPError struct {
+type githubSelfHostedHTTPError struct {
 	StatusCode int
 	Body       string
 }
 
-func (e githubEnterpriseHTTPError) Error() string {
+func (e githubSelfHostedHTTPError) Error() string {
 	if e.Body == "" {
-		return fmt.Sprintf("github enterprise request failed with status %d", e.StatusCode)
+		return fmt.Sprintf("github self-hosted request failed with status %d", e.StatusCode)
 	}
-	return fmt.Sprintf("github enterprise request failed with status %d: %s", e.StatusCode, e.Body)
+	return fmt.Sprintf("github self-hosted request failed with status %d: %s", e.StatusCode, e.Body)
 }
 
-func githubEnterpriseIsNotFound(err error) bool {
-	httpErr, ok := err.(githubEnterpriseHTTPError)
+func githubSelfHostedIsNotFound(err error) bool {
+	httpErr, ok := err.(githubSelfHostedHTTPError)
 	return ok && httpErr.StatusCode == http.StatusNotFound
 }

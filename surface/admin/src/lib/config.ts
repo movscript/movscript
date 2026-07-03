@@ -54,7 +54,7 @@ export function getLocalAPIBaseURL(): string {
 }
 
 export function getAPIBaseURL(): string {
-  return readURLAPIBaseURL() || readLaunchContextAPIBaseURL() || readStoredAPIBaseURL() || getDefaultAPIBaseURL()
+  return readURLGatewayBaseURL() || readURLLegacyAPIBaseURL() || readLaunchContextAPIBaseURL() || readStoredAPIBaseURL() || getDefaultAPIBaseURL()
 }
 
 export function getAPIV1BaseURL(): string {
@@ -68,7 +68,17 @@ function readImportMetaEnv(): Record<string, string | undefined> {
   return (import.meta as { env?: Record<string, string | undefined> }).env ?? {}
 }
 
-function readURLAPIBaseURL(): string | null {
+function readURLGatewayBaseURL(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const value = new URL(window.location.href).searchParams.get('gatewayBaseURL')
+    return value?.trim() ? normalizeAPIBaseURL(value) : null
+  } catch {
+    return null
+  }
+}
+
+function readURLLegacyAPIBaseURL(): string | null {
   if (typeof window === 'undefined') return null
   try {
     const value = new URL(window.location.href).searchParams.get('apiBaseURL')

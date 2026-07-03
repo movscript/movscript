@@ -27,6 +27,7 @@ import { authRealmKey } from '@/shared/infrastructure/session/authRealm'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { ensureLocalWorkspaceAuthSession } from '@/shared/infrastructure/session/localWorkspaceAuth'
 import { ROUTES } from '@/routes/projectRoutes'
+import { normalizeAppSettings } from '@movscript/shared'
 import './ModeSelectionPanel.css'
 
 type ModeSelectionVariant = 'onboarding' | 'settings'
@@ -94,16 +95,21 @@ export function ModeSelectionPanel({ variant = 'onboarding' }: { variant?: ModeS
           kind: mode,
           url: mode === 'local' ? daemonGatewayBaseURL : cloudAPIBaseURL,
         },
-        apiBaseURL: mode === 'local' ? daemonGatewayBaseURL : cloudAPIBaseURL,
         cloudAPIBaseURL,
         daemonGatewayBaseURL,
         movScriptWorkspaceDir: movScriptHomeDir,
       }
-      const nextSettings: AppSettings = {
-        ...settings,
-        ...nextPartial,
-        onboardingCompleted: true,
-      }
+      const nextSettings: AppSettings = normalizeAppSettings(
+        {
+          ...settings,
+          ...nextPartial,
+          onboardingCompleted: true,
+        },
+        {
+          defaultSettings: settings,
+          daemonGatewayBaseURL,
+        },
+      )
       await Promise.all([
         withTimeout(
           saveElectronAppSettings(nextSettings),

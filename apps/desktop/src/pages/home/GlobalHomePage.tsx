@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, Bot, Database, Download, FolderOpen, LayoutGrid, Loader2, Plus, Scissors, Sparkles, Wrench, X } from 'lucide-react'
+import { ArrowRight, Bot, CheckCircle2, Database, Download, FolderOpen, LayoutGrid, Loader2, Plus, Scissors, Sparkles, Wrench, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 
@@ -16,6 +16,7 @@ import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useLastWorkspaceStore } from '@/shared/infrastructure/session/lastWorkspaceStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
+import type { ElectronMovScriptCodexPluginInstallResult } from '@/shared/contracts/electronApi'
 import type { Project } from '@/types'
 
 export default function GlobalHomePage() {
@@ -33,6 +34,7 @@ export default function GlobalHomePage() {
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
   const [codexPluginInstalling, setCodexPluginInstalling] = useState(false)
   const [codexPluginError, setCodexPluginError] = useState<string | null>(null)
+  const [codexPluginResult, setCodexPluginResult] = useState<ElectronMovScriptCodexPluginInstallResult | null>(null)
 
   const projectsQuery = useQuery<Project[]>({
     queryKey: projectKeys.list(currentOrgID),
@@ -71,8 +73,10 @@ export default function GlobalHomePage() {
     }
     setCodexPluginInstalling(true)
     setCodexPluginError(null)
+    setCodexPluginResult(null)
     try {
-      await electronApi.installMovScriptCodexPlugin()
+      const result = await electronApi.installMovScriptCodexPlugin()
+      setCodexPluginResult(result)
     } catch (error) {
       setCodexPluginError(error instanceof Error ? error.message : String(error))
     } finally {
@@ -217,6 +221,25 @@ export default function GlobalHomePage() {
             </span>
             <ArrowRight size={14} className="shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-foreground" />
           </button>
+
+          {codexPluginResult ? (
+            <section className="rounded-lg border border-emerald-500/30 bg-emerald-500/[0.07] p-3 text-left">
+              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
+                <CheckCircle2 size={15} className="shrink-0" />
+                <h2 className="type-label font-semibold">
+                  {t('home.codexPlugin.installedTitle', { defaultValue: 'Codex 插件已连接到 Home current' })}
+                </h2>
+              </div>
+              <dl className="mt-2 grid gap-1.5 type-caption text-muted-foreground">
+                <CodexPluginPathRow label="Home" value={codexPluginResult.homeDir} />
+                <CodexPluginPathRow
+                  label="Current"
+                  value={`${codexPluginResult.homeCurrentPluginVersion} · ${codexPluginResult.homeCurrentPluginRoot}`}
+                />
+                <CodexPluginPathRow label="Marketplace" value={codexPluginResult.marketplaceRoot} />
+              </dl>
+            </section>
+          ) : null}
         </section>
 
         <section className="flex min-h-[300px] flex-col rounded-lg border border-border bg-background p-3 shadow-sm">
@@ -343,6 +366,15 @@ export default function GlobalHomePage() {
     </main>
     {agentAvailability.dialog}
     </>
+  )
+}
+
+function CodexPluginPathRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid min-w-0 grid-cols-[78px_minmax(0,1fr)] items-start gap-2">
+      <dt className="shrink-0 font-medium text-foreground">{label}</dt>
+      <dd className="min-w-0 truncate" title={value}>{value}</dd>
+    </div>
   )
 }
 

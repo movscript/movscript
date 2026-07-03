@@ -86,7 +86,7 @@ func (s *Service) Synthesize(ctx context.Context, input TTSInput) (TTSResult, er
 	if input.UserID == 0 {
 		return TTSResult{}, fmt.Errorf("%w: user is required", ErrInvalidRequest)
 	}
-	route, err := s.resolveAudioRoute(ctx, input.UserID, input.ModelID, ai.CapabilityFamilyAudioGeneration)
+	route, err := s.resolveAudioRoute(ctx, input.UserID, input.ModelID, ai.AudioOperationTextToSpeech, ai.CapabilityFamilyAudioGeneration)
 	if err != nil {
 		return TTSResult{}, err
 	}
@@ -161,7 +161,7 @@ func (s *Service) Transcribe(ctx context.Context, input TranscribeInput) (Transc
 	if input.UserID == 0 {
 		return TranscribeResult{}, fmt.Errorf("%w: user is required", ErrInvalidRequest)
 	}
-	route, err := s.resolveAudioRoute(ctx, input.UserID, input.ModelID, ai.CapabilityFamilyAudioGeneration)
+	route, err := s.resolveAudioRoute(ctx, input.UserID, input.ModelID, ai.AudioOperationSpeechToText, ai.CapabilityFamilyAudioGeneration)
 	if err != nil {
 		return TranscribeResult{}, err
 	}
@@ -198,7 +198,7 @@ func (s *Service) Align(ctx context.Context, input AlignInput) (TranscribeResult
 	if input.UserID == 0 {
 		return TranscribeResult{}, fmt.Errorf("%w: user is required", ErrInvalidRequest)
 	}
-	route, err := s.resolveAudioRoute(ctx, input.UserID, input.ModelID, ai.CapabilityFamilyAudioGeneration, ai.CapabilityFamilyAudioGeneration)
+	route, err := s.resolveAudioRoute(ctx, input.UserID, input.ModelID, ai.AudioOperationForcedAlignment, ai.CapabilityFamilyAudioGeneration)
 	if err != nil {
 		return TranscribeResult{}, err
 	}
@@ -236,7 +236,7 @@ func (s *Service) Align(ctx context.Context, input AlignInput) (TranscribeResult
 	}, nil
 }
 
-func (s *Service) resolveAudioRoute(ctx context.Context, userID uint, modelID string, capabilities ...string) (ai.ModelRoute, error) {
+func (s *Service) resolveAudioRoute(ctx context.Context, userID uint, modelID string, operation string, capabilities ...string) (ai.ModelRoute, error) {
 	if s.aiService == nil {
 		return ai.ModelRoute{}, fmt.Errorf("%w: ai service is not configured", ErrInvalidRequest)
 	}
@@ -249,6 +249,7 @@ func (s *Service) resolveAudioRoute(ctx context.Context, userID uint, modelID st
 		route, err := s.aiService.ResolveModelRoute(ai.ModelRouteRequest{
 			ModelID:    modelID,
 			Capability: capability,
+			Operation:  strings.TrimSpace(operation),
 		})
 		if err == nil {
 			return route, nil

@@ -8,6 +8,6 @@ import (
 	"github.com/movscript/movscript/internal/infra/config"
 )
 
-func editionStartupProviderInstanceTest(_ context.Context, _ *config.Config, _ config.ProviderInstance) (error, bool) {
+func distributionProfileStartupProviderInstanceTest(_ context.Context, _ *config.Config, _ config.ProviderInstance) (error, bool) {
 	return nil, false
 }

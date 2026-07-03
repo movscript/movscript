@@ -257,7 +257,7 @@
   opacity: 0.62;
 }
 
-.app-window-terminal-toggle[data-active="true"] {
+.app-window-shell-workbench-toggle[data-active="true"] {
   background: color-mix(in srgb, var(--ms-color-primary) 14%, transparent);
   color: var(--ms-color-primary);
 }

@@ -45,7 +45,7 @@ test('workspace domain repository routes project source reads and writes through
         },
       },
       dataConnection: { kind: 'local', authMode: 'local-owner', status: 'connected' },
-      apiBaseURL: 'http://127.0.0.1:8766',
+      apiBaseURL: 'http://legacy.example:8765',
       apiV1BaseURL: 'http://127.0.0.1:8766/api/v1',
       localAPIBaseURL: 'http://127.0.0.1:8766',
       backendStatus: {

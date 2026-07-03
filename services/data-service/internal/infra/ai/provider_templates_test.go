@@ -286,10 +286,10 @@ func TestComboTemplatesIncludeSeedASR(t *testing.T) {
 	}
 }
 
-func TestComboTemplatesInclude83ziSeedance20ProviderModelOverride(t *testing.T) {
+func TestComboTemplatesInclude83ziSeedance20DedicatedTemplate(t *testing.T) {
 	var found ComboTemplate
 	for _, template := range ComboTemplates() {
-		if template.ModelTemplateKey == "volcengine:seedance-2-0" && template.ProviderKind == "83zi_sd2_gateway" {
+		if template.ModelTemplateKey == "83zi:83zi-seedance-2-0" && template.ProviderKind == "83zi_sd2_gateway" {
 			found = template
 			break
 		}
@@ -297,11 +297,16 @@ func TestComboTemplatesInclude83ziSeedance20ProviderModelOverride(t *testing.T) 
 	if found.ModelTemplateKey == "" {
 		t.Fatal("expected 83zi Seedance 2.0 combo template")
 	}
-	if found.AdapterType != AdapterVyroSeedance || found.DefaultPublicModelID != "seedance-2-0" {
+	if found.AdapterType != AdapterVyroSeedance || found.DefaultPublicModelID != "83zi-seedance-2-0" {
 		t.Fatalf("83zi seedance combo = %#v", found)
 	}
 	if found.ProviderModelID != "Seedance-2.0" {
 		t.Fatalf("provider_model_id = %q, want Seedance-2.0", found.ProviderModelID)
+	}
+	for _, template := range ComboTemplates() {
+		if template.ModelTemplateKey == "volcengine:seedance-2-0" && template.ProviderKind == "83zi_sd2_gateway" {
+			t.Fatalf("83zi must not reuse the Volcengine Seedance contract: %#v", template)
+		}
 	}
 }
 

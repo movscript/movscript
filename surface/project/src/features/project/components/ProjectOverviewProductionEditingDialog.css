@@ -1,0 +1,535 @@
+.project-production-editing-dialog {
+  box-sizing: border-box;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(920px, calc(100vw - 32px));
+  max-width: min(920px, calc(100vw - 32px));
+  max-height: min(760px, calc(100dvh - 32px));
+  overflow: hidden;
+}
+
+.project-production-editing-dialog__header {
+  display: grid;
+  gap: 14px;
+  border-bottom: 1px solid var(--ms-color-border);
+  padding-bottom: 14px;
+}
+
+.project-production-editing-dialog__heading {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.project-production-editing-dialog__heading > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.project-production-editing-dialog__heading p {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ms-color-muted-foreground);
+  font-size: 12px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-production-editing-dialog__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid color-mix(in srgb, #0f766e 38%, var(--ms-color-border));
+  border-radius: 8px;
+  background: color-mix(in srgb, #0f766e 10%, var(--ms-color-surface-raised));
+  color: #0f766e;
+}
+
+.project-production-editing-dialog__metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.project-production-editing-dialog__metrics div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  border: 1px solid var(--ms-color-border);
+  border-radius: 8px;
+  background: var(--ms-color-surface);
+  padding: 9px 10px;
+}
+
+.project-production-editing-dialog__metrics div[data-attention="true"] {
+  border-color: color-mix(in srgb, #b45309 46%, var(--ms-color-border));
+  background: color-mix(in srgb, #b45309 7%, var(--ms-color-surface));
+}
+
+.project-production-editing-dialog__metrics dt {
+  color: var(--ms-color-muted-foreground);
+  font-size: 11px;
+}
+
+.project-production-editing-dialog__metrics dd {
+  margin: 0;
+  color: var(--ms-color-foreground);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.project-production-editing-dialog__body {
+  display: grid;
+  gap: 14px;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.project-production-editing-dialog .ms-field-control:focus-visible,
+.project-production-editing-dialog .ms-select__trigger:focus-visible,
+.project-production-editing-dialog__create-card:focus-visible,
+.project-production-editing-dialog__workspace-row .ms-control:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #0f766e 16%, transparent);
+}
+
+.project-production-editing-dialog__toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(150px, 180px) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.project-production-editing-dialog__search,
+.project-production-editing-dialog__filter {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.project-production-editing-dialog__search span,
+.project-production-editing-dialog__filter label {
+  color: var(--ms-color-muted-foreground);
+  font-size: 11px;
+}
+
+.project-production-editing-dialog__filter [role="combobox"] {
+  width: 100%;
+}
+
+.project-production-editing-dialog__create-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.project-production-editing-dialog__create-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, #0f766e 34%, var(--ms-color-border));
+  border-radius: 8px;
+  background: color-mix(in srgb, #0f766e 5%, var(--ms-color-surface));
+  color: var(--ms-color-foreground);
+  padding: 12px;
+  text-align: left;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.project-production-editing-dialog__create-card[data-kind="remotion"] {
+  border-color: color-mix(in srgb, #2563eb 34%, var(--ms-color-border));
+  background: color-mix(in srgb, #2563eb 5%, var(--ms-color-surface));
+}
+
+.project-production-editing-dialog__create-card:not(:disabled):hover {
+  border-color: color-mix(in srgb, #0f766e 60%, var(--ms-color-border));
+  background: color-mix(in srgb, #0f766e 8%, var(--ms-color-surface));
+  transform: translateY(-1px);
+}
+
+.project-production-editing-dialog__create-card[data-kind="remotion"]:not(:disabled):hover {
+  border-color: color-mix(in srgb, #2563eb 60%, var(--ms-color-border));
+  background: color-mix(in srgb, #2563eb 8%, var(--ms-color-surface));
+}
+
+.project-production-editing-dialog__create-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.project-production-editing-dialog__create-card > span:not(.project-production-editing-dialog__create-icon) {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.project-production-editing-dialog__create-card strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-production-editing-dialog__create-card small {
+  overflow: hidden;
+  color: var(--ms-color-muted-foreground);
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-production-editing-dialog__create-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--ms-color-surface-raised);
+  color: #0f766e;
+}
+
+.project-production-editing-dialog__create-card[data-kind="remotion"] .project-production-editing-dialog__create-icon {
+  color: #2563eb;
+}
+
+.project-production-editing-dialog__workspace-section {
+  display: grid;
+  gap: 8px;
+}
+
+.project-production-editing-dialog__section-head,
+.project-production-editing-dialog__pager {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.project-production-editing-dialog__section-head > div {
+  display: grid;
+  gap: 2px;
+}
+
+.project-production-editing-dialog__section-head strong {
+  color: var(--ms-color-foreground);
+  font-size: 13px;
+}
+
+.project-production-editing-dialog__section-head span,
+.project-production-editing-dialog__pager {
+  color: var(--ms-color-muted-foreground);
+  font-size: 12px;
+}
+
+.project-production-editing-dialog__workspace-list {
+  display: grid;
+  gap: 8px;
+  max-height: min(360px, 46vh);
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.project-production-editing-dialog__state {
+  border: 1px dashed var(--ms-color-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ms-color-muted) 18%, transparent);
+  color: var(--ms-color-muted-foreground);
+  font-size: 12px;
+  padding: 18px;
+  text-align: center;
+}
+
+.project-production-editing-dialog__workspace-row {
+  --production-editing-row-accent: #0f766e;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+  border: 1px solid var(--ms-color-border);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--production-editing-row-accent) 7%, transparent), transparent 34%),
+    var(--ms-color-surface);
+  padding: 12px;
+}
+
+.project-production-editing-dialog__workspace-row[data-kind="remotion"] {
+  --production-editing-row-accent: #2563eb;
+}
+
+.project-production-editing-dialog__workspace-row[data-stale="true"] {
+  border-color: color-mix(in srgb, #b45309 42%, var(--ms-color-border));
+}
+
+.project-production-editing-dialog__workspace-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--production-editing-row-accent) 10%, var(--ms-color-surface-raised));
+  color: var(--production-editing-row-accent);
+}
+
+.project-production-editing-dialog__workspace-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.project-production-editing-dialog__workspace-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-production-editing-dialog__workspace-title strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-production-editing-dialog__workspace-title span {
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--production-editing-row-accent) 40%, var(--ms-color-border));
+  border-radius: var(--ms-radius-control);
+  color: var(--production-editing-row-accent);
+  font-size: 11px;
+  font-weight: 650;
+  padding: 2px 6px;
+}
+
+.project-production-editing-dialog__workspace-meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--ms-color-muted-foreground);
+  font-size: 11px;
+}
+
+.project-production-editing-dialog__workspace-meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-production-editing-dialog__workspace-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--production-editing-row-accent) 6%, transparent);
+  padding: 7px 8px;
+}
+
+.project-production-editing-dialog__workspace-summary[data-stale="true"] {
+  --production-editing-row-accent: #b45309;
+}
+
+.project-production-editing-dialog__workspace-summary-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--production-editing-row-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--production-editing-row-accent) 16%, transparent);
+}
+
+.project-production-editing-dialog__workspace-summary div {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.project-production-editing-dialog__workspace-summary strong,
+.project-production-editing-dialog__workspace-summary span,
+.project-production-editing-dialog__workspace-summary em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-production-editing-dialog__workspace-summary strong {
+  color: var(--ms-color-foreground);
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1.2;
+}
+
+.project-production-editing-dialog__workspace-summary span {
+  color: var(--ms-color-muted-foreground);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.project-production-editing-dialog__workspace-summary em {
+  justify-self: end;
+  border-radius: var(--ms-radius-control);
+  background: color-mix(in srgb, var(--production-editing-row-accent) 10%, var(--ms-color-surface));
+  color: var(--production-editing-row-accent);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 680;
+  line-height: 1.1;
+  padding: 4px 6px;
+}
+
+.project-production-editing-dialog__workspace-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 2px 0 0;
+}
+
+.project-production-editing-dialog__workspace-details div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  border: 1px solid color-mix(in srgb, var(--production-editing-row-accent) 16%, var(--ms-color-border));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--production-editing-row-accent) 4%, transparent);
+  padding: 6px 7px;
+}
+
+.project-production-editing-dialog__workspace-details dt {
+  color: var(--ms-color-muted-foreground);
+  font-size: 10px;
+  line-height: 1.1;
+}
+
+.project-production-editing-dialog__workspace-details dd {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-size: 11px;
+  font-weight: 620;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-production-editing-dialog__workspace-actions,
+.project-production-editing-dialog__pager > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .project-production-editing-dialog {
+    top: 16px;
+    max-height: calc(100dvh - 32px);
+    padding: 18px;
+    transform: translateX(-50%);
+  }
+
+  .project-production-editing-dialog__toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .project-production-editing-dialog__create-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .project-production-editing-dialog__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .project-production-editing-dialog__heading p,
+  .project-production-editing-dialog__create-card strong,
+  .project-production-editing-dialog__create-card small {
+    white-space: normal;
+  }
+
+  .project-production-editing-dialog__create-card {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    align-content: start;
+    padding: 10px;
+  }
+
+  .project-production-editing-dialog__create-card > svg:last-child {
+    display: none;
+  }
+
+  .project-production-editing-dialog__create-icon {
+    margin-bottom: 2px;
+  }
+
+  .project-production-editing-dialog__workspace-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .project-production-editing-dialog__workspace-actions {
+    grid-column: 1 / -1;
+  }
+
+  .project-production-editing-dialog__workspace-summary {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .project-production-editing-dialog__workspace-summary em {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .project-production-editing-dialog__workspace-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .project-production-editing-dialog__workspace-details div:nth-child(n + 3) {
+    display: none;
+  }
+
+  .project-production-editing-dialog__workspace-details dd {
+    white-space: nowrap;
+  }
+
+  .project-production-editing-dialog__workspace-actions .ms-control {
+    flex: 1 1 128px;
+    justify-content: center;
+  }
+
+  .project-production-editing-dialog__workspace-actions,
+  .project-production-editing-dialog__pager,
+  .project-production-editing-dialog__pager > div {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 360px) {
+  .project-production-editing-dialog__metrics,
+  .project-production-editing-dialog__create-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,7 +1,7 @@
 export type * from './electronApiCore'
 export type * from './electronApiMedia'
 export type * from './electronApiWorkspaceContext'
-export type * from './electronApiLocalTerminal'
+export type * from './electronApiDesktopShellHost'
 export type * from './electronApiProviderSessions'
 export type * from './electronApiSdkRuntime'
 export type * from './electronApiWorkspace'

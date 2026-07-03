@@ -194,7 +194,9 @@ export function useRouteLayoutPaneController({
     const handleStoredPaneValueChanged = (event: Event) => {
       const changedKey = (event as CustomEvent<{ key?: string }>).detail?.key;
       if (changedKey && !keys.has(changedKey)) return;
-      if (controlledState === undefined) {
+      const shouldRefreshState = !changedKey || changedKey === stateStorageKey;
+      const shouldRefreshSize = !changedKey || changedKey === sizeStorageKey;
+      if (controlledState === undefined && shouldRefreshState) {
         setUncontrolledState((current) => {
           const next = {
             storageKey: stateStorageKey,
@@ -203,14 +205,16 @@ export function useRouteLayoutPaneController({
           return sameRouteLayoutPaneState(current, next) ? current : next;
         });
       }
-      setSizeValue((current) => {
-        const next = {
-          storageKey: sizeStorageKey,
-          defaultSize,
-          value: readRouteLayoutPaneSize(sizeStorageKey, defaultSize, clampPaneSize),
-        };
-        return sameRouteLayoutPaneSizeState(current, next) ? current : next;
-      });
+      if (shouldRefreshSize) {
+        setSizeValue((current) => {
+          const next = {
+            storageKey: sizeStorageKey,
+            defaultSize,
+            value: readRouteLayoutPaneSize(sizeStorageKey, defaultSize, clampPaneSize),
+          };
+          return sameRouteLayoutPaneSizeState(current, next) ? current : next;
+        });
+      }
     };
     return listenToWindowEvent(ROUTE_LAYOUT_PANE_STORAGE_CHANGED_EVENT, handleStoredPaneValueChanged);
   }, [clampPaneSize, controlledState, defaultSize, fallbackState, pane, sizeStorageKey, stateStorageKey]);

@@ -35,6 +35,7 @@ export interface ProjectSurfaceCapabilities {
   generation: boolean
   editing: boolean
   mediaPipeline: boolean
+  shell: boolean
 }
 
 export interface ProjectSurfaceRouteParams {
@@ -179,11 +180,234 @@ export interface EditingServiceGateway {
   export?(input: unknown): Promise<unknown>
 }
 
+export type ProjectSurfaceShellScope = 'window' | 'workspace' | 'home'
+export type ProjectSurfaceShellOwner = 'user' | 'system'
+export type ProjectSurfaceShellStatus = 'idle' | 'starting' | 'running' | 'blocked' | 'failed' | 'exited' | 'needs_external_shell'
+export type ProjectSurfaceShellReveal = boolean | 'always' | 'on_error' | 'silent'
+export type ProjectSurfaceShellSessionSchema = 'movscript.shell_session.v1'
+export type ProjectSurfaceShellJobSchema = 'movscript.shell_job.v1'
+export type ProjectSurfaceShellIntentSchema = 'movscript.shell_intent.v1'
+export type ProjectSurfaceShellJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'stopped'
+
+export interface ProjectSurfaceShellSession {
+  schema: ProjectSurfaceShellSessionSchema
+  id: string
+  jobId?: string
+  title?: string
+  owner?: ProjectSurfaceShellOwner
+  scope?: ProjectSurfaceShellScope
+  ownerFeature?: string
+  status?: ProjectSurfaceShellStatus
+  cwd?: string
+  command?: string
+  exitCode?: number
+  signal?: number
+  projectId?: string
+  projectUid?: string
+  projectDir?: string
+  previewUrl?: string
+  createdAt?: number
+  updatedAt?: number
+}
+
+export interface ProjectSurfaceShellIntent {
+  schema: ProjectSurfaceShellIntentSchema
+  intentId: string
+  intent_id?: string
+  title?: string
+  reason: string
+  cwd: string
+  command: string[]
+  commandText: string
+  command_text?: string
+  ownerFeature: string
+  owner_feature?: string
+  expectedPreviewUrl?: string
+  expected_preview_url?: string
+  destructive: boolean
+  status?: ProjectSurfaceShellStatus
+}
+
+export interface ProjectSurfaceShellJob {
+  schema: ProjectSurfaceShellJobSchema
+  jobId: string
+  sessionId: string
+  title?: string
+  ownerFeature: string
+  scope: ProjectSurfaceShellScope
+  status: ProjectSurfaceShellJobStatus
+  cwd: string
+  command: string[]
+  commandText: string
+  command_text?: string
+  reveal: 'always' | 'on_error' | 'silent'
+  pid?: number
+  exitCode?: number
+  signal?: number
+  projectId?: string
+  projectUid?: string
+  projectDir?: string
+  previewUrl?: string
+  startedAt?: number
+  updatedAt?: number
+  endedAt?: number
+}
+
+export type ProjectSurfaceRemotionStudioSessionSchema = 'movscript.remotion_studio_session.v1'
+export type ProjectSurfaceRemotionStudioSessionLogsSchema = 'movscript.remotion_studio_session_logs.v1'
+export type ProjectSurfaceRemotionStudioStatus =
+  | 'checking'
+  | 'installing'
+  | 'starting'
+  | 'ready'
+  | 'failed'
+  | 'stopped'
+  | 'blocked'
+  | 'needs_external_shell'
+
+export interface ProjectSurfaceRemotionStudioSessionLogEntry {
+  cursor?: string
+  at?: string
+  stream: string
+  text: string
+}
+
+export interface ProjectSurfaceRemotionStudioSessionBlocker {
+  code: string
+  message: string
+  command?: string[]
+  installCommand?: string[]
+  install_command?: string[]
+  projectDirectory?: string
+  project_directory?: string
+  shellIntent?: ProjectSurfaceShellIntent
+  shell_intent?: ProjectSurfaceShellIntent
+}
+
+export interface ProjectSurfaceRemotionStudioSession {
+  schema: ProjectSurfaceRemotionStudioSessionSchema
+  sessionId: string
+  session_id?: string
+  workspaceId?: string
+  workspace_id?: string
+  productionId?: string
+  production_id?: string
+  status: ProjectSurfaceRemotionStudioStatus
+  previewUrl?: string
+  preview_url?: string
+  projectDirectory?: string
+  project_directory?: string
+  entrypoint?: string
+  compositionId?: string
+  composition_id?: string
+  port?: number
+  command?: string[]
+  commandText?: string
+  command_text?: string
+  shellOwner?: string
+  shell_owner?: string
+  shellIntent?: ProjectSurfaceShellIntent
+  shell_intent?: ProjectSurfaceShellIntent
+  shellSessionId?: string
+  shell_session_id?: string
+  shellJobId?: string
+  shell_job_id?: string
+  shellStatus?: ProjectSurfaceShellStatus
+  shell_status?: ProjectSurfaceShellStatus
+  blockers?: ProjectSurfaceRemotionStudioSessionBlocker[]
+  logs?: ProjectSurfaceRemotionStudioSessionLogEntry[]
+  error?: string
+  startedAt?: string
+  started_at?: string
+  updatedAt?: string
+  updated_at?: string
+  readyAt?: string
+  ready_at?: string
+  stoppedAt?: string
+  stopped_at?: string
+  exitCode?: number | null
+  exit_code?: number | null
+}
+
+export interface ProjectSurfaceRemotionStudioSessionLogs {
+  schema: ProjectSurfaceRemotionStudioSessionLogsSchema
+  sessionId: string
+  session_id?: string
+  logs: ProjectSurfaceRemotionStudioSessionLogEntry[]
+  cursor?: string | null
+  shellSessionId?: string
+  shell_session_id?: string
+  shellJobId?: string
+  shell_job_id?: string
+}
+
 export interface RemotionStudioSessionGateway {
-  open(input: Record<string, unknown>): Promise<unknown>
-  get(input: Record<string, unknown>): Promise<unknown>
-  logs(input: Record<string, unknown>): Promise<unknown>
-  stop(input: Record<string, unknown>): Promise<unknown>
+  open(input: Record<string, unknown>): Promise<ProjectSurfaceRemotionStudioSession>
+  get(input: Record<string, unknown>): Promise<ProjectSurfaceRemotionStudioSession>
+  logs(input: Record<string, unknown>): Promise<ProjectSurfaceRemotionStudioSessionLogs>
+  stop(input: Record<string, unknown>): Promise<ProjectSurfaceRemotionStudioSession>
+}
+
+export interface ProjectSurfaceShellListInput {
+  scope?: ProjectSurfaceShellScope
+  projectId?: string
+  projectUid?: string
+  projectDir?: string
+}
+
+export interface ProjectSurfaceShellJobListInput extends ProjectSurfaceShellListInput {
+  ownerFeature?: string
+}
+
+export interface ProjectSurfaceShellCreateInput extends ProjectSurfaceShellListInput {
+  title?: string
+  owner?: ProjectSurfaceShellOwner
+  ownerFeature?: string
+  cwd?: string
+}
+
+export interface ProjectSurfaceShellRunInput extends ProjectSurfaceShellCreateInput {
+  command: string
+  previewUrl?: string
+  reveal?: ProjectSurfaceShellReveal
+}
+
+export interface ProjectSurfaceShellSessionInput {
+  sessionId: string
+}
+
+export interface ProjectSurfaceShellJobInput {
+  jobId?: string
+  sessionId?: string
+}
+
+export interface ProjectSurfaceShellWriteInput extends ProjectSurfaceShellSessionInput {
+  data: string
+}
+
+export interface ProjectSurfaceShellLogsResult {
+  sessionId: string
+  text: string
+}
+
+export interface ProjectSurfaceShellJobLogsResult {
+  jobId: string
+  sessionId: string
+  text: string
+}
+
+export interface ShellGateway {
+  list(input?: ProjectSurfaceShellListInput): Promise<{ sessions: ProjectSurfaceShellSession[] }>
+  create(input?: ProjectSurfaceShellCreateInput): Promise<ProjectSurfaceShellSession>
+  run(input: ProjectSurfaceShellRunInput): Promise<ProjectSurfaceShellSession>
+  get(input: ProjectSurfaceShellSessionInput): Promise<ProjectSurfaceShellSession | undefined>
+  logs(input: ProjectSurfaceShellSessionInput): Promise<ProjectSurfaceShellLogsResult>
+  listJobs(input?: ProjectSurfaceShellJobListInput): Promise<{ jobs: ProjectSurfaceShellJob[] }>
+  getJob(input: ProjectSurfaceShellJobInput): Promise<ProjectSurfaceShellJob | undefined>
+  jobLogs(input: ProjectSurfaceShellJobInput): Promise<ProjectSurfaceShellJobLogsResult>
+  write(input: ProjectSurfaceShellWriteInput): Promise<void>
+  stop(input: ProjectSurfaceShellSessionInput): Promise<void>
+  reveal?(input: ProjectSurfaceShellSessionInput): Promise<void>
 }
 
 export interface ProjectSurfaceGateways {
@@ -192,6 +416,7 @@ export interface ProjectSurfaceGateways {
   generation?: GenerationServiceGateway
   editing?: EditingServiceGateway
   remotionStudio?: RemotionStudioSessionGateway
+  shell?: ShellGateway
 }
 
 export interface ProjectSurfaceRuntime {
@@ -223,6 +448,7 @@ export const defaultProjectSurfaceCapabilities: ProjectSurfaceCapabilities = {
   generation: false,
   editing: false,
   mediaPipeline: false,
+  shell: false,
 }
 
 export const noopProjectSurfaceNotifier: ProjectSurfaceNotifier = {

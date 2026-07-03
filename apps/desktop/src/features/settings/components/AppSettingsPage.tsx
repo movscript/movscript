@@ -14,7 +14,9 @@ import {
   getSettingsDataConnectionBaseURL,
   isLocalDataConnection,
   normalizeAPIBaseURL,
+  refreshRuntimeConfigSnapshot,
 } from '@/shared/infrastructure/config'
+import type { ElectronRuntimeConfig } from '@/shared/contracts/electronApi'
 import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
@@ -56,6 +58,8 @@ export function AppSettingsPanel({
   const [shotSourcesSaved, setShotSourcesSaved] = useState(false)
   const [testState, setTestState] = useState<AppSettingsTestState>({ status: 'idle', message: '' })
   const [resourceGCState, setResourceGCState] = useState<AppSettingsTestState>({ status: 'idle', message: '' })
+  const [runtimeBundleActionState, setRuntimeBundleActionState] = useState<AppSettingsTestState>({ status: 'idle', message: '' })
+  const [runtimeConfig, setRuntimeConfig] = useState<ElectronRuntimeConfig | null>(null)
 
   const localMode = isLocalDataConnection(settings)
   const effectiveDataConnectionURL = getSettingsDataConnectionBaseURL(settings)
@@ -63,6 +67,20 @@ export function AppSettingsPanel({
   useEffect(() => {
     if (localMode) setDataConnectionURLInput(effectiveDataConnectionURL)
   }, [effectiveDataConnectionURL, localMode])
+
+  useEffect(() => {
+    let cancelled = false
+    void refreshRuntimeConfigSnapshot()
+      .then((snapshot) => {
+        if (!cancelled) setRuntimeConfig(snapshot)
+      })
+      .catch(() => {
+        if (!cancelled) setRuntimeConfig(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const normalized = useMemo(() => {
     if (localMode) return effectiveDataConnectionURL
@@ -161,6 +179,31 @@ export function AppSettingsPanel({
     }
   }
 
+  async function applyRuntimeBundleAction() {
+    const action = runtimeConfig?.runtimeBundleStatus?.action
+    if (!action || action === 'keep' || action === 'unknown') return
+    const electronApi = readElectronApi()
+    if (!electronApi?.applyRuntimeBundleAction) {
+      setRuntimeBundleActionState({ status: 'error', message: t('appSettings.runtimeBundleActionUnavailable') })
+      return
+    }
+    setRuntimeBundleActionState({ status: 'testing', message: t('appSettings.runtimeBundleActionRunning') })
+    try {
+      const result = await electronApi.applyRuntimeBundleAction({ action })
+      setRuntimeConfig(result.runtimeConfig)
+      const message = t('appSettings.runtimeBundleActionSuccess', {
+        action: runtimeBundleActionLabel(action, t),
+      })
+      setRuntimeBundleActionState({ status: 'success', message })
+      toast.success(message)
+    } catch (error) {
+      setRuntimeBundleActionState({
+        status: 'error',
+        message: error instanceof Error ? t('appSettings.runtimeBundleActionFailedWithReason', { reason: error.message }) : t('appSettings.runtimeBundleActionFailed'),
+      })
+    }
+  }
+
   function useDefaultWorkspaceRoot() {
     setMovScriptHomeDirInput('')
     setMovScriptWorkspaceDir('')
@@ -188,6 +231,9 @@ export function AppSettingsPanel({
       resetShotLibrarySources={resetShotLibrarySources}
       resetToDefault={resetToDefault}
       resourceGCState={resourceGCState}
+      runtimeBundleActionState={runtimeBundleActionState}
+      applyRuntimeBundleAction={() => void applyRuntimeBundleAction()}
+      runtimeConfig={runtimeConfig}
       saveSettings={saveSettings}
       saveShotLibrarySources={saveShotLibrarySources}
       saveWorkspaceRoot={saveWorkspaceRoot}
@@ -236,6 +282,10 @@ export function AppSettingsPanel({
       </AppSettingsMain>
     </AppSettingsShell>
   )
+}
+
+function runtimeBundleActionLabel(action: NonNullable<ElectronRuntimeConfig['runtimeBundleStatus']>['action'], t: (key: string, options?: Record<string, unknown>) => string): string {
+  return t(`appSettings.runtimeBundleAction.${action}`, { defaultValue: action })
 }
 
 export default function AppSettingsPage() {

@@ -23,10 +23,9 @@ import {
   appShellHiddenSlotStyle,
 } from '@/features/app-shell/application/AppShellLayoutSlots'
 import {
-  AppShellTerminalDock,
-  clampTerminalDockHeight,
-} from '@/features/app-shell/application/AppShellTerminalDock'
-import { agentWorkspaceContextFromProject } from '@/features/agent/presentation/agentComposerWorkspaceModel'
+  AppShellShellWorkbenchDock,
+  clampShellWorkbenchDockHeight,
+} from '@/features/app-shell/application/AppShellShellWorkbenchDock'
 import {
   clampAgentModeContentPanelWidth,
   clampAgentModeSidebarWidth,
@@ -39,14 +38,20 @@ import {
   APP_SHELL_AGENT_SIDEBAR_PANE_ID,
   APP_SHELL_PROJECT_AGENT_PANE_ID,
   APP_SHELL_SETTINGS_SIDEBAR_PANE_ID,
-  APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT,
-  APP_SHELL_TERMINAL_DOCK_PANE_ID,
+  APP_SHELL_SHELL_WORKBENCH_DOCK_DEFAULT_HEIGHT,
+  APP_SHELL_SHELL_WORKBENCH_DOCK_PANE_ID,
   APP_SHELL_TOOL_SIDEBAR_PANE_ID,
   appRouteViewportScrollForMode,
 } from '@/routes/routeLayoutRegistry'
 import { useRouteLayoutPaneController } from '@/features/app-shell/application/useRouteLayoutPaneController'
 import { createAppShellLayoutHeaders } from '@/features/app-shell/application/AppShellLayoutHeaders'
 import { AppRouteViewport } from '@movscript/ui/layout'
+import {
+  SHELL_WORKBENCH_REVEAL_EVENT,
+  selectShellWorkbenchSession,
+  subscribeShellWorkbenchReveal,
+} from '@/features/shell/useShellWorkbenchController'
+import { shellWorkspaceContextForRoute } from '@/features/app-shell/application/shellWorkspaceContext'
 
 export function ShellLayout({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
   const navigate = useNavigate()
@@ -74,16 +79,44 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
     paneId: APP_SHELL_SETTINGS_SIDEBAR_PANE_ID,
     clampSize: clampSidebarWidth,
   })
-  const terminalPane = useRouteLayoutPaneController({
+  const shellWorkbenchPane = useRouteLayoutPaneController({
     routeLayout,
-    paneId: APP_SHELL_TERMINAL_DOCK_PANE_ID,
-    fallbackSize: APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT,
-    clampSize: clampTerminalDockHeight,
+    paneId: APP_SHELL_SHELL_WORKBENCH_DOCK_PANE_ID,
+    fallbackSize: APP_SHELL_SHELL_WORKBENCH_DOCK_DEFAULT_HEIGHT,
+    clampSize: clampShellWorkbenchDockHeight,
     fallbackState: 'hidden',
   })
+  const shellWorkbenchSupported = Boolean(shellWorkbenchPane.pane)
+  React.useEffect(() => {
+    if (!shellWorkbenchSupported) return undefined
+    let revealFrame = 0
+    const showShellWorkbench = (sessionId?: string) => {
+      selectShellWorkbenchSession(sessionId)
+      shellWorkbenchPane.show()
+      if (typeof window.requestAnimationFrame === 'function') {
+        if (revealFrame) window.cancelAnimationFrame(revealFrame)
+        revealFrame = window.requestAnimationFrame(() => {
+          revealFrame = 0
+          selectShellWorkbenchSession(sessionId)
+          shellWorkbenchPane.show()
+        })
+      }
+    }
+    const handleShellWorkbenchRevealEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{ sessionId?: unknown }>).detail
+      showShellWorkbench(typeof detail?.sessionId === 'string' ? detail.sessionId : undefined)
+    }
+    const unsubscribeReveal = subscribeShellWorkbenchReveal(showShellWorkbench)
+    window.addEventListener(SHELL_WORKBENCH_REVEAL_EVENT, handleShellWorkbenchRevealEvent)
+    return () => {
+      unsubscribeReveal()
+      if (revealFrame) window.cancelAnimationFrame(revealFrame)
+      window.removeEventListener(SHELL_WORKBENCH_REVEAL_EVENT, handleShellWorkbenchRevealEvent)
+    }
+  }, [shellWorkbenchPane.show, shellWorkbenchSupported])
   const toolSidebarHidden = !toolChrome || toolSidebarPane.hidden
   const settingsSidebarHidden = !settingsChrome || settingsSidebarPane.hidden
-  const terminalOpen = !terminalPane.hidden
+  const shellWorkbenchOpen = shellWorkbenchSupported && !shellWorkbenchPane.hidden
   const agentSidebarPane = useRouteLayoutPaneController({
     routeLayout,
     paneId: APP_SHELL_AGENT_SIDEBAR_PANE_ID,
@@ -108,36 +141,32 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
   const agentSidebarVisible = agentChrome && !agentSidebarPane.hidden
   const accountSettingsActiveTab = accountSettingsTabForLocation(pathname, search)
   const agentSettingsActive = pathname === ROUTES.agentSettings
-  const terminalWorkspaceContext = React.useMemo(() => {
-    if (currentProject?.ID) {
-      return {
-        ...agentWorkspaceContextFromProject(currentProject),
-        userId: userId || undefined,
-      }
-    }
-    return {
-      scope: 'global' as const,
-      userId: userId || undefined,
-    }
-  }, [currentProject, userId])
-  const terminalPlacement = agentChrome ? 'center-right' : 'center'
+  const shellWorkbenchWorkspaceContext = React.useMemo(() => {
+    return shellWorkspaceContextForRoute({
+      routeSurface,
+      routeChrome,
+      currentProject,
+      userId,
+    })
+  }, [currentProject, routeChrome, routeSurface, userId])
+  const shellWorkbenchPlacement = agentChrome ? 'center-right' : 'center'
   const navigateProjectHome = React.useCallback(() => {
     navigate(ROUTES.project.home, { replace: true })
   }, [navigate])
   const agentContentPanelClosed = agentContentPane.collapsed || agentContentPane.hidden
-  const terminalPanel = (
-    <AppShellTerminalDock
-      open={terminalOpen}
-      paneSize={terminalPane.size}
-      placement={terminalPlacement}
-      workspaceContext={terminalWorkspaceContext}
-      onPaneSizeChange={terminalPane.setSize}
+  const shellWorkbenchPanel = shellWorkbenchSupported ? (
+    <AppShellShellWorkbenchDock
+      open={shellWorkbenchOpen}
+      paneSize={shellWorkbenchPane.size}
+      placement={shellWorkbenchPlacement}
+      workspaceContext={shellWorkbenchWorkspaceContext}
+      onPaneSizeChange={shellWorkbenchPane.setSize}
       onOpenChange={(open) => {
-        if (open) terminalPane.show()
-        else terminalPane.hide()
+        if (open) shellWorkbenchPane.show()
+        else shellWorkbenchPane.hide()
       }}
     />
-  )
+  ) : undefined
   const hideToolSidebar = React.useCallback(() => {
     toolSidebarPane.hide()
   }, [toolSidebarPane])
@@ -159,7 +188,8 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
     toolSidebarHidden,
     settingsSidebarHidden,
     agentSidebarVisible,
-    terminalOpen,
+    shellWorkbenchOpen,
+    shellWorkbenchSupported,
     agentModeContentPanelOpen,
     agentContentPanelClosed,
     projectAgentPanelClosed,
@@ -170,7 +200,7 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
     projectAgentPane,
     navigateProjectHome,
     onShowProjectAgentPane: showProjectAgentPane,
-    onToggleTerminal: terminalOpen ? terminalPane.hide : terminalPane.show,
+    onToggleShellWorkbench: shellWorkbenchOpen ? shellWorkbenchPane.hide : shellWorkbenchPane.show,
   })
   const agentRightSlotStyle = appShellCollapsedSlotStyle({
     collapsed: agentContentPane.collapsed,
@@ -210,9 +240,9 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
           leftPaneHidden={!agentSidebarVisible}
           rightSlotStyle={agentRightSlotStyle}
           rightPaneCollapsed={agentContentPane.collapsed}
-          terminalPanel={terminalPanel}
-          terminalOpen={terminalOpen}
-          terminalPlacement={terminalPlacement}
+          shellPanel={shellWorkbenchPanel}
+          shellPanelOpen={shellWorkbenchOpen}
+          shellPanelPlacement={shellWorkbenchPlacement}
           assistantPanel={(
             <React.Suspense fallback={null}>
               <ProjectAgentContentPanel
@@ -256,9 +286,9 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
           leftHeader={settingsChrome ? appShellHeaders.settingsLeftHeader : appShellHeaders.toolLeftHeader}
           centerHeader={settingsChrome ? appShellHeaders.settingsCenterHeader : toolChrome ? appShellHeaders.toolCenterHeader : homeChrome ? appShellHeaders.homeCenterHeader : appShellHeaders.projectCenterHeader}
           leftSlotStyle={settingsChrome ? settingsLeftSlotStyle : toolChrome ? toolLeftSlotStyle : undefined}
-          terminalPanel={terminalPanel}
-          terminalOpen={terminalOpen}
-          terminalPlacement={terminalPlacement}
+          shellPanel={shellWorkbenchPanel}
+          shellPanelOpen={shellWorkbenchOpen}
+          shellPanelPlacement={shellWorkbenchPlacement}
           leftPaneHidden={settingsChrome ? settingsSidebarHidden : toolChrome ? toolSidebarHidden : false}
           rightHeader={appShellHeaders.projectRightHeader}
           rightSlotStyle={projectChrome ? projectRightSlotStyle : undefined}

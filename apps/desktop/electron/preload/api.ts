@@ -15,7 +15,7 @@ import { createMovScriptEngineAPI } from './api/movscriptEngine'
 import { createMovScriptWorkspaceAPI } from './api/movscriptWorkspace'
 import { createSettingsAPI } from './api/settings'
 import { createWindowAPI } from './api/window'
-import { createLocalTerminalAPI } from './api/localTerminal'
+import { createDesktopShellHostAPI } from './api/desktopShellHost'
 import { createCrossPageNotificationAPI } from './api/crossPageNotifications'
 import { createMediaPipelineAPI } from './api/mediaPipeline'
 import { createDockShortcutAPI } from './api/dockShortcuts'
@@ -43,7 +43,7 @@ export function createElectronAPI(ipcRenderer: IpcRenderer, platform: NodeJS.Pla
     ...createMovScriptEngineAPI(ipcRenderer),
     ...createMovScriptWorkspaceAPI(ipcRenderer),
     ...createSdkRuntimeAPI(ipcRenderer),
-    ...createLocalTerminalAPI(ipcRenderer),
+    ...createDesktopShellHostAPI(ipcRenderer),
     ...createMediaPipelineAPI(ipcRenderer),
     ...createDockShortcutAPI(ipcRenderer),
   }

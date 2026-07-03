@@ -3,11 +3,11 @@ import test from 'node:test'
 
 import { hasRelayGatewayProviderInstance, isRelayGatewayProviderInstance, RELAY_GATEWAY_PROVIDER_INSTANCE_ID } from './adminRelayGatewayMode'
 
-test('detects enterprise relay gateway startup instance by id', () => {
+test('detects self-hosted relay gateway startup instance by id', () => {
   assert.equal(isRelayGatewayProviderInstance({ id: RELAY_GATEWAY_PROVIDER_INSTANCE_ID, type: 'ai_gateway', adapter: 'relay-gateway' }), true)
 })
 
-test('detects enterprise relay gateway startup instance by type and adapter', () => {
+test('detects self-hosted relay gateway startup instance by type and adapter', () => {
   assert.equal(isRelayGatewayProviderInstance({ id: 'custom-id', type: 'ai_gateway', adapter: 'relay-gateway' }), true)
 })
 

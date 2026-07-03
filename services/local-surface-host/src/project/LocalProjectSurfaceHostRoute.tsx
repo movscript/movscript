@@ -114,7 +114,6 @@ function ProjectSurfaceHostView({
   query: URLSearchParams
   routeContext: ReturnType<typeof projectRouteContext>
 }) {
-  const mcpApiBaseURL = query.get('mcpApiBaseURL') ?? ''
   const daemonContext = useDaemonContextSession({ query, routeContext })
   const contextEnvelope = daemonContext.status === 'ready' ? daemonContext.envelope : undefined
   const contextProjectDir = movScriptContextProjectCwd(contextEnvelope)
@@ -124,7 +123,6 @@ function ProjectSurfaceHostView({
     projectDir: contextProjectDir,
     projectUid: contextEnvelope?.session?.project?.uid ?? query.get('projectUid') ?? query.get('project_uid') ?? undefined,
     productionId: routeContext.productionId,
-    mcpApiBaseURL,
     search: query,
     context: contextEnvelope,
   }), [
@@ -133,7 +131,6 @@ function ProjectSurfaceHostView({
     contextProjectKey,
     query,
     routeContext.productionId,
-    mcpApiBaseURL,
   ])
   const projectReadModel = useProjectReadModel({
     runtime: projectSurfaceRuntime,

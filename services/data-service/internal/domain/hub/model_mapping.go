@@ -35,7 +35,7 @@ func HubPackageFromModel(pkg persistencemodel.HubPackage) HubPackage {
 		CreatedAt:       pkg.CreatedAt,
 		UpdatedAt:       pkg.UpdatedAt,
 	}
-	editionApplyHubPackageFromModel(pkg, &out)
+	distributionProfileApplyHubPackageFromModel(pkg, &out)
 	return out
 }
 
@@ -76,5 +76,5 @@ func (pkg HubPackage) ApplyToModel(target *persistencemodel.HubPackage) {
 	target.PublicKey = pkg.PublicKey
 	target.PublishedAt = pkg.PublishedAt
 	target.TakenDownAt = pkg.TakenDownAt
-	pkg.editionApplyToModel(target)
+	pkg.distributionProfileApplyToModel(target)
 }

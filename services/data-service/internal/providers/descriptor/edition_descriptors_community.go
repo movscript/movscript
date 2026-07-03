@@ -2,10 +2,10 @@
 
 package descriptor
 
-func editionBuiltInProviders() []builtInProvider {
+func distributionProfileBuiltInProviders() []builtInProvider {
 	return nil
 }
 
-func editionBuiltIn(_ string, _ string) (Descriptor, bool) {
+func distributionProfileBuiltIn(_ string, _ string) (Descriptor, bool) {
 	return Descriptor{}, false
 }

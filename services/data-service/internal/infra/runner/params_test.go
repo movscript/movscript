@@ -36,6 +36,32 @@ func TestGenerationParamsAccessors(t *testing.T) {
 	}
 }
 
+func TestGenerationParamsExposeCanonicalImageAliasesToProviderFields(t *testing.T) {
+	params := parseGenerationParams(`{
+		"image_size": "2K",
+		"prompt_strength": 3.5,
+		"image_count": 4
+	}`)
+
+	if got := params.String("size"); got != "2K" {
+		t.Fatalf("String(size) = %q", got)
+	}
+	if got := params.Float("guidance_scale"); got != 3.5 {
+		t.Fatalf("Float(guidance_scale) = %f", got)
+	}
+	if got := params.Int("max_images"); got != 4 {
+		t.Fatalf("Int(max_images) = %d", got)
+	}
+}
+
+func TestGenerationParamsExposeCanonicalVideoAudioAliasToProviderField(t *testing.T) {
+	params := parseGenerationParams(`{"audio": false}`)
+
+	if got := params.BoolPtr("generate_audio"); got == nil || *got {
+		t.Fatalf("BoolPtr(generate_audio) = %v", got)
+	}
+}
+
 func TestGenerationParamsInvalidJSONFallsBackToEmptyValues(t *testing.T) {
 	params := parseGenerationParams(`{bad json`)
 

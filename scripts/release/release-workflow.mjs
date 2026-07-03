@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -691,12 +692,28 @@ export function prepareProviderPluginResources(root = repoRoot, options = {}) {
 
 function writePluginRuntimeManifest(pluginDir, input) {
   writeFileSync(resolve(pluginDir, 'manifest.runtime.json'), `${JSON.stringify({
+    schema: 'movscript.runtime-bundle.v1',
     appId: 'plugin',
     applicationId: 'movscript.agent-plugin',
     artifact: 'movscript-agent-plugin',
     version: input.version,
     packageName: input.packageName,
     generatedAt: new Date().toISOString(),
+    apiVersion: '1.0',
+    minDaemonApiVersion: '1.0',
+    bundleHash: pluginBundleHash(pluginDir),
+    bundleHashAlgorithm: 'sha256',
+    capabilities: {
+      cli: true,
+      mcp: true,
+      daemon: true,
+      project: true,
+      timeline: true,
+      canvas: true,
+      resources: true,
+      editing: true,
+      media: true,
+    },
     mcpServer: 'movscript',
     entrypoint: './bin/movscript',
     mcpArgs: ['mcp', 'stdio'],
@@ -704,6 +721,49 @@ function writePluginRuntimeManifest(pluginDir, input) {
     cliEntrypoint: './bin/movscript',
     legacyMcpEntrypoint: './bin/movscript-agent-mcp',
   }, null, 2)}\n`, 'utf8')
+}
+
+function pluginBundleHash(pluginDir) {
+  const hash = createHash('sha256')
+  for (const file of pluginBundleFiles(pluginDir)) {
+    hash.update(file)
+    hash.update('\0')
+    hash.update(readFileSync(resolve(pluginDir, file)))
+    hash.update('\0')
+  }
+  return hash.digest('hex')
+}
+
+function pluginBundleFiles(pluginDir) {
+  const roots = [
+    '.codex-plugin',
+    '.provider-plugin',
+    '.mcp.json',
+    'assets',
+    'bin',
+    'runtime',
+    'skills',
+    'README.md',
+  ]
+  const files = []
+  for (const rootPath of roots) {
+    const absolute = resolve(pluginDir, rootPath)
+    if (!existsSync(absolute)) continue
+    collectPluginBundleFiles(pluginDir, rootPath, files)
+  }
+  return files.sort()
+}
+
+function collectPluginBundleFiles(pluginDir, relativePath, files) {
+  const absolute = resolve(pluginDir, relativePath)
+  const stat = statSync(absolute)
+  if (stat.isDirectory()) {
+    for (const entry of readdirSync(absolute).filter((name) => name !== '.DS_Store').sort()) {
+      collectPluginBundleFiles(pluginDir, `${relativePath}/${entry}`, files)
+    }
+    return
+  }
+  files.push(relativePath)
 }
 
 function syncPluginDistribution(sourceDir, pluginDir) {
@@ -764,11 +824,34 @@ function validatePluginArtifactInputs(pluginDir) {
     'runtime/services/local-surface-host/dist/index.html',
     'skills',
     'assets',
+    'manifest.runtime.json',
     'README.md',
   ]
   const missing = required.filter((path) => !existsSync(resolve(pluginDir, path)))
   if (missing.length > 0) {
     throw new Error(`Plugin artifact is missing required files:\n${missing.map((path) => `- ${path}`).join('\n')}`)
+  }
+  const runtimeManifest = readJSONFile(resolve(pluginDir, 'manifest.runtime.json'))
+  if (runtimeManifest.schema !== 'movscript.runtime-bundle.v1') {
+    throw new Error(`Plugin runtime manifest schema is invalid: ${runtimeManifest.schema}`)
+  }
+  if (runtimeManifest.apiVersion !== '1.0' || runtimeManifest.minDaemonApiVersion !== '1.0') {
+    throw new Error(`Plugin runtime manifest API versions are invalid: ${JSON.stringify({
+      apiVersion: runtimeManifest.apiVersion,
+      minDaemonApiVersion: runtimeManifest.minDaemonApiVersion,
+    })}`)
+  }
+  if (runtimeManifest.bundleHashAlgorithm !== 'sha256') {
+    throw new Error(`Plugin runtime manifest hash algorithm is invalid: ${runtimeManifest.bundleHashAlgorithm}`)
+  }
+  const expectedBundleHash = pluginBundleHash(pluginDir)
+  if (runtimeManifest.bundleHash !== expectedBundleHash) {
+    throw new Error(`Plugin runtime manifest bundleHash is ${runtimeManifest.bundleHash}, expected ${expectedBundleHash}`)
+  }
+  for (const capability of ['cli', 'mcp', 'daemon', 'project', 'timeline', 'canvas', 'resources', 'editing', 'media']) {
+    if (runtimeManifest.capabilities?.[capability] !== true) {
+      throw new Error(`Plugin runtime manifest capability ${capability} must be true`)
+    }
   }
 }
 

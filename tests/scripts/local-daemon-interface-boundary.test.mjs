@@ -130,6 +130,8 @@ test('daemon gateway and local surface project paths prefer canonical /v1 routes
       `${label} must not branch on Project Service URLs`,
     )
   }
+  assert.match(localProjectRuntime, /gateway: daemonGatewayBaseURL/, 'local project runtime diagnostics must expose the same-origin daemon gateway')
+  assert.doesNotMatch(localProjectRuntime, /mcpApiBaseURL|mcpApi:/, 'local project runtime input must not carry MCP API base URL as a project gateway')
 })
 
 test('product surfaces do not add new local-api or service-url contract debt', () => {
@@ -193,17 +195,27 @@ test('product surface copy does not expose internal service topology', () => {
       'surface/project/src',
       'surface/canvas/src',
       'surface/editing/src',
+      'surface/admin/src/i18n/locales',
     ],
     patterns: [
       /\b(?:Project Service|Data Service|Canvas Service)\b/,
       /\blocal backend\b/i,
+      /(?:本地后端|本机后端)/,
       /\blocal API\b/i,
-      /(?:服务 API 地址|Service API URL)/,
+      /(?:服务 API|Service API)(?: 地址| URL)?/,
+      /(?:当前 API|Current API)/,
+      /(?:service URL|team service URL)/i,
+      /(?:服务地址|团队服务地址|连接服务)/,
+      /MCP API(?: 地址| base URL)?/,
+      /MCP 代理/,
     ],
     allowedFiles: [],
   })
 
   assert.deepEqual(findings, [], `internal service topology leaked into product copy:\n${findings.join('\n')}`)
+
+  const desktopLocalProject = read('apps/desktop/electron/services/localProject.ts')
+  assert.doesNotMatch(desktopLocalProject, /(?:本地后端|本机后端)/, 'Desktop local project impacts must not expose local backend wording')
 })
 
 test('Desktop renderer runtime config does not expose daemon internal service endpoints', () => {
@@ -224,9 +236,22 @@ test('Desktop renderer runtime config does not expose daemon internal service en
   const desktopLocalWorkspaceAuth = read('apps/desktop/src/shared/infrastructure/session/localWorkspaceAuth.ts')
   const desktopAuthRealm = read('apps/desktop/src/shared/infrastructure/session/authRealm.ts')
   const desktopAdminConsole = read('apps/desktop/src/shared/infrastructure/adminConsole.ts')
+  const desktopElectronAdminConsole = read('apps/desktop/electron/services/adminConsole.ts')
+  const adminConfig = read('surface/admin/src/lib/config.ts')
   const desktopAdminWindow = read('apps/desktop/electron/adminWindow.ts')
   const desktopAgentSessionOutputPane = read('apps/desktop/src/features/agent/components/AgentSessionOutputPane.tsx')
+  const desktopMovscriptEnginePreload = read('apps/desktop/electron/preload/api/movscriptEngine.ts')
+  const desktopProjectSurfaceRuntime = read('apps/desktop/src/features/app-shell/application/desktopProjectSurfaceRuntime.tsx')
+  const desktopProjectSurfaceRuntimeModel = read('apps/desktop/src/features/app-shell/application/desktopProjectSurfaceRuntimeModel.ts')
+  const desktopWorkspaceDomainRepository = read('apps/desktop/src/shared/infrastructure/workspaceDomainRepository.ts')
+  const desktopProjectHomeReadModel = read('apps/desktop/src/shared/infrastructure/api/projectHomeReadModel.ts')
+  const desktopResourceMediaBrowser = read('apps/desktop/src/shared/infrastructure/api/resourceMediaBrowser.ts')
+  const desktopE2EBootstrapSeed = read('apps/desktop/src/e2e/e2eBootstrapSeed.ts')
+  const localSurfaceHostConfig = read('services/local-surface-host/src/host-runtime/infrastructure/config.ts')
+  const localSurfaceHostResourceMediaBrowser = read('services/local-surface-host/src/host-runtime/infrastructure/api/resourceMediaBrowser.ts')
+  const resourceMediaBrowser = read('surface/resource/src/resourceMediaBrowser.ts')
   const cliCommands = read('packages/cli-commands/src/index.ts')
+  const desktopE2EBootstrapAuthRealmBlock = desktopE2EBootstrapSeed.match(/const seedAuthRealmKey = authRealmKey\(\{[\s\S]*?\}\)/)?.[0] ?? ''
 
   for (const field of [
     'dataServiceBaseURL',
@@ -244,6 +269,9 @@ test('Desktop renderer runtime config does not expose daemon internal service en
   assert.match(sharedContext, /owner: MovScriptDaemonRuntimeOwner/, 'runtime descriptor must name the daemon owner, not internal services')
   assert.match(sharedContext, /canonicalPrefix: '\/v1'/, 'runtime descriptor must publish canonical /v1 prefix')
   assert.match(sharedContext, /dataConnection: MovScriptDataConnectionContext/, 'runtime descriptor must expose data connection summary')
+  assert.match(sharedContext, /apiVersion\?: string/, 'runtime descriptor must expose daemon API version')
+  assert.match(sharedContext, /bundleHash\?: string/, 'runtime descriptor must expose running bundle hash')
+  assert.match(sharedContext, /compatibility\?: MovScriptRuntimeBundleCompatibility/, 'runtime descriptor must expose bundle compatibility')
   assert.match(sharedContext, /export interface MovScriptRuntimeIdentity/, 'shared contracts must define runtime identity metadata')
   assert.match(sharedContext, /identity\?: MovScriptRuntimeIdentity/, 'runtime descriptor must expose bundle/runtime identity for reuse checks')
 
@@ -286,9 +314,33 @@ test('Desktop renderer runtime config does not expose daemon internal service en
   assert.doesNotMatch(desktopApi, /getCanvasService(?:V1)?BaseURL/, 'Desktop API client must not call Canvas Service URL helpers')
   assert.match(desktopAdminConsole, /refreshRuntimeConfigSnapshot/, 'Admin surface opener must refresh the renderer runtime descriptor before choosing a gateway')
   assert.match(desktopAdminConsole, /runtimeConfig\?\.runtimeConnection\.gatewayBaseURL/, 'Admin surface opener must prefer the runtime gateway descriptor')
+  assert.match(desktopElectronAdminConsole, /gatewayBaseURL/, 'Electron Admin URL builder must pass the runtime gateway as gatewayBaseURL')
+  assert.doesNotMatch(desktopElectronAdminConsole, /searchParams\.set\('apiBaseURL'/, 'Electron Admin URL builder must not create new legacy apiBaseURL query params')
+  assert.match(adminConfig, /readURLGatewayBaseURL\(\) \|\| readURLLegacyAPIBaseURL\(\)/, 'Admin surface config must prefer gatewayBaseURL query before legacy apiBaseURL')
   assert.match(desktopAdminWindow, /getElectronRuntimeConfig\(\)\.runtimeConnection/, 'Electron Admin window must derive its base URL from the runtime descriptor')
   assert.match(desktopAdminWindow, /runtimeConnection\.gatewayBaseURL/, 'Electron Admin window must pass the runtime gateway URL to the Admin surface')
   assert.match(desktopAgentSessionOutputPane, /runtimeConnection\?\.gatewayBaseURL/, 'Agent UI output readers must prefer the runtime gateway descriptor')
+  assert.doesNotMatch(desktopAgentSessionOutputPane, /record\.apiBaseURL|getAPIBaseURL/, 'Agent UI output readers must not fall back to legacy apiBaseURL')
+  assert.doesNotMatch(desktopMovscriptEnginePreload, /record\.apiBaseURL/, 'Desktop preload Project gateway must not fall back to legacy apiBaseURL')
+  assert.doesNotMatch(desktopProjectSurfaceRuntime, /getAPIBaseURL/, 'Desktop project surface runtime must not use legacy getAPIBaseURL fallback')
+  assert.doesNotMatch(desktopProjectSurfaceRuntimeModel, /config\?\.apiBaseURL/, 'Desktop project surface runtime must not fall back to legacy apiBaseURL')
+  assert.doesNotMatch(desktopWorkspaceDomainRepository, /snapshot\?\.apiBaseURL/, 'Desktop workspace domain repository must not fall back to legacy apiBaseURL')
+  assert.doesNotMatch(desktopProjectHomeReadModel, /snapshot\?\.apiBaseURL/, 'Desktop project home read model must not fall back to legacy apiBaseURL')
+  assert.match(desktopResourceMediaBrowser, /gatewayBaseURL: getDaemonGatewayBaseURL/, 'Desktop resource media browser must configure daemon gateway as the resource media base')
+  assert.doesNotMatch(desktopResourceMediaBrowser, /apiBaseURL: getAPIBaseURL|getAPIBaseURL/, 'Desktop resource media browser must not configure resource media through legacy apiBaseURL')
+  assert.match(localSurfaceHostConfig, /export function getDaemonGatewayBaseURL/, 'local surface host config must name same-origin runtime access as daemon gateway')
+  assert.match(localSurfaceHostResourceMediaBrowser, /gatewayBaseURL: getDaemonGatewayBaseURL/, 'local surface resource media browser must configure the daemon gateway as the resource media base')
+  assert.doesNotMatch(localSurfaceHostResourceMediaBrowser, /apiBaseURL: getAPIBaseURL|getAPIBaseURL/, 'local surface resource media browser must not configure resource media through legacy apiBaseURL')
+  assert.match(resourceMediaBrowser, /gatewayBaseURL\?: string \| \(\(\) => string\)/, 'Resource media config must expose gatewayBaseURL as the primary base')
+  assert.match(resourceMediaBrowser, /@deprecated Use gatewayBaseURL/, 'Resource media legacy apiBaseURL must be marked deprecated')
+  assert.match(
+    resourceMediaBrowser,
+    /readConfiguredBaseURL\(browserConfig\.gatewayBaseURL\) \?\? readConfiguredBaseURL\(browserConfig\.apiBaseURL\)/,
+    'Resource media browser must prefer non-empty gatewayBaseURL before legacy apiBaseURL',
+  )
+  assert.match(desktopE2EBootstrapSeed, /const seedDataConnection = seed\.appSettings\?\.dataConnection/, 'Desktop E2E bootstrap must derive auth realm from typed dataConnection')
+  assert.match(desktopE2EBootstrapAuthRealmBlock, /dataConnection: seedDataConnection/, 'Desktop E2E bootstrap auth realm must pass typed dataConnection')
+  assert.doesNotMatch(desktopE2EBootstrapAuthRealmBlock, /launchMode|apiBaseURL:|daemonGatewayBaseURL/, 'Desktop E2E bootstrap auth realm must not use legacy realm inputs')
   assert.match(cliCommands, /fetchCanonicalRuntimeDescriptorFromStatus/, 'CLI descriptor reads must prefer the canonical daemon runtime descriptor')
   assert.match(cliCommands, /\/v1\/runtime\/descriptor/, 'CLI descriptor reads must target the daemon runtime descriptor endpoint')
   assert.match(cliCommands, /\?\? runtimeDescriptorFromStatus\(status\)/, 'CLI descriptor reads may fall back to the legacy diagnostic descriptor when no gateway is available')
@@ -302,6 +354,7 @@ test('Desktop renderer runtime config does not expose daemon internal service en
   assert.match(desktopSettingsIpc, /configureDaemonRuntime/, 'Desktop settings IPC must submit runtime configuration to daemon when available')
   assert.match(desktopSettingsIpc, /\/v1\/runtime\/configure/, 'Desktop settings IPC must use daemon runtime configure API')
   assert.match(desktopSettingsIpc, /runtimeDataConnectionFromSettings/, 'Desktop settings IPC must derive a typed dataConnection intent')
+  assert.doesNotMatch(desktopSettingsIpc, /settings\.apiBaseURL/, 'Desktop settings IPC must not publish runtime readiness from legacy apiBaseURL')
   assert.match(desktopManagedBootstrap, /forceRestart: shouldForceRefreshLocalRuntimeDaemon\(\)/, 'Desktop startup must refresh the managed daemon instead of reusing stale runtime records')
   assert.match(desktopManagedBootstrap, /MOVSCRIPT_DESKTOP_FORCE_DAEMON_REFRESH/, 'Desktop daemon refresh must have an explicit diagnostic override')
   assert.match(workspaceHomeRoot, /MOVSCRIPT_WORKSPACE_LOGS_DIR_NAME = 'logs'/, 'MovScript Home must expose a top-level logs directory')
@@ -320,8 +373,9 @@ test('Desktop renderer runtime config does not expose daemon internal service en
     ['Desktop admin console', desktopAdminConsole],
   ]) {
     assert.match(source, /isLocalDataConnection|dataConnection/, `${label} must use typed dataConnection semantics`)
-    assert.doesNotMatch(source, /isLocalLaunchMode|settings\.launchMode\b/, `${label} must not branch on legacy launchMode`)
+    assert.doesNotMatch(source, /isLocalLaunchMode|settings\??\.launchMode\b/, `${label} must not branch on legacy launchMode`)
   }
+  assert.doesNotMatch(desktopAuthRealm, /apiBaseURL/, 'Desktop auth realm must not derive session realms from legacy apiBaseURL')
 })
 
 test('AppSettings exposes daemon gateway instead of legacy local API base URL', () => {
@@ -330,6 +384,7 @@ test('AppSettings exposes daemon gateway instead of legacy local API base URL', 
   const desktopAppSettingsStore = read('apps/desktop/src/shared/infrastructure/appSettingsStore.ts')
   const desktopPreloadSource = read('apps/desktop/electron/preload/api/movscriptEngine.ts')
   const desktopAppSettingsPersistence = read('apps/desktop/electron/services/appSettings.ts')
+  const desktopModeSelectionPanel = read('apps/desktop/src/features/onboarding/components/ModeSelectionPanel.tsx')
 
   for (const [label, source] of [
     ['shared app settings', sharedAppSettings],
@@ -371,6 +426,8 @@ test('AppSettings exposes daemon gateway instead of legacy local API base URL', 
   assert.match(desktopAppSettingsPersistence, /url: _derivedDataConnectionURL/, 'Electron app settings persistence must strip derived dataConnection.url before writing settings')
   assert.match(desktopAppSettingsStore, /settingsWithoutDerivedURLs/, 'Desktop renderer persistence must strip derived API URLs before writing browser settings')
   assert.match(desktopAppSettingsStore, /url: _derivedDataConnectionURL/, 'Desktop renderer persistence must strip derived dataConnection.url before writing browser settings')
+  assert.match(desktopModeSelectionPanel, /normalizeAppSettings/, 'Desktop onboarding may derive compatibility URLs through the shared normalizer')
+  assert.doesNotMatch(desktopModeSelectionPanel, /apiBaseURL\s*:/, 'Desktop onboarding must not write legacy apiBaseURL as a mode-selection field')
 })
 
 test('system context is issued by daemon and consumed by project surfaces', () => {
@@ -403,6 +460,9 @@ test('system context is issued by daemon and consumed by project surfaces', () =
   assert.match(localRuntime, /rotateLocalRuntimeDaemonLog/, 'local runtime daemon logs must support rotation')
   assert.match(pluginGateway, /issueDaemonRuntimeDescriptor/, 'daemon gateway must issue runtime descriptors')
   assert.match(pluginGateway, /schema: 'movscript\.runtime-descriptor\.v1'/, 'daemon runtime descriptor must use the v1 schema')
+  assert.match(pluginGateway, /apiVersion: MOVSCRIPT_RUNTIME_API_VERSION/, 'daemon runtime descriptor must expose API version')
+  assert.match(pluginGateway, /bundleHash: bundle\.actual\.bundleHash/, 'daemon runtime descriptor must expose bundle hash')
+  assert.match(pluginGateway, /compatibility: bundle\.compatibility/, 'daemon runtime descriptor must expose bundle compatibility')
   assert.match(pluginGateway, /owner: 'movscript\.local-node'/, 'daemon runtime descriptor must expose the local node owner')
   assert.match(pluginGateway, /daemonRuntimeIdentity/, 'daemon runtime descriptor must expose bundle/runtime identity')
   assert.match(pluginGateway, /identity \? \{ identity \}/, 'daemon runtime descriptor must include identity when available')
@@ -470,6 +530,8 @@ test('system context is issued by daemon and consumed by project surfaces', () =
   assert.match(localProjectHostRoute, /fetch\(['"`]\/v1\/context\/sessions['"`]/, 'local surface host must create daemon workspace sessions')
   assert.match(localProjectHostRoute, /context: contextEnvelope/, 'local surface host must inject daemon context into Project Surface runtime')
   assert.match(localProjectRuntime, /context: input\.context/, 'local Project Surface runtime must accept daemon context')
+  assert.match(localProjectRuntime, /capabilities: \{[\s\S]*shell: false/, 'local Project Surface runtime must expose Shell Intent fallback without Shell Host capability')
+  assert.doesNotMatch(localProjectRuntime, /shell:\s*shellGateway/, 'local Project Surface runtime must not wire an interactive Shell gateway')
   assert.match(localProjectRuntime, /projectSurfaceContextCommandEnvelope\(input\.context\)/, 'local Project Service calls must carry context revision')
   assert.doesNotMatch(
     localProjectRuntime,
@@ -504,8 +566,10 @@ test('desktop content canvas preload routes through daemon Project content canva
 test('content canvas naming UI and Project Service rename contract stay explicit', () => {
   const projectTypes = read('packages/project/src/index.ts')
   const projectService = read('services/project-service/src/server.mjs')
+  const projectContentCanvasService = `${projectService}\n${read('services/project-service/src/contentCanvas.mjs')}`
   const projectServiceTests = read('services/project-service/tests/server.test.mjs')
   const contentPanel = read('surface/project/src/features/content/components/ContentPromptCanvasPanel.tsx')
+  const contentPanelUi = `${contentPanel}\n${read('surface/project/src/features/content/components/ContentPromptCanvasPanelParts.tsx')}`
   const contentController = read('surface/project/src/features/content/components/useContentCanvasWorkspaceController.ts')
   const contentDocuments = read('surface/project/src/features/content/application/contentCanvasDocuments.ts')
   const localContentApi = read('services/local-surface-host/src/adapters/localContentSurfaceHostApi.ts')
@@ -515,23 +579,23 @@ test('content canvas naming UI and Project Service rename contract stay explicit
   assert.match(projectTypes, /\|\s*'runContentCanvas'/, 'Project source command contract must include content canvas run')
   assert.match(projectTypes, /PROJECT_SERVICE_CONTENT_CANVAS_RENAME_ENDPOINT = ['"`]\/v1\/project\/content-canvases\/rename['"`]/, 'Project package must expose a typed content canvas rename endpoint')
   assert.match(projectTypes, /PROJECT_SERVICE_CONTENT_CANVAS_RUN_ENDPOINT = ['"`]\/v1\/project\/content-canvases\/run['"`]/, 'Project package must expose a typed content canvas run endpoint')
-  assert.match(projectService, /case ['"`]renameContentCanvas['"`]:/, 'Project Service must own content canvas rename')
-  assert.match(projectService, /case ['"`]runContentCanvas['"`]:/, 'Project Service must own content canvas run')
-  assert.match(projectService, /PROJECT_SERVICE_CONTENT_CANVAS_RENAME_ENDPOINT/, 'Project Service must serve typed content canvas rename endpoint')
-  assert.match(projectService, /PROJECT_SERVICE_CONTENT_CANVAS_RUN_ENDPOINT/, 'Project Service must serve typed content canvas run endpoint')
-  assert.match(projectService, /renameProjectContentCanvas/, 'Project Service must implement content canvas rename')
-  assert.match(projectService, /runProjectContentCanvas/, 'Project Service must implement content canvas run')
-  assert.match(projectService, /canvasKind: ['"`]content['"`]/, 'Project Service content canvas responses must expose a content discriminator')
-  assert.match(projectService, /movscript\.content_canvas_run\.v1/, 'Project Service content canvas run must return a stable schema')
-  assert.doesNotMatch(projectService, /project_content_canvas_title_duplicate/, 'Project Service must use content canvas id, not title, as identity')
+  assert.match(projectContentCanvasService, /case ['"`]renameContentCanvas['"`]:/, 'Project Service must own content canvas rename')
+  assert.match(projectContentCanvasService, /case ['"`]runContentCanvas['"`]:/, 'Project Service must own content canvas run')
+  assert.match(projectContentCanvasService, /PROJECT_SERVICE_CONTENT_CANVAS_RENAME_ENDPOINT/, 'Project Service must serve typed content canvas rename endpoint')
+  assert.match(projectContentCanvasService, /PROJECT_SERVICE_CONTENT_CANVAS_RUN_ENDPOINT/, 'Project Service must serve typed content canvas run endpoint')
+  assert.match(projectContentCanvasService, /renameProjectContentCanvas/, 'Project Service must implement content canvas rename')
+  assert.match(projectContentCanvasService, /runProjectContentCanvas/, 'Project Service must implement content canvas run')
+  assert.match(projectContentCanvasService, /canvasKind: ['"`]content['"`]/, 'Project Service content canvas responses must expose a content discriminator')
+  assert.match(projectContentCanvasService, /movscript\.content_canvas_run\.v1/, 'Project Service content canvas run must return a stable schema')
+  assert.doesNotMatch(projectContentCanvasService, /project_content_canvas_title_duplicate/, 'Project Service must use content canvas id, not title, as identity')
   assert.match(projectServiceTests, /renameContentCanvas/, 'Project Service tests must cover content canvas rename')
   assert.match(projectServiceTests, /runContentCanvas/, 'Project Service tests must cover content canvas run')
 
   assert.match(contentPanel, /title=['"`]新建内容画布['"`]/, 'content canvas toolbar must expose a create button')
   assert.match(contentPanel, /title=['"`]重命名内容画布['"`]/, 'content canvas toolbar must expose a rename button')
   assert.match(contentPanel, /<ContentCanvasNameDialog/, 'content canvas naming must use a dialog')
-  assert.match(contentPanel, /DialogTitle>\{state\?\.mode === ['"`]rename['"`] \? ['"`]重命名内容画布['"`] : ['"`]新建内容画布['"`]\}/, 'content canvas dialog must switch between create and rename')
-  assert.match(contentPanel, /contentCanvasDocumentTitleValidationMessage/, 'content canvas dialog must show title validation')
+  assert.match(contentPanelUi, /DialogTitle>\{state\?\.mode === ['"`]rename['"`] \? ['"`]重命名内容画布['"`] : ['"`]新建内容画布['"`]\}/, 'content canvas dialog must switch between create and rename')
+  assert.match(contentPanelUi, /contentCanvasDocumentTitleValidationMessage/, 'content canvas dialog must show title validation')
   assert.match(contentController, /createFreeCreativeCanvasDocument/, 'content controller must provide create canvas flow')
   assert.match(contentController, /renameFreeCreativeCanvasDocument/, 'content controller must provide rename canvas flow')
   assert.match(contentDocuments, /createContentCanvasDocument/, 'content documents must support create with name')
@@ -854,6 +918,7 @@ test('project source read and prompt operations prefer typed Project Service API
   const artifactActions = read('packages/core/src/mcp/node/tools/artifact/actions.ts')
   const artifactDefinitions = read('packages/core/src/mcp/tools/artifact/definitions.ts')
   const projectService = read('services/project-service/src/server.mjs')
+  const projectProductionEditingService = `${projectService}\n${read('services/project-service/src/productionEditing.mjs')}`
   const mediaPipelineService = read('services/media-pipeline/src/server.mjs')
   const mediaPipelineHeadlessRuntime = read('services/media-pipeline/src/headlessRuntime.mjs')
   const mediaPipelineResultRegistry = read('services/media-pipeline/src/resultRegistry.mjs')
@@ -884,12 +949,12 @@ test('project source read and prompt operations prefer typed Project Service API
 
   assert.match(projectService, /movscript\.project-entities-query\.v1/, 'Project Service typed route map must include entity query')
   assert.match(projectService, /movscript\.project-content-workspace-read\.v1/, 'Project Service typed route map must include content workspace read')
-  assert.match(projectService, /movscript\.production_editing_workspace_create\.v1/, 'Project Service must own production editing workspace creation')
-  assert.match(projectService, /movscript\.production_editing_resources_refresh\.v1/, 'Project Service must refresh production editing resources')
-  assert.match(projectService, /productionEditingWorkspaceHandoffEnvelope/, 'Project Service must own production editing handoff/preflight output')
-  assert.match(projectService, /REMOTION_PROJECT_FILES_MISSING/, 'Project Service must report Remotion missing-file preflight blockers')
-  assert.match(projectService, /productionEditingEnsureCodexSkill/, 'Project Service must auto-install bundled Codex skills for Remotion handoff preflight')
-  assert.match(projectService, /codex_skill_install/, 'Project Service Remotion skill install must expose a Codex install action')
+  assert.match(projectProductionEditingService, /movscript\.production_editing_workspace_create\.v1/, 'Project Service must own production editing workspace creation')
+  assert.match(projectProductionEditingService, /movscript\.production_editing_resources_refresh\.v1/, 'Project Service must refresh production editing resources')
+  assert.match(projectProductionEditingService, /productionEditingWorkspaceHandoffEnvelope/, 'Project Service must own production editing handoff/preflight output')
+  assert.match(projectProductionEditingService, /REMOTION_PROJECT_FILES_MISSING/, 'Project Service must report Remotion missing-file preflight blockers')
+  assert.match(projectProductionEditingService, /productionEditingEnsureCodexSkill/, 'Project Service must auto-install bundled Codex skills for Remotion handoff preflight')
+  assert.match(projectProductionEditingService, /codex_skill_install/, 'Project Service Remotion skill install must expose a Codex install action')
   assert.equal(existsSync(resolve(root, 'services/timeline-service')), false, 'Timeline Service must be removed from the public runtime surface')
   assert.equal(existsSync(resolve(root, 'packages/core/src/mcp/tools/timeline/definitions.ts')), false, 'timeline MCP definitions must remain deleted')
   assert.equal(existsSync(resolve(root, 'packages/core/src/mcp/node/tools/timeline/actions.ts')), false, 'timeline MCP actions must remain deleted')

@@ -122,18 +122,20 @@ func ProviderDebugCall(ctx context.Context, req ProviderDebugCallRequest) DebugC
 
 	case CapabilityFamilyVideoGeneration:
 		vreq := VideoRequest{
-			Model:             model,
-			Prompt:            prompt,
-			Duration:          providerIntParam(params, "duration", 5),
-			Frames:            providerIntParam(params, "frames", 0),
-			AspectRatio:       providerStringParam(params, "aspect_ratio", "16:9"),
-			Quality:           providerStringParam(params, "quality", ""),
-			Size:              providerStringParam(params, "size", ""),
-			ResolutionName:    providerStringParam(params, "resolution", ""),
-			ServiceTier:       providerStringParam(params, "service_tier", ""),
-			AudioType:         providerStringParam(params, "audio_type", ""),
-			MovementAmplitude: providerStringParam(params, "movement_amplitude", ""),
-			Payload:           providerStringParam(params, "payload", ""),
+			Model:                 model,
+			Prompt:                prompt,
+			Duration:              providerIntParam(params, "duration", 5),
+			Frames:                providerIntParam(params, "frames", 0),
+			AspectRatio:           providerStringParam(params, "aspect_ratio", "16:9"),
+			Quality:               providerStringParam(params, "quality", ""),
+			Size:                  providerStringParam(params, "size", ""),
+			ResolutionName:        providerStringParam(params, "resolution", ""),
+			ServiceTier:           providerStringParam(params, "service_tier", ""),
+			ExecutionExpiresAfter: providerIntParam(params, "execution_expires_after", 0),
+			Priority:              providerIntParam(params, "priority", 0),
+			AudioType:             providerStringParam(params, "audio_type", ""),
+			MovementAmplitude:     providerStringParam(params, "movement_amplitude", ""),
+			Payload:               providerStringParam(params, "payload", ""),
 		}
 		vreq.Seed = providerInt64PtrParam(params, "seed")
 		vreq.CameraFixed = providerBoolPtrParam(params, "camera_fixed")

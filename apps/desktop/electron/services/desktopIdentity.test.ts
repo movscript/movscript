@@ -3,20 +3,20 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { resolveDesktopIdentity } from './desktopIdentity'
 
-test('community desktop identity keeps the existing MovScript home', () => {
+test('default desktop identity keeps the existing MovScript home', () => {
   const userHomeDir = join('/', 'Users', 'me')
   const identity = resolveDesktopIdentity({}, {
     platform: 'darwin',
     userHomeDir,
   })
 
-  assert.equal(identity.edition, 'community')
+  assert.equal(identity.distributionProfile, 'default-local')
   assert.equal(identity.appName, 'Movscript')
   assert.equal(identity.homeDir, join(userHomeDir, '.movscript'))
   assert.equal(identity.userDataDir, undefined)
 })
 
-test('community desktop identity uses LocalAppData for Windows MovScript home', () => {
+test('default desktop identity uses LocalAppData for Windows MovScript home', () => {
   const identity = resolveDesktopIdentity({
     LOCALAPPDATA: 'C:\\Users\\me\\AppData\\Local',
     APPDATA: 'C:\\Users\\me\\AppData\\Roaming',
@@ -25,50 +25,61 @@ test('community desktop identity uses LocalAppData for Windows MovScript home', 
     userHomeDir: 'C:\\Users\\me',
   })
 
-  assert.equal(identity.edition, 'community')
+  assert.equal(identity.distributionProfile, 'default-local')
   assert.equal(identity.appName, 'Movscript')
   assert.equal(identity.homeDir, 'C:\\Users\\me\\AppData\\Local\\MovScript\\Home')
   assert.equal(identity.userDataDir, undefined)
 })
 
-test('enterprise desktop identity uses independent app and home paths', () => {
+test('self-hosted desktop identity uses independent app and home paths', () => {
+  const userHomeDir = join('/', 'Users', 'me')
+  const identity = resolveDesktopIdentity({ MOVSCRIPT_DISTRIBUTION_PROFILE: 'self-hosted' }, {
+    platform: 'darwin',
+    userHomeDir,
+  })
+
+  assert.equal(identity.distributionProfile, 'self-hosted')
+  assert.equal(identity.appName, 'MovScript Self Hosted')
+  assert.equal(identity.homeDir, join(userHomeDir, '.movscript-self-hosted'))
+  assert.match(identity.userDataDir ?? '', /MovScript Self Hosted$/)
+})
+
+test('self-hosted desktop identity separates Windows home and Electron profile paths', () => {
+  const identity = resolveDesktopIdentity({
+    MOVSCRIPT_DESKTOP_DISTRIBUTION_PROFILE: 'self-hosted',
+    LOCALAPPDATA: 'C:\\Users\\me\\AppData\\Local',
+    APPDATA: 'C:\\Users\\me\\AppData\\Roaming',
+  }, {
+    platform: 'win32',
+    userHomeDir: 'C:\\Users\\me',
+  })
+
+  assert.equal(identity.distributionProfile, 'self-hosted')
+  assert.equal(identity.homeDir, 'C:\\Users\\me\\AppData\\Local\\MovScript Self Hosted\\Home')
+  assert.equal(identity.userDataDir, 'C:\\Users\\me\\AppData\\Roaming\\MovScript Self Hosted')
+})
+
+test('desktop identity honors explicit custom distribution overrides', () => {
+  const identity = resolveDesktopIdentity({
+    MOVSCRIPT_DISTRIBUTION_PROFILE: 'custom',
+    MOVSCRIPT_DESKTOP_APP_NAME: 'MovScript Custom QA',
+    MOVSCRIPT_DESKTOP_HOME: '/tmp/movscript-custom-qa',
+    MOVSCRIPT_DESKTOP_USER_DATA_DIR: '/tmp/movscript-custom-user-data',
+  })
+
+  assert.equal(identity.distributionProfile, 'custom')
+  assert.equal(identity.appName, 'MovScript Custom QA')
+  assert.equal(identity.homeDir, '/tmp/movscript-custom-qa')
+  assert.equal(identity.userDataDir, '/tmp/movscript-custom-user-data')
+})
+
+test('desktop identity maps legacy edition env vars to distribution profiles', () => {
   const userHomeDir = join('/', 'Users', 'me')
   const identity = resolveDesktopIdentity({ MOVSCRIPT_DESKTOP_EDITION: 'enterprise' }, {
     platform: 'darwin',
     userHomeDir,
   })
 
-  assert.equal(identity.edition, 'enterprise')
-  assert.equal(identity.appName, 'MovScript Enterprise')
-  assert.equal(identity.homeDir, join(userHomeDir, '.movscript-enterprise'))
-  assert.match(identity.userDataDir ?? '', /MovScript Enterprise$/)
-})
-
-test('enterprise desktop identity separates Windows home and Electron profile paths', () => {
-  const identity = resolveDesktopIdentity({
-    MOVSCRIPT_DESKTOP_EDITION: 'enterprise',
-    LOCALAPPDATA: 'C:\\Users\\me\\AppData\\Local',
-    APPDATA: 'C:\\Users\\me\\AppData\\Roaming',
-  }, {
-    platform: 'win32',
-    userHomeDir: 'C:\\Users\\me',
-  })
-
-  assert.equal(identity.edition, 'enterprise')
-  assert.equal(identity.homeDir, 'C:\\Users\\me\\AppData\\Local\\MovScript Enterprise\\Home')
-  assert.equal(identity.userDataDir, 'C:\\Users\\me\\AppData\\Roaming\\MovScript Enterprise')
-})
-
-test('desktop identity honors explicit enterprise overrides', () => {
-  const identity = resolveDesktopIdentity({
-    MOVSCRIPT_APP_EDITION: 'enterprise',
-    MOVSCRIPT_DESKTOP_APP_NAME: 'MovScript Enterprise QA',
-    MOVSCRIPT_DESKTOP_HOME: '/tmp/movscript-enterprise-qa',
-    MOVSCRIPT_DESKTOP_USER_DATA_DIR: '/tmp/movscript-enterprise-user-data',
-  })
-
-  assert.equal(identity.edition, 'enterprise')
-  assert.equal(identity.appName, 'MovScript Enterprise QA')
-  assert.equal(identity.homeDir, '/tmp/movscript-enterprise-qa')
-  assert.equal(identity.userDataDir, '/tmp/movscript-enterprise-user-data')
+  assert.equal(identity.distributionProfile, 'self-hosted')
+  assert.equal(identity.homeDir, join(userHomeDir, '.movscript-self-hosted'))
 })

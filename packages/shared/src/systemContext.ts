@@ -4,8 +4,9 @@ export type MovScriptPrincipalKind =
   | 'service-account'
   | 'external-user'
 
-export type MovScriptDataConnectionKind = 'local' | 'cloud'
+export type MovScriptDataConnectionKind = 'local' | 'cloud' | 'external'
 export type MovScriptRuntimeConnectionMode = 'local' | 'cloud'
+export type MovScriptRuntimeBundleCompatibilityKind = 'same' | 'newer' | 'older' | 'incompatible' | 'repair-only' | 'unknown'
 
 export type MovScriptDaemonRuntimeOwner = 'movscript.local-node'
 
@@ -34,7 +35,7 @@ export interface MovScriptPrincipalContext {
 
 export interface MovScriptDataConnectionContext {
   kind: MovScriptDataConnectionKind
-  authMode?: 'local-owner' | 'session' | 'service-account'
+  authMode?: 'local-owner' | 'session' | 'service-account' | 'external'
   status?: 'connected' | 'degraded' | 'unavailable'
   displayName?: string
 }
@@ -53,12 +54,38 @@ export interface MovScriptRuntimeConnectionDescriptor {
 export interface MovScriptRuntimeIdentity {
   pluginVersion?: string
   pluginRoot?: string
+  apiVersion?: string
+  minDaemonApiVersion?: string
+  bundleHash?: string
   runtimeVersion?: string
   runtimeRoot?: string
 }
 
+export interface MovScriptRuntimeBundleCompatibility {
+  kind: MovScriptRuntimeBundleCompatibilityKind
+  compatible: boolean
+  reason: string
+  actual?: {
+    version?: string
+    apiVersion?: string
+    minDaemonApiVersion?: string
+    bundleHash?: string
+    pluginRoot?: string
+  }
+  expected?: {
+    version?: string
+    apiVersion?: string
+    minDaemonApiVersion?: string
+    bundleHash?: string
+    pluginRoot?: string
+  }
+}
+
 export interface MovScriptRuntimeDescriptor {
   schema: 'movscript.runtime-descriptor.v1'
+  apiVersion?: string
+  bundleHash?: string
+  compatibility?: MovScriptRuntimeBundleCompatibility
   runtime: {
     owner: MovScriptDaemonRuntimeOwner
     appId: MovScriptDaemonRuntimeOwner
@@ -72,6 +99,7 @@ export interface MovScriptRuntimeDescriptor {
   dataConnection: MovScriptDataConnectionContext
   capabilities: {
     project: boolean
+    timeline?: boolean
     canvas: boolean
     resources: boolean
     editing: boolean

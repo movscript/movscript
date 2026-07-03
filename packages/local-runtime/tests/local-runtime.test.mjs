@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -8,6 +8,7 @@ import test from 'node:test'
 import {
   ensureLocalRuntimeDaemon,
   configuredDataServiceURLForLocalRuntimeDataPlane,
+  localRuntimeMatchesIdentity,
   localRuntimeMatchesRequestedDataServiceURL,
   localRuntimeMatchesRequestedDataPlane,
   localRuntimeServicesReady,
@@ -114,6 +115,32 @@ test('local runtime request matching includes requested Data Service URL', () =>
     {},
     {},
   ), true)
+})
+
+test('local runtime identity matching treats Home current symlink and version directory as the same plugin root', () => {
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-local-runtime-identity-home-'))
+  try {
+    const versionRoot = join(homeDir, 'plugins', 'movscript', '0.1.30')
+    const currentRoot = join(homeDir, 'plugins', 'movscript', 'current')
+    mkdirSync(versionRoot, { recursive: true })
+    symlinkSync(versionRoot, currentRoot, process.platform === 'win32' ? 'junction' : 'dir')
+
+    assert.equal(localRuntimeMatchesIdentity({
+      pluginVersion: '0.1.30',
+      apiVersion: '1.0',
+      minDaemonApiVersion: '1.0',
+      bundleHash: 'hash-a',
+      pluginRoot: versionRoot,
+    }, {
+      pluginVersion: '0.1.30',
+      apiVersion: '1.0',
+      minDaemonApiVersion: '1.0',
+      bundleHash: 'hash-a',
+      pluginRoot: currentRoot,
+    }), true)
+  } finally {
+    rmSync(homeDir, { recursive: true, force: true })
+  }
 })
 
 test('local runtime daemon probe reports app record startup errors before control endpoint exists', async () => {

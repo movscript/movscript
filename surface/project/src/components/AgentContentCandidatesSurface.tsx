@@ -55,6 +55,7 @@ export function AgentContentCandidatesSurface({
   const selectedCandidate = recordValue(visibility?.selected_candidate)
   const selectedResource = recordValue(visibility?.selected_raw_resource)
   const selectedCandidateId = stringValue(selectedCandidate?.id ?? selectedCandidate?.candidate_id)
+  const selectedResourceId = stringValue(selectedResource?.resource_id ?? selectedResource?.resourceId)
 
   return (
     <AgentSurfaceShell
@@ -89,13 +90,13 @@ export function AgentContentCandidatesSurface({
             <AgentSurfaceKeyValues items={[
               ['Candidate count', candidates.length],
               ['Selected candidate', selectedCandidateId ?? ''],
-              ['Selected resource', stringValue(selectedResource?.resource_id) ?? ''],
+              ['Selected resource', selectedResourceId ?? ''],
               ['Stale status', stringValue(visibility?.stale_status) ?? ''],
             ]} />
             <div className="agent-surface-actions">
               <AgentSurfaceLink href={agentPromptHref(contentUnitId, params)}>Open prompt workbench</AgentSurfaceLink>
-              {stringValue(selectedResource?.resource_id) ? (
-                <AgentSurfaceLink href={agentResourceHref(String(selectedResource?.resource_id), params)}>Open selected resource</AgentSurfaceLink>
+              {selectedResourceId ? (
+                <AgentSurfaceLink href={agentResourceHref(selectedResourceId, params)}>Open selected resource</AgentSurfaceLink>
               ) : null}
             </div>
           </AgentSurfacePanel>
@@ -105,46 +106,73 @@ export function AgentContentCandidatesSurface({
                 {candidates.map((candidate, index) => {
                   const record = recordValue(candidate)
                   const id = stringValue(record?.id) ?? `candidate-${index + 1}`
-                  const output = firstOutput(record)
-                  const resource = stringValue(output?.resource_id ?? output?.resourceId)
-                  const resourcePreview = resource ? resourcesById?.get(Number(resource)) : undefined
+                  const outputs = candidateOutputs(record)
+                  const primaryResource = stringValue(outputs[0]?.resource_id ?? outputs[0]?.resourceId)
                   const job = stringValue(recordValue(record?.producer)?.job_id ?? recordValue(record?.producer)?.jobId)
                   const status = stringValue(record?.status) ?? 'generated'
                   const selected = selectedCandidateId !== undefined && id === selectedCandidateId
                   return (
                     <article key={id} className="agent-surface-candidate-card" data-selected={selected ? 'true' : undefined}>
-                      {resourcePreview && renderResourcePreview ? (
-                        <div className="agent-surface-candidate-preview">
-                          {renderResourcePreview(resourcePreview)}
-                        </div>
-                      ) : resource ? (
-                        <div className="agent-surface-status">Resource preview loading or unavailable.</div>
-                      ) : null}
                       <AgentSurfaceKeyValues items={[
                         ['Candidate', id],
                         ['State', selected ? 'selected stable dependency' : status],
-                        ['Output kind', stringValue(output?.kind) ?? ''],
-                        ['Resource', resource ?? ''],
+                        ['Output count', outputs.length],
+                        ['Primary resource', primaryResource ?? ''],
                         ['Job', job ?? ''],
                         ['Created', stringValue(record?.created_at) ?? ''],
                       ]} />
+                      {outputs.length > 0 ? (
+                        <div className="agent-surface-candidate-output-list">
+                          {outputs.map((output, outputIndex) => {
+                            const resource = stringValue(output.resource_id ?? output.resourceId)
+                            const resourcePreview = resource ? resourcesById?.get(Number(resource)) : undefined
+                            const outputSelected = selected && selectedResourceId !== undefined && resource === selectedResourceId
+                            return (
+                              <section
+                                key={`${id}-output-${outputIndex}-${resource ?? 'none'}`}
+                                className="agent-surface-candidate-output"
+                                data-selected={outputSelected ? 'true' : undefined}
+                              >
+                                {resourcePreview && renderResourcePreview ? (
+                                  <div className="agent-surface-candidate-preview">
+                                    {renderResourcePreview(resourcePreview)}
+                                  </div>
+                                ) : resource ? (
+                                  <div className="agent-surface-status">Resource preview loading or unavailable.</div>
+                                ) : (
+                                  <div className="agent-surface-status">No resource returned for this output.</div>
+                                )}
+                                <AgentSurfaceKeyValues items={[
+                                  ['Output', outputLabel(output, outputIndex)],
+                                  ['Kind', stringValue(output.kind) ?? ''],
+                                  ['Resource', resource ?? ''],
+                                ]} />
+                                <div className="agent-surface-actions">
+                                  {resource ? <AgentSurfaceLink href={agentResourceHref(resource, params)}>Open resource</AgentSurfaceLink> : null}
+                                  <AgentDecisionButton
+                                    decision="adopt"
+                                    candidateId={id}
+                                    resourceId={resource}
+                                    selected={outputSelected}
+                                    pending={decisionPending}
+                                    onDecide={onDecide}
+                                  />
+                                </div>
+                              </section>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <p className="agent-surface-status">This candidate has not returned any output resource yet.</p>
+                      )}
                       <div className="agent-surface-actions">
-                        {resource ? <AgentSurfaceLink href={agentResourceHref(resource, params)}>Open resource</AgentSurfaceLink> : null}
                         {job ? <AgentSurfaceLink href={agentJobHref(job, params, contentUnitId)}>Open generation job</AgentSurfaceLink> : null}
                       </div>
                       <div className="agent-surface-decision-row" aria-label={`Candidate ${id} decision actions`}>
                         <AgentDecisionButton
-                          decision="adopt"
-                          candidateId={id}
-                          resourceId={resource}
-                          selected={selected}
-                          pending={decisionPending}
-                          onDecide={onDecide}
-                        />
-                        <AgentDecisionButton
                           decision="reject"
                           candidateId={id}
-                          resourceId={resource}
+                          resourceId={primaryResource}
                           selected={false}
                           pending={decisionPending}
                           onDecide={onDecide}
@@ -152,7 +180,7 @@ export function AgentContentCandidatesSurface({
                         <AgentDecisionButton
                           decision="defer"
                           candidateId={id}
-                          resourceId={resource}
+                          resourceId={primaryResource}
                           selected={false}
                           pending={decisionPending}
                           onDecide={onDecide}
@@ -217,7 +245,7 @@ function AgentDecisionButton({
       type="button"
       className="agent-surface-button"
       data-intent={decision}
-      disabled={pending || !onDecide || (decision === 'adopt' && selected)}
+      disabled={pending || !onDecide || (decision === 'adopt' && (selected || !resourceId))}
       onClick={() => onDecide?.({ candidateId, decision, resourceId })}
     >
       {label}
@@ -225,9 +253,19 @@ function AgentDecisionButton({
   )
 }
 
-function firstOutput(candidate: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+function candidateOutputs(candidate: Record<string, unknown> | undefined): Array<Record<string, unknown>> {
   const outputs = arrayValue(candidate?.outputs)
-  return recordValue(outputs[0])
+  return outputs.map(recordValue).filter((output): output is Record<string, unknown> => Boolean(output))
+}
+
+function outputLabel(output: Record<string, unknown>, index: number): string {
+  const metadata = recordValue(output.metadata)
+  const rawIndex = numberValue(metadata?.output_index ?? metadata?.outputIndex)
+  const displayIndex = rawIndex !== undefined && Number.isInteger(rawIndex) && rawIndex >= 0 ? rawIndex + 1 : index + 1
+  const groupSize = numberValue(metadata?.group_size ?? metadata?.groupSize)
+  return groupSize !== undefined && Number.isInteger(groupSize) && groupSize > 1
+    ? `${displayIndex} / ${groupSize}`
+    : String(displayIndex)
 }
 
 function candidateResourceIds(candidates: unknown[]): number[] {

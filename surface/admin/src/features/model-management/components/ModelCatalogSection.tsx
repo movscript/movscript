@@ -200,11 +200,13 @@ export function ModelCatalogSection({ credentials, adapters }: { credentials: AI
   function applyCatalogTemplate(template: AIModelCatalogTemplate) {
     const form = catalogEntryFormFromTemplate(template)
     const adapter = adapters.find((item) => item.adapter_type === template.route_adapter_hint)
-    form.model_capabilities_json = defaultModelCapabilitiesJSONForCapabilities(template.capabilities, {
-      acceptsImage: Boolean(template.accepts_image_input),
-      maxInputImages: template.max_input_images ?? 0,
-      maxInputVideos: template.max_input_videos ?? 0,
-    }, adapter)
+    if (!template.model_capabilities_json?.trim()) {
+      form.model_capabilities_json = defaultModelCapabilitiesJSONForCapabilities(template.capabilities, {
+        acceptsImage: Boolean(template.accepts_image_input),
+        maxInputImages: template.max_input_images ?? 0,
+        maxInputVideos: template.max_input_videos ?? 0,
+      }, adapter)
+    }
     form.supported_params = operationParamProfileFromTemplateParams(
       template.supported_params ?? [],
       catalogParamOperationsForModelCapabilities(form.model_capabilities_json),

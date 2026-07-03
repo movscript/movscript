@@ -76,6 +76,96 @@ func TestYunwuVideoStartUsesNativeCreateEndpoint(t *testing.T) {
 	}
 }
 
+func TestYunwuVideoStartUsesMultipleReferenceMedia(t *testing.T) {
+	var gotBody map[string]any
+	adapter := NewYunwuUnifiedVideoAdapter("test-key", "https://api3.wlai.vip/v1")
+	adapter.rawHTTP = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/v1/video/create" {
+			t.Fatalf("path = %s, want /v1/video/create", r.URL.Path)
+		}
+		raw, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(raw, &gotBody); err != nil {
+			t.Fatalf("request body JSON error = %v", err)
+		}
+		var body bytes.Buffer
+		_ = json.NewEncoder(&body).Encode(map[string]any{
+			"id":     "seedance:task-1",
+			"status": "queued",
+		})
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(&body),
+			Request:    r,
+		}, nil
+	})}
+
+	ctx, _ := WithDebugRecorder(context.Background())
+	resp, err := adapter.VideoStart(ctx, VideoRequest{
+		Model:          "doubao-seedance-2-0",
+		Prompt:         "全能参考生视频",
+		AspectRatio:    "16:9",
+		ResolutionName: "720p",
+		InputImages:    []string{"asset://portrait-1", "https://cdn.example.test/ref.png"},
+		InputVideos:    []string{"https://cdn.example.test/ref-a.mp4"},
+		InputVideoDataList: []MediaData{{
+			PresignedURL: "https://cdn.example.test/ref-b.mp4",
+			MimeType:     "video/mp4",
+			ResourceID:   21,
+		}},
+		InputAudios: []string{"https://cdn.example.test/ref-audio-a.mp3"},
+		InputAudioDataList: []MediaData{{
+			PresignedURL: "https://cdn.example.test/ref-audio-b.wav",
+			MimeType:     "audio/wav",
+			ResourceID:   31,
+		}},
+		ReferenceAssets: []ReferenceAsset{
+			{Role: "reference_image", MediaType: "image", ResourceID: 11},
+			{Role: "reference_video", MediaType: "video", ResourceID: 21},
+			{Role: "reference_audio", MediaType: "audio", ResourceID: 31},
+		},
+	})
+	if err != nil {
+		t.Fatalf("VideoStart() error = %v", err)
+	}
+	if resp.TaskID != "seedance:task-1" || resp.Status != VideoStatusQueued {
+		t.Fatalf("resp = %+v", resp)
+	}
+	assertYunwuStringList(t, gotBody["images"], []string{"asset://portrait-1", "https://cdn.example.test/ref.png"})
+	assertYunwuStringList(t, gotBody["videos"], []string{"https://cdn.example.test/ref-a.mp4", "https://cdn.example.test/ref-b.mp4"})
+	assertYunwuStringList(t, gotBody["audios"], []string{"https://cdn.example.test/ref-audio-a.mp3", "https://cdn.example.test/ref-audio-b.wav"})
+	if _, ok := gotBody["reference_asset_bindings"]; ok {
+		t.Fatalf("request body sent debug-only bindings: %#v", gotBody["reference_asset_bindings"])
+	}
+	debugBody := debugRequestBodyMap(t, resp.Debug)
+	bindings := debugBody["reference_asset_bindings"].([]any)
+	if len(bindings) != 3 {
+		t.Fatalf("debug reference_asset_bindings = %#v, want 3", bindings)
+	}
+	if bindings[0].(map[string]any)["provider_field"] != "images[]" ||
+		bindings[1].(map[string]any)["provider_field"] != "videos[]" ||
+		bindings[2].(map[string]any)["provider_field"] != "audios[]" {
+		t.Fatalf("debug reference_asset_bindings = %#v", bindings)
+	}
+}
+
+func TestYunwuVideoStartRejectsAudioOnlyReferences(t *testing.T) {
+	adapter := NewYunwuUnifiedVideoAdapter("test-key", "https://api3.wlai.vip/v1")
+	adapter.rawHTTP = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		t.Fatalf("unexpected upstream request to %s", r.URL.String())
+		return nil, nil
+	})}
+
+	_, err := adapter.VideoStart(context.Background(), VideoRequest{
+		Model:       "doubao-seedance-2-0",
+		Prompt:      "只有音频",
+		InputAudios: []string{"https://cdn.example.test/ref-audio.mp3"},
+	})
+	if err == nil {
+		t.Fatal("VideoStart() succeeded, want audio-only reference error")
+	}
+}
+
 func TestYunwuVideoPollParsesQueryResponse(t *testing.T) {
 	adapter := NewYunwuUnifiedVideoAdapter("test-key", "https://yunwu.ai/v1")
 	adapter.rawHTTP = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -104,5 +194,21 @@ func TestYunwuVideoPollParsesQueryResponse(t *testing.T) {
 	}
 	if resp.Status != VideoStatusSucceeded || resp.URL != "https://cdn.example.test/out.mp4" {
 		t.Fatalf("resp = %+v", resp)
+	}
+}
+
+func assertYunwuStringList(t *testing.T, got any, want []string) {
+	t.Helper()
+	values, ok := got.([]any)
+	if !ok {
+		t.Fatalf("value = %#v, want JSON array", got)
+	}
+	if len(values) != len(want) {
+		t.Fatalf("value = %#v, want %#v", got, want)
+	}
+	for i, expected := range want {
+		if values[i] != expected {
+			t.Fatalf("value[%d] = %#v, want %q (full value %#v)", i, values[i], expected, got)
+		}
 	}
 }

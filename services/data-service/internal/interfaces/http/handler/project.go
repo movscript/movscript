@@ -520,7 +520,7 @@ func (h *ProjectHandler) GitProxy(c *gin.Context) {
 		h.gitProxyLocal(c, target, user.Username)
 		return
 	case projectrepoapp.ProviderGitea:
-	case projectrepoapp.ProviderGitHubEnterprise, projectrepoapp.ProviderGitLab:
+	case projectrepoapp.ProviderGitHubSelfHosted, projectrepoapp.ProviderGitLab:
 	default:
 		c.JSON(http.StatusServiceUnavailable, api.Internal("项目仓库 provider 不受支持"))
 		return
@@ -603,7 +603,7 @@ func (h *ProjectHandler) prepareGitProxyTarget(target *projectrepoapp.GitProxyTa
 				target.AuthSecret = h.giteaAdminPassword
 			}
 		}
-	case projectrepoapp.ProviderGitHubEnterprise:
+	case projectrepoapp.ProviderGitHubSelfHosted:
 		if strings.TrimSpace(target.BaseURL) == "" {
 			target.BaseURL = strings.TrimSpace(h.gitHubBaseURL)
 		}

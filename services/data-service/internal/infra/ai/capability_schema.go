@@ -14,6 +14,7 @@ type RouteReferenceAssetIntent struct {
 type capabilityDomain struct {
 	Operations      []string                        `json:"-"`
 	OperationInputs map[string][]operationInputSlot `json:"-"`
+	OperationRules  map[string][]operationRule      `json:"-"`
 	ReferenceAssets referenceAssetCapability        `json:"reference_assets"`
 	AssetTransport  assetTransportCapability        `json:"asset_transport"`
 }
@@ -44,6 +45,12 @@ type operationInputSlot struct {
 	Description string   `json:"description"`
 }
 
+type operationRule struct {
+	ID          string `json:"id"`
+	Rule        string `json:"rule"`
+	Description string `json:"description"`
+}
+
 type operationCapability struct {
 	ID         string               `json:"id"`
 	Operation  string               `json:"operation"`
@@ -56,6 +63,7 @@ func (domain *capabilityDomain) UnmarshalJSON(data []byte) error {
 	type rawCapabilityDomain struct {
 		Operations      json.RawMessage                 `json:"operations"`
 		OperationSlots  map[string][]operationInputSlot `json:"operation_slots"`
+		OperationRules  map[string][]operationRule      `json:"operation_rules"`
 		ReferenceAssets referenceAssetCapability        `json:"reference_assets"`
 		AssetTransport  assetTransportCapability        `json:"asset_transport"`
 	}
@@ -67,6 +75,7 @@ func (domain *capabilityDomain) UnmarshalJSON(data []byte) error {
 	domain.AssetTransport = raw.AssetTransport
 	domain.Operations = nil
 	domain.OperationInputs = map[string][]operationInputSlot{}
+	domain.OperationRules = normalizeOperationRules(raw.OperationRules)
 	for operation, slots := range raw.OperationSlots {
 		operation = strings.TrimSpace(operation)
 		if operation == "" {
@@ -225,6 +234,9 @@ func capabilityJSONSupportsIntent(rawJSON, capability, operation string, refs []
 		return false, reason
 	}
 	if reason := operationInputsMatchIntent(domain, capability, operation, refs); reason != "" {
+		return false, reason
+	}
+	if reason := operationRulesMatchIntent(domain, operation, refs); reason != "" {
 		return false, reason
 	}
 	return true, ""
@@ -527,6 +539,56 @@ func operationInputSlotMediaTypes(slot operationInputSlot) []string {
 	values = append(values, slot.MediaTypes...)
 	values = append(values, slot.MediaType)
 	return compactTrimmed(values)
+}
+
+func operationRulesMatchIntent(domain capabilityDomain, operation string, refs []RouteReferenceAssetIntent) string {
+	operation = strings.TrimSpace(operation)
+	if operation == "" {
+		return ""
+	}
+	for _, rule := range domain.OperationRules[operation] {
+		switch operationRuleID(rule) {
+		case "no_audio_only":
+			if hasReferenceAssetMediaType(refs, "audio") &&
+				!hasReferenceAssetMediaType(refs, "image") &&
+				!hasReferenceAssetMediaType(refs, "video") {
+				return "invalid_operation_inputs:audio_only_reference"
+			}
+		}
+	}
+	return ""
+}
+
+func operationRuleID(rule operationRule) string {
+	if id := strings.TrimSpace(rule.ID); id != "" {
+		return id
+	}
+	return strings.TrimSpace(rule.Rule)
+}
+
+func normalizeOperationRules(rules map[string][]operationRule) map[string][]operationRule {
+	if len(rules) == 0 {
+		return nil
+	}
+	out := make(map[string][]operationRule, len(rules))
+	for operation, operationRules := range rules {
+		operation = strings.TrimSpace(operation)
+		if operation == "" {
+			continue
+		}
+		for _, rule := range operationRules {
+			rule.ID = strings.TrimSpace(rule.ID)
+			rule.Rule = strings.TrimSpace(rule.Rule)
+			if rule.ID == "" && rule.Rule == "" {
+				continue
+			}
+			out[operation] = append(out[operation], rule)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func normalizeOperationInputSlots(slots []operationInputSlot) []operationInputSlot {

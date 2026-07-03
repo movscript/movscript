@@ -18,6 +18,7 @@ import {
 import { ExternalResourceSourceSettingsSection } from '@/features/settings/components/ExternalResourceSourceSettingsSection'
 import { ROUTES } from '@/routes/projectRoutes'
 import type { AppSettings } from '@/shared/infrastructure/config'
+import type { ElectronRuntimeConfig } from '@/shared/contracts/electronApi'
 import type {
   AppSettingsTestState,
   ShotLibrarySourceParseResult,
@@ -37,6 +38,9 @@ interface AppSettingsContentProps {
   resetShotLibrarySources: () => void
   resetToDefault: () => void
   resourceGCState: AppSettingsTestState
+  runtimeBundleActionState: AppSettingsTestState
+  applyRuntimeBundleAction: () => void
+  runtimeConfig: ElectronRuntimeConfig | null
   saveSettings: () => void
   saveShotLibrarySources: () => void
   saveWorkspaceRoot: () => void
@@ -75,6 +79,9 @@ export function AppSettingsContent({
   resetShotLibrarySources,
   resetToDefault,
   resourceGCState,
+  runtimeBundleActionState,
+  applyRuntimeBundleAction,
+  runtimeConfig,
   saveSettings,
   saveShotLibrarySources,
   saveWorkspaceRoot,
@@ -103,6 +110,66 @@ export function AppSettingsContent({
   return (
     <AppSettingsContentStack>
       <AppSettingsIntro title={t('appSettings.title')} description={t('appSettings.description')} />
+
+      <AppSettingsSection
+        icon={Server}
+        title={t('appSettings.runtimeOverviewTitle')}
+        description={t('appSettings.runtimeOverviewHint')}
+      >
+        <AppSettingsEndpointSurface
+          label={t('appSettings.runtimeHome')}
+          value={runtimeConfig?.movScriptHomeDir ?? (settings.movScriptWorkspaceDir?.trim() || t('appSettings.movScriptWorkspaceDefaultRoot'))}
+        />
+        <AppSettingsEndpointSurface
+          label={t('appSettings.runtimeOwner')}
+          value={runtimeConfig?.runtime.runtime.name ?? runtimeConfig?.runtime.runtime.owner ?? '-'}
+        />
+        <AppSettingsEndpointSurface
+          label={t('appSettings.runtimeStatus')}
+          value={runtimeConfig ? runtimeStatusLabel(runtimeConfig) : '-'}
+        />
+        <AppSettingsEndpointSurface
+          label={t('appSettings.runtimeDataPlane')}
+          value={runtimeConfig?.dataConnection.displayName ?? runtimeConfig?.dataConnection.kind ?? '-'}
+        />
+        <AppSettingsEndpointSurface
+          label={t('appSettings.runtimeGateway')}
+          value={runtimeConfig?.runtimeConnection.gatewayBaseURL ?? runtimeConfig?.runtime.gateway.baseURL ?? '-'}
+        />
+        <AppSettingsEndpointSurface
+          label={t('appSettings.runtimePluginCurrent')}
+          value={runtimePluginCurrentLabel(runtimeConfig)}
+        />
+        <AppSettingsEndpointSurface
+          label={t('appSettings.runtimeBundleStatus')}
+          value={runtimeBundleStatusLabel(runtimeConfig, t)}
+        />
+        {runtimeBundleActionCanApply(runtimeConfig) ? (
+          <AppSettingsActionRow>
+            <AppSettingsActionButton
+              type="button"
+              variant="outline"
+              onClick={applyRuntimeBundleAction}
+              disabled={runtimeBundleActionState.status === 'testing'}
+            >
+              <RefreshCw size={14} />
+              {runtimeBundleActionButtonLabel(runtimeConfig, t)}
+            </AppSettingsActionButton>
+          </AppSettingsActionRow>
+        ) : null}
+        {runtimeBundleActionState.status !== 'idle' ? (
+          <AppSettingsFeedbackText
+            tone={runtimeBundleActionState.status === 'error' ? 'danger' : runtimeBundleActionState.status === 'success' ? 'success' : 'neutral'}
+            icon={runtimeBundleActionState.status === 'success' ? <CheckCircle2 size={14} /> : undefined}
+          >
+            {runtimeBundleActionState.message}
+          </AppSettingsFeedbackText>
+        ) : null}
+        <AppSettingsEndpointSurface
+          label={t('appSettings.runtimeCompatibility')}
+          value={runtimeCompatibilityLabel(runtimeConfig)}
+        />
+      </AppSettingsSection>
 
       <AppSettingsSection
         icon={HardDrive}
@@ -317,4 +384,53 @@ export function AppSettingsContent({
       )}
     </AppSettingsContentStack>
   )
+}
+
+function runtimeStatusLabel(runtimeConfig: ElectronRuntimeConfig): string {
+  return [
+    runtimeConfig.runtimeConnection.mode,
+    runtimeConfig.runtimeConnection.status,
+    runtimeConfig.backendStatus.state,
+  ].filter(Boolean).join(' · ')
+}
+
+function runtimePluginCurrentLabel(runtimeConfig: ElectronRuntimeConfig | null): string {
+  const identity = runtimeConfig?.runtime.runtime.identity
+  const version = identity?.pluginVersion ?? '-'
+  const root = identity?.pluginRoot
+  return root ? `${version} · ${root}` : version
+}
+
+function runtimeCompatibilityLabel(runtimeConfig: ElectronRuntimeConfig | null): string {
+  const compatibility = runtimeConfig?.runtime.compatibility
+  if (!compatibility) return '-'
+  return `${compatibility.kind}${compatibility.compatible === false ? ' · incompatible' : ''}`
+}
+
+function runtimeBundleStatusLabel(
+  runtimeConfig: ElectronRuntimeConfig | null,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
+  const status = runtimeConfig?.runtimeBundleStatus
+  if (!status) return '-'
+  const homeVersion = status.homeCurrent?.version ?? '-'
+  const desktopVersion = status.desktopBundled?.version ?? '-'
+  const action = t(`appSettings.runtimeBundleAction.${status.action}`, { defaultValue: status.action })
+  return `${action} · Home ${homeVersion} · Desktop ${desktopVersion}`
+}
+
+function runtimeBundleActionCanApply(runtimeConfig: ElectronRuntimeConfig | null): boolean {
+  const action = runtimeConfig?.runtimeBundleStatus?.action
+  return action === 'upgrade' || action === 'repair' || action === 'rollback'
+}
+
+function runtimeBundleActionButtonLabel(
+  runtimeConfig: ElectronRuntimeConfig | null,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
+  const action = runtimeConfig?.runtimeBundleStatus?.action ?? 'unknown'
+  if (action === 'upgrade') return t('appSettings.runtimeBundleApplyUpgrade')
+  if (action === 'repair') return t('appSettings.runtimeBundleApplyRepair')
+  if (action === 'rollback') return t('appSettings.runtimeBundleApplyRollback')
+  return t('appSettings.runtimeBundleApply')
 }

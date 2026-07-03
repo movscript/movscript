@@ -51,7 +51,7 @@ func (r *gormRepository) List(ctx context.Context, admin bool) ([]domainhub.HubP
 	for _, row := range rows {
 		items = append(items, domainhub.HubPackageFromModel(row))
 	}
-	if err := r.editionApplyPackageMetadata(ctx, items); err != nil {
+	if err := r.distributionProfileApplyPackageMetadata(ctx, items); err != nil {
 		return nil, err
 	}
 	return items, nil
@@ -71,7 +71,7 @@ func (r *gormRepository) Find(ctx context.Context, id string, admin bool) (domai
 	}
 	item := domainhub.HubPackageFromModel(row)
 	items := []domainhub.HubPackage{item}
-	if err := r.editionApplyPackageMetadata(ctx, items); err != nil {
+	if err := r.distributionProfileApplyPackageMetadata(ctx, items); err != nil {
 		return domainhub.HubPackage{}, err
 	}
 	return items[0], nil

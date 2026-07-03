@@ -12,7 +12,7 @@ type providerResult struct {
 	MimeType string
 }
 
-func (w *Worker) runImageJob(ctx context.Context, job *persistencemodel.Job, params generationParams, imageData []ai.MediaData, sm *jobStateMachine, debugResult *ai.DebugCallResult) (providerResult, error) {
+func (w *Worker) runImageJob(ctx context.Context, job *persistencemodel.Job, params generationParams, imageData []ai.MediaData, sm *jobStateMachine, debugResult *ai.DebugCallResult) ([]providerResult, error) {
 	cloudFileID := w.prepareImageInputReferences(job, imageData)
 	req := w.buildImageRequest(job, params, imageData, cloudFileID)
 	if len(imageData) > 0 {
@@ -26,25 +26,25 @@ func (w *Worker) runImageJob(ctx context.Context, job *persistencemodel.Job, par
 	sm.enter(StateCallingProvider, "call image provider")
 	route, err := w.resolveJobModelRoute(ctx, job, ai.CapabilityFamilyImageGeneration)
 	if err != nil {
-		return providerResult{}, err
+		return nil, err
 	}
 	annotateDebugRouteContext(debugResult, route, ai.CapabilityFamilyImageGeneration)
 	resp, err := callProviderWithTimeout(ctx, providerCallTimeout, func(ctx context.Context) (ai.ImageResponse, error) {
 		return w.aiService.CallImageWithRouteUsage(ctx, job.UserID, route, req, w.usageContext(job))
 	})
 	if err != nil {
-		return providerResult{}, fmt.Errorf("image generation: %w", err)
+		return nil, fmt.Errorf("image generation: %w", err)
 	}
 	sm.succeed("image provider returned")
 	if len(resp.URLs) == 0 {
-		return providerResult{}, fmt.Errorf("no image URL returned by provider")
+		return nil, fmt.Errorf("no image URL returned by provider")
 	}
-	return providerResult{URL: resp.URLs[0], MimeType: "image/png"}, nil
+	return imageProviderResults(resp.URLs), nil
 }
 
-func (w *Worker) runImageEditJob(ctx context.Context, job *persistencemodel.Job, params generationParams, imageData []ai.MediaData, sm *jobStateMachine, debugResult *ai.DebugCallResult) (providerResult, error) {
+func (w *Worker) runImageEditJob(ctx context.Context, job *persistencemodel.Job, params generationParams, imageData []ai.MediaData, sm *jobStateMachine, debugResult *ai.DebugCallResult) ([]providerResult, error) {
 	if len(imageData) == 0 {
-		return providerResult{}, fmt.Errorf("reference image generation requires an image input but none was found (job #%d)", job.ID)
+		return nil, fmt.Errorf("reference image generation requires an image input but none was found (job #%d)", job.ID)
 	}
 	cloudFileID := w.prepareImageInputReferences(job, imageData)
 	req := w.buildImageRequest(job, params, imageData, cloudFileID)
@@ -60,20 +60,20 @@ func (w *Worker) runImageEditJob(ctx context.Context, job *persistencemodel.Job,
 	sm.enter(StateCallingProvider, "call image edit provider")
 	route, err := w.resolveJobModelRoute(ctx, job, ai.CapabilityFamilyImageGeneration)
 	if err != nil {
-		return providerResult{}, err
+		return nil, err
 	}
 	annotateDebugRouteContext(debugResult, route, ai.CapabilityFamilyImageGeneration)
 	resp, err := callProviderWithTimeout(ctx, providerCallTimeout, func(ctx context.Context) (ai.ImageResponse, error) {
 		return w.aiService.CallImageWithRouteUsage(ctx, job.UserID, route, req, w.usageContext(job))
 	})
 	if err != nil {
-		return providerResult{}, fmt.Errorf("image generation: %w", err)
+		return nil, fmt.Errorf("image generation: %w", err)
 	}
 	sm.succeed("image edit provider returned")
 	if len(resp.URLs) == 0 {
-		return providerResult{}, fmt.Errorf("no image URL returned by provider")
+		return nil, fmt.Errorf("no image URL returned by provider")
 	}
-	return providerResult{URL: resp.URLs[0], MimeType: "image/png"}, nil
+	return imageProviderResults(resp.URLs), nil
 }
 
 func (w *Worker) buildImageRequest(job *persistencemodel.Job, params generationParams, imageData []ai.MediaData, cloudFileID string) ai.ImageRequest {
@@ -90,11 +90,28 @@ func (w *Worker) buildImageRequest(job *persistencemodel.Job, params generationP
 		Watermark:           params.BoolPtr("watermark"),
 		OutputFormat:        params.String("output_format"),
 		SequentialMode:      params.String("sequential_image_generation"),
-		SequentialMaxImages: params.Int("max_images"),
+		SequentialMaxImages: firstNonZeroInt(params.Int("image_count"), params.Int("max_images")),
 		WebSearch:           params.Bool("web_search"),
 		OptimizePromptMode:  params.String("optimize_prompt_mode"),
 		InputImageDataList:  imageData,
 		CloudFileID:         cloudFileID,
 		ReferenceAssets:     runnerReferenceAssetsFromJob(job),
 	}
+}
+
+func firstNonZeroInt(values ...int) int {
+	for _, value := range values {
+		if value != 0 {
+			return value
+		}
+	}
+	return 0
+}
+
+func imageProviderResults(urls []string) []providerResult {
+	results := make([]providerResult, 0, len(urls))
+	for _, url := range urls {
+		results = append(results, providerResult{URL: url, MimeType: "image/png"})
+	}
+	return results
 }

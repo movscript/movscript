@@ -1,7 +1,7 @@
 {
   "schema": "movscript.package-resources.v1",
   "product": "movscript-desktop",
-  "edition": "community",
+  "distributionProfile": "default-local",
   "owner": "release-engineering",
   "builderConfig": "apps/desktop/electron-builder.yml",
   "packageFiles": [
@@ -89,8 +89,10 @@
       "license": "Apache-2.0",
       "updatePolicy": "bundled-with-app",
       "verification": [
+        "check-plugin-distribution --check",
         "pnpm --filter @movscript/plugin-movscript build",
         "prepareProviderPluginResources",
+        "verify-package-resources --plugin-zip",
         "electron-builder extraResources parity"
       ]
     },

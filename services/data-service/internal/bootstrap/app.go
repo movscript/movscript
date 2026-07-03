@@ -73,6 +73,18 @@ func New() (*App, error) {
 			return nil, fmt.Errorf("check database migrations: %w", err)
 		}
 	}
+	cleanup, err := db.CleanupEmptySupportedParamsCatalogEntries(context.Background(), database)
+	if err != nil {
+		return nil, fmt.Errorf("cleanup empty model supported params catalog entries: %w", err)
+	}
+	if cleanup.CatalogEntriesDeleted > 0 || cleanup.RouteBindingsDeleted > 0 {
+		observability.Logger().Warn(
+			"empty_model_supported_params_catalog_entries_deleted",
+			slog.Int64("catalog_entries_deleted", cleanup.CatalogEntriesDeleted),
+			slog.Int64("route_bindings_deleted", cleanup.RouteBindingsDeleted),
+			slog.Any("public_model_ids", cleanup.PublicModelIDs),
+		)
+	}
 
 	var tokens *scopedtoken.Manager
 	if strings.TrimSpace(cfg.GitProxyTokenSecret) != "" {
@@ -112,11 +124,11 @@ func New() (*App, error) {
 	if err := hubapp.NewService(database, store).Seed(context.Background()); err != nil {
 		return nil, fmt.Errorf("seed hub packages: %w", err)
 	}
-	if err := migrateEditionModules(context.Background(), database, cfg); err != nil {
-		return nil, fmt.Errorf("migrate edition modules: %w", err)
+	if err := migrateDistributionProfileModules(context.Background(), database, cfg); err != nil {
+		return nil, fmt.Errorf("migrate distribution profile modules: %w", err)
 	}
-	if err := seedEditionData(context.Background(), database, cfg); err != nil {
-		return nil, fmt.Errorf("seed edition data: %w", err)
+	if err := seedDistributionProfileData(context.Background(), database, cfg); err != nil {
+		return nil, fmt.Errorf("seed distribution profile data: %w", err)
 	}
 	var imageVerifier ai.ImageVerificationClient
 	if cfg.ImageVerifyBaseURL != "" {

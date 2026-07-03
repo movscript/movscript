@@ -30,7 +30,7 @@ type WorkspaceRepositoryProvider struct {
 	Config             projectrepoapp.Config
 	Adapter            projectrepoapp.GitRepositoryAdapter
 	GiteaAdapter       *projectrepoapp.GiteaAdapter
-	GitHubAdapter      *projectrepoapp.GitHubEnterpriseAdapter
+	GitHubAdapter      *projectrepoapp.GitHubSelfHostedAdapter
 	GitLabAdapter      *projectrepoapp.GitLabAdapter
 	GitIdentityConfig  gitidentityapp.Config
 	GiteaBaseURL       string
@@ -125,7 +125,7 @@ func BuildAIRegistry(ctx context.Context, db *gorm.DB, cfg *config.Config, encry
 		cfg = &config.Config{}
 	}
 	providerMode := providercontract.AdapterLocal
-	if mode, ok := editionAIRegistryProviderMode(cfg); ok {
+	if mode, ok := distributionProfileAIRegistryProviderMode(cfg); ok {
 		providerMode = mode
 	}
 	return ai.NewRegistryWithProviderMode(db, encryptionKey, providerMode), nil
@@ -142,7 +142,7 @@ func BuildWorkspaceRepositoryProvider(cfg *config.Config) WorkspaceRepositoryPro
 
 	var adapter projectrepoapp.GitRepositoryAdapter
 	var giteaAdapter *projectrepoapp.GiteaAdapter
-	var githubAdapter *projectrepoapp.GitHubEnterpriseAdapter
+	var githubAdapter *projectrepoapp.GitHubSelfHostedAdapter
 	var gitlabAdapter *projectrepoapp.GitLabAdapter
 	if workspaceStorageBackend == projectrepoapp.ProviderGitea {
 		giteaAdapter = projectrepoapp.NewGiteaAdapterWithAdminAuth(cfg.GiteaBaseURL, cfg.GiteaToken, cfg.GiteaAdminUsername, cfg.GiteaAdminPassword)
@@ -151,8 +151,8 @@ func BuildWorkspaceRepositoryProvider(cfg *config.Config) WorkspaceRepositoryPro
 		}
 	} else if workspaceStorageBackend == projectrepoapp.ProviderGitHTTP {
 		adapter = projectrepoapp.NewLocalGitAdapter(cfg.GitHTTPRoot, cfg.GitBinary)
-	} else if workspaceStorageBackend == projectrepoapp.ProviderGitHubEnterprise {
-		githubAdapter = projectrepoapp.NewGitHubEnterpriseAdapter(cfg.GitHubEnterpriseBaseURL, cfg.GitHubEnterpriseToken)
+	} else if workspaceStorageBackend == projectrepoapp.ProviderGitHubSelfHosted {
+		githubAdapter = projectrepoapp.NewGitHubSelfHostedAdapter(cfg.GitHubSelfHostedBaseURL, cfg.GitHubSelfHostedToken)
 		if githubAdapter != nil {
 			adapter = githubAdapter
 		}
@@ -179,8 +179,8 @@ func BuildWorkspaceRepositoryProvider(cfg *config.Config) WorkspaceRepositoryPro
 		GiteaToken:         configuredGiteaValue(giteaAdapter, cfg.GiteaToken),
 		GiteaAdminUsername: configuredGiteaValue(giteaAdapter, cfg.GiteaAdminUsername),
 		GiteaAdminPassword: configuredGiteaValue(giteaAdapter, cfg.GiteaAdminPassword),
-		GitHubBaseURL:      configuredGitHubEnterpriseValue(githubAdapter, cfg.GitHubEnterpriseBaseURL),
-		GitHubToken:        configuredGitHubEnterpriseValue(githubAdapter, cfg.GitHubEnterpriseToken),
+		GitHubBaseURL:      configuredGitHubSelfHostedValue(githubAdapter, cfg.GitHubSelfHostedBaseURL),
+		GitHubToken:        configuredGitHubSelfHostedValue(githubAdapter, cfg.GitHubSelfHostedToken),
 		GitLabBaseURL:      configuredGitLabValue(gitlabAdapter, cfg.GitLabBaseURL),
 		GitLabToken:        configuredGitLabValue(gitlabAdapter, cfg.GitLabToken),
 		GitHTTPRoot:        strings.TrimSpace(cfg.GitHTTPRoot),
@@ -191,11 +191,11 @@ func BuildWorkspaceRepositoryProvider(cfg *config.Config) WorkspaceRepositoryPro
 func workspaceRepositoryConfig(cfg *config.Config, provider string) projectrepoapp.Config {
 	repoConfig := projectrepoapp.Config{Provider: provider}
 	switch provider {
-	case projectrepoapp.ProviderGitHubEnterprise:
-		repoConfig.Repo = cfg.GitHubEnterpriseRepo
-		repoConfig.RepoPrefix = cfg.GitHubEnterpriseRepoPrefix
-		repoConfig.DefaultBranch = cfg.GitHubEnterpriseBranch
-		repoConfig.OrgPrefix = cfg.GitHubEnterpriseOrgPrefix
+	case projectrepoapp.ProviderGitHubSelfHosted:
+		repoConfig.Repo = cfg.GitHubSelfHostedRepo
+		repoConfig.RepoPrefix = cfg.GitHubSelfHostedRepoPrefix
+		repoConfig.DefaultBranch = cfg.GitHubSelfHostedBranch
+		repoConfig.OrgPrefix = cfg.GitHubSelfHostedOrgPrefix
 	case projectrepoapp.ProviderGitLab:
 		repoConfig.Repo = cfg.GitLabRepo
 		repoConfig.RepoPrefix = cfg.GitLabRepoPrefix
@@ -218,7 +218,7 @@ func configuredGiteaValue(adapter *projectrepoapp.GiteaAdapter, value string) st
 	return strings.TrimSpace(value)
 }
 
-func configuredGitHubEnterpriseValue(adapter *projectrepoapp.GitHubEnterpriseAdapter, value string) string {
+func configuredGitHubSelfHostedValue(adapter *projectrepoapp.GitHubSelfHostedAdapter, value string) string {
 	if adapter == nil {
 		return ""
 	}

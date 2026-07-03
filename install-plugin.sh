@@ -137,6 +137,14 @@ version_from_target() {
   printf '%s\n' "${target_path##*/}"
 }
 
+runtime_manifest_field() {
+  target_path=$1
+  field_name=$2
+  manifest_path="$target_path/manifest.runtime.json"
+  [ -f "$manifest_path" ] || return 0
+  sed -n "s/.*\"$field_name\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$manifest_path" | head -n 1
+}
+
 write_bundle_identity() {
   target_path=$1
   version=$2
@@ -144,6 +152,9 @@ write_bundle_identity() {
   reason=$4
   identity_path="$PLUGIN_STORE/current.identity"
   installed_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date)
+  bundle_hash=$(runtime_manifest_field "$target_path" bundleHash)
+  api_version=$(runtime_manifest_field "$target_path" apiVersion)
+  min_daemon_api_version=$(runtime_manifest_field "$target_path" minDaemonApiVersion)
   {
     printf 'schema=movscript.agent-plugin-bundle.v1\n'
     printf 'version=%s\n' "$version"
@@ -155,6 +166,9 @@ write_bundle_identity() {
     printf 'release=%s\n' "$RELEASE"
     printf 'asset=%s\n' "${ASSET:-}"
     printf 'provider=%s\n' "$PROVIDER"
+    printf 'bundleHash=%s\n' "${bundle_hash:-}"
+    printf 'apiVersion=%s\n' "${api_version:-}"
+    printf 'minDaemonApiVersion=%s\n' "${min_daemon_api_version:-}"
   } > "$identity_path"
   log "bundle identity: version=$version root=$target_path previous=${previous_target:-none} reason=$reason"
   log "bundle identity file: $identity_path"

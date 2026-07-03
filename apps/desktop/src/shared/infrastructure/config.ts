@@ -1,5 +1,5 @@
 import type { AppSettings } from '@/shared/contracts/appSettings'
-import type { ElectronRuntimeConfig } from '@/shared/contracts/electronApi'
+import type { ElectronRuntimeBundleIdentity, ElectronRuntimeConfig } from '@/shared/contracts/electronApi'
 import { readBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import {
@@ -157,12 +157,14 @@ function normalizeRuntimeConfigSnapshot(snapshot: ElectronRuntimeConfig): Electr
   const apiBaseURL = runtimeConnection.gatewayBaseURL
   const apiV1BaseURL = runtimeConnection.apiV1BaseURL
   const runtime = normalizeRuntimeDescriptor(legacyRuntime, gatewayBaseURL ?? apiBaseURL, dataConnection)
+  const runtimeBundleStatus = normalizeRuntimeBundleStatus(snapshot.runtimeBundleStatus)
   return {
     movScriptHomeDir: snapshot.movScriptHomeDir?.trim() || snapshot.workspaceDir.trim(),
     workspaceDir: snapshot.workspaceDir.trim(),
     runtimeConnection,
     runtime,
     dataConnection,
+    ...(runtimeBundleStatus ? { runtimeBundleStatus } : {}),
     ...(gatewayBaseURL ? { gatewayBaseURL } : {}),
     apiBaseURL,
     apiV1BaseURL,
@@ -217,6 +219,9 @@ function normalizeRuntimeDescriptor(
 ): MovScriptRuntimeDescriptor {
   return {
     schema: 'movscript.runtime-descriptor.v1',
+    apiVersion: runtime?.apiVersion?.trim() || '1.0',
+    ...(runtime?.bundleHash?.trim() ? { bundleHash: runtime.bundleHash.trim() } : {}),
+    ...(normalizeRuntimeBundleCompatibility(runtime?.compatibility) ? { compatibility: normalizeRuntimeBundleCompatibility(runtime?.compatibility) } : {}),
     runtime: {
       owner: 'movscript.local-node',
       appId: 'movscript.local-node',
@@ -230,6 +235,7 @@ function normalizeRuntimeDescriptor(
     dataConnection,
     capabilities: {
       project: runtime?.capabilities?.project ?? true,
+      timeline: runtime?.capabilities?.timeline ?? true,
       canvas: runtime?.capabilities?.canvas ?? true,
       resources: runtime?.capabilities?.resources ?? true,
       editing: runtime?.capabilities?.editing ?? true,
@@ -243,19 +249,80 @@ function normalizeRuntimeIdentity(input: Partial<MovScriptRuntimeIdentity> | und
   const identity: MovScriptRuntimeIdentity = {
     ...(input.pluginVersion?.trim() ? { pluginVersion: input.pluginVersion.trim() } : {}),
     ...(input.pluginRoot?.trim() ? { pluginRoot: input.pluginRoot.trim() } : {}),
+    ...(input.apiVersion?.trim() ? { apiVersion: input.apiVersion.trim() } : {}),
+    ...(input.minDaemonApiVersion?.trim() ? { minDaemonApiVersion: input.minDaemonApiVersion.trim() } : {}),
+    ...(input.bundleHash?.trim() ? { bundleHash: input.bundleHash.trim() } : {}),
     ...(input.runtimeVersion?.trim() ? { runtimeVersion: input.runtimeVersion.trim() } : {}),
     ...(input.runtimeRoot?.trim() ? { runtimeRoot: input.runtimeRoot.trim() } : {}),
   }
   return Object.keys(identity).length > 0 ? identity : undefined
 }
 
-function normalizeRuntimeDataConnection(input: Partial<MovScriptDataConnectionContext> | undefined): MovScriptDataConnectionContext {
-  const kind = input?.kind === 'local' ? 'local' : 'cloud'
+function normalizeRuntimeBundleCompatibility(
+  input: Partial<NonNullable<MovScriptRuntimeDescriptor['compatibility']>> | undefined,
+): MovScriptRuntimeDescriptor['compatibility'] | undefined {
+  if (!input) return undefined
+  const kind = input.kind === 'same'
+    || input.kind === 'newer'
+    || input.kind === 'older'
+    || input.kind === 'incompatible'
+    || input.kind === 'repair-only'
+    || input.kind === 'unknown'
+    ? input.kind
+    : undefined
+  if (!kind || typeof input.compatible !== 'boolean') return undefined
   return {
     kind,
-    authMode: kind === 'local' ? 'local-owner' : 'session',
+    compatible: input.compatible,
+    reason: input.reason?.trim() || kind,
+    ...(input.actual ? { actual: input.actual } : {}),
+    ...(input.expected ? { expected: input.expected } : {}),
+  }
+}
+
+function normalizeRuntimeBundleStatus(
+  input: Partial<NonNullable<ElectronRuntimeConfig['runtimeBundleStatus']>> | undefined,
+): ElectronRuntimeConfig['runtimeBundleStatus'] | undefined {
+  if (!input) return undefined
+  const action = input.action === 'upgrade'
+    || input.action === 'keep'
+    || input.action === 'repair'
+    || input.action === 'rollback'
+    || input.action === 'unknown'
+    ? input.action
+    : undefined
+  if (!action) return undefined
+  return {
+    action,
+    reason: input.reason?.trim() || action,
+    ...(normalizeRuntimeBundleIdentity(input.homeCurrent) ? { homeCurrent: normalizeRuntimeBundleIdentity(input.homeCurrent) } : {}),
+    ...(normalizeRuntimeBundleIdentity(input.desktopBundled) ? { desktopBundled: normalizeRuntimeBundleIdentity(input.desktopBundled) } : {}),
+    ...(input.previousRoot?.trim() ? { previousRoot: input.previousRoot.trim() } : {}),
+    ...(normalizeRuntimeBundleCompatibility(input.comparison) ? { comparison: normalizeRuntimeBundleCompatibility(input.comparison) } : {}),
+  }
+}
+
+function normalizeRuntimeBundleIdentity(
+  input: Partial<ElectronRuntimeBundleIdentity> | undefined,
+): ElectronRuntimeBundleIdentity | undefined {
+  if (!input) return undefined
+  const identity = {
+    ...(input.version?.trim() ? { version: input.version.trim() } : {}),
+    ...(input.apiVersion?.trim() ? { apiVersion: input.apiVersion.trim() } : {}),
+    ...(input.minDaemonApiVersion?.trim() ? { minDaemonApiVersion: input.minDaemonApiVersion.trim() } : {}),
+    ...(input.bundleHash?.trim() ? { bundleHash: input.bundleHash.trim() } : {}),
+    ...(input.pluginRoot?.trim() ? { pluginRoot: input.pluginRoot.trim() } : {}),
+  }
+  return Object.keys(identity).length > 0 ? identity : undefined
+}
+
+function normalizeRuntimeDataConnection(input: Partial<MovScriptDataConnectionContext> | undefined): MovScriptDataConnectionContext {
+  const kind = input?.kind === 'local' ? 'local' : input?.kind === 'external' ? 'external' : 'cloud'
+  return {
+    kind,
+    authMode: kind === 'local' ? 'local-owner' : kind === 'external' ? 'external' : 'session',
     status: input?.status ?? 'degraded',
-    displayName: input?.displayName?.trim() || (kind === 'local' ? 'Local daemon data' : 'Cloud data connection'),
+    displayName: input?.displayName?.trim() || (kind === 'local' ? 'Local daemon data' : kind === 'external' ? 'External data connection' : 'Cloud data connection'),
   }
 }
 

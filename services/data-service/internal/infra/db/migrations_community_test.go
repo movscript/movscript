@@ -14,9 +14,9 @@ func TestCommunityRuntimeDoesNotContributeMigrationModels(t *testing.T) {
 	}
 }
 
-func TestCommunityRuntimeDoesNotContributeEditionMigrations(t *testing.T) {
-	if got := editionMigrations(); len(got) != 0 {
-		t.Fatalf("editionMigrations() length = %d, want 0", len(got))
+func TestCommunityRuntimeDoesNotContributeDistributionProfileMigrations(t *testing.T) {
+	if got := distributionProfileMigrations(); len(got) != 0 {
+		t.Fatalf("distributionProfileMigrations() length = %d, want 0", len(got))
 	}
 }
 

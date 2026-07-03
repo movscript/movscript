@@ -139,6 +139,90 @@ func TestBuildVolcenVideoTaskRequestUsesReferenceRoles(t *testing.T) {
 	}
 }
 
+func TestBuildVolcenVideoTaskRequestUsesMultipleVideoAudioReferences(t *testing.T) {
+	req, debugBody, err := buildVolcenVideoTaskRequest(VideoRequest{
+		Model:       "doubao-seedance-2-0-260128",
+		Prompt:      "mix reference motion and sound",
+		InputVideos: []string{"https://example.test/ref-a.mp4"},
+		InputVideoDataList: []MediaData{{
+			PresignedURL: "https://example.test/ref-b.mp4",
+			MimeType:     "video/mp4",
+		}},
+		InputAudios: []string{"https://example.test/audio-a.mp3"},
+		InputAudioDataList: []MediaData{{
+			PresignedURL: "https://example.test/audio-b.wav",
+			MimeType:     "audio/wav",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("buildVolcenVideoTaskRequest returned error: %v", err)
+	}
+
+	raw, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatalf("unmarshal request: %v", err)
+	}
+	content, ok := body["content"].([]any)
+	if !ok {
+		t.Fatalf("content = %#v, want array", body["content"])
+	}
+	if len(content) != 5 {
+		t.Fatalf("content len = %d, want text + 2 videos + 2 audios", len(content))
+	}
+	assertContentItem(t, content[0], "text", "", "")
+	assertContentItem(t, content[1], "video_url", "reference_video", "https://example.test/ref-a.mp4")
+	assertContentItem(t, content[2], "video_url", "reference_video", "https://example.test/ref-b.mp4")
+	assertContentItem(t, content[3], "audio_url", "reference_audio", "https://example.test/audio-a.mp3")
+	assertContentItem(t, content[4], "audio_url", "reference_audio", "https://example.test/audio-b.wav")
+
+	debugContent, ok := debugBody["content"].([]map[string]any)
+	if !ok || len(debugContent) != 5 {
+		t.Fatalf("debug content = %#v, want text + 2 videos + 2 audios", debugBody["content"])
+	}
+}
+
+func TestBuildVolcenVideoTaskRequestUsesDraftPriorityAndExpiry(t *testing.T) {
+	workspace := true
+	req, debugBody, err := buildVolcenVideoTaskRequest(VideoRequest{
+		Model:                 "doubao-seedance-1-5-pro-251215",
+		Prompt:                "draft camera blocking",
+		Workspace:             &workspace,
+		Priority:              5,
+		ExecutionExpiresAfter: 3600,
+	})
+	if err != nil {
+		t.Fatalf("buildVolcenVideoTaskRequest returned error: %v", err)
+	}
+
+	raw, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatalf("unmarshal request: %v", err)
+	}
+	if body["draft"] != true {
+		t.Fatalf("draft = %#v, want true", body["draft"])
+	}
+	if body["priority"] != float64(5) {
+		t.Fatalf("priority = %#v, want 5", body["priority"])
+	}
+	if body["execution_expires_after"] != float64(3600) {
+		t.Fatalf("execution_expires_after = %#v, want 3600", body["execution_expires_after"])
+	}
+	if debugBody["draft"] != true || debugBody["priority"] != 5 || debugBody["execution_expires_after"] != 3600 {
+		t.Fatalf("debug body = %#v, want draft/priority/execution_expires_after", debugBody)
+	}
+	if _, ok := debugBody["workspace"]; ok {
+		t.Fatalf("debug body should use provider-native draft key, got %#v", debugBody)
+	}
+}
+
 func TestBuildVolcenVideoTaskRequestRejectsInlineAudioReference(t *testing.T) {
 	_, _, err := buildVolcenVideoTaskRequest(VideoRequest{
 		Model:  "doubao-seedance-2-0-260128",

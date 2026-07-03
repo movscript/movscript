@@ -135,7 +135,7 @@ function markBootstrapRuntimeReady(
     const runtimeConfig = getElectronRuntimeConfig()
     setBackendStatus({
       state: 'ready',
-      baseURL: runtimeConfig.apiBaseURL || LOCAL_BACKEND_URL,
+      baseURL: runtimeConfig.runtimeConnection.gatewayBaseURL || runtimeConfig.runtime.gateway.baseURL || LOCAL_BACKEND_URL,
     }, broadcastBackendStatus)
   } catch (error) {
     console.warn('[bootstrap] failed to publish local runtime readiness', error)

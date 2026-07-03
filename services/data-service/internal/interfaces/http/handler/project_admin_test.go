@@ -863,7 +863,7 @@ func TestProjectGitProxyAllowsSmartHTTPAndInjectsServerToken(t *testing.T) {
 	}
 }
 
-func TestProjectGitProxySupportsEnterpriseGitProviders(t *testing.T) {
+func TestProjectGitProxySupportsHostedGitProviders(t *testing.T) {
 	for _, tt := range []struct {
 		name         string
 		provider     string
@@ -873,8 +873,8 @@ func TestProjectGitProxySupportsEnterpriseGitProviders(t *testing.T) {
 		configure    func(*ProjectHandler, string, string)
 	}{
 		{
-			name:         "github enterprise",
-			provider:     projectrepoapp.ProviderGitHubEnterprise,
+			name:         "github self-hosted",
+			provider:     projectrepoapp.ProviderGitHubSelfHosted,
 			baseURL:      "https://github.example.com",
 			token:        "github-token",
 			authUsername: "x-access-token",
@@ -903,12 +903,12 @@ func TestProjectGitProxySupportsEnterpriseGitProviders(t *testing.T) {
 				&persistencemodel.ProjectMember{},
 				&persistencemodel.ProjectRepository{},
 			)
-			owner := newHandlerExternalUser("enterprise-owner")
-			org := persistencemodel.Organization{Name: "Enterprise Org", Slug: "enterprise-org", Plan: "team", Status: "active", CreatedBy: owner.ID}
+			owner := newHandlerExternalUser("self-hosted-owner")
+			org := persistencemodel.Organization{Name: "Hosted Org", Slug: "self-hosted-org", Plan: "team", Status: "active", CreatedBy: owner.ID}
 			if err := db.Create(&org).Error; err != nil {
 				t.Fatalf("create org: %v", err)
 			}
-			project := persistencemodel.Project{Name: "Enterprise Git Proxy Project", OwnerID: owner.ID, OrgID: &org.ID}
+			project := persistencemodel.Project{Name: "Hosted Git Proxy Project", OwnerID: owner.ID, OrgID: &org.ID}
 			if err := db.Create(&project).Error; err != nil {
 				t.Fatalf("create project: %v", err)
 			}
@@ -960,9 +960,9 @@ func TestProjectGitProxySupportsEnterpriseGitProviders(t *testing.T) {
 			router.ServeHTTP(res, req)
 
 			if res.Code != http.StatusOK {
-				t.Fatalf("expected enterprise provider git proxy response, got %d: %s", res.Code, res.Body.String())
+				t.Fatalf("expected self-hosted provider git proxy response, got %d: %s", res.Code, res.Body.String())
 			}
-			if upstream.path != "/movscript-org-enterprise-org/project-1.git/info/refs" {
+			if upstream.path != "/movscript-org-self-hosted-org/project-1.git/info/refs" {
 				t.Fatalf("upstream path = %q", upstream.path)
 			}
 			if upstream.query != "service=git-upload-pack" {

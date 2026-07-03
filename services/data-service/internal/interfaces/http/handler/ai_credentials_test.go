@@ -767,37 +767,37 @@ func TestProviderInstanceConfigDraftApplyWritesEnvOverlayWithoutLeaking(t *testi
 	assertAuditMetadataDoesNotContain(t, db, "provider_instance.config_draft.admin_applied", "secret-secret")
 }
 
-func TestProviderInstanceConfigDraftApplyWritesGitHubEnterpriseEnvOverlay(t *testing.T) {
+func TestProviderInstanceConfigDraftApplyWritesGitHubSelfHostedEnvOverlay(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	envPath := filepath.Join(t.TempDir(), "provider-startup.env")
 	cfg := &config.Config{
 		DependencyProfile:          "external",
-		WorkspaceStorageBackend:    "github-enterprise",
-		GitHubEnterpriseBaseURL:    "https://old-github.example.com",
-		GitHubEnterpriseToken:      "old-token",
-		GitHubEnterpriseRepoPrefix: "old-project-",
-		GitHubEnterpriseOrgPrefix:  "old-org-",
-		GitHubEnterpriseBranch:     "main",
+		WorkspaceStorageBackend:    "github-self-hosted",
+		GitHubSelfHostedBaseURL:    "https://old-github.example.com",
+		GitHubSelfHostedToken:      "old-token",
+		GitHubSelfHostedRepoPrefix: "old-project-",
+		GitHubSelfHostedOrgPrefix:  "old-org-",
+		GitHubSelfHostedBranch:     "main",
 		ProviderEnvPath:            envPath,
 	}
 	router, _ := newTestAICredentialRouterWithConfig(t, cfg)
 
-	updateReq := httptest.NewRequest(http.MethodPut, "/admin/provider-instances/workspace_repository:github-enterprise/config", strings.NewReader(`{
-		"config":{"github_enterprise_base_url":"https://github.example.com","github_enterprise_repo_prefix":"movscript-project-","github_enterprise_org_prefix":"movscript-org-","github_enterprise_branch":"main","workspace_clone_url_strategy":"direct"},
-		"secrets":{"github_enterprise_token":"github-secret"}
+	updateReq := httptest.NewRequest(http.MethodPut, "/admin/provider-instances/workspace_repository:github-self-hosted/config", strings.NewReader(`{
+		"config":{"github_self_hosted_base_url":"https://github.example.com","github_self_hosted_repo_prefix":"movscript-project-","github_self_hosted_org_prefix":"movscript-org-","github_self_hosted_branch":"main","workspace_clone_url_strategy":"direct"},
+		"secrets":{"github_self_hosted_token":"github-secret"}
 	}`))
 	updateReq.Header.Set("Content-Type", "application/json")
 	updateRes := httptest.NewRecorder()
 	router.ServeHTTP(updateRes, updateReq)
 	if updateRes.Code != http.StatusOK {
-		t.Fatalf("expected GitHub Enterprise provider config draft update, got %d: %s", updateRes.Code, updateRes.Body.String())
+		t.Fatalf("expected GitHub Self-hosted provider config draft update, got %d: %s", updateRes.Code, updateRes.Body.String())
 	}
 
-	applyReq := httptest.NewRequest(http.MethodPost, "/admin/provider-instances/workspace_repository:github-enterprise/config/apply", nil)
+	applyReq := httptest.NewRequest(http.MethodPost, "/admin/provider-instances/workspace_repository:github-self-hosted/config/apply", nil)
 	applyRes := httptest.NewRecorder()
 	router.ServeHTTP(applyRes, applyReq)
 	if applyRes.Code != http.StatusOK {
-		t.Fatalf("expected GitHub Enterprise provider config draft apply, got %d: %s", applyRes.Code, applyRes.Body.String())
+		t.Fatalf("expected GitHub Self-hosted provider config draft apply, got %d: %s", applyRes.Code, applyRes.Body.String())
 	}
 	if body := applyRes.Body.String(); strings.Contains(body, "github-secret") {
 		t.Fatalf("provider config apply response leaked secret: %s", body)
@@ -809,14 +809,14 @@ func TestProviderInstanceConfigDraftApplyWritesGitHubEnterpriseEnvOverlay(t *tes
 	}
 	envBody := string(envBytes)
 	for _, want := range []string{
-		`MOVSCRIPT_WORKSPACE_STORAGE_BACKEND="github-enterprise"`,
-		`MOVSCRIPT_WORKSPACE_BACKEND="github-enterprise"`,
-		`MOVSCRIPT_GITHUB_ENTERPRISE_BASE_URL="https://github.example.com"`,
-		`MOVSCRIPT_GITHUB_ENTERPRISE_REPO_PREFIX="movscript-project-"`,
-		`MOVSCRIPT_GITHUB_ENTERPRISE_ORG_PREFIX="movscript-org-"`,
-		`MOVSCRIPT_GITHUB_ENTERPRISE_BRANCH="main"`,
+		`MOVSCRIPT_WORKSPACE_STORAGE_BACKEND="github-self-hosted"`,
+		`MOVSCRIPT_WORKSPACE_BACKEND="github-self-hosted"`,
+		`MOVSCRIPT_GITHUB_SELF_HOSTED_BASE_URL="https://github.example.com"`,
+		`MOVSCRIPT_GITHUB_SELF_HOSTED_REPO_PREFIX="movscript-project-"`,
+		`MOVSCRIPT_GITHUB_SELF_HOSTED_ORG_PREFIX="movscript-org-"`,
+		`MOVSCRIPT_GITHUB_SELF_HOSTED_BRANCH="main"`,
 		`MOVSCRIPT_WORKSPACE_CLONE_URL_STRATEGY="direct"`,
-		`MOVSCRIPT_GITHUB_ENTERPRISE_TOKEN="github-secret"`,
+		`MOVSCRIPT_GITHUB_SELF_HOSTED_TOKEN="github-secret"`,
 	} {
 		if !strings.Contains(envBody, want) {
 			t.Fatalf("provider env overlay missing %q in:\n%s", want, envBody)

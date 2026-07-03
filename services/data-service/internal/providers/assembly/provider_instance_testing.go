@@ -42,7 +42,7 @@ func TestStartupProviderInstance(ctx context.Context, cfg *config.Config, id str
 
 	err, handled := coreStartupProviderInstanceTest(ctx, cfg, instance)
 	if !handled {
-		err, handled = editionStartupProviderInstanceTest(ctx, cfg, instance)
+		err, handled = distributionProfileStartupProviderInstanceTest(ctx, cfg, instance)
 	}
 	if !handled {
 		err = fmt.Errorf("provider instance %q is not testable yet", id)
@@ -67,8 +67,8 @@ func coreStartupProviderInstanceTest(ctx context.Context, cfg *config.Config, in
 		return testLocalGitHTTPConfig(cfg), true
 	case providercontract.TypeWorkspaceRepository + ":" + providercontract.AdapterGitea:
 		return testGiteaConfig(ctx, cfg), true
-	case providercontract.TypeWorkspaceRepository + ":" + providercontract.AdapterGitHubEnterprise:
-		return testGitHubEnterpriseConfig(ctx, cfg), true
+	case providercontract.TypeWorkspaceRepository + ":" + providercontract.AdapterGitHubSelfHosted:
+		return testGitHubSelfHostedConfig(ctx, cfg), true
 	case providercontract.TypeWorkspaceRepository + ":" + providercontract.AdapterGitLab:
 		return testGitLabConfig(ctx, cfg), true
 	case providercontract.TypeAIGateway + ":" + providercontract.AdapterLocal:
@@ -219,14 +219,14 @@ func testGiteaConfig(ctx context.Context, cfg *config.Config) error {
 	return nil
 }
 
-func testGitHubEnterpriseConfig(ctx context.Context, cfg *config.Config) error {
+func testGitHubSelfHostedConfig(ctx context.Context, cfg *config.Config) error {
 	provider := BuildWorkspaceRepositoryProvider(cfg)
-	if provider.Provider != projectrepoapp.ProviderGitHubEnterprise || provider.GitHubAdapter == nil {
-		return fmt.Errorf("github enterprise provider is not configured")
+	if provider.Provider != projectrepoapp.ProviderGitHubSelfHosted || provider.GitHubAdapter == nil {
+		return fmt.Errorf("github self-hosted provider is not configured")
 	}
 	health := provider.GitHubAdapter.Health(ctx)
 	if health.Status != providercontract.HealthStatusOK {
-		return fmt.Errorf("github enterprise health check failed: %s", health.Message)
+		return fmt.Errorf("github self-hosted health check failed: %s", health.Message)
 	}
 	return nil
 }

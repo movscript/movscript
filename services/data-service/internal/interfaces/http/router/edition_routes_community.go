@@ -7,21 +7,21 @@ import (
 	"github.com/movscript/movscript/internal/infra/observability"
 )
 
-func registerEditionRootRoutes(_ *gin.Engine, _ handlers) {}
+func registerDistributionProfileRootRoutes(_ *gin.Engine, _ handlers) {}
 
-func registerEditionRegistryRoutes(_ *gin.RouterGroup, _ handlers) {}
+func registerDistributionProfileRegistryRoutes(_ *gin.RouterGroup, _ handlers) {}
 
-func registerEditionProtectedRoutes(_ *gin.RouterGroup, _ handlers) {}
+func registerDistributionProfileProtectedRoutes(_ *gin.RouterGroup, _ handlers) {}
 
-func registerEditionRuntimeProtectedRoutes(_ *gin.RouterGroup, _ handlers) {}
+func registerDistributionProfileRuntimeProtectedRoutes(_ *gin.RouterGroup, _ handlers) {}
 
-func registerEditionRuntimeAdminRoutes(_ *gin.RouterGroup, _ handlers) {}
+func registerDistributionProfileRuntimeAdminRoutes(_ *gin.RouterGroup, _ handlers) {}
 
-func registerEditionAdminUserRoutes(_ *gin.RouterGroup, _ handlers) {}
+func registerDistributionProfileAdminUserRoutes(_ *gin.RouterGroup, _ handlers) {}
 
-func registerEditionAdminRoutes(_ *gin.RouterGroup, _ handlers) {}
+func registerDistributionProfileAdminRoutes(_ *gin.RouterGroup, _ handlers) {}
 
-func editionUsesModelCatalogOnly() bool { return false }
+func distributionProfileUsesModelCatalogOnly() bool { return false }
 
 func adminUsageListHandler(h handlers) gin.HandlerFunc {
 	return h.usageAdmin.List

@@ -2,8 +2,8 @@
 
 package router
 
-type editionHandlers struct{}
+type distributionProfileHandlers struct{}
 
-func newEditionHandlers(_ Dependencies) editionHandlers {
-	return editionHandlers{}
+func newDistributionProfileHandlers(_ Dependencies) distributionProfileHandlers {
+	return distributionProfileHandlers{}
 }

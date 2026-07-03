@@ -1,11 +1,15 @@
 #!/usr/bin/env node
+import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repoRoot = resolve(fileURLToPath(new URL('../..', import.meta.url)))
 const schema = 'movscript.package-resources.v1'
-const allowedEditions = new Set(['community', 'enterprise'])
+const allowedDistributionProfiles = new Set(['default-local', 'self-hosted', 'custom'])
 const allowedCategories = new Set([
   'managed-agent',
   'managed-binary',
@@ -17,9 +21,9 @@ const allowedCategories = new Set([
 ])
 const allowedSources = new Set([
   'build-artifact',
+  'custom-build-artifact',
+  'custom-distribution-overlay',
   'downloaded-release-artifact',
-  'enterprise-build-artifact',
-  'enterprise-overlay',
   'repository',
   'staged-build-artifact',
 ])
@@ -37,35 +41,84 @@ export function runVerifyPackageResourcesCli(args = [], options = {}) {
     log = console.log,
     logError = console.error,
   } = options
-  const parsed = parseArgs(args)
+  const parsed = parseArgs(args, options.env ?? process.env)
   if (parsed.help) {
     log(helpText())
     return
   }
   try {
-    const result = verifyPackageResources(parsed.root, parsed.manifest)
+    const result = verifyPackageResources(parsed.root, parsed.manifest, { pluginZip: parsed.pluginZip })
     log(`Package resource contract verification passed (${result.resources.length} resources).`)
+    if (parsed.pluginZip) log(`Provider plugin zip compatibility passed: ${parsed.pluginZip}`)
   } catch (error) {
     logError(error instanceof Error ? error.message : String(error))
     exit(1)
   }
 }
 
-export function verifyPackageResources(root = repoRoot, manifestPath = 'package-resources.manifest.json') {
+export function verifyPackageResources(root = repoRoot, manifestPath = 'package-resources.manifest.json', options = {}) {
   const absoluteManifestPath = resolve(root, manifestPath)
   const manifest = readJSON(absoluteManifestPath, manifestPath)
   const errors = validateManifest(root, manifest)
   if (errors.length > 0) {
     throw new Error(['Package resource contract verification failed:', ...errors.map((error) => `- ${error}`)].join('\n'))
   }
+  if (options.pluginZip) {
+    const compatibilityErrors = validateProviderPluginZipCompatibility(root, manifest, options.pluginZip)
+    if (compatibilityErrors.length > 0) {
+      throw new Error(['Provider plugin zip compatibility verification failed:', ...compatibilityErrors.map((error) => `- ${error}`)].join('\n'))
+    }
+  }
   return manifest
+}
+
+export function validateProviderPluginZipCompatibility(root, manifest, pluginZipPath) {
+  const errors = []
+  const providerResource = (manifest.resources ?? []).find((resource) => resource.id === 'provider-plugin')
+  if (!providerResource) {
+    return ['provider-plugin resource must be declared before plugin zip compatibility can be verified']
+  }
+
+  const builderConfigPath = resolve(root, manifest.builderConfig)
+  const providerRoot = resolve(dirname(builderConfigPath), providerResource.from)
+  if (!existsSync(providerRoot)) {
+    errors.push(`provider-plugin source does not exist: ${providerRoot}`)
+    return errors
+  }
+
+  const absolutePluginZipPath = resolve(root, pluginZipPath)
+  if (!existsSync(absolutePluginZipPath)) {
+    errors.push(`plugin zip does not exist: ${pluginZipPath}`)
+    return errors
+  }
+
+  const rootPackage = readJSON(resolve(root, 'package.json'), 'package.json')
+  const releaseVersion = nonEmptyString(rootPackage.version) ? rootPackage.version : ''
+  const tempDir = mkdtempSync(join(tmpdir(), 'movscript-provider-plugin-zip.'))
+  try {
+    unzipArtifact(absolutePluginZipPath, tempDir)
+    const zipPluginRoot = locateExtractedPluginRoot(tempDir)
+    compareProviderPluginRoots({
+      errors,
+      providerRoot,
+      releaseVersion,
+      zipPluginRoot,
+    })
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : String(error))
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true })
+  }
+  return errors
 }
 
 export function validateManifest(root, manifest) {
   const errors = []
   if (manifest?.schema !== schema) errors.push(`schema must be ${schema}`)
   if (!nonEmptyString(manifest.product)) errors.push('product must be set')
-  if (!allowedEditions.has(manifest.edition)) errors.push(`edition must be one of ${[...allowedEditions].join(', ')}`)
+  if (!allowedDistributionProfiles.has(manifest.distributionProfile)) {
+    errors.push(`distributionProfile must be one of ${[...allowedDistributionProfiles].join(', ')}`)
+  }
   if (!nonEmptyString(manifest.owner)) errors.push('owner must be set')
   if (!nonEmptyString(manifest.builderConfig)) errors.push('builderConfig must be set')
   if (!stringArray(manifest.packageFiles) || manifest.packageFiles.length === 0) errors.push('packageFiles must list packaged app files')
@@ -230,6 +283,140 @@ function validateForbiddenPaths(manifest, errors) {
   }
 }
 
+function compareProviderPluginRoots({ errors, providerRoot, releaseVersion, zipPluginRoot }) {
+  const providerManifestPath = resolve(providerRoot, 'manifest.runtime.json')
+  const zipManifestPath = resolve(zipPluginRoot, 'manifest.runtime.json')
+  if (!existsSync(providerManifestPath)) errors.push(`Desktop provider plugin is missing manifest.runtime.json: ${providerRoot}`)
+  if (!existsSync(zipManifestPath)) errors.push(`Agent plugin zip is missing manifest.runtime.json: ${zipPluginRoot}`)
+  if (!existsSync(providerManifestPath) || !existsSync(zipManifestPath)) return
+
+  const providerManifest = readJSON(providerManifestPath, 'Desktop provider plugin manifest.runtime.json')
+  const zipManifest = readJSON(zipManifestPath, 'Agent plugin zip manifest.runtime.json')
+  validateRuntimeManifest('Desktop provider plugin manifest.runtime.json', providerManifest, releaseVersion, errors)
+  validateRuntimeManifest('Agent plugin zip manifest.runtime.json', zipManifest, releaseVersion, errors)
+
+  const providerBundleHash = pluginBundleHash(providerRoot)
+  const zipBundleHash = pluginBundleHash(zipPluginRoot)
+  if (providerManifest.bundleHash !== providerBundleHash) {
+    errors.push(`Desktop provider plugin manifest.runtime.json bundleHash is ${providerManifest.bundleHash}, expected ${providerBundleHash}`)
+  }
+  if (zipManifest.bundleHash !== zipBundleHash) {
+    errors.push(`Agent plugin zip manifest.runtime.json bundleHash is ${zipManifest.bundleHash}, expected ${zipBundleHash}`)
+  }
+
+  compareRuntimeManifests(providerManifest, zipManifest, errors)
+}
+
+function validateRuntimeManifest(label, manifest, releaseVersion, errors) {
+  if (manifest.schema !== 'movscript.runtime-bundle.v1') errors.push(`${label} schema must be movscript.runtime-bundle.v1`)
+  if (manifest.apiVersion !== '1.0') errors.push(`${label} apiVersion must be 1.0`)
+  if (manifest.minDaemonApiVersion !== '1.0') errors.push(`${label} minDaemonApiVersion must be 1.0`)
+  if (manifest.bundleHashAlgorithm !== 'sha256') errors.push(`${label} bundleHashAlgorithm must be sha256`)
+  if (!nonEmptyString(manifest.bundleHash)) errors.push(`${label} bundleHash must be set`)
+  if (releaseVersion && manifest.version !== releaseVersion) {
+    errors.push(`${label} version is ${JSON.stringify(manifest.version)}, expected package version ${releaseVersion}`)
+  }
+  for (const capability of ['cli', 'mcp', 'daemon', 'project', 'timeline', 'canvas', 'resources', 'editing', 'media']) {
+    if (manifest.capabilities?.[capability] !== true) errors.push(`${label} capability ${capability} must be true`)
+  }
+}
+
+function compareRuntimeManifests(providerManifest, zipManifest, errors) {
+  const fields = [
+    'schema',
+    'appId',
+    'applicationId',
+    'artifact',
+    'version',
+    'packageName',
+    'apiVersion',
+    'minDaemonApiVersion',
+    'bundleHash',
+    'bundleHashAlgorithm',
+    'capabilities',
+    'mcpServer',
+    'entrypoint',
+    'mcpArgs',
+    'daemonArgs',
+    'cliEntrypoint',
+    'legacyMcpEntrypoint',
+  ]
+  for (const field of fields) {
+    const providerValue = stableJSON(providerManifest[field])
+    const zipValue = stableJSON(zipManifest[field])
+    if (providerValue !== zipValue) {
+      errors.push(`Desktop provider plugin and Agent plugin zip manifest.runtime.json ${field} mismatch: ${providerValue} != ${zipValue}`)
+    }
+  }
+}
+
+function pluginBundleHash(pluginDir) {
+  const hash = createHash('sha256')
+  for (const file of pluginBundleFiles(pluginDir)) {
+    hash.update(file)
+    hash.update('\0')
+    hash.update(readFileSync(resolve(pluginDir, file)))
+    hash.update('\0')
+  }
+  return hash.digest('hex')
+}
+
+function pluginBundleFiles(pluginDir) {
+  const roots = [
+    '.codex-plugin',
+    '.provider-plugin',
+    '.mcp.json',
+    'assets',
+    'bin',
+    'runtime',
+    'skills',
+    'README.md',
+  ]
+  const files = []
+  for (const rootPath of roots) {
+    const absolute = resolve(pluginDir, rootPath)
+    if (!existsSync(absolute)) continue
+    collectPluginBundleFiles(pluginDir, rootPath, files)
+  }
+  return files.sort()
+}
+
+function collectPluginBundleFiles(pluginDir, relativePath, files) {
+  const absolute = resolve(pluginDir, relativePath)
+  const stat = statSync(absolute)
+  if (stat.isDirectory()) {
+    for (const entry of readdirSync(absolute).filter((name) => name !== '.DS_Store').sort()) {
+      collectPluginBundleFiles(pluginDir, `${relativePath}/${entry}`, files)
+    }
+    return
+  }
+  files.push(relativePath)
+}
+
+function unzipArtifact(artifactPath, destination) {
+  const result = spawnSync('unzip', ['-q', artifactPath, '-d', destination], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  if (result.error) throw result.error
+  if (result.status !== 0) {
+    throw new Error([
+      `Unable to extract plugin zip: ${artifactPath}`,
+      String(result.stdout ?? '').trim(),
+      String(result.stderr ?? '').trim(),
+    ].filter(Boolean).join('\n'))
+  }
+}
+
+function locateExtractedPluginRoot(extractDir) {
+  if (existsSync(resolve(extractDir, 'manifest.runtime.json'))) return extractDir
+  const candidates = readdirSync(extractDir)
+    .map((entry) => resolve(extractDir, entry))
+    .filter((path) => statSync(path).isDirectory() && existsSync(resolve(path, 'manifest.runtime.json')))
+  if (candidates.length === 1) return candidates[0]
+  throw new Error(`Unable to locate manifest.runtime.json in extracted plugin zip: ${extractDir}`)
+}
+
 function compareStringList(label, expected, actual, errors) {
   const expectedList = expected ?? []
   const actualList = actual ?? []
@@ -297,26 +484,44 @@ function unquote(value) {
   return trimmed
 }
 
-function parseArgs(args) {
+function stableJSON(value) {
+  return JSON.stringify(sortJSON(value))
+}
+
+function sortJSON(value) {
+  if (Array.isArray(value)) return value.map(sortJSON)
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sortJSON(value[key])]))
+}
+
+function parseArgs(args, env = process.env) {
   const parsed = {
     help: false,
     manifest: 'package-resources.manifest.json',
+    pluginZip: env.MOVSCRIPT_PACKAGE_RESOURCE_PLUGIN_ZIP || '',
     root: repoRoot,
   }
-  for (const arg of args) {
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]
     if (arg === '--help' || arg === '-h') parsed.help = true
     else if (arg.startsWith('--manifest=')) parsed.manifest = arg.slice('--manifest='.length)
+    else if (arg === '--manifest') parsed.manifest = args[++index]
     else if (arg.startsWith('--root=')) parsed.root = resolve(arg.slice('--root='.length))
+    else if (arg === '--root') parsed.root = resolve(args[++index])
+    else if (arg.startsWith('--plugin-zip=')) parsed.pluginZip = arg.slice('--plugin-zip='.length)
+    else if (arg === '--plugin-zip') parsed.pluginZip = args[++index]
     else throw new Error(`Unexpected argument: ${arg}`)
   }
+  if (parsed.pluginZip) parsed.pluginZip = resolve(parsed.root, parsed.pluginZip)
   return parsed
 }
 
 function helpText() {
   return `
-Usage: node scripts/release/verify-package-resources.mjs [--root=<dir>] [--manifest=<path>]
+Usage: node scripts/release/verify-package-resources.mjs [--root=<dir>] [--manifest=<path>] [--plugin-zip=<path>]
 
 Verifies package-resources.manifest.json against the Electron Builder files and extraResources contract.
+Pass --plugin-zip or MOVSCRIPT_PACKAGE_RESOURCE_PLUGIN_ZIP to verify the Desktop provider plugin bundle against an Agent Plugin release zip.
 `.trim()
 }
 

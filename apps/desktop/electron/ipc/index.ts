@@ -19,7 +19,7 @@ import { registerWindowIpcHandlers } from './windowIpc'
 import { registerProviderSessionsIpcHandlers } from './providerSessionsIpc'
 import { registerProjectGitIpcHandlers } from './projectGitIpc'
 import { registerLocalProjectIpcHandlers } from './localProjectIpc'
-import { registerLocalTerminalIpcHandlers } from './localTerminalIpc'
+import { registerDesktopShellHostIpcHandlers } from './desktopShellHostIpc'
 import { registerMediaPipelineIpcHandlers } from './mediaPipelineIpc'
 import { registerDockShortcutIpcHandlers } from './dockShortcutIpc'
 import { registerAgentSessionPersistenceIpcHandlers } from './agentSessionPersistenceIpc'
@@ -53,7 +53,7 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   registerProjectGitIpcHandlers()
   registerProviderSessionsIpcHandlers()
   registerSdkRuntimeIpcHandlers()
-  registerLocalTerminalIpcHandlers()
+  registerDesktopShellHostIpcHandlers()
   registerMediaPipelineIpcHandlers()
   registerDockShortcutIpcHandlers()
 }

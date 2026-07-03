@@ -17,7 +17,7 @@ test('listing the MovScript workspace root initializes core control directories'
     const listed = await listMovScriptWorkspaceFiles({ workspaceDir })
     const entryNames = listed.entries.map((entry) => entry.name).sort()
     assert.equal(listed.path, '')
-    assert.deepEqual(entryNames, ['backend', 'bin', 'manifest.json', 'realms'])
+    assert.deepEqual(entryNames, ['backend', 'bin', 'logs', 'manifest.json', 'realms'])
   } finally {
     await rm(workspaceDir, { recursive: true, force: true })
   }

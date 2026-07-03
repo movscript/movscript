@@ -174,6 +174,147 @@ func TestCatalogTemplatesExposeModelSpecificSupportedParams(t *testing.T) {
 	}
 }
 
+func TestSeedanceVideoTemplatesExposeOfficialSupportedParamMatrix(t *testing.T) {
+	templates := catalogTemplatesByIDForTest(CatalogTemplates())
+
+	seedance20 := templates["volcengine:seedance-2-0"]
+	if hasParam(seedance20.SupportedParams, "seed") ||
+		hasParam(seedance20.SupportedParams, "frames") ||
+		hasParam(seedance20.SupportedParams, "fixed_camera") ||
+		hasParam(seedance20.SupportedParams, "service_tier") ||
+		hasParam(seedance20.SupportedParams, "workspace") {
+		t.Fatalf("Seedance 2.0 params must omit unsupported fields, got %#v", seedance20.SupportedParams)
+	}
+	for _, key := range []string{"duration", "aspect_ratio", "resolution", "audio", "watermark", "return_last_frame", "web_search", "execution_expires_after", "priority"} {
+		if !hasParam(seedance20.SupportedParams, key) {
+			t.Fatalf("Seedance 2.0 params missing %s: %#v", key, seedance20.SupportedParams)
+		}
+	}
+	resolution20, ok := findTemplateParam(seedance20.SupportedParams, "resolution")
+	if !ok || !paramOptionsContain(resolution20, "1080p") || !paramOptionsContain(resolution20, "4k") {
+		t.Fatalf("Seedance 2.0 resolution = %#v, want 1080p and 4k", resolution20)
+	}
+
+	seedance20Fast := templates["volcengine:seedance-2-0-fast"]
+	if hasParam(seedance20Fast.SupportedParams, "seed") ||
+		hasParam(seedance20Fast.SupportedParams, "frames") ||
+		hasParam(seedance20Fast.SupportedParams, "fixed_camera") ||
+		hasParam(seedance20Fast.SupportedParams, "service_tier") ||
+		hasParam(seedance20Fast.SupportedParams, "workspace") {
+		t.Fatalf("Seedance 2.0 Fast params must omit unsupported fields, got %#v", seedance20Fast.SupportedParams)
+	}
+	for _, key := range []string{"duration", "aspect_ratio", "resolution", "audio", "watermark", "return_last_frame", "web_search", "execution_expires_after", "priority"} {
+		if !hasParam(seedance20Fast.SupportedParams, key) {
+			t.Fatalf("Seedance 2.0 Fast params missing %s: %#v", key, seedance20Fast.SupportedParams)
+		}
+	}
+	resolution20Fast, ok := findTemplateParam(seedance20Fast.SupportedParams, "resolution")
+	if !ok || paramOptionsContain(resolution20Fast, "1080p") || paramOptionsContain(resolution20Fast, "4k") {
+		t.Fatalf("Seedance 2.0 Fast resolution = %#v, want no 1080p/4k", resolution20Fast)
+	}
+
+	seedance15 := templates["volcengine:seedance-1-5-pro"]
+	for _, key := range []string{"duration", "aspect_ratio", "resolution", "seed", "audio", "watermark", "return_last_frame", "service_tier", "workspace", "execution_expires_after"} {
+		if !hasParam(seedance15.SupportedParams, key) {
+			t.Fatalf("Seedance 1.5 params missing %s: %#v", key, seedance15.SupportedParams)
+		}
+	}
+	if hasParam(seedance15.SupportedParams, "frames") || hasParam(seedance15.SupportedParams, "web_search") || hasParam(seedance15.SupportedParams, "priority") {
+		t.Fatalf("Seedance 1.5 params include unsupported fields: %#v", seedance15.SupportedParams)
+	}
+
+	seedance10 := templates["volcengine:seedance-1-0-pro"]
+	for _, key := range []string{"duration", "frames", "aspect_ratio", "resolution", "seed", "watermark", "fixed_camera", "return_last_frame", "service_tier", "execution_expires_after"} {
+		if !hasParam(seedance10.SupportedParams, key) {
+			t.Fatalf("Seedance 1.0 Pro params missing %s: %#v", key, seedance10.SupportedParams)
+		}
+	}
+	if hasParam(seedance10.SupportedParams, "audio") || hasParam(seedance10.SupportedParams, "web_search") || hasParam(seedance10.SupportedParams, "priority") || hasParam(seedance10.SupportedParams, "workspace") {
+		t.Fatalf("Seedance 1.0 Pro params include unsupported fields: %#v", seedance10.SupportedParams)
+	}
+	if seedance10.MaxInputImages != 2 || !strings.Contains(seedance10.ModelCapabilitiesJSON, "first_last_frame_to_video") {
+		t.Fatalf("Seedance 1.0 Pro input contract = max_images:%d capabilities:%s", seedance10.MaxInputImages, seedance10.ModelCapabilitiesJSON)
+	}
+
+	seedance10Fast := templates["volcengine:seedance-1-0-pro-fast"]
+	for _, key := range []string{"duration", "frames", "aspect_ratio", "resolution", "seed", "watermark", "fixed_camera", "return_last_frame", "service_tier", "execution_expires_after"} {
+		if !hasParam(seedance10Fast.SupportedParams, key) {
+			t.Fatalf("Seedance 1.0 Pro Fast params missing %s: %#v", key, seedance10Fast.SupportedParams)
+		}
+	}
+	if hasParam(seedance10Fast.SupportedParams, "audio") || hasParam(seedance10Fast.SupportedParams, "web_search") || hasParam(seedance10Fast.SupportedParams, "priority") || hasParam(seedance10Fast.SupportedParams, "workspace") {
+		t.Fatalf("Seedance 1.0 Pro Fast params include unsupported fields: %#v", seedance10Fast.SupportedParams)
+	}
+}
+
+func Test83ziSeedance20TemplateMatchesGatewayContract(t *testing.T) {
+	templates := catalogTemplatesByIDForTest(CatalogTemplates())
+	template := templates["83zi:83zi-seedance-2-0"]
+	if template.ID == "" {
+		t.Fatal("missing 83zi Seedance 2.0 template")
+	}
+	if template.DefaultPublicModelID != "83zi-seedance-2-0" ||
+		template.ModelID != "Seedance-2.0" ||
+		template.RouteAdapterHint != AdapterVyroSeedance {
+		t.Fatalf("83zi Seedance template = %#v", template)
+	}
+	for _, key := range []string{"duration", "aspect_ratio", "resolution", "audio"} {
+		if !hasParam(template.SupportedParams, key) {
+			t.Fatalf("83zi Seedance 2.0 params missing %s: %#v", key, template.SupportedParams)
+		}
+	}
+	for _, key := range []string{"watermark", "return_last_frame", "web_search", "priority", "execution_expires_after", "generate_audio"} {
+		if hasParam(template.SupportedParams, key) {
+			t.Fatalf("83zi Seedance 2.0 params include unsupported %s: %#v", key, template.SupportedParams)
+		}
+	}
+	if !strings.Contains(template.ModelCapabilitiesJSON, VideoOperationReferenceToVideo) ||
+		strings.Contains(template.ModelCapabilitiesJSON, VideoOperationFirstFrameToVideo) ||
+		strings.Contains(template.ModelCapabilitiesJSON, VideoOperationFirstLastFrameToVideo) {
+		t.Fatalf("83zi Seedance 2.0 capability contract = %s", template.ModelCapabilitiesJSON)
+	}
+}
+
+func TestSeedreamImageTemplatesExposeOfficialSupportedParamMatrix(t *testing.T) {
+	templates := catalogTemplatesByIDForTest(CatalogTemplates())
+
+	for _, id := range []string{"volcengine:seedream-3-0", "volcengine-ark:seedream-3-0"} {
+		template := templates[id]
+		if template.ID == "" {
+			t.Fatalf("missing template %s", id)
+		}
+		for _, key := range []string{"aspect_ratio", "seed", "prompt_strength", "watermark"} {
+			if !hasParam(template.SupportedParams, key) {
+				t.Fatalf("%s params missing %s: %#v", id, key, template.SupportedParams)
+			}
+		}
+		for _, key := range []string{"image_size", "sequential_image_generation", "image_count", "optimize_prompt_mode", "output_format", "web_search", "response_format", "stream"} {
+			if hasParam(template.SupportedParams, key) {
+				t.Fatalf("%s params include unsupported %s: %#v", id, key, template.SupportedParams)
+			}
+		}
+		if template.AcceptsImageInput || template.MaxInputImages != 0 {
+			t.Fatalf("%s input contract = accepts:%v max_images:%d, want no image input", id, template.AcceptsImageInput, template.MaxInputImages)
+		}
+	}
+
+	seedream40 := templates["volcengine:seedream-4-0"]
+	assertSeedreamReferenceImageTemplate(t, seedream40, []string{"1K", "2K", "4K"}, []string{"3K"}, true, false)
+
+	seedream45 := templates["volcengine:seedream-4-5"]
+	assertSeedreamReferenceImageTemplate(t, seedream45, []string{"2K", "4K"}, []string{"1K", "3K"}, false, false)
+
+	for _, id := range []string{"volcengine:seedream-5-0", "volcengine-ark:seedream-5-0"} {
+		template := templates[id]
+		assertSeedreamReferenceImageTemplate(t, template, []string{"2K", "3K", "4K"}, []string{"1K"}, true, true)
+	}
+
+	for _, id := range []string{"volcengine:seedream-5-0-lite", "volcengine-ark:seedream-5-0-lite"} {
+		template := templates[id]
+		assertSeedreamReferenceImageTemplate(t, template, []string{"2K", "3K", "4K"}, []string{"1K"}, false, true)
+	}
+}
+
 func TestCatalogTemplatesIncludeGPT52(t *testing.T) {
 	for _, template := range CatalogTemplates() {
 		if template.ID != "openai:gpt-5.2" {
@@ -946,6 +1087,28 @@ func TestValidateModelParamConfigRejectsBrokenContracts(t *testing.T) {
 	}
 }
 
+func TestValidateModelParamConfigValidatesTotalLimitSchema(t *testing.T) {
+	valid := `[
+		{"key":"image_count","label":"生成张数","type":"number","min":1,"max":15,"json_schema":{"x_movscript_total_limit":{"input_kind":"image","max_total":15,"output_param":"image_count","when_param":"sequential_image_generation","when_value":"auto"}}},
+		{"key":"sequential_image_generation","label":"组图","type":"select","options":["disabled","auto"]}
+	]`
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyImageGeneration}, valid); err != nil {
+		t.Fatalf("expected total limit schema to validate: %v", err)
+	}
+
+	invalids := []string{
+		`[{"key":"image_count","label":"生成张数","type":"number","json_schema":{"x_movscript_total_limit":{"input_kind":"audio","max_total":15}}}]`,
+		`[{"key":"image_count","label":"生成张数","type":"number","json_schema":{"x_movscript_total_limit":{"input_kind":"image","max_total":0}}}]`,
+		`[{"key":"image_count","label":"生成张数","type":"number","json_schema":{"x_movscript_total_limit":{"input_kind":"image","max_total":15,"when_param":"sequential_image_generation"}}}]`,
+		`[{"key":"image_count","label":"生成张数","type":"number","json_schema":{"x_movscript_total_limit":{"input_kind":"image","max_total":15,"unknown":true}}}]`,
+	}
+	for _, raw := range invalids {
+		if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityFamilyImageGeneration}, raw); err == nil {
+			t.Fatalf("expected invalid total limit schema to be rejected: %s", raw)
+		}
+	}
+}
+
 func TestModelParamProfilePrunesRulesForDeniedParams(t *testing.T) {
 	params, explicit := ResolveEffectiveParams(AdapterVolcen, []string{CapabilityFamilyVideoGeneration}, `{"allow":["duration"]}`)
 	if !explicit {
@@ -1396,6 +1559,87 @@ func TestDeclaredParamRulesValidateCombinations(t *testing.T) {
 	}
 }
 
+func TestValidateGenerationOutputCardinalityUsesTemplateTotalLimitRule(t *testing.T) {
+	def := &ModelDef{
+		ID:           "example:group-image",
+		Lab:          "example",
+		ModelID:      "example-group-image",
+		DisplayName:  "Example Group Image",
+		Capabilities: []string{CapabilityFamilyImageGeneration},
+		SupportedParams: []ParamDef{
+			{Key: "sequential_image_generation", Type: "select", Options: []string{"disabled", "auto"}},
+			{
+				Key:  "image_count",
+				Type: "number",
+				JSONSchema: map[string]any{
+					totalLimitSchemaKey: map[string]any{
+						"input_kind":   "image",
+						"max_total":    15,
+						"output_param": "image_count",
+						"when_param":   "sequential_image_generation",
+						"when_value":   "auto",
+					},
+				},
+			},
+		},
+		SupportedParamsExplicit: true,
+	}
+	params := map[string]any{
+		"sequential_image_generation": "auto",
+		"image_count":                 float64(4),
+	}
+	err := ValidateGenerationOutputCardinality(def, CapabilityFamilyImageGeneration, params, 12)
+	var validationErr *ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected ValidationError from template total limit, got %T %[1]v", err)
+	}
+	if validationErr.Field != "image_count" || validationErr.SuggestedFix["image_count"] != 3 {
+		t.Fatalf("unexpected template total limit error: %#v", validationErr)
+	}
+}
+
+func TestValidateGenerationOutputCardinalityLimitsSeedreamGroups(t *testing.T) {
+	def := &ModelDef{
+		ID:           "volcengine:seedream-5-0-lite",
+		Lab:          "seed",
+		ModelID:      "doubao-seedream-5-0-lite-260128",
+		DisplayName:  "Seedream 5.0 Lite 图像",
+		Capabilities: []string{CapabilityFamilyImageGeneration},
+	}
+	params := map[string]any{
+		"sequential_image_generation": "auto",
+		"image_count":                 float64(4),
+	}
+	err := ValidateGenerationOutputCardinality(def, CapabilityFamilyImageGeneration, params, 12)
+	var validationErr *ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected ValidationError for Seedream total image limit, got %T %[1]v", err)
+	}
+	if validationErr.Code != "INVALID_PARAMETER_COMBINATION" || validationErr.Field != "image_count" {
+		t.Fatalf("unexpected validation error: %#v", validationErr)
+	}
+	if validationErr.SuggestedFix["image_count"] != 3 {
+		t.Fatalf("expected image_count suggested fix of 3, got %#v", validationErr.SuggestedFix)
+	}
+}
+
+func TestValidateGenerationOutputCardinalityLeavesNonSeedreamModelsAlone(t *testing.T) {
+	def := &ModelDef{
+		ID:           "example:image-model",
+		Lab:          "example",
+		ModelID:      "example-image-model",
+		DisplayName:  "Example Image Model",
+		Capabilities: []string{CapabilityFamilyImageGeneration},
+	}
+	params := map[string]any{
+		"sequential_image_generation": "auto",
+		"image_count":                 4,
+	}
+	if err := ValidateGenerationOutputCardinality(def, CapabilityFamilyImageGeneration, params, 12); err != nil {
+		t.Fatalf("expected non-Seedream model to skip Seedream group limit: %v", err)
+	}
+}
+
 func TestExplicitSupportedParamsDoNotInheritLegacyCrossParamRules(t *testing.T) {
 	def := &ModelDef{
 		ID:           "declared-rules-without-conflict",
@@ -1532,6 +1776,107 @@ func findTemplateParam(params []ParamDef, key string) (ParamDef, bool) {
 		}
 	}
 	return ParamDef{}, false
+}
+
+func catalogTemplatesByIDForTest(templates []CatalogTemplate) map[string]CatalogTemplate {
+	out := make(map[string]CatalogTemplate, len(templates))
+	for _, template := range templates {
+		out[template.ID] = template
+	}
+	return out
+}
+
+func paramOptionsContain(param ParamDef, option string) bool {
+	for _, candidate := range param.Options {
+		if candidate == option {
+			return true
+		}
+	}
+	return false
+}
+
+func assertSeedreamReferenceImageTemplate(t *testing.T, template CatalogTemplate, wantSizes, forbiddenSizes []string, wantFastOptimize, wantOutputTools bool) {
+	t.Helper()
+	if template.ID == "" {
+		t.Fatal("missing Seedream image template")
+	}
+	for _, key := range []string{"image_size", "watermark", "sequential_image_generation", "image_count", "optimize_prompt_mode"} {
+		if !hasParam(template.SupportedParams, key) {
+			t.Fatalf("%s params missing %s: %#v", template.ID, key, template.SupportedParams)
+		}
+	}
+	for _, key := range []string{"seed", "prompt_strength", "response_format", "stream"} {
+		if hasParam(template.SupportedParams, key) {
+			t.Fatalf("%s params include unsupported %s: %#v", template.ID, key, template.SupportedParams)
+		}
+	}
+	if template.AcceptsImageInput != true || template.MaxInputImages != 14 {
+		t.Fatalf("%s input contract = accepts:%v max_images:%d, want 14 reference images", template.ID, template.AcceptsImageInput, template.MaxInputImages)
+	}
+
+	imageSize, ok := findTemplateParam(template.SupportedParams, "image_size")
+	if !ok {
+		t.Fatalf("%s missing image_size", template.ID)
+	}
+	for _, option := range wantSizes {
+		if !paramOptionsContain(imageSize, option) {
+			t.Fatalf("%s image_size = %#v, want %s", template.ID, imageSize.Options, option)
+		}
+	}
+	for _, option := range forbiddenSizes {
+		if paramOptionsContain(imageSize, option) {
+			t.Fatalf("%s image_size = %#v, must omit %s", template.ID, imageSize.Options, option)
+		}
+	}
+
+	optimize, ok := findTemplateParam(template.SupportedParams, "optimize_prompt_mode")
+	if !ok {
+		t.Fatalf("%s missing optimize_prompt_mode", template.ID)
+	}
+	if paramOptionsContain(optimize, "fast") != wantFastOptimize {
+		t.Fatalf("%s optimize_prompt_mode = %#v, fast support should be %v", template.ID, optimize.Options, wantFastOptimize)
+	}
+
+	imageCount, ok := findTemplateParam(template.SupportedParams, "image_count")
+	if !ok {
+		t.Fatalf("%s missing image_count", template.ID)
+	}
+	assertImageCountTotalLimit(t, template.ID, imageCount)
+
+	if hasParam(template.SupportedParams, "output_format") != wantOutputTools {
+		t.Fatalf("%s output_format support = %v, want %v", template.ID, hasParam(template.SupportedParams, "output_format"), wantOutputTools)
+	}
+	if hasParam(template.SupportedParams, "web_search") != wantOutputTools {
+		t.Fatalf("%s web_search support = %v, want %v", template.ID, hasParam(template.SupportedParams, "web_search"), wantOutputTools)
+	}
+	if wantOutputTools {
+		outputFormat, ok := findTemplateParam(template.SupportedParams, "output_format")
+		if !ok || !paramOptionsContain(outputFormat, "jpeg") || !paramOptionsContain(outputFormat, "png") {
+			t.Fatalf("%s output_format = %#v, want jpeg/png", template.ID, outputFormat)
+		}
+	}
+}
+
+func assertImageCountTotalLimit(t *testing.T, templateID string, param ParamDef) {
+	t.Helper()
+	raw, ok := param.JSONSchema[totalLimitSchemaKey]
+	if !ok {
+		t.Fatalf("%s image_count missing %s schema: %#v", templateID, totalLimitSchemaKey, param.JSONSchema)
+	}
+	rule, ok := raw.(map[string]any)
+	if !ok {
+		t.Fatalf("%s image_count %s = %#v, want object", templateID, totalLimitSchemaKey, raw)
+	}
+	maxTotal, ok := strictNumberValue(rule["max_total"])
+	if !ok || maxTotal != 15 {
+		t.Fatalf("%s image_count total limit = %#v, want 15", templateID, rule)
+	}
+	if rule["input_kind"] != "image" ||
+		rule["output_param"] != "image_count" ||
+		rule["when_param"] != "sequential_image_generation" ||
+		rule["when_value"] != "auto" {
+		t.Fatalf("%s image_count total limit rule = %#v", templateID, rule)
+	}
 }
 
 func intString(value int) string {

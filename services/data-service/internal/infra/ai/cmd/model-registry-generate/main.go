@@ -64,20 +64,21 @@ type comboRuleSource struct {
 }
 
 type templateSource struct {
-	Order                int            `yaml:"order,omitempty" json:"order,omitempty"`
-	ID                   string         `yaml:"id" json:"id"`
-	Lab                  string         `yaml:"lab" json:"lab"`
-	ModelID              string         `yaml:"model_id" json:"model_id"`
-	DisplayName          string         `yaml:"display_name" json:"display_name"`
-	RouteAdapterHint     string         `yaml:"route_adapter_hint,omitempty" json:"route_adapter_hint,omitempty"`
-	Capabilities         []string       `yaml:"capabilities" json:"capabilities"`
-	APIKinds             []string       `yaml:"api_kinds,omitempty" json:"api_kinds,omitempty"`
-	AllowModelIDOverride bool           `yaml:"allow_model_id_override,omitempty" json:"allow_model_id_override,omitempty"`
-	Input                inputSource    `yaml:"input,omitempty" json:"input,omitempty"`
-	InputImageField      string         `yaml:"input_image_field,omitempty" json:"input_image_field,omitempty"`
-	Video                videoSource    `yaml:"video,omitempty" json:"video,omitempty"`
-	Params               []paramSource  `yaml:"params,omitempty" json:"params,omitempty"`
-	Source               sourceEvidence `yaml:"source" json:"source"`
+	Order                 int            `yaml:"order,omitempty" json:"order,omitempty"`
+	ID                    string         `yaml:"id" json:"id"`
+	Lab                   string         `yaml:"lab" json:"lab"`
+	ModelID               string         `yaml:"model_id" json:"model_id"`
+	DisplayName           string         `yaml:"display_name" json:"display_name"`
+	RouteAdapterHint      string         `yaml:"route_adapter_hint,omitempty" json:"route_adapter_hint,omitempty"`
+	Capabilities          []string       `yaml:"capabilities" json:"capabilities"`
+	APIKinds              []string       `yaml:"api_kinds,omitempty" json:"api_kinds,omitempty"`
+	ModelCapabilitiesJSON map[string]any `yaml:"model_capabilities_json,omitempty" json:"model_capabilities_json,omitempty"`
+	AllowModelIDOverride  bool           `yaml:"allow_model_id_override,omitempty" json:"allow_model_id_override,omitempty"`
+	Input                 inputSource    `yaml:"input,omitempty" json:"input,omitempty"`
+	InputImageField       string         `yaml:"input_image_field,omitempty" json:"input_image_field,omitempty"`
+	Video                 videoSource    `yaml:"video,omitempty" json:"video,omitempty"`
+	Params                []paramSource  `yaml:"params,omitempty" json:"params,omitempty"`
+	Source                sourceEvidence `yaml:"source" json:"source"`
 }
 
 type inputSource struct {
@@ -114,14 +115,15 @@ type paramSource struct {
 }
 
 type snapshotEntry struct {
-	ID               string         `json:"id"`
-	Lab              string         `json:"lab"`
-	ModelID          string         `json:"model_id"`
-	RouteAdapterHint string         `json:"route_adapter_hint,omitempty"`
-	Capabilities     []string       `json:"capabilities"`
-	APIKinds         []string       `json:"api_kinds,omitempty"`
-	ParamKeys        []string       `json:"param_keys,omitempty"`
-	Source           sourceEvidence `json:"source"`
+	ID                    string         `json:"id"`
+	Lab                   string         `json:"lab"`
+	ModelID               string         `json:"model_id"`
+	RouteAdapterHint      string         `json:"route_adapter_hint,omitempty"`
+	Capabilities          []string       `json:"capabilities"`
+	APIKinds              []string       `json:"api_kinds,omitempty"`
+	ModelCapabilitiesJSON map[string]any `json:"model_capabilities_json,omitempty"`
+	ParamKeys             []string       `json:"param_keys,omitempty"`
+	Source                sourceEvidence `json:"source"`
 }
 
 func main() {
@@ -203,13 +205,14 @@ func bootstrapFromCurrent(sourceDir string) error {
 		lab := labForTemplateID(template.ID)
 		source := sourceForTemplate(template.ID, template.Capabilities, today)
 		grouped[lab] = append(grouped[lab], templateSource{
-			Order:            i + 1,
-			ID:               template.ID,
-			Lab:              lab,
-			ModelID:          template.ModelID,
-			DisplayName:      template.DisplayName,
-			RouteAdapterHint: template.RouteAdapterHint,
-			Capabilities:     append([]string(nil), template.Capabilities...),
+			Order:                 i + 1,
+			ID:                    template.ID,
+			Lab:                   lab,
+			ModelID:               template.ModelID,
+			DisplayName:           template.DisplayName,
+			RouteAdapterHint:      template.RouteAdapterHint,
+			Capabilities:          append([]string(nil), template.Capabilities...),
+			ModelCapabilitiesJSON: modelCapabilitiesMapFromJSONString(template.ModelCapabilitiesJSON),
 			Input: inputSource{
 				AcceptsImage: template.AcceptsImageInput,
 				MaxImages:    template.MaxInputImages,
@@ -316,6 +319,11 @@ func validateTemplates(templates []templateSource) error {
 		for _, capability := range template.Capabilities {
 			if !validCapability(capability) {
 				return fmt.Errorf("%s: unknown capability %q", template.ID, capability)
+			}
+		}
+		if len(template.ModelCapabilitiesJSON) > 0 {
+			if _, err := json.Marshal(template.ModelCapabilitiesJSON); err != nil {
+				return fmt.Errorf("%s: model_capabilities_json invalid: %w", template.ID, err)
 			}
 		}
 		for _, apiKind := range template.APIKinds {
@@ -666,6 +674,9 @@ func writeGeneratedGo(path string, templates []templateSource, check bool) error
 		writeGoStringField(&buf, "DisplayName", template.DisplayName)
 		writeGoStringSliceField(&buf, "Capabilities", template.Capabilities)
 		writeGoStringSliceField(&buf, "APIKinds", infraai.NormalizeModelAPIKinds(template.APIKinds))
+		if raw := templateModelCapabilitiesJSONString(template); raw != "" {
+			writeGoStringField(&buf, "ModelCapabilitiesJSON", raw)
+		}
 		writeGoStringField(&buf, "AdapterType", template.RouteAdapterHint)
 		writeGoStringField(&buf, "SourceStatus", template.Source.Status)
 		if template.Input.AcceptsImage {
@@ -721,14 +732,15 @@ func writeSnapshot(path string, templates []templateSource, check bool) error {
 			keys = append(keys, param.Key)
 		}
 		snapshot = append(snapshot, snapshotEntry{
-			ID:               template.ID,
-			Lab:              template.Lab,
-			ModelID:          template.ModelID,
-			RouteAdapterHint: template.RouteAdapterHint,
-			Capabilities:     template.Capabilities,
-			APIKinds:         infraai.NormalizeModelAPIKinds(template.APIKinds),
-			ParamKeys:        keys,
-			Source:           template.Source,
+			ID:                    template.ID,
+			Lab:                   template.Lab,
+			ModelID:               template.ModelID,
+			RouteAdapterHint:      template.RouteAdapterHint,
+			Capabilities:          template.Capabilities,
+			APIKinds:              infraai.NormalizeModelAPIKinds(template.APIKinds),
+			ModelCapabilitiesJSON: template.ModelCapabilitiesJSON,
+			ParamKeys:             keys,
+			Source:                template.Source,
 		})
 	}
 	raw, err := json.MarshalIndent(snapshot, "", "  ")
@@ -862,6 +874,29 @@ func writeGoMapField(buf *bytes.Buffer, field string, value map[string]any) {
 		panic(err)
 	}
 	fmt.Fprintf(buf, "\t\t%s: mustGeneratedProviderTemplateMap(%s),\n", field, strconv.Quote(string(raw)))
+}
+
+func templateModelCapabilitiesJSONString(template templateSource) string {
+	if len(template.ModelCapabilitiesJSON) == 0 {
+		return ""
+	}
+	raw, err := json.Marshal(template.ModelCapabilitiesJSON)
+	if err != nil {
+		panic(err)
+	}
+	return string(raw)
+}
+
+func modelCapabilitiesMapFromJSONString(raw string) map[string]any {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var value map[string]any
+	if err := json.Unmarshal([]byte(raw), &value); err != nil {
+		return nil
+	}
+	return value
 }
 
 func paramsToSource(params []infraai.ParamDef) []paramSource {

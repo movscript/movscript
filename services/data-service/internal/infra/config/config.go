@@ -57,12 +57,12 @@ type Config struct {
 	GiteaBranch                string
 	GiteaUserEmailDomain       string
 	GiteaUserTokenName         string
-	GitHubEnterpriseBaseURL    string
-	GitHubEnterpriseToken      string
-	GitHubEnterpriseOrgPrefix  string
-	GitHubEnterpriseRepo       string
-	GitHubEnterpriseRepoPrefix string
-	GitHubEnterpriseBranch     string
+	GitHubSelfHostedBaseURL    string
+	GitHubSelfHostedToken      string
+	GitHubSelfHostedOrgPrefix  string
+	GitHubSelfHostedRepo       string
+	GitHubSelfHostedRepoPrefix string
+	GitHubSelfHostedBranch     string
 	GitLabBaseURL              string
 	GitLabToken                string
 	GitLabOrgPrefix            string
@@ -109,8 +109,8 @@ type Config struct {
 	AIGatewayProvider  string
 	MeteringProvider   string
 
-	// Enterprise AI gateway and metering extension fields. Community builds keep
-	// them empty unless an edition hook populates them.
+	// Hosted AI gateway and metering extension fields. Community builds keep
+	// them empty unless an distribution profile hook populates them.
 	RelayGatewayBaseURL        string
 	RelayGatewayAdminToken     string
 	RelayGatewayAdminTokenFile string
@@ -251,12 +251,12 @@ func Load() *Config {
 		GiteaBranch:                getEnv("MOVSCRIPT_GITEA_BRANCH", "main"),
 		GiteaUserEmailDomain:       getEnv("MOVSCRIPT_GITEA_USER_EMAIL_DOMAIN", "users.movscript.local"),
 		GiteaUserTokenName:         getEnv("MOVSCRIPT_GITEA_USER_TOKEN_NAME", "movscript-desktop"),
-		GitHubEnterpriseBaseURL:    getEnv("MOVSCRIPT_GITHUB_ENTERPRISE_BASE_URL", ""),
-		GitHubEnterpriseToken:      getEnv("MOVSCRIPT_GITHUB_ENTERPRISE_TOKEN", ""),
-		GitHubEnterpriseOrgPrefix:  getEnv("MOVSCRIPT_GITHUB_ENTERPRISE_ORG_PREFIX", "movscript-org-"),
-		GitHubEnterpriseRepo:       getEnv("MOVSCRIPT_GITHUB_ENTERPRISE_REPO", ""),
-		GitHubEnterpriseRepoPrefix: getEnv("MOVSCRIPT_GITHUB_ENTERPRISE_REPO_PREFIX", "movscript-project-"),
-		GitHubEnterpriseBranch:     getEnv("MOVSCRIPT_GITHUB_ENTERPRISE_BRANCH", "main"),
+		GitHubSelfHostedBaseURL:    getEnv("MOVSCRIPT_GITHUB_SELF_HOSTED_BASE_URL", ""),
+		GitHubSelfHostedToken:      getEnv("MOVSCRIPT_GITHUB_SELF_HOSTED_TOKEN", ""),
+		GitHubSelfHostedOrgPrefix:  getEnv("MOVSCRIPT_GITHUB_SELF_HOSTED_ORG_PREFIX", "movscript-org-"),
+		GitHubSelfHostedRepo:       getEnv("MOVSCRIPT_GITHUB_SELF_HOSTED_REPO", ""),
+		GitHubSelfHostedRepoPrefix: getEnv("MOVSCRIPT_GITHUB_SELF_HOSTED_REPO_PREFIX", "movscript-project-"),
+		GitHubSelfHostedBranch:     getEnv("MOVSCRIPT_GITHUB_SELF_HOSTED_BRANCH", "main"),
 		GitLabBaseURL:              getEnv("MOVSCRIPT_GITLAB_BASE_URL", ""),
 		GitLabToken:                getEnv("MOVSCRIPT_GITLAB_TOKEN", ""),
 		GitLabOrgPrefix:            getEnv("MOVSCRIPT_GITLAB_ORG_PREFIX", "movscript-org-"),
@@ -300,7 +300,7 @@ func Load() *Config {
 		MinIOBucket:    getEnv("MINIO_BUCKET", "movscript"),
 		MinIOUseSSL:    getEnv("MINIO_USE_SSL", "false") == "true",
 	}
-	editionApplyLoadedConfig(cfg)
+	distributionProfileApplyLoadedConfig(cfg)
 	cfg.Dependencies = cfg.EffectiveDependencyProviders()
 	return cfg
 }
@@ -380,16 +380,16 @@ func (c *Config) ValidateStartup() error {
 	}
 	workspaceStorageBackend := normalizeWorkspaceStorageBackend(c.WorkspaceStorageBackend)
 	switch workspaceStorageBackend {
-	case "", "http", "gitea", providercontract.AdapterGitHubEnterprise, providercontract.AdapterGitLab:
+	case "", "http", "gitea", providercontract.AdapterGitHubSelfHosted, providercontract.AdapterGitLab:
 	default:
-		problems = append(problems, "MOVSCRIPT_WORKSPACE_STORAGE_BACKEND must be one of: http, gitea, github-enterprise, gitlab")
+		problems = append(problems, "MOVSCRIPT_WORKSPACE_STORAGE_BACKEND must be one of: http, gitea, github-self-hosted, gitlab")
 	}
-	if provider, ok := editionAIGatewayProvider(c); ok {
+	if provider, ok := distributionProfileAIGatewayProvider(c); ok {
 		c.AIGatewayProvider = provider
 	} else {
 		c.AIGatewayProvider = providercontract.AdapterLocal
 	}
-	problems = append(problems, editionValidateStartup(c)...)
+	problems = append(problems, distributionProfileValidateStartup(c)...)
 	if workspaceStorageBackend == "gitea" {
 		if c.GiteaBaseURL == "" {
 			problems = append(problems, "MOVSCRIPT_GITEA_BASE_URL is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=gitea")
@@ -421,21 +421,21 @@ func (c *Config) ValidateStartup() error {
 			problems = append(problems, "MOVSCRIPT_GIT_BINARY is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=http")
 		}
 	}
-	if workspaceStorageBackend == providercontract.AdapterGitHubEnterprise {
-		if c.GitHubEnterpriseBaseURL == "" {
-			problems = append(problems, "MOVSCRIPT_GITHUB_ENTERPRISE_BASE_URL is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=github-enterprise")
+	if workspaceStorageBackend == providercontract.AdapterGitHubSelfHosted {
+		if c.GitHubSelfHostedBaseURL == "" {
+			problems = append(problems, "MOVSCRIPT_GITHUB_SELF_HOSTED_BASE_URL is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=github-self-hosted")
 		}
-		if c.GitHubEnterpriseToken == "" {
-			problems = append(problems, "MOVSCRIPT_GITHUB_ENTERPRISE_TOKEN is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=github-enterprise")
+		if c.GitHubSelfHostedToken == "" {
+			problems = append(problems, "MOVSCRIPT_GITHUB_SELF_HOSTED_TOKEN is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=github-self-hosted")
 		}
-		if c.GitHubEnterpriseRepoPrefix == "" && c.GitHubEnterpriseRepo == "" {
-			problems = append(problems, "MOVSCRIPT_GITHUB_ENTERPRISE_REPO_PREFIX or MOVSCRIPT_GITHUB_ENTERPRISE_REPO is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=github-enterprise")
+		if c.GitHubSelfHostedRepoPrefix == "" && c.GitHubSelfHostedRepo == "" {
+			problems = append(problems, "MOVSCRIPT_GITHUB_SELF_HOSTED_REPO_PREFIX or MOVSCRIPT_GITHUB_SELF_HOSTED_REPO is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=github-self-hosted")
 		}
-		if c.GitHubEnterpriseBranch == "" {
-			problems = append(problems, "MOVSCRIPT_GITHUB_ENTERPRISE_BRANCH is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=github-enterprise")
+		if c.GitHubSelfHostedBranch == "" {
+			problems = append(problems, "MOVSCRIPT_GITHUB_SELF_HOSTED_BRANCH is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=github-self-hosted")
 		}
-		if c.GitHubEnterpriseOrgPrefix == "" {
-			problems = append(problems, "MOVSCRIPT_GITHUB_ENTERPRISE_ORG_PREFIX is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=github-enterprise")
+		if c.GitHubSelfHostedOrgPrefix == "" {
+			problems = append(problems, "MOVSCRIPT_GITHUB_SELF_HOSTED_ORG_PREFIX is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=github-self-hosted")
 		}
 	}
 	if workspaceStorageBackend == providercontract.AdapterGitLab {
@@ -542,7 +542,7 @@ func (c *Config) SafeSummary() map[string]any {
 		"git_http_root":                     c.GitHTTPRoot,
 		"git_binary":                        c.GitBinary,
 	}
-	for key, value := range editionSafeSummary(c) {
+	for key, value := range distributionProfileSafeSummary(c) {
 		summary[key] = value
 	}
 	return summary
@@ -569,7 +569,7 @@ func (c *Config) EffectiveDependencyProviders() DependencyProviders {
 		agentRuntime = defaultDependencyProviders(profile).AgentRuntime
 	}
 	aiGateway := providercontract.AdapterLocal
-	if provider, ok := editionAIGatewayProvider(c); ok {
+	if provider, ok := distributionProfileAIGatewayProvider(c); ok {
 		aiGateway = provider
 	}
 	return DependencyProviders{
@@ -686,7 +686,7 @@ func configuredBlobStorage(c *Config, adapter string) bool {
 }
 
 func configuredAIGateway(c *Config, adapter string) bool {
-	if configured, handled := editionConfiguredAIGateway(c, adapter); handled {
+	if configured, handled := distributionProfileConfiguredAIGateway(c, adapter); handled {
 		return configured
 	}
 	return strings.TrimSpace(adapter) != ""
@@ -702,8 +702,8 @@ func configuredWorkspaceRepository(c *Config, adapter string) bool {
 	case "gitea":
 		hasManagementCredential := strings.TrimSpace(c.GiteaToken) != "" || (strings.TrimSpace(c.GiteaAdminUsername) != "" && strings.TrimSpace(c.GiteaAdminPassword) != "")
 		return strings.TrimSpace(c.GiteaBaseURL) != "" && hasManagementCredential
-	case providercontract.AdapterGitHubEnterprise:
-		return strings.TrimSpace(c.GitHubEnterpriseBaseURL) != "" && strings.TrimSpace(c.GitHubEnterpriseToken) != ""
+	case providercontract.AdapterGitHubSelfHosted:
+		return strings.TrimSpace(c.GitHubSelfHostedBaseURL) != "" && strings.TrimSpace(c.GitHubSelfHostedToken) != ""
 	case providercontract.AdapterGitLab:
 		return strings.TrimSpace(c.GitLabBaseURL) != "" && strings.TrimSpace(c.GitLabToken) != ""
 	default:
@@ -777,7 +777,7 @@ func providerConfigFields(c *Config, providerType string, adapter string) []Prov
 	if c == nil {
 		c = &Config{}
 	}
-	if fields, handled := editionProviderConfigFields(c, providerType, adapter); handled {
+	if fields, handled := distributionProfileProviderConfigFields(c, providerType, adapter); handled {
 		return fields
 	}
 	switch providerType + ":" + strings.TrimSpace(adapter) {
@@ -812,12 +812,12 @@ func providerConfigFields(c *Config, providerType string, adapter string) []Prov
 			field("gitea_branch", false, strings.TrimSpace(c.GiteaBranch) != ""),
 			field("workspace_clone_url_strategy", false, strings.TrimSpace(c.WorkspaceCloneURLStrategy) != ""),
 		}
-	case providercontract.TypeWorkspaceRepository + ":" + providercontract.AdapterGitHubEnterprise:
+	case providercontract.TypeWorkspaceRepository + ":" + providercontract.AdapterGitHubSelfHosted:
 		return []ProviderConfigField{
-			field("github_enterprise_base_url", true, strings.TrimSpace(c.GitHubEnterpriseBaseURL) != ""),
-			field("github_enterprise_repo_prefix", false, strings.TrimSpace(c.GitHubEnterpriseRepoPrefix) != ""),
-			field("github_enterprise_org_prefix", false, strings.TrimSpace(c.GitHubEnterpriseOrgPrefix) != ""),
-			field("github_enterprise_branch", false, strings.TrimSpace(c.GitHubEnterpriseBranch) != ""),
+			field("github_self_hosted_base_url", true, strings.TrimSpace(c.GitHubSelfHostedBaseURL) != ""),
+			field("github_self_hosted_repo_prefix", false, strings.TrimSpace(c.GitHubSelfHostedRepoPrefix) != ""),
+			field("github_self_hosted_org_prefix", false, strings.TrimSpace(c.GitHubSelfHostedOrgPrefix) != ""),
+			field("github_self_hosted_branch", false, strings.TrimSpace(c.GitHubSelfHostedBranch) != ""),
 			field("workspace_clone_url_strategy", false, strings.TrimSpace(c.WorkspaceCloneURLStrategy) != ""),
 		}
 	case providercontract.TypeWorkspaceRepository + ":" + providercontract.AdapterGitLab:
@@ -861,7 +861,7 @@ func providerSecretFields(c *Config, providerType string, adapter string) []Prov
 	if c == nil {
 		c = &Config{}
 	}
-	if fields, handled := editionProviderSecretFields(c, providerType, adapter); handled {
+	if fields, handled := distributionProfileProviderSecretFields(c, providerType, adapter); handled {
 		return fields
 	}
 	switch providerType + ":" + strings.TrimSpace(adapter) {
@@ -877,8 +877,8 @@ func providerSecretFields(c *Config, providerType string, adapter string) []Prov
 			field("gitea_token", false, strings.TrimSpace(c.GiteaToken) != ""),
 			field("gitea_admin_password", false, strings.TrimSpace(c.GiteaAdminPassword) != ""),
 		}
-	case providercontract.TypeWorkspaceRepository + ":" + providercontract.AdapterGitHubEnterprise:
-		return []ProviderSecretField{field("github_enterprise_token", true, strings.TrimSpace(c.GitHubEnterpriseToken) != "")}
+	case providercontract.TypeWorkspaceRepository + ":" + providercontract.AdapterGitHubSelfHosted:
+		return []ProviderSecretField{field("github_self_hosted_token", true, strings.TrimSpace(c.GitHubSelfHostedToken) != "")}
 	case providercontract.TypeWorkspaceRepository + ":" + providercontract.AdapterGitLab:
 		return []ProviderSecretField{field("gitlab_token", true, strings.TrimSpace(c.GitLabToken) != "")}
 	case providercontract.TypeCache + ":" + providercontract.AdapterRedis:
@@ -895,7 +895,7 @@ func providerSecretFields(c *Config, providerType string, adapter string) []Prov
 }
 
 func defaultDeploymentMode(appMode string) string {
-	if mode, ok := editionDefaultDeploymentMode(appMode); ok {
+	if mode, ok := distributionProfileDefaultDeploymentMode(appMode); ok {
 		return mode
 	}
 	switch appMode {
@@ -927,7 +927,7 @@ func normalizeDependencyProfile(profile string) string {
 }
 
 func defaultDependencyProviders(profile string) DependencyProviders {
-	if providers, ok := editionDefaultDependencyProviders(profile); ok {
+	if providers, ok := distributionProfileDefaultDependencyProviders(profile); ok {
 		return providers
 	}
 	switch normalizeDependencyProfile(profile) {
@@ -974,9 +974,9 @@ func normalizeWorkspaceStorageBackend(backend string) string {
 	switch strings.TrimSpace(backend) {
 	case "git-http", "git-http-backend":
 		return "http"
-	case "github", "github-enterprise-server", "ghe":
-		return providercontract.AdapterGitHubEnterprise
-	case "gitlab-enterprise", "gitlab-self-hosted":
+	case "github", "github-self-hosted-server", "ghe":
+		return providercontract.AdapterGitHubSelfHosted
+	case "gitlab", "gitlab-self-hosted":
 		return providercontract.AdapterGitLab
 	default:
 		return strings.TrimSpace(backend)
@@ -1070,7 +1070,7 @@ func getEnvCSV(key string, fallback []string) []string {
 }
 
 func defaultCORSAllowedOrigins() []string {
-	return editionDefaultCORSAllowedOrigins([]string{
+	return distributionProfileDefaultCORSAllowedOrigins([]string{
 		"http://localhost:3001",
 		"http://127.0.0.1:3001",
 		"http://localhost:5173",

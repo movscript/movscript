@@ -1900,7 +1900,7 @@ test('generation tool dialogs declare model operation instead of inferring from 
   const modelSelectorSource = readFileSync(resolve('src/shared/ui/ModelSelector.tsx'), 'utf8')
 
   assertIncludes(dialogSource, 'modelOperation?: string')
-  assertIncludes(dialogSource, 'generationIntentForTool(outputType, modelOperation, attachments, inputSlots)')
+  assertIncludes(dialogSource, 'generationIntentForTool(outputType, modelOperation, attachments, inputSlots, referenceRoleOverrides)')
   assertIncludes(dialogSource, "capability: 'audio_generation'")
   assertIncludes(dialogSource, "return 'first_frame'")
   assertIncludes(dialogSource, "return 'last_frame'")

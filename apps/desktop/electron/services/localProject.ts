@@ -143,7 +143,7 @@ function projectImpacts(input: {
   if (!input.isDirectory) return ['路径已存在但不是文件夹']
   if (input.hasWorkspaceManifest) impacts.push('workspace.json 已存在，强制创建会改写项目身份文件')
   if (input.hasProjectFile) impacts.push('project.json 已存在，强制创建会改写项目标题/描述文件')
-  if (input.hasLocalConfig) impacts.push('.movscript/config.json 已存在，强制创建会改写本机后端绑定')
+  if (input.hasLocalConfig) impacts.push('.movscript/config.json 已存在，强制创建会改写本机 runtime 绑定')
   if (input.hasMovScriptDir && !input.hasLocalConfig) impacts.push('.movscript 目录已存在，可能包含本地项目配置')
   return impacts
 }

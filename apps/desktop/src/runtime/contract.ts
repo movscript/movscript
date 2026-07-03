@@ -28,4 +28,4 @@ export interface FrontendAppTopControlsMenuItem {
   to: string
 }
 
-export type FrontendRuntimeEdition = 'community' | 'enterprise'
+export type FrontendRuntimeDistributionProfile = 'default-local' | 'self-hosted' | 'custom'

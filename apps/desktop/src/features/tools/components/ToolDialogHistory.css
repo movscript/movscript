@@ -1,5 +1,9 @@
 .tool-dialog-history {
+  display: flex;
+  min-height: 0;
   min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
   margin-inline: auto;
   width: 100%;
   max-width: 46rem;
@@ -9,12 +13,20 @@
   max-height: min(48vh, 420px);
 }
 
-.tool-dialog-body--reference-workbench .tool-dialog-history-list {
+.tool-dialog-history--fixed-page {
+  max-height: none;
+  overflow: visible;
+}
+
+.tool-dialog-history-list.tool-dialog-history-list--grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(148px, 180px));
+  align-content: start;
   justify-content: start;
   gap: 8px;
+  flex: 0 0 auto;
   overflow: visible;
+  padding-right: 0;
 }
 
 .tool-dialog-history-grid-item {
@@ -96,6 +108,7 @@
 
 .tool-dialog-history-header {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: var(--ms-space-2);
   margin-bottom: 10px;
@@ -133,7 +146,12 @@
 
 .tool-dialog-history-list {
   display: grid;
+  min-height: 0;
+  flex: 1 1 auto;
   gap: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
 }
 
 .tool-dialog-history-list .generation-result-card {

@@ -234,6 +234,10 @@ type ModelDef struct {
 	SourceStatus string
 	APIKinds     []string
 
+	// ModelCapabilitiesJSON is the structured, model-level operation contract
+	// seeded from catalog templates. Runtime catalog entries may override it.
+	ModelCapabilitiesJSON string
+
 	// AllowModelIDOverride lets admins replace the ModelID (e.g. Volcengine ep-xxx endpoints).
 	AllowModelIDOverride bool
 
@@ -274,20 +278,21 @@ type ModelDef struct {
 // CatalogTemplate is a read-only admin UI template for quickly filling the add-model form.
 // Runtime routing and generation parameter controls never consult this list.
 type CatalogTemplate struct {
-	ID                   string     `json:"id"`
-	Lab                  string     `json:"lab"`
-	DefaultPublicModelID string     `json:"default_public_model_id"`
-	ModelID              string     `json:"model_id"`
-	DisplayName          string     `json:"display_name"`
-	Capabilities         []string   `json:"capabilities"`
-	RouteAdapterHint     string     `json:"route_adapter_hint,omitempty"`
-	SourceStatus         string     `json:"source_status,omitempty"`
-	APIKinds             []string   `json:"api_kinds,omitempty"`
-	AcceptsImageInput    bool       `json:"accepts_image_input"`
-	MaxInputImages       int        `json:"max_input_images"`
-	MaxInputVideos       int        `json:"max_input_videos"`
-	InputImageField      string     `json:"input_image_field,omitempty"`
-	SupportedParams      []ParamDef `json:"supported_params,omitempty"`
+	ID                    string     `json:"id"`
+	Lab                   string     `json:"lab"`
+	DefaultPublicModelID  string     `json:"default_public_model_id"`
+	ModelID               string     `json:"model_id"`
+	DisplayName           string     `json:"display_name"`
+	Capabilities          []string   `json:"capabilities"`
+	RouteAdapterHint      string     `json:"route_adapter_hint,omitempty"`
+	SourceStatus          string     `json:"source_status,omitempty"`
+	APIKinds              []string   `json:"api_kinds,omitempty"`
+	ModelCapabilitiesJSON string     `json:"model_capabilities_json,omitempty"`
+	AcceptsImageInput     bool       `json:"accepts_image_input"`
+	MaxInputImages        int        `json:"max_input_images"`
+	MaxInputVideos        int        `json:"max_input_videos"`
+	InputImageField       string     `json:"input_image_field,omitempty"`
+	SupportedParams       []ParamDef `json:"supported_params,omitempty"`
 }
 
 // CredField describes one credential input field for an adapter.
@@ -456,7 +461,8 @@ func volcenVideoParams() []ParamDef {
 		{Key: "service_tier", Label: "服务等级", Type: "select",
 			Options: []string{"default", "flex"}, Default: "default",
 			ConditionalEnum: []ParamConditionalEnum{{WhenParam: "workspace", WhenValue: true, Options: []string{"default"}}}},
-		{Key: "execution_expires_after", Label: "过期时间(秒)", Type: "number", Min: 1, Step: 1},
+		{Key: "execution_expires_after", Label: "过期时间(秒)", Type: "number", Default: 172800, Min: 3600, Max: 259200, Step: 60},
+		{Key: "priority", Label: "优先级", Type: "number", Default: 0, Min: 0, Max: 9, Step: 1},
 		{Key: "workspace", Label: "样片模式", Type: "boolean", Default: false},
 		{Key: "web_search", Label: "联网搜索", Type: "boolean", Default: false},
 	}
@@ -1104,20 +1110,21 @@ func CatalogTemplates() []CatalogTemplate {
 	result := make([]CatalogTemplate, 0, len(catalogTemplateSources))
 	for _, def := range catalogTemplateSources {
 		result = append(result, CatalogTemplate{
-			ID:                   def.ID,
-			Lab:                  def.Lab,
-			DefaultPublicModelID: defaultPublicModelIDForTemplate(def),
-			ModelID:              def.ModelID,
-			DisplayName:          def.DisplayName,
-			Capabilities:         def.Capabilities,
-			RouteAdapterHint:     def.AdapterType,
-			SourceStatus:         def.SourceStatus,
-			APIKinds:             NormalizeModelAPIKinds(def.APIKinds),
-			AcceptsImageInput:    def.AcceptsImageInput,
-			MaxInputImages:       def.MaxInputImages,
-			MaxInputVideos:       def.MaxInputVideos,
-			InputImageField:      def.InputImageField,
-			SupportedParams:      NormalizeParamDefsForUI(cloneParamDefs(def.SupportedParams)),
+			ID:                    def.ID,
+			Lab:                   def.Lab,
+			DefaultPublicModelID:  defaultPublicModelIDForTemplate(def),
+			ModelID:               def.ModelID,
+			DisplayName:           def.DisplayName,
+			Capabilities:          def.Capabilities,
+			RouteAdapterHint:      def.AdapterType,
+			SourceStatus:          def.SourceStatus,
+			APIKinds:              NormalizeModelAPIKinds(def.APIKinds),
+			ModelCapabilitiesJSON: def.ModelCapabilitiesJSON,
+			AcceptsImageInput:     def.AcceptsImageInput,
+			MaxInputImages:        def.MaxInputImages,
+			MaxInputVideos:        def.MaxInputVideos,
+			InputImageField:       def.InputImageField,
+			SupportedParams:       NormalizeParamDefsForUI(cloneParamDefs(def.SupportedParams)),
 		})
 	}
 	return result
@@ -1914,6 +1921,7 @@ func ResolveModelDef(modelDefID, adapterType, customDisplayName, customCaps, cus
 	if customCaps != "" {
 		def.Capabilities = splitComma(customCaps)
 	}
+	def.ModelCapabilitiesJSON = strings.TrimSpace(customCapabilitiesJSON)
 	if len(def.Capabilities) == 0 {
 		def.Capabilities = []string{CapabilityFamilyTextGeneration}
 	}

@@ -73,6 +73,10 @@ function generationPreflightSignature(payload: Record<string, unknown> | null): 
   return rest
 }
 
+const toolDialogGenerationPreflightKeys = {
+  detail: (nodeType: string, signature: Record<string, unknown> | null) => ['generation-preflight', 'tool-dialog', nodeType, signature] as const,
+}
+
 function generationIntentForTool(
   outputType: ToolDialogDef['outputType'],
   operation: string | undefined,
@@ -267,7 +271,7 @@ export function ToolDialog({
   const [debugMode, setDebugMode] = useState(false)
   const [historyPage, setHistoryPage] = useState(1)
   const [generationDiagnostic, setGenerationDiagnostic] = useState<string | undefined>(undefined)
-  const historyPageSize = layout === 'reference-workbench' ? 6 : 10
+  const historyPageSize = layout === 'reference-workbench' || outputType === 'image' ? 6 : 10
   const historyCapability = generationCapabilityForTool(outputType, modelOperation, capability)
 
   const { data: resourcesData } = useQuery<RawResource[]>({
@@ -294,9 +298,9 @@ export function ToolDialog({
     }
     if (inputType === 'none') return []
     return [
-      { key: 'reference_images', label: t('tools.inputs.referenceImages', { defaultValue: '参考图片' }), type: 'image', required: false, maxCount: 0 },
-      { key: 'source_video', label: t('tools.inputs.sourceVideo', { defaultValue: '源视频' }), type: 'video', required: false, maxCount: 1 },
-      { key: 'source_audio', label: t('tools.inputs.sourceAudio', { defaultValue: '源音频' }), type: 'audio', required: false, maxCount: 1 },
+      { key: 'reference_images', label: t('tools.inputs.referenceImages', { defaultValue: '参考图片' }), type: 'image', required: false, maxCount: 9 },
+      { key: 'reference_video', label: t('tools.inputs.sourceVideo', { defaultValue: '源视频' }), type: 'video', required: false, maxCount: 3 },
+      { key: 'reference_audio', label: t('tools.inputs.sourceAudio', { defaultValue: '源音频' }), type: 'audio', required: false, maxCount: 3 },
     ]
   })()
 
@@ -525,7 +529,7 @@ export function ToolDialog({
     error: backendPreflightError,
     isFetching: backendPreflightFetching,
   } = useQuery<GenerationBackendPreflightResult>({
-    queryKey: ['generation-preflight', 'tool-dialog', _nodeType, generationPreflightKeyPayload],
+    queryKey: toolDialogGenerationPreflightKeys.detail(_nodeType, generationPreflightKeyPayload),
     enabled: localCanGenerate && Boolean(generationJobPayload),
     queryFn: () => api.post('/jobs/preflight', generationJobPayload).then((r) => r.data as GenerationBackendPreflightResult),
     retry: false,
@@ -591,6 +595,10 @@ export function ToolDialog({
 
   const renderMainPane = (resourcePaneController?: ReferenceWorkbenchPaneControl) => (
     <ToolDialogMain
+      className={[
+        showHistory ? 'tool-dialog-main--with-history' : undefined,
+        showHistory && outputType === 'image' ? 'tool-dialog-main--fixed-history' : undefined,
+      ].filter(Boolean).join(' ') || undefined}
       onDragOver={(event) => {
         if (!acceptResourceDropDragOver(event.dataTransfer)) return
         event.preventDefault()

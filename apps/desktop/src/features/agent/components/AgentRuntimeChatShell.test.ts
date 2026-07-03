@@ -80,6 +80,14 @@ test('agent runtime chat shell starts unscoped until a new thread selects worksp
   assert.match(loadDataSourceForNewThreadBlock, /\.\.\.\(input\.workspaceContext \? \{ workspaceContext: input\.workspaceContext \} : \{\}\)/)
 })
 
+test('project AI assistant panel does not subscribe while collapsed', () => {
+  const source = readFileSync(resolve('src/features/agent/components/ProjectAIAssistantPanel.tsx'), 'utf8')
+
+  assert.match(source, /aria-hidden=\{collapsed \? true : undefined\}/)
+  assert.match(source, /!\s*collapsed \? \([\s\S]*<AgentUnifiedChatShell/)
+  assert.doesNotMatch(source, /<AgentUnifiedChatShell[\s\S]*<\/AgentUnifiedChatShell>[\s\S]*!\s*collapsed \? \(/)
+})
+
 test('agent runtime chat shell scopes thread workspace keys and events by provider instance', () => {
   const provider = sdkProvider({
     id: 'studio-primary',

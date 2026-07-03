@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import {
   createScenarioApplicationRunner,
@@ -42,6 +42,9 @@ const DEFAULT_LOCAL_RUNTIME_LOG_RETAIN = 3
 export interface LocalRuntimeIdentity {
   pluginVersion?: string
   pluginRoot?: string
+  apiVersion?: string
+  minDaemonApiVersion?: string
+  bundleHash?: string
   runtimeVersion?: string
   runtimeRoot?: string
 }
@@ -431,12 +434,15 @@ function localRuntimeReadinessSummary(
   if (localRuntimeHasIdentityDetails(status) && !localRuntimeMatchesIdentity(status, options.identity)) {
     details.push(`identityMismatch=${JSON.stringify({
       expected: options.identity ?? {},
-      actual: {
-        pluginVersion: status.pluginVersion,
-        pluginRoot: status.pluginRoot,
-        runtimeVersion: status.runtimeVersion,
-        runtimeRoot: status.runtimeRoot,
-      },
+        actual: {
+          pluginVersion: status.pluginVersion,
+          pluginRoot: status.pluginRoot,
+          apiVersion: status.apiVersion,
+          minDaemonApiVersion: status.minDaemonApiVersion,
+          bundleHash: status.bundleHash,
+          runtimeVersion: status.runtimeVersion,
+          runtimeRoot: status.runtimeRoot,
+        },
     })}`)
   }
   if (!localRuntimeMatchesRequestedDataPlane(status, options.env)) {
@@ -453,6 +459,9 @@ function localRuntimeReadinessSummary(
 function localRuntimeHasIdentityDetails(status: Record<string, unknown>): boolean {
   return typeof status.pluginVersion === 'string'
     || typeof status.pluginRoot === 'string'
+    || typeof status.apiVersion === 'string'
+    || typeof status.minDaemonApiVersion === 'string'
+    || typeof status.bundleHash === 'string'
     || typeof status.runtimeVersion === 'string'
     || typeof status.runtimeRoot === 'string'
 }
@@ -467,6 +476,9 @@ function localRuntimeAppProbeDetails(app: RuntimeAppRecord | undefined): Record<
     pid: app.pid,
     pluginVersion: metadata.pluginVersion,
     pluginRoot: metadata.pluginRoot,
+    apiVersion: metadata.apiVersion,
+    minDaemonApiVersion: metadata.minDaemonApiVersion,
+    bundleHash: metadata.bundleHash,
     runtimeVersion: metadata.runtimeVersion,
     runtimeRoot: metadata.runtimeRoot,
     dataPlane: metadata.dataPlane,
@@ -481,10 +493,26 @@ export function localRuntimeMatchesIdentity(
 ): boolean {
   if (!identity) return true
   if (identity.pluginVersion && status.pluginVersion !== identity.pluginVersion) return false
-  if (identity.pluginRoot && status.pluginRoot !== identity.pluginRoot) return false
+  if (identity.pluginRoot && !localRuntimeSameIdentityPath(status.pluginRoot, identity.pluginRoot)) return false
+  if (identity.apiVersion && status.apiVersion !== identity.apiVersion) return false
+  if (identity.minDaemonApiVersion && status.minDaemonApiVersion !== identity.minDaemonApiVersion) return false
+  if (identity.bundleHash && status.bundleHash !== identity.bundleHash) return false
   if (identity.runtimeVersion && status.runtimeVersion !== identity.runtimeVersion) return false
-  if (identity.runtimeRoot && status.runtimeRoot !== identity.runtimeRoot) return false
+  if (identity.runtimeRoot && !localRuntimeSameIdentityPath(status.runtimeRoot, identity.runtimeRoot)) return false
   return true
+}
+
+function localRuntimeSameIdentityPath(actual: unknown, expected: string): boolean {
+  if (typeof actual !== 'string' || !actual.trim()) return false
+  return canonicalLocalRuntimeIdentityPath(actual) === canonicalLocalRuntimeIdentityPath(expected)
+}
+
+function canonicalLocalRuntimeIdentityPath(path: string): string {
+  try {
+    return realpathSync(path)
+  } catch {
+    return path
+  }
 }
 
 export function localRuntimeMatchesRequestedDataPlane(

@@ -1,6 +1,5 @@
 import { type ReactNode, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { projectSurfacePath } from '@movscript/project-surface/routes'
 import type { MovScriptContextEnvelope } from '@movscript/shared'
 import { movScriptContextProjectCwd, movScriptContextProjectKey } from '@movscript/shared'
 import {
@@ -12,16 +11,33 @@ import {
   createHostedProjectSurfaceRuntime,
   projectSurfaceContextCommandEnvelope,
   type ProjectSurfaceGitAction,
-  type ProjectSurfaceRouteKey,
-  type ProjectSurfaceRouteParams,
+  type ProjectSurfaceRemotionStudioSession,
+  type ProjectSurfaceRemotionStudioSessionLogs,
   type ProjectSurfaceRuntime,
   unwrapProjectSurfaceGatewayResult,
 } from '@movscript/project-surface/runtime'
 
-import { ROUTES } from '@/routes/projectRoutes'
+import {
+  desktopRemotionStudioShellBinding,
+  desktopRemotionStudioShellFinishedBeforeReady,
+  desktopRemotionStudioShellWorkspaceKey,
+  desktopProjectSurfaceHref,
+  desktopProjectSurfacePath,
+  desktopRemotionStudioSessionWithShell,
+  postDaemonGateway,
+  projectSurfaceRemotionStudioSessionFromRecord,
+  projectSurfaceRemotionStudioSessionLogsFromRecord,
+  readBoolean,
+  readDesktopDaemonGatewayBaseURL,
+  readString,
+  recordValue,
+  resolveBackendGitRemoteURL,
+  rendererCommandValue,
+  shellLogEntriesFromText,
+  type DesktopRemotionStudioShellBinding,
+} from './desktopProjectSurfaceRuntimeModel'
 import { api } from '@/shared/infrastructure/api'
 import {
-  getAPIBaseURL,
   getRuntimeConfigSnapshot,
   refreshRuntimeConfigSnapshot,
 } from '@/shared/infrastructure/config'
@@ -30,6 +46,14 @@ import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { workspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
 import { toast } from '@movscript/ui/toast'
+import { createDesktopShellGateway } from '@/features/shell/application/desktopShellGateway'
+
+export {
+  desktopProjectSurfaceHref,
+  desktopProjectSurfacePath,
+  desktopRemotionStudioSessionWithShell,
+}
+export type { DesktopRemotionStudioShellBinding }
 
 const PROJECT_SERVICE_READ_MODEL_ENDPOINT = '/v1/project/read-model'
 const PROJECT_SERVICE_HOME_READ_MODEL_ENDPOINT = '/v1/project/home/read-model'
@@ -53,6 +77,37 @@ const REMOTION_STUDIO_SESSION_OPEN_ENDPOINT = '/v1/remotion-studio/sessions/open
 const REMOTION_STUDIO_SESSION_GET_ENDPOINT = '/v1/remotion-studio/sessions/get'
 const REMOTION_STUDIO_SESSION_LOGS_ENDPOINT = '/v1/remotion-studio/sessions/logs'
 const REMOTION_STUDIO_SESSION_STOP_ENDPOINT = '/v1/remotion-studio/sessions/stop'
+const desktopRemotionStudioShellSessions = new Map<string, DesktopRemotionStudioShellBinding>()
+const desktopRemotionStudioShellStartPromises = new Map<string, Promise<DesktopRemotionStudioShellBinding>>()
+
+function desktopRemotionStudioShellBindingKeys(sessionId?: string, workspaceKey?: string): string[] {
+  const keys: string[] = []
+  if (sessionId) keys.push(sessionId)
+  if (workspaceKey && workspaceKey !== sessionId) keys.push(workspaceKey)
+  return keys
+}
+
+function firstDesktopRemotionStudioShellMapValue<T>(map: Map<string, T>, keys: string[]): T | undefined {
+  for (const key of keys) {
+    const value = map.get(key)
+    if (value !== undefined) return value
+  }
+  return undefined
+}
+
+function setDesktopRemotionStudioShellMapValue<T>(map: Map<string, T>, keys: string[], value: T): void {
+  for (const key of keys) map.set(key, value)
+}
+
+function deleteDesktopRemotionStudioShellMapKeys<T>(map: Map<string, T>, keys: string[]): void {
+  for (const key of keys) map.delete(key)
+}
+
+function deleteDesktopRemotionStudioShellBinding(binding: DesktopRemotionStudioShellBinding): void {
+  for (const [key, value] of Array.from(desktopRemotionStudioShellSessions.entries())) {
+    if (value.shellSessionId === binding.shellSessionId) desktopRemotionStudioShellSessions.delete(key)
+  }
+}
 
 export interface DesktopProjectSurfaceProviderProps {
   children: ReactNode
@@ -127,12 +182,17 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
     enabled: Boolean(daemonGatewayBaseURL),
     staleTime: 5_000,
   })
-	  const contextEnvelope = contextQuery.data
-	  const contextProjectDir = movScriptContextProjectCwd(contextEnvelope)
-	  const contextProjectKey = movScriptContextProjectKey(contextEnvelope) ?? projectKey
-	  const contextProjectUid = contextEnvelope?.session?.project?.uid ?? project?.project_uid
+  const contextEnvelope = contextQuery.data
+  const contextProjectDir = movScriptContextProjectCwd(contextEnvelope)
+  const contextProjectKey = movScriptContextProjectKey(contextEnvelope) ?? projectKey
+  const contextProjectUid = contextEnvelope?.session?.project?.uid ?? project?.project_uid
 
   return useMemo(() => {
+    const shellGateway = createDesktopShellGateway({
+      projectId: contextProjectKey,
+      ...(contextProjectUid ? { projectUid: contextProjectUid } : {}),
+      ...(contextProjectDir ? { projectDir: contextProjectDir } : {}),
+    })
     const postProjectWorkspaceOperation = async (
       endpoint: string,
       input: { projectDir?: string; projectUid?: string; input?: unknown } = {},
@@ -160,6 +220,183 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
         },
       )
       return unwrapProjectSurfaceGatewayResult(payload)
+    }
+
+    const postRemotionStudioSessionOperation = async (endpoint: string, input: Record<string, unknown> = {}) => {
+      const latestConfig = await refreshRuntimeConfigSnapshot()
+      const daemonGatewayBaseURL = readDesktopDaemonGatewayBaseURL(latestConfig ?? runtimeConfig)
+      if (!daemonGatewayBaseURL) throw new Error('Daemon gateway endpoint is not available in Desktop runtime config.')
+      return postDaemonGateway(daemonGatewayBaseURL, endpoint, input)
+    }
+
+    const openDesktopRemotionStudioSession = async (input: Record<string, unknown> = {}): Promise<ProjectSurfaceRemotionStudioSession> => {
+      const forceRestart = readBoolean(input.restart) || readBoolean(input.forceRestart) || readBoolean(input.force_restart)
+      const sessionResult = recordValue(await postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_OPEN_ENDPOINT, {
+        ...input,
+        executionOwner: 'external_shell',
+        execution_owner: 'external_shell',
+      })) ?? {}
+      const sessionId = readString(sessionResult.sessionId ?? sessionResult.session_id)
+      const command = rendererCommandValue(sessionResult.command)
+      const commandText = readString(sessionResult.commandText ?? sessionResult.command_text)
+        ?? (Array.isArray(command) ? command.join(' ') : command)
+      const status = readString(sessionResult.status)
+      const projectDirectory = readString(sessionResult.projectDirectory ?? sessionResult.project_directory)
+      const previewUrl = readString(sessionResult.previewUrl ?? sessionResult.preview_url)
+      const workspaceShellKey = desktopRemotionStudioShellWorkspaceKey({
+        projectKey: contextProjectKey,
+        projectDirectory,
+        commandText,
+      })
+      const shellBindingKeys = desktopRemotionStudioShellBindingKeys(sessionId, workspaceShellKey)
+      const existingShellBinding = firstDesktopRemotionStudioShellMapValue(desktopRemotionStudioShellSessions, shellBindingKeys)
+      const pendingForceRestartShellBinding = forceRestart
+        ? firstDesktopRemotionStudioShellMapValue(desktopRemotionStudioShellStartPromises, shellBindingKeys)
+        : undefined
+      if (pendingForceRestartShellBinding) {
+        deleteDesktopRemotionStudioShellMapKeys(desktopRemotionStudioShellStartPromises, shellBindingKeys)
+        try {
+          const shellBinding = await pendingForceRestartShellBinding
+          await shellGateway.stop({ sessionId: shellBinding.shellSessionId })
+          deleteDesktopRemotionStudioShellBinding(shellBinding)
+        } catch {
+          // The pending shell failed before it could be stopped; the restart below will report its own result.
+        }
+      }
+      if (forceRestart && existingShellBinding) {
+        await shellGateway.stop({ sessionId: existingShellBinding.shellSessionId })
+        deleteDesktopRemotionStudioShellBinding(existingShellBinding)
+      }
+      const reusableShellBinding = !forceRestart
+        ? firstDesktopRemotionStudioShellMapValue(desktopRemotionStudioShellSessions, shellBindingKeys)
+        : undefined
+      if (reusableShellBinding) {
+        const reusableShellSession = await shellGateway.get({ sessionId: reusableShellBinding.shellSessionId })
+        if (desktopRemotionStudioShellFinishedBeforeReady(sessionResult, reusableShellSession)) {
+          deleteDesktopRemotionStudioShellBinding(reusableShellBinding)
+        } else {
+          setDesktopRemotionStudioShellMapValue(desktopRemotionStudioShellSessions, shellBindingKeys, reusableShellBinding)
+          return desktopRemotionStudioSessionWithShell(
+            sessionResult,
+            reusableShellBinding,
+            reusableShellSession,
+          )
+        }
+      }
+      const pendingShellBinding = !forceRestart
+        ? firstDesktopRemotionStudioShellMapValue(desktopRemotionStudioShellStartPromises, shellBindingKeys)
+        : undefined
+      if (pendingShellBinding) {
+        const shellBinding = await pendingShellBinding
+        const shellSession = await shellGateway.get({ sessionId: shellBinding.shellSessionId })
+        if (desktopRemotionStudioShellFinishedBeforeReady(sessionResult, shellSession)) {
+          deleteDesktopRemotionStudioShellBinding(shellBinding)
+        } else {
+          setDesktopRemotionStudioShellMapValue(desktopRemotionStudioShellSessions, shellBindingKeys, shellBinding)
+          return desktopRemotionStudioSessionWithShell(
+            sessionResult,
+            shellBinding,
+            shellSession,
+          )
+        }
+      }
+      if (commandText && (status === 'starting' || status === 'needs_external_shell')) {
+        let resolveShellBinding!: (binding: DesktopRemotionStudioShellBinding) => void
+        let rejectShellBinding!: (error: unknown) => void
+        const shellBindingPromise = new Promise<DesktopRemotionStudioShellBinding>((resolve, reject) => {
+          resolveShellBinding = resolve
+          rejectShellBinding = reject
+        })
+        if (shellBindingKeys.length > 0) {
+          setDesktopRemotionStudioShellMapValue(desktopRemotionStudioShellStartPromises, shellBindingKeys, shellBindingPromise)
+          void shellBindingPromise
+            .finally(() => deleteDesktopRemotionStudioShellMapKeys(desktopRemotionStudioShellStartPromises, shellBindingKeys))
+            .catch(() => undefined)
+        }
+        void (async () => {
+          try {
+            const shellSession = await shellGateway.run({
+              title: 'Remotion Studio',
+              owner: 'system',
+              scope: 'workspace',
+              ownerFeature: 'remotion_studio',
+              command: commandText,
+              ...(projectDirectory ? { cwd: projectDirectory } : {}),
+              ...(projectDirectory ? { projectDir: projectDirectory } : {}),
+              projectId: contextProjectKey,
+              ...(contextProjectUid ? { projectUid: contextProjectUid } : {}),
+              ...(previewUrl ? { previewUrl } : {}),
+              reveal: 'silent',
+            })
+            const shellBinding = desktopRemotionStudioShellBinding(shellSession)
+            setDesktopRemotionStudioShellMapValue(desktopRemotionStudioShellSessions, shellBindingKeys, shellBinding)
+            resolveShellBinding(shellBinding)
+          } catch (error) {
+            rejectShellBinding(error)
+          }
+        })()
+        const shellBinding = await shellBindingPromise
+        return desktopRemotionStudioSessionWithShell(
+          sessionResult,
+          shellBinding,
+          await shellGateway.get({ sessionId: shellBinding.shellSessionId }),
+        )
+      }
+      return projectSurfaceRemotionStudioSessionFromRecord(sessionResult)
+    }
+
+    const getDesktopRemotionStudioSession = async (input: Record<string, unknown> = {}): Promise<ProjectSurfaceRemotionStudioSession> => {
+      const session = recordValue(await postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_GET_ENDPOINT, input)) ?? {}
+      const sessionId = readString(session.sessionId ?? session.session_id)
+      const pendingShellBinding = sessionId ? desktopRemotionStudioShellStartPromises.get(sessionId) : undefined
+      if (pendingShellBinding) {
+        const shellBinding = await pendingShellBinding
+        return desktopRemotionStudioSessionWithShell(
+          session,
+          shellBinding,
+          await shellGateway.get({ sessionId: shellBinding.shellSessionId }),
+        )
+      }
+      const shellBinding = sessionId ? desktopRemotionStudioShellSessions.get(sessionId) : undefined
+      if (!shellBinding) return projectSurfaceRemotionStudioSessionFromRecord(session)
+      const shellSession = await shellGateway.get({ sessionId: shellBinding.shellSessionId })
+      if (desktopRemotionStudioShellFinishedBeforeReady(session, shellSession)) {
+        deleteDesktopRemotionStudioShellBinding(shellBinding)
+        return projectSurfaceRemotionStudioSessionFromRecord(session)
+      }
+      return desktopRemotionStudioSessionWithShell(session, shellBinding, shellSession)
+    }
+
+    const logsDesktopRemotionStudioSession = async (input: Record<string, unknown> = {}): Promise<ProjectSurfaceRemotionStudioSessionLogs> => {
+      const sessionId = readString(input.sessionId ?? input.session_id)
+      const shellBinding = sessionId ? desktopRemotionStudioShellSessions.get(sessionId) : undefined
+      if (shellBinding) {
+        const logs = await shellGateway.logs({ sessionId: shellBinding.shellSessionId })
+        return {
+          schema: 'movscript.remotion_studio_session_logs.v1',
+          sessionId: sessionId ?? '',
+          session_id: sessionId ?? '',
+          logs: shellLogEntriesFromText(logs.text),
+          shellSessionId: shellBinding.shellSessionId,
+          shell_session_id: shellBinding.shellSessionId,
+          ...(shellBinding.shellJobId ? { shellJobId: shellBinding.shellJobId, shell_job_id: shellBinding.shellJobId } : {}),
+        }
+      }
+      return projectSurfaceRemotionStudioSessionLogsFromRecord(
+        await postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_LOGS_ENDPOINT, input),
+      )
+    }
+
+    const stopDesktopRemotionStudioSession = async (input: Record<string, unknown> = {}): Promise<ProjectSurfaceRemotionStudioSession> => {
+      const sessionId = readString(input.sessionId ?? input.session_id)
+      const shellBinding = sessionId ? desktopRemotionStudioShellSessions.get(sessionId) : undefined
+      if (shellBinding) {
+        await shellGateway.stop({ sessionId: shellBinding.shellSessionId })
+        deleteDesktopRemotionStudioShellBinding(shellBinding)
+      }
+      if (sessionId) desktopRemotionStudioShellStartPromises.delete(sessionId)
+      const session = recordValue(await postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_STOP_ENDPOINT, input)) ?? {}
+      return shellBinding ? desktopRemotionStudioSessionWithShell(session, shellBinding) : projectSurfaceRemotionStudioSessionFromRecord(session)
     }
 
     const runProductionEditingOpenAction = async (
@@ -195,16 +432,12 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
         }
       }
       if (openActionKind === 'remotion_studio_session') {
-        const sessionResult = await postDaemonGateway(
-          daemonGatewayBaseURL,
-          REMOTION_STUDIO_SESSION_OPEN_ENDPOINT,
-          {
+        const sessionResult = await openDesktopRemotionStudioSession({
             openAction,
             open_action: openAction,
             projectId: String(input.projectId ?? contextProjectKey),
             project_id: String(input.projectId ?? contextProjectKey),
-          },
-        )
+        })
         return {
           ...resultRecord,
           open_action_result: sessionResult,
@@ -242,13 +475,6 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
       }
     }
 
-    const postRemotionStudioSessionOperation = async (endpoint: string, input: Record<string, unknown> = {}) => {
-      const latestConfig = await refreshRuntimeConfigSnapshot()
-      const daemonGatewayBaseURL = readDesktopDaemonGatewayBaseURL(latestConfig ?? runtimeConfig)
-      if (!daemonGatewayBaseURL) throw new Error('Daemon gateway endpoint is not available in Desktop runtime config.')
-      return postDaemonGateway(daemonGatewayBaseURL, endpoint, input)
-    }
-
     return createHostedProjectSurfaceRuntime({
       context: contextEnvelope,
 	      project: {
@@ -272,8 +498,9 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
         generation: true,
         editing: true,
         mediaPipeline: true,
+        shell: Boolean(readElectronApi()?.createDesktopShellHostSession),
       },
-	      href: (route, params, runtimeProject) => desktopProjectSurfaceHref(route, runtimeProject.projectId, params),
+      href: (route, params, runtimeProject) => desktopProjectSurfaceHref(route, runtimeProject.projectId, params),
       openHref: (href) => {
         window.location.assign(href)
       },
@@ -331,8 +558,8 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
               PROJECT_SERVICE_HOME_READ_MODEL_ENDPOINT,
               {
                 projectDir: nextProjectDir,
-	                projectKey: input.projectId ?? contextProjectKey,
-	                projectId: input.projectId ?? contextProjectKey,
+                projectKey: input.projectId ?? contextProjectKey,
+                projectId: input.projectId ?? contextProjectKey,
                 ...(nextProjectUid ? { projectUid: nextProjectUid } : {}),
                 ...projectSurfaceContextCommandEnvelope(contextEnvelope),
                 ...(decisionStore ? { decisionStore } : {}),
@@ -358,8 +585,8 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
               PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT,
               {
                 projectDir: nextProjectDir,
-	                projectKey: input.projectId ?? contextProjectKey,
-	                projectId: input.projectId ?? contextProjectKey,
+                projectKey: input.projectId ?? contextProjectKey,
+                projectId: input.projectId ?? contextProjectKey,
                 ...(nextProjectUid ? { projectUid: nextProjectUid } : {}),
                 ...projectSurfaceContextCommandEnvelope(contextEnvelope),
                 ...(decisionStore ? { decisionStore } : {}),
@@ -385,8 +612,8 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
               PROJECT_SERVICE_SCRIPTS_READ_MODEL_ENDPOINT,
               {
                 projectDir: nextProjectDir,
-	                projectKey: input.projectId ?? contextProjectKey,
-	                projectId: input.projectId ?? contextProjectKey,
+                projectKey: input.projectId ?? contextProjectKey,
+                projectId: input.projectId ?? contextProjectKey,
                 ...(nextProjectUid ? { projectUid: nextProjectUid } : {}),
                 ...projectSurfaceContextCommandEnvelope(contextEnvelope),
                 ...(decisionStore ? { decisionStore } : {}),
@@ -486,16 +713,17 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
           const response = await api.get<Record<string, unknown>>(`/projects/${project.ID}/workspace`)
           return {
             ...response.data,
-            gitRemoteUrl: resolveBackendGitRemoteURL(readString(response.data.gitRemoteUrl)),
+            gitRemoteUrl: resolveBackendGitRemoteURL(readString(response.data.gitRemoteUrl), daemonGatewayBaseURL),
           }
           },
         },
         remotionStudio: {
-          open: (input) => postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_OPEN_ENDPOINT, input),
-          get: (input) => postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_GET_ENDPOINT, input),
-          logs: (input) => postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_LOGS_ENDPOINT, input),
-          stop: (input) => postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_STOP_ENDPOINT, input),
+          open: openDesktopRemotionStudioSession,
+          get: getDesktopRemotionStudioSession,
+          logs: logsDesktopRemotionStudioSession,
+          stop: stopDesktopRemotionStudioSession,
         },
+        shell: shellGateway,
       },
     })
   }, [
@@ -509,8 +737,7 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
     owner,
     project,
     projectKey,
-    runtimeConfig?.gatewayBaseURL,
-    runtimeConfig?.apiBaseURL,
+    daemonGatewayBaseURL,
     workspaceRoot,
   ])
 }
@@ -594,34 +821,6 @@ export function useDesktopProjectReadModel() {
   }
 }
 
-export function desktopProjectSurfaceHref(
-  route: ProjectSurfaceRouteKey,
-  projectKey: string,
-  params?: ProjectSurfaceRouteParams,
-): string {
-  const pathname = desktopProjectSurfacePath(route, projectKey)
-  const query = new URLSearchParams()
-  for (const [key, value] of Object.entries(params ?? {})) {
-    if (value === undefined) continue
-    query.set(key, String(value))
-  }
-  const search = query.toString()
-  return search ? `${pathname}?${search}` : pathname
-}
-
-export function desktopProjectSurfacePath(route: ProjectSurfaceRouteKey, projectKey: string): string {
-  if (route === 'overview') return ROUTES.project.home
-  if (route === 'settings') return ROUTES.project.settings
-  if (route === 'scripts') return ROUTES.project.scripts
-  if (route === 'standards') return ROUTES.project.standards
-  if (route === 'content') return ROUTES.project.content
-  if (route === 'contentCanvas') return ROUTES.project.contentCanvas
-  if (route === 'contentPreview') return ROUTES.project.contentPreview
-  if (route === 'remotionStudio') return ROUTES.project.remotionStudio
-  if (route === 'settingPreview') return ROUTES.project.settingPreview
-  return projectSurfacePath(route, projectKey)
-}
-
 async function runDesktopGitAction(
   action: ProjectSurfaceGitAction,
   input: { projectDir: string; projectId?: number | string; remoteURL?: string },
@@ -632,63 +831,4 @@ async function runDesktopGitAction(
   if (action === 'commit') return electronApi?.commitProjectGitWorkspace?.(input)
   if (action === 'pull') return electronApi?.pullProjectGitWorkspace?.(input)
   return electronApi?.pushProjectGitWorkspace?.(input)
-}
-
-async function postDaemonGateway(
-  baseURL: string,
-  path: string,
-  body: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
-  const response = await fetch(`${baseURL.replace(/\/+$/, '')}${path}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  const payload = await response.json().catch(() => ({}))
-  if (!response.ok) {
-    const message = readString(recordValue(payload)?.message)
-      ?? readString(recordValue(payload)?.error)
-      ?? `Daemon gateway request failed with HTTP ${response.status}.`
-    throw new Error(message)
-  }
-  return recordValue(payload) ?? {}
-}
-
-function readDesktopDaemonGatewayBaseURL(
-  config: {
-    runtimeConnection?: { gatewayBaseURL?: string }
-    runtime?: { gateway?: { baseURL?: string } }
-    gatewayBaseURL?: string
-    apiBaseURL?: string
-  } | null | undefined,
-): string | undefined {
-  return config?.runtimeConnection?.gatewayBaseURL
-    ?? config?.runtime?.gateway?.baseURL
-    ?? config?.gatewayBaseURL
-    ?? config?.apiBaseURL
-}
-
-function resolveBackendGitRemoteURL(value: string | undefined): string | undefined {
-  const remoteURL = value?.trim()
-  if (!remoteURL) return undefined
-  if (/^[a-z][a-z\d+.-]*:\/\//i.test(remoteURL) || remoteURL.startsWith('file://')) return remoteURL
-  if (!remoteURL.startsWith('/')) return remoteURL
-  return `${getAPIBaseURL()}${remoteURL}`
-}
-
-function recordValue(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined
-}
-
-function readString(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined
-}
-
-function rendererCommandValue(value: unknown): string | string[] | undefined {
-  if (typeof value === 'string') return value.trim() ? value.trim() : undefined
-  if (!Array.isArray(value)) return undefined
-  const items = value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
-  return items.length > 0 ? items : undefined
 }

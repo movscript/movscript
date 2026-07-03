@@ -55,18 +55,20 @@ export function ProjectAIAssistantPanel({
       aria-label="AI 会话面板"
       aria-hidden={collapsed ? true : undefined}
     >
-      <AgentUnifiedChatShell
-        userId={userId}
-        currentProject={project}
-        conversationFocusScope={conversationFocusScope}
-        composerWorkspaceContextLocked
-        hideComposerWorkspaceProjectSelector
-        emptyThreadLabel={project?.name ? `${project.name}` : '我们做些什么'}
-        onCollapse={() => onCollapsedChange?.(true)}
-        showCollapse={false}
-        host="dock-panel"
-        surface="panel"
-      />
+      {!collapsed ? (
+        <AgentUnifiedChatShell
+          userId={userId}
+          currentProject={project}
+          conversationFocusScope={conversationFocusScope}
+          composerWorkspaceContextLocked
+          hideComposerWorkspaceProjectSelector
+          emptyThreadLabel={project?.name ? `${project.name}` : '我们做些什么'}
+          onCollapse={() => onCollapsedChange?.(true)}
+          showCollapse={false}
+          host="dock-panel"
+          surface="panel"
+        />
+      ) : null}
       {!collapsed ? (
         <AgentModeResizeHandle
           {...panelResize.resizeHandleProps}

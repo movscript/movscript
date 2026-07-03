@@ -126,7 +126,7 @@ func registerRegistryRoutes(v1 *gin.RouterGroup, h handlers) {
 	v1.GET("/registry/plugins/:id", h.registry.GetPlugin)
 	v1.GET("/registry/workflows", h.registry.ListWorkflows)
 	v1.GET("/registry/workflows/:id", h.registry.GetWorkflow)
-	registerEditionRegistryRoutes(v1, h)
+	registerDistributionProfileRegistryRoutes(v1, h)
 }
 
 func registerCanvasRoutes(protected *gin.RouterGroup, h handlers) {

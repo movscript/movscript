@@ -13,9 +13,9 @@ func registerRuntimeProtectedRoutes(protected *gin.RouterGroup, h handlers) {
 		runtime.DELETE("/sessions/:sessionId", h.agentRuntime.StopSession)
 		runtime.POST("/permissions/:requestId/decision", h.agentRuntime.PermissionDecision)
 	}
-	registerEditionRuntimeProtectedRoutes(protected, h)
+	registerDistributionProfileRuntimeProtectedRoutes(protected, h)
 }
 
 func registerRuntimeAdminRoutes(admin *gin.RouterGroup, h handlers) {
-	registerEditionRuntimeAdminRoutes(admin, h)
+	registerDistributionProfileRuntimeAdminRoutes(admin, h)
 }

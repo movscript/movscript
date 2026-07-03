@@ -30,7 +30,7 @@ func BuiltIns() []Descriptor {
 		{contract.TypeBlobStorage, contract.AdapterMinIO},
 		{contract.TypeWorkspaceRepository, contract.AdapterGitHTTP},
 		{contract.TypeWorkspaceRepository, contract.AdapterGitea},
-		{contract.TypeWorkspaceRepository, contract.AdapterGitHubEnterprise},
+		{contract.TypeWorkspaceRepository, contract.AdapterGitHubSelfHosted},
 		{contract.TypeWorkspaceRepository, contract.AdapterGitLab},
 		{contract.TypeAIGateway, contract.AdapterLocal},
 		{contract.TypeCache, contract.AdapterMemory},
@@ -47,7 +47,7 @@ func BuiltIns() []Descriptor {
 		{contract.TypeAgentRuntime, contract.AdapterRemoteAgentRuntime},
 		{contract.TypeAgentRuntime, contract.AdapterMova},
 	}
-	pairs = append(pairs, editionBuiltInProviders()...)
+	pairs = append(pairs, distributionProfileBuiltInProviders()...)
 	out := make([]Descriptor, 0, len(pairs))
 	for _, pair := range pairs {
 		out = append(out, BuiltIn(pair.providerType, pair.adapter))
@@ -58,7 +58,7 @@ func BuiltIns() []Descriptor {
 func BuiltIn(providerType string, adapter string) Descriptor {
 	providerType = strings.TrimSpace(providerType)
 	adapter = strings.TrimSpace(adapter)
-	if desc, ok := editionBuiltIn(providerType, adapter); ok {
+	if desc, ok := distributionProfileBuiltIn(providerType, adapter); ok {
 		return desc
 	}
 	return Descriptor{
@@ -94,8 +94,8 @@ func label(providerType string, adapter string) string {
 		return "Local Git HTTP"
 	case contract.TypeWorkspaceRepository + ":" + contract.AdapterGitea:
 		return "Gitea"
-	case contract.TypeWorkspaceRepository + ":" + contract.AdapterGitHubEnterprise:
-		return "GitHub Enterprise"
+	case contract.TypeWorkspaceRepository + ":" + contract.AdapterGitHubSelfHosted:
+		return "GitHub Self-hosted"
 	case contract.TypeWorkspaceRepository + ":" + contract.AdapterGitLab:
 		return "GitLab"
 	case contract.TypeAIGateway + ":" + contract.AdapterLocal:
@@ -149,7 +149,7 @@ func capabilities(providerType string, adapter string) []string {
 		return []string{"repository.ensure", "repository.clone_url", "repository.clone_url.strategy", "git.http_proxy"}
 	case contract.TypeWorkspaceRepository + ":" + contract.AdapterGitea:
 		return []string{"repository.ensure", "repository.user.ensure", "repository.collaborator.ensure", "repository.clone_url", "repository.clone_url.strategy", "git.http_proxy"}
-	case contract.TypeWorkspaceRepository + ":" + contract.AdapterGitHubEnterprise:
+	case contract.TypeWorkspaceRepository + ":" + contract.AdapterGitHubSelfHosted:
 		return []string{"repository.ensure", "repository.collaborator.ensure", "repository.access.probe", "repository.clone_url", "repository.clone_url.strategy", "git.http_proxy", "health.probe"}
 	case contract.TypeWorkspaceRepository + ":" + contract.AdapterGitLab:
 		return []string{"repository.ensure", "repository.collaborator.ensure", "repository.access.probe", "repository.clone_url", "repository.clone_url.strategy", "git.http_proxy", "health.probe"}

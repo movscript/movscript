@@ -1,16 +1,17 @@
 import assert from 'node:assert/strict'
 import { delimiter, resolve } from 'node:path'
 import test from 'node:test'
-import { localTerminalEnv } from './localTerminalEnv'
+import { desktopShellHostEnv } from './desktopShellHostEnv'
 
-test('localTerminalEnv injects data service auth and base URL for movscript CLI', () => {
+test('desktopShellHostEnv injects data service auth and base URL for movscript CLI', () => {
   const workspaceDir = resolve('/tmp/movscript-workspace')
   const projectDir = resolve(workspaceDir, 'projects/demo-film')
   const cliBinDir = resolve(workspaceDir, 'bin')
-  const env = localTerminalEnv({
+  const env = desktopShellHostEnv({
     inheritedEnv: {
       PATH: '/usr/bin',
     },
+    platform: 'darwin',
     workspaceDir,
     projectDir,
     userId: 'user_1',
@@ -37,14 +38,22 @@ test('localTerminalEnv injects data service auth and base URL for movscript CLI'
   assert.equal(env.MOVSCRIPT_DATA_SERVICE_URL, 'http://localhost:8765')
   assert.equal(env.MOVSCRIPT_DATA_SERVICE_TOKEN, 'backend-token')
   assert.equal(env.MOVSCRIPT_CLI_BIN_DIR, cliBinDir)
-  assert.equal(env.PATH, `${cliBinDir}${delimiter}/usr/bin`)
+  assert.equal(env.PATH, [
+    cliBinDir,
+    '/usr/bin',
+    '/opt/homebrew/bin',
+    '/usr/local/bin',
+    '/bin',
+    '/usr/sbin',
+    '/sbin',
+  ].join(delimiter))
   assert.equal(env.TERM, 'xterm-256color')
   assert.equal(env.COLORTERM, 'truecolor')
 })
 
-test('localTerminalEnv preserves inherited terminal settings and strips legacy backend env when data service session is anonymous', () => {
+test('desktopShellHostEnv preserves inherited terminal settings and strips legacy backend env when data service session is anonymous', () => {
   const workspaceDir = resolve('/tmp/movscript-workspace')
-  const env = localTerminalEnv({
+  const env = desktopShellHostEnv({
     inheritedEnv: {
       PATH: '/custom/bin',
       TERM: 'screen-256color',
@@ -53,6 +62,7 @@ test('localTerminalEnv preserves inherited terminal settings and strips legacy b
       MOVSCRIPT_BACKEND_AUTH_TOKEN: 'legacy-backend-token',
     },
     workspaceDir,
+    platform: 'darwin',
     resolveBackendSession: () => ({
       workspaceDir,
       baseURL: 'http://backend.internal:8765',
@@ -69,13 +79,21 @@ test('localTerminalEnv preserves inherited terminal settings and strips legacy b
   assert.equal(env.MOVSCRIPT_BACKEND_AUTH_TOKEN, undefined)
   assert.equal(env.TERM, 'screen-256color')
   assert.equal(env.COLORTERM, '24bit')
-  assert.equal(env.PATH, '/custom/bin')
+  assert.equal(env.PATH, [
+    '/custom/bin',
+    '/opt/homebrew/bin',
+    '/usr/local/bin',
+    '/usr/bin',
+    '/bin',
+    '/usr/sbin',
+    '/sbin',
+  ].join(delimiter))
 })
 
-test('localTerminalEnv preserves Windows Path key and delimiter', () => {
+test('desktopShellHostEnv preserves Windows Path key and delimiter', () => {
   const workspaceDir = 'C:\\Users\\me\\AppData\\Local\\MovScript\\Home'
   const cliBinDir = 'C:\\Users\\me\\AppData\\Local\\MovScript\\Home\\bin'
-  const env = localTerminalEnv({
+  const env = desktopShellHostEnv({
     inheritedEnv: {
       Path: 'C:\\Windows',
     },
@@ -92,7 +110,7 @@ test('localTerminalEnv preserves Windows Path key and delimiter', () => {
     resolveCliBinDir: () => cliBinDir,
   })
 
-  assert.equal(env.Path, `${cliBinDir};C:\\Windows`)
+  assert.equal(env.Path, `${cliBinDir};C:\\Windows;C:\\Windows\\System32;C:\\Windows\\System32\\Wbem`)
   assert.equal(env.PATH, undefined)
   assert.equal(env.MOVSCRIPT_WORKSPACE_DIR, workspaceDir)
 })

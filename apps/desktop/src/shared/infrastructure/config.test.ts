@@ -56,6 +56,17 @@ test('runtime config snapshot is the preferred API base URL source', () => {
     runtimeConnection: runtimeConnection('http://localhost:8766/', 'local'),
     runtime: runtimeDescriptor('http://localhost:8766/', 'local'),
     dataConnection: { kind: 'local', authMode: 'local-owner', status: 'connected' },
+    runtimeBundleStatus: {
+      action: 'upgrade',
+      reason: ' Desktop bundled runtime is newer. ',
+      homeCurrent: { version: '0.1.30', pluginRoot: ' /tmp/movscript-home/plugins/movscript/current ' },
+      desktopBundled: { version: '0.1.31', pluginRoot: ' /Applications/MovScript.app/Contents/Resources/provider-plugins/movscript ' },
+      comparison: {
+        kind: 'newer',
+        compatible: true,
+        reason: 'running bundle 0.1.31 is newer than Home current 0.1.30',
+      },
+    },
     apiBaseURL: 'http://localhost:8766/',
     apiV1BaseURL: 'http://localhost:8766/api/v1',
     workspaceDir: '/tmp/movscript-home',
@@ -74,6 +85,11 @@ test('runtime config snapshot is the preferred API base URL source', () => {
   assert.equal(getRuntimeDescriptor()?.gateway.canonicalPrefix, '/v1')
   assert.equal(getRuntimeDescriptor()?.gateway.baseURL, 'http://localhost:8766')
   assert.equal(getRuntimeDataConnection()?.kind, 'local')
+  assert.equal(getRuntimeConfigSnapshot()?.runtimeBundleStatus?.action, 'upgrade')
+  assert.equal(getRuntimeConfigSnapshot()?.runtimeBundleStatus?.reason, 'Desktop bundled runtime is newer.')
+  assert.equal(getRuntimeConfigSnapshot()?.runtimeBundleStatus?.homeCurrent?.pluginRoot, '/tmp/movscript-home/plugins/movscript/current')
+  assert.equal(getRuntimeConfigSnapshot()?.runtimeBundleStatus?.desktopBundled?.version, '0.1.31')
+  assert.equal(getRuntimeConfigSnapshot()?.runtimeBundleStatus?.comparison?.kind, 'newer')
   assert.deepEqual(getRuntimeConfigSnapshot()?.providerRuntimeEnv, {
     MOVSCRIPT_CODEX_RUNTIME_API: 'codex-sdk',
   })

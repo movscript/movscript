@@ -652,6 +652,10 @@ importers:
         version: 5.9.3
 
   packages/plugins:
+    dependencies:
+      '@movscript/runtime-contracts':
+        specifier: workspace:*
+        version: link:../runtime-contracts
     devDependencies:
       '@types/node':
         specifier: ^22.10.2

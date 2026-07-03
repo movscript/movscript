@@ -222,9 +222,9 @@ export const toolOperations: readonly ToolOperationDef[] = [
     useResourceWorkbench: true,
     showHistory: false,
     inputSlots: [
-      { key: 'reference_images', labelKey: 'tools.inputs.referenceImages', labelDefault: '参考图片', type: 'image', required: false, maxCount: 0 },
-      { key: 'reference_video', labelKey: 'tools.inputs.sourceVideo', labelDefault: '源视频', type: 'video', required: false, maxCount: 1 },
-      { key: 'reference_audio', labelKey: 'tools.inputs.sourceAudio', labelDefault: '源音频', type: 'audio', required: false, maxCount: 1 },
+      { key: 'reference_images', labelKey: 'tools.inputs.referenceImages', labelDefault: '参考图片', type: 'image', required: false, maxCount: 9 },
+      { key: 'reference_video', labelKey: 'tools.inputs.sourceVideo', labelDefault: '源视频', type: 'video', required: false, maxCount: 3 },
+      { key: 'reference_audio', labelKey: 'tools.inputs.sourceAudio', labelDefault: '源音频', type: 'audio', required: false, maxCount: 3 },
     ],
   },
   {

@@ -29,12 +29,12 @@ import {
   APP_SHELL_AGENT_SIDEBAR_PANE_ID,
   APP_SHELL_SETTINGS_SIDEBAR_PANE_ID,
   APP_SHELL_SETTINGS_SIDEBAR_WIDTH_STORAGE_KEY,
-  APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT,
-  APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY,
-  APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
-  APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
-  APP_SHELL_TERMINAL_DOCK_PANE_ID,
-  APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY,
+  APP_SHELL_SHELL_WORKBENCH_DOCK_DEFAULT_HEIGHT,
+  APP_SHELL_SHELL_WORKBENCH_DOCK_HEIGHT_STORAGE_KEY,
+  APP_SHELL_SHELL_WORKBENCH_DOCK_MAX_HEIGHT,
+  APP_SHELL_SHELL_WORKBENCH_DOCK_MIN_HEIGHT,
+  APP_SHELL_SHELL_WORKBENCH_DOCK_PANE_ID,
+  APP_SHELL_SHELL_WORKBENCH_DOCK_STATE_STORAGE_KEY,
   APP_SHELL_TOOL_SIDEBAR_PANE_ID,
   CONTENT_CANVAS_INSPECTOR_DEFAULT_WIDTH,
   CONTENT_CANVAS_INSPECTOR_MAX_WIDTH,
@@ -72,7 +72,10 @@ test('route layout panes delegate app shell pane specs to the app shell pane mod
   assert.match(routeAppShellPanesSource, /export const APP_SHELL_TOOL_PANES/)
   assert.match(routeAppShellPanesSource, /export const APP_SHELL_SETTINGS_PANES/)
   assert.match(routeAppShellPanesSource, /export const APP_SHELL_AGENT_PANES/)
-  assert.match(routeAppShellPanesSource, /const terminalDockPane/)
+  assert.match(routeAppShellPanesSource, /export const APP_SHELL_SHELL_WORKBENCH_DOCK_PANE/)
+  assert.match(routeAppShellPanesSource, /export function withShellWorkbenchDock/)
+  assert.doesNotMatch(routeAppShellPanesSource, /APP_SHELL_TOOL_PANES[\s\S]*terminalDockPane/)
+  assert.doesNotMatch(routeAppShellPanesSource, /APP_SHELL_SETTINGS_PANES[\s\S]*terminalDockPane/)
   assert.doesNotMatch(routeLayoutPanesSource, /export const APP_SHELL_TOOL_PANES: RouteLayoutPaneSpec/)
   assert.doesNotMatch(routeLayoutPanesSource, /export const APP_SHELL_AGENT_PANES: RouteLayoutPaneSpec/)
 })
@@ -229,8 +232,52 @@ test('registered route layout specs expose pane ownership for app shell surfaces
   assert.equal(projectRoute.surface, 'project')
   assert.ok(!projectRoute.panes.some((pane) => pane.id === APP_SHELL_TOOL_SIDEBAR_PANE_ID))
   assert.ok(!projectRoute.panes.some((pane) => pane.id === 'app-shell.assistant-dock'))
-  assert.ok(projectRoute.panes.some((pane) => pane.id === 'app-shell.terminal-dock' && pane.side === 'bottom'))
+  assert.ok(projectRoute.panes.some((pane) => pane.id === 'app-shell.shell-workbench-dock' && pane.side === 'bottom'))
   assert.ok(!projectRoute.panes.some((pane) => pane.owner === 'workbench'))
+  const remotionRoute = routeLayoutSpecForPathname('/project/remotion-studio')
+  const remotionShellWorkbenchPane = remotionRoute.panes.find((pane) => pane.id === APP_SHELL_SHELL_WORKBENCH_DOCK_PANE_ID)
+  assert.ok(remotionShellWorkbenchPane)
+  assert.equal(remotionShellWorkbenchPane.defaultState, 'hidden')
+  assert.equal(remotionShellWorkbenchPane.persistState, false)
+  assert.equal(remotionShellWorkbenchPane.stateStorageKey, undefined)
+  for (const neutralPathname of [
+    '/',
+    '/projects',
+    '/tools/image',
+    '/tools/video',
+    '/tools/audio',
+    '/tools/text',
+    '/tools/private-assets',
+    '/tools/plugin/example',
+    '/resources',
+    '/resources/external',
+    '/shot-library',
+    '/jobs',
+    '/app/settings',
+    '/user',
+    '/org/settings',
+    '/agent',
+    '/agent/settings',
+    '/agents/mova',
+    '/plugins',
+    '/model-providers',
+    '/agent/connections',
+    '/workspace/config',
+    '/workspace/review',
+    '/project/agent/canvases',
+    '/project/home',
+    '/project/standards',
+    '/project/settings',
+    '/project/content',
+    '/project/content/canvas',
+    '/project/content/preview',
+  ]) {
+    const neutralRoute = routeLayoutSpecForPathname(neutralPathname)
+    assert.ok(
+      !neutralRoute.panes.some((pane) => pane.id === APP_SHELL_SHELL_WORKBENCH_DOCK_PANE_ID),
+      `${neutralPathname} must not inherit the Shell Workbench dock pane`,
+    )
+  }
   const agentRoute = routeLayoutSpecForPathname('/project/agent')
   const agentSidebar = agentRoute.panes.find((pane) => pane.id === APP_SHELL_AGENT_SIDEBAR_PANE_ID)
   assert.equal(agentSidebar?.collapsedSize, 0)
@@ -245,12 +292,12 @@ test('registered route layout specs expose pane ownership for app shell surfaces
   assert.equal(agentContentPane?.defaultSize, AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH)
   assert.equal(agentContentPane?.storageKey, AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY)
   assert.equal(agentContentPane?.stateStorageKey, AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY)
-  const terminalPane = agentRoute.panes.find((pane) => pane.id === APP_SHELL_TERMINAL_DOCK_PANE_ID)
-  assert.equal(terminalPane?.defaultSize, APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT)
-  assert.equal(terminalPane?.minSize, APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT)
-  assert.equal(terminalPane?.maxSize, APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT)
-  assert.equal(terminalPane?.storageKey, APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY)
-  assert.equal(terminalPane?.stateStorageKey, APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY)
+  const shellWorkbenchPane = agentRoute.panes.find((pane) => pane.id === APP_SHELL_SHELL_WORKBENCH_DOCK_PANE_ID)
+  assert.equal(shellWorkbenchPane?.defaultSize, APP_SHELL_SHELL_WORKBENCH_DOCK_DEFAULT_HEIGHT)
+  assert.equal(shellWorkbenchPane?.minSize, APP_SHELL_SHELL_WORKBENCH_DOCK_MIN_HEIGHT)
+  assert.equal(shellWorkbenchPane?.maxSize, APP_SHELL_SHELL_WORKBENCH_DOCK_MAX_HEIGHT)
+  assert.equal(shellWorkbenchPane?.storageKey, APP_SHELL_SHELL_WORKBENCH_DOCK_HEIGHT_STORAGE_KEY)
+  assert.equal(shellWorkbenchPane?.stateStorageKey, APP_SHELL_SHELL_WORKBENCH_DOCK_STATE_STORAGE_KEY)
 
   const canvasRoute = routeLayoutSpecForPathname('/canvases/42')
   assert.ok(canvasRoute.panes.some((pane) => pane.id === 'canvas.palette-pane' && pane.owner === 'canvas'))

@@ -110,12 +110,43 @@
   padding: 18px;
 }
 
+.tool-dialog-main--with-history {
+  --tool-dialog-composer-row-min: 260px;
+  --tool-dialog-composer-row-max: min(48vh, 400px);
+  --tool-dialog-history-row-min: 140px;
+  grid-template-rows:
+    minmax(var(--tool-dialog-composer-row-min), var(--tool-dialog-composer-row-max))
+    minmax(var(--tool-dialog-history-row-min), 1fr);
+  align-content: stretch;
+}
+
+.tool-dialog-main--fixed-history {
+  grid-template-rows:
+    minmax(var(--tool-dialog-composer-row-min), var(--tool-dialog-composer-row-max))
+    max-content;
+  align-content: start;
+}
+
 .tool-dialog-body--reference-workbench .tool-dialog-main {
   grid-template-rows: max-content max-content;
   align-content: start;
   overflow-y: auto;
   padding: 22px var(--tool-dialog-main-inset) 28px;
   padding-inline-end: calc(var(--tool-dialog-main-inset) + var(--overlap-pane-reserve-inline-end, 0px));
+}
+
+.tool-dialog-body--reference-workbench .tool-dialog-main--with-history {
+  grid-template-rows:
+    minmax(var(--tool-dialog-composer-row-min), var(--tool-dialog-composer-row-max))
+    minmax(var(--tool-dialog-history-row-min), 1fr);
+  align-content: stretch;
+}
+
+.tool-dialog-body--reference-workbench .tool-dialog-main--fixed-history {
+  grid-template-rows:
+    minmax(var(--tool-dialog-composer-row-min), var(--tool-dialog-composer-row-max))
+    max-content;
+  align-content: start;
 }
 
 .tool-dialog-panel {
@@ -125,6 +156,17 @@
   min-width: 0;
   width: 100%;
   max-width: 46rem;
+}
+
+.tool-dialog-main--with-history > .tool-dialog-panel {
+  height: 100%;
+  overflow: hidden;
+}
+
+.tool-dialog-main--with-history .tool-dialog-panel__body {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .tool-dialog-body--reference-workbench .tool-dialog-panel,

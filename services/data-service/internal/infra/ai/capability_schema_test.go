@@ -119,6 +119,47 @@ func TestCapabilityJSONAllowsReferenceVideoWithoutRefsWhenMinZero(t *testing.T) 
 	}
 }
 
+func TestCapabilityJSONRejectsAudioOnlyReferenceWhenRuleDeclared(t *testing.T) {
+	raw := `{
+		"video_generation": {
+			"operations": ["reference_to_video"],
+			"reference_assets": {
+				"min": 0,
+				"max": 15,
+				"roles": ["reference_image", "reference_video", "reference_audio"],
+				"modalities": ["image", "video", "audio"]
+			},
+			"operation_slots": {
+				"reference_to_video": [
+					{"id": "reference_images", "max": 9, "roles": ["reference_image"], "media_types": ["image"]},
+					{"id": "reference_videos", "max": 3, "roles": ["reference_video"], "media_types": ["video"]},
+					{"id": "reference_audios", "max": 3, "roles": ["reference_audio"], "media_types": ["audio"]}
+				]
+			},
+			"operation_rules": {
+				"reference_to_video": [
+					{"id": "no_audio_only"}
+				]
+			}
+		}
+	}`
+
+	ok, reason := capabilityJSONSupportsIntent(raw, CapabilityFamilyVideoGeneration, VideoOperationReferenceToVideo, []RouteReferenceAssetIntent{
+		{Role: "reference_audio", MediaType: "audio"},
+	})
+	if ok || reason != "invalid_operation_inputs:audio_only_reference" {
+		t.Fatalf("audio-only reference supported = %v reason=%q, want audio-only rejection", ok, reason)
+	}
+
+	ok, reason = capabilityJSONSupportsIntent(raw, CapabilityFamilyVideoGeneration, VideoOperationReferenceToVideo, []RouteReferenceAssetIntent{
+		{Role: "reference_video", MediaType: "video"},
+		{Role: "reference_audio", MediaType: "audio"},
+	})
+	if !ok || reason != "" {
+		t.Fatalf("video+audio reference supported = %v reason=%q, want supported", ok, reason)
+	}
+}
+
 func TestCapabilityJSONOperationSlotsOverrideCoarseReferenceAssets(t *testing.T) {
 	raw := `{
 		"video_generation": {

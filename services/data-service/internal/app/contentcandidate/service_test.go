@@ -37,6 +37,7 @@ func TestGenerateCreatesScopedProjectDataCandidate(t *testing.T) {
 		DisplayName:           "Canvas Test Image",
 		Capabilities:          ai.CapabilityFamilyImageGeneration,
 		ModelCapabilitiesJSON: `{"image_generation":{"operations":["text_to_image"]}}`,
+		SupportedParams:       `{"version":2,"by_operation":{"text_to_image":{"add":[{"key":"test_param","label":"Test Param","type":"string"}]}}}`,
 		IsEnabled:             true,
 	}
 	if err := db.Create(&entry).Error; err != nil {
@@ -110,6 +111,57 @@ func TestGenerateCreatesScopedProjectDataCandidate(t *testing.T) {
 	}
 	if candidate.ID != "candidate_pending" || candidate.Status != "pending" || candidate.Producer.JobID != result.Job.ID {
 		t.Fatalf("project data candidate = %#v, want pending candidate for job %d", candidate, result.Job.ID)
+	}
+}
+
+func TestBuildCandidateIncludesMultipleResourceOutputs(t *testing.T) {
+	raw := BuildCandidate(CandidateBuildInput{
+		ContentUnitID:  "cu_asset_group",
+		CandidateID:    "candidate_group",
+		OutputKind:     "image",
+		Status:         "succeeded",
+		JobID:          77,
+		ModelID:        "seedream-5.0-lite",
+		JobType:        "image",
+		ResourceIDs:    []uint{101, 102, 103},
+		PromptSnapshot: json.RawMessage(`{"prompt":"storyboard triptych"}`),
+		CreatedAt:      time.Date(2026, 6, 21, 4, 30, 0, 0, time.UTC),
+	})
+
+	var candidate struct {
+		ID       string `json:"id"`
+		Status   string `json:"status"`
+		Producer struct {
+			OutputCount int `json:"output_count"`
+		} `json:"producer"`
+		Outputs []struct {
+			Kind       string `json:"kind"`
+			ResourceID uint   `json:"resource_id"`
+			Metadata   struct {
+				JobID       uint   `json:"job_id"`
+				GroupID     string `json:"group_id"`
+				GroupSize   int    `json:"group_size"`
+				OutputIndex int    `json:"output_index"`
+			} `json:"metadata"`
+		} `json:"outputs"`
+	}
+	if err := json.Unmarshal(raw, &candidate); err != nil {
+		t.Fatalf("decode candidate: %v", err)
+	}
+	if candidate.ID != "candidate_group" || candidate.Status != "succeeded" || candidate.Producer.OutputCount != 3 {
+		t.Fatalf("candidate header = %#v, want succeeded group candidate with output_count=3", candidate)
+	}
+	if len(candidate.Outputs) != 3 {
+		t.Fatalf("outputs count = %d, want 3", len(candidate.Outputs))
+	}
+	for index, output := range candidate.Outputs {
+		wantResourceID := uint(101 + index)
+		if output.Kind != "image" || output.ResourceID != wantResourceID {
+			t.Fatalf("output[%d] = %#v, want image resource %d", index, output, wantResourceID)
+		}
+		if output.Metadata.JobID != 77 || output.Metadata.GroupID != "job:77" || output.Metadata.GroupSize != 3 || output.Metadata.OutputIndex != index {
+			t.Fatalf("output[%d] metadata = %#v, want job group metadata", index, output.Metadata)
+		}
 	}
 }
 

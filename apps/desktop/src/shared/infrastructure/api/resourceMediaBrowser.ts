@@ -1,10 +1,10 @@
 import { resourceAuthCacheScopeKey } from '@movscript/core/resources'
 import { configureResourceMediaBrowser } from '@movscript/resource-surface/resource-media'
-import { getAPIBaseURL } from '@/shared/infrastructure/config'
+import { getDaemonGatewayBaseURL } from '@/shared/infrastructure/config'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 
 configureResourceMediaBrowser({
-  apiBaseURL: getAPIBaseURL,
+  gatewayBaseURL: getDaemonGatewayBaseURL,
   authCacheScope: () => {
     const { currentUser, currentOrgID, token } = useUserStore.getState()
     return resourceAuthCacheScopeKey({

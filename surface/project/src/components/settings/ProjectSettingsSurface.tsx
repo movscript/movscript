@@ -111,7 +111,7 @@ export function ProjectSettingsSurface() {
   return (
     <AgentSurfaceShell
       title="Settings"
-      description="Project runtime, endpoints, and local capability status."
+      description="Project runtime, gateway links, and local capability status."
       ready={Boolean(project.projectId)}
       chips={[
         `project: ${project.projectId}`,
@@ -176,7 +176,7 @@ export function ProjectSettingsSurface() {
             <div className="agent-surface-status">{errorMessage(gitStatusQuery.error)}</div>
           ) : null}
         </AgentSurfacePanel>
-        <AgentSurfacePanel title="Backend Data Space">
+        <AgentSurfacePanel title="Project Data Space">
           <AgentSurfaceKeyValues items={[
             ['Status', dataSpacesQuery.isLoading ? 'loading' : dataSpaceStatus],
             ['Scope', dataSpace?.scope_kind && dataSpace.scope_id ? `${dataSpace.scope_kind}:${dataSpace.scope_id}` : dataSpacesQuery.data?.scopeKind ? `${dataSpacesQuery.data.scopeKind}:${dataSpacesQuery.data.scopeId ?? 'unknown'}` : 'not configured'],
@@ -189,16 +189,16 @@ export function ProjectSettingsSurface() {
             <AgentSurfaceJson value={dataSpace} />
           ) : (
             <div className="agent-surface-status">
-              {project.projectUid ? 'No backend data space has been reported for this project UID yet.' : 'Project UID is required before backend data can be linked.'}
+              {project.projectUid ? 'No project data space has been reported for this project UID yet.' : 'Project UID is required before project data can be linked.'}
             </div>
           )}
         </AgentSurfacePanel>
-        <AgentSurfacePanel title="Services">
+        <AgentSurfacePanel title="Runtime Links">
           <AgentSurfaceKeyValues items={[
             ['Daemon Gateway', endpoints.gateway ?? 'not configured'],
             ['Editing', endpoints.editing ?? 'not configured'],
             ['Media Pipeline', endpoints.mediaPipeline ?? 'not configured'],
-            ['MCP API', endpoints.mcpApi ?? 'not configured'],
+            ['Agent Gateway', endpoints.mcpApi ?? 'not configured'],
           ]} />
         </AgentSurfacePanel>
         <AgentSurfacePanel title="Project Gateway">

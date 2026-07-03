@@ -70,32 +70,32 @@ func TestBuildWorkspaceRepositoryProviderUsesGitea(t *testing.T) {
 	}
 }
 
-func TestBuildWorkspaceRepositoryProviderUsesGitHubEnterprise(t *testing.T) {
+func TestBuildWorkspaceRepositoryProviderUsesGitHubSelfHosted(t *testing.T) {
 	cfg := &config.Config{
-		WorkspaceStorageBackend:    "github-enterprise",
-		GitHubEnterpriseBaseURL:    "https://github.example.com",
-		GitHubEnterpriseToken:      "token",
-		GitHubEnterpriseRepoPrefix: "gh-project-",
-		GitHubEnterpriseBranch:     "main",
-		GitHubEnterpriseOrgPrefix:  "gh-org-",
+		WorkspaceStorageBackend:    "github-self-hosted",
+		GitHubSelfHostedBaseURL:    "https://github.example.com",
+		GitHubSelfHostedToken:      "token",
+		GitHubSelfHostedRepoPrefix: "gh-project-",
+		GitHubSelfHostedBranch:     "main",
+		GitHubSelfHostedOrgPrefix:  "gh-org-",
 	}
 
 	provider := BuildWorkspaceRepositoryProvider(cfg)
 
-	if provider.Provider != projectrepoapp.ProviderGitHubEnterprise {
-		t.Fatalf("Provider = %q, want %q", provider.Provider, projectrepoapp.ProviderGitHubEnterprise)
+	if provider.Provider != projectrepoapp.ProviderGitHubSelfHosted {
+		t.Fatalf("Provider = %q, want %q", provider.Provider, projectrepoapp.ProviderGitHubSelfHosted)
 	}
 	if provider.Adapter == nil || provider.GitHubAdapter == nil {
-		t.Fatalf("GitHub Enterprise provider adapters not configured: %+v", provider)
+		t.Fatalf("GitHub Self-hosted provider adapters not configured: %+v", provider)
 	}
 	if provider.Config.RepoPrefix != "gh-project-" || provider.Config.OrgPrefix != "gh-org-" || provider.Config.DefaultBranch != "main" {
-		t.Fatalf("workspace repo config = %+v, want GitHub Enterprise settings", provider.Config)
+		t.Fatalf("workspace repo config = %+v, want GitHub Self-hosted settings", provider.Config)
 	}
-	if provider.GitHubBaseURL != cfg.GitHubEnterpriseBaseURL || provider.GitHubToken != cfg.GitHubEnterpriseToken {
-		t.Fatalf("GitHub Enterprise fields = baseURL %q token %q, want configured values", provider.GitHubBaseURL, provider.GitHubToken)
+	if provider.GitHubBaseURL != cfg.GitHubSelfHostedBaseURL || provider.GitHubToken != cfg.GitHubSelfHostedToken {
+		t.Fatalf("GitHub Self-hosted fields = baseURL %q token %q, want configured values", provider.GitHubBaseURL, provider.GitHubToken)
 	}
 	if provider.GiteaAdapter != nil || provider.GiteaBaseURL != "" || provider.GiteaToken != "" {
-		t.Fatalf("Gitea fields should be empty for GitHub Enterprise provider: %+v", provider)
+		t.Fatalf("Gitea fields should be empty for GitHub Self-hosted provider: %+v", provider)
 	}
 }
 
@@ -541,7 +541,7 @@ func TestStartupProviderInstanceTestsGiteaHealth(t *testing.T) {
 	}
 }
 
-func TestStartupProviderInstanceTestsGitHubEnterpriseHealth(t *testing.T) {
+func TestStartupProviderInstanceTestsGitHubSelfHostedHealth(t *testing.T) {
 	var sawUserProbe bool
 	originalTransport := http.DefaultTransport
 	http.DefaultTransport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -563,15 +563,15 @@ func TestStartupProviderInstanceTestsGitHubEnterpriseHealth(t *testing.T) {
 	})
 	cfg := &config.Config{
 		DependencyProfile:          "custom",
-		WorkspaceStorageBackend:    "github-enterprise",
-		GitHubEnterpriseBaseURL:    "https://github.example.com",
-		GitHubEnterpriseToken:      "admin-token",
-		GitHubEnterpriseRepoPrefix: "movscript-project-",
-		GitHubEnterpriseOrgPrefix:  "movscript-org-",
-		GitHubEnterpriseBranch:     "main",
+		WorkspaceStorageBackend:    "github-self-hosted",
+		GitHubSelfHostedBaseURL:    "https://github.example.com",
+		GitHubSelfHostedToken:      "admin-token",
+		GitHubSelfHostedRepoPrefix: "movscript-project-",
+		GitHubSelfHostedOrgPrefix:  "movscript-org-",
+		GitHubSelfHostedBranch:     "main",
 	}
 
-	result, err := TestStartupProviderInstance(context.Background(), cfg, "workspace_repository:github-enterprise")
+	result, err := TestStartupProviderInstance(context.Background(), cfg, "workspace_repository:github-self-hosted")
 	if err != nil {
 		t.Fatalf("TestStartupProviderInstance returned error: %v", err)
 	}
@@ -579,7 +579,7 @@ func TestStartupProviderInstanceTestsGitHubEnterpriseHealth(t *testing.T) {
 		t.Fatalf("TestStartupProviderInstance = %+v, want success", result)
 	}
 	if !sawUserProbe {
-		t.Fatal("expected GitHub Enterprise /api/v3/user probe")
+		t.Fatal("expected GitHub Self-hosted /api/v3/user probe")
 	}
 }
 

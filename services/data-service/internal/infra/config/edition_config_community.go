@@ -2,40 +2,40 @@
 
 package config
 
-func editionApplyLoadedConfig(_ *Config) {}
+func distributionProfileApplyLoadedConfig(_ *Config) {}
 
-func editionValidateStartup(_ *Config) []string {
+func distributionProfileValidateStartup(_ *Config) []string {
 	return nil
 }
 
-func editionSafeSummary(_ *Config) map[string]any {
+func distributionProfileSafeSummary(_ *Config) map[string]any {
 	return nil
 }
 
-func editionAIGatewayProvider(_ *Config) (string, bool) {
+func distributionProfileAIGatewayProvider(_ *Config) (string, bool) {
 	return "", false
 }
 
-func editionConfiguredAIGateway(_ *Config, _ string) (bool, bool) {
+func distributionProfileConfiguredAIGateway(_ *Config, _ string) (bool, bool) {
 	return false, false
 }
 
-func editionProviderConfigFields(_ *Config, _ string, _ string) ([]ProviderConfigField, bool) {
+func distributionProfileProviderConfigFields(_ *Config, _ string, _ string) ([]ProviderConfigField, bool) {
 	return nil, false
 }
 
-func editionProviderSecretFields(_ *Config, _ string, _ string) ([]ProviderSecretField, bool) {
+func distributionProfileProviderSecretFields(_ *Config, _ string, _ string) ([]ProviderSecretField, bool) {
 	return nil, false
 }
 
-func editionDefaultDeploymentMode(_ string) (string, bool) {
+func distributionProfileDefaultDeploymentMode(_ string) (string, bool) {
 	return "", false
 }
 
-func editionDefaultDependencyProviders(_ string) (DependencyProviders, bool) {
+func distributionProfileDefaultDependencyProviders(_ string) (DependencyProviders, bool) {
 	return DependencyProviders{}, false
 }
 
-func editionDefaultCORSAllowedOrigins(origins []string) []string {
+func distributionProfileDefaultCORSAllowedOrigins(origins []string) []string {
 	return origins
 }

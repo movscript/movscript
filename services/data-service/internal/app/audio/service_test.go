@@ -2,6 +2,7 @@ package audio
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -54,11 +55,13 @@ func TestAlignLoadsAudioResourceAndCallsSubtitleAlignModel(t *testing.T) {
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		Model:         gorm.Model{ID: 11},
-		PublicModelID: "logical-align",
-		DisplayName:   "Subtitle Align",
-		Capabilities:  ai.CapabilityFamilyAudioGeneration,
-		IsEnabled:     true,
+		Model:                 gorm.Model{ID: 11},
+		PublicModelID:         "logical-align",
+		DisplayName:           "Subtitle Align",
+		Capabilities:          ai.CapabilityFamilyAudioGeneration,
+		ModelCapabilitiesJSON: testAudioOperationCapabilitiesJSON(ai.AudioOperationForcedAlignment),
+		SupportedParams:       testAudioOperationSupportedParamsProfile(ai.AudioOperationForcedAlignment),
+		IsEnabled:             true,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -66,6 +69,7 @@ func TestAlignLoadsAudioResourceAndCallsSubtitleAlignModel(t *testing.T) {
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
 		CatalogEntryID:  entry.ID,
 		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		AdapterType:     cred.AdapterType,
 		CredentialID:    &cred.ID,
 		ProviderModelID: "align-provider-model",
 		IsEnabled:       true,
@@ -126,10 +130,12 @@ func TestResolveAudioRouteUsesCatalogEntryIDWithoutLegacyModelConfig(t *testing.
 		&persistencemodel.AIModelRouteBinding{},
 	)
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID: "voice-fast",
-		DisplayName:   "Voice Fast",
-		IsEnabled:     true,
-		Capabilities:  ai.CapabilityFamilyAudioGeneration,
+		PublicModelID:         "voice-fast",
+		DisplayName:           "Voice Fast",
+		IsEnabled:             true,
+		Capabilities:          ai.CapabilityFamilyAudioGeneration,
+		ModelCapabilitiesJSON: testAudioOperationCapabilitiesJSON(ai.AudioOperationTextToSpeech),
+		SupportedParams:       testAudioOperationSupportedParamsProfile(ai.AudioOperationTextToSpeech),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -138,6 +144,7 @@ func TestResolveAudioRouteUsesCatalogEntryIDWithoutLegacyModelConfig(t *testing.
 		CatalogEntryID:  entry.ID,
 		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
 		RouteGroup:      "priority",
+		AdapterType:     ai.AdapterOpenAICompat,
 		ProviderModelID: "provider-voice-v1",
 		IsEnabled:       true,
 		CapacityWeight:  1,
@@ -150,11 +157,19 @@ func TestResolveAudioRouteUsesCatalogEntryIDWithoutLegacyModelConfig(t *testing.
 
 	service := NewService(db, ai.NewAIService(db, ai.NewRegistry(db, nil)), nil)
 	ctx := ai.WithProviderRouteGroup(context.Background(), "priority")
-	route, err := service.resolveAudioRoute(ctx, 42, "voice-fast", ai.CapabilityFamilyAudioGeneration)
+	route, err := service.resolveAudioRoute(ctx, 42, "voice-fast", ai.AudioOperationTextToSpeech, ai.CapabilityFamilyAudioGeneration)
 	if err != nil {
 		t.Fatalf("resolveAudioRoute() error = %v", err)
 	}
 	if route.CatalogEntryID != entry.ID || route.ProviderModelID != "provider-voice-v1" || route.ModelID != "voice-fast" {
 		t.Fatalf("route = %#v, want catalog entry route", route)
 	}
+}
+
+func testAudioOperationCapabilitiesJSON(operation string) string {
+	return fmt.Sprintf(`{"audio_generation":{"operations":[%q]}}`, operation)
+}
+
+func testAudioOperationSupportedParamsProfile(operation string) string {
+	return fmt.Sprintf(`{"version":2,"by_operation":{%q:{"add":[{"key":"test_param","label":"Test Param","type":"string"}]}}}`, operation)
 }

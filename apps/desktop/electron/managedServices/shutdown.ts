@@ -1,6 +1,6 @@
 import { stopMCPServer } from '@movscript/mcp-host'
 import { stopBackend } from '../services/backend'
-import { localTerminalManager } from '../services/localTerminal'
+import { desktopShellHostManager } from '../services/desktopShellHost'
 import { broadcastBackendStatus } from './backendStatus'
 
 let shutdownCompleted = false
@@ -14,7 +14,7 @@ export async function shutdownManagedServices(): Promise<void> {
   if (shutdownPromise) return shutdownPromise
   shutdownPromise = (async () => {
     try {
-      localTerminalManager.stopAll()
+      desktopShellHostManager.stopAll()
       await stopMCPServer()
       await stopBackend(broadcastBackendStatus)
     } finally {

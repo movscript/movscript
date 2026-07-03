@@ -2,7 +2,7 @@
 
 package ai
 
-func normalizeEditionModelRouteBindingInput(input ModelRouteBindingInput) ModelRouteBindingInput {
+func normalizeDistributionProfileModelRouteBindingInput(input ModelRouteBindingInput) ModelRouteBindingInput {
 	return input
 }
 

@@ -7,6 +7,7 @@ import {
   PARAM_TEMPLATES,
   adapterParamsForOperation,
   emptyModelOperationParamProfile,
+  nextOperationBuilderParam,
   operationProfileParams,
   paramTemplateFor,
   parseModelOperationParamProfile,
@@ -74,10 +75,12 @@ export function CatalogParamBuilder({
   }
 
   function add() {
-    const unusedAdapterParam = adapterParams.find((param) => !activeParams.some((item) => item.key === param.key))
-    const next = unusedAdapterParam
-      ? { ...unusedAdapterParam }
-      : { ...PARAM_TEMPLATES.aspect_ratio, label: paramTemplateLabel('aspect_ratio', PARAM_TEMPLATES.aspect_ratio.label, t) }
+    const candidate = nextOperationBuilderParam(activeParams, adapterParams)
+    const template = paramTemplateFor(candidate.key)
+    const next = {
+      ...candidate,
+      label: template ? paramTemplateLabel(template.key, candidate.label || template.label, t) : candidate.label,
+    }
     updateParams([...activeParams, next])
   }
 

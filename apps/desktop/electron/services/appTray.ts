@@ -15,6 +15,8 @@ import {
 import { broadcastCrossPageNotification } from './crossPageNotifications'
 import { resolveAppIconPath, resolveNativeTrayHelperPath, resolveTrayIconPath } from '../appWindow/paths'
 import { writeDesktopState } from './desktopStateStore'
+import { getElectronRuntimeConfig } from './runtimeConfig'
+import type { ElectronRuntimeConfig } from '../../src/shared/contracts/electronApi'
 
 let tray: Tray | null = null
 let nativeTrayProcess: ChildProcess | null = null
@@ -174,6 +176,8 @@ function buildTrayMenuItems(): TrayMenuItemModel[] {
       label: trayLabel('打开 MovScript', 'Open MovScript'),
     },
     { type: 'separator' },
+    runtimeDescriptorMenuModel(),
+    { type: 'separator' },
     {
       label: trayLabel('内置 Agent 运行时', 'Built-in Agent runtimes'),
       submenu: TRAY_RUNTIME_AGENTS.map(runtimeAgentSubmenuModel),
@@ -196,6 +200,68 @@ function buildTrayMenuItems(): TrayMenuItemModel[] {
       label: trayLabel('退出 MovScript', 'Quit MovScript'),
     },
   ]
+}
+
+function runtimeDescriptorMenuModel(): TrayMenuItemModel {
+  try {
+    return {
+      label: trayLabel('MovScript Runtime', 'MovScript Runtime'),
+      submenu: runtimeDescriptorMenuItems(getElectronRuntimeConfig()),
+    }
+  } catch (error) {
+    return {
+      label: trayLabel('MovScript Runtime', 'MovScript Runtime'),
+      submenu: [{
+        label: `${trayLabel('Runtime 状态', 'Runtime status')}: ${errorMessage(error)}`,
+        enabled: false,
+      }],
+    }
+  }
+}
+
+function runtimeDescriptorMenuItems(runtimeConfig: ElectronRuntimeConfig): TrayMenuItemModel[] {
+  const runtime = runtimeConfig.runtime.runtime
+  const identity = runtime.identity
+  const pluginCurrentVersion = identity?.pluginVersion
+    ?? runtimeConfig.runtimeBundleStatus?.homeCurrent?.version
+    ?? '-'
+  const pluginCurrentRoot = identity?.pluginRoot
+    ?? runtimeConfig.runtimeBundleStatus?.homeCurrent?.pluginRoot
+    ?? '-'
+  return [
+    {
+      label: `${trayLabel('Runtime owner', 'Runtime owner')}: ${runtime.name ?? runtime.owner ?? '-'}`,
+      enabled: false,
+    },
+    {
+      label: `${trayLabel('Daemon status', 'Daemon status')}: ${runtimeDescriptorDaemonStatusLabel(runtimeConfig)}`,
+      enabled: false,
+    },
+    {
+      label: `${trayLabel('Data plane', 'Data plane')}: ${runtimeConfig.dataConnection.displayName ?? runtimeConfig.dataConnection.kind ?? '-'}`,
+      enabled: false,
+    },
+    {
+      label: `${trayLabel('Plugin current', 'Plugin current')}: ${pluginCurrentVersion}`,
+      enabled: false,
+    },
+    {
+      label: `${trayLabel('Plugin root', 'Plugin root')}: ${pluginCurrentRoot}`,
+      enabled: false,
+    },
+    {
+      label: `${trayLabel('Daemon gateway', 'Daemon gateway')}: ${runtimeConfig.runtimeConnection.gatewayBaseURL ?? runtimeConfig.runtime.gateway.baseURL ?? '-'}`,
+      enabled: false,
+    },
+  ]
+}
+
+function runtimeDescriptorDaemonStatusLabel(runtimeConfig: ElectronRuntimeConfig): string {
+  return [
+    runtimeConfig.runtimeConnection.mode,
+    runtimeConfig.runtimeConnection.status,
+    runtimeConfig.backendStatus.state,
+  ].filter(Boolean).join(' · ')
 }
 
 function toElectronMenuTemplate(items: TrayMenuItemModel[]): Electron.MenuItemConstructorOptions[] {
@@ -370,7 +436,12 @@ async function installCodexPluginFromTray(): Promise<void> {
       type: 'info',
       title: trayLabel('MovScript 插件已安装', 'MovScript plugin installed'),
       message: trayLabel('已为 Codex 安装 MovScript 插件。', 'MovScript plugin installed for Codex.'),
-      detail: `${trayLabel('安装来源', 'Installed from')} ${result.paths.marketplaceRoot}.\n${trayLabel('重启 Codex 或新建 Codex 线程后即可使用。', 'Restart Codex or start a new Codex thread to use it.')}`,
+      detail: [
+        `${trayLabel('Home', 'Home')}: ${result.paths.homeDir}`,
+        `${trayLabel('Current', 'Current')}: ${result.paths.homeCurrentPluginVersion} (${result.paths.homeCurrentPluginRoot})`,
+        `${trayLabel('Codex marketplace', 'Codex marketplace')}: ${result.paths.marketplaceRoot}`,
+        trayLabel('重启 Codex 或新建 Codex 线程后即可使用。', 'Restart Codex or start a new Codex thread to use it.'),
+      ].join('\n'),
       buttons: [trayLabel('确定', 'OK')],
     })
   } catch (error) {

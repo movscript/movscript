@@ -1,7 +1,9 @@
 import { expect, test, type Route } from '@playwright/test'
 import { Buffer } from 'node:buffer'
+import path from 'node:path'
 
 import { PROJECT_STANDARDS_WORKSPACE_WORKSPACE_SCHEMA } from '@movscript/project-surface/data'
+import { APP_SHELL_SHELL_WORKBENCH_DOCK_STATE_STORAGE_KEY } from '@/routes/routeLayoutRegistry'
 import { buildGenerationAppBootstrap } from './generationAppSeed'
 import { mockGenerationAppShell } from './generationAppShell'
 import { installE2EBootstrapSeed } from './e2eBootstrapSeed'
@@ -69,6 +71,11 @@ test('project workspace reaches project standards overview', async ({ page }, te
 test('project surface creates and opens production editing workspaces through Desktop gateway', async ({ page }, testInfo) => {
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('production editing workspace E2E requires a baseURL')
+  const visualQaScreenshotDir = process.env.MOVSCRIPT_VISUAL_QA_SCREENSHOT_DIR?.trim()
+  const visualQaViewport = process.env.MOVSCRIPT_VISUAL_QA_VIEWPORT?.trim()
+  if (visualQaViewport === 'mobile') {
+    await page.setViewportSize({ width: 390, height: 844 })
+  }
 
   const seed = buildGenerationAppBootstrap(String(baseURL))
   await installE2EBootstrapSeed(page, {
@@ -82,8 +89,12 @@ test('project surface creates and opens production editing workspaces through De
   })
   await mockGenerationAppShell(page)
   await installProjectSurfaceGatewayMock(page, String(baseURL))
-  const productionEditingCalls = await mockProductionEditingGateway(page)
+  await installDesktopShellHostE2EMock(page)
+  const productionEditingCalls = await mockProductionEditingGateway(page, String(baseURL))
   await mockProjectWorkspaceEntities(page)
+  await page.addInitScript((storageKey) => {
+    window.localStorage.setItem(storageKey, 'default')
+  }, APP_SHELL_SHELL_WORKBENCH_DOCK_STATE_STORAGE_KEY)
 
   await page.goto('/project/home')
 
@@ -93,15 +104,37 @@ test('project surface creates and opens production editing workspaces through De
 
   const editingDialog = page.getByRole('dialog', { name: 'E2E 制作 剪辑台' })
   await expect(editingDialog).toBeVisible()
+  await expect(editingDialog.locator('.project-production-editing-dialog__metrics')).toContainText('全部')
+  await expect(editingDialog.locator('.project-production-editing-dialog__metrics')).toContainText('系统剪辑')
+  await expect(editingDialog.locator('.project-production-editing-dialog__metrics')).toContainText('需刷新')
+  await expect(editingDialog.locator('.project-production-editing-dialog__section-head')).toContainText('工作台')
   await expect(editingDialog.getByText('E2E 制作 Remotion')).toBeVisible()
+  if (visualQaScreenshotDir) {
+    await page.screenshot({
+      path: path.join(visualQaScreenshotDir, `production-editing-dialog-${visualQaViewport || 'desktop'}.png`),
+      fullPage: false,
+    })
+  }
 
-  await editingDialog.getByRole('button', { name: '新建系统剪辑' }).click()
+  await editingDialog.getByRole('button', { name: /系统剪辑台/ }).click()
   await expect.poll(() => productionEditingCalls.create.map((call) => call.kind)).toContain('system_editing')
 
-  await editingDialog.getByRole('button', { name: '新建 Remotion' }).click()
+  await editingDialog.getByRole('button', { name: /Remotion Studio/ }).click()
   await expect.poll(() => productionEditingCalls.create.map((call) => call.kind)).toContain('remotion')
 
-  await editingDialog.getByRole('button', { name: '打开' }).click()
+  const remotionWorkspaceRow = editingDialog.locator('.project-production-editing-dialog__workspace-row').filter({ hasText: 'remotion-e2e' })
+  await expect(remotionWorkspaceRow).toHaveCount(1)
+  await expect(remotionWorkspaceRow).toContainText('工作目录')
+  await expect(remotionWorkspaceRow).toContainText('production-editing/remotion-e2e')
+  await expect(remotionWorkspaceRow).toContainText('入口')
+  await expect(remotionWorkspaceRow).toContainText('src/Root.tsx')
+  await expect(remotionWorkspaceRow).toContainText('合成')
+  await expect(remotionWorkspaceRow).toContainText('MovScriptRoughCut')
+  await expect(remotionWorkspaceRow).toContainText('启动')
+  await expect(remotionWorkspaceRow).toContainText('pnpm remotion studio')
+  await expect(remotionWorkspaceRow).toContainText('Remotion 预览工作台')
+  await expect(remotionWorkspaceRow).toContainText('已配置启动命令')
+  await remotionWorkspaceRow.getByRole('button', { name: '打开', exact: true }).click()
   await expect.poll(() => productionEditingCalls.open.map((call) => call.workspaceId ?? call.workspace_id)).toContain('remotion-e2e')
   await expect.poll(() => productionEditingCalls.remotionSessions.map((call) => {
     const openAction = call.openAction ?? call.open_action
@@ -110,10 +143,82 @@ test('project surface creates and opens production editing workspaces through De
   expect(productionEditingCalls.mediaTasks).toHaveLength(0)
   await expect(page).toHaveURL(/\/project\/remotion-studio\?/)
   await expect(page.getByRole('heading', { name: 'Remotion Studio' })).toBeVisible()
+  await expect(page.locator('.remotion-studio-surface__frame')).toBeVisible()
+  await expect(page.locator('.remotion-studio-surface__iframe')).toBeVisible()
+  await expect(page.getByRole('button', { name: /在 Shell 打开/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /复制预览地址/ })).toBeVisible()
+  await expect(page.locator('.shell-workbench-panel')).toHaveCount(0)
+  expect(productionEditingCalls.remotionSessions).toHaveLength(1)
+  await expect.poll(async () => (await desktopShellHostRunCalls(page)).length).toBe(1)
+  await expect.poll(() => desktopShellHostRunCalls(page).then((calls) => calls.map((call) => call.reveal))).toEqual(['silent'])
+  const statusStrip = page.locator('.remotion-studio-surface__status-strip')
+  await expect(statusStrip).toBeVisible()
+  await expect(statusStrip).toContainText('预览服务已返回')
+  const diagnosticsDrawer = page.locator('.remotion-studio-surface__diagnostics-drawer')
+  const diagnosticsPanel = page.locator('.remotion-studio-surface__diagnostics-panel')
+  await expect(diagnosticsDrawer).toBeVisible()
+  await expect(diagnosticsPanel).toBeHidden()
+  const remotionFrame = page.frameLocator('iframe[title="Remotion Studio"]')
+  await expect(remotionFrame.getByText('E2E Remotion Studio')).toBeVisible()
+  await expect(remotionFrame.getByText('MovScriptRoughCut')).toBeVisible()
+  const surfaceBox = await page.locator('.remotion-studio-surface').boundingBox()
+  const frameBox = await page.locator('.remotion-studio-surface__frame').boundingBox()
+  expect(surfaceBox).not.toBeNull()
+  expect(frameBox).not.toBeNull()
+  expect(frameBox!.height / surfaceBox!.height).toBeGreaterThan(0.86)
+  await diagnosticsDrawer.locator('summary').click()
+  await expect(diagnosticsPanel).toBeVisible()
+  const statusFacts = page.locator('.remotion-studio-surface__status-facts')
+  await expect(statusFacts).toContainText('预览地址')
+  await expect(statusFacts).toContainText('工作目录')
+  await expect(statusFacts).toContainText('嵌入页')
+  const diagnostics = page.locator('.remotion-studio-surface__diagnostics')
+  await expect(diagnostics).toContainText('会话')
+  await expect(diagnostics).toContainText('入口文件')
+  await expect(diagnostics).toContainText('嵌入状态')
+  await expect(diagnostics).toContainText('启动命令')
+  await expect(statusFacts).toContainText('已嵌入')
+  if (visualQaScreenshotDir) {
+    await page.getByText('剪辑台已创建').first().waitFor({ state: 'hidden', timeout: 6000 }).catch(() => undefined)
+    await page.screenshot({
+      path: path.join(visualQaScreenshotDir, `remotion-studio-surface-${visualQaViewport || 'desktop'}.png`),
+      fullPage: false,
+    })
+  }
+  await page.getByRole('button', { name: /在 Shell 打开/ }).click()
+  const shellWorkbench = page.locator('.shell-workbench-panel')
+  await expect(shellWorkbench).toBeVisible()
+  await expect(shellWorkbench).toContainText('Shell 会话')
+  await expect(shellWorkbench).toContainText('Remotion Studio')
+  await expect(shellWorkbench).toContainText('运行中')
+  await expect(shellWorkbench.getByRole('button', { name: /拆分 Shell/ })).toBeVisible()
+  await expect(shellWorkbench.getByRole('button', { name: /复制命令/ }).first()).toBeVisible()
+  await expect(shellWorkbench.getByRole('button', { name: /查看日志/ })).toBeVisible()
+  await expectShellWorkbenchToStayOpen(page)
+  if (visualQaScreenshotDir) {
+    await page.screenshot({
+      path: path.join(visualQaScreenshotDir, `remotion-studio-shell-workbench-${visualQaViewport || 'desktop'}.png`),
+      fullPage: false,
+    })
+  }
+  expect(productionEditingCalls.remotionSessions).toHaveLength(1)
+  await expect.poll(async () => (await desktopShellHostRunCalls(page)).length).toBe(1)
   expect(productionEditingCalls.remotionSessions[0]?.openAction).toMatchObject({
     backend: 'remotion',
     projectDirectory: '/tmp/movscript-e2e-production-editing/.movscript/production-editing/remotion-e2e',
   })
+
+  await page.reload()
+  await expect(page).toHaveURL(/\/project\/remotion-studio\?/)
+  await expect(page.getByRole('heading', { name: 'Remotion Studio' })).toBeVisible()
+  const rehydratedShellWorkbench = page.locator('.shell-workbench-panel')
+  await expect(rehydratedShellWorkbench).toHaveCount(0)
+  await page.getByRole('button', { name: /在 Shell 打开/ }).click()
+  await expect(rehydratedShellWorkbench).toBeVisible()
+  await expect(rehydratedShellWorkbench).toContainText('Remotion Studio')
+  await expect(rehydratedShellWorkbench).toContainText('运行中')
+  await expect.poll(async () => (await desktopShellHostRunCalls(page)).length).toBe(1)
+  await expectShellWorkbenchToStayOpen(page)
 })
 
 test('project content workspace renders dedicated preview and prompt canvas pages', async ({ page }, testInfo) => {
@@ -432,7 +537,200 @@ async function installProjectSurfaceGatewayMock(page: Parameters<typeof mockGene
   }, { gatewayBaseURL })
 }
 
-async function mockProductionEditingGateway(page: Parameters<typeof mockGenerationAppShell>[0]) {
+async function installDesktopShellHostE2EMock(page: Parameters<typeof mockGenerationAppShell>[0]) {
+  await page.addInitScript(() => {
+    const sessionsStorageKey = 'movscript:e2e:desktop-shell-host:sessions'
+    const callsStorageKey = 'movscript:e2e:desktop-shell-host:calls'
+    const storedSessions = JSON.parse(window.sessionStorage.getItem(sessionsStorageKey) || '[]') as Array<Record<string, unknown>>
+    const sessions = new Map<string, Record<string, unknown>>(storedSessions
+      .map((session) => [String(session.sessionId ?? ''), session])
+      .filter(([sessionId]) => sessionId))
+    const listeners = new Set<(event: Record<string, unknown>) => void>()
+    const defaultCalls: Record<string, Array<Record<string, unknown>>> = {
+      create: [],
+      get: [],
+      getJob: [],
+      jobLogs: [],
+      kill: [],
+      listJobs: [],
+      listSessions: [],
+      logs: [],
+      resize: [],
+      run: [],
+      write: [],
+    }
+    const storedCalls = JSON.parse(window.sessionStorage.getItem(callsStorageKey) || '{}') as Record<string, Array<Record<string, unknown>>>
+    const calls: Record<string, Array<Record<string, unknown>>> = {
+      ...defaultCalls,
+      ...Object.fromEntries(Object.entries(defaultCalls).map(([key, value]) => [
+        key,
+        Array.isArray(storedCalls[key]) ? storedCalls[key] : value,
+      ])),
+    }
+    let nextShellIndex = 0
+
+    function saveSessions() {
+      window.sessionStorage.setItem(sessionsStorageKey, JSON.stringify(Array.from(sessions.values())))
+    }
+
+    function saveCalls() {
+      window.sessionStorage.setItem(callsStorageKey, JSON.stringify(calls))
+    }
+
+    function recordCall(name: keyof typeof calls, input: Record<string, unknown> = {}) {
+      calls[name].push({ ...input })
+      saveCalls()
+    }
+
+    function emit(event: Record<string, unknown>) {
+      for (const listener of Array.from(listeners)) listener(event)
+    }
+
+    function shellSessionFromInput(input: Record<string, unknown>, command?: string) {
+      nextShellIndex += 1
+      const now = Date.now()
+      const sessionId = typeof input.sessionId === 'string' && input.sessionId.trim()
+        ? input.sessionId
+        : `e2e-shell-session-${nextShellIndex}`
+      const cwd = typeof input.cwd === 'string' ? input.cwd : ''
+      const shell = 'e2e-shell'
+      const session = {
+        schema: 'movscript.shell_session.v1',
+        sessionId,
+        title: typeof input.title === 'string' && input.title.trim() ? input.title : `Shell ${nextShellIndex}`,
+        owner: input.owner === 'user' ? 'user' : 'system',
+        scope: input.scope === 'home' || input.scope === 'window' ? input.scope : 'workspace',
+        status: 'running',
+        cwd,
+        shell,
+        pid: 9100 + nextShellIndex,
+        command: command ?? (typeof input.command === 'string' ? input.command : undefined),
+        initialCommand: typeof input.initialCommand === 'string' ? input.initialCommand : command,
+        ownerFeature: typeof input.ownerFeature === 'string' ? input.ownerFeature : undefined,
+        reveal: typeof input.reveal === 'string' ? input.reveal : 'always',
+        previewUrl: typeof input.previewUrl === 'string' ? input.previewUrl : undefined,
+        projectId: typeof input.projectId === 'string' ? input.projectId : undefined,
+        projectUid: typeof input.projectUid === 'string' ? input.projectUid : undefined,
+        projectDir: typeof input.projectDir === 'string' ? input.projectDir : undefined,
+        createdAt: now,
+        updatedAt: now,
+      }
+      sessions.set(sessionId, session)
+      saveSessions()
+      return session
+    }
+
+    function jobFromSession(session: Record<string, unknown>) {
+      const commandText = typeof session.command === 'string'
+        ? session.command
+        : typeof session.initialCommand === 'string'
+          ? session.initialCommand
+          : ''
+      return {
+        schema: 'movscript.shell_job.v1',
+        jobId: `desktop-shell-host-job:${session.sessionId}`,
+        sessionId: session.sessionId,
+        title: session.title,
+        ownerFeature: session.ownerFeature ?? 'shell',
+        scope: session.scope,
+        status: 'running',
+        cwd: session.cwd,
+        commandText,
+        reveal: session.reveal ?? 'always',
+        projectId: session.projectId,
+        projectUid: session.projectUid,
+        projectDir: session.projectDir,
+        previewUrl: session.previewUrl,
+        startedAt: session.createdAt,
+        updatedAt: session.updatedAt,
+      }
+    }
+
+    const existingApi = (window as Window & { api?: Record<string, unknown> }).api ?? {}
+    ;(window as Window & { __desktopShellHostE2ECalls?: Record<string, Array<Record<string, unknown>>> }).__desktopShellHostE2ECalls = calls
+    ;(window as Window & { api?: Record<string, unknown> }).api = {
+      ...existingApi,
+      createDesktopShellHostSession: async (input: Record<string, unknown> = {}) => {
+        recordCall('create', input)
+        const session = shellSessionFromInput(input)
+        return { sessionId: session.sessionId, cwd: session.cwd, shell: session.shell, pid: session.pid, status: 'running' }
+      },
+      runDesktopShellHostCommand: async (input: Record<string, unknown> = {}) => {
+        recordCall('run', input)
+        const command = typeof input.command === 'string' ? input.command : ''
+        const session = shellSessionFromInput(input, command)
+        queueMicrotask(() => emit({ kind: 'output', sessionId: session.sessionId, data: 'E2E Shell mock 已就绪\r\n' }))
+        return { sessionId: session.sessionId, cwd: session.cwd, shell: session.shell, pid: session.pid, status: 'running' }
+      },
+      listDesktopShellHostSessions: async (input: Record<string, unknown> = {}) => {
+        recordCall('listSessions', input)
+        return { sessions: Array.from(sessions.values()) }
+      },
+      getDesktopShellHostSession: async (input: Record<string, unknown>) => {
+        recordCall('get', input)
+        return sessions.get(String(input.sessionId))
+      },
+      getDesktopShellHostLogs: async (input: Record<string, unknown>) => {
+        recordCall('logs', input)
+        return { sessionId: String(input.sessionId), text: 'E2E Shell mock 已就绪\n' }
+      },
+      listDesktopShellHostJobs: async (input: Record<string, unknown> = {}) => {
+        recordCall('listJobs', input)
+        return { jobs: Array.from(sessions.values()).map(jobFromSession) }
+      },
+      getDesktopShellHostJob: async (input: Record<string, unknown>) => {
+        recordCall('getJob', input)
+        const sessionId = typeof input.sessionId === 'string'
+          ? input.sessionId
+          : typeof input.jobId === 'string'
+            ? input.jobId.replace(/^desktop-shell-host-job:/, '')
+            : ''
+        const session = sessions.get(sessionId)
+        return session ? jobFromSession(session) : undefined
+      },
+      getDesktopShellHostJobLogs: async (input: Record<string, unknown>) => {
+        recordCall('jobLogs', input)
+        const sessionId = typeof input.sessionId === 'string'
+          ? input.sessionId
+          : typeof input.jobId === 'string'
+            ? input.jobId.replace(/^desktop-shell-host-job:/, '')
+            : ''
+        return { jobId: input.jobId, sessionId, text: 'E2E Shell mock 已就绪\n' }
+      },
+      writeDesktopShellHost: async (input: Record<string, unknown>) => {
+        recordCall('write', input)
+        emit({ kind: 'output', sessionId: input.sessionId, data: input.data })
+      },
+      resizeDesktopShellHostSession: async (input: Record<string, unknown> = {}) => {
+        recordCall('resize', input)
+        return undefined
+      },
+      killDesktopShellHostSession: async (input: Record<string, unknown>) => {
+        recordCall('kill', input)
+        emit({ kind: 'exit', sessionId: input.sessionId, exitCode: 0 })
+      },
+      onDesktopShellHostEvent: (handler: (event: Record<string, unknown>) => void) => {
+        listeners.add(handler)
+        return () => listeners.delete(handler)
+      },
+    }
+  })
+}
+
+async function desktopShellHostRunCalls(page: Parameters<typeof mockGenerationAppShell>[0]) {
+  return page.evaluate(() => {
+    return ((window as unknown as {
+      __desktopShellHostE2ECalls?: Record<string, Array<Record<string, unknown>>>
+    }).__desktopShellHostE2ECalls?.run ?? [])
+  })
+}
+
+async function expectShellWorkbenchToStayOpen(page: Parameters<typeof mockGenerationAppShell>[0]) {
+  await page.waitForTimeout(700)
+  await expect(page.locator('.shell-workbench-panel')).toBeVisible()
+}
+
+async function mockProductionEditingGateway(page: Parameters<typeof mockGenerationAppShell>[0], baseURL: string) {
   const calls: {
     create: Array<Record<string, unknown>>
     open: Array<Record<string, unknown>>
@@ -451,6 +749,11 @@ async function mockProductionEditingGateway(page: Parameters<typeof mockGenerati
     title: 'E2E 制作 Remotion',
     projectDirectory: '/tmp/movscript-e2e-production-editing/.movscript/production-editing/remotion-e2e',
     project_directory: '/tmp/movscript-e2e-production-editing/.movscript/production-editing/remotion-e2e',
+    entrypoint: 'src/Root.tsx',
+    compositionId: 'MovScriptRoughCut',
+    composition_id: 'MovScriptRoughCut',
+    previewCommand: ['pnpm', 'remotion', 'studio', 'src/Root.tsx', '--no-open', '--port', '7777'],
+    preview_command: ['pnpm', 'remotion', 'studio', 'src/Root.tsx', '--no-open', '--port', '7777'],
     stale: false,
   }
 
@@ -597,6 +900,16 @@ async function mockProductionEditingGateway(page: Parameters<typeof mockGenerati
     })
   })
 
+  const remotionPreviewUrl = `${baseURL.replace(/\/+$/, '')}/__e2e/remotion-studio`
+
+  await page.route('**/__e2e/remotion-studio', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: remotionStudioPreviewHTML(),
+    })
+  })
+
   const remotionSession = {
     schema: 'movscript.remotion_studio_session.v1',
     sessionId: 'remotion-session-e2e',
@@ -606,8 +919,8 @@ async function mockProductionEditingGateway(page: Parameters<typeof mockGenerati
     productionId: 'pilot',
     production_id: 'pilot',
     status: 'ready',
-    previewUrl: 'about:blank',
-    preview_url: 'about:blank',
+    previewUrl: remotionPreviewUrl,
+    preview_url: remotionPreviewUrl,
     projectDirectory: remotionWorkspace.projectDirectory,
     project_directory: remotionWorkspace.project_directory,
     commandText: 'pnpm remotion studio src/Root.tsx --no-open --port 7777',
@@ -619,11 +932,23 @@ async function mockProductionEditingGateway(page: Parameters<typeof mockGenerati
       text: 'Remotion Studio is ready.',
     }],
   }
+  const remotionShellHandoffSession = {
+    ...remotionSession,
+    status: 'needs_external_shell',
+    logs: [{
+      cursor: '1',
+      at: NOW,
+      stream: 'system',
+      text: 'Remotion Studio shell command is ready.',
+    }],
+  }
+  let remotionSessionOpenCount = 0
 
   await page.route('**/v1/remotion-studio/sessions/open', async (route) => {
     const body = route.request().postDataJSON() as Record<string, unknown>
     calls.remotionSessions.push(body)
-    await fulfillRouteJSON(route, remotionSession)
+    remotionSessionOpenCount += 1
+    await fulfillRouteJSON(route, remotionSessionOpenCount === 1 ? remotionShellHandoffSession : remotionSession)
   })
 
   await page.route('**/v1/remotion-studio/sessions/get', async (route) => {
@@ -654,6 +979,163 @@ async function mockContentWorkspaceResourceFiles(page: Parameters<typeof mockGen
       body: ONE_BY_ONE_PNG,
     })
   })
+}
+
+function remotionStudioPreviewHTML() {
+  return `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>E2E Remotion Studio</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #111418;
+        color: #eef2f7;
+      }
+
+      main {
+        display: grid;
+        min-height: 100vh;
+        grid-template-rows: auto 1fr;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 18px 22px;
+        border-bottom: 1px solid rgb(255 255 255 / 0.12);
+        background: #171b21;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 17px;
+        font-weight: 700;
+        letter-spacing: 0;
+      }
+
+      .badge {
+        border: 1px solid rgb(94 234 212 / 0.45);
+        border-radius: 999px;
+        padding: 5px 9px;
+        color: #99f6e4;
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      section {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 220px;
+        gap: 18px;
+        padding: 22px;
+      }
+
+      .stage {
+        display: grid;
+        place-items: center;
+        min-width: 0;
+        min-height: 260px;
+        border: 1px solid rgb(255 255 255 / 0.12);
+        border-radius: 8px;
+        background: #20242b;
+      }
+
+      .composition {
+        display: grid;
+        gap: 10px;
+        text-align: center;
+      }
+
+      .composition strong {
+        font-size: 24px;
+        letter-spacing: 0;
+        line-height: 1.12;
+        overflow-wrap: anywhere;
+      }
+
+      .timeline {
+        display: grid;
+        gap: 10px;
+        align-content: start;
+        min-width: 0;
+      }
+
+      .track {
+        height: 34px;
+        border-radius: 6px;
+        background: #2f6fed;
+      }
+
+      .track:nth-child(2) {
+        width: 76%;
+        background: #14b8a6;
+      }
+
+      .track:nth-child(3) {
+        width: 58%;
+        background: #f59e0b;
+      }
+
+      @media (max-width: 620px) {
+        header {
+          align-items: center;
+          flex-flow: row wrap;
+          gap: 10px;
+          padding: 14px 18px;
+        }
+
+        section {
+          grid-template-columns: minmax(0, 1fr);
+          padding: 14px 18px 18px;
+        }
+
+        .stage {
+          min-height: 126px;
+        }
+
+        .composition span,
+        .timeline {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>E2E Remotion Studio</h1>
+        <span class="badge">Studio Ready</span>
+      </header>
+      <section>
+        <div class="stage" aria-label="Composition preview">
+          <div class="composition">
+            <strong>MovScriptRoughCut</strong>
+            <span>Remotion preview iframe loaded</span>
+          </div>
+        </div>
+        <aside class="timeline" aria-label="Timeline">
+          <span class="track"></span>
+          <span class="track"></span>
+          <span class="track"></span>
+        </aside>
+      </section>
+    </main>
+  </body>
+</html>`
 }
 
 async function fulfillRouteJSON(route: Route, body: unknown) {

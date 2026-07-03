@@ -68,7 +68,7 @@ export function ProjectOverviewSurface({
         <AgentSurfacePanel title="Runtime">
           <AgentSurfaceKeyValues items={[
             ['Project Gateway', 'available'],
-            ['MCP API', runtime.diagnostics.endpoints?.mcpApi ?? 'not configured'],
+            ['Agent Gateway', runtime.diagnostics.endpoints?.mcpApi ?? 'not configured'],
             ['Generation', statusLabel(runtime.capabilities.generation)],
             ['Editing', statusLabel(runtime.capabilities.editing)],
             ['Media Pipeline', statusLabel(runtime.capabilities.mediaPipeline)],

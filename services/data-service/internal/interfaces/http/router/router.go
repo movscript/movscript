@@ -34,7 +34,7 @@ func New(deps Dependencies) *gin.Engine {
 
 	registerOpenAIGatewayRoutes(r, h)
 	registerHubRoutes(r, h)
-	registerEditionRootRoutes(r, h)
+	registerDistributionProfileRootRoutes(r, h)
 
 	v1 := r.Group("/api/v1")
 	{
@@ -67,7 +67,7 @@ func New(deps Dependencies) *gin.Engine {
 			registerCanvasRoutes(protected, h)
 			registerProjectRoutes(protected, db, h)
 			registerRuntimeProtectedRoutes(protected, h)
-			registerEditionProtectedRoutes(protected, h)
+			registerDistributionProfileProtectedRoutes(protected, h)
 			registerAgentTelemetryRoutes(protected, h)
 
 			// admin routes — super_admin only

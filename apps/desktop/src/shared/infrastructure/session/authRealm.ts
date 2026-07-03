@@ -5,15 +5,12 @@ type AuthRealmSettings = {
     kind?: string | null
     url?: string | null
   } | null
-  /** @deprecated Use dataConnection.kind. */
-  launchMode?: string | null
-  apiBaseURL?: string | null
   cloudAPIBaseURL?: string | null
 }
 
 export function authRealmKey(settings: AuthRealmSettings | undefined): string {
-  if (settings?.dataConnection?.kind === 'local' || settings?.launchMode === 'local') return 'local'
-  const baseURL = normalizeAPIBaseURL(settings?.dataConnection?.url || settings?.cloudAPIBaseURL || settings?.apiBaseURL || '')
+  if (settings?.dataConnection?.kind === 'local') return 'local'
+  const baseURL = normalizeAPIBaseURL(settings?.dataConnection?.url || settings?.cloudAPIBaseURL || '')
   return `cloud:${stableRealmHash(baseURL || 'cloud')}`
 }
 

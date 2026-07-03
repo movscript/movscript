@@ -31,16 +31,29 @@ import type {
   ElectronAgentRuntimeCredentialSummary,
   ElectronBackendAuthSessionInput,
   ElectronRuntimeConfig,
+  ElectronRuntimeBundleActionInput,
+  ElectronRuntimeBundleActionResult,
   ElectronBackendStatus,
+  ElectronDesktopShellHostCreateInput,
+  ElectronDesktopShellHostCreateResult,
+  ElectronDesktopShellHostEvent,
+  ElectronDesktopShellHostJob,
+  ElectronDesktopShellHostJobInput,
+  ElectronDesktopShellHostJobListInput,
+  ElectronDesktopShellHostJobListResult,
+  ElectronDesktopShellHostJobLogsResult,
+  ElectronDesktopShellHostKillInput,
+  ElectronDesktopShellHostListInput,
+  ElectronDesktopShellHostListResult,
+  ElectronDesktopShellHostLogsResult,
+  ElectronDesktopShellHostResizeInput,
+  ElectronDesktopShellHostRunInput,
+  ElectronDesktopShellHostSession,
+  ElectronDesktopShellHostSessionInput,
+  ElectronDesktopShellHostWriteInput,
   ElectronEmbeddedBrowserBounds,
   ElectronEmbeddedBrowserState,
   ElectronGenerationToolServerTestResult,
-  ElectronLocalTerminalCreateInput,
-  ElectronLocalTerminalCreateResult,
-  ElectronLocalTerminalEvent,
-  ElectronLocalTerminalKillInput,
-  ElectronLocalTerminalResizeInput,
-  ElectronLocalTerminalWriteInput,
   ElectronMovScriptHomeInput,
   ElectronMCPServerStatus,
   ElectronMovScriptEngineAudioCueInput,
@@ -161,7 +174,13 @@ export type * from './electronApiContractTypes'
 export interface ElectronMovScriptCodexPluginInstallResult {
   ok: true
   openedCodex: boolean
+  homeDir: string
   marketplaceRoot: string
+  marketplacePath: string
+  pluginRoot: string
+  homeCurrentPluginRoot: string
+  homeCurrentPluginVersion: string
+  homeCurrentBundleHash?: string
   installCommand: string
 }
 
@@ -200,6 +219,7 @@ export type ElectronAPI = {
   removeDesktopState?: (input: ElectronDesktopStateInput) => Promise<{ ok: true; key: string; movScriptHomeDir: string; workspaceDir: string; path: string }>
   setAgentRuntimeApiKey?: (input: { providerKey?: string; providerKeys?: string[]; apiKey?: string | null }) => Promise<ElectronAgentRuntimeCredentialSummary>
   getRuntimeConfig?: () => Promise<ElectronRuntimeConfig>
+  applyRuntimeBundleAction?: (input?: ElectronRuntimeBundleActionInput) => Promise<ElectronRuntimeBundleActionResult>
   setGenerationToolsSettings?: (settings: GenerationToolsSettings) => Promise<void>
   testGenerationToolServer?: (server: Partial<GenerationToolServer>) => Promise<ElectronGenerationToolServerTestResult>
   onBackendStatus?: (handler: (status: ElectronBackendStatus) => void) => () => void
@@ -236,11 +256,18 @@ export type ElectronAPI = {
   sdkRuntimeRespondToServerRequest?: (input: ElectronSdkRuntimeServerRequestResponseInput) => Promise<void>
   onSdkRuntimeNotification?: (handler: (event: ElectronSdkRuntimeNotificationEvent) => void) => () => void
   onSdkRuntimeServerRequest?: (handler: (event: ElectronSdkRuntimeServerRequestEvent) => void) => () => void
-  createLocalTerminal?: (input: ElectronLocalTerminalCreateInput) => Promise<ElectronLocalTerminalCreateResult>
-  writeLocalTerminal?: (input: ElectronLocalTerminalWriteInput) => Promise<void>
-  resizeLocalTerminal?: (input: ElectronLocalTerminalResizeInput) => Promise<void>
-  killLocalTerminal?: (input: ElectronLocalTerminalKillInput) => Promise<void>
-  onLocalTerminalEvent?: (handler: (event: ElectronLocalTerminalEvent) => void) => () => void
+  createDesktopShellHostSession?: (input: ElectronDesktopShellHostCreateInput) => Promise<ElectronDesktopShellHostCreateResult>
+  runDesktopShellHostCommand?: (input: ElectronDesktopShellHostRunInput) => Promise<ElectronDesktopShellHostCreateResult>
+  listDesktopShellHostSessions?: (input?: ElectronDesktopShellHostListInput) => Promise<ElectronDesktopShellHostListResult>
+  getDesktopShellHostSession?: (input: ElectronDesktopShellHostSessionInput) => Promise<ElectronDesktopShellHostSession | undefined>
+  getDesktopShellHostLogs?: (input: ElectronDesktopShellHostSessionInput) => Promise<ElectronDesktopShellHostLogsResult>
+  listDesktopShellHostJobs?: (input?: ElectronDesktopShellHostJobListInput) => Promise<ElectronDesktopShellHostJobListResult>
+  getDesktopShellHostJob?: (input: ElectronDesktopShellHostJobInput) => Promise<ElectronDesktopShellHostJob | undefined>
+  getDesktopShellHostJobLogs?: (input: ElectronDesktopShellHostJobInput) => Promise<ElectronDesktopShellHostJobLogsResult>
+  writeDesktopShellHost?: (input: ElectronDesktopShellHostWriteInput) => Promise<void>
+  resizeDesktopShellHostSession?: (input: ElectronDesktopShellHostResizeInput) => Promise<void>
+  killDesktopShellHostSession?: (input: ElectronDesktopShellHostKillInput) => Promise<void>
+  onDesktopShellHostEvent?: (handler: (event: ElectronDesktopShellHostEvent) => void) => () => void
   listProviderSessions?: (input?: ElectronMovScriptHomeInput & { providerProfileKey?: string }) => Promise<{ sessions: ElectronProviderSessionSummary[] }>
   getMovScriptWorkspaceRoot?: (input?: ElectronMovScriptHomeInput) => Promise<ElectronMovScriptWorkspaceRootResult>
   inspectLocalMovScriptProject?: (input: ElectronLocalProjectInspectInput) => Promise<ElectronLocalProjectInspection>

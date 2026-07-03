@@ -570,6 +570,7 @@ export interface AIModelCatalogTemplate {
   capabilities: string[]
   route_adapter_hint?: string
   source_status?: string
+  model_capabilities_json?: string
   accepts_image_input: boolean
   max_input_images: number
   max_input_videos: number

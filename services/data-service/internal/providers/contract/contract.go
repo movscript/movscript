@@ -43,7 +43,7 @@ const (
 	AdapterMinIO               = "minio"
 	AdapterGitHTTP             = "http"
 	AdapterGitea               = "gitea"
-	AdapterGitHubEnterprise    = "github-enterprise"
+	AdapterGitHubSelfHosted    = "github-self-hosted"
 	AdapterGitLab              = "gitlab"
 	AdapterLocal               = "local"
 	AdapterRelayGateway        = "relay-gateway"
@@ -305,9 +305,13 @@ type VideoRequest struct {
 	Image                 string
 	InputImages           []string
 	InputImageDataList    []MediaData
+	InputVideos           []string
 	InputVideo            string
+	InputVideoDataList    []MediaData
 	InputVideoData        *MediaData
+	InputAudios           []string
 	InputAudio            string
+	InputAudioDataList    []MediaData
 	InputAudioData        *MediaData
 	Duration              int
 	Frames                int
@@ -327,6 +331,7 @@ type VideoRequest struct {
 	ReturnLastFrame       *bool
 	ServiceTier           string
 	ExecutionExpiresAfter int
+	Priority              int
 	Workspace             *bool
 	WebSearch             bool
 	MovementAmplitude     string

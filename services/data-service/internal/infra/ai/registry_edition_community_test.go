@@ -9,15 +9,15 @@ import (
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
-func TestCommunityRegistryEditionHooksAreNoop(t *testing.T) {
-	if mode, ok := editionRegistryProviderMode("future"); ok || mode != "" {
-		t.Fatalf("editionRegistryProviderMode() = %q, %v; want empty false", mode, ok)
+func TestCommunityRegistryDistributionProfileHooksAreNoop(t *testing.T) {
+	if mode, ok := distributionProfileRegistryProviderMode("future"); ok || mode != "" {
+		t.Fatalf("distributionProfileRegistryProviderMode() = %q, %v; want empty false", mode, ok)
 	}
 	r := &Registry{}
-	if provider, handled, err := r.editionBuildProvider(persistencemodel.AICredential{}, nil); provider != nil || handled || err != nil {
-		t.Fatalf("editionBuildProvider() = %T, %v, %v; want nil false nil", provider, handled, err)
+	if provider, handled, err := r.distributionProfileBuildProvider(persistencemodel.AICredential{}, nil); provider != nil || handled || err != nil {
+		t.Fatalf("distributionProfileBuildProvider() = %T, %v, %v; want nil false nil", provider, handled, err)
 	}
-	if uploader, handled := r.editionFileUploader(context.Background(), 1); uploader != nil || handled {
-		t.Fatalf("editionFileUploader() = %T, %v; want nil false", uploader, handled)
+	if uploader, handled := r.distributionProfileFileUploader(context.Background(), 1); uploader != nil || handled {
+		t.Fatalf("distributionProfileFileUploader() = %T, %v; want nil false", uploader, handled)
 	}
 }

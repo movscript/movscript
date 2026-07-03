@@ -411,15 +411,6 @@ var comboProviderRules = []comboProviderRule{
 		ProviderCategory: "aggregator_gateway",
 	},
 	{
-		ProviderType:     "83zi",
-		Profile:          "sd2",
-		AdapterType:      "vyro_seedance",
-		ModelTemplateKey: "volcengine:seedance-2-0",
-		ProviderModelID:  "Seedance-2.0",
-		ProviderKind:     "83zi_sd2_gateway",
-		ProviderCategory: "aggregator_gateway",
-	},
-	{
 		ProviderType:     "volcen",
 		Profile:          "ark",
 		AdapterType:      "volcen",

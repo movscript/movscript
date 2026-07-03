@@ -760,6 +760,11 @@ func validateParamJSONSchemaConfig(param ParamDef) error {
 			return err
 		}
 	}
+	if raw, ok := param.JSONSchema[totalLimitSchemaKey]; ok {
+		if err := validateTotalLimitSchemaConfig(param.Key, raw); err != nil {
+			return err
+		}
+	}
 	min, hasMin, minOK := strictJSONSchemaNumber(param.JSONSchema, "minimum")
 	if !minOK {
 		return fmt.Errorf("parameter %q json_schema.minimum must be a number", param.Key)
@@ -781,6 +786,57 @@ func validateParamJSONSchemaConfig(param ParamDef) error {
 	if param.Default != nil {
 		if err := validateParamJSONSchemaKeywords(param.Key, param.JSONSchema, param.Default); err != nil {
 			return fmt.Errorf("parameter %q default does not satisfy json_schema: %w", param.Key, err)
+		}
+	}
+	return nil
+}
+
+func validateTotalLimitSchemaConfig(paramKey string, raw any) error {
+	items, ok := raw.(map[string]any)
+	if !ok {
+		return fmt.Errorf("parameter %q json_schema.%s must be an object", paramKey, totalLimitSchemaKey)
+	}
+	allowed := map[string]bool{
+		"input_kind":   true,
+		"max_total":    true,
+		"output_param": true,
+		"when_param":   true,
+		"when_value":   true,
+	}
+	for key := range items {
+		if !allowed[key] {
+			return fmt.Errorf("parameter %q json_schema.%s has unknown key %q", paramKey, totalLimitSchemaKey, key)
+		}
+	}
+	inputKind, ok := strictStringValue(items["input_kind"])
+	if !ok || strings.TrimSpace(inputKind) == "" {
+		return fmt.Errorf("parameter %q json_schema.%s.input_kind must be a non-empty string", paramKey, totalLimitSchemaKey)
+	}
+	if inputKind != "image" {
+		return fmt.Errorf("parameter %q json_schema.%s.input_kind %q is not supported", paramKey, totalLimitSchemaKey, inputKind)
+	}
+	maxTotal, ok := strictNumberValue(items["max_total"])
+	if !ok || !isWholeNumber(maxTotal) || maxTotal <= 0 {
+		return fmt.Errorf("parameter %q json_schema.%s.max_total must be a positive integer", paramKey, totalLimitSchemaKey)
+	}
+	if outputParam, ok := items["output_param"]; ok {
+		value, ok := strictStringValue(outputParam)
+		if !ok || strings.TrimSpace(value) == "" {
+			return fmt.Errorf("parameter %q json_schema.%s.output_param must be a non-empty string", paramKey, totalLimitSchemaKey)
+		}
+	}
+	_, hasWhenParam := items["when_param"]
+	_, hasWhenValue := items["when_value"]
+	if hasWhenParam != hasWhenValue {
+		return fmt.Errorf("parameter %q json_schema.%s.when_param and when_value must be provided together", paramKey, totalLimitSchemaKey)
+	}
+	if hasWhenParam {
+		value, ok := strictStringValue(items["when_param"])
+		if !ok || strings.TrimSpace(value) == "" {
+			return fmt.Errorf("parameter %q json_schema.%s.when_param must be a non-empty string", paramKey, totalLimitSchemaKey)
+		}
+		if !isComparableScalar(items["when_value"]) {
+			return fmt.Errorf("parameter %q json_schema.%s.when_value must be a scalar", paramKey, totalLimitSchemaKey)
 		}
 	}
 	return nil

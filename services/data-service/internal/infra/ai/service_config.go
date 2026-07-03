@@ -83,7 +83,7 @@ func (s *AIService) OpenAIProxyTargetForRoute(ctx context.Context, userID uint, 
 		}
 		return target, nil
 	}
-	if target, handled, err := s.editionOpenAIProxyTargetForCatalogRoute(ctx, userID, route, requiredCap); handled || err != nil {
+	if target, handled, err := s.distributionProfileOpenAIProxyTargetForCatalogRoute(ctx, userID, route, requiredCap); handled || err != nil {
 		if err != nil {
 			return OpenAIProxyTarget{}, err
 		}
@@ -175,7 +175,7 @@ func (s *AIService) ResolveModelRoutePlan(req ModelRouteRequest) (ModelRoutePlan
 			}
 			return plan, nil
 		}
-		if s.editionModelCatalogOnly() {
+		if s.distributionProfileModelCatalogOnly() {
 			return ModelRoutePlan{}, fmt.Errorf("catalog model %q not found for capability %s", modelID, capability)
 		}
 		return ModelRoutePlan{}, fmt.Errorf("catalog model %q not found for capability %s", modelID, capability)
@@ -198,7 +198,7 @@ func (s *AIService) ResolveModelRoutePlan(req ModelRouteRequest) (ModelRoutePlan
 	if req.RouteBindingID != 0 {
 		return ModelRoutePlan{}, fmt.Errorf("route binding id=%d not found for capability %s", req.RouteBindingID, capability)
 	}
-	if s.editionModelCatalogOnly() {
+	if s.distributionProfileModelCatalogOnly() {
 		return ModelRoutePlan{}, fmt.Errorf("catalog_entry_id is required for catalog-only routing")
 	}
 	return ModelRoutePlan{}, fmt.Errorf("catalog_entry_id or route_binding_id is required")

@@ -133,6 +133,181 @@ func TestEnableComboTemplateCreatesCatalogEntryAndRoute(t *testing.T) {
 	}
 }
 
+func TestEnableComboTemplateUsesComboAdapterForSeedream45Params(t *testing.T) {
+	service := newTestService(t)
+	if err := service.db.AutoMigrate(&persistencemodel.AIProvider{}, &persistencemodel.AIProviderCredential{}); err != nil {
+		t.Fatalf("migrate provider tables: %v", err)
+	}
+
+	result, err := service.EnableComboTemplate(context.Background(), "volcengine:seedream-4-5@volcengine_ark_official", EnableComboTemplateInput{})
+	if err != nil {
+		t.Fatalf("EnableComboTemplate(seedream 4.5) error = %v", err)
+	}
+	if result.RouteBinding.AdapterType != infraai.AdapterVolcen {
+		t.Fatalf("route adapter = %q, want volcen", result.RouteBinding.AdapterType)
+	}
+
+	paramsByOperation, explicit := infraai.ResolveEffectiveParamsByOperation(
+		infraai.AdapterVolcen,
+		infraai.SplitCapabilities(result.CatalogEntry.Capabilities),
+		result.CatalogEntry.ModelCapabilitiesJSON,
+		result.CatalogEntry.SupportedParams,
+	)
+	if !explicit {
+		t.Fatalf("supported params profile should be explicit, raw=%s", result.CatalogEntry.SupportedParams)
+	}
+	imageParams := paramsByOperation[infraai.ImageOperationTextToImage]
+	if !adminParamDefsContain(imageParams, "image_size") {
+		t.Fatalf("seedream 4.5 params = %#v, want image_size", imageParams)
+	}
+	if adminParamDefsContain(imageParams, "output_format") {
+		t.Fatalf("seedream 4.5 params = %#v, must not expose output_format", imageParams)
+	}
+}
+
+func TestEnableComboTemplateDerivesSeedanceVideoSupportedParamsFromTemplate(t *testing.T) {
+	service := newTestService(t)
+	if err := service.db.AutoMigrate(&persistencemodel.AIProvider{}, &persistencemodel.AIProviderCredential{}); err != nil {
+		t.Fatalf("migrate provider tables: %v", err)
+	}
+
+	seedance20, err := service.EnableComboTemplate(context.Background(), "volcengine:seedance-2-0@volcengine_ark_official", EnableComboTemplateInput{})
+	if err != nil {
+		t.Fatalf("EnableComboTemplate(seedance 2.0) error = %v", err)
+	}
+	params20, explicit := infraai.ResolveEffectiveParamsByOperation(
+		infraai.AdapterVolcen,
+		infraai.SplitCapabilities(seedance20.CatalogEntry.Capabilities),
+		seedance20.CatalogEntry.ModelCapabilitiesJSON,
+		seedance20.CatalogEntry.SupportedParams,
+	)
+	if !explicit {
+		t.Fatalf("Seedance 2.0 supported params profile should be explicit, raw=%s", seedance20.CatalogEntry.SupportedParams)
+	}
+	promptParams := params20[infraai.VideoOperationPromptToVideo]
+	for _, key := range []string{"duration", "aspect_ratio", "resolution", "audio", "watermark", "return_last_frame", "web_search", "execution_expires_after", "priority"} {
+		if !adminParamDefsContain(promptParams, key) {
+			t.Fatalf("Seedance 2.0 prompt params missing %s: %#v", key, promptParams)
+		}
+	}
+	if adminParamDefsContain(promptParams, "seed") || adminParamDefsContain(promptParams, "frames") || adminParamDefsContain(promptParams, "fixed_camera") || adminParamDefsContain(promptParams, "service_tier") || adminParamDefsContain(promptParams, "workspace") {
+		t.Fatalf("Seedance 2.0 prompt params include unsupported fields: %#v", promptParams)
+	}
+	resolution, ok := adminFindParam(promptParams, "resolution")
+	if !ok || !adminParamOptionsContain(resolution, "4k") {
+		t.Fatalf("Seedance 2.0 prompt resolution = %#v, want 4k", resolution)
+	}
+
+	seedance15, err := service.EnableComboTemplate(context.Background(), "volcengine:seedance-1-5-pro@volcengine_ark_official", EnableComboTemplateInput{})
+	if err != nil {
+		t.Fatalf("EnableComboTemplate(seedance 1.5) error = %v", err)
+	}
+	params15, explicit := infraai.ResolveEffectiveParamsByOperation(
+		infraai.AdapterVolcen,
+		infraai.SplitCapabilities(seedance15.CatalogEntry.Capabilities),
+		seedance15.CatalogEntry.ModelCapabilitiesJSON,
+		seedance15.CatalogEntry.SupportedParams,
+	)
+	if !explicit {
+		t.Fatalf("Seedance 1.5 supported params profile should be explicit, raw=%s", seedance15.CatalogEntry.SupportedParams)
+	}
+	if !adminParamDefsContain(params15[infraai.VideoOperationPromptToVideo], "fixed_camera") {
+		t.Fatalf("Seedance 1.5 prompt params should include fixed_camera: %#v", params15[infraai.VideoOperationPromptToVideo])
+	}
+	for _, operation := range []string{infraai.VideoOperationImageToVideo, infraai.VideoOperationFirstFrameToVideo, infraai.VideoOperationFirstLastFrameToVideo} {
+		if adminParamDefsContain(params15[operation], "fixed_camera") {
+			t.Fatalf("Seedance 1.5 %s params must omit fixed_camera: %#v", operation, params15[operation])
+		}
+	}
+}
+
+func TestEnableComboTemplateCreates83ziSeedance20CatalogEntryAndRoute(t *testing.T) {
+	service := newTestService(t)
+	if err := service.db.AutoMigrate(&persistencemodel.AIProvider{}, &persistencemodel.AIProviderCredential{}); err != nil {
+		t.Fatalf("migrate provider tables: %v", err)
+	}
+	if err := service.db.Create(&persistencemodel.AIProvider{
+		ProviderID:               "83zi_sd2_gateway:1",
+		ProviderType:             "83zi",
+		Profile:                  "sd2",
+		ProviderKind:             "83zi_sd2_gateway",
+		ProviderCategory:         persistencemodel.AIProviderCategoryAggregatorGateway,
+		DefaultAdapterType:       infraai.AdapterVyroSeedance,
+		AdapterKey:               infraai.AdapterVyroSeedance,
+		TemplateVersion:          "builtin.v1",
+		DisplayName:              "83zi Seedance 2.0",
+		BaseURLPrefix:            "http://115.190.186.95:3002/v1",
+		AssetLibraryStateJSON:    "{}",
+		TrustedResourceStateJSON: "{}",
+		HealthJSON:               "{}",
+		IsEnabled:                true,
+	}).Error; err != nil {
+		t.Fatalf("seed 83zi provider: %v", err)
+	}
+
+	result, err := service.EnableComboTemplate(context.Background(), "83zi:83zi-seedance-2-0@83zi_sd2_gateway", EnableComboTemplateInput{})
+	if err != nil {
+		t.Fatalf("EnableComboTemplate(83zi seedance 2.0) error = %v", err)
+	}
+	if result.Provider.ProviderKind != "83zi_sd2_gateway" ||
+		result.RouteBinding.AdapterType != infraai.AdapterVyroSeedance ||
+		result.RouteBinding.ProviderModelID != "Seedance-2.0" {
+		t.Fatalf("unexpected 83zi combo result: %#v", result)
+	}
+	if result.CatalogEntry.PublicModelID != "83zi-seedance-2-0" ||
+		result.CatalogEntry.ModelTemplateKey != "83zi:83zi-seedance-2-0" ||
+		strings.Contains(result.CatalogEntry.ModelCapabilitiesJSON, infraai.VideoOperationFirstLastFrameToVideo) {
+		t.Fatalf("unexpected 83zi catalog entry: %#v", result.CatalogEntry)
+	}
+	paramsByOperation, explicit := infraai.ResolveEffectiveParamsByOperation(
+		infraai.AdapterVyroSeedance,
+		infraai.SplitCapabilities(result.CatalogEntry.Capabilities),
+		result.CatalogEntry.ModelCapabilitiesJSON,
+		result.CatalogEntry.SupportedParams,
+	)
+	if !explicit {
+		t.Fatalf("83zi Seedance 2.0 supported params profile should be explicit, raw=%s", result.CatalogEntry.SupportedParams)
+	}
+	promptParams := paramsByOperation[infraai.VideoOperationPromptToVideo]
+	for _, key := range []string{"duration", "aspect_ratio", "resolution", "audio"} {
+		if !adminParamDefsContain(promptParams, key) {
+			t.Fatalf("83zi Seedance 2.0 prompt params missing %s: %#v", key, promptParams)
+		}
+	}
+	for _, key := range []string{"watermark", "return_last_frame", "web_search", "priority", "execution_expires_after", "generate_audio"} {
+		if adminParamDefsContain(promptParams, key) {
+			t.Fatalf("83zi Seedance 2.0 prompt params include unsupported %s: %#v", key, promptParams)
+		}
+	}
+}
+
+func adminParamDefsContain(params []infraai.ParamDef, key string) bool {
+	for _, param := range params {
+		if param.Key == key {
+			return true
+		}
+	}
+	return false
+}
+
+func adminFindParam(params []infraai.ParamDef, key string) (infraai.ParamDef, bool) {
+	for _, param := range params {
+		if param.Key == key {
+			return param, true
+		}
+	}
+	return infraai.ParamDef{}, false
+}
+
+func adminParamOptionsContain(param infraai.ParamDef, option string) bool {
+	for _, candidate := range param.Options {
+		if candidate == option {
+			return true
+		}
+	}
+	return false
+}
+
 func TestProviderRemoteModelDiscoveryDoesNotMutateCatalogOrRoutes(t *testing.T) {
 	service := newTestService(t)
 	service.registry = infraai.NewRegistry(service.db, nil)
@@ -821,6 +996,87 @@ func TestModelCatalogEntryParamProfileUsesMatchedTemplateParams(t *testing.T) {
 	}
 }
 
+func TestCreateModelCatalogEntryHydratesSupportedParamsFromMatchedTemplate(t *testing.T) {
+	service := newTestService(t)
+	ctx := context.Background()
+
+	entry, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
+		PublicModelID: "seedance-2-0",
+	})
+	if err != nil {
+		t.Fatalf("CreateModelCatalogEntry() error = %v", err)
+	}
+	if entry.ModelTemplateKey != "volcengine:seedance-2-0" ||
+		entry.Capabilities != infraai.CapabilityFamilyVideoGeneration ||
+		entry.MaxInputImages != 9 ||
+		entry.MaxInputVideos != 3 ||
+		!strings.Contains(entry.ModelCapabilitiesJSON, infraai.VideoOperationReferenceToVideo) {
+		t.Fatalf("entry was not hydrated from template: %#v", entry)
+	}
+	paramsByOperation, explicit := infraai.ResolveEffectiveParamsByOperation(
+		infraai.AdapterVolcen,
+		infraai.SplitCapabilities(entry.Capabilities),
+		entry.ModelCapabilitiesJSON,
+		entry.SupportedParams,
+	)
+	if !explicit {
+		t.Fatalf("supported params should be generated from template, raw=%s", entry.SupportedParams)
+	}
+	promptParams := paramsByOperation[infraai.VideoOperationPromptToVideo]
+	if !adminParamDefsContain(promptParams, "priority") || !adminParamDefsContain(promptParams, "execution_expires_after") {
+		t.Fatalf("prompt params = %#v, want template advanced params", promptParams)
+	}
+	if adminParamDefsContain(promptParams, "seed") || adminParamDefsContain(promptParams, "service_tier") {
+		t.Fatalf("prompt params = %#v, should not require manual cleanup", promptParams)
+	}
+}
+
+func TestCreateModelCatalogEntryHydratesSeedreamImageSupportedParamsFromTemplate(t *testing.T) {
+	service := newTestService(t)
+	ctx := context.Background()
+
+	entry, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
+		PublicModelID: "seedream-5-0-lite",
+	})
+	if err != nil {
+		t.Fatalf("CreateModelCatalogEntry() error = %v", err)
+	}
+	if entry.ModelTemplateKey != "volcengine:seedream-5-0-lite" ||
+		entry.Capabilities != infraai.CapabilityFamilyImageGeneration ||
+		!entry.AcceptsImage ||
+		entry.MaxInputImages != 14 {
+		t.Fatalf("entry was not hydrated from Seedream image template: %#v", entry)
+	}
+	paramsByOperation, explicit := infraai.ResolveEffectiveParamsByOperation(
+		infraai.AdapterOpenAICompat,
+		infraai.SplitCapabilities(entry.Capabilities),
+		entry.ModelCapabilitiesJSON,
+		entry.SupportedParams,
+	)
+	if !explicit {
+		t.Fatalf("supported params should be generated from image template, raw=%s", entry.SupportedParams)
+	}
+	imageParams := paramsByOperation[infraai.ImageOperationTextToImage]
+	for _, key := range []string{"image_size", "watermark", "sequential_image_generation", "image_count", "optimize_prompt_mode", "output_format", "web_search"} {
+		if !adminParamDefsContain(imageParams, key) {
+			t.Fatalf("Seedream 5.0 Lite image params missing %s: %#v", key, imageParams)
+		}
+	}
+	for _, key := range []string{"seed", "prompt_strength", "response_format", "stream"} {
+		if adminParamDefsContain(imageParams, key) {
+			t.Fatalf("Seedream 5.0 Lite image params include unsupported %s: %#v", key, imageParams)
+		}
+	}
+	optimize, ok := adminFindParam(imageParams, "optimize_prompt_mode")
+	if !ok || adminParamOptionsContain(optimize, "fast") {
+		t.Fatalf("Seedream 5.0 Lite optimize_prompt_mode = %#v, want standard only", optimize)
+	}
+	outputFormat, ok := adminFindParam(imageParams, "output_format")
+	if !ok || !adminParamOptionsContain(outputFormat, "jpeg") || !adminParamOptionsContain(outputFormat, "png") {
+		t.Fatalf("Seedream 5.0 Lite output_format = %#v, want jpeg/png", outputFormat)
+	}
+}
+
 func TestModelCatalogUpdatePreservesCapabilitiesWhenOmitted(t *testing.T) {
 	service := newTestService(t)
 	ctx := context.Background()
@@ -1158,7 +1414,7 @@ func TestModelCatalogRejectsInvalidRouteBindingContracts(t *testing.T) {
 				ProviderModelID: "provider-video-contract",
 				CapacityWeight:  1,
 			},
-			want: "commercial edition",
+			want: "external relay gateway profile",
 		})
 	}
 

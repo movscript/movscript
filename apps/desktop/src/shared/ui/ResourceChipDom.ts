@@ -1,7 +1,7 @@
 import {
   generationReferenceMediaTypeShortLabel,
   generationReferenceRoleLabel,
-} from '@movscript/core/generation'
+} from '@movscript/resource-surface/data'
 import type { RawResource } from '@/types'
 
 export type ResourceChipMediaElement = HTMLSpanElement

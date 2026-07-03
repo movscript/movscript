@@ -21,7 +21,7 @@ func TestAIServiceUsageGovernorContractSettlesReservation(t *testing.T) {
 		&persistencemodel.UsageReservation{},
 		&persistencemodel.UsageLog{},
 	)
-	seedEnterpriseUsageWallet(t, db, 7)
+	seedHostedUsageWallet(t, db, 7)
 	createTextProviderVariant(t, db, 1, "Usage provider")
 	usageEntry := persistencemodel.AIModelCatalogEntry{
 		PublicModelID:         "usage-writer",
@@ -29,6 +29,7 @@ func TestAIServiceUsageGovernorContractSettlesReservation(t *testing.T) {
 		IsEnabled:             true,
 		Capabilities:          CapabilityFamilyTextGeneration,
 		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
+		SupportedParams:       testSupportedParamsProfile(CapabilityFamilyTextGeneration),
 	}
 	if err := db.Create(&usageEntry).Error; err != nil {
 		t.Fatalf("create usage catalog entry: %v", err)
@@ -144,6 +145,7 @@ func TestAIServiceUsageGovernorEstimateUsesCatalogRouteWithoutLegacyModelConfigT
 		IsEnabled:             true,
 		Capabilities:          CapabilityFamilyTextGeneration,
 		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
+		SupportedParams:       testSupportedParamsProfile(CapabilityFamilyTextGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -182,7 +184,7 @@ func TestAIServiceUsageGovernorContractReleasesReservation(t *testing.T) {
 		&persistencemodel.UsageReservation{},
 		&persistencemodel.UsageLog{},
 	)
-	seedEnterpriseUsageWallet(t, db, 7)
+	seedHostedUsageWallet(t, db, 7)
 	service := NewAIService(db, NewRegistry(db, nil))
 
 	reservation, err := service.ReserveGatewayUsage(context.Background(), providercontract.AIUsageReserveRequest{
@@ -214,7 +216,7 @@ func TestAIServiceUsageGovernorContractReleasesReservation(t *testing.T) {
 	}
 }
 
-func seedEnterpriseUsageWallet(t *testing.T, db *gorm.DB, userID uint) {
+func seedHostedUsageWallet(t *testing.T, db *gorm.DB, userID uint) {
 	t.Helper()
 	if err := db.Exec(`CREATE TABLE IF NOT EXISTS user_quota (
 		id integer PRIMARY KEY AUTOINCREMENT,
@@ -414,6 +416,7 @@ func TestAIServiceHealthProbeContractPingsProviderAndListsRuntimeHealth(t *testi
 		IsEnabled:             true,
 		Capabilities:          CapabilityFamilyTextGeneration,
 		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
+		SupportedParams:       testSupportedParamsProfile(CapabilityFamilyTextGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -473,6 +476,7 @@ func TestAIServiceHealthProbeUsesCatalogRouteWithoutLegacyModelConfigTable(t *te
 		IsEnabled:             true,
 		Capabilities:          CapabilityFamilyTextGeneration,
 		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
+		SupportedParams:       testSupportedParamsProfile(CapabilityFamilyTextGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -556,6 +560,7 @@ func TestAIServiceRuntimeHealthUsesCatalogRoutesWithoutLegacyModelConfigTable(t 
 		IsEnabled:             true,
 		Capabilities:          CapabilityFamilyTextGeneration,
 		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
+		SupportedParams:       testSupportedParamsProfile(CapabilityFamilyTextGeneration),
 	}
 	relayGatewayEntry := persistencemodel.AIModelCatalogEntry{
 		PublicModelID:         "priority-writer",
@@ -563,6 +568,7 @@ func TestAIServiceRuntimeHealthUsesCatalogRoutesWithoutLegacyModelConfigTable(t 
 		IsEnabled:             true,
 		Capabilities:          CapabilityFamilyTextGeneration,
 		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
+		SupportedParams:       testSupportedParamsProfile(CapabilityFamilyTextGeneration),
 	}
 	if err := db.Create(&localEntry).Error; err != nil {
 		t.Fatalf("create local entry: %v", err)

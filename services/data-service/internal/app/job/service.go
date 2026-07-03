@@ -396,6 +396,11 @@ func (s *Service) prepareGenerationPreflight(ctx context.Context, input EnqueueI
 	if err != nil {
 		return generationPreflightState{}, err
 	}
+	sanitizedExtraParams, err := marshalGenerationExtraParams(preflight.NormalizedParams)
+	if err != nil {
+		return generationPreflightState{}, err
+	}
+	input.ExtraParams = sanitizedExtraParams
 	if err := s.requireImageVerification(preflight.Def, inputResources.Resources); err != nil {
 		return generationPreflightState{}, err
 	}
@@ -417,6 +422,17 @@ func (s *Service) prepareGenerationPreflight(ctx context.Context, input EnqueueI
 		credential:       cred,
 		estimate:         estimate,
 	}, nil
+}
+
+func marshalGenerationExtraParams(params map[string]any) (string, error) {
+	if len(params) == 0 {
+		return "", nil
+	}
+	raw, err := json.Marshal(params)
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
 }
 
 func executionJobTypeForIntent(capability string) string {

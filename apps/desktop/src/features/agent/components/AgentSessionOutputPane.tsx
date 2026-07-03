@@ -32,7 +32,7 @@ import {
   GenerationRecordRow,
 } from './AgentSessionOutputPaneParts'
 import {
-  getAPIBaseURL,
+  getDaemonGatewayBaseURL,
   getRuntimeConfigSnapshot,
   refreshRuntimeConfigSnapshot,
 } from '@/shared/infrastructure/config'
@@ -267,8 +267,7 @@ function agentOutputProjectServiceBaseURL(runtimeConfig: unknown): string {
     ?? stringValue(runtimeGateway?.baseURL)
     ?? stringValue(record.gatewayBaseURL)
     ?? stringValue(record.daemonGatewayBaseURL)
-    ?? stringValue(record.apiBaseURL)
-    ?? getAPIBaseURL()
+    ?? getDaemonGatewayBaseURL()
   return baseURL.replace(/\/+$/, '')
 }
 

@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { readRuntimeHomeSnapshot } from '@movscript/runtime-contracts'
 import { stopLocalRuntimeDaemon } from '@movscript/local-runtime'
+import {
+  installMovScriptHomePluginBundle,
+  readMovScriptHomePluginBundleIdentity,
+} from '@movscript/plugins/node'
 import {
   EDITING_SERVICE_NAME,
   MEDIA_PIPELINE_SERVICE_NAME,
@@ -19,6 +23,7 @@ import {
   resolveDesktopLocalRuntimeIdentity,
   resolveDesktopLocalRuntimeDaemonEntrypoint,
   resolveDesktopRuntimeRepoRoot,
+  seedDesktopHomePluginCurrent,
   shutdownDesktopApplicationRuntime,
   startDesktopApplicationRuntime,
 } from './desktopApplicationRuntime'
@@ -295,6 +300,37 @@ test('Desktop runtime resolves local daemon entrypoint from packaged provider pl
   }
 })
 
+test('Desktop runtime seed does not downgrade an existing newer Home current plugin', () => {
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-desktop-no-downgrade-home-'))
+  const sourceRoot = mkdtempSync(join(tmpdir(), 'movscript-desktop-newer-plugin-'))
+  try {
+    const newerPlugin = writePluginBundle(sourceRoot, {
+      version: '999.0.0',
+      bundleHash: 'abcdef9999990000',
+    })
+    const installed = installMovScriptHomePluginBundle({
+      homeDir,
+      sourcePluginRoot: newerPlugin,
+      mode: 'replace',
+      reason: 'agent-plugin-install',
+      provider: 'agent-plugin',
+    })
+
+    seedDesktopHomePluginCurrent(homeDir)
+
+    const identity = readMovScriptHomePluginBundleIdentity(homeDir)
+    assert.equal(identity?.version, '999.0.0')
+    assert.equal(identity?.bundleHash, 'abcdef9999990000')
+    assert.equal(identity?.reason, 'desktop-runtime-start')
+    assert.equal(identity?.provider, 'desktop')
+    assert.equal(realpathSync(join(homeDir, 'plugins/movscript/current')), realpathSync(installed.targetPluginRoot))
+    assert.equal(realpathSync(identity?.pluginRoot ?? ''), realpathSync(installed.targetPluginRoot))
+  } finally {
+    rmSync(homeDir, { recursive: true, force: true })
+    rmSync(sourceRoot, { recursive: true, force: true })
+  }
+})
+
 test('Desktop runtime identity resolves installed plugin version and root from entrypoint', () => {
   const pluginRoot = mkdtempSync(join(tmpdir(), 'movscript-desktop-plugin-identity-'))
   try {
@@ -330,6 +366,60 @@ async function startFakeDesktopDaemon(
   })
   assert.equal(typeof result.pid, 'number')
   return { pid: result.pid as number }
+}
+
+function writePluginBundle(root: string, input: {
+  version: string
+  bundleHash: string
+}): string {
+  const source = join(root, 'source-plugin')
+  mkdirSync(join(source, '.provider-plugin'), { recursive: true })
+  mkdirSync(join(source, '.codex-plugin'), { recursive: true })
+  mkdirSync(join(source, 'bin'), { recursive: true })
+  mkdirSync(join(source, 'skills', 'runtime'), { recursive: true })
+  const pluginManifest = {
+    name: 'movscript',
+    version: input.version,
+    description: 'MovScript plugin',
+  }
+  writeFileSync(join(source, '.provider-plugin', 'plugin.json'), JSON.stringify(pluginManifest), 'utf8')
+  writeFileSync(join(source, '.codex-plugin', 'plugin.json'), JSON.stringify(pluginManifest), 'utf8')
+  writeFileSync(join(source, '.mcp.json'), JSON.stringify({ mcpServers: {} }), 'utf8')
+  writeFileSync(join(source, 'bin', 'movscript'), '#!/bin/sh\n', 'utf8')
+  writeFileSync(join(source, 'bin', 'movscript.mjs'), 'export {}\n', 'utf8')
+  writeFileSync(join(source, 'bin', 'movscript-agent-mcp'), '#!/bin/sh\n', 'utf8')
+  writeFileSync(join(source, 'skills', 'runtime', 'SKILL.md'), '---\nname: runtime\n---\n', 'utf8')
+  writeFileSync(join(source, 'manifest.runtime.json'), JSON.stringify({
+    schema: 'movscript.runtime-bundle.v1',
+    appId: 'plugin',
+    applicationId: 'movscript.agent-plugin',
+    artifact: 'movscript-agent-plugin',
+    version: input.version,
+    packageName: '@movscript/plugin-movscript',
+    generatedAt: '2026-07-03T00:00:00.000Z',
+    apiVersion: '1.0',
+    minDaemonApiVersion: '1.0',
+    bundleHash: input.bundleHash,
+    bundleHashAlgorithm: 'sha256',
+    capabilities: {
+      cli: true,
+      mcp: true,
+      daemon: true,
+      project: true,
+      timeline: true,
+      canvas: true,
+      resources: true,
+      editing: true,
+      media: true,
+    },
+    mcpServer: 'movscript',
+    entrypoint: './bin/movscript',
+    mcpArgs: ['mcp', 'stdio'],
+    daemonArgs: ['daemon', 'run'],
+    cliEntrypoint: './bin/movscript',
+    legacyMcpEntrypoint: './bin/movscript-agent-mcp',
+  }), 'utf8')
+  return source
 }
 
 function fakeDaemonSource(input: {

@@ -39,9 +39,10 @@ export function ToolDialogHistorySection({
   onReusePrompt,
 }: ToolDialogHistorySectionProps) {
   const { t } = useTranslation()
+  const useGridHistory = layout === 'reference-workbench' || outputType === 'image'
 
   return (
-    <ToolDialogHistoryShell>
+    <ToolDialogHistoryShell className={useGridHistory ? 'tool-dialog-history--fixed-page' : undefined}>
       <ToolDialogHistoryHeader>
         <ToolDialogHistoryTitle icon={<History size={14} className="text-muted-foreground" />}>
           {t('shared.toolNode.generationHistory')}
@@ -83,9 +84,9 @@ export function ToolDialogHistorySection({
           title={t('pages.jobs.empty')}
         />
       ) : (
-        <ToolDialogHistoryList>
+        <ToolDialogHistoryList className={useGridHistory ? 'tool-dialog-history-list--grid' : undefined}>
           {jobs.map((job) => (
-            layout === 'reference-workbench' ? (
+            useGridHistory ? (
               <GenerationHistoryGridItem
                 key={job.ID}
                 job={job}

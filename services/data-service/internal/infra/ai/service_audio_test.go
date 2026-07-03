@@ -305,6 +305,7 @@ func createAudioCatalogRoute(t *testing.T, db *gorm.DB, credentialID uint, publi
 		Capabilities:          CapabilityFamilyAudioGeneration,
 		IsEnabled:             true,
 		ModelCapabilitiesJSON: testStructuredAudioCapabilityJSON(operation),
+		SupportedParams:       testAudioSupportedParamsProfile(operation),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -323,6 +324,10 @@ func createAudioCatalogRoute(t *testing.T, db *gorm.DB, credentialID uint, publi
 
 func testStructuredAudioCapabilityJSON(operation string) string {
 	return fmt.Sprintf(`{"audio_generation":{"operations":[%q]}}`, operation)
+}
+
+func testAudioSupportedParamsProfile(operation string) string {
+	return fmt.Sprintf(`{"version":2,"by_operation":{%q:{"add":[{"key":"test_param","label":"Test Param","type":"string"}]}}}`, operation)
 }
 
 type alignProbeProvider struct {

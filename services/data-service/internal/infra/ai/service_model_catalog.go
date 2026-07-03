@@ -19,9 +19,9 @@ func (s *AIService) ListModels(ctx context.Context, filter providercontract.AIMo
 		if err != nil {
 			return nil, err
 		}
-		return s.editionFilterModelCatalog(ctx, filter, descriptors)
+		return s.distributionProfileFilterModelCatalog(ctx, filter, descriptors)
 	}
-	return s.editionFilterModelCatalog(ctx, filter, []providercontract.AIModelDescriptor{})
+	return s.distributionProfileFilterModelCatalog(ctx, filter, []providercontract.AIModelDescriptor{})
 }
 
 func (s *AIService) listModelsFromCatalogEntries(ctx context.Context, filter providercontract.AIModelListFilter) ([]providercontract.AIModelDescriptor, bool, error) {
@@ -798,6 +798,9 @@ func (s *AIService) catalogRouteDefinition(ctx context.Context, route ModelRoute
 	if err := s.db.WithContext(ctx).First(&entry, route.CatalogEntryID).Error; err != nil {
 		return catalogRouteDefinition{}, true, err
 	}
+	if catalogCapabilityRequiresSupportedParams(capability) && strings.TrimSpace(entry.SupportedParams) == "" {
+		return catalogRouteDefinition{}, true, fmt.Errorf("catalog entry %q has empty supported_params for %s", entry.PublicModelID, capability)
+	}
 	def := catalogEntryDefForRoute(entry, route)
 	if !modelHasCapability(def, capability) {
 		return catalogRouteDefinition{}, true, fmt.Errorf("model %q does not support %s", entry.PublicModelID, capability)
@@ -807,6 +810,18 @@ func (s *AIService) catalogRouteDefinition(ctx context.Context, route ModelRoute
 		model: catalogRuntimeModelFromEntry(entry, route.RuntimeModelID),
 		def:   def,
 	}, true, nil
+}
+
+func catalogCapabilityRequiresSupportedParams(capability string) bool {
+	switch strings.TrimSpace(capability) {
+	case CapabilityFamilyTextGeneration,
+		CapabilityFamilyImageGeneration,
+		CapabilityFamilyVideoGeneration,
+		CapabilityFamilyAudioGeneration:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *AIService) catalogRouteRuntime(ctx context.Context, userID uint, route ModelRoute, capability string) (catalogRouteRuntime, bool, error) {
@@ -840,7 +855,7 @@ func (s *AIService) catalogRouteRuntime(ctx context.Context, userID uint, route 
 			adapterType: adapterType,
 		}, true, nil
 	}
-	provider, adapterType, handled, err := s.editionProviderForCatalogRoute(ctx, userID, route, capability)
+	provider, adapterType, handled, err := s.distributionProfileProviderForCatalogRoute(ctx, userID, route, capability)
 	if handled || err != nil {
 		if err != nil {
 			return catalogRouteRuntime{}, true, err

@@ -14,6 +14,8 @@ import {
 import {
   createHostedProjectSurfaceRuntime,
   projectSurfaceContextCommandEnvelope,
+  type ProjectSurfaceRemotionStudioSession,
+  type ProjectSurfaceRemotionStudioSessionLogs,
   type ProjectSurfaceRouteKey,
   type ProjectSurfaceRouteParams,
   type ProjectSurfaceRuntime,
@@ -53,7 +55,6 @@ export interface LocalHostProjectSurfaceRuntimeInput {
   projectDir?: string
   projectUid?: string
   productionId?: string
-  mcpApiBaseURL?: string
   search?: URLSearchParams
   context?: MovScriptContextEnvelope
 }
@@ -75,6 +76,7 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
   const mediaPipeline = typeof window === 'undefined'
     ? undefined
     : new MediaPipelineServiceClient({ baseUrl: window.location.origin })
+  const daemonGatewayBaseURL = typeof window === 'undefined' ? undefined : window.location.origin
   const postProjectWorkspaceOperation = async (
     endpoint: string,
     request: { projectDir?: string; projectUid?: string; input?: unknown } = {},
@@ -117,6 +119,8 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
         open_action: openAction,
         projectId: String(request.projectId ?? projectKey),
         project_id: String(request.projectId ?? projectKey),
+        executionOwner: 'external_shell',
+        execution_owner: 'external_shell',
       })
       return {
         ...resultRecord,
@@ -151,10 +155,10 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
       preview_started: true,
     }
   }
-  const postRemotionStudioSessionOperation = async (
+  const postRemotionStudioSessionOperation = async <T = unknown>(
     endpoint: string,
     body: Record<string, unknown> = {},
-  ): Promise<unknown> => fetchProjectServiceEndpoint({ endpoint, body })
+  ): Promise<T> => fetchProjectServiceEndpoint({ endpoint, body }) as Promise<T>
 
   return createHostedProjectSurfaceRuntime({
     context: input.context,
@@ -167,7 +171,7 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
     },
     diagnostics: {
       endpoints: {
-        ...(input.mcpApiBaseURL ? { mcpApi: input.mcpApiBaseURL } : {}),
+        ...(daemonGatewayBaseURL ? { gateway: daemonGatewayBaseURL } : {}),
       },
     },
     capabilities: {
@@ -176,6 +180,7 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
       generation: true,
       editing: true,
       mediaPipeline: true,
+      shell: false,
     },
     href: (route, params, runtimeProject) => localProjectSurfaceHref({
       route,
@@ -443,10 +448,14 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
         },
       },
       remotionStudio: {
-        open: (request) => postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_OPEN_ENDPOINT, request),
-        get: (request) => postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_GET_ENDPOINT, request),
-        logs: (request) => postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_LOGS_ENDPOINT, request),
-        stop: (request) => postRemotionStudioSessionOperation(REMOTION_STUDIO_SESSION_STOP_ENDPOINT, request),
+        open: (request) => postRemotionStudioSessionOperation<ProjectSurfaceRemotionStudioSession>(REMOTION_STUDIO_SESSION_OPEN_ENDPOINT, {
+          ...request,
+          executionOwner: 'external_shell',
+          execution_owner: 'external_shell',
+        }),
+        get: (request) => postRemotionStudioSessionOperation<ProjectSurfaceRemotionStudioSession>(REMOTION_STUDIO_SESSION_GET_ENDPOINT, request),
+        logs: (request) => postRemotionStudioSessionOperation<ProjectSurfaceRemotionStudioSessionLogs>(REMOTION_STUDIO_SESSION_LOGS_ENDPOINT, request),
+        stop: (request) => postRemotionStudioSessionOperation<ProjectSurfaceRemotionStudioSession>(REMOTION_STUDIO_SESSION_STOP_ENDPOINT, request),
       },
     },
   })

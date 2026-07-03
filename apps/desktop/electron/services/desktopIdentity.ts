@@ -3,10 +3,10 @@ import { join, win32 as pathWin32 } from 'node:path'
 import * as electron from 'electron'
 import { fallbackUserMovScriptHomeDir } from '@movscript/workspace/home'
 
-export type MovScriptDesktopEdition = 'community' | 'enterprise'
+export type MovScriptDesktopDistributionProfile = 'default-local' | 'self-hosted' | 'custom'
 
 export interface MovScriptDesktopIdentity {
-  edition: MovScriptDesktopEdition
+  distributionProfile: MovScriptDesktopDistributionProfile
   appName: string
   homeDir: string
   userDataDir?: string
@@ -25,17 +25,22 @@ export function resolveDesktopIdentity(
   const platform = options.platform ?? process.platform
   const userHomeDir = options.userHomeDir ?? homedir()
   const appDataDir = options.appDataDir ?? getElectronAppDataDir(env, platform, userHomeDir)
-  const edition = normalizeDesktopEdition(env.MOVSCRIPT_DESKTOP_EDITION || env.MOVSCRIPT_APP_EDITION)
-  const appName = env.MOVSCRIPT_DESKTOP_APP_NAME?.trim() || (edition === 'enterprise' ? 'MovScript Enterprise' : 'Movscript')
+  const distributionProfile = normalizeDesktopDistributionProfile(
+    env.MOVSCRIPT_DESKTOP_DISTRIBUTION_PROFILE
+      || env.MOVSCRIPT_DISTRIBUTION_PROFILE
+      || env.MOVSCRIPT_DESKTOP_EDITION
+      || env.MOVSCRIPT_APP_EDITION,
+  )
+  const appName = env.MOVSCRIPT_DESKTOP_APP_NAME?.trim() || desktopDistributionProfileAppName(distributionProfile)
   const homeDir = env.MOVSCRIPT_DESKTOP_HOME?.trim()
     || env.MOVSCRIPT_HOME?.trim()
     || env.MOVSCRIPT_WORKSPACE_DIR?.trim()
-    || fallbackDesktopMovScriptHomeDir(edition, env, platform, userHomeDir)
+    || fallbackDesktopMovScriptHomeDir(distributionProfile, env, platform, userHomeDir)
   const userDataDir = env.MOVSCRIPT_DESKTOP_USER_DATA_DIR?.trim()
-    || (edition === 'enterprise' ? joinForPlatform(platform, appDataDir, 'MovScript Enterprise') : undefined)
+    || (distributionProfile === 'default-local' ? undefined : joinForPlatform(platform, appDataDir, appName))
 
   return {
-    edition,
+    distributionProfile,
     appName,
     homeDir,
     ...(userDataDir ? { userDataDir } : {}),
@@ -50,21 +55,49 @@ export function installDesktopIdentity(identity = resolveDesktopIdentity()): voi
   process.env.MOVSCRIPT_WORKSPACE_DIR ||= identity.homeDir
 }
 
-function normalizeDesktopEdition(value: string | undefined): MovScriptDesktopEdition {
-  return value?.trim().toLowerCase() === 'enterprise' ? 'enterprise' : 'community'
+function normalizeDesktopDistributionProfile(value: string | undefined): MovScriptDesktopDistributionProfile {
+  switch (value?.trim().toLowerCase()) {
+    case 'custom':
+      return 'custom'
+    case 'self-hosted':
+    case 'self_hosted':
+    case 'selfhosted':
+    case 'enterprise':
+      return 'self-hosted'
+    case 'default':
+    case 'default-local':
+    case 'local':
+    case 'community':
+    default:
+      return 'default-local'
+  }
+}
+
+function desktopDistributionProfileAppName(profile: MovScriptDesktopDistributionProfile): string {
+  switch (profile) {
+    case 'self-hosted':
+      return 'MovScript Self Hosted'
+    case 'custom':
+      return 'MovScript Custom'
+    case 'default-local':
+    default:
+      return 'Movscript'
+  }
 }
 
 function fallbackDesktopMovScriptHomeDir(
-  edition: MovScriptDesktopEdition,
+  distributionProfile: MovScriptDesktopDistributionProfile,
   env: NodeJS.ProcessEnv,
   platform: NodeJS.Platform,
   userHomeDir: string,
 ): string {
-  if (edition === 'community') return fallbackUserMovScriptHomeDir({ env, platform, userHomeDir })
+  if (distributionProfile === 'default-local') return fallbackUserMovScriptHomeDir({ env, platform, userHomeDir })
+  const homeName = distributionProfile === 'custom' ? 'MovScript Custom' : 'MovScript Self Hosted'
+  const dotDir = distributionProfile === 'custom' ? '.movscript-custom' : '.movscript-self-hosted'
   if (platform === 'win32') {
-    return pathWin32.join(getWindowsLocalAppDataDir(env, userHomeDir), 'MovScript Enterprise', 'Home')
+    return pathWin32.join(getWindowsLocalAppDataDir(env, userHomeDir), homeName, 'Home')
   }
-  return join(userHomeDir, '.movscript-enterprise')
+  return join(userHomeDir, dotDir)
 }
 
 function getElectronApp(): Electron.App | undefined {

@@ -72,6 +72,29 @@ test('Electron runtime config prefers daemon gateway endpoint and keeps data ser
   assert.doesNotMatch(source, /\.\.\.\(dataServiceBaseURL \? \{ dataServiceBaseURL \} : \{\}\)/)
 })
 
+test('Electron runtime config reports Desktop bundled runtime versus Home current status', () => {
+  const source = readFileSync(resolve(import.meta.dirname, 'runtimeConfig.ts'), 'utf8')
+
+  assert.match(source, /readMovScriptHomePluginBundleIdentity/)
+  assert.match(source, /resolveMovScriptHomeCurrentPluginRoot/)
+  assert.match(source, /runtimeBundleCompatibility/)
+  assert.match(source, /runtimeBundleStatus/)
+  assert.match(source, /function resolveRuntimeBundleStatus/)
+  assert.match(source, /input\.comparison\.kind === 'newer'[\s\S]*return 'upgrade'/)
+  assert.match(source, /input\.comparison\.kind === 'same' \|\| input\.comparison\.kind === 'older'[\s\S]*return 'keep'/)
+  assert.match(source, /return input\.previousRoot \? 'rollback' : 'repair'/)
+})
+
+test('Electron runtime config IPC exposes runtime bundle actions without a terminal surface', () => {
+  const ipcSource = readFileSync(resolve(import.meta.dirname, '../ipc/runtimeConfigIpc.ts'), 'utf8')
+  const preloadSource = readFileSync(resolve(import.meta.dirname, '../preload/api/runtimeConfig.ts'), 'utf8')
+
+  assert.match(ipcSource, /applyRuntimeBundleAction/)
+  assert.match(ipcSource, /ipcMain\.handle\('app:apply-runtime-bundle-action'/)
+  assert.match(preloadSource, /applyRuntimeBundleAction/)
+  assert.match(preloadSource, /ipcRenderer\.invoke\('app:apply-runtime-bundle-action', input\)/)
+})
+
 function restoreEnv(name: string, value: string | undefined): void {
   if (value === undefined) delete process.env[name]
   else process.env[name] = value

@@ -15,7 +15,7 @@ func TestBuiltInDescriptorLabelsStartupAdapters(t *testing.T) {
 		{contract.TypeDatabase, contract.AdapterSQLite, "SQLite"},
 		{contract.TypeBlobStorage, contract.AdapterMinIO, "MinIO"},
 		{contract.TypeWorkspaceRepository, contract.AdapterGitea, "Gitea"},
-		{contract.TypeWorkspaceRepository, contract.AdapterGitHubEnterprise, "GitHub Enterprise"},
+		{contract.TypeWorkspaceRepository, contract.AdapterGitHubSelfHosted, "GitHub Self-hosted"},
 		{contract.TypeWorkspaceRepository, contract.AdapterGitLab, "GitLab"},
 		{contract.TypeAIGateway, contract.AdapterLocal, "Local AI Gateway"},
 		{contract.TypeCache, contract.AdapterRedis, "Redis"},
@@ -61,7 +61,7 @@ func TestBuiltInDescriptorDeclaresAdapterCapabilities(t *testing.T) {
 		t.Fatalf("pgvector capabilities = %+v, missing %+v", vector.Capabilities, wantVector)
 	}
 
-	for _, adapter := range []string{contract.AdapterGitHubEnterprise, contract.AdapterGitLab} {
+	for _, adapter := range []string{contract.AdapterGitHubSelfHosted, contract.AdapterGitLab} {
 		repo := BuiltIn(contract.TypeWorkspaceRepository, adapter)
 		wantRepo := map[string]bool{
 			"repository.collaborator.ensure": true,
@@ -101,7 +101,7 @@ func TestBuiltInsIncludesStartupProviderSurface(t *testing.T) {
 		contract.TypeBlobStorage + ":" + contract.AdapterMinIO,
 		contract.TypeWorkspaceRepository + ":" + contract.AdapterGitHTTP,
 		contract.TypeWorkspaceRepository + ":" + contract.AdapterGitea,
-		contract.TypeWorkspaceRepository + ":" + contract.AdapterGitHubEnterprise,
+		contract.TypeWorkspaceRepository + ":" + contract.AdapterGitHubSelfHosted,
 		contract.TypeWorkspaceRepository + ":" + contract.AdapterGitLab,
 		contract.TypeAIGateway + ":" + contract.AdapterLocal,
 		contract.TypeCache + ":" + contract.AdapterRedis,

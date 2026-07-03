@@ -10,9 +10,9 @@ test('normalizeAdminConsolePath accepts root, admin, and nested admin paths', ()
 })
 
 test('resolveAdminConsoleURL builds Electron-hosted admin URLs with API target', () => {
-  assert.equal(resolveAdminConsoleURL({ baseURL: 'http://localhost:8766' }), 'movscript-admin://app/?apiBaseURL=http%3A%2F%2Flocalhost%3A8766')
-  assert.equal(resolveAdminConsoleURL({ baseURL: 'http://localhost:8766/api/v1', path: '/admin/models' }), 'movscript-admin://app/models?apiBaseURL=http%3A%2F%2Flocalhost%3A8766')
-  assert.equal(resolveAdminConsoleURL({ baseURL: 'https://api.example.com/', path: 'debug?tab=jobs' }), 'movscript-admin://app/debug?tab=jobs&apiBaseURL=https%3A%2F%2Fapi.example.com')
+  assert.equal(resolveAdminConsoleURL({ baseURL: 'http://localhost:8766' }), 'movscript-admin://app/?gatewayBaseURL=http%3A%2F%2Flocalhost%3A8766')
+  assert.equal(resolveAdminConsoleURL({ baseURL: 'http://localhost:8766/api/v1', path: '/admin/models' }), 'movscript-admin://app/models?gatewayBaseURL=http%3A%2F%2Flocalhost%3A8766')
+  assert.equal(resolveAdminConsoleURL({ baseURL: 'https://api.example.com/', path: 'debug?tab=jobs' }), 'movscript-admin://app/debug?tab=jobs&gatewayBaseURL=https%3A%2F%2Fapi.example.com')
 })
 
 test('resolveAdminConsoleURL can target a dev admin renderer', () => {
@@ -21,7 +21,7 @@ test('resolveAdminConsoleURL can target a dev admin renderer', () => {
       { baseURL: 'http://localhost:8766', path: '/models' },
       { rendererURL: 'http://127.0.0.1:5174' },
     ),
-    'http://127.0.0.1:5174/models?apiBaseURL=http%3A%2F%2Flocalhost%3A8766',
+    'http://127.0.0.1:5174/models?gatewayBaseURL=http%3A%2F%2Flocalhost%3A8766',
   )
 })
 
@@ -37,7 +37,7 @@ test('resolveAdminConsoleURL passes admin auth through URL hash', () => {
       language: 'zh-CN',
     },
   })
-  assert.match(url, /^movscript-admin:\/\/app\/\?apiBaseURL=http%3A%2F%2Flocalhost%3A8766#authSession=/)
+  assert.match(url, /^movscript-admin:\/\/app\/\?gatewayBaseURL=http%3A%2F%2Flocalhost%3A8766#authSession=/)
   assert.equal(url.includes('session-token'), false)
   assert.equal(url.includes('zh-CN'), false)
   const parsed = new URL(url)

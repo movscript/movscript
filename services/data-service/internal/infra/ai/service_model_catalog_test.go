@@ -559,6 +559,7 @@ func TestAIServiceCatalogRouteUsesCredentialAdapterForVolcenVideoTasks(t *testin
 		IsEnabled:             true,
 		Capabilities:          strings.Join([]string{CapabilityFamilyVideoGeneration}, ","),
 		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyVideoGeneration),
+		SupportedParams:       testSupportedParamsProfile(CapabilityFamilyVideoGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -641,6 +642,7 @@ func TestAIServiceCatalogRouteCanCallLocalProviderWithProviderModelID(t *testing
 		IsEnabled:             true,
 		Capabilities:          CapabilityFamilyTextGeneration,
 		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
+		SupportedParams:       testSupportedParamsProfile(CapabilityFamilyTextGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -727,6 +729,7 @@ func TestAIServiceCatalogRouteAppliesEndpointOverrideToProviderCredential(t *tes
 		IsEnabled:             true,
 		Capabilities:          CapabilityFamilyVideoGeneration,
 		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyVideoGeneration),
+		SupportedParams:       testSupportedParamsProfile(CapabilityFamilyVideoGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -795,6 +798,7 @@ func TestAIServiceCatalogRouteEndpointCanBeLoadedFromRouteBindingID(t *testing.T
 		IsEnabled:             true,
 		Capabilities:          CapabilityFamilyTextGeneration,
 		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
+		SupportedParams:       testSupportedParamsProfile(CapabilityFamilyTextGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -1197,6 +1201,7 @@ func TestAIServiceCatalogRouteCanCallImageProviderWithProviderModelID(t *testing
 		IsEnabled:             true,
 		Capabilities:          CapabilityFamilyImageGeneration,
 		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyImageGeneration),
+		SupportedParams:       testSupportedParamsProfile(CapabilityFamilyImageGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -1248,6 +1253,7 @@ func TestAIServiceCatalogRouteCanCallTTSProviderWithProviderModelID(t *testing.T
 		IsEnabled:             true,
 		Capabilities:          CapabilityFamilyAudioGeneration,
 		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyAudioGeneration),
+		SupportedParams:       testSupportedParamsProfile(CapabilityFamilyAudioGeneration),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)

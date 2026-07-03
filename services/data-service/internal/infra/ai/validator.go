@@ -168,6 +168,148 @@ func ValidateAndNormalizeGenerationParamsForOperation(def *ModelDef, jobType, op
 	return params, nil
 }
 
+const (
+	seedreamSequentialImageTotalLimit = 15
+	totalLimitSchemaKey               = "x_movscript_total_limit"
+)
+
+type generationOutputTotalLimitRule struct {
+	InputKind   string
+	MaxTotal    int
+	OutputParam string
+	WhenParam   string
+	WhenValue   any
+}
+
+func ValidateGenerationOutputCardinality(def *ModelDef, outputType string, params map[string]any, inputImageCount int) error {
+	if def == nil || outputType != CapabilityFamilyImageGeneration {
+		return nil
+	}
+	handled, err := validateDeclaredOutputTotalLimits(def, params, inputImageCount)
+	if handled || err != nil {
+		return err
+	}
+	if !isSeedreamImageModel(def) {
+		return nil
+	}
+	return validateGenerationOutputTotalLimit(params, inputImageCount, generationOutputTotalLimitRule{
+		InputKind:   "image",
+		MaxTotal:    seedreamSequentialImageTotalLimit,
+		OutputParam: "image_count",
+		WhenParam:   "sequential_image_generation",
+		WhenValue:   "auto",
+	})
+}
+
+func validateDeclaredOutputTotalLimits(def *ModelDef, params map[string]any, inputImageCount int) (bool, error) {
+	supportedParams, _, err := generationSupportedParamsForOperation(def, "")
+	if err != nil {
+		return false, err
+	}
+	handled := false
+	for _, param := range supportedParams {
+		rule, ok := totalLimitRuleFromParam(param)
+		if !ok {
+			continue
+		}
+		handled = true
+		if err := validateGenerationOutputTotalLimit(params, inputImageCount, rule); err != nil {
+			return true, err
+		}
+	}
+	return handled, nil
+}
+
+func totalLimitRuleFromParam(param ParamDef) (generationOutputTotalLimitRule, bool) {
+	raw, ok := param.JSONSchema[totalLimitSchemaKey]
+	if !ok {
+		return generationOutputTotalLimitRule{}, false
+	}
+	items, ok := raw.(map[string]any)
+	if !ok {
+		return generationOutputTotalLimitRule{}, false
+	}
+	rule := generationOutputTotalLimitRule{OutputParam: param.Key}
+	if inputKind, ok := strictStringValue(items["input_kind"]); ok {
+		rule.InputKind = inputKind
+	}
+	if maxTotal, ok := strictNumberValue(items["max_total"]); ok && isWholeNumber(maxTotal) {
+		rule.MaxTotal = int(maxTotal)
+	}
+	if outputParam, ok := strictStringValue(items["output_param"]); ok && strings.TrimSpace(outputParam) != "" {
+		rule.OutputParam = outputParam
+	}
+	if whenParam, ok := strictStringValue(items["when_param"]); ok {
+		rule.WhenParam = whenParam
+		rule.WhenValue = items["when_value"]
+	}
+	if rule.InputKind == "" || rule.MaxTotal <= 0 || strings.TrimSpace(rule.OutputParam) == "" {
+		return generationOutputTotalLimitRule{}, false
+	}
+	return rule, true
+}
+
+func validateGenerationOutputTotalLimit(params map[string]any, inputImageCount int, rule generationOutputTotalLimitRule) error {
+	if rule.InputKind != "image" || rule.MaxTotal <= 0 {
+		return nil
+	}
+	if rule.WhenParam != "" && !conditionalParamMatches(params[rule.WhenParam], rule.WhenValue) {
+		return nil
+	}
+	outputCountValue, ok := paramValueByKeyOrAlias(params, rule.OutputParam)
+	if !ok {
+		return nil
+	}
+	outputCount, ok := positiveWholeIntValue(outputCountValue)
+	if !ok {
+		return nil
+	}
+	total := inputImageCount + outputCount
+	if total <= rule.MaxTotal {
+		return nil
+	}
+	allowedGenerated := rule.MaxTotal - inputImageCount
+	if allowedGenerated < 1 {
+		allowedGenerated = 1
+	}
+	outputParam := rule.OutputParam
+	err := invalidParamCombinationError(
+		fmt.Sprintf("image generation supports at most %d total image(s): %d input image(s) + %d generated image(s) were requested", rule.MaxTotal, inputImageCount, outputCount),
+		outputParam,
+		"input_images",
+	)
+	err.SuggestedFix = map[string]any{outputParam: allowedGenerated}
+	return err
+}
+
+func paramValueByKeyOrAlias(params map[string]any, key string) (any, bool) {
+	if value, ok := params[key]; ok {
+		return value, true
+	}
+	for _, alias := range paramKeyAliases(key) {
+		if value, ok := params[alias]; ok {
+			return value, true
+		}
+	}
+	return nil, false
+}
+
+func isSeedreamImageModel(def *ModelDef) bool {
+	if def == nil {
+		return false
+	}
+	haystack := strings.ToLower(strings.Join([]string{def.ID, def.ModelID, def.DisplayName}, " "))
+	return strings.EqualFold(strings.TrimSpace(def.Lab), "seed") && strings.Contains(haystack, "seedream")
+}
+
+func positiveWholeIntValue(value any) (int, bool) {
+	number, ok := numberValue(value)
+	if !ok || number <= 0 || !isWholeNumber(number) {
+		return 0, false
+	}
+	return int(number), true
+}
+
 func generationSupportedParamsForOperation(def *ModelDef, operation string) ([]ParamDef, bool, error) {
 	operation = strings.TrimSpace(operation)
 	if operation != "" && len(def.SupportedParamsByOperation) > 0 {

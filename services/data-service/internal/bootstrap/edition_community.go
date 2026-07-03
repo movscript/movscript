@@ -9,10 +9,10 @@ import (
 	"gorm.io/gorm"
 )
 
-func migrateEditionModules(_ context.Context, _ *gorm.DB, _ *config.Config) error {
+func migrateDistributionProfileModules(_ context.Context, _ *gorm.DB, _ *config.Config) error {
 	return nil
 }
 
-func seedEditionData(_ context.Context, _ *gorm.DB, _ *config.Config) error {
+func seedDistributionProfileData(_ context.Context, _ *gorm.DB, _ *config.Config) error {
 	return nil
 }
