@@ -102,14 +102,23 @@ test('electron SDK runtime client subscribes to matching runtime notifications',
       notification: { method: 'thread/status/changed' },
     })
 
-    assert.deepEqual(notifyCalls, [{
-      method: 'runtime/notify/threadSubscribe',
-      params: {
-        provider: input.provider,
-        runtime: input.runtime,
-        threadId: 'thread_1',
+    assert.deepEqual(notifyCalls, [
+      {
+        method: 'runtime/notify/threadSubscribe',
+        params: {
+          provider: input.provider,
+          runtime: input.runtime,
+          threadId: 'thread_1',
+        },
       },
-    }])
+      {
+        method: 'runtime/notify/serverRequestsSubscribe',
+        params: {
+          provider: input.provider,
+          runtime: input.runtime,
+        },
+      },
+    ])
     assert.deepEqual(received, [{ method: 'thread/status/changed' }])
     if (typeof cleanup === 'function') cleanup()
     assert.equal(notifications.length, 0)

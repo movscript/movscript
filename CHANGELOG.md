@@ -6,6 +6,17 @@ This project follows semantic versioning once stable releases begin.
 
 ## Unreleased
 
+## 0.1.41 - 2026-07-05
+
+### Added
+
+- Enhanced MovScript resource upload support for agent-accessible image, video, audio, and text artifacts.
+- Added backend launch policy and SDK runtime client test coverage.
+
+### Changed
+
+- Bumped release package manifests to 0.1.41.
+
 ## 0.1.40 - 2026-07-04
 
 ### Added

@@ -1,4 +1,4 @@
-export type BackendLaunchPolicy = 'spawn' | 'external' | 'disabled'
+export type BackendLaunchPolicy = 'spawn' | 'external' | 'cloud' | 'disabled'
 
 export type BackendStatusState = 'idle' | 'starting' | 'ready' | 'stopped' | 'error'
 
