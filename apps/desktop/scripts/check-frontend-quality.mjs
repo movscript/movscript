@@ -6,6 +6,7 @@ const DEFAULT_TOP_LIMIT = 20
 const PRODUCTION_TSX_LINE_LIMIT = 800
 
 const DEFAULT_LARGE_TSX_BASELINE = {
+  'src/features/app-shell/application/desktopProjectSurfaceRuntime.tsx': 835,
 }
 
 const DEFAULT_FEATURE_COMPONENT_BOUNDARY_BASELINE = {

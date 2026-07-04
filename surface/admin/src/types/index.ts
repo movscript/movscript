@@ -459,6 +459,7 @@ export interface AIModelRouteBinding {
   provider_id?: string
   adapter_type?: string
   provider_model_id: string
+  protocol_profile?: string
   api_kinds?: string
   endpoint_base_url?: string
   endpoint_path_prefix?: string
@@ -596,6 +597,7 @@ export interface AIModelImportModelPlan {
   template_version?: string
   template_source_status?: string
   adapter_type: string
+  protocol_profile?: string
   status: 'new' | 'catalog_exists' | 'route_exists' | string
   catalog_entry_id?: number
   existing_route_id?: number
@@ -652,9 +654,21 @@ export interface AdapterDef {
   default_base_url: string
   cred_fields: CredField[]
   supports_files_api: boolean  // true = provider has a Files API for pre-uploading media
+  protocol_profiles?: AdapterProtocolProfile[]
   param_sets?: AdapterParamSet[]
   operation_param_sets?: AdapterOperationParamSet[]
   operation_contracts?: AdapterOperationContract[]
+}
+
+export interface AdapterProtocolProfile {
+  profile: string
+  capability_family: string
+  label: string
+  implemented: boolean
+  endpoint?: string
+  inherits_driver?: string
+  operations?: string[]
+  recognized_params?: string[]
 }
 
 // AdapterParamSet is the adapter-level default generation parameter schema for a capability.

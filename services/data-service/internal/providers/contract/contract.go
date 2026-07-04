@@ -184,16 +184,17 @@ type WorkspaceRepositoryIdentity interface {
 }
 
 type TextRequest struct {
-	Model       string
-	Messages    []Message
-	MaxTokens   int
-	Temperature float32
-	IsReasoning bool
-	JSONMode    bool
-	PromptName  string
-	ExtraParams map[string]any
-	Tools       json.RawMessage
-	ToolChoice  json.RawMessage
+	Model           string
+	ProtocolProfile string
+	Messages        []Message
+	MaxTokens       int
+	Temperature     float32
+	IsReasoning     bool
+	JSONMode        bool
+	PromptName      string
+	ExtraParams     map[string]any
+	Tools           json.RawMessage
+	ToolChoice      json.RawMessage
 }
 
 type Message struct {
@@ -268,6 +269,7 @@ type TokenUsage struct {
 
 type ImageRequest struct {
 	Model               string
+	ProtocolProfile     string
 	Operation           string
 	Prompt              string
 	Size                string
@@ -283,6 +285,7 @@ type ImageRequest struct {
 	SequentialMaxImages int
 	WebSearch           bool
 	OptimizePromptMode  string
+	ExtraParams         map[string]any
 	InputImage          string
 	InputImageBytes     []byte
 	InputImageMime      string
@@ -300,6 +303,7 @@ type ImageResponse struct {
 
 type VideoRequest struct {
 	Model                 string
+	ProtocolProfile       string
 	Operation             string
 	Prompt                string
 	Image                 string
@@ -369,6 +373,114 @@ type VideoResponse struct {
 	Debug        *DebugCallResult
 }
 
+type EmbeddingRequest struct {
+	Model           string         `json:"model"`
+	ProtocolProfile string         `json:"protocol_profile,omitempty"`
+	Inputs          []string       `json:"input"`
+	EncodingFormat  string         `json:"encoding_format,omitempty"`
+	Dimensions      int            `json:"dimensions,omitempty"`
+	ExtraParams     map[string]any `json:"extra_params,omitempty"`
+}
+
+type EmbeddingVector struct {
+	Index     int       `json:"index"`
+	Embedding []float32 `json:"embedding"`
+}
+
+type EmbeddingResponse struct {
+	Model string            `json:"model,omitempty"`
+	Data  []EmbeddingVector `json:"data"`
+	Usage TokenUsage        `json:"usage,omitempty"`
+	Debug *DebugCallResult  `json:"debug,omitempty"`
+}
+
+type RerankDocument struct {
+	Text string         `json:"text,omitempty"`
+	Data map[string]any `json:"data,omitempty"`
+}
+
+type RerankRequest struct {
+	Model           string           `json:"model"`
+	ProtocolProfile string           `json:"protocol_profile,omitempty"`
+	Query           string           `json:"query"`
+	Documents       []RerankDocument `json:"documents"`
+	TopN            int              `json:"top_n,omitempty"`
+	ReturnDocuments bool             `json:"return_documents,omitempty"`
+	ExtraParams     map[string]any   `json:"extra_params,omitempty"`
+}
+
+type RerankResult struct {
+	Index          int     `json:"index"`
+	RelevanceScore float64 `json:"relevance_score"`
+	Document       any     `json:"document,omitempty"`
+}
+
+type RerankResponse struct {
+	ID      string         `json:"id,omitempty"`
+	Results []RerankResult `json:"results"`
+	Meta    map[string]any `json:"meta,omitempty"`
+	Debug   *DebugCallResult
+}
+
+type ModerationRequest struct {
+	Model           string         `json:"model,omitempty"`
+	ProtocolProfile string         `json:"protocol_profile,omitempty"`
+	Inputs          []string       `json:"input"`
+	ExtraParams     map[string]any `json:"extra_params,omitempty"`
+}
+
+type ModerationResult struct {
+	Flagged        bool               `json:"flagged"`
+	Categories     map[string]bool    `json:"categories,omitempty"`
+	CategoryScores map[string]float64 `json:"category_scores,omitempty"`
+}
+
+type ModerationResponse struct {
+	ID      string             `json:"id,omitempty"`
+	Model   string             `json:"model,omitempty"`
+	Results []ModerationResult `json:"results"`
+	Debug   *DebugCallResult   `json:"debug,omitempty"`
+}
+
+type RealtimeEvent map[string]any
+
+type RealtimeSessionRequest struct {
+	Model           string            `json:"model,omitempty"`
+	ProtocolProfile string            `json:"protocol_profile,omitempty"`
+	Query           map[string]string `json:"query,omitempty"`
+	Headers         map[string]string `json:"headers,omitempty"`
+}
+
+type RealtimeSession interface {
+	SendEvent(ctx context.Context, event RealtimeEvent) error
+	ReceiveEvent(ctx context.Context) (RealtimeEvent, error)
+	Close() error
+}
+
+type RealtimeExchangeRequest struct {
+	Model           string            `json:"model,omitempty"`
+	ProtocolProfile string            `json:"protocol_profile,omitempty"`
+	Query           map[string]string `json:"query,omitempty"`
+	Headers         map[string]string `json:"headers,omitempty"`
+	InitialEvents   []RealtimeEvent   `json:"initial_events,omitempty"`
+	StopEventTypes  []string          `json:"stop_event_types,omitempty"`
+	ErrorEventTypes []string          `json:"error_event_types,omitempty"`
+	MaxEvents       int               `json:"max_events,omitempty"`
+	MaxAudioBytes   int               `json:"max_audio_bytes,omitempty"`
+	CaptureEvents   bool              `json:"capture_events,omitempty"`
+}
+
+type RealtimeExchangeResponse struct {
+	Text          string           `json:"text,omitempty"`
+	AudioBytes    []byte           `json:"-"`
+	AudioMimeType string           `json:"audio_mime_type,omitempty"`
+	Events        []RealtimeEvent  `json:"events,omitempty"`
+	EventCount    int              `json:"event_count"`
+	StopEventType string           `json:"stop_event_type,omitempty"`
+	Usage         TokenUsage       `json:"usage,omitempty"`
+	Debug         *DebugCallResult `json:"debug,omitempty"`
+}
+
 const (
 	VideoStatusSubmitted  = "submitted"
 	VideoStatusQueued     = "queued"
@@ -379,15 +491,17 @@ const (
 )
 
 type VideoPollRequest struct {
-	Model    string
-	TaskID   string
-	TaskKind string
+	Model           string
+	ProtocolProfile string
+	TaskID          string
+	TaskKind        string
 }
 
 type VideoCancelRequest struct {
-	Model    string
-	TaskID   string
-	TaskKind string
+	Model           string
+	ProtocolProfile string
+	TaskID          string
+	TaskKind        string
 }
 
 type DebugHTTPExchange struct {
@@ -584,21 +698,23 @@ type AIReferenceAssetIntent struct {
 }
 
 type AIGatewayModelRoute struct {
-	ModelID         string `json:"model_id"`
-	CatalogEntryID  uint   `json:"catalog_entry_id,omitempty"`
-	RouteBindingID  uint   `json:"route_binding_id,omitempty"`
-	CredentialID    uint   `json:"-"`
-	SourceType      string `json:"source_type,omitempty"`
-	RouteGroup      string `json:"route_group,omitempty"`
-	ProviderID      string `json:"provider_id,omitempty"`
-	ProviderKind    string `json:"provider_kind,omitempty"`
-	AdapterKey      string `json:"adapter_key,omitempty"`
-	AdapterType     string `json:"adapter_type,omitempty"`
-	ProviderModelID string `json:"provider_model_id"`
-	Capability      string `json:"capability,omitempty"`
-	Operation       string `json:"operation,omitempty"`
-	APIKind         string `json:"api_kind,omitempty"`
-	SelectionReason string `json:"selection_reason,omitempty"`
+	ModelID         string   `json:"model_id"`
+	CatalogEntryID  uint     `json:"catalog_entry_id,omitempty"`
+	RouteBindingID  uint     `json:"route_binding_id,omitempty"`
+	CredentialID    uint     `json:"-"`
+	SourceType      string   `json:"source_type,omitempty"`
+	RouteGroup      string   `json:"route_group,omitempty"`
+	ProviderID      string   `json:"provider_id,omitempty"`
+	ProviderKind    string   `json:"provider_kind,omitempty"`
+	AdapterKey      string   `json:"adapter_key,omitempty"`
+	AdapterType     string   `json:"adapter_type,omitempty"`
+	ProviderModelID string   `json:"provider_model_id"`
+	ProtocolProfile string   `json:"protocol_profile,omitempty"`
+	Capability      string   `json:"capability,omitempty"`
+	Operation       string   `json:"operation,omitempty"`
+	APIKind         string   `json:"api_kind,omitempty"`
+	APIKinds        []string `json:"api_kinds,omitempty"`
+	SelectionReason string   `json:"selection_reason,omitempty"`
 }
 
 type AIGatewayModelRoutePlan struct {
@@ -996,6 +1112,22 @@ type AIGatewayVideoTaskCancelProvider interface {
 	VideoCancel(ctx context.Context, req VideoCancelRequest) (VideoResponse, error)
 }
 
+type AIGatewayEmbeddingProvider interface {
+	CreateEmbeddings(ctx context.Context, req EmbeddingRequest) (EmbeddingResponse, error)
+}
+
+type AIGatewayRerankProvider interface {
+	Rerank(ctx context.Context, req RerankRequest) (RerankResponse, error)
+}
+
+type AIGatewayModerationProvider interface {
+	Moderate(ctx context.Context, req ModerationRequest) (ModerationResponse, error)
+}
+
+type AIGatewayRealtimeProvider interface {
+	ConnectRealtime(ctx context.Context, req RealtimeSessionRequest) (RealtimeSession, error)
+}
+
 type AIGatewayAudioSpeechProvider = media.TTSProvider
 
 type AIGatewayAudioGenerationProvider = media.AudioGenerationProvider
@@ -1028,14 +1160,15 @@ type Cache interface {
 }
 
 type VectorDocument struct {
-	ID        string         `json:"id"`
-	Namespace string         `json:"namespace,omitempty"`
-	SourceID  string         `json:"source_id,omitempty"`
-	Locale    string         `json:"locale,omitempty"`
-	Kind      string         `json:"kind,omitempty"`
-	Text      string         `json:"text"`
-	Embedding []float32      `json:"embedding,omitempty"`
-	Metadata  map[string]any `json:"metadata,omitempty"`
+	ID             string         `json:"id"`
+	Namespace      string         `json:"namespace,omitempty"`
+	SourceID       string         `json:"source_id,omitempty"`
+	Locale         string         `json:"locale,omitempty"`
+	Kind           string         `json:"kind,omitempty"`
+	Text           string         `json:"text"`
+	Embedding      []float32      `json:"embedding,omitempty"`
+	EmbeddingModel string         `json:"embedding_model,omitempty"`
+	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
 type VectorDocumentRef struct {
@@ -1046,13 +1179,14 @@ type VectorDocumentRef struct {
 }
 
 type VectorSearchRequest struct {
-	Namespace string              `json:"namespace,omitempty"`
-	Query     string              `json:"query,omitempty"`
-	Embedding []float32           `json:"embedding,omitempty"`
-	Locale    string              `json:"locale,omitempty"`
-	SourceIDs []string            `json:"source_ids,omitempty"`
-	Filters   map[string][]string `json:"filters,omitempty"`
-	TopK      int                 `json:"top_k,omitempty"`
+	Namespace      string              `json:"namespace,omitempty"`
+	Query          string              `json:"query,omitempty"`
+	Embedding      []float32           `json:"embedding,omitempty"`
+	EmbeddingModel string              `json:"embedding_model,omitempty"`
+	Locale         string              `json:"locale,omitempty"`
+	SourceIDs      []string            `json:"source_ids,omitempty"`
+	Filters        map[string][]string `json:"filters,omitempty"`
+	TopK           int                 `json:"top_k,omitempty"`
 }
 
 type VectorSearchResult struct {

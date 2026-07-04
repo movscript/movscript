@@ -127,8 +127,10 @@ func TestRunMigrationsInitializesFormalBaselineSchema(t *testing.T) {
 		}
 	}
 	routeIndexSQL := sqliteIndexSQL(t, db, activeModelRouteBindingUniqueIndex)
-	if !strings.Contains(routeIndexSQL, "provider_model_id") || strings.Contains(routeIndexSQL, "source_type") {
-		t.Fatalf("route unique index sql = %q, want provider_model_id and no source_type", routeIndexSQL)
+	if !strings.Contains(routeIndexSQL, "provider_model_id") ||
+		!strings.Contains(routeIndexSQL, "protocol_profile") ||
+		strings.Contains(routeIndexSQL, "source_type") {
+		t.Fatalf("route unique index sql = %q, want provider_model_id/protocol_profile and no source_type", routeIndexSQL)
 	}
 
 	for _, column := range []string{
@@ -157,6 +159,7 @@ func TestRunMigrationsInitializesFormalBaselineSchema(t *testing.T) {
 		"endpoint_base_url",
 		"endpoint_path_prefix",
 		"endpoint_mode",
+		"protocol_profile",
 	} {
 		if !db.Migrator().HasColumn(&model.AIModelRouteBinding{}, column) {
 			t.Fatalf("expected baseline route binding column %q", column)
@@ -288,6 +291,95 @@ func TestMigrateModelCatalogInputImageFieldBackfillsLegacyImageEditField(t *test
 	}
 	if inputImageField != "image" {
 		t.Fatalf("input_image_field = %q, want legacy image_edit_field value", inputImageField)
+	}
+}
+
+func TestRunMigrationsAddsModelRouteProtocolProfileToExistingSchema(t *testing.T) {
+	db := testutil.OpenSQLite(t, "model-route-protocol-profile-migration.db", &AppliedMigration{})
+	if err := db.Exec(`
+		CREATE TABLE ai_model_route_bindings (
+			id integer primary key autoincrement,
+			created_at datetime,
+			updated_at datetime,
+			deleted_at datetime,
+			catalog_entry_id integer NOT NULL,
+			combo_template_key text,
+			template_version text,
+			source_type text NOT NULL,
+			route_group text,
+			provider_id text,
+			adapter_type text,
+			provider_model_id text,
+			api_kinds text,
+			endpoint_base_url text,
+			endpoint_path_prefix text,
+			endpoint_mode text,
+			credential_id integer,
+			is_enabled numeric,
+			priority integer,
+			capacity_weight integer,
+			max_concurrency integer
+		)
+	`).Error; err != nil {
+		t.Fatalf("create legacy route table: %v", err)
+	}
+	if err := db.Exec(`
+		CREATE UNIQUE INDEX uidx_ai_model_route_bindings_active_route
+		ON ai_model_route_bindings (catalog_entry_id, provider_id, provider_model_id, route_group)
+		WHERE deleted_at IS NULL
+	`).Error; err != nil {
+		t.Fatalf("create legacy route index: %v", err)
+	}
+	for _, migration := range RegisteredMigrations() {
+		if migration.Version >= "000016" {
+			continue
+		}
+		if err := db.Create(&AppliedMigration{
+			Version:   migration.Version,
+			Name:      migration.Name,
+			Checksum:  migrationChecksum(migration),
+			AppliedAt: time.Now().UTC(),
+		}).Error; err != nil {
+			t.Fatalf("insert applied migration %s: %v", migration.Version, err)
+		}
+	}
+	if db.Migrator().HasColumn(&model.AIModelRouteBinding{}, "protocol_profile") {
+		t.Fatal("legacy schema unexpectedly has protocol_profile")
+	}
+
+	if err := RunMigrations(db); err != nil {
+		t.Fatalf("RunMigrations() error = %v", err)
+	}
+	if !db.Migrator().HasColumn(&model.AIModelRouteBinding{}, "protocol_profile") {
+		t.Fatal("expected protocol_profile column after migration")
+	}
+	routeIndexSQL := sqliteIndexSQL(t, db, activeModelRouteBindingUniqueIndex)
+	if !strings.Contains(routeIndexSQL, "protocol_profile") {
+		t.Fatalf("route unique index sql = %q, want protocol_profile", routeIndexSQL)
+	}
+	insertRoute := `
+		INSERT INTO ai_model_route_bindings (
+			catalog_entry_id, source_type, route_group, provider_id, adapter_type,
+			provider_model_id, protocol_profile, is_enabled, priority, capacity_weight, max_concurrency
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
+	for _, profile := range []string{"jimeng_action_json", "video_generations"} {
+		if err := db.Exec(
+			insertRoute,
+			1,
+			model.ModelRouteSourceLocalProvider,
+			"default",
+			"newapi:1",
+			"new_api",
+			"doubao-seedance-2-0-260128",
+			profile,
+			true,
+			0,
+			1,
+			0,
+		).Error; err != nil {
+			t.Fatalf("insert route with protocol_profile %q: %v", profile, err)
+		}
 	}
 }
 

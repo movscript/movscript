@@ -90,7 +90,7 @@ func providerInstanceFromCredential(cred domainai.Credential) ProviderInstance {
 		Label:        label,
 		DisplayName:  cred.DisplayName,
 		ManagedBy:    providercontract.ManagedByConfig,
-		Configured:   providerInstanceConfigured(secretFields),
+		Configured:   providerInstanceConfigured(append(append([]ProviderInstanceField{}, configFields...), secretFields...)),
 		Enabled:      cred.IsEnabled,
 		Ref:          ref,
 		ConfigFields: configFields,
@@ -137,10 +137,30 @@ func providerInstanceAIGatewayCapabilities(def *infraai.AdapterDef) []string {
 	}
 	for _, set := range def.ParamSets {
 		switch set.Capability {
+		case infraai.CapabilityFamilyTextGeneration:
+			add("text.generation")
 		case infraai.CapabilityFamilyImageGeneration:
 			add("image.generation")
+		case infraai.CapabilityFamilyVideoGeneration:
+			add("video.task")
+			add("video.poll")
 		case infraai.CapabilityFamilyAudioGeneration:
 			add("audio.generation")
+		case infraai.CapabilityFamilyEmbedding:
+			add("embedding.create")
+		case infraai.CapabilityFamilyRerank:
+			add("rerank.create")
+		case infraai.CapabilityFamilyModeration:
+			add("moderation.create")
+		case infraai.CapabilityFamilyRealtime:
+			add("realtime.websocket")
+		}
+	}
+	for _, set := range def.OperationParamSets {
+		switch set.Capability {
+		case infraai.CapabilityFamilyVideoGeneration:
+			add("video.task")
+			add("video.poll")
 		}
 	}
 	return out
@@ -148,7 +168,7 @@ func providerInstanceAIGatewayCapabilities(def *infraai.AdapterDef) []string {
 
 func providerInstanceFieldsFromCredential(cred domainai.Credential, def *infraai.AdapterDef) ([]ProviderInstanceField, []ProviderInstanceField) {
 	configFields := []ProviderInstanceField{
-		{Key: "base_url", Required: false, Configured: strings.TrimSpace(cred.BaseURL) != ""},
+		{Key: "base_url", Required: adapterCredentialFieldRequired(def, "base_url"), Configured: strings.TrimSpace(cred.BaseURL) != ""},
 		{Key: "files_api_base_url", Required: false, Configured: strings.TrimSpace(cred.FilesAPIBaseURL) != ""},
 	}
 	secretFields := []ProviderInstanceField{}
@@ -174,6 +194,18 @@ func providerInstanceFieldsFromCredential(cred domainai.Credential, def *infraai
 		})
 	}
 	return configFields, secretFields
+}
+
+func adapterCredentialFieldRequired(def *infraai.AdapterDef, key string) bool {
+	if def == nil {
+		return false
+	}
+	for _, field := range def.CredFields {
+		if field.Key == key {
+			return field.Required
+		}
+	}
+	return false
 }
 
 func providerInstanceConfigured(fields []ProviderInstanceField) bool {

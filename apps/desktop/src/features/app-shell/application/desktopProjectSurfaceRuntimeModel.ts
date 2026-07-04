@@ -223,7 +223,7 @@ export function desktopRemotionStudioShellFinishedBeforeReady(
   return remotionStudioShellFinishedBeforeReady(session, shellSession)
 }
 
-function remotionStudioShellFinishedBeforeReady(
+export function remotionStudioShellFinishedBeforeReady(
   session: Record<string, unknown>,
   shellSession?: ProjectSurfaceShellSession,
 ): boolean {

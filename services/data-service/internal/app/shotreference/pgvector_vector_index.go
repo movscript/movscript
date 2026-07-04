@@ -32,7 +32,11 @@ func (p *PgVectorIndexProvider) Upsert(ctx context.Context, document providercon
 	if err := p.ensureSchema(ctx); err != nil {
 		return err
 	}
-	vector, err := pgVectorLiteral(pgVector(document.Text, document.Embedding))
+	vectorValue, err := pgVector(document.Text, document.Embedding)
+	if err != nil {
+		return err
+	}
+	vector, err := pgVectorLiteral(vectorValue)
 	if err != nil {
 		return err
 	}
@@ -56,7 +60,7 @@ func (p *PgVectorIndexProvider) Upsert(ctx context.Context, document providercon
 			embedding_model = EXCLUDED.embedding_model,
 			embedding = EXCLUDED.embedding,
 			updated_at = NOW()
-	`, document.ID, referenceID, sourceID, document.Locale, document.Kind, document.Text, metadataJSON, localEmbeddingModel, vector).Error
+	`, document.ID, referenceID, sourceID, document.Locale, document.Kind, document.Text, metadataJSON, vectorEmbeddingModel(document.EmbeddingModel, document.Embedding), vector).Error
 }
 
 func (p *PgVectorIndexProvider) Delete(ctx context.Context, ref providercontract.VectorDocumentRef) error {
@@ -84,10 +88,15 @@ func (p *PgVectorIndexProvider) Search(ctx context.Context, request providercont
 	if limit <= 0 {
 		limit = 20
 	}
-	vector, err := pgVectorLiteral(pgVector(request.Query, request.Embedding))
+	vectorValue, err := pgVector(request.Query, request.Embedding)
 	if err != nil {
 		return nil, err
 	}
+	vector, err := pgVectorLiteral(vectorValue)
+	if err != nil {
+		return nil, err
+	}
+	request.EmbeddingModel = vectorSearchEmbeddingModel(request.EmbeddingModel, request.Embedding)
 	where, args, err := pgVectorWhereFromSearch(request)
 	if err != nil {
 		return nil, err
@@ -301,15 +310,8 @@ func (r pgVectorSearchRow) document() (providercontract.VectorDocument, error) {
 	}, nil
 }
 
-func pgVector(text string, embedding []float32) []float64 {
-	if len(embedding) == 0 {
-		return embedVectorText(text)
-	}
-	vector := make([]float64, len(embedding))
-	for index, value := range embedding {
-		vector[index] = float64(value)
-	}
-	return vector
+func pgVector(text string, embedding []float32) ([]float64, error) {
+	return vectorEmbedding(text, embedding)
 }
 
 func pgVectorLiteral(vector []float64) (string, error) {
@@ -353,6 +355,10 @@ func pgVectorWhereFromSearch(request providercontract.VectorSearchRequest) (stri
 	if strings.TrimSpace(request.Namespace) != "" {
 		clauses = append(clauses, "source_id = ?")
 		args = append(args, request.Namespace)
+	}
+	if strings.TrimSpace(request.EmbeddingModel) != "" {
+		clauses = append(clauses, "embedding_model = ?")
+		args = append(args, strings.TrimSpace(request.EmbeddingModel))
 	}
 	if len(request.SourceIDs) > 0 {
 		placeholders := make([]string, 0, len(request.SourceIDs))

@@ -120,6 +120,9 @@ func TestCallResponsesWithRouteUsageFallsBackToChatWhenProviderResponsesFails(t 
 	if err != nil {
 		t.Fatalf("ResolveModelRoute() error = %v", err)
 	}
+	if !hasString(route.APIKinds, ModelAPIKindOpenAIChatCompletions) || !hasString(route.APIKinds, ModelAPIKindOpenAIResponses) {
+		t.Fatalf("route APIKinds = %#v, want chat and responses support", route.APIKinds)
+	}
 	resp, err := svc.CallResponsesWithRouteUsage(context.Background(), 1, route, ResponsesRequest{
 		Text: TextRequest{
 			Messages: []Message{{Role: "user", Content: "hello"}},
@@ -133,6 +136,115 @@ func TestCallResponsesWithRouteUsageFallsBackToChatWhenProviderResponsesFails(t 
 	}
 	if calls["responses"] != 1 || calls["chat"] != 1 {
 		t.Fatalf("calls = %#v, want one responses attempt and one chat fallback", calls)
+	}
+
+	var reservations []persistencemodel.UsageReservation
+	if err := db.Find(&reservations).Error; err != nil {
+		t.Fatalf("load reservations: %v", err)
+	}
+	if len(reservations) != 1 {
+		t.Fatalf("reservations = %#v, want one reservation", reservations)
+	}
+	if reservations[0].Status != ReservationStatusSettled || reservations[0].UsageLogID == nil {
+		t.Fatalf("reservation = %#v, want settled with usage log", reservations[0])
+	}
+	var usageLogs []persistencemodel.UsageLog
+	if err := db.Find(&usageLogs).Error; err != nil {
+		t.Fatalf("load usage logs: %v", err)
+	}
+	if len(usageLogs) != 1 {
+		t.Fatalf("usage logs = %#v, want one usage log", usageLogs)
+	}
+	if usageLogs[0].UsageReservationID == nil || *usageLogs[0].UsageReservationID != reservations[0].ID {
+		t.Fatalf("usage log reservation id = %v, want %d", usageLogs[0].UsageReservationID, reservations[0].ID)
+	}
+}
+
+func TestCallResponsesWithRouteUsageDoesNotFallbackWhenRouteIsResponsesOnly(t *testing.T) {
+	resetFailoverTestState()
+	db := testutil.OpenSQLite(t, "ai-responses-no-chat-fallback.db",
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+		&persistencemodel.UsageReservation{},
+		&persistencemodel.UsageLog{},
+	)
+	cred := persistencemodel.AICredential{
+		AdapterType: AdapterOpenAICompat,
+		DisplayName: "Responses-only provider",
+		IsEnabled:   true,
+	}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:         "gpt-5.2",
+		DisplayName:           "gpt-5.2",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyTextGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
+		SupportedParams:       testSupportedParamsProfile(CapabilityFamilyTextGeneration),
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	if err := db.Create(&persistencemodel.AIModelRouteBinding{
+		CatalogEntryID: entry.ID,
+		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:     fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		AdapterType:    cred.AdapterType,
+		APIKinds:       ModelAPIKindOpenAIResponses,
+		CredentialID:   &cred.ID,
+		IsEnabled:      true,
+		CapacityWeight: 1}).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+
+	calls := map[string]int{}
+	registry := NewRegistry(db, nil)
+	registry.providerFactory = func(cred persistencemodel.AICredential, _ *ModelDef) (Provider, error) {
+		return responsesFallbackProvider{
+			name:  cred.DisplayName,
+			calls: calls,
+		}, nil
+	}
+	svc := NewAIService(db, registry)
+	route, err := svc.ResolveModelRoute(ModelRouteRequest{ModelID: "gpt-5.2", Capability: CapabilityFamilyTextGeneration})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute() error = %v", err)
+	}
+	if route.APIKind != ModelAPIKindOpenAIResponses || !hasString(route.APIKinds, ModelAPIKindOpenAIResponses) || hasString(route.APIKinds, ModelAPIKindOpenAIChatCompletions) {
+		t.Fatalf("route API kind = %q APIKinds = %#v, want responses-only", route.APIKind, route.APIKinds)
+	}
+
+	_, err = svc.CallResponsesWithRouteUsage(context.Background(), 1, route, ResponsesRequest{
+		Text: TextRequest{
+			Messages: []Message{{Role: "user", Content: "hello"}},
+		},
+	}, UsageContext{})
+	if err == nil || !strings.Contains(err.Error(), "responses endpoint unsupported") {
+		t.Fatalf("CallResponsesWithRouteUsage() error = %v, want responses endpoint error", err)
+	}
+	if calls["responses"] != 1 || calls["chat"] != 0 {
+		t.Fatalf("calls = %#v, want one responses attempt and no chat fallback", calls)
+	}
+
+	var reservations []persistencemodel.UsageReservation
+	if err := db.Find(&reservations).Error; err != nil {
+		t.Fatalf("load reservations: %v", err)
+	}
+	if len(reservations) != 1 {
+		t.Fatalf("reservations = %#v, want one reservation", reservations)
+	}
+	if reservations[0].Status != ReservationStatusReleased || !strings.Contains(reservations[0].ReleaseReason, "responses endpoint unsupported") {
+		t.Fatalf("reservation = %#v, want released with responses error", reservations[0])
+	}
+	var usageLogs []persistencemodel.UsageLog
+	if err := db.Find(&usageLogs).Error; err != nil {
+		t.Fatalf("load usage logs: %v", err)
+	}
+	if len(usageLogs) != 0 {
+		t.Fatalf("usage logs = %#v, want none on failed responses-only route", usageLogs)
 	}
 }
 

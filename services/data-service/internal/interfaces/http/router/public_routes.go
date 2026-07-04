@@ -18,6 +18,7 @@ func registerPublicAPIRoutes(v1 *gin.RouterGroup, h handlers) {
 	v1.GET("/ws", h.ws.Connect)
 	v1.GET("/resource-access/health", h.resourceAccess.Health)
 	v1.GET("/resource-access/resources/:id/file", h.resourceAccess.ServeSignedResourceFile)
+	v1.HEAD("/resource-access/resources/:id/file", h.resourceAccess.ServeSignedResourceFile)
 
 	v1.GET("/invitations/:token", h.org.GetInvitation)
 	v1.POST("/invitations/:token/accept", h.org.AcceptInvitation)

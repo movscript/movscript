@@ -58,6 +58,7 @@ func TestResourceAccessResolveReturnsSignedPublicURLAndServesFile(t *testing.T) 
 	})
 	router.POST("/api/v1/resource-access/resolve", handler.Resolve)
 	router.GET("/api/v1/resource-access/resources/:id/file", handler.ServeSignedResourceFile)
+	router.HEAD("/api/v1/resource-access/resources/:id/file", handler.ServeSignedResourceFile)
 
 	resolveReq := httptest.NewRequest(http.MethodPost, "/api/v1/resource-access/resolve", strings.NewReader(`{
 		"resource_id": 1,
@@ -105,6 +106,20 @@ func TestResourceAccessResolveReturnsSignedPublicURLAndServesFile(t *testing.T) 
 	}
 	if fileRes.Header().Get("Content-Type") != "image/png" {
 		t.Fatalf("Content-Type = %q, want image/png", fileRes.Header().Get("Content-Type"))
+	}
+
+	headReq := httptest.NewRequest(http.MethodHead, publicPath, nil)
+	headRes := httptest.NewRecorder()
+	router.ServeHTTP(headRes, headReq)
+
+	if headRes.Code != http.StatusOK {
+		t.Fatalf("ServeSignedResourceFile() HEAD status = %d, body = %s", headRes.Code, headRes.Body.String())
+	}
+	if headRes.Body.Len() != 0 {
+		t.Fatalf("HEAD body length = %d, want 0", headRes.Body.Len())
+	}
+	if headRes.Header().Get("Content-Length") != "10" {
+		t.Fatalf("HEAD Content-Length = %q, want 10", headRes.Header().Get("Content-Length"))
 	}
 }
 

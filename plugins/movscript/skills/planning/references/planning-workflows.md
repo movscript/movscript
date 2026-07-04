@@ -34,7 +34,7 @@ Before writing entities, decide what is actually being produced:
 2. Keep each `scene_moment` short and atomic, normally about 10 seconds or less. If the request spans multiple actions, time/place changes, or independently reviewable beats, split it into multiple scene moments.
 3. Choose the working center. Use a visual `expression_unit` when camera framing, blocking, motion, timing, or a single clip material is the main deliverable. Use `scene_moment` when the deliverable is a complete narrative beat that may contain one or more visual materials.
 4. Decide whether the working center needs evidence for consistency. Use `setting`, `setting_state`, and `asset` for concrete reusable production entities, state namespaces, and state asset references; `keyframe` and `storyboard` for shot visual anchors; `expression_unit` and `audio_cue` for performance, text, voice, sound, or ambience.
-5. Before ordinary video generation, prefer a schematic `gpt-image-2` storyboard panel for each scene moment unless the user explicitly wants a fast unstable draft.
+5. Before ordinary video generation, prefer a schematic `gpt-image-2` storyboard panel for each scene moment unless the user explicitly wants a fast unstable draft. Storyboard/keyframe image generation may proceed under normal readiness gates; actual video `generation_submit` still requires explicit user confirmation because it is a paid action.
 6. If consistency requirements are low, do not force setting, asset, keyframe, or storyboard prerequisites. Create the focused short `scene_moment_ref` or `expression_unit_ref` content unit and generate a draft.
 7. After writing the content unit, derive or read its artifact bundle, dependency report, runtime panel, and selection validity before generation.
 
@@ -95,7 +95,7 @@ For visual anchoring:
 3. Create a `storyboard_ref` content unit for storyboard panels/images and require adoption/selection when downstream work depends on it.
 4. After storyboard selection, create `keyframe` records for required visual anchors such as start and end frames.
 5. Create `keyframe_ref` content units for keyframe images and require adoption/selection before dependent video generation.
-6. Do not start downstream video generation until required upstream storyboard/keyframe/asset selections exist. If candidates exist but are unselected, guide the user to adopt/select one first. Continue only when the user explicitly asks for an unstable draft.
+6. Do not start downstream video generation until required upstream storyboard/keyframe/asset selections exist. If candidates exist but are unselected, guide the user to adopt/select one first. After selections are ready, ask for explicit paid video generation confirmation before submitting the video job. Continue without stable selections only when the user explicitly asks for an unstable draft.
 
 For sound or expression continuity:
 

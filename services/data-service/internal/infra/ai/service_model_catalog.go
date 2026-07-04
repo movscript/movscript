@@ -47,6 +47,10 @@ func (s *AIService) listModelsFromCatalogEntries(ctx context.Context, filter pro
 	if err != nil {
 		return nil, true, err
 	}
+	activeProviders, err := s.catalogRouteProviderAvailabilityIndex(ctx, entries)
+	if err != nil {
+		return nil, true, err
+	}
 	capabilities := compactModelCatalogCapabilities(filter)
 	if targetCapability := capabilityFamilyForTargetOutput(filter.TargetOutput); targetCapability != "" {
 		capabilities = appendUniqueTrimmed(capabilities, targetCapability)
@@ -66,14 +70,9 @@ func (s *AIService) listModelsFromCatalogEntries(ctx context.Context, filter pro
 		if !catalogEntryMatchesAnyListCapability(entry, def, capabilities, operation, referenceAssets, resolveIntent) {
 			continue
 		}
-		bindings := catalogEntryBindingsForFilter(entry.RouteBindings, routeGroup, apiKinds, credentials)
+		bindings := catalogEntryBindingsForFilter(entry.RouteBindings, routeGroup, apiKinds, credentials, activeProviders)
 		bindings = catalogRouteBindingsForListIntent(bindings, capabilities, operation, referenceAssets, resolveIntent)
-		if len(bindings) == 0 && len(apiKinds) > 0 {
-			if len(entry.RouteBindings) > 0 || !modelAPIKindsIntersect(catalogRouteBindingSupportedAPIKinds(nil, credentials), apiKinds) {
-				continue
-			}
-		}
-		if routeGroup != "" && len(bindings) == 0 {
+		if len(bindings) == 0 {
 			continue
 		}
 		if filter.ProviderVariants && len(bindings) > 0 {
@@ -115,6 +114,10 @@ func (s *AIService) catalogRouteCredentialIndex(ctx context.Context, entries []p
 		for _, binding := range entry.RouteBindings {
 			if binding.CredentialID != nil && *binding.CredentialID != 0 {
 				ids[*binding.CredentialID] = true
+				continue
+			}
+			if credentialID, ok := localProviderCredentialIDFromProviderID(catalogRouteProviderID(&binding)); ok && credentialID != 0 {
+				ids[credentialID] = true
 			}
 		}
 	}
@@ -127,13 +130,102 @@ func (s *AIService) catalogRouteCredentialIndex(ctx context.Context, entries []p
 	}
 	var credentials []persistencemodel.AICredential
 	if err := s.db.WithContext(ctx).
-		Where("id IN ? AND deleted_at IS NULL", values).
+		Where("id IN ? AND is_enabled = true AND deleted_at IS NULL", values).
 		Find(&credentials).Error; err != nil {
 		return nil, err
 	}
 	out := make(map[uint]persistencemodel.AICredential, len(credentials))
 	for _, credential := range credentials {
 		out[credential.ID] = credential
+	}
+	return out, nil
+}
+
+func (s *AIService) catalogRouteProviderAvailabilityIndex(ctx context.Context, entries []persistencemodel.AIModelCatalogEntry) (map[string]bool, error) {
+	if s == nil || s.db == nil ||
+		!s.db.Migrator().HasTable(&persistencemodel.AIProvider{}) ||
+		!s.db.Migrator().HasTable(&persistencemodel.AIProviderCredential{}) ||
+		!s.db.Migrator().HasTable(&persistencemodel.AICredential{}) {
+		return nil, nil
+	}
+	ids := map[string]bool{}
+	for _, entry := range entries {
+		for _, binding := range entry.RouteBindings {
+			if strings.TrimSpace(binding.SourceType) != persistencemodel.ModelRouteSourceLocalProvider {
+				continue
+			}
+			providerID := catalogRouteProviderID(&binding)
+			if providerID == "" {
+				continue
+			}
+			if _, ok := localProviderCredentialIDFromProviderID(providerID); ok {
+				continue
+			}
+			ids[providerID] = true
+		}
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	values := make([]string, 0, len(ids))
+	for id := range ids {
+		values = append(values, id)
+	}
+	var providers []persistencemodel.AIProvider
+	if err := s.db.WithContext(ctx).
+		Where("provider_id IN ? AND is_enabled = true AND deleted_at IS NULL", values).
+		Find(&providers).Error; err != nil {
+		return nil, err
+	}
+	enabledProviders := map[string]bool{}
+	for _, provider := range providers {
+		enabledProviders[strings.TrimSpace(provider.ProviderID)] = true
+	}
+	var credentials []persistencemodel.AIProviderCredential
+	if err := s.db.WithContext(ctx).
+		Where("provider_id IN ? AND status = ? AND deleted_at IS NULL", values, persistencemodel.AIProviderCredentialStatusActive).
+		Find(&credentials).Error; err != nil {
+		return nil, err
+	}
+	legacyIDs := map[uint]bool{}
+	credentialLegacyIDs := map[uint]uint{}
+	for _, credential := range credentials {
+		var plainConfig struct {
+			LegacyCredentialID uint `json:"legacy_credential_id"`
+		}
+		if err := json.Unmarshal([]byte(credential.PlainConfigJSON), &plainConfig); err != nil || plainConfig.LegacyCredentialID == 0 {
+			continue
+		}
+		legacyIDs[plainConfig.LegacyCredentialID] = true
+		credentialLegacyIDs[credential.ID] = plainConfig.LegacyCredentialID
+	}
+	enabledLegacyCredentials := map[uint]bool{}
+	if len(legacyIDs) > 0 {
+		values := make([]uint, 0, len(legacyIDs))
+		for id := range legacyIDs {
+			values = append(values, id)
+		}
+		var legacyCredentials []persistencemodel.AICredential
+		if err := s.db.WithContext(ctx).
+			Where("id IN ? AND is_enabled = true AND deleted_at IS NULL", values).
+			Find(&legacyCredentials).Error; err != nil {
+			return nil, err
+		}
+		for _, credential := range legacyCredentials {
+			enabledLegacyCredentials[credential.ID] = true
+		}
+	}
+	activeCredentialProviders := map[string]bool{}
+	for _, credential := range credentials {
+		legacyID := credentialLegacyIDs[credential.ID]
+		if legacyID == 0 || !enabledLegacyCredentials[legacyID] {
+			continue
+		}
+		activeCredentialProviders[strings.TrimSpace(credential.ProviderID)] = true
+	}
+	out := map[string]bool{}
+	for providerID := range ids {
+		out[providerID] = enabledProviders[providerID] && activeCredentialProviders[providerID]
 	}
 	return out, nil
 }
@@ -304,7 +396,7 @@ func catalogEntryMatchesAnyListCapability(entry persistencemodel.AIModelCatalogE
 
 func catalogRouteBindingsForListIntent(bindings []persistencemodel.AIModelRouteBinding, capabilities []string, operation string, refs []RouteReferenceAssetIntent, resolveIntent bool) []persistencemodel.AIModelRouteBinding {
 	operation = strings.TrimSpace(operation)
-	if operation == "" && !resolveIntent {
+	if operation == "" && !resolveIntent && len(capabilities) == 0 {
 		return bindings
 	}
 	out := make([]persistencemodel.AIModelRouteBinding, 0, len(bindings))
@@ -322,12 +414,15 @@ func catalogRouteBindingSupportsAnyListIntent(binding persistencemodel.AIModelRo
 		if !isStructuredCapabilityFamily(capability) {
 			continue
 		}
+		if !catalogRouteBindingProtocolProfileMatchesCapability(binding, capability) {
+			continue
+		}
 		if strings.TrimSpace(operation) == "" {
 			if !resolveIntent {
-				continue
+				return true
 			}
 			for _, inferredOperation := range inferredStructuredCapabilityOperations(capability, refs) {
-				if AdapterSupportsOperation(binding.AdapterType, capability, inferredOperation) {
+				if catalogRouteBindingSupportsOperation(binding, capability, inferredOperation) {
 					return true
 				}
 			}
@@ -343,7 +438,7 @@ func catalogRouteBindingSupportsAnyListIntent(binding persistencemodel.AIModelRo
 			}
 			continue
 		}
-		if AdapterSupportsOperation(binding.AdapterType, capability, operation) {
+		if catalogRouteBindingSupportsOperation(binding, capability, operation) {
 			return true
 		}
 	}
@@ -375,9 +470,15 @@ func catalogRouteBindingMatchesStructuredIntent(binding persistencemodel.AIModel
 	if !isStructuredCapabilityFamily(capability) {
 		return true, ""
 	}
+	if !catalogRouteBindingProtocolProfileMatchesCapability(binding, capability) {
+		return false, "profile_contract:" + strings.TrimSpace(binding.ProtocolProfile)
+	}
 	operation := strings.TrimSpace(req.Operation)
 	if operation == "" {
 		return true, ""
+	}
+	if !catalogRouteBindingProtocolProfileSupportsOperation(binding, capability, operation) {
+		return false, "profile_contract:" + strings.TrimSpace(binding.ProtocolProfile)
 	}
 	if AdapterSupportsOperation(binding.AdapterType, capability, operation) {
 		return true, ""
@@ -385,9 +486,30 @@ func catalogRouteBindingMatchesStructuredIntent(binding persistencemodel.AIModel
 	return false, "adapter_contract:" + operation
 }
 
-func catalogEntryBindingsForFilter(bindings []persistencemodel.AIModelRouteBinding, routeGroup string, apiKinds []string, credentials map[uint]persistencemodel.AICredential) []persistencemodel.AIModelRouteBinding {
+func catalogRouteBindingProtocolProfileMatchesCapability(binding persistencemodel.AIModelRouteBinding, capability string) bool {
+	return catalogRouteBindingProtocolProfileSupportsOperation(binding, capability, "")
+}
+
+func catalogRouteBindingProtocolProfileSupportsOperation(binding persistencemodel.AIModelRouteBinding, capability, operation string) bool {
+	if strings.TrimSpace(binding.AdapterType) != AdapterNewAPI {
+		return true
+	}
+	return NewAPIProtocolProfileSupportsOperation(binding.ProtocolProfile, capability, operation)
+}
+
+func catalogRouteBindingSupportsOperation(binding persistencemodel.AIModelRouteBinding, capability, operation string) bool {
+	if !catalogRouteBindingProtocolProfileSupportsOperation(binding, capability, operation) {
+		return false
+	}
+	return AdapterSupportsOperation(binding.AdapterType, capability, operation)
+}
+
+func catalogEntryBindingsForFilter(bindings []persistencemodel.AIModelRouteBinding, routeGroup string, apiKinds []string, credentials map[uint]persistencemodel.AICredential, activeProviders map[string]bool) []persistencemodel.AIModelRouteBinding {
 	out := make([]persistencemodel.AIModelRouteBinding, 0, len(bindings))
 	for _, binding := range bindings {
+		if !catalogRouteBindingIsAvailable(binding, credentials, activeProviders) {
+			continue
+		}
 		if routeGroup != "" && strings.TrimSpace(binding.RouteGroup) != routeGroup {
 			continue
 		}
@@ -397,6 +519,31 @@ func catalogEntryBindingsForFilter(bindings []persistencemodel.AIModelRouteBindi
 		out = append(out, binding)
 	}
 	return out
+}
+
+func catalogRouteBindingIsAvailable(binding persistencemodel.AIModelRouteBinding, credentials map[uint]persistencemodel.AICredential, activeProviders map[string]bool) bool {
+	if !binding.IsEnabled {
+		return false
+	}
+	if binding.CredentialID != nil && *binding.CredentialID != 0 {
+		_, ok := credentials[*binding.CredentialID]
+		return ok
+	}
+	if strings.TrimSpace(binding.SourceType) != persistencemodel.ModelRouteSourceLocalProvider {
+		return true
+	}
+	providerID := catalogRouteProviderID(&binding)
+	if providerID == "" {
+		return false
+	}
+	if credentialID, ok := localProviderCredentialIDFromProviderID(providerID); ok {
+		_, found := credentials[credentialID]
+		return found
+	}
+	if activeProviders == nil {
+		return true
+	}
+	return activeProviders[providerID]
 }
 
 func catalogRouteBindingMatchesAPIKinds(binding persistencemodel.AIModelRouteBinding, requested []string, credentials map[uint]persistencemodel.AICredential) bool {
@@ -443,7 +590,7 @@ func modelAPIKindsForAdapter(adapterType string) []string {
 	switch strings.TrimSpace(adapterType) {
 	case AdapterAnthropic:
 		return []string{ModelAPIKindAnthropicMessages}
-	case AdapterOpenAICompat, AdapterVolcen, AdapterGemini, AdapterDashScope, AdapterLocal, "":
+	case AdapterOpenAICompat, AdapterNewAPI, AdapterVolcen, AdapterGemini, AdapterDashScope, AdapterLocal, "":
 		return []string{ModelAPIKindOpenAIChatCompletions, ModelAPIKindOpenAIResponses}
 	default:
 		return []string{ModelAPIKindOpenAIChatCompletions, ModelAPIKindOpenAIResponses}
@@ -586,6 +733,10 @@ func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capabili
 	if err != nil {
 		return ModelRoutePlan{}, true, err
 	}
+	activeProviders, err := s.catalogRouteProviderAvailabilityIndex(context.Background(), entries)
+	if err != nil {
+		return ModelRoutePlan{}, true, err
+	}
 	routeGroup := strings.TrimSpace(req.RouteGroup)
 	apiKinds := compactModelRouteRequestAPIKinds(req)
 	type catalogRouteCandidate struct {
@@ -599,7 +750,7 @@ func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capabili
 		if !catalogEntryMatchesRouteRequest(entry, def, req, capability) {
 			continue
 		}
-		bindings := catalogEntryBindingsForFilter(entry.RouteBindings, routeGroup, apiKinds, credentials)
+		bindings := catalogEntryBindingsForFilter(entry.RouteBindings, routeGroup, apiKinds, credentials, activeProviders)
 		bindings = catalogRouteBindingsForStructuredIntent(bindings, req, capability)
 		if len(bindings) == 0 {
 			continue
@@ -623,6 +774,7 @@ func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capabili
 			if index > 0 {
 				reason = "fallback_candidate"
 			}
+			supportedAPIKinds := catalogRouteBindingSupportedAPIKinds(&binding, credentials)
 			route := s.enrichModelRouteProviderFacts(ModelRoute{
 				ModelID:            strings.TrimSpace(entry.PublicModelID),
 				RuntimeModelID:     runtimeModelID,
@@ -634,8 +786,10 @@ func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capabili
 				ProviderID:         catalogRouteProviderID(&binding),
 				AdapterType:        strings.TrimSpace(binding.AdapterType),
 				ProviderModelID:    catalogRouteProviderModelID(entry, &binding),
+				ProtocolProfile:    strings.TrimSpace(binding.ProtocolProfile),
 				Capability:         capability,
-				APIKind:            firstMatchingModelAPIKind(catalogRouteBindingSupportedAPIKinds(&binding, credentials), apiKinds),
+				APIKind:            firstMatchingModelAPIKind(supportedAPIKinds, apiKinds),
+				APIKinds:           supportedAPIKinds,
 				Operation:          strings.TrimSpace(req.Operation),
 				EndpointBaseURL:    strings.TrimSpace(binding.EndpointBaseURL),
 				EndpointPathPrefix: strings.TrimSpace(binding.EndpointPathPrefix),
@@ -701,11 +855,19 @@ func (s *AIService) resolveRouteBindingModelRoutePlan(req ModelRouteRequest, cap
 	if binding.CatalogEntry == nil || binding.CatalogEntry.ID == 0 {
 		return ModelRoutePlan{}, true, fmt.Errorf("route binding id=%d has no catalog entry", req.RouteBindingID)
 	}
-	credentials, err := s.catalogRouteCredentialIndex(context.Background(), []persistencemodel.AIModelCatalogEntry{{
+	routeEntry := persistencemodel.AIModelCatalogEntry{
 		RouteBindings: []persistencemodel.AIModelRouteBinding{binding},
-	}})
+	}
+	credentials, err := s.catalogRouteCredentialIndex(context.Background(), []persistencemodel.AIModelCatalogEntry{routeEntry})
 	if err != nil {
 		return ModelRoutePlan{}, true, err
+	}
+	activeProviders, err := s.catalogRouteProviderAvailabilityIndex(context.Background(), []persistencemodel.AIModelCatalogEntry{routeEntry})
+	if err != nil {
+		return ModelRoutePlan{}, true, err
+	}
+	if !catalogRouteBindingIsAvailable(binding, credentials, activeProviders) {
+		return ModelRoutePlan{}, true, fmt.Errorf("route binding id=%d provider is not found or disabled", req.RouteBindingID)
 	}
 	apiKinds := compactModelRouteRequestAPIKinds(req)
 	if len(apiKinds) > 0 && !catalogRouteBindingMatchesAPIKinds(binding, apiKinds, credentials) {
@@ -727,6 +889,7 @@ func (s *AIService) resolveRouteBindingModelRoutePlan(req ModelRouteRequest, cap
 	if binding.CredentialID != nil {
 		credentialID = *binding.CredentialID
 	}
+	supportedAPIKinds := catalogRouteBindingSupportedAPIKinds(&binding, credentials)
 	route := s.enrichModelRouteProviderFacts(ModelRoute{
 		ModelID:            strings.TrimSpace(entry.PublicModelID),
 		RuntimeModelID:     runtimeModelID,
@@ -738,8 +901,10 @@ func (s *AIService) resolveRouteBindingModelRoutePlan(req ModelRouteRequest, cap
 		ProviderID:         catalogRouteProviderID(&binding),
 		AdapterType:        strings.TrimSpace(binding.AdapterType),
 		ProviderModelID:    catalogRouteProviderModelID(entry, &binding),
+		ProtocolProfile:    strings.TrimSpace(binding.ProtocolProfile),
 		Capability:         capability,
-		APIKind:            firstMatchingModelAPIKind(catalogRouteBindingSupportedAPIKinds(&binding, credentials), apiKinds),
+		APIKind:            firstMatchingModelAPIKind(supportedAPIKinds, apiKinds),
+		APIKinds:           supportedAPIKinds,
 		Operation:          strings.TrimSpace(req.Operation),
 		EndpointBaseURL:    strings.TrimSpace(binding.EndpointBaseURL),
 		EndpointPathPrefix: strings.TrimSpace(binding.EndpointPathPrefix),

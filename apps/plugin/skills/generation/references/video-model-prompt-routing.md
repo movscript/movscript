@@ -232,6 +232,7 @@ If the model supports audio reference or tempo-following, use a selected audio r
 
 Before calling a video generation tool, verify:
 
+- The prompt mode and reference roles are classified with `prompt-mode-router.md` when they are not trivial.
 - The chosen prompt structure matches model capabilities and scenario.
 - `scene_moment_ref` video prompts are written as motion/camera/time-based video prompts, not scene summaries.
 - The prompt uses MovScript refs or resource inputs, not provider placeholder syntax.

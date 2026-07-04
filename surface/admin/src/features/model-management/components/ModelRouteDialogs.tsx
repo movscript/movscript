@@ -10,10 +10,13 @@ import { useTranslation } from 'react-i18next'
 import {
   CAPABILITY_STATUS_INTENT,
   CAPABILITY_TRANSLATION_KEYS,
+  NEW_API_ADAPTER_TYPE,
   adapterDisplayName,
   catalogEntryLabel,
   catalogRouteFormFromBinding,
+  effectiveRouteFormAdapterType,
   modelCatalogCapabilities,
+  newAPIProtocolProfileOptions,
   providerOptionLabel,
   routeBindingProviderLabel,
   routeGroupActivePool,
@@ -31,6 +34,65 @@ import {
   type RouteProviderOption,
   type RuntimeProviderHealth
 } from '../model/modelManagementModel'
+
+function NewAPIProtocolProfileSelect({
+  value,
+  onChange,
+  adapter,
+  className,
+}: {
+  value: string
+  onChange: (value: string) => void
+  adapter?: AdapterDef
+  className?: string
+}) {
+  const { t } = useTranslation()
+  const profiles = useMemo(() => newAPIProtocolProfileOptions(adapter), [adapter])
+  const selectedProfile = profiles.find((profile) => profile.value === value)
+  const selectedProfileDetails = selectedProfile
+    ? [
+      selectedProfile.capability_family
+        ? `${t('admin.models.newAPIProtocolProfileCapability', { defaultValue: 'capability' })}: ${selectedProfile.capability_family}`
+        : '',
+      selectedProfile.endpoint
+        ? `${t('admin.models.newAPIProtocolProfileEndpoint', { defaultValue: 'endpoint' })}: ${selectedProfile.endpoint}`
+        : '',
+      selectedProfile.inherits_driver
+        ? `${t('admin.models.newAPIProtocolProfileInheritsDriver', { defaultValue: 'inherits' })}: ${selectedProfile.inherits_driver}`
+        : '',
+      selectedProfile.operations?.length
+        ? `${t('admin.models.newAPIProtocolProfileOperations', { defaultValue: 'operations' })}: ${selectedProfile.operations.join(', ')}`
+        : '',
+      selectedProfile.recognized_params?.length
+        ? `${t('admin.models.newAPIProtocolProfileRecognizedParams', { defaultValue: 'recognized params' })}: ${selectedProfile.recognized_params.join(', ')}`
+        : '',
+    ].filter(Boolean)
+    : []
+  return (
+    <label className={cn('block text-xs text-muted-foreground', className)}>
+      {t('admin.models.newAPIProtocolProfile', { defaultValue: 'New API protocol_profile' })}
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-1 h-8 w-full rounded-md border border-input bg-card px-2 font-mono text-[11px]"
+      >
+        <option value="">{t('admin.models.newAPIProtocolProfileAuto', { defaultValue: '按能力使用默认 profile' })}</option>
+        {profiles.map((profile) => (
+          <option key={profile.value} value={profile.value}>
+            {[profile.label, profile.value, profile.endpoint].filter(Boolean).join(' · ')}
+          </option>
+        ))}
+      </select>
+      {selectedProfileDetails.length > 0 && (
+        <div className="mt-2 grid gap-1 rounded-md border border-border bg-muted/20 p-2 font-mono text-[11px] leading-relaxed text-muted-foreground">
+          {selectedProfileDetails.map((detail) => (
+            <span key={detail} className="min-w-0 break-words">{detail}</span>
+          ))}
+        </div>
+      )}
+    </label>
+  )
+}
 
 export function RoutePoolDetailDialog({
   group,
@@ -179,6 +241,11 @@ export function RoutePoolDetailDialog({
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="truncate font-medium text-foreground">{routeBindingProviderLabel(binding, provider, t)}</p>
+                          {binding.protocol_profile && (
+                            <StatusBadge intent="neutral" className="font-mono text-[11px]">
+                              {binding.protocol_profile}
+                            </StatusBadge>
+                          )}
                           <StatusBadge intent={binding.is_enabled ? 'success' : 'neutral'} className="text-[11px]">
                             {binding.is_enabled ? t('admin.modelCatalog.enabled') : t('admin.modelCatalog.disabled')}
                           </StatusBadge>
@@ -276,6 +343,9 @@ export function RouteBindingFormDialog({
   const routeProviderChoices = routeForm.provider_id && !enabledRouteProviders.some((provider) => provider.provider_id === routeForm.provider_id)
     ? [...enabledRouteProviders, ...routeProviders.filter((provider) => provider.provider_id === routeForm.provider_id)]
     : enabledRouteProviders
+  const effectiveAdapterType = effectiveRouteFormAdapterType(routeForm, selectedRouteProvider)
+  const routeUsesNewAPI = effectiveAdapterType === NEW_API_ADAPTER_TYPE
+  const effectiveAdapter = routeAdapterOptions.find((adapter) => adapter.adapter_type === effectiveAdapterType)
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => {
@@ -333,12 +403,15 @@ export function RouteBindingFormDialog({
                       value={routeForm.provider_id}
                       onChange={(event) => {
                         const providerID = event.target.value
+                        const provider = routeProviders.find((item) => item.provider_id === providerID)
+                        const adapterType = routeProviderAdapterValue(provider)
                         const providerModelID = routeTemplateSuggestion?.model_id ?? ''
                         const routeTemplateCandidates = routeTemplateSuggestion ? [routeTemplateSuggestion] : []
                         setRouteForm({
                           ...routeForm,
                           provider_id: providerID,
-                          adapter_type: routeProviderAdapterValue(routeProviders.find((provider) => provider.provider_id === providerID)),
+                          adapter_type: adapterType,
+                          protocol_profile: adapterType === NEW_API_ADAPTER_TYPE ? routeForm.protocol_profile : '',
                           provider_model_id: shouldReplaceRouteProviderModelID(routeForm.provider_model_id, activeEntry, routeTemplateCandidates)
                             ? providerModelID || activeEntry?.public_model_id || ''
                             : routeForm.provider_model_id,
@@ -354,7 +427,15 @@ export function RouteBindingFormDialog({
                     {t('admin.models.adapter', { defaultValue: 'Adapter' })}
                     <select
                       value={routeForm.adapter_type}
-                      onChange={(event) => setRouteForm({ ...routeForm, adapter_type: event.target.value })}
+                      onChange={(event) => {
+                        const adapterType = event.target.value
+                        const nextEffectiveAdapterType = adapterType || routeProviderAdapterValue(selectedRouteProvider)
+                        setRouteForm({
+                          ...routeForm,
+                          adapter_type: adapterType,
+                          protocol_profile: nextEffectiveAdapterType === NEW_API_ADAPTER_TYPE ? routeForm.protocol_profile : '',
+                        })
+                      }}
                       className="mt-1 h-8 w-full rounded-md border border-input bg-card px-2 font-mono text-xs"
                     >
                       <option value="">{selectedRouteProvider ? routeProviderAdapterLabel(selectedRouteProvider) : t('admin.models.useProviderDefaultAdapter', { defaultValue: '使用 Provider 默认 Adapter' })}</option>
@@ -365,6 +446,13 @@ export function RouteBindingFormDialog({
                       ))}
                     </select>
                   </label>
+                  {routeUsesNewAPI && (
+                    <NewAPIProtocolProfileSelect
+                      value={routeForm.protocol_profile}
+                      onChange={(protocolProfile) => setRouteForm({ ...routeForm, protocol_profile: protocolProfile })}
+                      adapter={effectiveAdapter}
+                    />
+                  )}
                   <label className="block text-xs text-muted-foreground md:col-span-2">
                     {t('admin.modelCatalog.providerModelId')}
                     <Input
@@ -374,7 +462,9 @@ export function RouteBindingFormDialog({
                       className="mt-1 h-8 text-xs font-mono"
                     />
                     <span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">
-                      {t('admin.models.providerModelIdHint', { defaultValue: '这是实际发给 Provider API 的 model 字段，可以和 Public Model ID 不同。' })}
+                      {routeUsesNewAPI && routeForm.protocol_profile === 'jimeng_action_json'
+                        ? t('admin.models.newAPIJimengProviderModelIdHint', { defaultValue: 'Jimeng Action 下这里是默认 req_key；请求 payload 里的 req_key 可以覆盖，并会同步写入 model 供 New API 路由。' })
+                        : t('admin.models.providerModelIdHint', { defaultValue: '这是实际发给 Provider API 的 model 字段，可以和 Public Model ID 不同。' })}
                     </span>
                     {routeTemplateSuggestion && (
                       <button
@@ -609,6 +699,11 @@ export function CommunityRouteBindingEditor({
     setForm(catalogRouteFormFromBinding(binding))
   }, [binding.ID, binding.UpdatedAt])
 
+  const formProvider = routeProviders.find((provider) => provider.provider_id === form.provider_id)
+  const formEffectiveAdapterType = effectiveRouteFormAdapterType(form, formProvider)
+  const formUsesNewAPI = formEffectiveAdapterType === NEW_API_ADAPTER_TYPE
+  const formAdapter = adapters.find((adapter) => adapter.adapter_type === formEffectiveAdapterType)
+
   return (
     <form
       className={cn(
@@ -622,7 +717,16 @@ export function CommunityRouteBindingEditor({
     >
       <select
         value={form.provider_id}
-        onChange={(event) => setForm({ ...form, provider_id: event.target.value, adapter_type: routeProviderAdapterValue(routeProviders.find((provider) => provider.provider_id === event.target.value)) })}
+        onChange={(event) => {
+          const providerID = event.target.value
+          const adapterType = routeProviderAdapterValue(routeProviders.find((provider) => provider.provider_id === providerID))
+          setForm({
+            ...form,
+            provider_id: providerID,
+            adapter_type: adapterType,
+            protocol_profile: adapterType === NEW_API_ADAPTER_TYPE ? form.protocol_profile : '',
+          })
+        }}
         className="h-8 rounded-md border border-input bg-background px-2 text-xs"
       >
         <option value="">{t('admin.modelCatalog.pickProvider', { defaultValue: '选择 Provider' })}</option>
@@ -632,7 +736,15 @@ export function CommunityRouteBindingEditor({
       </select>
       <select
         value={form.adapter_type}
-        onChange={(event) => setForm({ ...form, adapter_type: event.target.value })}
+        onChange={(event) => {
+          const adapterType = event.target.value
+          const nextEffectiveAdapterType = adapterType || routeProviderAdapterValue(formProvider)
+          setForm({
+            ...form,
+            adapter_type: adapterType,
+            protocol_profile: nextEffectiveAdapterType === NEW_API_ADAPTER_TYPE ? form.protocol_profile : '',
+          })
+        }}
         className="h-8 rounded-md border border-input bg-background px-2 font-mono text-[11px]"
       >
         <option value="">{routeProviderAdapterLabel(routeProviders.find((provider) => provider.provider_id === form.provider_id))}</option>
@@ -642,8 +754,22 @@ export function CommunityRouteBindingEditor({
           </option>
         ))}
       </select>
-      <Input value={form.provider_model_id} onChange={(event) => setForm({ ...form, provider_model_id: event.target.value })} placeholder="provider model id" className="h-8 text-xs font-mono" />
+      <Input
+        value={form.provider_model_id}
+        onChange={(event) => setForm({ ...form, provider_model_id: event.target.value })}
+        placeholder={formUsesNewAPI && form.protocol_profile === 'jimeng_action_json' ? 'default req_key' : 'provider model id'}
+        title={formUsesNewAPI && form.protocol_profile === 'jimeng_action_json' ? t('admin.models.newAPIJimengProviderModelIdHint', { defaultValue: 'Jimeng Action 下这里是默认 req_key；请求 payload 里的 req_key 可以覆盖，并会同步写入 model 供 New API 路由。' }) : undefined}
+        className="h-8 text-xs font-mono"
+      />
       <Input value={form.route_group} onChange={(event) => setForm({ ...form, route_group: event.target.value })} placeholder={t('admin.modelCatalog.routeGroup')} className="h-8 text-xs" />
+      {formUsesNewAPI && (
+        <NewAPIProtocolProfileSelect
+          value={form.protocol_profile}
+          onChange={(protocolProfile) => setForm({ ...form, protocol_profile: protocolProfile })}
+          adapter={formAdapter}
+          className={compact ? '' : 'md:col-span-full'}
+        />
+      )}
       <div className={cn('grid gap-2 rounded-md border border-border bg-muted/20 p-2', compact ? '' : 'md:col-span-full md:grid-cols-[120px_minmax(180px,1fr)_120px_minmax(180px,1fr)]')}>
         <select
           value={form.endpoint_mode}

@@ -82,6 +82,7 @@ func ComboTemplates() []ComboTemplate {
 			continue
 		}
 		for _, rule := range comboProvidersForModelTemplate(template) {
+			adapterType := comboRuleAdapterType(rule)
 			out = append(out, ComboTemplate{
 				ComboTemplateKey:     template.ID + "@" + rule.ProviderKind,
 				ModelTemplateKey:     template.ID,
@@ -89,7 +90,7 @@ func ComboTemplates() []ComboTemplate {
 				Profile:              rule.Profile,
 				ProviderKind:         rule.ProviderKind,
 				ProviderCategory:     rule.ProviderCategory,
-				AdapterType:          comboRuleAdapterType(rule),
+				AdapterType:          adapterType,
 				DefaultPublicModelID: template.DefaultPublicModelID,
 				ProviderModelID:      comboRuleProviderModelID(rule, template),
 				APIKinds:             comboAPIKindsForTemplate(template),
@@ -130,9 +131,24 @@ func comboProvidersForModelTemplate(template CatalogTemplate) []comboProviderRul
 		if excluded {
 			continue
 		}
+		if !adapterSupportsTemplateCapabilities(comboRuleAdapterType(rule), template.Capabilities) {
+			continue
+		}
 		out = append(out, rule)
 	}
 	return out
+}
+
+func adapterSupportsTemplateCapabilities(adapterType string, capabilities []string) bool {
+	if len(capabilities) == 0 {
+		return false
+	}
+	for _, capability := range capabilities {
+		if !AdapterSupportsRuntimeCapability(adapterType, capability) {
+			return false
+		}
+	}
+	return true
 }
 
 func comboRuleAdapterType(rule comboProviderRule) string {
@@ -152,6 +168,69 @@ func comboRuleProviderModelID(rule comboProviderRule, template CatalogTemplate) 
 		return providerModelID
 	}
 	return template.ModelID
+}
+
+func AdapterSupportsRuntimeCapability(adapterType, capability string) bool {
+	switch strings.TrimSpace(adapterType) {
+	case AdapterOpenAICompat:
+		switch capability {
+		case CapabilityFamilyTextGeneration, CapabilityReasoning, CapabilityFamilyImageGeneration, CapabilityFamilyAudioGeneration:
+			return true
+		}
+	case AdapterNewAPI:
+		switch capability {
+		case CapabilityFamilyTextGeneration, CapabilityReasoning, CapabilityFamilyImageGeneration, CapabilityFamilyVideoGeneration, CapabilityFamilyAudioGeneration,
+			CapabilityFamilyEmbedding, CapabilityFamilyRerank, CapabilityFamilyModeration, CapabilityFamilyRealtime:
+			return true
+		}
+	case AdapterOpenAIVideoMultipart:
+		return capability == CapabilityFamilyVideoGeneration
+	case AdapterOfficialVideoGenerations:
+		return capability == CapabilityFamilyVideoGeneration
+	case AdapterYunwuUnifiedVideo:
+		return capability == CapabilityFamilyVideoGeneration
+	case AdapterAnthropic:
+		return capability == CapabilityFamilyTextGeneration || capability == CapabilityReasoning
+	case AdapterDashScope:
+		switch capability {
+		case CapabilityFamilyImageGeneration, CapabilityFamilyVideoGeneration, CapabilityFamilyAudioGeneration:
+			return true
+		}
+	case AdapterVyroSeedance:
+		return capability == CapabilityFamilyVideoGeneration
+	case AdapterGemini:
+		switch capability {
+		case CapabilityFamilyTextGeneration, CapabilityReasoning, CapabilityFamilyImageGeneration, CapabilityFamilyVideoGeneration, CapabilityFamilyAudioGeneration:
+			return true
+		}
+	case AdapterVolcen:
+		switch capability {
+		case CapabilityFamilyTextGeneration, CapabilityReasoning, CapabilityFamilyImageGeneration, CapabilityFamilyVideoGeneration, CapabilityFamilyAudioGeneration:
+			return true
+		}
+	case AdapterKling:
+		return capability == CapabilityFamilyVideoGeneration
+	case AdapterVidu:
+		return capability == CapabilityFamilyVideoGeneration
+	case AdapterElevenLabs:
+		return capability == CapabilityFamilyAudioGeneration
+	case AdapterMiniMax:
+		return capability == CapabilityFamilyAudioGeneration
+	case AdapterXiaomiMimo:
+		return capability == CapabilityFamilyTextGeneration || capability == CapabilityFamilyAudioGeneration
+	case AdapterMureka:
+		return capability == CapabilityFamilyTextGeneration || capability == CapabilityFamilyAudioGeneration
+	case AdapterStability:
+		return capability == CapabilityFamilyAudioGeneration
+	case AdapterDoubao2API:
+		return capability == CapabilityFamilyImageGeneration || capability == CapabilityFamilyVideoGeneration
+	case AdapterLocal:
+		switch capability {
+		case CapabilityFamilyTextGeneration, CapabilityReasoning, CapabilityFamilyImageGeneration, CapabilityFamilyVideoGeneration, CapabilityFamilyAudioGeneration:
+			return true
+		}
+	}
+	return false
 }
 
 func cloneProviderTemplateMap(in map[string]any) map[string]any {

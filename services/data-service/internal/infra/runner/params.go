@@ -32,6 +32,19 @@ func (p generationParams) String(key string) string {
 	return ""
 }
 
+func (p generationParams) Any(key string) (interface{}, bool) {
+	v, ok := p.values[key]
+	return v, ok
+}
+
+func (p generationParams) Values() map[string]any {
+	out := make(map[string]any, len(p.values))
+	for key, value := range p.values {
+		out[key] = value
+	}
+	return out
+}
+
 func (p generationParams) Int(key string) int {
 	if v, ok := p.values[key]; ok {
 		switch n := v.(type) {

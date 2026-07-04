@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/movscript/movscript/internal/domain/media"
 )
 
 // ProviderDebugCallRequest describes a one-off provider call with caller-supplied credentials.
@@ -15,7 +17,7 @@ type ProviderDebugCallRequest struct {
 	// EndpointURL is the full API endpoint URL (e.g. https://api.openai.com/v1/images/generations).
 	// When set, Capability is inferred from the URL path. Takes precedence over Capability.
 	EndpointURL string
-	Capability  string // text_generation | image_generation | video_generation | audio_generation; inferred from EndpointURL if empty
+	Capability  string // text_generation | image_generation | video_generation | audio_generation | embedding | rerank | moderation | realtime; inferred from EndpointURL if empty
 	Model       string
 	Prompt      string
 	Params      map[string]any // capability-specific extra params (size, duration, aspect_ratio, etc.)
@@ -25,6 +27,18 @@ type ProviderDebugCallRequest struct {
 // inferCapabilityFromURL returns a capability constant based on URL path heuristics.
 func inferCapabilityFromURL(rawURL string) string {
 	lower := strings.ToLower(rawURL)
+	if strings.Contains(lower, "embedding") {
+		return CapabilityFamilyEmbedding
+	}
+	if strings.Contains(lower, "rerank") {
+		return CapabilityFamilyRerank
+	}
+	if strings.Contains(lower, "moderation") {
+		return CapabilityFamilyModeration
+	}
+	if strings.Contains(lower, "realtime") || strings.HasPrefix(lower, "ws://") || strings.HasPrefix(lower, "wss://") {
+		return CapabilityFamilyRealtime
+	}
 	if strings.Contains(lower, "image") {
 		if strings.Contains(lower, "edit") {
 			return CapabilityFamilyImageGeneration
@@ -71,10 +85,11 @@ func ProviderDebugCall(ctx context.Context, req ProviderDebugCallRequest) DebugC
 		params = map[string]any{}
 	}
 	params = NormalizeGenerationParams(params)
+	protocolProfile := providerStringParam(params, "protocol_profile", "")
 
 	adapter, err := buildDebugAdapter(req.AdapterType, req.APIKey, baseURL)
 	if err != nil {
-		return DebugCallResult{ModelID: model, Error: err.Error()}
+		return DebugCallResult{ModelID: model, Error: sanitizeDebugError(err.Error())}
 	}
 	if req.DryRun {
 		adapter = newDryRunProvider(req.AdapterType, req.APIKey, baseURL)
@@ -85,9 +100,157 @@ func ProviderDebugCall(ctx context.Context, req ProviderDebugCallRequest) DebugC
 	dryRun := newDryRunProvider(req.AdapterType, req.APIKey, baseURL)
 
 	switch req.Capability {
+	case CapabilityFamilyRealtime:
+		rreq := RealtimeSessionRequest{
+			Model:           model,
+			ProtocolProfile: protocolProfile,
+			Query:           providerStringMapParam(params, "query"),
+			Headers:         providerStringMapParam(params, "headers"),
+		}
+		realtimeProvider, ok := adapter.(RealtimeProvider)
+		if !ok {
+			return DebugCallResult{ModelID: model, Error: fmt.Sprintf("%s adapter does not support realtime", req.AdapterType)}
+		}
+		session, callErr := realtimeProvider.ConnectRealtime(debugCtx, rreq)
+		if session != nil {
+			_ = session.Close()
+		}
+		if callErr != nil {
+			result := takeDebug(debugCtx)
+			if result == nil {
+				result = &DebugCallResult{ModelID: model}
+			}
+			result.Error = sanitizeDebugError(callErr.Error())
+			result.Success = false
+			return *result
+		}
+		if result := takeDebug(debugCtx); result != nil {
+			return *result
+		}
+		synthetic := dryRun.buildRealtimeRequest(rreq)
+		synthetic.Success = true
+		return synthetic
+
+	case CapabilityFamilyEmbedding:
+		ereq := EmbeddingRequest{
+			Model:           model,
+			ProtocolProfile: protocolProfile,
+			Inputs:          providerStringSliceParam(params, "input", []string{prompt}),
+			EncodingFormat:  providerStringParam(params, "encoding_format", ""),
+			Dimensions:      providerIntParam(params, "dimensions", 0),
+		}
+		embeddingProvider, ok := adapter.(EmbeddingProvider)
+		if !ok {
+			return DebugCallResult{ModelID: model, Error: fmt.Sprintf("%s adapter does not support embedding", req.AdapterType)}
+		}
+		resp, callErr := embeddingProvider.CreateEmbeddings(debugCtx, ereq)
+		if callErr != nil {
+			result := takeDebug(debugCtx)
+			if result == nil {
+				result = &DebugCallResult{ModelID: model}
+			}
+			result.Error = sanitizeDebugError(callErr.Error())
+			result.Success = false
+			return *result
+		}
+		if resp.Debug != nil {
+			return *resp.Debug
+		}
+		synthetic := dryRun.buildEmbeddingRequest(ereq)
+		synthetic.Success = true
+		return synthetic
+
+	case CapabilityFamilyRerank:
+		rreq := RerankRequest{
+			Model:           model,
+			ProtocolProfile: protocolProfile,
+			Query:           prompt,
+			Documents:       providerRerankDocumentsParam(params),
+			TopN:            providerIntParam(params, "top_n", 0),
+			ReturnDocuments: providerBoolParam(params, "return_documents", false),
+		}
+		rerankProvider, ok := adapter.(RerankProvider)
+		if !ok {
+			return DebugCallResult{ModelID: model, Error: fmt.Sprintf("%s adapter does not support rerank", req.AdapterType)}
+		}
+		resp, callErr := rerankProvider.Rerank(debugCtx, rreq)
+		if callErr != nil {
+			result := takeDebug(debugCtx)
+			if result == nil {
+				result = &DebugCallResult{ModelID: model}
+			}
+			result.Error = sanitizeDebugError(callErr.Error())
+			result.Success = false
+			return *result
+		}
+		if resp.Debug != nil {
+			return *resp.Debug
+		}
+		synthetic := dryRun.buildRerankRequest(rreq)
+		synthetic.Success = true
+		return synthetic
+
+	case CapabilityFamilyModeration:
+		mreq := ModerationRequest{
+			Model:           model,
+			ProtocolProfile: protocolProfile,
+			Inputs:          providerStringSliceParam(params, "input", []string{prompt}),
+		}
+		moderationProvider, ok := adapter.(ModerationProvider)
+		if !ok {
+			return DebugCallResult{ModelID: model, Error: fmt.Sprintf("%s adapter does not support moderation", req.AdapterType)}
+		}
+		resp, callErr := moderationProvider.Moderate(debugCtx, mreq)
+		if callErr != nil {
+			result := takeDebug(debugCtx)
+			if result == nil {
+				result = &DebugCallResult{ModelID: model}
+			}
+			result.Error = sanitizeDebugError(callErr.Error())
+			result.Success = false
+			return *result
+		}
+		if resp.Debug != nil {
+			return *resp.Debug
+		}
+		synthetic := dryRun.buildModerationRequest(mreq)
+		synthetic.Success = true
+		return synthetic
+
+	case CapabilityFamilyAudioGeneration:
+		treq := media.TTSRequest{
+			Model:           model,
+			ProtocolProfile: protocolProfile,
+			Text:            prompt,
+			Voice:           providerStringParam(params, "voice", ""),
+			AudioFormat:     providerStringParam(params, "audio_format", ""),
+			Params:          params,
+		}
+		ttsProvider, ok := adapter.(AudioSpeechProvider)
+		if !ok {
+			return DebugCallResult{ModelID: model, Error: fmt.Sprintf("%s adapter does not support audio speech", req.AdapterType)}
+		}
+		_, callErr := ttsProvider.Synthesize(debugCtx, treq)
+		if callErr != nil {
+			result := takeDebug(debugCtx)
+			if result == nil {
+				result = &DebugCallResult{ModelID: model}
+			}
+			result.Error = sanitizeDebugError(callErr.Error())
+			result.Success = false
+			return *result
+		}
+		if result := takeDebug(debugCtx); result != nil {
+			return *result
+		}
+		synthetic := dryRun.buildTTSRequest(treq)
+		synthetic.Success = true
+		return synthetic
+
 	case CapabilityFamilyImageGeneration:
 		ireq := ImageRequest{
 			Model:              model,
+			ProtocolProfile:    protocolProfile,
 			Prompt:             prompt,
 			Size:               providerStringParam(params, "size", ""),
 			AspectRatio:        providerStringParam(params, "aspect_ratio", ""),
@@ -95,6 +258,7 @@ func ProviderDebugCall(ctx context.Context, req ProviderDebugCallRequest) DebugC
 			Style:              providerStringParam(params, "style", ""),
 			OutputFormat:       providerStringParam(params, "output_format", ""),
 			OptimizePromptMode: providerStringParam(params, "optimize_prompt_mode", ""),
+			ExtraParams:        params,
 		}
 		ireq.Seed = providerInt64PtrParam(params, "seed")
 		ireq.GuidanceScale = providerFloatParam(params, "guidance_scale", 0)
@@ -108,7 +272,7 @@ func ProviderDebugCall(ctx context.Context, req ProviderDebugCallRequest) DebugC
 			if result == nil {
 				result = &DebugCallResult{ModelID: model}
 			}
-			result.Error = callErr.Error()
+			result.Error = sanitizeDebugError(callErr.Error())
 			result.Success = false
 			return *result
 		}
@@ -123,9 +287,12 @@ func ProviderDebugCall(ctx context.Context, req ProviderDebugCallRequest) DebugC
 	case CapabilityFamilyVideoGeneration:
 		vreq := VideoRequest{
 			Model:                 model,
+			ProtocolProfile:       protocolProfile,
 			Prompt:                prompt,
 			Duration:              providerIntParam(params, "duration", 5),
 			Frames:                providerIntParam(params, "frames", 0),
+			Width:                 providerIntParam(params, "width", 0),
+			Height:                providerIntParam(params, "height", 0),
 			AspectRatio:           providerStringParam(params, "aspect_ratio", "16:9"),
 			Quality:               providerStringParam(params, "quality", ""),
 			Size:                  providerStringParam(params, "size", ""),
@@ -138,6 +305,9 @@ func ProviderDebugCall(ctx context.Context, req ProviderDebugCallRequest) DebugC
 			Payload:               providerStringParam(params, "payload", ""),
 		}
 		vreq.Seed = providerInt64PtrParam(params, "seed")
+		if req.AdapterType == AdapterNewAPI {
+			vreq.Payload = newAPIDebugPayloadFromParams(vreq.Payload, params)
+		}
 		vreq.CameraFixed = providerBoolPtrParam(params, "camera_fixed")
 		vreq.Watermark = providerBoolPtrParam(params, "watermark")
 		vreq.GenerateAudio = providerBoolPtrParam(params, "generate_audio")
@@ -151,7 +321,7 @@ func ProviderDebugCall(ctx context.Context, req ProviderDebugCallRequest) DebugC
 			if result == nil {
 				result = &DebugCallResult{ModelID: model}
 			}
-			result.Error = callErr.Error()
+			result.Error = sanitizeDebugError(callErr.Error())
 			result.Success = false
 			return *result
 		}
@@ -164,10 +334,11 @@ func ProviderDebugCall(ctx context.Context, req ProviderDebugCallRequest) DebugC
 
 	default: // text
 		treq := TextRequest{
-			Model:      model,
-			PromptName: "provider_debug_text",
-			MaxTokens:  providerIntParam(params, "max_tokens", DefaultTextMaxTokens),
-			Messages:   []Message{{Role: "user", Content: prompt}},
+			Model:           model,
+			ProtocolProfile: protocolProfile,
+			PromptName:      "provider_debug_text",
+			MaxTokens:       providerIntParam(params, "max_tokens", DefaultTextMaxTokens),
+			Messages:        []Message{{Role: "user", Content: prompt}},
 		}
 		if t, ok := params["temperature"]; ok {
 			if f, ok2 := toFloat64(t); ok2 {
@@ -180,7 +351,7 @@ func ProviderDebugCall(ctx context.Context, req ProviderDebugCallRequest) DebugC
 			if result == nil {
 				result = &DebugCallResult{ModelID: model}
 			}
-			result.Error = callErr.Error()
+			result.Error = sanitizeDebugError(callErr.Error())
 			result.Success = false
 			return *result
 		}
@@ -202,6 +373,13 @@ func buildDebugAdapter(adapterType, apiKey, baseURL string) (Provider, error) {
 			base = "https://api.anthropic.com"
 		}
 		return NewAnthropicAdapter(apiKey, base), nil
+
+	case AdapterNewAPI:
+		base := strings.TrimRight(baseURL, "/")
+		if base == "" {
+			return nil, fmt.Errorf("base_url is required for new_api adapter")
+		}
+		return NewNewAPIAdapter(apiKey, base), nil
 
 	case AdapterKling:
 		parts := splitKlingKey(apiKey)
@@ -292,6 +470,117 @@ func providerStringParam(params map[string]any, key string, def string) string {
 	return def
 }
 
+func providerStringSliceParam(params map[string]any, key string, def []string) []string {
+	v, ok := params[key]
+	if !ok {
+		return def
+	}
+	switch t := v.(type) {
+	case []string:
+		return t
+	case []any:
+		out := make([]string, 0, len(t))
+		for _, item := range t {
+			if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
+				out = append(out, s)
+			}
+		}
+		if len(out) > 0 {
+			return out
+		}
+	case string:
+		if strings.TrimSpace(t) == "" {
+			return def
+		}
+		var list []string
+		if err := json.Unmarshal([]byte(t), &list); err == nil && len(list) > 0 {
+			return list
+		}
+		return []string{t}
+	}
+	return def
+}
+
+func providerStringMapParam(params map[string]any, key string) map[string]string {
+	v, ok := params[key]
+	if !ok {
+		return nil
+	}
+	out := map[string]string{}
+	switch t := v.(type) {
+	case map[string]string:
+		for key, value := range t {
+			if strings.TrimSpace(key) != "" && strings.TrimSpace(value) != "" {
+				out[key] = value
+			}
+		}
+	case map[string]any:
+		for key, value := range t {
+			if s, ok := value.(string); ok && strings.TrimSpace(key) != "" && strings.TrimSpace(s) != "" {
+				out[key] = s
+			}
+		}
+	case string:
+		if strings.TrimSpace(t) == "" {
+			return nil
+		}
+		var parsed map[string]string
+		if err := json.Unmarshal([]byte(t), &parsed); err == nil {
+			for key, value := range parsed {
+				if strings.TrimSpace(key) != "" && strings.TrimSpace(value) != "" {
+					out[key] = value
+				}
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func providerRerankDocumentsParam(params map[string]any) []RerankDocument {
+	v, ok := params["documents"]
+	if !ok {
+		return []RerankDocument{{Text: "first document"}, {Text: "second document"}}
+	}
+	switch t := v.(type) {
+	case []string:
+		out := make([]RerankDocument, 0, len(t))
+		for _, text := range t {
+			out = append(out, RerankDocument{Text: text})
+		}
+		return out
+	case []any:
+		return rerankDocumentsFromAnySlice(t)
+	case string:
+		var list []any
+		if err := json.Unmarshal([]byte(t), &list); err == nil {
+			return rerankDocumentsFromAnySlice(list)
+		}
+		if strings.TrimSpace(t) != "" {
+			return []RerankDocument{{Text: t}}
+		}
+	}
+	return []RerankDocument{{Text: "first document"}, {Text: "second document"}}
+}
+
+func rerankDocumentsFromAnySlice(items []any) []RerankDocument {
+	out := make([]RerankDocument, 0, len(items))
+	for _, item := range items {
+		switch v := item.(type) {
+		case string:
+			out = append(out, RerankDocument{Text: v})
+		case map[string]any:
+			out = append(out, RerankDocument{Data: v})
+		}
+	}
+	if len(out) == 0 {
+		return []RerankDocument{{Text: "first document"}, {Text: "second document"}}
+	}
+	return out
+}
+
 func providerFloatParam(params map[string]any, key string, def float64) float64 {
 	v, ok := params[key]
 	if !ok {
@@ -356,4 +645,50 @@ func providerBoolPtrParam(params map[string]any, key string) *bool {
 	}
 	b := providerBoolParam(params, key, false)
 	return &b
+}
+
+func newAPIDebugPayloadFromParams(existing string, params map[string]any) string {
+	payload := map[string]any{}
+	if strings.TrimSpace(existing) != "" {
+		_ = json.Unmarshal([]byte(existing), &payload)
+	}
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	for _, key := range []string{"fps", "n", "response_format", "user", "metadata"} {
+		value, ok := params[key]
+		if !ok || isEmptyDebugParam(value) {
+			continue
+		}
+		payload[key] = normalizeProviderJSONParam(value)
+	}
+	if len(payload) == 0 {
+		return ""
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return existing
+	}
+	return string(raw)
+}
+
+func normalizeProviderJSONParam(value any) any {
+	s, ok := value.(string)
+	if !ok {
+		return value
+	}
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	var parsed any
+	if err := json.Unmarshal([]byte(s), &parsed); err == nil {
+		return parsed
+	}
+	return s
+}
+
+func isEmptyDebugParam(value any) bool {
+	s, ok := value.(string)
+	return ok && strings.TrimSpace(s) == ""
 }

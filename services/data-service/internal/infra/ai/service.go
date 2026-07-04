@@ -319,6 +319,14 @@ func (s *AIService) getAnyTextModelFromCatalog() (runtimeModelID uint, modelID s
 		Find(&entries).Error; err != nil {
 		return 0, "", true, err
 	}
+	credentials, err := s.catalogRouteCredentialIndex(context.Background(), entries)
+	if err != nil {
+		return 0, "", true, err
+	}
+	activeProviders, err := s.catalogRouteProviderAvailabilityIndex(context.Background(), entries)
+	if err != nil {
+		return 0, "", true, err
+	}
 	type candidate struct {
 		runtimeModelID uint
 		modelID        string
@@ -331,7 +339,7 @@ func (s *AIService) getAnyTextModelFromCatalog() (runtimeModelID uint, modelID s
 		if !modelDefMatchesAnyCapability(def, textRuntimeCapabilities()) {
 			continue
 		}
-		for _, binding := range catalogEntryBindingsForFilter(entry.RouteBindings, "", nil, nil) {
+		for _, binding := range catalogEntryBindingsForFilter(entry.RouteBindings, "", nil, credentials, activeProviders) {
 			publicModelID := strings.TrimSpace(entry.PublicModelID)
 			candidates = append(candidates, candidate{
 				runtimeModelID: entry.ID,

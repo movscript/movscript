@@ -52,12 +52,16 @@ func (p *QdrantVectorIndexProvider) Upsert(ctx context.Context, document provide
 	if err := p.ensureCollection(ctx); err != nil {
 		return err
 	}
+	vector, err := qdrantVector(document.Text, document.Embedding)
+	if err != nil {
+		return err
+	}
 	payload := qdrantPayloadFromDocument(document)
 	body := map[string]any{
 		"points": []map[string]any{
 			{
 				"id":      qdrantPointID(document.ID),
-				"vector":  qdrantVector(document.Text, document.Embedding),
+				"vector":  vector,
 				"payload": payload,
 			},
 		},
@@ -95,8 +99,12 @@ func (p *QdrantVectorIndexProvider) Search(ctx context.Context, request provider
 	if limit <= 0 {
 		limit = 20
 	}
+	vector, err := qdrantVector(request.Query, request.Embedding)
+	if err != nil {
+		return nil, err
+	}
 	body := map[string]any{
-		"vector":       qdrantVector(request.Query, request.Embedding),
+		"vector":       vector,
 		"limit":        limit,
 		"with_payload": true,
 	}
@@ -230,15 +238,8 @@ func qdrantPointID(documentID string) string {
 	return hexed[0:8] + "-" + hexed[8:12] + "-" + hexed[12:16] + "-" + hexed[16:20] + "-" + hexed[20:32]
 }
 
-func qdrantVector(text string, embedding []float32) []float64 {
-	if len(embedding) == 0 {
-		return embedVectorText(text)
-	}
-	vector := make([]float64, len(embedding))
-	for index, value := range embedding {
-		vector[index] = float64(value)
-	}
-	return vector
+func qdrantVector(text string, embedding []float32) ([]float64, error) {
+	return vectorEmbedding(text, embedding)
 }
 
 func qdrantPayloadFromDocument(document providercontract.VectorDocument) qdrantPayload {
@@ -251,12 +252,14 @@ func qdrantPayloadFromDocument(document providercontract.VectorDocument) qdrantP
 		Kind:           document.Kind,
 		Text:           document.Text,
 		Metadata:       document.Metadata,
-		EmbeddingModel: localEmbeddingModel,
+		EmbeddingModel: vectorEmbeddingModel(document.EmbeddingModel, document.Embedding),
 	}
 }
 
 func qdrantFilterFromSearch(request providercontract.VectorSearchRequest) qdrantFilter {
-	filter := qdrantFilter{}
+	filter := qdrantFilter{
+		Must: []qdrantCondition{qdrantMatchCondition("embedding_model", vectorSearchEmbeddingModel(request.EmbeddingModel, request.Embedding))},
+	}
 	if strings.TrimSpace(request.Locale) != "" {
 		filter.Must = append(filter.Must, qdrantMatchCondition("locale", request.Locale))
 	}

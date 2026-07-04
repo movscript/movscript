@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
+
+	"github.com/movscript/movscript/internal/domain/media"
 )
 
 // dryRunProvider builds the HTTP request that would be sent to a provider
@@ -39,11 +42,106 @@ func (d *dryRunProvider) VideoGenerate(ctx context.Context, req VideoRequest) (V
 	return VideoResponse{Debug: takeDebug(ctx)}, nil
 }
 
+func (d *dryRunProvider) Synthesize(ctx context.Context, req media.TTSRequest) (media.TTSResponse, error) {
+	result := d.buildTTSRequest(req)
+	recordDebug(ctx, result)
+	return media.TTSResponse{}, nil
+}
+
+func (d *dryRunProvider) CreateEmbeddings(ctx context.Context, req EmbeddingRequest) (EmbeddingResponse, error) {
+	result := d.buildEmbeddingRequest(req)
+	recordDebug(ctx, result)
+	return EmbeddingResponse{Debug: takeDebug(ctx)}, nil
+}
+
+func (d *dryRunProvider) Rerank(ctx context.Context, req RerankRequest) (RerankResponse, error) {
+	result := d.buildRerankRequest(req)
+	recordDebug(ctx, result)
+	return RerankResponse{Debug: takeDebug(ctx)}, nil
+}
+
+func (d *dryRunProvider) Moderate(ctx context.Context, req ModerationRequest) (ModerationResponse, error) {
+	result := d.buildModerationRequest(req)
+	recordDebug(ctx, result)
+	return ModerationResponse{Debug: takeDebug(ctx)}, nil
+}
+
+func (d *dryRunProvider) ConnectRealtime(ctx context.Context, req RealtimeSessionRequest) (RealtimeSession, error) {
+	result := d.buildRealtimeRequest(req)
+	recordDebug(ctx, result)
+	return noopRealtimeSession{}, nil
+}
+
 func (d *dryRunProvider) buildTextRequest(req TextRequest) DebugCallResult {
 	base := strings.TrimRight(d.baseURL, "/")
 	maskedKey := maskKey(d.apiKey)
 
 	switch d.adapterType {
+	case AdapterNewAPI:
+		switch ResolveNewAPIProtocolProfile(CapabilityFamilyTextGeneration, req.ProtocolProfile) {
+		case NewAPIProfileClaudeMessages:
+			msgs := make([]map[string]string, len(req.Messages))
+			for i, m := range req.Messages {
+				msgs[i] = map[string]string{"role": m.Role, "content": m.Content}
+			}
+			body := map[string]any{
+				"model":      req.Model,
+				"messages":   msgs,
+				"max_tokens": req.MaxTokens,
+			}
+			if req.Temperature >= 0 {
+				body["temperature"] = req.Temperature
+			}
+			return DebugCallResult{
+				Success:  true,
+				ModelID:  req.Model,
+				Endpoint: base + "/messages",
+				Method:   "POST",
+				RequestHeaders: map[string]string{
+					"x-api-key":         maskedKey,
+					"anthropic-version": "2023-06-01",
+					"Content-Type":      "application/json",
+				},
+				RequestBody: mustJSON(body),
+			}
+		case NewAPIProfileGeminiGenerateContent:
+			body, _, _ := newAPIGeminiGenerateContentBody(req)
+			return DebugCallResult{
+				Success:  true,
+				ModelID:  req.Model,
+				Endpoint: newAPIGeminiGenerateContentURL(base, req.Model, "generateContent"),
+				Method:   "POST",
+				RequestHeaders: map[string]string{
+					"Authorization": "Bearer " + maskedKey,
+					"Content-Type":  "application/json",
+				},
+				RequestBody: mustJSON(body),
+			}
+		}
+		msgs := make([]map[string]string, len(req.Messages))
+		for i, m := range req.Messages {
+			msgs[i] = map[string]string{"role": m.Role, "content": m.Content}
+		}
+		body := map[string]any{
+			"model":      req.Model,
+			"messages":   msgs,
+			"max_tokens": req.MaxTokens,
+		}
+		if req.Temperature >= 0 {
+			body["temperature"] = req.Temperature
+		}
+		return DebugCallResult{
+			Success:  true,
+			ModelID:  req.Model,
+			Endpoint: base + "/chat/completions",
+			Method:   "POST",
+			RequestHeaders: map[string]string{
+				"Authorization": "Bearer " + maskedKey,
+				"Content-Type":  "application/json",
+			},
+			RequestBody: mustJSON(body),
+		}
+
 	case AdapterAnthropic:
 		if base == "" {
 			base = "https://api.anthropic.com"
@@ -234,7 +332,41 @@ func (d *dryRunProvider) buildImageRequest(req ImageRequest) DebugCallResult {
 			RequestBody: mustJSON(body),
 		}
 
-	default: // openai_compat
+	default: // openai_compat and new_api
+		if d.adapterType == AdapterNewAPI && ResolveNewAPIProtocolProfile(CapabilityFamilyImageGeneration, req.ProtocolProfile) == NewAPIProfileGeminiImages {
+			_, debugBody, err := newAPIGeminiImageGenerateContentBody(req)
+			if err != nil {
+				return DebugCallResult{Success: false, ModelID: req.Model, Error: err.Error()}
+			}
+			return DebugCallResult{
+				Success:  true,
+				ModelID:  req.Model,
+				Endpoint: newAPIGeminiGenerateContentURL(base, req.Model, "generateContent"),
+				Method:   "POST",
+				RequestHeaders: map[string]string{
+					"Authorization": "Bearer " + maskedKey,
+					"Content-Type":  "application/json",
+				},
+				RequestBody: mustJSON(debugBody),
+			}
+		}
+		if d.adapterType == AdapterNewAPI && ResolveNewAPIProtocolProfile(CapabilityFamilyImageGeneration, req.ProtocolProfile) == NewAPIProfileQwenImages {
+			body, err := newAPIQwenImageBody(req)
+			if err != nil {
+				return DebugCallResult{Success: false, ModelID: req.Model, Error: err.Error()}
+			}
+			return DebugCallResult{
+				Success:  true,
+				ModelID:  req.Model,
+				Endpoint: base + newAPIQwenImageEndpointPath(req),
+				Method:   "POST",
+				RequestHeaders: map[string]string{
+					"Authorization": "Bearer " + maskedKey,
+					"Content-Type":  "application/json",
+				},
+				RequestBody: mustJSON(body),
+			}
+		}
 		body := map[string]any{
 			"model":  req.Model,
 			"prompt": req.Prompt,
@@ -253,6 +385,51 @@ func (d *dryRunProvider) buildImageRequest(req ImageRequest) DebugCallResult {
 			},
 			RequestBody: mustJSON(body),
 		}
+	}
+}
+
+func (d *dryRunProvider) buildTTSRequest(req media.TTSRequest) DebugCallResult {
+	base := strings.TrimRight(d.baseURL, "/")
+	maskedKey := maskKey(d.apiKey)
+	switch d.adapterType {
+	case AdapterNewAPI:
+		if ResolveNewAPIProtocolProfile(CapabilityFamilyAudioGeneration, req.ProtocolProfile) == NewAPIProfileGeminiAudio {
+			body, debugBody, err := newAPIGeminiAudioGenerateContentBody(req)
+			if err != nil {
+				return DebugCallResult{Success: false, ModelID: req.Model, Error: err.Error()}
+			}
+			model := firstNonEmptyAI(strings.TrimSpace(req.Model), "gemini-2.5-flash-preview-tts")
+			_ = body
+			return DebugCallResult{
+				Success:  true,
+				ModelID:  model,
+				Endpoint: newAPIGeminiGenerateContentURL(base, model, "generateContent"),
+				Method:   http.MethodPost,
+				RequestHeaders: map[string]string{
+					"Authorization": "Bearer " + maskedKey,
+					"Content-Type":  "application/json",
+				},
+				RequestBody: mustJSON(debugBody),
+			}
+		}
+	}
+	model := firstNonEmptyAI(strings.TrimSpace(req.Model), "tts-1")
+	body := map[string]any{
+		"model":           model,
+		"input":           req.Text,
+		"voice":           firstNonEmptyAI(strings.TrimSpace(req.Voice), "alloy"),
+		"response_format": firstNonEmptyAI(strings.TrimSpace(req.AudioFormat), "mp3"),
+	}
+	return DebugCallResult{
+		Success:  true,
+		ModelID:  model,
+		Endpoint: base + "/audio/speech",
+		Method:   http.MethodPost,
+		RequestHeaders: map[string]string{
+			"Authorization": "Bearer " + maskedKey,
+			"Content-Type":  "application/json",
+		},
+		RequestBody: mustJSON(body),
 	}
 }
 
@@ -378,6 +555,32 @@ func (d *dryRunProvider) buildVideoRequest(req VideoRequest) DebugCallResult {
 			RequestBody: mustJSON(body),
 		}
 
+	case AdapterNewAPI:
+		if req.Duration == 0 {
+			dur = 6
+		}
+		_, debugBody, err := newAPIVideoGenerationsJSONBody(req, dur)
+		if err != nil {
+			debugBody = map[string]any{
+				"model":    req.Model,
+				"prompt":   req.Prompt,
+				"duration": dur,
+				"error":    err.Error(),
+			}
+		}
+		attachReferenceAssetDebugBindings(debugBody, req.ReferenceAssets, staticReferenceAssetProviderField("image"))
+		return DebugCallResult{
+			Success:  true,
+			ModelID:  req.Model,
+			Endpoint: base + "/videos",
+			Method:   "POST",
+			RequestHeaders: map[string]string{
+				"Authorization": "Bearer " + maskedKey,
+				"Content-Type":  "multipart/form-data",
+			},
+			RequestBody: mustJSON(debugBody),
+		}
+
 	default:
 		return DebugCallResult{
 			Success:  true,
@@ -392,6 +595,117 @@ func (d *dryRunProvider) buildVideoRequest(req VideoRequest) DebugCallResult {
 		}
 	}
 }
+
+func (d *dryRunProvider) buildEmbeddingRequest(req EmbeddingRequest) DebugCallResult {
+	base := strings.TrimRight(d.baseURL, "/")
+	maskedKey := maskKey(d.apiKey)
+	body := map[string]any{
+		"model": req.Model,
+		"input": newAPIEmbeddingInputPayload(req.Inputs),
+	}
+	if req.EncodingFormat != "" {
+		body["encoding_format"] = req.EncodingFormat
+	}
+	if req.Dimensions > 0 {
+		body["dimensions"] = req.Dimensions
+	}
+	copyNewAPIExtraParams(body, req.ExtraParams)
+	return DebugCallResult{
+		Success:  true,
+		ModelID:  req.Model,
+		Endpoint: base + newAPIEmbeddingEndpointPath(req.Model, req.ProtocolProfile),
+		Method:   "POST",
+		RequestHeaders: map[string]string{
+			"Authorization": "Bearer " + maskedKey,
+			"Content-Type":  "application/json",
+		},
+		RequestBody: mustJSON(body),
+	}
+}
+
+func (d *dryRunProvider) buildRerankRequest(req RerankRequest) DebugCallResult {
+	base := strings.TrimRight(d.baseURL, "/")
+	maskedKey := maskKey(d.apiKey)
+	body := map[string]any{
+		"model":     req.Model,
+		"query":     req.Query,
+		"documents": newAPIRerankDocumentsPayload(req.Documents),
+	}
+	if req.TopN > 0 {
+		body["top_n"] = req.TopN
+	}
+	if req.ReturnDocuments {
+		body["return_documents"] = true
+	}
+	copyNewAPIExtraParams(body, req.ExtraParams)
+	return DebugCallResult{
+		Success:  true,
+		ModelID:  req.Model,
+		Endpoint: base + "/rerank",
+		Method:   "POST",
+		RequestHeaders: map[string]string{
+			"Authorization": "Bearer " + maskedKey,
+			"Content-Type":  "application/json",
+		},
+		RequestBody: mustJSON(body),
+	}
+}
+
+func (d *dryRunProvider) buildModerationRequest(req ModerationRequest) DebugCallResult {
+	base := strings.TrimRight(d.baseURL, "/")
+	maskedKey := maskKey(d.apiKey)
+	body := map[string]any{
+		"input": newAPIEmbeddingInputPayload(req.Inputs),
+	}
+	if req.Model != "" {
+		body["model"] = req.Model
+	}
+	copyNewAPIExtraParams(body, req.ExtraParams)
+	return DebugCallResult{
+		Success:  true,
+		ModelID:  req.Model,
+		Endpoint: base + "/moderations",
+		Method:   "POST",
+		RequestHeaders: map[string]string{
+			"Authorization": "Bearer " + maskedKey,
+			"Content-Type":  "application/json",
+		},
+		RequestBody: mustJSON(body),
+	}
+}
+
+func (d *dryRunProvider) buildRealtimeRequest(req RealtimeSessionRequest) DebugCallResult {
+	base := strings.TrimRight(d.baseURL, "/")
+	maskedKey := maskKey(d.apiKey)
+	endpoint, err := newAPIRealtimeURL(base, req)
+	if err != nil {
+		endpoint = base + "/realtime"
+	}
+	headers := map[string]string{"Authorization": "Bearer " + maskedKey}
+	for key, value := range req.Headers {
+		if isNewAPIRealtimeReservedHeader(key) {
+			continue
+		}
+		if strings.TrimSpace(key) != "" && strings.TrimSpace(value) != "" {
+			headers[key] = value
+		}
+	}
+	return DebugCallResult{
+		Success:        true,
+		ModelID:        req.Model,
+		Endpoint:       endpoint,
+		Method:         "GET",
+		RequestHeaders: headers,
+	}
+}
+
+type noopRealtimeSession struct{}
+
+func (noopRealtimeSession) SendEvent(context.Context, RealtimeEvent) error { return nil }
+func (noopRealtimeSession) ReceiveEvent(context.Context) (RealtimeEvent, error) {
+	return RealtimeEvent{}, nil
+}
+func (noopRealtimeSession) Close() error { return nil }
 
 func mustJSON(v any) string {
 	b, err := json.MarshalIndent(v, "", "  ")

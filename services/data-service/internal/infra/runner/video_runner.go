@@ -39,6 +39,9 @@ func (w *Worker) runVideoJob(ctx context.Context, debugCtx context.Context, job 
 		return err
 	}
 	req := w.buildVideoRequest(job, params, dur, imageData, videoData, audioData, certifiedAssets)
+	if route.AdapterType == ai.AdapterNewAPI {
+		applyNewAPIVideoParams(&req, params)
+	}
 	if job.ProviderTaskID != "" {
 		return w.pollVideoProviderTask(ctx, debugCtx, job, dur, sm, debugResult)
 	}
@@ -57,6 +60,8 @@ func (w *Worker) buildVideoRequest(job *persistencemodel.Job, params generationP
 		Duration:              dur,
 		Frames:                params.Int("frames"),
 		Seed:                  params.Int64Ptr("seed"),
+		Width:                 params.Int("width"),
+		Height:                params.Int("height"),
 		AspectRatio:           firstNonEmpty(job.AspectRatio, params.String("aspect_ratio"), params.String("ratio")),
 		Ratio:                 firstNonEmpty(params.String("ratio"), job.AspectRatio, params.String("aspect_ratio")),
 		Quality:               params.String("quality"),
@@ -91,6 +96,76 @@ func (w *Worker) buildVideoRequest(job *persistencemodel.Job, params generationP
 		applyCertifiedProviderAssetsToVideoRequest(certifiedAssets, &req, imageData, videoData, audioData)
 	}
 	return req
+}
+
+func applyNewAPIVideoParams(req *ai.VideoRequest, params generationParams) {
+	payload := map[string]any{}
+	if strings.TrimSpace(req.Payload) != "" {
+		_ = json.Unmarshal([]byte(req.Payload), &payload)
+	}
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	for _, key := range []string{
+		"fps",
+		"n",
+		"response_format",
+		"user",
+		"metadata",
+		"content",
+		"callback_url",
+		"return_last_frame",
+		"service_tier",
+		"execution_expires_after",
+		"generate_audio",
+		"generateAudio",
+		"draft",
+		"tools",
+		"durationSeconds",
+		"aspectRatio",
+		"negativePrompt",
+		"negative_prompt",
+		"personGeneration",
+		"storageUri",
+		"compressionQuality",
+		"resizeMode",
+		"sampleCount",
+	} {
+		value, ok := params.Any(key)
+		if !ok || isEmptyNewAPIVideoParam(value) {
+			continue
+		}
+		payload[key] = normalizeNewAPIVideoPayloadParam(value)
+	}
+	if len(payload) == 0 {
+		req.Payload = ""
+		return
+	}
+	raw, err := json.Marshal(payload)
+	if err == nil {
+		req.Payload = string(raw)
+	}
+}
+
+func normalizeNewAPIVideoPayloadParam(value any) any {
+	s, ok := value.(string)
+	if !ok {
+		return value
+	}
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	var parsed any
+	if err := json.Unmarshal([]byte(s), &parsed); err == nil {
+		return parsed
+	}
+	return s
+}
+
+func isEmptyNewAPIVideoParam(value any) bool {
+	s, ok := value.(string)
+	return ok && strings.TrimSpace(s) == ""
 }
 
 func orderVideoImageDataByReferenceAssets(imageData []ai.MediaData, referenceAssets []ai.ReferenceAsset) []ai.MediaData {

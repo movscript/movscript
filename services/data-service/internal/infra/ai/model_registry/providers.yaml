@@ -322,6 +322,24 @@ providers:
     is_builtin: true
     is_enabled: true
     version: builtin.v1
+  - provider_type: new_api
+    profile: gateway
+    provider_kind: new_api_gateway
+    provider_category: aggregator_gateway
+    display_name: New API 中转站
+    description: New API relay gateway account boundary for OpenAI-compatible and extended model APIs. It is not an upstream official model-lab account boundary.
+    default_adapter_type: new_api
+    default_base_url_prefix: https://api.newapi.pro/v1
+    capabilities:
+      aggregates_upstream_models: true
+      file_upload: true
+      asset_library: false
+      generated_artifact_trust: false
+      task_polling: true
+      task_cancel: false
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
   - provider_type: apiyi
     profile: gateway
     provider_kind: apiyi_gateway

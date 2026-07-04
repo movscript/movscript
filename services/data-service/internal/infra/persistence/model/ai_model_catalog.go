@@ -42,6 +42,7 @@ type AIModelRouteBinding struct {
 	ProviderID         string               `gorm:"default:'';index" json:"provider_id,omitempty"`
 	AdapterType        string               `gorm:"default:'';index" json:"adapter_type,omitempty"`
 	ProviderModelID    string               `gorm:"default:'';index" json:"provider_model_id"`
+	ProtocolProfile    string               `gorm:"default:'';index" json:"protocol_profile,omitempty"`
 	APIKinds           string               `gorm:"default:''" json:"api_kinds,omitempty"`
 	EndpointBaseURL    string               `gorm:"default:''" json:"endpoint_base_url,omitempty"`
 	EndpointPathPrefix string               `gorm:"default:''" json:"endpoint_path_prefix,omitempty"`

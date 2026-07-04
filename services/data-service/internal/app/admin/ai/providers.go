@@ -1672,6 +1672,8 @@ func providerKindForCredential(credential persistencemodel.AICredential) string 
 	switch adapter {
 	case infraai.AdapterVolcen:
 		return persistencemodel.AIProviderKindVolcengineArk
+	case infraai.AdapterNewAPI:
+		return persistencemodel.AIProviderKindNewAPIGateway
 	case infraai.AdapterOpenAICompat:
 		if strings.Contains(baseURL, "127.0.0.1") || strings.Contains(baseURL, "localhost") || strings.HasPrefix(baseURL, "http://0.0.0.0") {
 			return persistencemodel.AIProviderKindLocalOpenAICompat
@@ -1689,6 +1691,8 @@ func providerTypeForCredential(credential persistencemodel.AICredential) string 
 	switch providerKindForCredential(credential) {
 	case persistencemodel.AIProviderKindVolcengineArk:
 		return persistencemodel.AIProviderTypeVolcen
+	case persistencemodel.AIProviderKindNewAPIGateway:
+		return persistencemodel.AIProviderTypeNewAPI
 	case persistencemodel.AIProviderKindLocalOpenAICompat:
 		return persistencemodel.AIProviderTypeOpenAI
 	default:
@@ -1700,6 +1704,8 @@ func providerProfileForCredential(credential persistencemodel.AICredential) stri
 	switch providerKindForCredential(credential) {
 	case persistencemodel.AIProviderKindVolcengineArk:
 		return persistencemodel.AIProviderProfileArk
+	case persistencemodel.AIProviderKindNewAPIGateway:
+		return persistencemodel.AIProviderProfileGateway
 	case persistencemodel.AIProviderKindLocalOpenAICompat:
 		return persistencemodel.AIProviderProfileLocal
 	default:

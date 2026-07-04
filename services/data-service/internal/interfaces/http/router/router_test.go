@@ -55,6 +55,7 @@ func TestNewRegistersCoreRoutes(t *testing.T) {
 		"POST /api/v1/resource-access/resolve",
 		"POST /api/v1/resource-access/check",
 		"GET /api/v1/resource-access/resources/:id/file",
+		"HEAD /api/v1/resource-access/resources/:id/file",
 		"GET /api/v1/admin/settings/provider-assets",
 		"PUT /api/v1/admin/settings/provider-assets",
 		"GET /api/v1/admin/providers/:providerID/asset-library",

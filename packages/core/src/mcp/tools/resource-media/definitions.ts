@@ -437,7 +437,7 @@ export function resourceMediaTools(): MCPTool[] {
     },
     {
       name: 'movscript_resource_upload',
-      description: 'Upload an agent-accessible image or video artifact to the MovScript RawResource library. Accepts artifact/local paths, .movscript workspace paths, data URLs, or base64 bytes. Use the returned resource_id in shot groups or generation input_resource_ids/reference_resource_ids.',
+      description: 'Upload an agent-accessible image, video, audio, or text artifact to the MovScript RawResource library. Accepts artifact/local paths, .movscript workspace paths, data URLs, or base64 bytes. Use the returned resource_id in shot groups or generation input_resource_ids/reference_resource_ids.',
       inputSchema: objectSchema({
         artifact_path: { type: 'string', description: 'Local artifact path returned by movscript_resource_image_annotate or another agent tool.' },
         artifactPath: { type: 'string', description: 'Camel-case alias for artifact_path.' },
@@ -475,7 +475,7 @@ export function resourceMediaTools(): MCPTool[] {
     },
     {
       name: 'movscript_resource_upload_batch',
-      description: 'Upload multiple agent-accessible image or video artifacts to the MovScript RawResource library. Each item accepts the same fields as movscript_resource_upload. Results are returned in input order with per-item errors so agents can keep partial successes.',
+      description: 'Upload multiple agent-accessible image, video, audio, or text artifacts to the MovScript RawResource library. Each item accepts the same fields as movscript_resource_upload. Results are returned in input order with per-item errors so agents can keep partial successes.',
       inputSchema: objectSchema({
         items: {
           type: 'array',

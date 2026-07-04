@@ -72,6 +72,26 @@ func (fakeAIGateway) Transcribe(context.Context, media.TranscribeRequest) (media
 func (fakeAIGateway) Align(context.Context, media.AlignRequest) (media.SubtitleResponse, error) {
 	return media.SubtitleResponse{}, nil
 }
+func (fakeAIGateway) CreateEmbeddings(context.Context, EmbeddingRequest) (EmbeddingResponse, error) {
+	return EmbeddingResponse{}, nil
+}
+func (fakeAIGateway) Rerank(context.Context, RerankRequest) (RerankResponse, error) {
+	return RerankResponse{}, nil
+}
+func (fakeAIGateway) Moderate(context.Context, ModerationRequest) (ModerationResponse, error) {
+	return ModerationResponse{}, nil
+}
+func (fakeAIGateway) ConnectRealtime(context.Context, RealtimeSessionRequest) (RealtimeSession, error) {
+	return fakeRealtimeSession{}, nil
+}
+
+type fakeRealtimeSession struct{}
+
+func (fakeRealtimeSession) SendEvent(context.Context, RealtimeEvent) error { return nil }
+func (fakeRealtimeSession) ReceiveEvent(context.Context) (RealtimeEvent, error) {
+	return RealtimeEvent{}, nil
+}
+func (fakeRealtimeSession) Close() error { return nil }
 
 type fakeAIGatewayFileUploader struct{}
 
@@ -138,6 +158,10 @@ var (
 	_ AIGatewayResponsesProvider       = fakeAIGateway{}
 	_ AIGatewayVideoTaskProvider       = fakeAIGateway{}
 	_ AIGatewayVideoTaskCancelProvider = fakeAIGateway{}
+	_ AIGatewayEmbeddingProvider       = fakeAIGateway{}
+	_ AIGatewayRerankProvider          = fakeAIGateway{}
+	_ AIGatewayModerationProvider      = fakeAIGateway{}
+	_ AIGatewayRealtimeProvider        = fakeAIGateway{}
 	_ AIGatewayAudioSpeechProvider     = fakeAIGateway{}
 	_ AIGatewayAudioGenerationProvider = fakeAIGateway{}
 	_ AIGatewayAudioSubtitleProvider   = fakeAIGateway{}
@@ -190,6 +214,7 @@ func TestAIGatewayModelRouteJSONIsProviderFirst(t *testing.T) {
 		Capability:      "video_generation",
 		Operation:       "first_last_frame_to_video",
 		APIKind:         "openai_responses",
+		APIKinds:        []string{"openai_responses", "openai_chat_completions"},
 	})
 	if err != nil {
 		t.Fatalf("marshal route: %v", err)
@@ -198,7 +223,7 @@ func TestAIGatewayModelRouteJSONIsProviderFirst(t *testing.T) {
 	if strings.Contains(payload, "credential_id") {
 		t.Fatalf("route json = %s, want no credential_id exposure", payload)
 	}
-	for _, want := range []string{`"provider_id":"volc-ark-main"`, `"provider_kind":"volcengine_ark_official"`, `"provider_model_id":"doubao-seedance-2-0-pro-250528"`, `"operation":"first_last_frame_to_video"`} {
+	for _, want := range []string{`"provider_id":"volc-ark-main"`, `"provider_kind":"volcengine_ark_official"`, `"provider_model_id":"doubao-seedance-2-0-pro-250528"`, `"operation":"first_last_frame_to_video"`, `"api_kinds":["openai_responses","openai_chat_completions"]`} {
 		if !strings.Contains(payload, want) {
 			t.Fatalf("route json = %s, want %s", payload, want)
 		}

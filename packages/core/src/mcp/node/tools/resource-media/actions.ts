@@ -788,7 +788,7 @@ export async function uploadAgentImageResource(args: Record<string, unknown>): P
     filename,
     mime_type: input.mimeType,
     size_bytes: input.bytes.length,
-    message: 'Agent-created image was uploaded to MovScript RawResource library. Use resource_id in generation input_resource_ids/reference_resource_ids.',
+    message: 'Agent-accessible artifact was uploaded to MovScript RawResource library. Use resource_id in generation input_resource_ids/reference_resource_ids.',
   }
 }
 
@@ -1973,6 +1973,24 @@ function mimeTypeFromFilename(filename: string): string {
       return 'video/webm'
     case '.mkv':
       return 'video/x-matroska'
+    case '.mp3':
+      return 'audio/mpeg'
+    case '.wav':
+      return 'audio/wav'
+    case '.m4a':
+      return 'audio/mp4'
+    case '.aac':
+      return 'audio/aac'
+    case '.flac':
+      return 'audio/flac'
+    case '.ogg':
+      return 'audio/ogg'
+    case '.txt':
+      return 'text/plain'
+    case '.md':
+      return 'text/markdown'
+    case '.json':
+      return 'application/json'
     case '.png':
     default:
       return 'image/png'
@@ -1997,6 +2015,26 @@ function extensionForMimeType(mimeType: string): string {
       return '.webm'
     case 'video/x-matroska':
       return '.mkv'
+    case 'audio/mpeg':
+      return '.mp3'
+    case 'audio/wav':
+    case 'audio/wave':
+    case 'audio/x-wav':
+      return '.wav'
+    case 'audio/mp4':
+      return '.m4a'
+    case 'audio/aac':
+      return '.aac'
+    case 'audio/flac':
+      return '.flac'
+    case 'audio/ogg':
+      return '.ogg'
+    case 'text/plain':
+      return '.txt'
+    case 'text/markdown':
+      return '.md'
+    case 'application/json':
+      return '.json'
     case 'image/png':
     default:
       return '.png'

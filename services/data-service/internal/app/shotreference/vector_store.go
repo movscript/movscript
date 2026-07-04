@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"hash/fnv"
 	"math"
 	"sort"
@@ -24,8 +25,9 @@ type LocalVectorStore struct {
 }
 
 const (
-	localEmbeddingModel = "movscript-local-hash-v1"
-	localEmbeddingDim   = 384
+	localEmbeddingModel    = "movscript-local-hash-v1"
+	externalEmbeddingModel = "external-embedding"
+	localEmbeddingDim      = 384
 )
 
 type VectorStoreStats struct {
@@ -55,7 +57,7 @@ func NewLocalVectorIndexProvider(db *gorm.DB) *LocalVectorIndexProvider {
 }
 
 func (p *LocalVectorIndexProvider) Upsert(ctx context.Context, document providercontract.VectorDocument) error {
-	return p.store.Upsert(ctx, vectorDocumentFromProviderContract(document))
+	return p.store.UpsertProvider(ctx, document)
 }
 
 func (p *LocalVectorIndexProvider) Delete(ctx context.Context, ref providercontract.VectorDocumentRef) error {
@@ -81,13 +83,7 @@ func (p *LocalVectorIndexProvider) Delete(ctx context.Context, ref providercontr
 }
 
 func (p *LocalVectorIndexProvider) Search(ctx context.Context, request providercontract.VectorSearchRequest) ([]providercontract.VectorSearchResult, error) {
-	results, err := p.store.Search(ctx, domainshotreference.VectorSearchRequest{
-		Query:     request.Query,
-		Locale:    request.Locale,
-		SourceIDs: request.SourceIDs,
-		Filters:   request.Filters,
-		TopK:      request.TopK,
-	})
+	results, err := p.store.SearchProvider(ctx, request)
 	if err != nil {
 		return nil, err
 	}
@@ -136,13 +132,21 @@ func (p *LocalVectorIndexProvider) Rebuild(ctx context.Context, request provider
 }
 
 func (s *LocalVectorStore) Upsert(ctx context.Context, document domainshotreference.VectorDocument) error {
+	return s.UpsertProvider(ctx, vectorDocumentToProviderContract(document))
+}
+
+func (s *LocalVectorStore) UpsertProvider(ctx context.Context, document providercontract.VectorDocument) error {
 	start := time.Now()
 	metadata, err := json.Marshal(document.Metadata)
 	if err != nil {
 		recordVectorStoreOperation("upsert", start, 0, err)
 		return err
 	}
-	embedding := embedVectorText(document.Text)
+	embedding, err := vectorEmbedding(document.Text, document.Embedding)
+	if err != nil {
+		recordVectorStoreOperation("upsert", start, 0, err)
+		return err
+	}
 	embeddingJSON, err := json.Marshal(embedding)
 	if err != nil {
 		recordVectorStoreOperation("upsert", start, 0, err)
@@ -150,14 +154,14 @@ func (s *LocalVectorStore) Upsert(ctx context.Context, document domainshotrefere
 	}
 	row := persistencemodel.ShotVectorDocument{
 		DocumentID:     document.ID,
-		ReferenceID:    document.ReferenceID,
 		SourceID:       document.SourceID,
 		Locale:         document.Locale,
 		Kind:           string(document.Kind),
 		Text:           document.Text,
 		Metadata:       string(metadata),
-		EmbeddingModel: localEmbeddingModel,
-		EmbeddingDim:   localEmbeddingDim,
+		ReferenceID:    vectorMetadataReferenceID(document.Metadata),
+		EmbeddingModel: vectorEmbeddingModel(document.EmbeddingModel, document.Embedding),
+		EmbeddingDim:   len(embedding),
 		Embedding:      string(embeddingJSON),
 	}
 	err = s.db.WithContext(ctx).Clauses(clause.OnConflict{
@@ -180,6 +184,16 @@ func (s *LocalVectorStore) Upsert(ctx context.Context, document domainshotrefere
 }
 
 func (s *LocalVectorStore) Search(ctx context.Context, request domainshotreference.VectorSearchRequest) ([]domainshotreference.VectorSearchResult, error) {
+	return s.SearchProvider(ctx, providercontract.VectorSearchRequest{
+		Query:     request.Query,
+		Locale:    request.Locale,
+		SourceIDs: request.SourceIDs,
+		Filters:   request.Filters,
+		TopK:      request.TopK,
+	})
+}
+
+func (s *LocalVectorStore) SearchProvider(ctx context.Context, request providercontract.VectorSearchRequest) ([]domainshotreference.VectorSearchResult, error) {
 	start := time.Now()
 	q := s.db.WithContext(ctx).Model(&persistencemodel.ShotVectorDocument{})
 	if len(request.SourceIDs) > 0 {
@@ -193,10 +207,18 @@ func (s *LocalVectorStore) Search(ctx context.Context, request domainshotreferen
 		recordVectorStoreOperation("search", start, 0, err)
 		return nil, err
 	}
-	terms := vectorSearchTerms(request.Query)
-	queryEmbedding := embedVectorText(request.Query)
 	results := []domainshotreference.VectorSearchResult{}
+	terms := vectorSearchTerms(request.Query)
+	queryEmbedding, err := vectorEmbedding(request.Query, request.Embedding)
+	if err != nil {
+		recordVectorStoreOperation("search", start, len(results), err)
+		return nil, err
+	}
+	queryModel := vectorSearchEmbeddingModel(request.EmbeddingModel, request.Embedding)
 	for _, row := range rows {
+		if !vectorEmbeddingModelMatches(row.EmbeddingModel, queryModel) {
+			continue
+		}
 		document, err := vectorDocumentFromModel(row)
 		if err != nil {
 			recordVectorStoreOperation("search", start, len(results), err)
@@ -345,6 +367,9 @@ func vectorEmbeddingFromModel(row persistencemodel.ShotVectorDocument) ([]float6
 	if len(embedding) == 0 {
 		return embedVectorText(row.Text), nil
 	}
+	if row.EmbeddingDim > 0 && len(embedding) != row.EmbeddingDim {
+		return nil, fmt.Errorf("stored vector dimension = %d, want metadata dimension %d", len(embedding), row.EmbeddingDim)
+	}
 	return embedding, nil
 }
 
@@ -393,6 +418,47 @@ func vectorDocumentToProviderContract(document domainshotreference.VectorDocumen
 		Text:      document.Text,
 		Metadata:  metadata,
 	}
+}
+
+func vectorEmbedding(text string, embedding []float32) ([]float64, error) {
+	if len(embedding) == 0 {
+		return embedVectorText(text), nil
+	}
+	if len(embedding) != localEmbeddingDim {
+		return nil, fmt.Errorf("vector embedding dimension = %d, want %d", len(embedding), localEmbeddingDim)
+	}
+	vector := make([]float64, len(embedding))
+	for index, value := range embedding {
+		vector[index] = float64(value)
+	}
+	return vector, nil
+}
+
+func vectorEmbeddingModel(model string, embedding []float32) string {
+	model = strings.TrimSpace(model)
+	if model != "" {
+		return model
+	}
+	if len(embedding) > 0 {
+		return externalEmbeddingModel
+	}
+	return localEmbeddingModel
+}
+
+func vectorSearchEmbeddingModel(model string, embedding []float32) string {
+	return vectorEmbeddingModel(model, embedding)
+}
+
+func vectorEmbeddingModelMatches(stored string, query string) bool {
+	stored = strings.TrimSpace(stored)
+	if stored == "" {
+		stored = localEmbeddingModel
+	}
+	query = strings.TrimSpace(query)
+	if query == "" {
+		query = localEmbeddingModel
+	}
+	return stored == query
 }
 
 func vectorMetadataReferenceID(metadata map[string]any) uint {

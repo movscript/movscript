@@ -85,8 +85,8 @@ export function ProviderModelImportWizard() {
   const [error, setError] = useState('')
 
   const providerPayload = () => {
-    const providerKind = importProviderKind === 'yunwu_gateway'
-      ? 'yunwu_gateway'
+    const providerKind = importProviderKind === 'yunwu_gateway' || importProviderKind === 'new_api_gateway'
+      ? importProviderKind
       : providerKindForImportBaseURL(baseURL)
     return {
       provider_kind: providerKind,
@@ -127,6 +127,7 @@ export function ProviderModelImportWizard() {
           display_name: model.display_name,
           capabilities: model.capabilities,
           template_id: model.template_id,
+          protocol_profile: model.protocol_profile,
         }))
       return api.post('/admin/model-imports/apply', {
         provider: providerPayload(),
@@ -147,8 +148,10 @@ export function ProviderModelImportWizard() {
 
   const models = preview?.models ?? []
   const selectedCount = models.filter((model) => selected[model.provider_model_id]).length
-  const canPreview = Boolean(apiKey.trim() && (baseURL.trim() || importProviderKind === 'yunwu_gateway'))
+  const importProviderUsesDefaultBaseURL = importProviderKind === 'yunwu_gateway' || importProviderKind === 'new_api_gateway'
+  const canPreview = Boolean(apiKey.trim() && (baseURL.trim() || importProviderUsesDefaultBaseURL))
   const canApply = Boolean(preview && selectedCount > 0 && !applyImport.isPending)
+  const providerNotice = providerImportNotice(importProviderKind)
 
   return (
     <div className="rounded-lg border border-border bg-card">
@@ -165,6 +168,7 @@ export function ProviderModelImportWizard() {
           <div className="inline-flex rounded-md border border-border bg-muted/30 p-0.5 text-xs">
             {[
               { key: 'openai_compat_gateway', label: 'OpenAI-compatible' },
+              { key: 'new_api_gateway', label: 'New API 中转站' },
               { key: 'yunwu_gateway', label: '云雾中转站' },
             ].map((option) => (
               <button
@@ -173,8 +177,10 @@ export function ProviderModelImportWizard() {
                 onClick={() => {
                   setImportProviderKind(option.key)
                   if (option.key === 'yunwu_gateway') {
-                    if (!displayName.trim() || displayName.trim() === '中转站') setDisplayName('云雾中转站')
-                  } else if (displayName.trim() === '云雾中转站') {
+                    if (!displayName.trim() || displayName.trim() === '中转站' || displayName.trim() === 'New API 中转站') setDisplayName('云雾中转站')
+                  } else if (option.key === 'new_api_gateway') {
+                    if (!displayName.trim() || displayName.trim() === '中转站' || displayName.trim() === '云雾中转站') setDisplayName('New API 中转站')
+                  } else if (displayName.trim() === '云雾中转站' || displayName.trim() === 'New API 中转站') {
                     setDisplayName('中转站')
                   }
                 }}
@@ -187,6 +193,9 @@ export function ProviderModelImportWizard() {
               </button>
             ))}
           </div>
+          {providerNotice && (
+            <AppFeedbackText className="text-xs">{providerNotice}</AppFeedbackText>
+          )}
           <div className="grid gap-3 md:grid-cols-2">
             <div>
               <Label className="mb-1 block text-xs text-muted-foreground">Provider 名称</Label>
@@ -201,7 +210,7 @@ export function ProviderModelImportWizard() {
               <Input
                 value={baseURL}
                 onChange={(event) => setBaseURL(event.target.value)}
-                placeholder={importProviderKind === 'yunwu_gateway' ? '留空使用 https://yunwu.ai/v1' : 'https://gateway.example.com/v1'}
+                placeholder={importProviderKind === 'yunwu_gateway' ? '留空使用 https://yunwu.ai/v1' : importProviderKind === 'new_api_gateway' ? '留空使用 https://api.newapi.pro/v1' : 'https://gateway.example.com/v1'}
                 className="h-8 text-xs font-mono"
               />
             </div>
@@ -225,16 +234,18 @@ export function ProviderModelImportWizard() {
               <p className="text-xs text-muted-foreground">
                 共 {preview.summary.total} 个，建议导入 {preview.summary.recommended} 个
                 {preview.provider_kind === 'yunwu_gateway' ? '；云雾同步会保留缺映射模型并禁用其 route' : ''}
+                {preview.provider_kind === 'new_api_gateway' ? '；New API 是聚合中转站，模型能力需按实际上游逐项确认' : ''}
               </p>
             )}
           </div>
           {models.length > 0 && (
             <div className="max-h-80 overflow-auto rounded-md border border-border">
-              <div className="grid grid-cols-[32px_minmax(160px,1fr)_minmax(140px,1fr)_110px_100px] gap-2 border-b border-border bg-muted/30 px-3 py-2 text-[11px] font-medium uppercase text-muted-foreground">
+              <div className="grid grid-cols-[32px_minmax(150px,1fr)_minmax(130px,1fr)_110px_130px_100px] gap-2 border-b border-border bg-muted/30 px-3 py-2 text-[11px] font-medium uppercase text-muted-foreground">
                 <span />
                 <span>Provider Model</span>
                 <span>Public Model</span>
                 <span>Capabilities</span>
+                <span>Profile</span>
                 <span>Status</span>
               </div>
               <div className="divide-y divide-border">
@@ -265,6 +276,9 @@ export function providerKindForImportBaseURL(baseURL: string): string {
   try {
     const parsed = new URL(baseURL.trim())
     const host = parsed.hostname.toLowerCase().replace(/^www\./, '')
+    if (host === 'api.newapi.pro' || host === 'newapi.pro' || host.endsWith('.newapi.pro')) {
+      return 'new_api_gateway'
+    }
     if (host === 'api.apiyi.com' || host === 'apiyi.com' || host.endsWith('.apiyi.com')) {
       return 'apiyi_gateway'
     }
@@ -280,7 +294,20 @@ export function displayNameForImportProvider(displayName: string, providerKind: 
     return value
   }
   if (providerKind === 'apiyi_gateway') return 'APIyi 聚合网关'
-  return '中转站'
+  if (providerKind === 'new_api_gateway') return 'New API 中转站'
+  if (providerKind === 'yunwu_gateway') return '云雾中转站'
+  return value || '中转站'
+}
+
+function providerImportNotice(providerKind: string): string {
+  switch (providerKind) {
+    case 'new_api_gateway':
+      return 'New API 是聚合中转站，导入得到的是中转站暴露的模型列表；具体文本、图片、视频、Embedding、Rerank、Moderation、Realtime 能力仍需按实际上游模型确认。'
+    case 'yunwu_gateway':
+      return '云雾同步会保留缺映射模型，便于后续诊断和手动补齐 route。'
+    default:
+      return ''
+  }
 }
 
 export function ModelImportPreviewRow({
@@ -295,11 +322,12 @@ export function ModelImportPreviewRow({
   const disabled = model.status === 'route_exists'
   const templateOnly = model.template_source_status === 'template_only'
   return (
-    <label className={cn('grid grid-cols-[32px_minmax(160px,1fr)_minmax(140px,1fr)_110px_100px] gap-2 px-3 py-2 text-xs', disabled ? 'text-muted-foreground' : 'text-foreground')}>
+    <label className={cn('grid grid-cols-[32px_minmax(150px,1fr)_minmax(130px,1fr)_110px_130px_100px] gap-2 px-3 py-2 text-xs', disabled ? 'text-muted-foreground' : 'text-foreground')}>
       <input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onCheckedChange(event.target.checked)} className="mt-0.5" />
       <span className="min-w-0 truncate font-mono">{model.provider_model_id}</span>
       <span className="min-w-0 truncate font-mono">{model.public_model_id}</span>
       <span className="min-w-0 truncate">{model.capabilities.join(', ') || 'text'}</span>
+      <span className="min-w-0 truncate font-mono">{model.protocol_profile || model.adapter_type}</span>
       <span className="min-w-0 truncate">
         {templateOnly ? '待适配' : modelImportStatusLabel(model.status)}
         {model.diagnostics?.length ? <span className="mt-1 block truncate text-[11px] text-muted-foreground">{model.diagnostics[0]}</span> : null}
@@ -541,4 +569,3 @@ export function CredentialForm({
     </div>
   )
 }
-

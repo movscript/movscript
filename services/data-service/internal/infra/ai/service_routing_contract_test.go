@@ -37,6 +37,25 @@ func TestAIServiceRoutingPolicyContractResolvesProviderBackedRoute(t *testing.T)
 	if route.SelectionReason != "catalog_model_id" {
 		t.Fatalf("selection reason = %q, want catalog_model_id", route.SelectionReason)
 	}
+	if !hasString(route.APIKinds, ModelAPIKindOpenAIChatCompletions) || !hasString(route.APIKinds, ModelAPIKindOpenAIResponses) {
+		t.Fatalf("route APIKinds = %#v, want chat and responses support", route.APIKinds)
+	}
+}
+
+func TestGatewayContractRouteToModelRoutePreservesAPIKinds(t *testing.T) {
+	route := gatewayContractRouteToModelRoute(providercontract.AIGatewayModelRoute{
+		ModelID:         "writer",
+		CatalogEntryID:  12,
+		RouteBindingID:  34,
+		ProviderModelID: "provider-writer",
+		Capability:      CapabilityFamilyTextGeneration,
+		APIKind:         ModelAPIKindOpenAIResponses,
+		APIKinds:        []string{ModelAPIKindOpenAIResponses, ModelAPIKindOpenAIChatCompletions},
+	})
+
+	if route.APIKind != ModelAPIKindOpenAIResponses || !hasString(route.APIKinds, ModelAPIKindOpenAIChatCompletions) || !hasString(route.APIKinds, ModelAPIKindOpenAIResponses) {
+		t.Fatalf("route API kind = %q APIKinds = %#v, want selected and supported API kinds preserved", route.APIKind, route.APIKinds)
+	}
 }
 
 func TestAIServiceRoutingPolicyContractResolvesGenerationRoute(t *testing.T) {

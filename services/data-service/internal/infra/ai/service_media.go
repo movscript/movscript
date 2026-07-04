@@ -29,6 +29,7 @@ func (s *AIService) callCatalogImageRuntime(ctx context.Context, userID uint, ro
 		attemptReq.EditOnly = true
 	}
 	attemptReq.Model = route.ProviderModelID
+	attemptReq.ProtocolProfile = strings.TrimSpace(route.ProtocolProfile)
 	if runtime.def.InputImageField != "" {
 		attemptReq.ImageFieldName = runtime.def.InputImageField
 	}
@@ -76,6 +77,7 @@ func (s *AIService) callCatalogVideoRuntime(ctx context.Context, userID uint, ro
 	ctx = withProviderSubject(ctx, userID, usage.OrgID)
 	attemptReq := req
 	prepareVideoRequestForModel(&attemptReq, route.ProviderModelID, runtime.def)
+	attemptReq.ProtocolProfile = strings.TrimSpace(route.ProtocolProfile)
 	if usage.ReservationID == nil {
 		estimate := estimateUsage(runtime.model.usageProfile(), runtime.def, "video", 0, 0, positiveDuration(attemptReq.Duration, runtime.def), 1)
 		reservation, err := s.ReserveUsage(ctx, userID, route.RuntimeModelID, estimate, usage)
@@ -140,6 +142,7 @@ func (s *AIService) CallVideoStartWithRouteUsage(ctx context.Context, userID uin
 			ctx = withProviderSubject(ctx, userID, usage.OrgID)
 			attemptReq := req
 			prepareVideoRequestForModel(&attemptReq, route.ProviderModelID, runtime.def)
+			attemptReq.ProtocolProfile = strings.TrimSpace(route.ProtocolProfile)
 			if usage.ReservationID == nil {
 				estimate := estimateUsage(runtime.model.usageProfile(), runtime.def, "video", 0, 0, positiveDuration(attemptReq.Duration, runtime.def), 1)
 				reservation, err := s.ReserveUsage(ctx, userID, route.RuntimeModelID, estimate, usage)
@@ -180,9 +183,10 @@ func (s *AIService) CallVideoPollWithRouteUsage(ctx context.Context, userID uint
 				return VideoResponse{}, fmt.Errorf("catalog entry id=%d does not support async video task polling", route.CatalogEntryID)
 			}
 			resp, err := taskProvider.VideoPoll(ctx, VideoPollRequest{
-				Model:    route.ProviderModelID,
-				TaskID:   taskID,
-				TaskKind: taskKind,
+				Model:           route.ProviderModelID,
+				ProtocolProfile: strings.TrimSpace(route.ProtocolProfile),
+				TaskID:          taskID,
+				TaskKind:        taskKind,
 			})
 			if err != nil {
 				return resp, err
@@ -211,9 +215,10 @@ func (s *AIService) CallVideoCancelRoute(ctx context.Context, userID uint, route
 				return VideoResponse{}, fmt.Errorf("catalog entry id=%d does not support async video task cancellation", route.CatalogEntryID)
 			}
 			return cancelProvider.VideoCancel(ctx, VideoCancelRequest{
-				Model:    route.ProviderModelID,
-				TaskID:   taskID,
-				TaskKind: taskKind,
+				Model:           route.ProviderModelID,
+				ProtocolProfile: strings.TrimSpace(route.ProtocolProfile),
+				TaskID:          taskID,
+				TaskKind:        taskKind,
 			})
 		}
 	}

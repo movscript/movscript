@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"regexp"
 	"strings"
 )
 
@@ -15,6 +17,13 @@ const (
 	redactedBase64Preview   = "[base64 redacted, %d chars]"
 	redactedDataURLTemplate = "data:%s;base64,[redacted, %d chars]"
 )
+
+var debugInlineSecretPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)(bearer\s+)[A-Za-z0-9._~+/=-]+`),
+	regexp.MustCompile(`(?i)((?:api[_-]?key|apikey|access[_-]?token|refresh[_-]?token|id[_-]?token|token|secret|password|sessionid|session)["']?\s*[:=]\s*["']?)[^"',\s}]+`),
+	regexp.MustCompile(`(?i)((?:authorization|cookie|set-cookie)["']?\s*[:=]\s*["']?)[^"',\n}]+`),
+	regexp.MustCompile(`sk[-_][A-Za-z0-9._-]+`),
+}
 
 func sanitizeDebugBody(body string) string {
 	if body == "" {
@@ -32,11 +41,35 @@ func sanitizeDebugBody(body string) string {
 	return truncateDebugString(sanitizeDebugString("", body), maxDebugBodyChars)
 }
 
+func sanitizeAIErrorBody(body []byte) string {
+	return sanitizeDebugBody(string(body))
+}
+
+func sanitizeDebugError(message string) string {
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return ""
+	}
+	message = redactInlineDebugSecrets(message)
+	if looksLikeDebugSecretString(message) {
+		return "[redacted]"
+	}
+	return truncateDebugString(message, maxDebugStringChars)
+}
+
+func SanitizeDebugErrorMessage(message string) string {
+	return sanitizeDebugError(message)
+}
+
 func sanitizeDebugValue(key string, v any) any {
 	switch x := v.(type) {
 	case map[string]any:
 		out := make(map[string]any, len(x))
 		for k, child := range x {
+			if isSensitiveDebugKey(k) {
+				out[k] = "[redacted]"
+				continue
+			}
 			out[k] = sanitizeDebugValue(k, child)
 		}
 		return out
@@ -60,7 +93,84 @@ func sanitizeDebugString(key, s string) string {
 	if isBase64Field(key) && looksLikeBase64(s) {
 		return fmt.Sprintf(redactedBase64Preview, len(s))
 	}
+	if isSensitiveDebugKey(key) || looksLikeDebugSecretString(s) {
+		return "[redacted]"
+	}
 	return truncateDebugString(s, maxDebugStringChars)
+}
+
+func sanitizeDebugHeaders(headers map[string]string) map[string]string {
+	if len(headers) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(headers))
+	for key, value := range headers {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		out[key] = sanitizeDebugHeaderValue(key, value)
+	}
+	return out
+}
+
+func sanitizeDebugHeaderValue(key, value string) string {
+	if !isSensitiveDebugKey(key) {
+		return truncateDebugString(value, maxDebugStringChars)
+	}
+	if isAlreadyMaskedDebugSecret(value) {
+		return truncateDebugString(value, maxDebugStringChars)
+	}
+	return "[redacted]"
+}
+
+func sanitizeDebugEndpoint(endpoint string) string {
+	if strings.TrimSpace(endpoint) == "" {
+		return endpoint
+	}
+	parsed, err := url.Parse(endpoint)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return truncateDebugString(endpoint, maxDebugStringChars)
+	}
+	parsed.User = nil
+	query := parsed.Query()
+	for key := range query {
+		if isSensitiveURLQueryKey(key) {
+			query.Set(key, "[redacted]")
+		}
+	}
+	parsed.RawQuery = query.Encode()
+	return truncateDebugString(parsed.String(), maxDebugStringChars)
+}
+
+func isSensitiveURLQueryKey(key string) bool {
+	lower := strings.ToLower(strings.TrimSpace(key))
+	return lower == "key" ||
+		lower == "api_key" ||
+		lower == "apikey" ||
+		lower == "token" ||
+		lower == "access_token" ||
+		lower == "secret" ||
+		lower == "signature" ||
+		strings.Contains(lower, "token") ||
+		strings.Contains(lower, "secret")
+}
+
+func isSensitiveDebugKey(key string) bool {
+	lower := strings.ToLower(strings.TrimSpace(key))
+	if lower == "" {
+		return false
+	}
+	switch lower {
+	case "authorization", "proxy-authorization", "cookie", "set-cookie", "x-api-key", "api-key", "apikey", "api_key", "access-key", "access_token", "refresh_token", "id_token", "secret", "client_secret", "password":
+		return true
+	default:
+		return isSensitiveURLQueryKey(lower) ||
+			strings.Contains(lower, "api-key") ||
+			strings.Contains(lower, "apikey") ||
+			strings.Contains(lower, "authorization") ||
+			strings.Contains(lower, "cookie") ||
+			strings.Contains(lower, "password")
+	}
 }
 
 func splitDataURLBase64(s string) (mediaType, encoded string, ok bool) {
@@ -102,6 +212,46 @@ func looksLikeBase64(s string) bool {
 		return false
 	}
 	return true
+}
+
+func looksLikeDebugSecretString(value string) bool {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return false
+	}
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "bearer ") || strings.HasPrefix(trimmed, "sk-") || strings.HasPrefix(trimmed, "sk_") {
+		return true
+	}
+	for _, marker := range []string{"api_key=", "apikey=", "access_token=", "refresh_token=", "id_token=", "token=", "authorization:", "set-cookie:", "cookie:", "sessionid=", "session="} {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return looksLikeJWT(trimmed)
+}
+
+func redactInlineDebugSecrets(value string) string {
+	redacted := value
+	for _, pattern := range debugInlineSecretPatterns {
+		redacted = pattern.ReplaceAllString(redacted, "${1}[redacted]")
+	}
+	return redacted
+}
+
+func isAlreadyMaskedDebugSecret(value string) bool {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return false
+	}
+	if strings.Contains(trimmed, "*") || strings.Contains(strings.ToLower(trimmed), "[redacted]") {
+		return true
+	}
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "bearer ") {
+		trimmed = strings.TrimSpace(trimmed[len("Bearer "):])
+	}
+	return strings.Contains(trimmed, "...")
 }
 
 func truncateDebugString(s string, limit int) string {

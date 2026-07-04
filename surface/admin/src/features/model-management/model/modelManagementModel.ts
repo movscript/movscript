@@ -5,6 +5,60 @@ import type { StatusBadgeProps } from '@movscript/ui/primitives';
 export interface TestResult { success: boolean; message: string; latency_ms: number }
 
 export const HIDDEN_ADMIN_PROVIDER_ADAPTERS = new Set(['local'])
+export const NEW_API_ADAPTER_TYPE = 'new_api'
+
+export type NewAPIProtocolProfileOption = {
+  value: string
+  label: string
+  capability_family?: string
+  implemented?: boolean
+  endpoint?: string
+  inherits_driver?: string
+  operations?: string[]
+  recognized_params?: string[]
+}
+
+export const NEW_API_PROTOCOL_PROFILE_OPTIONS = [
+  { value: 'openai_chat_completions_json', label: 'OpenAI Chat Completions' },
+  { value: 'openai_responses_json', label: 'OpenAI Responses' },
+  { value: 'claude_messages_json', label: 'Claude Messages' },
+  { value: 'gemini_generate_content_json', label: 'Gemini Generate Content' },
+  { value: 'openai_images_json_multipart', label: 'OpenAI Images' },
+  { value: 'gemini_image_generate_content_json', label: 'Gemini Image GenerateContent' },
+  { value: 'qwen_image_json', label: 'Qwen Images' },
+  { value: 'openai_audio_json_multipart', label: 'OpenAI Audio' },
+  { value: 'gemini_audio_generate_content_json', label: 'Gemini Audio GenerateContent' },
+  { value: 'openai_embeddings_json', label: 'OpenAI Embeddings' },
+  { value: 'gemini_engine_embeddings_json', label: 'Gemini Engine Embeddings' },
+  { value: 'openai_moderations_json', label: 'OpenAI Moderations' },
+  { value: 'openai_realtime_ws', label: 'OpenAI Realtime' },
+  { value: 'newapi_rerank_json', label: 'New API Rerank' },
+  { value: 'video_generations_json', label: 'Video Generations' },
+  { value: 'sora_video_multipart', label: 'Sora Video' },
+  { value: 'jimeng_action_json', label: 'Jimeng Action' },
+  { value: 'kling_video_json', label: 'Kling Video' },
+] as const
+
+export function newAPIProtocolProfileOptions(adapter?: AdapterDef): NewAPIProtocolProfileOption[] {
+  const profiles = (adapter?.protocol_profiles ?? [])
+    .filter((profile) => profile.implemented !== false)
+    .map((profile) => ({
+      value: profile.profile,
+      label: profile.label || profile.profile,
+      capability_family: profile.capability_family,
+      implemented: profile.implemented,
+      endpoint: profile.endpoint,
+      inherits_driver: profile.inherits_driver,
+      operations: profile.operations,
+      recognized_params: profile.recognized_params,
+    }))
+
+  if (profiles.length > 0) return profiles
+  return NEW_API_PROTOCOL_PROFILE_OPTIONS.map((profile) => ({
+    value: profile.value,
+    label: profile.label,
+  }))
+}
 
 export function adapterDisplayName(adapter: Pick<AdapterDef, 'adapter_type' | 'display_name'>, t: (key: string, options?: Record<string, unknown>) => string) {
   return t(`admin.adapters.${adapter.adapter_type}.name`, { defaultValue: adapter.display_name })
@@ -41,6 +95,7 @@ export type CatalogRouteForm = {
   provider_id: string
   adapter_type: string
   provider_model_id: string
+  protocol_profile: string
   endpoint_base_url: string
   endpoint_path_prefix: string
   endpoint_mode: string
@@ -683,6 +738,7 @@ export function emptyCatalogRouteForm(providerID = '', providerModelID = '', rou
     provider_id: providerID,
     adapter_type: adapterType,
     provider_model_id: providerModelID,
+    protocol_profile: '',
     endpoint_base_url: '',
     endpoint_path_prefix: '',
     endpoint_mode: 'inherit',
@@ -709,6 +765,7 @@ export function catalogRouteFormFromBinding(binding: AIModelRouteBinding): Catal
     provider_id: binding.provider_id || '',
     adapter_type: binding.adapter_type || '',
     provider_model_id: binding.provider_model_id || '',
+    protocol_profile: binding.protocol_profile || '',
     endpoint_base_url: binding.endpoint_base_url || '',
     endpoint_path_prefix: binding.endpoint_path_prefix || '',
     endpoint_mode: binding.endpoint_mode || 'inherit',
@@ -725,6 +782,7 @@ export function catalogRoutePayload(form: CatalogRouteForm): Record<string, unkn
     provider_id: form.provider_id.trim(),
     adapter_type: form.adapter_type.trim(),
     provider_model_id: form.provider_model_id.trim(),
+    protocol_profile: form.protocol_profile.trim(),
     endpoint_base_url: form.endpoint_base_url.trim(),
     endpoint_path_prefix: form.endpoint_path_prefix.trim(),
     endpoint_mode: form.endpoint_mode.trim() || 'inherit',
@@ -789,6 +847,10 @@ export function routeProviderAdapterLabel(option?: RouteProviderOption): string 
 export function routeProviderAdapterValue(option?: RouteProviderOption): string {
   if (!option) return ''
   return providerDefaultAdapter(option) || option.provider_kind || ''
+}
+
+export function effectiveRouteFormAdapterType(form: Pick<CatalogRouteForm, 'adapter_type'>, provider?: RouteProviderOption): string {
+  return (form.adapter_type.trim() || routeProviderAdapterValue(provider)).trim()
 }
 
 export function legacyCredentialIDFromProvider(provider: AIProvider): number | undefined {
@@ -1153,7 +1215,9 @@ export function sortRouteBindings(bindings: AIModelRouteBinding[]): AIModelRoute
 export function routeBindingStableKey(binding: AIModelRouteBinding): string {
   return [
     binding.provider_id || '',
+    binding.adapter_type || '',
     binding.provider_model_id || '',
+    binding.protocol_profile || '',
     String(binding.ID),
   ].join(':')
 }

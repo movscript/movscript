@@ -1,6 +1,6 @@
 ---
 name: runtime
-description: Decide MovScript runtime availability across cloud/external data planes and the local runtime daemon before project, domain, generation, or editing work.
+description: Decide MovScript runtime availability, installation/distribution paths, MovScript Home, cloud/external data planes, and the local runtime daemon before project, domain, generation, or editing work.
 toolGrants:
   - mcp__movscript__runtime_doctor
   - mcp__movscript__movscript_runtime_status
@@ -13,6 +13,8 @@ toolGrants:
 Use this skill when a task depends on MovScript runtime availability, plugin startup mode, cloud/external services, Desktop, local full node behavior, service endpoints, gateway/provider configuration, or `movscript_runtime_status`.
 
 The first decision is runtime ownership: the per-user MovScript local runtime daemon owns local execution services. Desktop, Agent Plugin, CLI, and MCP sessions attach to it. The data plane may be local Data Service, cloud Data Service, or an external/local endpoint.
+
+Open `references/install-distribution.md` when explaining install paths, MovScript Home, release asset names, rollback, Desktop-vs-plugin distribution, or cloud/external runtime gateway setup.
 
 ## Production Contract
 

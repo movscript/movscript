@@ -174,7 +174,6 @@ function normalizeOptionalLocalGatewayBaseURL(value: string | undefined): string
   } catch {
     return undefined
   }
-  return undefined
 }
 
 function normalizeDataConnectionKind(

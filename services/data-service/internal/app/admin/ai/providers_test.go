@@ -102,6 +102,34 @@ func TestCreateProviderPreservesTemplateProviderKind(t *testing.T) {
 	}
 }
 
+func TestCreateProviderPreservesNewAPITemplateProviderType(t *testing.T) {
+	service := newProviderTestService(t)
+
+	provider, err := service.CreateProvider(context.Background(), CreateProviderInput{
+		ProviderKind:  persistencemodel.AIProviderKindNewAPIGateway,
+		DisplayName:   "New API",
+		BaseURLPrefix: "https://newapi.example.com/v1",
+		Credentials: map[string]string{
+			"api_key": "sk-newapi-provider-test",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateProvider() error = %v", err)
+	}
+	if provider.ProviderKind != persistencemodel.AIProviderKindNewAPIGateway ||
+		provider.ProviderType != persistencemodel.AIProviderTypeNewAPI ||
+		provider.Profile != persistencemodel.AIProviderProfileGateway ||
+		provider.ProviderCategory != persistencemodel.AIProviderCategoryAggregatorGateway ||
+		provider.DefaultAdapterType != infraai.AdapterNewAPI ||
+		provider.AdapterKey != infraai.AdapterNewAPI ||
+		provider.BaseURLPrefix != "https://newapi.example.com/v1" {
+		t.Fatalf("provider = %+v, want New API gateway template", provider)
+	}
+	if len(provider.Credentials) != 1 {
+		t.Fatalf("provider credential count = %d, want 1", len(provider.Credentials))
+	}
+}
+
 func TestCreateProviderRejectsMissingRequiredCredential(t *testing.T) {
 	service := newProviderTestService(t)
 
@@ -175,6 +203,116 @@ func TestCreateCredentialMirrorsStableProviderID(t *testing.T) {
 	}
 	if providerCredential.Status != persistencemodel.AIProviderCredentialStatusDisabled || providerCredential.IsPrimary {
 		t.Fatalf("provider credential = %+v, want disabled non-primary", providerCredential)
+	}
+}
+
+func TestCreateNewAPICredentialMirrorsNewAPIGatewayProvider(t *testing.T) {
+	service := newProviderTestService(t)
+	ctx := context.Background()
+
+	credential, err := service.CreateCredential(ctx, CreateCredentialInput{
+		AdapterType: infraai.AdapterNewAPI,
+		DisplayName: "New API",
+		Credentials: map[string]string{"api_key": "sk-newapi-test", "base_url": "https://newapi.example.com/v1"},
+	})
+	if err != nil {
+		t.Fatalf("CreateCredential() error = %v", err)
+	}
+	providerID := providerIDForCreatedProvider(persistencemodel.AIProviderKindNewAPIGateway, credential.ID)
+	providers, err := service.ListProviders(ctx)
+	if err != nil {
+		t.Fatalf("ListProviders() error = %v", err)
+	}
+	provider := providerByID(providers, providerID)
+	if provider == nil {
+		t.Fatalf("provider %q not listed: %+v", providerID, providers)
+	}
+	if provider.ProviderKind != persistencemodel.AIProviderKindNewAPIGateway ||
+		provider.ProviderType != persistencemodel.AIProviderTypeNewAPI ||
+		provider.Profile != persistencemodel.AIProviderProfileGateway ||
+		provider.ProviderCategory != persistencemodel.AIProviderCategoryAggregatorGateway ||
+		provider.DefaultAdapterType != infraai.AdapterNewAPI ||
+		provider.AdapterKey != infraai.AdapterNewAPI ||
+		provider.BaseURLPrefix != "https://newapi.example.com/v1" {
+		t.Fatalf("provider = %+v, want New API gateway mirror", provider)
+	}
+
+	if _, err := service.DeleteCredential(ctx, strconv.FormatUint(uint64(credential.ID), 10)); err != nil {
+		t.Fatalf("DeleteCredential() error = %v", err)
+	}
+	var disabledProvider persistencemodel.AIProvider
+	if err := service.db.Where("provider_id = ?", providerID).First(&disabledProvider).Error; err != nil {
+		t.Fatalf("load disabled New API provider: %v", err)
+	}
+	if disabledProvider.IsEnabled {
+		t.Fatalf("New API provider %q is still enabled after deleting linked credential", providerID)
+	}
+	var providerCredential persistencemodel.AIProviderCredential
+	if err := service.db.Where("provider_id = ?", providerID).First(&providerCredential).Error; err != nil {
+		t.Fatalf("load New API provider credential: %v", err)
+	}
+	if providerCredential.Status != persistencemodel.AIProviderCredentialStatusDisabled || providerCredential.IsPrimary {
+		t.Fatalf("New API provider credential = %+v, want disabled non-primary", providerCredential)
+	}
+}
+
+func TestNewAPIProviderCredentialUpdateAndDisableSyncLegacyCredential(t *testing.T) {
+	service := newProviderTestService(t)
+	ctx := context.Background()
+
+	provider, err := service.CreateProvider(ctx, CreateProviderInput{
+		ProviderKind:  persistencemodel.AIProviderKindNewAPIGateway,
+		DisplayName:   "New API",
+		BaseURLPrefix: "https://newapi.example.com/v1",
+		Credentials: map[string]string{
+			"api_key": "sk-newapi-primary",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateProvider() error = %v", err)
+	}
+	primary := providerCredentialByKey(provider, "primary")
+	if primary == nil {
+		t.Fatalf("primary credential missing: %+v", provider.Credentials)
+	}
+	legacyID := legacyCredentialIDFromProviderCredential(t, *primary)
+
+	provider, err = service.UpdateProviderCredential(ctx, provider.ProviderID, "primary", UpdateProviderCredentialInput{
+		Credentials: map[string]string{"api_key": "sk-newapi-rotated"},
+	})
+	if err != nil {
+		t.Fatalf("UpdateProviderCredential() error = %v", err)
+	}
+	if provider.ProviderType != persistencemodel.AIProviderTypeNewAPI || provider.DefaultAdapterType != infraai.AdapterNewAPI {
+		t.Fatalf("provider after credential update = %+v, want New API boundary preserved", provider)
+	}
+	var legacyCredential persistencemodel.AICredential
+	if err := service.db.First(&legacyCredential, legacyID).Error; err != nil {
+		t.Fatalf("load legacy credential: %v", err)
+	}
+	raw, err := crypto.Decrypt(legacyCredential.EncryptedKey, service.encryptionKey)
+	if err != nil {
+		t.Fatalf("decrypt legacy credential: %v", err)
+	}
+	if raw != "sk-newapi-rotated" || legacyCredential.BaseURL != "https://newapi.example.com/v1" || !legacyCredential.IsEnabled {
+		t.Fatalf("legacy credential after update = key:%q base:%q enabled:%v", raw, legacyCredential.BaseURL, legacyCredential.IsEnabled)
+	}
+
+	provider, err = service.UpdateProviderCredential(ctx, provider.ProviderID, "primary", UpdateProviderCredentialInput{
+		Status: persistencemodel.AIProviderCredentialStatusDisabled,
+	})
+	if err != nil {
+		t.Fatalf("UpdateProviderCredential(disable) error = %v", err)
+	}
+	primary = providerCredentialByKey(provider, "primary")
+	if primary == nil || primary.Status != persistencemodel.AIProviderCredentialStatusDisabled || primary.IsPrimary {
+		t.Fatalf("primary credential after disable = %+v, want disabled non-primary", primary)
+	}
+	if err := service.db.First(&legacyCredential, legacyID).Error; err != nil {
+		t.Fatalf("reload legacy credential: %v", err)
+	}
+	if legacyCredential.IsEnabled {
+		t.Fatalf("legacy credential is enabled after provider credential disable")
 	}
 }
 

@@ -120,6 +120,7 @@ export function normalizeAppSettings(
   const daemonGatewayBaseURL = normalizeOptionalLocalGatewayBaseURL(settings?.daemonGatewayBaseURL)
     ?? normalizeOptionalLocalGatewayBaseURL(legacySettings.localAPIBaseURL)
     ?? (dataConnectionKind === 'local' ? normalizeOptionalLocalGatewayBaseURL(legacySettings.dataConnection?.url) : undefined)
+    ?? (dataConnectionKind === 'local' ? normalizeOptionalLocalGatewayBaseURL(settings?.apiBaseURL) : undefined)
     ?? options.daemonGatewayBaseURL
     ?? legacyOptions.localAPIBaseURL
     ?? options.defaultSettings.daemonGatewayBaseURL
@@ -173,7 +174,6 @@ function normalizeOptionalLocalGatewayBaseURL(value: string | undefined): string
   } catch {
     return undefined
   }
-  return undefined
 }
 
 function normalizeDataConnectionKind(

@@ -119,6 +119,8 @@ docker compose down -v
 
 ## Docs
 
+- [Product positioning and agent workflow](docs/product-positioning-agent-workflow.zh-CN.md)
+- [MovScript skill workflow](docs/movscript-skill-workflow.md)
 - [Product transformation plan](docs/product-transformation-plan.zh-CN.md)
 - [Install surface and release assets](docs/install.md)
 - [Product runtime distribution standard](docs/product-runtime-distribution-standard.zh-CN.md)

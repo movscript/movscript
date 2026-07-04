@@ -13,7 +13,10 @@ type providerResult struct {
 }
 
 func (w *Worker) runImageJob(ctx context.Context, job *persistencemodel.Job, params generationParams, imageData []ai.MediaData, sm *jobStateMachine, debugResult *ai.DebugCallResult) ([]providerResult, error) {
-	cloudFileID := w.prepareImageInputReferences(job, imageData)
+	cloudFileID, resourceAccessTrace := w.prepareImageInputReferencesWithTrace(job, imageData)
+	if debugResult != nil && len(resourceAccessTrace) > 0 {
+		debugResult.ResourceAccessTrace = append(debugResult.ResourceAccessTrace, resourceAccessTrace...)
+	}
 	req := w.buildImageRequest(job, params, imageData, cloudFileID)
 	if len(imageData) > 0 {
 		if cloudFileID == "" && imageData[0].PresignedURL != "" {
@@ -46,7 +49,10 @@ func (w *Worker) runImageEditJob(ctx context.Context, job *persistencemodel.Job,
 	if len(imageData) == 0 {
 		return nil, fmt.Errorf("reference image generation requires an image input but none was found (job #%d)", job.ID)
 	}
-	cloudFileID := w.prepareImageInputReferences(job, imageData)
+	cloudFileID, resourceAccessTrace := w.prepareImageInputReferencesWithTrace(job, imageData)
+	if debugResult != nil && len(resourceAccessTrace) > 0 {
+		debugResult.ResourceAccessTrace = append(debugResult.ResourceAccessTrace, resourceAccessTrace...)
+	}
 	req := w.buildImageRequest(job, params, imageData, cloudFileID)
 	if cloudFileID == "" {
 		firstImage := imageData[0]
@@ -93,6 +99,7 @@ func (w *Worker) buildImageRequest(job *persistencemodel.Job, params generationP
 		SequentialMaxImages: firstNonZeroInt(params.Int("image_count"), params.Int("max_images")),
 		WebSearch:           params.Bool("web_search"),
 		OptimizePromptMode:  params.String("optimize_prompt_mode"),
+		ExtraParams:         params.Values(),
 		InputImageDataList:  imageData,
 		CloudFileID:         cloudFileID,
 		ReferenceAssets:     runnerReferenceAssetsFromJob(job),

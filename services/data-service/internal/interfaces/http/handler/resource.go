@@ -231,6 +231,9 @@ func serveResourceFile(c *gin.Context, store storage.Storage, r domainresource.R
 		c.Header("Content-Length", strconv.FormatInt(totalSize, 10))
 		c.Status(http.StatusOK)
 	}
+	if c.Request.Method == http.MethodHead {
+		return
+	}
 	_, _ = io.Copy(c.Writer, body)
 }
 

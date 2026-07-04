@@ -1,6 +1,6 @@
 ---
 name: domain
-description: "Work with MovScript creative project state using production-language first: project context, script, continuity references, scene beats, output tasks, generated options, adoption decisions, readiness checks, and impact review. Use when inspecting, changing, or reasoning about the underlying domain/source model through MCP tools."
+description: "Work with MovScript creative project state and product workflow boundaries using production-language first: project context, script, continuity references, scene beats, output tasks, generated options, adoption decisions, external output return-to-Resource/Candidate flow, readiness checks, and impact review. Use when inspecting, changing, or reasoning about the underlying domain/source model through MCP tools."
 toolGrants:
   - mcp__movscript__movscript_runtime_status
   - mcp__movscript__domain_get_model
@@ -61,7 +61,7 @@ Use this skill when a user asks to inspect, change, validate, or reason about Mo
 
 The `domain_*` MCP tools are the internal editing and diagnostic surface for that production workspace. Do not make the conversation about "domain objects" unless the user is debugging MovScript itself; explain work in business terms such as "scene beat", "reference asset", "output task", "generated option", "chosen result", and "impact review".
 
-Open `references/domain-story.md` when the task depends on the production workflow behind scene structure, output tasks, generated options, adopted choices, stale state, or impact review. Open `references/entity-glossary.md` only when mapping user/product terms to source entity names.
+Open `references/product-workflow-contract.md` when deciding MovScript product boundaries, agent skill routing, external generation handoffs, or why work must return through Resource, Candidate, Selection, and impact review. Open `references/domain-story.md` when the task depends on the production workflow behind scene structure, output tasks, generated options, adopted choices, stale state, or impact review. Open `references/entity-glossary.md` only when mapping user/product terms to source entity names.
 
 ## Production Contract
 

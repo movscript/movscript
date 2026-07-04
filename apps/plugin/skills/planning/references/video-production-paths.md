@@ -133,6 +133,10 @@ Rules:
 
 ## Cross-Path Gates
 
+### Video Spend Gate
+
+Planning may create video content units, write/refine video prompts, compile readiness, and generate supporting images such as storyboards, keyframes, and asset references. Do not submit a video generation job until the user explicitly confirms the paid video generation action. Without that confirmation, the next step is readiness reporting and a confirmation request, not `generation_submit`.
+
 ### Scene Moment Duration Gate
 
 Use `scene_moment` as a short atomic video beat. If a requested moment is likely to run longer than about 10 seconds, split it into several scene moments with clear beginning/middle/end actions and compose them later through editing.
@@ -206,4 +210,4 @@ When reporting the plan, state:
 - planned MovScript entities;
 - required upstream selections before generation;
 - whether the path is stable or an explicit fast/unstable draft;
-- next action: create/update planning records, generate assets/keyframes/storyboards, generate video candidates, or switch to editing.
+- next action: create/update planning records, generate assets/keyframes/storyboards, ask for paid video generation confirmation when video candidates are ready, or switch to editing.

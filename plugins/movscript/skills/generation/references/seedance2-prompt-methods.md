@@ -4,6 +4,8 @@ Use this reference when the selected model/provider is Seedance-like or when the
 
 This file is based on public Seedance skill patterns, including MapleShaw's Seedance 2.0 prompt skill methods: path selection, Z/Y/X/F camera coding, concise image-to-video prompting, storyboard-driven generation, aesthetic constraints, and AI clip editing rhythm. In MovScript, keep semantic refs and candidate selection semantics; do not write platform-only placeholders such as `@图片1` into content-unit prompts.
 
+Public Seedance prompt skills converge on one practical rule: write a short shooting brief the model can execute, not a story synopsis. Effective prompts assign each reference a role, describe what changes on screen, name the camera and timing, preserve what must stay stable, and remove filler that does not become pixels, motion, or sound.
+
 ## MovScript Adaptation Rules
 
 - Use `{{asset::id}}`, `{{storyboard::id}}`, `{{keyframe::id}}`, `{{scene_moment::id}}`, `{{expression_unit::id}}`, or `{{resource::123}}` in prompts.
@@ -11,6 +13,20 @@ This file is based on public Seedance skill patterns, including MapleShaw's Seed
 - Use `generation_submit` with `scope: "content_unit"` for content-unit candidates; do not treat the generated resource as selected until adoption/selection.
 - Keep duration, aspect ratio, and provider parameters outside the prompt when the generation API already accepts them as settings.
 - If a provider adapter converts MovScript refs to Seedance-style numbered references internally, keep that conversion outside the authored content-unit prompt.
+
+## Seedance Model-Understandability Rule
+
+Seedance-like models see only the prompt, provided image/video/audio references, and explicit settings. They do not see MovScript source files, chat context, unstated character relationships, or the dramatic reason behind a beat.
+
+Before using a Seedance prompt, audit it against these questions:
+
+- Have all references been assigned a concrete role, such as first frame, end frame, identity anchor, style reference, pose reference, storyboard guidance, source video to extend, or audio rhythm?
+- Does every abstract idea become visible or audible: gesture, posture, gaze, prop movement, dialogue tone, camera emphasis, environmental motion, sound, or edit rhythm?
+- Does the prompt say what must not transfer from a reference when using it only for style, pose, camera, or rhythm?
+- For image-to-video, does the text add only motion, timing, camera, emotional micro-beats, environmental change, audio, and preservation constraints instead of fighting the image?
+- Could someone film the prompt without reading the MovScript project? If not, rewrite it before generation.
+
+Use time bands for longer or more complex clips, but keep a single Seedance clip focused on one coherent action. Split multi-beat stories into multiple content units and assemble them in editing.
 
 ## Four Production Paths
 
@@ -178,6 +194,8 @@ Before calling generation, confirm:
 
 - The request is routed to Path A, B, C, or D.
 - The prompt uses MovScript refs and resource inputs rather than raw `@图片` placeholders.
+- Every reference has an explicit role and any negative-transfer rule needed for that role.
+- The prompt is understandable from prompt plus resolved refs alone; hidden story context has been converted into visible action, camera, lighting, timing, or sound.
 - Image-driven prompts are concise and do not fight the image.
 - Storyboard/collage prompts explicitly reject grid borders, labels, UI, and panel layout.
 - Camera direction uses a coherent Z/Y/X/F-derived move with no overloaded axes.

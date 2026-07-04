@@ -48,6 +48,21 @@ Before generating video, run this pass mentally and fill any missing part that m
 10. Negative Constraints
    Add only constraints that matter for this shot: identity drift, extra limbs/fingers, distorted hands, unreadable text, random subtitles, morphing objects, jitter, cartoon look, over-saturated colors, stock-photo staging, frozen expression, unwanted smiles, camera cuts, or duplicated subjects.
 
+## Model-Facing Prompt Audit
+
+Before writing the final prompt to a content unit or submitting any video generation request, reread the prompt from the model's point of view. The model only receives the prompt, resolved resources, and explicit generation settings; it does not know the full MovScript project, unstated character relationships, previous chat assumptions, or why a beat matters.
+
+Every sentence in the final video prompt must do at least one of these jobs:
+
+- Name a resolved continuity/reference anchor.
+- Describe visible subject state, setting, prop, action, gesture, expression, or environmental change.
+- Direct camera, framing, blocking, timing, focus, lighting, color, material, style, or audio.
+- Constrain a concrete failure mode the model could otherwise produce.
+
+If a sentence only explains plot logic, backstory, motivation, theme, or mood, rewrite it into observable direction. For example, replace "she realizes he betrayed her" with a visible progression: she stops mid-step, looks from his face to the torn contract in his hand, her grip tightens around the phone, the camera pushes into her eyes as room tone drops.
+
+Do not leave shorthand such as "same person", "the earlier room", "the argument continues", "their relationship breaks", or "make it cinematic" unless the prompt or resolved refs define the subject, setting, action, camera, and lighting concretely enough for generation.
+
 ## Narrative to Shootable Direction
 
 Do not remove story intent. Use it as the overview, then make the model-facing prompt executable.
@@ -201,6 +216,8 @@ Before submitting a video prompt, confirm:
 - The prompt directs a scene over time, not a still image.
 - A `scene_moment_ref` content unit uses video-prompt form, not a scene synopsis.
 - Story-heavy wording has been translated into cast/blocking, visible actions, dialogue, lighting, camera, and audio layers.
+- A model seeing only the compiled prompt plus resolved refs can understand what appears on screen, what changes over time, and how the camera/lighting/audio behave.
+- No hidden backstory, unresolved pronouns, private shorthand, or invisible emotion remains as a required instruction.
 - Script text has been analyzed into scene details instead of copied as the content-unit prompt.
 - The subject identity and selected MovScript refs are explicit when continuity matters.
 - The action has a beginning, middle, and end if duration or complexity calls for it.

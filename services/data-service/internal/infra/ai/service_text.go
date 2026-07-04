@@ -28,6 +28,7 @@ func (s *AIService) callCatalogTextRuntime(ctx context.Context, userID uint, rou
 	ctx = withProviderSubject(ctx, userID, usage.OrgID)
 	attemptReq := req
 	attemptReq.Model = route.ProviderModelID
+	attemptReq.ProtocolProfile = strings.TrimSpace(route.ProtocolProfile)
 	attemptReq.IsReasoning = attemptReq.IsReasoning || modelHasCapability(runtime.def, CapabilityReasoning)
 	attachTextPromptDebug(ctx, attemptReq)
 	if usage.ReservationID == nil {
@@ -105,6 +106,7 @@ func (s *AIService) callCatalogResponsesStreamRuntime(ctx context.Context, userI
 	}
 	attemptReq := req
 	attemptReq.Text.Model = route.ProviderModelID
+	attemptReq.Text.ProtocolProfile = strings.TrimSpace(route.ProtocolProfile)
 	attemptReq.Text.IsReasoning = attemptReq.Text.IsReasoning || modelHasCapability(runtime.def, CapabilityReasoning)
 	attachTextPromptDebug(ctx, attemptReq.Text)
 	if usage.ReservationID == nil {
@@ -188,6 +190,7 @@ func (s *AIService) callCatalogResponsesRuntime(ctx context.Context, userID uint
 	ctx = withProviderSubject(ctx, userID, usage.OrgID)
 	attemptReq := req
 	attemptReq.Text.Model = route.ProviderModelID
+	attemptReq.Text.ProtocolProfile = strings.TrimSpace(route.ProtocolProfile)
 	attemptReq.Text.IsReasoning = attemptReq.Text.IsReasoning || modelHasCapability(runtime.def, CapabilityReasoning)
 	attachTextPromptDebug(ctx, attemptReq.Text)
 	if usage.ReservationID == nil {
@@ -205,7 +208,7 @@ func (s *AIService) callCatalogResponsesRuntime(ctx context.Context, userID uint
 	finishAttempt := beginRuntimeProviderAttempt(route.RuntimeModelID)
 	if ok {
 		resp, err = responder.ResponsesGenerate(ctx, attemptReq)
-		if err != nil {
+		if err != nil && routeAllowsResponsesChatFallback(route) {
 			responsesErr := err
 			fallbackResp, fallbackErr := runtime.provider.TextGenerate(ctx, attemptReq.Text)
 			if fallbackErr == nil {
@@ -245,6 +248,19 @@ func (s *AIService) callCatalogResponsesRuntime(ctx context.Context, userID uint
 	return resp, nil
 }
 
+func routeAllowsResponsesChatFallback(route ModelRoute) bool {
+	supportedAPIKinds := NormalizeModelAPIKinds(route.APIKinds)
+	if len(supportedAPIKinds) == 0 {
+		if apiKind := strings.TrimSpace(route.APIKind); apiKind != "" {
+			supportedAPIKinds = NormalizeModelAPIKinds([]string{apiKind})
+		} else {
+			supportedAPIKinds = modelAPIKindsForAdapter(route.AdapterType)
+		}
+	}
+	return hasString(supportedAPIKinds, ModelAPIKindOpenAIChatCompletions) &&
+		AdapterSupportsOperation(route.AdapterType, CapabilityFamilyTextGeneration, "chat")
+}
+
 func (s *AIService) CallTextStreamWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req TextRequest, usage UsageContext) (<-chan TextStreamEvent, error) {
 	usage = usageWithRoute(usage, route)
 	for _, capability := range textRuntimeCapabilities() {
@@ -267,6 +283,7 @@ func (s *AIService) callCatalogTextStreamRuntime(ctx context.Context, userID uin
 	}
 	attemptReq := req
 	attemptReq.Model = route.ProviderModelID
+	attemptReq.ProtocolProfile = strings.TrimSpace(route.ProtocolProfile)
 	attemptReq.IsReasoning = attemptReq.IsReasoning || modelHasCapability(runtime.def, CapabilityReasoning)
 	attachTextPromptDebug(ctx, attemptReq)
 	if usage.ReservationID == nil {

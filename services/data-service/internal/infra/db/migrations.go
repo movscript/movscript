@@ -103,6 +103,11 @@ func RegisteredMigrations() []Migration {
 			Name:    "add_model_catalog_input_image_field",
 			Up:      migrateModelCatalogInputImageField,
 		},
+		{
+			Version: "000016",
+			Name:    "add_model_route_protocol_profile",
+			Up:      migrateModelRouteProtocolProfile,
+		},
 	}
 	return append(core, distributionProfileMigrations()...)
 }
@@ -194,6 +199,31 @@ func migrateModelCatalogInputImageField(db *gorm.DB) error {
 		WHERE COALESCE(input_image_field, '') = ''
 			AND COALESCE(image_edit_field, '') <> ''
 	`).Error
+}
+
+func migrateModelRouteProtocolProfile(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) {
+		return nil
+	}
+	if err := addTextColumnIfMissing(db, "ai_model_route_bindings", "protocol_profile"); err != nil {
+		return err
+	}
+	if err := db.Exec(`
+		UPDATE ai_model_route_bindings
+		SET protocol_profile = ''
+		WHERE protocol_profile IS NULL
+	`).Error; err != nil {
+		return err
+	}
+	if db.Migrator().HasIndex(&persistencemodel.AIModelRouteBinding{}, activeModelRouteBindingUniqueIndex) {
+		if err := db.Migrator().DropIndex(&persistencemodel.AIModelRouteBinding{}, activeModelRouteBindingUniqueIndex); err != nil {
+			return err
+		}
+	}
+	if err := db.AutoMigrate(&persistencemodel.AIModelRouteBinding{}); err != nil {
+		return err
+	}
+	return enforceUniqueActiveModelRouteBindings(db)
 }
 
 func addTextColumnIfMissing(db *gorm.DB, tableName string, columnName string) error {
@@ -407,9 +437,12 @@ func normalizeLegacyRouteProviderIDs(tx *gorm.DB, legacyProviderID string, mirro
 	}
 	for _, binding := range bindings {
 		var existing int64
-		if err := tx.Model(&persistencemodel.AIModelRouteBinding{}).
-			Where("catalog_entry_id = ? AND route_group = ? AND provider_id = ? AND provider_model_id = ? AND deleted_at IS NULL", binding.CatalogEntryID, binding.RouteGroup, mirrorProviderID, binding.ProviderModelID).
-			Count(&existing).Error; err != nil {
+		query := tx.Model(&persistencemodel.AIModelRouteBinding{}).
+			Where("catalog_entry_id = ? AND route_group = ? AND provider_id = ? AND provider_model_id = ? AND deleted_at IS NULL", binding.CatalogEntryID, binding.RouteGroup, mirrorProviderID, binding.ProviderModelID)
+		if tx.Migrator().HasColumn(&persistencemodel.AIModelRouteBinding{}, "protocol_profile") {
+			query = query.Where("protocol_profile = ?", binding.ProtocolProfile)
+		}
+		if err := query.Count(&existing).Error; err != nil {
 			return fmt.Errorf("check route provider duplicate %q to %q: %w", legacyProviderID, mirrorProviderID, err)
 		}
 		if existing > 0 {
@@ -832,7 +865,7 @@ func enforceUniqueActiveModelRouteBindings(db *gorm.DB) error {
 }
 
 func modelRouteBindingUniqueIndexColumns() string {
-	return "catalog_entry_id, provider_id, provider_model_id, route_group"
+	return "catalog_entry_id, route_group, provider_id, provider_model_id, protocol_profile"
 }
 
 func softDeleteDuplicateActiveModelRouteBindings(db *gorm.DB) error {
@@ -845,7 +878,7 @@ WHERE deleted_at IS NULL
       SELECT MIN(id) AS keep_id
       FROM ai_model_route_bindings
       WHERE deleted_at IS NULL
-      GROUP BY catalog_entry_id, provider_id, provider_model_id, route_group
+      GROUP BY catalog_entry_id, route_group, provider_id, provider_model_id, protocol_profile
     ) active_routes
   )`
 	if err := db.Exec(stmt).Error; err != nil {
@@ -916,9 +949,12 @@ func mergeDuplicateModelCatalogEntry(db *gorm.DB, duplicateID uint, keepID uint)
 			}
 			for _, binding := range bindings {
 				var existing int64
-				if err := tx.Model(&persistencemodel.AIModelRouteBinding{}).
-					Where("catalog_entry_id = ? AND route_group = ? AND provider_id = ? AND provider_model_id = ? AND deleted_at IS NULL", keepID, binding.RouteGroup, binding.ProviderID, binding.ProviderModelID).
-					Count(&existing).Error; err != nil {
+				query := tx.Model(&persistencemodel.AIModelRouteBinding{}).
+					Where("catalog_entry_id = ? AND route_group = ? AND provider_id = ? AND provider_model_id = ? AND deleted_at IS NULL", keepID, binding.RouteGroup, binding.ProviderID, binding.ProviderModelID)
+				if tx.Migrator().HasColumn(&persistencemodel.AIModelRouteBinding{}, "protocol_profile") {
+					query = query.Where("protocol_profile = ?", binding.ProtocolProfile)
+				}
+				if err := query.Count(&existing).Error; err != nil {
 					return fmt.Errorf("check duplicate catalog entry binding: %w", err)
 				}
 				if existing > 0 {

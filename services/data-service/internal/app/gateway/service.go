@@ -455,6 +455,7 @@ func aiRouteFromGateway(route providercontract.AIGatewayModelRoute) ai.ModelRout
 		Capability:      route.Capability,
 		Operation:       route.Operation,
 		APIKind:         route.APIKind,
+		APIKinds:        append([]string(nil), route.APIKinds...),
 		SelectionReason: route.SelectionReason,
 	}
 }

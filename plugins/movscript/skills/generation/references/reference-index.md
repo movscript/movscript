@@ -4,7 +4,9 @@ Use this index when deciding which generation reference files to open. Open only
 
 ## Core Routing
 
+- `external-generation-bridge.md`: when the user chooses LibTV or another external generation system and generated text/image/video/audio must return into MovScript as RawResources and manual candidates.
 - `model-usage.md`: decide whether to generate a scene moment directly, split into expression-unit materials, or route through editing.
+- `prompt-mode-router.md`: before writing or diagnosing image/video prompts with multiple output modes, reference roles, model families, quality-score checks, or failure symptoms.
 - `content-unit-prompt-craft.md`: before writing or refining content-unit prompts from scripts, scene notes, or story-heavy wording; convert source text into analyzed production direction instead of copying it.
 - `image-prompt-craft.md`: before writing or refining image prompts for storyboard panels, keyframes, asset images, products/props, environment references, non-person scene images, and image edits.
 - `video-model-prompt-routing.md`: after model discovery/selection, align video prompt structure with model capabilities.
@@ -27,50 +29,62 @@ Use this index when deciding which generation reference files to open. Open only
 ### Direct Video Draft
 
 1. `model-usage.md`
-2. `content-unit-prompt-craft.md` if the prompt is derived from script/story material
-3. `video-model-prompt-routing.md`
-4. `video-prompt-craft.md`
+2. `prompt-mode-router.md`
+3. `content-unit-prompt-craft.md` if the prompt is derived from script/story material
+4. `video-model-prompt-routing.md`
+5. `video-prompt-craft.md`
+
+### External Generation Returning to MovScript
+
+1. `external-generation-bridge.md`
+2. `content-unit-prompt-craft.md` / `image-prompt-craft.md` / `video-prompt-craft.md` only when MovScript prompt authoring is still needed.
+3. `candidate-selection-flow.md` when uploaded RawResources must become content-unit candidates.
 
 ### Seedance-Like Image-to-Video
 
 1. `model-usage.md`
-2. `video-model-prompt-routing.md`
-3. `seedance2-prompt-methods.md`
-4. `provider-generated-artifact-trust.md` if references must be provider-trusted
-5. `video-prompt-craft.md`
-6. `resource-id-rules.md` if refs/resources are ambiguous
+2. `prompt-mode-router.md`
+3. `video-model-prompt-routing.md`
+4. `seedance2-prompt-methods.md`
+5. `provider-generated-artifact-trust.md` if references must be provider-trusted
+6. `video-prompt-craft.md`
+7. `resource-id-rules.md` if refs/resources are ambiguous
 
 ### Reusable Character/Product First
 
 1. `model-usage.md`
-2. `image-prompt-craft.md`
-3. `continuity-asset-prompts.md`
-4. `candidate-selection-flow.md`
-5. `video-prompt-craft.md` for downstream video after asset adoption/selection
+2. `prompt-mode-router.md`
+3. `image-prompt-craft.md`
+4. `continuity-asset-prompts.md`
+5. `candidate-selection-flow.md`
+6. `video-prompt-craft.md` for downstream video after asset adoption/selection
 
 ### Storyboard or Keyframe Image
 
 1. `model-usage.md`
-2. `content-unit-prompt-craft.md` if derived from script/story material
-3. `image-prompt-craft.md`
-4. `continuity-asset-prompts.md` if selected reusable entities must be referenced
+2. `prompt-mode-router.md`
+3. `content-unit-prompt-craft.md` if derived from script/story material
+4. `image-prompt-craft.md`
+5. `continuity-asset-prompts.md` if selected reusable entities must be referenced
 
 ### Reference Shot Imitation
 
 1. `shot-imitation-workflow.md`
 2. `continuity-asset-prompts.md` if identity or products must remain stable
-3. `video-model-prompt-routing.md`
-4. `video-prompt-craft.md`
+3. `prompt-mode-router.md`
+4. `video-model-prompt-routing.md`
+5. `video-prompt-craft.md`
 
 ### Multi-Clip or Long Video
 
 1. `model-usage.md`
-2. `seedance2-prompt-methods.md` for Path B/D-style decomposition when relevant
-3. `../../planning/references/video-production-paths.md` when the request needs planning before generation
-4. `content-unit-prompt-craft.md` for script-to-content-unit prompt conversion
-5. `continuity-asset-prompts.md` for reusable assets
-6. Switch to the editing skill when clips must be assembled, trimmed, color-matched, subtitled, or exported.
-7. In the editing skill, open `../../editing/references/ai-clip-editing-rhythm.md` when the timeline needs rhythm, clip trimming, transition, color/style matching, or AI artifact mitigation guidance.
+2. `prompt-mode-router.md`
+3. `seedance2-prompt-methods.md` for Path B/D-style decomposition when relevant
+4. `../../planning/references/video-production-paths.md` when the request needs planning before generation
+5. `content-unit-prompt-craft.md` for script-to-content-unit prompt conversion
+6. `continuity-asset-prompts.md` for reusable assets
+7. Switch to the editing skill when clips must be assembled, trimmed, color-matched, subtitled, or exported.
+8. In the editing skill, open `../../editing/references/ai-clip-editing-rhythm.md` when the timeline needs rhythm, clip trimming, transition, color/style matching, or AI artifact mitigation guidance.
 
 ## Do Not
 

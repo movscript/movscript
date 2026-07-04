@@ -43,9 +43,10 @@ func (e StageError) Unwrap() error {
 }
 
 type Service struct {
-	repo      repository
-	resources *appresource.Service
-	vectors   providercontract.VectorIndexProvider
+	repo              repository
+	resources         *appresource.Service
+	vectors           providercontract.VectorIndexProvider
+	embeddingResolver VectorEmbeddingResolver
 }
 
 func NewService(db *gorm.DB, store storage.Storage, verifier ai.ImageVerificationClient, cacheStore ...cache.Cache) *Service {
@@ -53,13 +54,24 @@ func NewService(db *gorm.DB, store storage.Storage, verifier ai.ImageVerificatio
 }
 
 func NewServiceWithVectorIndex(db *gorm.DB, store storage.Storage, verifier ai.ImageVerificationClient, vectors providercontract.VectorIndexProvider, cacheStore ...cache.Cache) *Service {
+	return NewServiceWithVectorIndexAndEmbedding(db, store, verifier, vectors, nil, cacheStore...)
+}
+
+func NewServiceWithVectorIndexAndEmbedding(db *gorm.DB, store storage.Storage, verifier ai.ImageVerificationClient, vectors providercontract.VectorIndexProvider, resolver VectorEmbeddingResolver, cacheStore ...cache.Cache) *Service {
 	if vectors == nil {
 		vectors = NewLocalVectorIndexProvider(db)
 	}
 	return &Service{
-		repo:      &gormRepository{db: db},
-		resources: appresource.NewService(db, store, verifier, cacheStore...),
-		vectors:   vectors,
+		repo:              &gormRepository{db: db},
+		resources:         appresource.NewService(db, store, verifier, cacheStore...),
+		vectors:           vectors,
+		embeddingResolver: resolver,
+	}
+}
+
+func (s *Service) SetVectorEmbeddingResolver(resolver VectorEmbeddingResolver) {
+	if s != nil {
+		s.embeddingResolver = resolver
 	}
 }
 
@@ -315,13 +327,21 @@ func (s *Service) SearchVectorDocuments(ctx context.Context, request domainshotr
 	if s.vectors == nil {
 		return nil, nil
 	}
-	results, err := s.vectors.Search(ctx, providercontract.VectorSearchRequest{
+	search := providercontract.VectorSearchRequest{
 		Query:     request.Query,
 		Locale:    request.Locale,
 		SourceIDs: request.SourceIDs,
 		Filters:   request.Filters,
 		TopK:      request.TopK,
-	})
+	}
+	var err error
+	if s.embeddingResolver != nil {
+		search, err = s.embeddingResolver.EmbedSearch(ctx, search)
+		if err != nil {
+			return nil, err
+		}
+	}
+	results, err := s.vectors.Search(ctx, search)
 	if err != nil {
 		return nil, err
 	}
@@ -447,11 +467,22 @@ func (s *Service) indexReferenceVectors(ctx context.Context, reference domainsho
 	if s.vectors == nil {
 		return nil
 	}
+	documents := make([]providercontract.VectorDocument, 0)
+	for _, document := range domainshotreference.BuildVectorDocuments(reference, "default", "zh-CN") {
+		documents = append(documents, vectorDocumentToProviderContract(document))
+	}
+	if s.embeddingResolver != nil {
+		var err error
+		documents, err = s.embeddingResolver.EmbedDocuments(ctx, documents)
+		if err != nil {
+			return err
+		}
+	}
 	if err := s.vectors.Delete(ctx, providercontract.VectorDocumentRef{ReferenceID: reference.ID}); err != nil {
 		return err
 	}
-	for _, document := range domainshotreference.BuildVectorDocuments(reference, "default", "zh-CN") {
-		if err := s.vectors.Upsert(ctx, vectorDocumentToProviderContract(document)); err != nil {
+	for _, document := range documents {
+		if err := s.vectors.Upsert(ctx, document); err != nil {
 			return err
 		}
 	}

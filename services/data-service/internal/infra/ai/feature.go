@@ -9,6 +9,7 @@ const (
 	CapabilityFamilyEmbedding       = "embedding"
 	CapabilityFamilyRerank          = "rerank"
 	CapabilityFamilyModeration      = "moderation"
+	CapabilityFamilyRealtime        = "realtime"
 )
 
 const (
@@ -44,4 +45,11 @@ const (
 	AudioOperationSoundEffectGeneration = "sound_effect_generation"
 	AudioOperationVoiceIsolation        = "voice_isolation"
 	AudioOperationForcedAlignment       = "forced_alignment"
+)
+
+const (
+	EmbeddingOperationCreateEmbedding   = "create_embedding"
+	RerankOperationCreateRerank         = "create_rerank"
+	ModerationOperationCreateModeration = "create_moderation"
+	RealtimeOperationConnectSession     = "connect_session"
 )

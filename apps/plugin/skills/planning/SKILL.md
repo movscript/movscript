@@ -44,7 +44,7 @@ Use this skill when a user asks to plan or change MovScript creative work: proje
 - Production step: planning content, including project context, continuity references, scene beats, expression materials, and output tasks before generation.
 - Systems/config: Project Service/Data Service own source and project context; runtime/daemon supplies service readiness; admin/model config is only diagnosed, not changed, unless the user asks for admin work.
 - Blockers: missing project locator, absent project standards when they matter, unclear scope/granularity, missing continuity reference, Project/Data service unavailable, or upstream plan not reviewable.
-- Human review: require user confirmation before broad project standards changes, durable project/source writes beyond the requested scope, or moving from plan to generation with unresolved assumptions.
+- Human review: require user confirmation before broad project standards changes, durable project/source writes beyond the requested scope, moving from plan to generation with unresolved assumptions, choosing MovScript for a generic text/image/video/audio generation request, or submitting any paid video generation job. Images, storyboard panels, and keyframe image candidates may be generated under normal readiness rules after the tool choice is clear.
 - Output: report planned scope, created/updated source entities, readiness class (`缺规划`, `可补图`, `缺选择`, `可生成`), review URL, and next step.
 - CLI-only contract: use `bin/movscript production workflow --json` or MCP `system_production_workflow` when an agent or user needs the machine-readable four-stage production map (`plan_content`, `production_editing`, `generate`, `export`), blockers, review gates, and command handoffs without opening a frontend.
 
@@ -61,6 +61,9 @@ Use this skill when a user asks to plan or change MovScript creative work: proje
 - When a planning, prompt, impact, candidate, preview timeline, or project-status MCP result includes `surface.kind: "browser_url"` and `surface.url`, include that URL in the user-facing response and tell the user to open it for the next planning/review action.
 - Describe the page's purpose: edit/save a content-unit prompt, review missing selections, inspect stale impact, compare candidates, or inspect preview/project readiness. A URL handoff is not itself a completed user decision.
 - If secondary surfaces are returned, lead with the primary `surface.url` and mention secondary URLs only when they help the next decision. Use URLs exactly as returned.
+- Planning may prepare video content units, write/refine video prompts, compile readiness, and generate supporting images, but it must not submit video generation. Before any `generation_submit` that creates video, stop and ask the user to confirm the paid video generation action.
+- If the user asks generically to generate text, images, video, voice, music, sound effects, or other audio and has not chosen MovScript, stop before MovScript source writes or generation and ask whether to use MovScript or another available system such as LibTV. If they choose another system, hand off to that tool/skill when available rather than silently planning in MovScript.
+- If the user chooses LibTV or another external generation system for a MovScript scene moment, expression unit, asset, storyboard, keyframe, or audio cue, still plan the corresponding MovScript content unit first when it does not exist. The external result must later be uploaded as a RawResource and manually registered as that content unit's candidate.
 - Planning decides the output scope and prerequisite structure; domain tools perform the source writes, readiness checks, diagnostic refresh, and impact review.
 - Planning depends on Project Service and Data Service runtime capabilities. If project/domain tools fail because a service endpoint is missing, call `movscript_runtime_status`, classify local daemon, cloud/external data plane, or basic/diagnostic mode, and report the missing capability instead of changing source files directly.
 - Before project-scoped planning, call `domain_read_project_context_snapshot`. Use its aspect ratio, style, prompt rules, negative rules, and style references as upstream context for planning decisions.
@@ -153,7 +156,7 @@ When reporting planning state, briefly classify the focused scene_moment or expr
 - `缺规划`: missing narrative, expression, camera intent, continuity, references, or content unit anchors.
 - `可补图`: scene/expression direction is clear, but keyframes, storyboards, reference assets, or audio anchors are insufficient for stable generation.
 - `缺选择`: upstream asset/keyframe/storyboard-panel/reference candidates exist or are required, but no stable adoption/selection exists yet. `待定` and `放弃` candidates do not satisfy this gate.
-- `可生成`: scene_moment, expression units, optional visual/audio evidence, and content unit inputs are clear enough to generate or select candidates.
+- `可生成`: scene_moment, expression units, optional visual/audio evidence, and content unit inputs are clear enough to generate or select candidates. For video candidates, this means ready to ask the user for paid generation confirmation, not permission to submit the job by default.
 
 Tie the recommendation to the user's intent: continue planning for story/camera questions, supplement keyframes/storyboards for visual anchoring, supplement audio cues for sound continuity, or generate only when the relevant content unit artifacts are ready.
 

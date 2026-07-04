@@ -50,8 +50,10 @@ type ModelRoute struct {
 	AdapterKey         string
 	AdapterType        string
 	ProviderModelID    string
+	ProtocolProfile    string
 	Capability         string
 	APIKind            string
+	APIKinds           []string
 	Operation          string
 	EndpointBaseURL    string
 	EndpointPathPrefix string

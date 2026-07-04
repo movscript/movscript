@@ -13,29 +13,37 @@ import (
 )
 
 type catalogRuntimeProbeProvider struct {
-	seenModel      string
-	seenImageModel string
-	seenVideoModel string
-	seenTTSModel   string
+	seenModel        string
+	seenProfile      string
+	seenImageModel   string
+	seenImageProfile string
+	seenVideoModel   string
+	seenVideoProfile string
+	seenTTSModel     string
+	seenTTSProfile   string
 }
 
 func (p *catalogRuntimeProbeProvider) TextGenerate(ctx context.Context, req TextRequest) (TextResponse, error) {
 	p.seenModel = req.Model
+	p.seenProfile = req.ProtocolProfile
 	return TextResponse{Content: "ok", Usage: TokenUsage{InputTokens: 1, OutputTokens: 1}}, nil
 }
 
 func (p *catalogRuntimeProbeProvider) ImageGenerate(ctx context.Context, req ImageRequest) (ImageResponse, error) {
 	p.seenImageModel = req.Model
+	p.seenImageProfile = req.ProtocolProfile
 	return ImageResponse{URLs: []string{"https://example.test/image.png"}}, nil
 }
 
 func (p *catalogRuntimeProbeProvider) VideoGenerate(ctx context.Context, req VideoRequest) (VideoResponse, error) {
 	p.seenVideoModel = req.Model
+	p.seenVideoProfile = req.ProtocolProfile
 	return VideoResponse{URL: "https://example.test/video.mp4", DurationSec: 1}, nil
 }
 
 func (p *catalogRuntimeProbeProvider) Synthesize(ctx context.Context, req media.TTSRequest) (media.TTSResponse, error) {
 	p.seenTTSModel = req.Model
+	p.seenTTSProfile = req.ProtocolProfile
 	return media.TTSResponse{Audio: []byte("mp3"), MimeType: "audio/mpeg"}, nil
 }
 
@@ -314,6 +322,67 @@ func TestAIServiceListModelsDoesNotFallbackToLegacyConfigsWhenCatalogExists(t *t
 	}
 }
 
+func TestAIServiceListModelsRequiresAvailableRouteBinding(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-model-catalog-list-requires-route.db",
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+	)
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:         "catalog-writer",
+		DisplayName:           "Catalog Writer",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyTextGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	service := NewAIService(db, NewRegistry(db, nil))
+
+	models, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityFamilyTextGeneration})
+	if err != nil {
+		t.Fatalf("ListModels(no routes) error = %v", err)
+	}
+	if len(models) != 0 {
+		t.Fatalf("models without routes = %#v, want no runtime-visible models", models)
+	}
+
+	binding := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
+		RouteGroup:      "default",
+		ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
+		AdapterType:     AdapterOpenAICompat,
+		ProviderModelID: "provider-catalog-writer",
+		IsEnabled:       true,
+		CapacityWeight:  1,
+	}
+	if err := db.Create(&binding).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+	if err := db.Model(&persistencemodel.AIModelRouteBinding{}).Where("id = ?", binding.ID).Update("is_enabled", false).Error; err != nil {
+		t.Fatalf("disable route binding: %v", err)
+	}
+	models, err = service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityFamilyTextGeneration})
+	if err != nil {
+		t.Fatalf("ListModels(disabled route) error = %v", err)
+	}
+	if len(models) != 0 {
+		t.Fatalf("models with disabled route = %#v, want no runtime-visible models", models)
+	}
+
+	if err := db.Model(&persistencemodel.AIModelRouteBinding{}).Where("id = ?", binding.ID).Update("is_enabled", true).Error; err != nil {
+		t.Fatalf("enable route binding: %v", err)
+	}
+	models, err = service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityFamilyTextGeneration})
+	if err != nil {
+		t.Fatalf("ListModels(enabled route) error = %v", err)
+	}
+	if len(models) != 1 || models[0].ModelID != "catalog-writer" || models[0].ProviderModelID != "provider-catalog-writer" {
+		t.Fatalf("models with enabled route = %#v, want routed catalog writer", models)
+	}
+}
+
 func TestAIServiceGetAnyTextModelUsesCatalogRoutesWithoutLegacyModelConfigTable(t *testing.T) {
 	db := testutil.OpenSQLite(t, "ai-get-any-text-catalog-only.db",
 		&persistencemodel.AIModelCatalogEntry{},
@@ -484,6 +553,373 @@ func TestAIServiceLocalProviderRouteResolvesCredentialFromProviderMirror(t *test
 	}
 }
 
+func TestAIServiceCatalogRoutesIgnoreDisabledNewAPIProvider(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-model-catalog-disabled-newapi-provider.db",
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIProvider{},
+		&persistencemodel.AIProviderCredential{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+	)
+	newAPICred := persistencemodel.AICredential{AdapterType: AdapterNewAPI, DisplayName: "Disabled New API", BaseURL: "https://api.newapi.pro/v1", IsEnabled: true}
+	if err := db.Create(&newAPICred).Error; err != nil {
+		t.Fatalf("create New API credential: %v", err)
+	}
+	openAICred := persistencemodel.AICredential{AdapterType: AdapterOpenAICompat, DisplayName: "Fallback OpenAI compatible", BaseURL: "https://gateway.example.com/v1", IsEnabled: true}
+	if err := db.Create(&openAICred).Error; err != nil {
+		t.Fatalf("create OpenAI-compatible credential: %v", err)
+	}
+	newAPIProviderID := "new-api-disabled"
+	if err := db.Create(&persistencemodel.AIProvider{
+		ProviderID:         newAPIProviderID,
+		ProviderType:       persistencemodel.AIProviderTypeNewAPI,
+		Profile:            persistencemodel.AIProviderProfileGateway,
+		ProviderKind:       persistencemodel.AIProviderKindNewAPIGateway,
+		ProviderCategory:   persistencemodel.AIProviderCategoryAggregatorGateway,
+		DefaultAdapterType: AdapterNewAPI,
+		AdapterKey:         AdapterNewAPI,
+		DisplayName:        "Disabled New API",
+		BaseURLPrefix:      "https://api.newapi.pro/v1",
+		IsEnabled:          true,
+	}).Error; err != nil {
+		t.Fatalf("create disabled New API provider: %v", err)
+	}
+	if err := db.Model(&persistencemodel.AIProvider{}).Where("provider_id = ?", newAPIProviderID).Update("is_enabled", false).Error; err != nil {
+		t.Fatalf("disable New API provider: %v", err)
+	}
+	openAIProviderID := "openai-compatible-enabled"
+	if err := db.Create(&persistencemodel.AIProvider{
+		ProviderID:         openAIProviderID,
+		ProviderType:       persistencemodel.AIProviderTypeOpenAI,
+		Profile:            persistencemodel.AIProviderProfileOfficial,
+		ProviderKind:       persistencemodel.AIProviderKindOpenAICompatGateway,
+		ProviderCategory:   persistencemodel.AIProviderCategoryAggregatorGateway,
+		DefaultAdapterType: AdapterOpenAICompat,
+		AdapterKey:         AdapterOpenAICompat,
+		DisplayName:        "Fallback OpenAI compatible",
+		BaseURLPrefix:      "https://gateway.example.com/v1",
+		IsEnabled:          true,
+	}).Error; err != nil {
+		t.Fatalf("create enabled OpenAI-compatible provider: %v", err)
+	}
+	if err := db.Create(&persistencemodel.AIProviderCredential{
+		ProviderID:      newAPIProviderID,
+		CredentialKey:   "primary",
+		CredentialKind:  "api_key",
+		PlainConfigJSON: fmt.Sprintf(`{"legacy_credential_id":%d}`, newAPICred.ID),
+		Status:          persistencemodel.AIProviderCredentialStatusActive,
+		IsPrimary:       true,
+	}).Error; err != nil {
+		t.Fatalf("create disabled New API provider credential: %v", err)
+	}
+	if err := db.Create(&persistencemodel.AIProviderCredential{
+		ProviderID:      openAIProviderID,
+		CredentialKey:   "primary",
+		CredentialKind:  "api_key",
+		PlainConfigJSON: fmt.Sprintf(`{"legacy_credential_id":%d}`, openAICred.ID),
+		Status:          persistencemodel.AIProviderCredentialStatusActive,
+		IsPrimary:       true,
+	}).Error; err != nil {
+		t.Fatalf("create enabled OpenAI-compatible provider credential: %v", err)
+	}
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:         "writer",
+		DisplayName:           "Writer",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyTextGeneration,
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyTextGeneration),
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	newAPIBinding := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:      newAPIProviderID,
+		AdapterType:     AdapterNewAPI,
+		ProviderModelID: "newapi-writer",
+		IsEnabled:       true,
+		Priority:        20,
+		CapacityWeight:  1,
+	}
+	if err := db.Create(&newAPIBinding).Error; err != nil {
+		t.Fatalf("create New API route binding: %v", err)
+	}
+	openAIBinding := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:      openAIProviderID,
+		AdapterType:     AdapterOpenAICompat,
+		ProviderModelID: "openai-writer",
+		IsEnabled:       true,
+		Priority:        10,
+		CapacityWeight:  1,
+	}
+	if err := db.Create(&openAIBinding).Error; err != nil {
+		t.Fatalf("create OpenAI-compatible route binding: %v", err)
+	}
+
+	service := NewAIService(db, NewRegistry(db, nil))
+	assertNewAPIRouteUnavailable := func(label string) {
+		t.Helper()
+		variants, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityFamilyTextGeneration, ProviderVariants: true})
+		if err != nil {
+			t.Fatalf("%s: ListModels(provider variants) error = %v", label, err)
+		}
+		if len(variants) != 1 || variants[0].ProviderID != openAIProviderID || variants[0].ProviderModelID != "openai-writer" {
+			t.Fatalf("%s: provider variants = %#v, want only enabled OpenAI-compatible route", label, variants)
+		}
+		route, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "writer", Capability: CapabilityFamilyTextGeneration})
+		if err != nil {
+			t.Fatalf("%s: ResolveModelRoute() error = %v", label, err)
+		}
+		if route.RouteBindingID != openAIBinding.ID || route.ProviderID != openAIProviderID || route.ProviderModelID != "openai-writer" {
+			t.Fatalf("%s: resolved route = %#v, want enabled OpenAI-compatible fallback", label, route)
+		}
+		_, err = service.ResolveModelRoute(ModelRouteRequest{RouteBindingID: newAPIBinding.ID, Capability: CapabilityFamilyTextGeneration})
+		if err == nil || !strings.Contains(err.Error(), "disabled") {
+			t.Fatalf("%s: ResolveModelRoute(disabled New API binding) error = %v, want disabled provider error", label, err)
+		}
+	}
+	assertNewAPIRouteUnavailable("disabled provider")
+
+	if err := db.Model(&persistencemodel.AIProvider{}).Where("provider_id = ?", newAPIProviderID).Update("is_enabled", true).Error; err != nil {
+		t.Fatalf("re-enable New API provider: %v", err)
+	}
+	if err := db.Model(&persistencemodel.AIProviderCredential{}).Where("provider_id = ?", newAPIProviderID).Updates(map[string]any{
+		"status":     persistencemodel.AIProviderCredentialStatusDisabled,
+		"is_primary": false,
+	}).Error; err != nil {
+		t.Fatalf("disable New API provider credential: %v", err)
+	}
+	assertNewAPIRouteUnavailable("disabled provider credential")
+
+	if err := db.Model(&persistencemodel.AIProviderCredential{}).Where("provider_id = ?", newAPIProviderID).Updates(map[string]any{
+		"status":     persistencemodel.AIProviderCredentialStatusActive,
+		"is_primary": true,
+	}).Error; err != nil {
+		t.Fatalf("re-enable New API provider credential: %v", err)
+	}
+	if err := db.Model(&persistencemodel.AICredential{}).Where("id = ?", newAPICred.ID).Update("is_enabled", false).Error; err != nil {
+		t.Fatalf("disable New API legacy credential: %v", err)
+	}
+	assertNewAPIRouteUnavailable("disabled legacy credential")
+}
+
+func TestAIServiceNewAPIProtocolProfileFiltersRoutesByCapability(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-model-catalog-newapi-profile-filter.db",
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+	)
+	cred := persistencemodel.AICredential{
+		AdapterType: AdapterNewAPI,
+		DisplayName: "New API",
+		BaseURL:     "https://newapi.test/v1",
+		IsEnabled:   true,
+	}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:         "creative-model",
+		DisplayName:           "Creative Model",
+		IsEnabled:             true,
+		Capabilities:          strings.Join([]string{CapabilityFamilyImageGeneration, CapabilityFamilyVideoGeneration}, ","),
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyImageGeneration, CapabilityFamilyVideoGeneration),
+		SupportedParams:       testSupportedParamsProfile(CapabilityFamilyImageGeneration, CapabilityFamilyVideoGeneration),
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	imageRoute := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:      fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		AdapterType:     AdapterNewAPI,
+		ProtocolProfile: NewAPIProfileOpenAIImages,
+		ProviderModelID: "gpt-image-2",
+		CredentialID:    &cred.ID,
+		IsEnabled:       true,
+		Priority:        20,
+		CapacityWeight:  1,
+	}
+	videoRoute := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:      fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		AdapterType:     AdapterNewAPI,
+		ProtocolProfile: NewAPIProfileVideoGenerations,
+		ProviderModelID: "seedance-2.0-480p",
+		CredentialID:    &cred.ID,
+		IsEnabled:       true,
+		Priority:        10,
+		CapacityWeight:  1,
+	}
+	if err := db.Create(&imageRoute).Error; err != nil {
+		t.Fatalf("create image route: %v", err)
+	}
+	if err := db.Create(&videoRoute).Error; err != nil {
+		t.Fatalf("create video route: %v", err)
+	}
+	service := NewAIService(db, NewRegistry(db, nil))
+
+	imageResolved, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "creative-model", Capability: CapabilityFamilyImageGeneration})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute(image) error = %v", err)
+	}
+	if imageResolved.RouteBindingID != imageRoute.ID || imageResolved.ProtocolProfile != NewAPIProfileOpenAIImages {
+		t.Fatalf("image route = %#v, want image profile route", imageResolved)
+	}
+	videoResolved, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "creative-model", Capability: CapabilityFamilyVideoGeneration})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute(video) error = %v", err)
+	}
+	if videoResolved.RouteBindingID != videoRoute.ID || videoResolved.ProtocolProfile != NewAPIProfileVideoGenerations {
+		t.Fatalf("video route = %#v, want video profile route", videoResolved)
+	}
+
+	imageVariants, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityFamilyImageGeneration, ProviderVariants: true})
+	if err != nil {
+		t.Fatalf("ListModels(image variants) error = %v", err)
+	}
+	if len(imageVariants) != 1 || imageVariants[0].ProviderModelID != "gpt-image-2" {
+		t.Fatalf("image variants = %#v, want only image profile route", imageVariants)
+	}
+	videoVariants, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityFamilyVideoGeneration, ProviderVariants: true})
+	if err != nil {
+		t.Fatalf("ListModels(video variants) error = %v", err)
+	}
+	if len(videoVariants) != 1 || videoVariants[0].ProviderModelID != "seedance-2.0-480p" {
+		t.Fatalf("video variants = %#v, want only video profile route", videoVariants)
+	}
+}
+
+func TestAIServiceNewAPIProtocolProfileFiltersRoutesByOperation(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-model-catalog-newapi-profile-operation-filter.db",
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+	)
+	cred := persistencemodel.AICredential{
+		AdapterType: AdapterNewAPI,
+		DisplayName: "New API",
+		BaseURL:     "https://newapi.test/v1",
+		IsEnabled:   true,
+	}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:         "newapi-text-model",
+		DisplayName:           "New API Text",
+		IsEnabled:             true,
+		Capabilities:          CapabilityFamilyTextGeneration,
+		ModelCapabilitiesJSON: `{"text_generation":{"operations":["chat","responses"]}}`,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	chatRoute := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:      fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		AdapterType:     AdapterNewAPI,
+		ProtocolProfile: NewAPIProfileOpenAIChatCompletions,
+		ProviderModelID: "provider-chat",
+		CredentialID:    &cred.ID,
+		IsEnabled:       true,
+		Priority:        20,
+		CapacityWeight:  1,
+	}
+	responsesRoute := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:      fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		AdapterType:     AdapterNewAPI,
+		ProtocolProfile: NewAPIProfileOpenAIResponses,
+		ProviderModelID: "provider-responses",
+		CredentialID:    &cred.ID,
+		IsEnabled:       true,
+		Priority:        10,
+		CapacityWeight:  1,
+	}
+	if err := db.Create(&chatRoute).Error; err != nil {
+		t.Fatalf("create chat route: %v", err)
+	}
+	if err := db.Create(&responsesRoute).Error; err != nil {
+		t.Fatalf("create responses route: %v", err)
+	}
+	service := NewAIService(db, NewRegistry(db, nil))
+
+	chatResolved, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "newapi-text-model", Capability: CapabilityFamilyTextGeneration, Operation: "chat"})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute(chat) error = %v", err)
+	}
+	if chatResolved.RouteBindingID != chatRoute.ID || chatResolved.ProtocolProfile != NewAPIProfileOpenAIChatCompletions {
+		t.Fatalf("chat route = %#v, want chat profile route", chatResolved)
+	}
+	responsesResolved, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "newapi-text-model", Capability: CapabilityFamilyTextGeneration, Operation: "responses"})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute(responses) error = %v", err)
+	}
+	if responsesResolved.RouteBindingID != responsesRoute.ID || responsesResolved.ProtocolProfile != NewAPIProfileOpenAIResponses {
+		t.Fatalf("responses route = %#v, want responses profile route", responsesResolved)
+	}
+
+	responsesVariants, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{
+		Capability:       CapabilityFamilyTextGeneration,
+		Operation:        "responses",
+		ProviderVariants: true,
+	})
+	if err != nil {
+		t.Fatalf("ListModels(responses variants) error = %v", err)
+	}
+	if len(responsesVariants) != 1 || responsesVariants[0].ProviderModelID != "provider-responses" {
+		t.Fatalf("responses variants = %#v, want only responses profile route", responsesVariants)
+	}
+}
+
+func TestAIServicePassesNewAPIProtocolProfileToProviderRequests(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-model-catalog-newapi-profile-runtime.db",
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+		&persistencemodel.UsageReservation{},
+		&persistencemodel.UsageLog{},
+	)
+	probe := &catalogRuntimeProbeProvider{}
+	registry := NewRegistry(db, nil)
+	registry.providerFactory = func(persistencemodel.AICredential, *ModelDef) (Provider, error) {
+		return probe, nil
+	}
+	service := NewAIService(db, registry)
+
+	textRoute := createExtensionRoute(t, db, "newapi-text", "provider-chat", CapabilityFamilyTextGeneration, NewAPIProfileOpenAIChatCompletions)
+	if _, err := service.CallTextWithRouteUsage(context.Background(), 1, textRoute, TextRequest{Messages: []Message{{Role: "user", Content: "hello"}}}, UsageContext{}); err != nil {
+		t.Fatalf("CallTextWithRouteUsage() error = %v", err)
+	}
+	if probe.seenModel != "provider-chat" || probe.seenProfile != NewAPIProfileOpenAIChatCompletions {
+		t.Fatalf("text request model/profile = %q/%q, want provider-chat/%s", probe.seenModel, probe.seenProfile, NewAPIProfileOpenAIChatCompletions)
+	}
+
+	imageRoute := createExtensionRoute(t, db, "newapi-image", "provider-image", CapabilityFamilyImageGeneration, NewAPIProfileOpenAIImages)
+	if _, err := service.CallImageWithRouteUsage(context.Background(), 1, imageRoute, ImageRequest{Prompt: "draw"}, UsageContext{}); err != nil {
+		t.Fatalf("CallImageWithRouteUsage() error = %v", err)
+	}
+	if probe.seenImageModel != "provider-image" || probe.seenImageProfile != NewAPIProfileOpenAIImages {
+		t.Fatalf("image request model/profile = %q/%q, want provider-image/%s", probe.seenImageModel, probe.seenImageProfile, NewAPIProfileOpenAIImages)
+	}
+
+	audioRoute := createExtensionRoute(t, db, "newapi-audio", "provider-voice", CapabilityFamilyAudioGeneration, NewAPIProfileOpenAIAudio)
+	if _, err := service.CallTTSWithRouteUsage(context.Background(), 1, audioRoute, media.TTSRequest{Text: "hello", Voice: "narrator"}, UsageContext{}); err != nil {
+		t.Fatalf("CallTTSWithRouteUsage() error = %v", err)
+	}
+	if probe.seenTTSModel != "provider-voice" || probe.seenTTSProfile != NewAPIProfileOpenAIAudio {
+		t.Fatalf("tts request model/profile = %q/%q, want provider-voice/%s", probe.seenTTSModel, probe.seenTTSProfile, NewAPIProfileOpenAIAudio)
+	}
+}
+
 func TestAIServiceResolveModelRouteIncludesProviderFacts(t *testing.T) {
 	db := testutil.OpenSQLite(t, "ai-model-catalog-provider-facts.db",
 		&persistencemodel.AIModelCatalogEntry{},
@@ -584,6 +1020,63 @@ func TestAIServiceCatalogRouteUsesCredentialAdapterForVolcenVideoTasks(t *testin
 	}
 	if !service.SupportsVideoTasksRoute(context.Background(), 1, route) {
 		t.Fatal("SupportsVideoTasksRoute() = false, want true for Volcen credential-backed route")
+	}
+}
+
+func TestAIServiceNewAPIVideoRouteDoesNotExposeTaskCancellation(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-model-catalog-newapi-video-cancel-contract.db",
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+	)
+	cred := persistencemodel.AICredential{
+		AdapterType: AdapterNewAPI,
+		DisplayName: "New API",
+		BaseURL:     "https://newapi.test/v1",
+		IsEnabled:   true,
+	}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:         "sora-newapi",
+		DisplayName:           "Sora via New API",
+		IsEnabled:             true,
+		Capabilities:          strings.Join([]string{CapabilityFamilyVideoGeneration}, ","),
+		ModelCapabilitiesJSON: testStructuredCapabilitiesJSON(CapabilityFamilyVideoGeneration),
+		SupportedParams:       testSupportedParamsProfile(CapabilityFamilyVideoGeneration),
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	binding := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:      fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		AdapterType:     cred.AdapterType,
+		ProviderModelID: "sora-newapi-provider",
+		CredentialID:    &cred.ID,
+		IsEnabled:       true,
+		CapacityWeight:  1,
+	}
+	if err := db.Create(&binding).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+	service := NewAIService(db, NewRegistry(db, nil))
+
+	route, err := service.ResolveModelRoute(ModelRouteRequest{RouteBindingID: binding.ID, Capability: CapabilityFamilyVideoGeneration})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute() error = %v", err)
+	}
+	if !service.SupportsVideoTasksRoute(context.Background(), 1, route) {
+		t.Fatal("SupportsVideoTasksRoute() = false, want true for New API async video route")
+	}
+	if service.SupportsVideoTaskCancellationRoute(context.Background(), 1, route) {
+		t.Fatal("SupportsVideoTaskCancellationRoute() = true, want false until New API documents cancel endpoint")
+	}
+	_, err = service.CallVideoCancelRoute(context.Background(), 1, route, "video_1", "new_api_video")
+	if err == nil || !strings.Contains(err.Error(), "does not support async video task cancellation") {
+		t.Fatalf("CallVideoCancelRoute() error = %v, want unsupported cancellation", err)
 	}
 }
 

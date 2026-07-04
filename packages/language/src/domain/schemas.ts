@@ -500,7 +500,7 @@ export const contentUnitEntitySchema = {
     target_category: { enum: ['system_primitive', 'content_unit'] },
     target_kind: {
       enum: ['production', 'segment', 'scene_moment', 'expression_unit', 'asset', 'keyframe', 'storyboard', 'audio_cue', 'content_unit'],
-      description: 'Use timeline namespaces, system primitives, or content_unit for content unit targets. Production and segment refs are video primary refs for production-level and segment-level outputs.',
+      description: 'Use production/segment only with specialized production_ref or segment_ref content units; use system primitives or content_unit for regular generation targets.',
     },
     target_ref: sourceRefSchema,
     scope_kind: { type: 'string' },
@@ -560,7 +560,7 @@ export const contentUnitEntitySchema = {
       params: { type: 'object', additionalProperties: true },
     }),
   }),
-  promptSummary: 'Content unit is a project-level stable generation task. It targets a timeline namespace, system primitive, or content_unit such as production, segment, scene_moment, expression_unit, asset, keyframe, storyboard, or audio_cue. generation_references is the independent input/reference fact source for model calls; edit_prompt {{type:id}} or @ resource mentions are text-level references that may only point at entries already in that reference pool. Candidates copy the normalized prompt snapshot at generation time; selections and runtime candidates are stored outside content_unit.json.',
+  promptSummary: 'Content unit is a project-level stable generation task. It targets a specialized production/segment ref, a system primitive such as scene_moment, expression_unit, asset, keyframe, storyboard, or audio_cue, or another content_unit. Namespace-level freeform playback belongs in a production editing workspace rather than a content unit. generation_references is the independent input/reference fact source for model calls; edit_prompt {{type:id}} or @ resource mentions are text-level references that may only point at entries already in that reference pool. Candidates copy the normalized prompt snapshot at generation time; selections and runtime candidates are stored outside content_unit.json.',
   examples: [{
     title: 'expression_visual_material',
     content: {

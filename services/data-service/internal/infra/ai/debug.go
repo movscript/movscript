@@ -16,7 +16,8 @@ func WithDebugRecorder(ctx context.Context) (context.Context, *DebugCallResult) 
 
 func recordDebug(ctx context.Context, r DebugCallResult) {
 	if ptr, ok := ctx.Value(debugContextKey{}).(*DebugCallResult); ok {
-		contentType := firstDebugString(r.ContentType, r.RequestHeaders["Content-Type"], r.RequestHeaders["content-type"])
+		requestHeaders := sanitizeDebugHeaders(r.RequestHeaders)
+		contentType := firstDebugString(r.ContentType, requestHeaders["Content-Type"], requestHeaders["content-type"])
 		requestShape := firstDebugString(r.RequestShape, debugRequestShape(contentType, r.RequestBody))
 		promptName := firstDebugString(r.PromptName, ptr.PromptName)
 		systemPrompt := firstDebugString(r.SystemPrompt, ptr.SystemPrompt)
@@ -29,11 +30,11 @@ func recordDebug(ctx context.Context, r DebugCallResult) {
 		exchange := DebugHTTPExchange{
 			Success:        r.Success,
 			ModelID:        r.ModelID,
-			Endpoint:       r.Endpoint,
+			Endpoint:       sanitizeDebugEndpoint(r.Endpoint),
 			Method:         r.Method,
 			RequestShape:   requestShape,
 			ContentType:    contentType,
-			RequestHeaders: r.RequestHeaders,
+			RequestHeaders: requestHeaders,
 			RequestBody:    sanitizeDebugBody(r.RequestBody),
 			PromptName:     promptName,
 			SystemPrompt:   sanitizeDebugPrompt(systemPrompt),
@@ -43,7 +44,7 @@ func recordDebug(ctx context.Context, r DebugCallResult) {
 			ResponseStatus: r.ResponseStatus,
 			ResponseBody:   sanitizeDebugBody(r.ResponseBody),
 			LatencyMs:      r.LatencyMs,
-			Error:          r.Error,
+			Error:          sanitizeDebugError(r.Error),
 		}
 		ptr.Calls = append(ptr.Calls, exchange)
 		ptr.Success = exchange.Success
@@ -144,10 +145,10 @@ func annotateDebugError(ctx context.Context, message string) {
 		return
 	}
 	ptr.Success = false
-	ptr.Error = message
+	ptr.Error = sanitizeDebugError(message)
 	if len(ptr.Calls) > 0 {
 		ptr.Calls[len(ptr.Calls)-1].Success = false
-		ptr.Calls[len(ptr.Calls)-1].Error = message
+		ptr.Calls[len(ptr.Calls)-1].Error = sanitizeDebugError(message)
 	}
 }
 

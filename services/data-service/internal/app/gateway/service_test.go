@@ -105,6 +105,24 @@ func TestChatModelFromDescriptorUsesCatalogEntryIDAsVisibleID(t *testing.T) {
 	}
 }
 
+func TestAIRouteFromGatewayPreservesAPIKinds(t *testing.T) {
+	route := aiRouteFromGateway(providercontract.AIGatewayModelRoute{
+		ModelID:         "public-chat",
+		CatalogEntryID:  202,
+		RouteBindingID:  303,
+		ProviderModelID: "provider-chat",
+		Capability:      ai.CapabilityFamilyTextGeneration,
+		APIKind:         ai.ModelAPIKindOpenAIResponses,
+		APIKinds:        []string{ai.ModelAPIKindOpenAIResponses, ai.ModelAPIKindOpenAIChatCompletions},
+	})
+
+	if route.APIKind != ai.ModelAPIKindOpenAIResponses ||
+		!containsString(route.APIKinds, ai.ModelAPIKindOpenAIResponses) ||
+		!containsString(route.APIKinds, ai.ModelAPIKindOpenAIChatCompletions) {
+		t.Fatalf("route API kind = %q APIKinds = %#v, want selected and supported API kinds preserved", route.APIKind, route.APIKinds)
+	}
+}
+
 func TestPrincipalForAPIKeyUsesAuthIdentityOwner(t *testing.T) {
 	db := testutil.OpenSQLite(t, "modelgateway-principal-auth-identity.db", &persistencemodel.GatewayAPIKey{})
 	identity := fakeGatewayIdentity{

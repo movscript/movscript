@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -37,6 +38,7 @@ type ModelRouteBindingInput struct {
 	ProviderID         string `json:"provider_id"`
 	AdapterType        string `json:"adapter_type"`
 	ProviderModelID    string `json:"provider_model_id"`
+	ProtocolProfile    string `json:"protocol_profile"`
 	APIKinds           string `json:"api_kinds"`
 	EndpointBaseURL    string `json:"endpoint_base_url"`
 	EndpointPathPrefix string `json:"endpoint_path_prefix"`
@@ -242,6 +244,7 @@ func (s *Service) createModelRouteBindingModel(ctx context.Context, catalogEntry
 	if err := s.normalizeModelRouteBindingAdapter(ctx, &binding); err != nil {
 		return binding, err
 	}
+	normalizeModelRouteBindingProtocolProfile(&binding)
 	if err := normalizeModelRouteBindingAPIKinds(&binding); err != nil {
 		return binding, err
 	}
@@ -258,7 +261,7 @@ func (s *Service) createModelRouteBindingModel(ctx context.Context, catalogEntry
 		return binding, err
 	}
 	normalizeModelRouteBindingCapacity(&binding)
-	if err := s.ensureUniqueModelRouteBinding(ctx, binding.CatalogEntryID, 0, binding.RouteGroup, binding.ProviderID, binding.ProviderModelID); err != nil {
+	if err := s.ensureUniqueModelRouteBinding(ctx, binding.CatalogEntryID, 0, binding.RouteGroup, binding.ProviderID, binding.ProviderModelID, binding.ProtocolProfile); err != nil {
 		return binding, err
 	}
 	if err := s.db.WithContext(ctx).Create(&binding).Error; err != nil {
@@ -287,6 +290,7 @@ func (s *Service) UpdateModelRouteBinding(ctx context.Context, id string, input 
 	if err := s.normalizeModelRouteBindingAdapter(ctx, &next); err != nil {
 		return modelRouteBindingFromModel(next), err
 	}
+	normalizeModelRouteBindingProtocolProfile(&next)
 	if err := normalizeModelRouteBindingAPIKinds(&next); err != nil {
 		return modelRouteBindingFromModel(next), err
 	}
@@ -324,7 +328,7 @@ func (s *Service) UpdateModelRouteBinding(ctx context.Context, id string, input 
 		return modelRouteBindingFromModel(next), err
 	}
 	normalizeModelRouteBindingCapacity(&next)
-	if err := s.ensureUniqueModelRouteBinding(ctx, next.CatalogEntryID, next.ID, next.RouteGroup, next.ProviderID, next.ProviderModelID); err != nil {
+	if err := s.ensureUniqueModelRouteBinding(ctx, next.CatalogEntryID, next.ID, next.RouteGroup, next.ProviderID, next.ProviderModelID, next.ProtocolProfile); err != nil {
 		return modelRouteBindingFromModel(next), err
 	}
 	if err := s.db.WithContext(ctx).Save(&next).Error; err != nil {
@@ -333,9 +337,9 @@ func (s *Service) UpdateModelRouteBinding(ctx context.Context, id string, input 
 	return modelRouteBindingFromModel(next), nil
 }
 
-func (s *Service) ensureUniqueModelRouteBinding(ctx context.Context, catalogEntryID uint, excludeBindingID uint, routeGroup string, providerID string, providerModelID string) error {
+func (s *Service) ensureUniqueModelRouteBinding(ctx context.Context, catalogEntryID uint, excludeBindingID uint, routeGroup string, providerID string, providerModelID string, protocolProfile string) error {
 	q := s.db.WithContext(ctx).Model(&persistencemodel.AIModelRouteBinding{}).
-		Where("catalog_entry_id = ? AND route_group = ? AND provider_id = ? AND provider_model_id = ?", catalogEntryID, strings.TrimSpace(routeGroup), strings.TrimSpace(providerID), strings.TrimSpace(providerModelID))
+		Where("catalog_entry_id = ? AND route_group = ? AND provider_id = ? AND provider_model_id = ? AND protocol_profile = ?", catalogEntryID, strings.TrimSpace(routeGroup), strings.TrimSpace(providerID), strings.TrimSpace(providerModelID), strings.TrimSpace(protocolProfile))
 	if excludeBindingID != 0 {
 		q = q.Where("id <> ?", excludeBindingID)
 	}
@@ -344,7 +348,7 @@ func (s *Service) ensureUniqueModelRouteBinding(ctx context.Context, catalogEntr
 		return err
 	}
 	if count > 0 {
-		return fmt.Errorf("%w: route binding already exists for provider %q, provider_model_id %q, and group %q", ErrInvalidModelCatalog, strings.TrimSpace(providerID), strings.TrimSpace(providerModelID), strings.TrimSpace(routeGroup))
+		return fmt.Errorf("%w: route binding already exists for provider %q, provider_model_id %q, protocol_profile %q, and group %q", ErrInvalidModelCatalog, strings.TrimSpace(providerID), strings.TrimSpace(providerModelID), strings.TrimSpace(protocolProfile), strings.TrimSpace(routeGroup))
 	}
 	return nil
 }
@@ -935,15 +939,117 @@ func validateModelRouteBindingCapabilities(entry persistencemodel.AIModelCatalog
 		entry.InputImageField,
 		entry.SupportedParams,
 	)
+	adapterContractRaw := modelRaw
+	if strings.TrimSpace(binding.AdapterType) == infraai.AdapterNewAPI {
+		var err error
+		adapterContractRaw, err = newAPIModelRouteContractJSON(binding, modelOps)
+		if err != nil {
+			return err
+		}
+	}
 	if err := infraai.AdapterSupportsModelContract(
 		binding.AdapterType,
 		infraai.SplitCapabilities(entry.Capabilities),
-		modelRaw,
+		adapterContractRaw,
 		def.SupportedParamsByOperation,
 	); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidModelCatalog, err)
 	}
 	return nil
+}
+
+func newAPIModelRouteContractJSON(binding persistencemodel.AIModelRouteBinding, modelOps map[string]map[string]bool) (string, error) {
+	if strings.TrimSpace(binding.AdapterType) != infraai.AdapterNewAPI {
+		return "", nil
+	}
+	profile := strings.TrimSpace(binding.ProtocolProfile)
+	var explicitProfileDef infraai.NewAPIProtocolProfileDef
+	if profile != "" {
+		def, err := validateNewAPIProtocolProfileDef(profile)
+		if err != nil {
+			return "", err
+		}
+		explicitProfileDef = def
+	}
+	out := map[string]map[string]any{}
+	for capability, ops := range modelOps {
+		capability = strings.TrimSpace(capability)
+		if capability == "" {
+			continue
+		}
+		profileForCapability := profile
+		if profileForCapability == "" {
+			profileForCapability = infraai.ResolveNewAPIProtocolProfile(capability, "")
+		}
+		if profileForCapability == "" {
+			continue
+		}
+		def := explicitProfileDef
+		if profile == "" {
+			var err error
+			def, err = validateNewAPIProtocolProfileDef(profileForCapability)
+			if err != nil {
+				return "", err
+			}
+		}
+		if strings.TrimSpace(def.CapabilityFamily) != "" && strings.TrimSpace(def.CapabilityFamily) != capability {
+			continue
+		}
+		operations := newAPIProfileOperationIntersection(def, ops)
+		if len(operations) == 0 {
+			if profile != "" {
+				return "", fmt.Errorf("%w: new_api protocol_profile %q does not support any declared operation for capability %q", ErrInvalidModelCatalog, profile, def.CapabilityFamily)
+			}
+			continue
+		}
+		out[capability] = map[string]any{"operations": operations}
+	}
+	if len(out) == 0 {
+		if profile != "" {
+			if strings.TrimSpace(explicitProfileDef.CapabilityFamily) != "" {
+				return "", fmt.Errorf("%w: new_api protocol_profile %q requires capability %q", ErrInvalidModelCatalog, profile, explicitProfileDef.CapabilityFamily)
+			}
+			return "", fmt.Errorf("%w: new_api protocol_profile %q does not support any declared model operation", ErrInvalidModelCatalog, profile)
+		}
+		return "", fmt.Errorf("%w: new_api route does not support any declared model operation", ErrInvalidModelCatalog)
+	}
+	body, err := json.Marshal(out)
+	if err != nil {
+		return "", err
+	}
+	return string(body), nil
+}
+
+func validateNewAPIProtocolProfileDef(profile string) (infraai.NewAPIProtocolProfileDef, error) {
+	def, ok := infraai.NewAPIProtocolProfile(profile)
+	if !ok {
+		return infraai.NewAPIProtocolProfileDef{}, fmt.Errorf("%w: unknown new_api protocol_profile %q", ErrInvalidModelCatalog, profile)
+	}
+	if !def.Implemented {
+		return infraai.NewAPIProtocolProfileDef{}, fmt.Errorf("%w: new_api protocol_profile %q is known but not implemented yet", ErrInvalidModelCatalog, profile)
+	}
+	return def, nil
+}
+
+func newAPIProfileOperationIntersection(def infraai.NewAPIProtocolProfileDef, modelOps map[string]bool) []string {
+	if len(modelOps) == 0 {
+		return nil
+	}
+	out := make([]string, 0)
+	if len(def.Operations) == 0 {
+		for operation := range modelOps {
+			out = appendUniqueString(out, operation)
+		}
+		sort.Strings(out)
+		return out
+	}
+	for _, operation := range def.Operations {
+		operation = strings.TrimSpace(operation)
+		if operation != "" && modelOps[operation] {
+			out = appendUniqueString(out, operation)
+		}
+	}
+	return out
 }
 
 func parseRouteCapabilityOperations(raw string) (map[string]map[string]bool, error) {
@@ -1134,6 +1240,7 @@ func normalizeModelRouteBindingProviderID(binding *persistencemodel.AIModelRoute
 	binding.ProviderID = strings.TrimSpace(binding.ProviderID)
 	binding.AdapterType = strings.TrimSpace(binding.AdapterType)
 	binding.ProviderModelID = strings.TrimSpace(binding.ProviderModelID)
+	binding.ProtocolProfile = strings.TrimSpace(binding.ProtocolProfile)
 	binding.EndpointBaseURL = strings.TrimRight(strings.TrimSpace(binding.EndpointBaseURL), "/")
 	binding.EndpointPathPrefix = normalizeRoutePathPrefix(binding.EndpointPathPrefix)
 	binding.EndpointMode = strings.TrimSpace(binding.EndpointMode)
@@ -1157,6 +1264,13 @@ func normalizeModelRouteBindingProviderID(binding *persistencemodel.AIModelRoute
 		if credentialID, ok := localProviderCredentialIDFromProviderID(binding.ProviderID); ok {
 			binding.CredentialID = &credentialID
 		}
+	}
+}
+
+func normalizeModelRouteBindingProtocolProfile(binding *persistencemodel.AIModelRouteBinding) {
+	binding.ProtocolProfile = strings.TrimSpace(binding.ProtocolProfile)
+	if strings.TrimSpace(binding.AdapterType) != infraai.AdapterNewAPI {
+		binding.ProtocolProfile = ""
 	}
 }
 
@@ -1295,6 +1409,7 @@ func modelRouteBindingFromInput(catalogEntryID uint, input ModelRouteBindingInpu
 		ProviderID:         strings.TrimSpace(input.ProviderID),
 		AdapterType:        strings.TrimSpace(input.AdapterType),
 		ProviderModelID:    strings.TrimSpace(input.ProviderModelID),
+		ProtocolProfile:    strings.TrimSpace(input.ProtocolProfile),
 		APIKinds:           strings.TrimSpace(input.APIKinds),
 		EndpointBaseURL:    strings.TrimSpace(input.EndpointBaseURL),
 		EndpointPathPrefix: strings.TrimSpace(input.EndpointPathPrefix),

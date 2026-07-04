@@ -38,6 +38,144 @@ func TestGeneratedResourceNameFallsBackToJobID(t *testing.T) {
 	}
 }
 
+func TestApplyNewAPIVideoParamsBuildsAdapterPayload(t *testing.T) {
+	worker := NewWorker(nil, nil, nil, nil)
+	params := parseGenerationParams(`{
+		"width": 720,
+		"height": 1280,
+			"fps": "30",
+			"n": 2,
+			"response_format": "url",
+			"user": "user-1",
+			"metadata": "{\"negative_prompt\":\"rain\"}",
+			"content": [{"type":"image_url","image_url":{"url":"https://cdn.example.test/style.png"}}],
+			"tools": [{"type":"web_search"}],
+			"durationSeconds": 6,
+			"aspectRatio": "9:16",
+			"generateAudio": true,
+			"negativePrompt": "low light"
+		}`)
+	req := worker.buildVideoRequest(&model.Job{Prompt: "move"}, params, 8, nil, nil, nil, nil)
+	applyNewAPIVideoParams(&req, params)
+	if req.Width != 720 || req.Height != 1280 {
+		t.Fatalf("dimensions = %dx%d, want 720x1280", req.Width, req.Height)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(req.Payload), &payload); err != nil {
+		t.Fatalf("decode payload: %v\n%s", err, req.Payload)
+	}
+	if payload["fps"] != float64(30) || payload["n"] != float64(2) ||
+		payload["response_format"] != "url" || payload["user"] != "user-1" {
+		t.Fatalf("payload = %#v", payload)
+	}
+	metadata, ok := payload["metadata"].(map[string]any)
+	if !ok || metadata["negative_prompt"] != "rain" {
+		t.Fatalf("metadata = %#v", payload["metadata"])
+	}
+	if payload["durationSeconds"] != float64(6) || payload["aspectRatio"] != "9:16" ||
+		payload["generateAudio"] != true || payload["negativePrompt"] != "low light" {
+		t.Fatalf("payload = %#v", payload)
+	}
+	content, ok := payload["content"].([]any)
+	if !ok || len(content) != 1 {
+		t.Fatalf("content = %#v", payload["content"])
+	}
+	tools, ok := payload["tools"].([]any)
+	if !ok || len(tools) != 1 {
+		t.Fatalf("tools = %#v", payload["tools"])
+	}
+}
+
+func TestScheduleSubmittedProviderTaskPersistsTaskID(t *testing.T) {
+	db := openJobRunnerTestDB(t)
+	job := model.Job{
+		UserID:         1,
+		RuntimeModelID: 10,
+		JobType:        domainjob.JobTypeVideo,
+		Status:         StatusRunning,
+		LockedBy:       "worker-a",
+	}
+	if err := db.Create(&job).Error; err != nil {
+		t.Fatalf("create job: %v", err)
+	}
+	worker := NewWorker(db, nil, nil, nil)
+	sm := newJobStateMachine(worker, &job)
+
+	worker.scheduleSubmittedProviderTask(&job, ai.VideoResponse{
+		TaskID:   "newapi-video-task-1",
+		TaskKind: "new_api_video",
+		Status:   ai.VideoStatusQueued,
+	}, sm)
+
+	var stored model.Job
+	if err := db.First(&stored, job.ID).Error; err != nil {
+		t.Fatalf("reload job: %v", err)
+	}
+	if stored.ProviderTaskID != "newapi-video-task-1" || stored.ProviderTaskKind != "new_api_video" || stored.ProviderTaskStatus != ai.VideoStatusQueued {
+		t.Fatalf("provider task fields = id %q kind %q status %q", stored.ProviderTaskID, stored.ProviderTaskKind, stored.ProviderTaskStatus)
+	}
+	if stored.Status != StatusPending || stored.NextRunAt == nil || !stored.NextRunAt.After(time.Now().Add(-time.Second)) {
+		t.Fatalf("job schedule = status %q next %v, want pending future poll", stored.Status, stored.NextRunAt)
+	}
+	if stored.LockedBy != "" || stored.LeaseUntil != nil || stored.ErrorMsg != "" {
+		t.Fatalf("job lock/error fields = locked_by %q lease %v error %q, want released waiting task", stored.LockedBy, stored.LeaseUntil, stored.ErrorMsg)
+	}
+	if stored.ExecutionState != string(StateWaitingProviderTask) {
+		t.Fatalf("execution state = %q, want waiting provider task", stored.ExecutionState)
+	}
+}
+
+func TestProviderTaskFailureReleasesUsageReservation(t *testing.T) {
+	db := testutil.OpenSQLite(t, "runner_provider_task_failure_reservation.db",
+		&model.Job{},
+		&model.UsageReservation{},
+	)
+	reservation := model.UsageReservation{
+		UserID:         1,
+		RuntimeModelID: 10,
+		OperationType:  ai.CapabilityFamilyVideoGeneration,
+		Status:         ai.ReservationStatusReserved,
+	}
+	if err := db.Create(&reservation).Error; err != nil {
+		t.Fatalf("create reservation: %v", err)
+	}
+	job := model.Job{
+		UserID:             1,
+		RuntimeModelID:     10,
+		JobType:            domainjob.JobTypeVideo,
+		Status:             StatusRunning,
+		ProviderTaskID:     "newapi-video-task-1",
+		ProviderTaskKind:   "new_api_video",
+		UsageReservationID: &reservation.ID,
+	}
+	if err := db.Create(&job).Error; err != nil {
+		t.Fatalf("create job: %v", err)
+	}
+	worker := NewWorker(db, ai.NewAIService(db, ai.NewRegistry(db, nil)), nil, nil)
+
+	worker.markProviderTaskFailed(&job, ai.VideoResponse{
+		TaskID:   "newapi-video-task-1",
+		TaskKind: "new_api_video",
+		Status:   ai.VideoStatusFailed,
+		Message:  "provider rejected prompt",
+	}, errors.New("provider rejected prompt"))
+
+	var stored model.Job
+	if err := db.First(&stored, job.ID).Error; err != nil {
+		t.Fatalf("reload job: %v", err)
+	}
+	if stored.Status != StatusFailed || stored.ProviderTaskStatus != ai.VideoStatusFailed || stored.ErrorMsg != "provider rejected prompt" || stored.FinishedAt == nil {
+		t.Fatalf("job after provider task failure = status %q provider_status %q error %q finished %v", stored.Status, stored.ProviderTaskStatus, stored.ErrorMsg, stored.FinishedAt)
+	}
+	var storedReservation model.UsageReservation
+	if err := db.First(&storedReservation, reservation.ID).Error; err != nil {
+		t.Fatalf("reload reservation: %v", err)
+	}
+	if storedReservation.Status != ai.ReservationStatusReleased || storedReservation.ReleaseReason != "provider rejected prompt" {
+		t.Fatalf("reservation = status %q reason %q, want released provider rejected prompt", storedReservation.Status, storedReservation.ReleaseReason)
+	}
+}
+
 func testOperationCapabilitiesJSON(capability, operation string) string {
 	return fmt.Sprintf(`{%q:{"operations":[%q]}}`, capability, operation)
 }
@@ -504,6 +642,59 @@ func TestPrepareVideoInputReferencesUsesResourceAccessProfile(t *testing.T) {
 	}
 	if strings.Contains(reloaded.CloudUploads, "example-ngrok.test") || strings.Contains(reloaded.CloudUploads, "resource-access") {
 		t.Fatalf("cloud_uploads = %q, want no cached resource access URL", reloaded.CloudUploads)
+	}
+}
+
+func TestPreparePublicMediaReferencesRefreshesExistingResourceAccessURL(t *testing.T) {
+	db := testutil.OpenSQLite(t, "runner_resource_access_refresh_existing_url.db",
+		&model.AdminSetting{},
+		&model.RawResource{},
+	)
+	resource := model.RawResource{
+		Name:     "first-frame.png",
+		Type:     "image",
+		MimeType: "image/png",
+	}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+	if _, err := adminsettings.NewService(db).UpdateResourceAccessSettings(context.Background(), adminsettings.ResourceAccessSettings{
+		DefaultProfileID: "local-ngrok",
+		Profiles: []adminsettings.ResourceAccessProfile{{
+			ID:             "local-ngrok",
+			Name:           "Local ngrok",
+			Enabled:        true,
+			Mode:           "public_tunnel",
+			PublicBaseURL:  "https://example-ngrok.test",
+			SigningEnabled: true,
+			SigningSecret:  "secret",
+			ExpiresSeconds: 3600,
+		}},
+	}); err != nil {
+		t.Fatalf("save resource access settings: %v", err)
+	}
+	staleURL := fmt.Sprintf("https://example-ngrok.test/api/v1/resource-access/resources/%d/file?expires=1&profile=local-ngrok&signature=stale", resource.ID)
+	imageData := []ai.MediaData{{
+		ResourceID:   resource.ID,
+		PresignedURL: staleURL,
+		MimeType:     "image/png",
+	}}
+	worker := NewWorker(db, nil, nil, nil)
+
+	traces := worker.preparePublicMediaReferencesWithTrace(&model.Job{}, imageData, "image")
+
+	if got := imageData[0].PresignedURL; got == staleURL ||
+		strings.Contains(got, "signature=stale") ||
+		strings.Contains(got, "expires=1&") ||
+		!strings.Contains(got, "profile=local-ngrok") {
+		t.Fatalf("PresignedURL = %q, want refreshed resource-access URL instead of %q", got, staleURL)
+	}
+	if len(traces) != 1 ||
+		traces[0].Source != "resource_access_profile" ||
+		traces[0].Status != "resolved" ||
+		traces[0].ProfileID != "local-ngrok" ||
+		traces[0].ExpiresAt <= time.Now().Unix() {
+		t.Fatalf("resource access trace = %#v, want refreshed signed URL trace", traces)
 	}
 }
 

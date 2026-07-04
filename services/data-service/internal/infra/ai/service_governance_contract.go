@@ -91,6 +91,7 @@ func gatewayContractRouteToModelRoute(route providercontract.AIGatewayModelRoute
 		ProviderModelID: route.ProviderModelID,
 		Capability:      route.Capability,
 		APIKind:         route.APIKind,
+		APIKinds:        append([]string(nil), route.APIKinds...),
 		Operation:       route.Operation,
 		SelectionReason: route.SelectionReason,
 	}

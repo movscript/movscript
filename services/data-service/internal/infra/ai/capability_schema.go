@@ -184,7 +184,8 @@ func isStructuredCapabilityFamily(capability string) bool {
 		CapabilityFamilyAudioGeneration,
 		CapabilityFamilyEmbedding,
 		CapabilityFamilyRerank,
-		CapabilityFamilyModeration:
+		CapabilityFamilyModeration,
+		CapabilityFamilyRealtime:
 		return true
 	default:
 		return false
@@ -347,6 +348,14 @@ func inferredStructuredCapabilityOperations(capability string, refs []RouteRefer
 		return inferredVideoGenerationOperations(refs)
 	case CapabilityFamilyAudioGeneration:
 		return inferredAudioGenerationOperations(refs)
+	case CapabilityFamilyEmbedding:
+		return []string{EmbeddingOperationCreateEmbedding}
+	case CapabilityFamilyRerank:
+		return []string{RerankOperationCreateRerank}
+	case CapabilityFamilyModeration:
+		return []string{ModerationOperationCreateModeration}
+	case CapabilityFamilyRealtime:
+		return []string{RealtimeOperationConnectSession}
 	default:
 		return nil
 	}

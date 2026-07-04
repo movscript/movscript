@@ -56,6 +56,8 @@ Fast direct scene generation:
 ```text
 scene_moment
 -> scene_moment_ref content unit with target_kind=scene_moment
+-> prompt compile / readiness report
+-> explicit user confirmation for paid video generation
 -> generated/imported video candidates
 -> user/workflow selects final scene-moment video candidate
 ```
@@ -128,6 +130,8 @@ asset_ref content unit
 -> generated/imported keyframe candidates
 -> user/workflow selects stable keyframe candidate
 -> expression_unit_ref visual-material content unit or scene_moment_ref content unit
+-> prompt compile / readiness report
+-> explicit user confirmation for paid video generation
 -> generated/imported video candidates
 -> user/workflow selects final video candidate
 ```

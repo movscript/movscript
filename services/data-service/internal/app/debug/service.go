@@ -352,13 +352,13 @@ func (s *Service) ProviderCall(ctx context.Context, input ProviderCallInput) ai.
 	}
 	if baseURL != "" {
 		if err := validateDebugOutboundURL(ctx, baseURL, "provider base_url"); err != nil {
-			return ai.DebugCallResult{ModelID: input.Model, Error: err.Error()}
+			return ai.DebugCallResult{ModelID: input.Model, Error: ai.SanitizeDebugErrorMessage(err.Error())}
 		}
 	}
 	endpointURL := strings.TrimSpace(input.EndpointURL)
 	if endpointURL != "" {
 		if err := validateDebugOutboundURL(ctx, endpointURL, "provider endpoint_url"); err != nil {
-			return ai.DebugCallResult{ModelID: input.Model, Error: err.Error()}
+			return ai.DebugCallResult{ModelID: input.Model, Error: ai.SanitizeDebugErrorMessage(err.Error())}
 		}
 	}
 	return ai.ProviderDebugCall(ctx, ai.ProviderDebugCallRequest{

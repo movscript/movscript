@@ -33,3 +33,21 @@ func TestRegistryBuildProviderUsesCredentialAdapterOverCatalogModelDef(t *testin
 		t.Fatalf("provider = %T, want *VolcenAdapter", provider)
 	}
 }
+
+func TestRegistryBuildsNewAPIAdapter(t *testing.T) {
+	registry := NewRegistry(nil, nil)
+	provider, err := registry.buildProvider(persistencemodel.AICredential{
+		AdapterType: AdapterNewAPI,
+		BaseURL:     "https://newapi.test/v1",
+	}, &ModelDef{AdapterType: AdapterOpenAICompat})
+	if err != nil {
+		t.Fatalf("buildProvider returned error: %v", err)
+	}
+	adapter, ok := provider.(*NewAPIAdapter)
+	if !ok {
+		t.Fatalf("provider = %T, want *NewAPIAdapter", provider)
+	}
+	if adapter.BaseURL != "https://newapi.test/v1" {
+		t.Fatalf("BaseURL = %q", adapter.BaseURL)
+	}
+}

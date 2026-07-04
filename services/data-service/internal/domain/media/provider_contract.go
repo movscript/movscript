@@ -57,14 +57,15 @@ type SubtitleArtifact struct {
 }
 
 type TTSRequest struct {
-	Text         string         `json:"text"`
-	Voice        string         `json:"voice"`
-	Language     string         `json:"language"`
-	Model        string         `json:"model,omitempty"`
-	AudioFormat  string         `json:"audio_format,omitempty"`
-	ReturnTiming bool           `json:"return_timing"`
-	SSML         bool           `json:"ssml"`
-	Params       map[string]any `json:"params,omitempty"`
+	Text            string         `json:"text"`
+	Voice           string         `json:"voice"`
+	Language        string         `json:"language"`
+	Model           string         `json:"model,omitempty"`
+	ProtocolProfile string         `json:"protocol_profile,omitempty"`
+	AudioFormat     string         `json:"audio_format,omitempty"`
+	ReturnTiming    bool           `json:"return_timing"`
+	SSML            bool           `json:"ssml"`
+	Params          map[string]any `json:"params,omitempty"`
 }
 
 type TTSResponse struct {
@@ -83,14 +84,15 @@ const (
 )
 
 type AudioGenerationRequest struct {
-	Kind           AudioGenerationKind `json:"kind"`
-	Prompt         string              `json:"prompt"`
-	NegativePrompt string              `json:"negative_prompt,omitempty"`
-	Language       string              `json:"language,omitempty"`
-	Model          string              `json:"model,omitempty"`
-	AudioFormat    string              `json:"audio_format,omitempty"`
-	DurationSec    int                 `json:"duration_sec,omitempty"`
-	Params         map[string]any      `json:"params,omitempty"`
+	Kind            AudioGenerationKind `json:"kind"`
+	Prompt          string              `json:"prompt"`
+	NegativePrompt  string              `json:"negative_prompt,omitempty"`
+	Language        string              `json:"language,omitempty"`
+	Model           string              `json:"model,omitempty"`
+	ProtocolProfile string              `json:"protocol_profile,omitempty"`
+	AudioFormat     string              `json:"audio_format,omitempty"`
+	DurationSec     int                 `json:"duration_sec,omitempty"`
+	Params          map[string]any      `json:"params,omitempty"`
 }
 
 type AudioGenerationResponse struct {
@@ -108,6 +110,7 @@ type SpeechToSpeechRequest struct {
 	Language        string         `json:"language,omitempty"`
 	Voice           string         `json:"voice,omitempty"`
 	Model           string         `json:"model,omitempty"`
+	ProtocolProfile string         `json:"protocol_profile,omitempty"`
 	AudioFormat     string         `json:"audio_format,omitempty"`
 	Params          map[string]any `json:"params,omitempty"`
 }
@@ -127,6 +130,7 @@ type TranscribeRequest struct {
 	MimeType        string         `json:"mime_type,omitempty"`
 	Language        string         `json:"language,omitempty"`
 	Model           string         `json:"model,omitempty"`
+	ProtocolProfile string         `json:"protocol_profile,omitempty"`
 	Params          map[string]any `json:"params,omitempty"`
 }
 
@@ -137,6 +141,7 @@ type SpeechTranslateRequest struct {
 	SourceLanguage  string         `json:"source_language,omitempty"`
 	TargetLanguage  string         `json:"target_language,omitempty"`
 	Model           string         `json:"model,omitempty"`
+	ProtocolProfile string         `json:"protocol_profile,omitempty"`
 	Params          map[string]any `json:"params,omitempty"`
 }
 
@@ -147,19 +152,21 @@ type VoiceCloneSample struct {
 }
 
 type VoiceCloneRequest struct {
-	Name        string             `json:"name"`
-	Description string             `json:"description,omitempty"`
-	Samples     []VoiceCloneSample `json:"samples"`
-	Model       string             `json:"model,omitempty"`
-	Params      map[string]any     `json:"params,omitempty"`
+	Name            string             `json:"name"`
+	Description     string             `json:"description,omitempty"`
+	Samples         []VoiceCloneSample `json:"samples"`
+	Model           string             `json:"model,omitempty"`
+	ProtocolProfile string             `json:"protocol_profile,omitempty"`
+	Params          map[string]any     `json:"params,omitempty"`
 }
 
 type VoiceDesignRequest struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description"`
-	PreviewText string         `json:"preview_text,omitempty"`
-	Model       string         `json:"model,omitempty"`
-	Params      map[string]any `json:"params,omitempty"`
+	Name            string         `json:"name"`
+	Description     string         `json:"description"`
+	PreviewText     string         `json:"preview_text,omitempty"`
+	Model           string         `json:"model,omitempty"`
+	ProtocolProfile string         `json:"protocol_profile,omitempty"`
+	Params          map[string]any `json:"params,omitempty"`
 }
 
 type VoiceProfileResponse struct {
@@ -180,6 +187,7 @@ type AlignRequest struct {
 	Script          string         `json:"script"`
 	Language        string         `json:"language,omitempty"`
 	Model           string         `json:"model,omitempty"`
+	ProtocolProfile string         `json:"protocol_profile,omitempty"`
 	Params          map[string]any `json:"params,omitempty"`
 }
 
@@ -190,6 +198,7 @@ type DubbingRequest struct {
 	SourceLanguage     string         `json:"source_language,omitempty"`
 	TargetLanguage     string         `json:"target_language"`
 	Model              string         `json:"model,omitempty"`
+	ProtocolProfile    string         `json:"protocol_profile,omitempty"`
 	Params             map[string]any `json:"params,omitempty"`
 }
 

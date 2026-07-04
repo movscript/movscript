@@ -108,13 +108,31 @@ test('model catalog dialog uses structured capability config with scoped scroll 
 
 test('route binding view allows adapter override per route binding', () => {
   const source = readModelManagementSource()
+  const model = readFileSync(resolve(process.cwd(), 'src/features/model-management/model/modelManagementModel.ts'), 'utf8')
 
   assert.match(source, /function routeProviderAdapterLabel\(option\?: RouteProviderOption\): string/)
   assert.match(source, /function routeProviderAdapterValue\(option\?: RouteProviderOption\): string/)
   assert.match(source, /function ModelRoutesSection\(\{ credentials, providers, adapters \}/)
   assert.match(source, /adapters=\{routeAdapterOptions\}/)
-  assert.match(source, /onChange=\{\(event\) => setRouteForm\(\{ \.\.\.routeForm, adapter_type: event\.target\.value \}\)\}/)
-  assert.match(source, /onChange=\{\(event\) => setForm\(\{ \.\.\.form, adapter_type: event\.target\.value \}\)\}/)
+  assert.match(source, /function NewAPIProtocolProfileSelect\(/)
+  assert.match(source, /effectiveRouteFormAdapterType/)
+  assert.match(source, /protocol_profile: nextEffectiveAdapterType === NEW_API_ADAPTER_TYPE/)
+  assert.match(source, /const selectedProfile = profiles\.find\(\(profile\) => profile\.value === value\)/)
+  assert.match(source, /newAPIProtocolProfileCapability/)
+  assert.match(source, /newAPIProtocolProfileEndpoint/)
+  assert.match(source, /newAPIProtocolProfileInheritsDriver/)
+  assert.match(source, /newAPIProtocolProfileOperations/)
+  assert.match(source, /newAPIProtocolProfileRecognizedParams/)
+  assert.match(source, /selectedProfile\.operations\?\.length[\s\S]*selectedProfile\.operations\.join\(', '\)/)
+  assert.match(source, /selectedProfile\.recognized_params\?\.length[\s\S]*selectedProfile\.recognized_params\.join\(', '\)/)
+  assert.match(model, /recognized_params: profile\.recognized_params/)
+  assert.match(source, /newAPIJimengProviderModelIdHint/)
+  assert.match(source, /placeholder=\{formUsesNewAPI && form\.protocol_profile === 'jimeng_action_json' \? 'default req_key' : 'provider model id'\}/)
+  assert.match(source, /binding\.protocol_profile && \(/)
+  assert.match(source, /<StatusBadge intent="neutral" className="font-mono text-\[11px\]">[\s\S]*\{binding\.protocol_profile\}/)
+  assert.match(model, /gemini_image_generate_content_json/)
+  assert.match(model, /gemini_audio_generate_content_json/)
+  assert.match(model, /const profiles = \(adapter\?\.protocol_profiles \?\? \[\]\)[\s\S]*if \(profiles\.length > 0\) return profiles[\s\S]*return NEW_API_PROTOCOL_PROFILE_OPTIONS\.map/)
   assert.match(source, /adapter: \{binding\.adapter_type \|\| routeProviderAdapterLabel\(provider\)\}/)
 })
 
@@ -153,11 +171,23 @@ test('Yunwu model import can start from API key and preserves unmapped routes fo
   const source = readModelManagementSource()
 
   assert.match(source, /const \[importProviderKind, setImportProviderKind\] = useState\('openai_compat_gateway'\)/)
-  assert.match(source, /importProviderKind === 'yunwu_gateway'[\s\S]*\? 'yunwu_gateway'[\s\S]*: providerKindForImportBaseURL\(baseURL\)/)
-  assert.match(source, /const canPreview = Boolean\(apiKey\.trim\(\) && \(baseURL\.trim\(\) \|\| importProviderKind === 'yunwu_gateway'\)\)/)
+  assert.match(source, /importProviderKind === 'yunwu_gateway' \|\| importProviderKind === 'new_api_gateway'[\s\S]*\? importProviderKind[\s\S]*: providerKindForImportBaseURL\(baseURL\)/)
+  assert.match(source, /const importProviderUsesDefaultBaseURL = importProviderKind === 'yunwu_gateway' \|\| importProviderKind === 'new_api_gateway'/)
+  assert.match(source, /const canPreview = Boolean\(apiKey\.trim\(\) && \(baseURL\.trim\(\) \|\| importProviderUsesDefaultBaseURL\)\)/)
   assert.match(source, /留空使用 https:\/\/yunwu\.ai\/v1/)
   assert.match(source, /data\.provider_kind === 'yunwu_gateway'[\s\S]*\? model\.status !== 'route_exists'[\s\S]*: model\.recommended && model\.status !== 'route_exists'/)
   assert.match(source, /云雾同步会保留缺映射模型并禁用其 route/)
+})
+
+test('New API model import is exposed as an aggregate gateway with capability caution', () => {
+  const source = readModelManagementSource()
+
+  assert.match(source, /key: 'new_api_gateway', label: 'New API 中转站'/)
+  assert.match(source, /留空使用 https:\/\/api\.newapi\.pro\/v1/)
+  assert.match(source, /return 'new_api_gateway'/)
+  assert.match(source, /providerKind === 'new_api_gateway'[\s\S]*return 'New API 中转站'/)
+  assert.match(source, /New API 是聚合中转站，导入得到的是中转站暴露的模型列表/)
+  assert.match(source, /preview\.provider_kind === 'new_api_gateway'[\s\S]*模型能力需按实际上游逐项确认/)
 })
 
 test('model management uses API account model route workspaces with filters and pagination', () => {

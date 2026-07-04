@@ -209,6 +209,119 @@ func TestLocalVectorIndexProviderAdaptsProviderContract(t *testing.T) {
 	}
 }
 
+func TestLocalVectorIndexProviderUsesExplicitEmbeddingModel(t *testing.T) {
+	db := testutil.OpenSQLite(t, "shot-reference-explicit-embedding.db", &model.ShotVectorDocument{})
+	provider := NewLocalVectorIndexProvider(db)
+	embedding := make([]float32, localEmbeddingDim)
+	embedding[0] = 1
+
+	if err := provider.Upsert(context.Background(), providercontract.VectorDocument{
+		ID:             "default:99:zh-CN:combined",
+		Namespace:      "default",
+		SourceID:       "default",
+		Locale:         "zh-CN",
+		Kind:           "combined",
+		Text:           "ignored text",
+		Embedding:      embedding,
+		EmbeddingModel: "newapi:text-embedding-3-small",
+		Metadata:       map[string]any{"reference_id": float64(99)},
+	}); err != nil {
+		t.Fatalf("provider upsert: %v", err)
+	}
+
+	results, err := provider.Search(context.Background(), providercontract.VectorSearchRequest{
+		Embedding:      embedding,
+		EmbeddingModel: "newapi:text-embedding-3-small",
+		TopK:           1,
+	})
+	if err != nil {
+		t.Fatalf("provider search: %v", err)
+	}
+	if len(results) != 1 || results[0].Document.ID != "default:99:zh-CN:combined" {
+		t.Fatalf("provider search results = %+v, want explicit embedding document", results)
+	}
+	stats, err := provider.Stats(context.Background())
+	if err != nil {
+		t.Fatalf("provider stats: %v", err)
+	}
+	if stats.EmbeddingModels["newapi:text-embedding-3-small"] != 1 {
+		t.Fatalf("provider stats = %+v, want explicit embedding model", stats)
+	}
+
+	err = provider.Upsert(context.Background(), providercontract.VectorDocument{
+		ID:        "default:100:zh-CN:combined",
+		Text:      "wrong dim",
+		Embedding: []float32{1, 0},
+	})
+	if err == nil || !strings.Contains(err.Error(), "dimension") {
+		t.Fatalf("provider upsert wrong dim error = %v, want dimension error", err)
+	}
+}
+
+func TestServiceUsesConfiguredEmbeddingResolverForIndexAndSearch(t *testing.T) {
+	db := testutil.OpenSQLite(t, "shot-reference-external-embedding-service.db", &model.RawResource{}, &model.ShotReferenceGroup{}, &model.ShotReference{})
+	vectors := &recordingVectorIndex{}
+	resolver := &fakeVectorEmbeddingResolver{model: "newapi:text-embedding-3-small"}
+	service := NewServiceWithVectorIndexAndEmbedding(db, fakeShotStorage{}, nil, vectors, resolver)
+	duration := 4.2
+
+	created, err := service.UploadAndAnalyze(context.Background(), UploadInput{
+		UserID:      7,
+		Filename:    "external_embedding.mp4",
+		MimeType:    "video/mp4",
+		Size:        12,
+		Data:        []byte("video-bytes"),
+		DurationSec: &duration,
+		Width:       1280,
+		Height:      720,
+	})
+	if err != nil {
+		t.Fatalf("upload and analyze: %v", err)
+	}
+	if resolver.documentCalls != 1 {
+		t.Fatalf("document embedding calls = %d, want 1", resolver.documentCalls)
+	}
+	if len(vectors.upserts) == 0 {
+		t.Fatalf("expected vector upserts")
+	}
+	for _, document := range vectors.upserts {
+		if document.EmbeddingModel != "newapi:text-embedding-3-small" || len(document.Embedding) != localEmbeddingDim {
+			t.Fatalf("upsert document embedding = model %q dim %d", document.EmbeddingModel, len(document.Embedding))
+		}
+	}
+
+	results, err := service.SearchVectorDocuments(context.Background(), domainshotreference.VectorSearchRequest{
+		Query:  "external embedding",
+		Locale: "zh-CN",
+		TopK:   3,
+	})
+	if err != nil {
+		t.Fatalf("search vector documents: %v", err)
+	}
+	if resolver.searchCalls != 1 {
+		t.Fatalf("search embedding calls = %d, want 1", resolver.searchCalls)
+	}
+	if vectors.lastSearch.EmbeddingModel != "newapi:text-embedding-3-small" || len(vectors.lastSearch.Embedding) != localEmbeddingDim {
+		t.Fatalf("search embedding = model %q dim %d", vectors.lastSearch.EmbeddingModel, len(vectors.lastSearch.Embedding))
+	}
+	if len(results) != 1 || results[0].Document.ReferenceID != created.ID {
+		t.Fatalf("search results = %+v, want indexed reference", results)
+	}
+}
+
+func TestServiceKeepsExistingVectorsWhenEmbeddingResolverFails(t *testing.T) {
+	vectors := &recordingVectorIndex{}
+	resolver := &fakeVectorEmbeddingResolver{err: errors.New("embedding unavailable")}
+	service := &Service{vectors: vectors, embeddingResolver: resolver}
+	err := service.indexReferenceVectors(context.Background(), domainshotreference.ShotReference{ID: 9, Title: "keep old index"})
+	if err == nil || !strings.Contains(err.Error(), "embedding unavailable") {
+		t.Fatalf("indexReferenceVectors() error = %v, want embedding failure", err)
+	}
+	if vectors.deleteCalls != 0 || len(vectors.upserts) != 0 {
+		t.Fatalf("vector index changed on embedding failure: deletes=%d upserts=%d", vectors.deleteCalls, len(vectors.upserts))
+	}
+}
+
 func TestSearchTranslatesLocalizedQueryToCanonicalTags(t *testing.T) {
 	db := testutil.OpenSQLite(t, "shot-reference-localized-search.db", &model.RawResource{}, &model.ShotReferenceGroup{}, &model.ShotReference{}, &model.ShotVectorDocument{})
 	service := NewService(db, fakeShotStorage{}, nil)
@@ -608,6 +721,76 @@ func containsString(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+type recordingVectorIndex struct {
+	upserts     []providercontract.VectorDocument
+	lastSearch  providercontract.VectorSearchRequest
+	deleteCalls int
+}
+
+func (p *recordingVectorIndex) Upsert(_ context.Context, document providercontract.VectorDocument) error {
+	p.upserts = append(p.upserts, document)
+	return nil
+}
+
+func (p *recordingVectorIndex) Delete(_ context.Context, _ providercontract.VectorDocumentRef) error {
+	p.deleteCalls++
+	return nil
+}
+
+func (p *recordingVectorIndex) Search(_ context.Context, request providercontract.VectorSearchRequest) ([]providercontract.VectorSearchResult, error) {
+	p.lastSearch = request
+	if len(p.upserts) == 0 {
+		return nil, nil
+	}
+	return []providercontract.VectorSearchResult{{Document: p.upserts[0], Score: 1}}, nil
+}
+
+func (p *recordingVectorIndex) Stats(_ context.Context) (providercontract.VectorIndexStats, error) {
+	return providercontract.VectorIndexStats{Documents: int64(len(p.upserts))}, nil
+}
+
+func (p *recordingVectorIndex) Rebuild(_ context.Context, _ providercontract.VectorRebuildRequest) (providercontract.VectorRebuildResult, error) {
+	p.upserts = nil
+	return providercontract.VectorRebuildResult{Accepted: true}, nil
+}
+
+type fakeVectorEmbeddingResolver struct {
+	model         string
+	err           error
+	documentCalls int
+	searchCalls   int
+}
+
+func (r *fakeVectorEmbeddingResolver) EmbedDocuments(_ context.Context, documents []providercontract.VectorDocument) ([]providercontract.VectorDocument, error) {
+	r.documentCalls++
+	if r.err != nil {
+		return nil, r.err
+	}
+	out := make([]providercontract.VectorDocument, len(documents))
+	copy(out, documents)
+	for i := range out {
+		out[i].Embedding = fakeShotEmbedding(float32(i + 1))
+		out[i].EmbeddingModel = r.model
+	}
+	return out, nil
+}
+
+func (r *fakeVectorEmbeddingResolver) EmbedSearch(_ context.Context, request providercontract.VectorSearchRequest) (providercontract.VectorSearchRequest, error) {
+	r.searchCalls++
+	if r.err != nil {
+		return providercontract.VectorSearchRequest{}, r.err
+	}
+	request.Embedding = fakeShotEmbedding(99)
+	request.EmbeddingModel = r.model
+	return request, nil
+}
+
+func fakeShotEmbedding(seed float32) []float32 {
+	embedding := make([]float32, localEmbeddingDim)
+	embedding[0] = seed
+	return embedding
 }
 
 func strPtr(value string) *string {

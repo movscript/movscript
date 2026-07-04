@@ -9,6 +9,7 @@ import (
 // Adapter type constants.
 const (
 	AdapterOpenAICompat             = "openai_compat"
+	AdapterNewAPI                   = "new_api"
 	AdapterOpenAIVideoMultipart     = "openai_video_multipart"
 	AdapterOfficialVideoGenerations = "official_video_generations"
 	AdapterYunwuUnifiedVideo        = "yunwu_unified_video"
@@ -204,6 +205,7 @@ const (
 
 	AdapterResultModeSync      = "sync"
 	AdapterResultModeAsyncTask = "async_task"
+	AdapterResultModeRealtime  = "realtime_session"
 
 	AdapterOutputMediaProviderURL = "provider_url"
 	AdapterOutputMediaArtifactURL = "artifact_url"
@@ -312,9 +314,21 @@ type AdapterDef struct {
 	DefaultBaseURL     string                     `json:"default_base_url"`
 	CredFields         []CredField                `json:"cred_fields"`
 	SupportsFilesAPI   bool                       `json:"supports_files_api"` // provider has a Files API for pre-uploading media
+	ProtocolProfiles   []AdapterProtocolProfile   `json:"protocol_profiles,omitempty"`
 	ParamSets          []AdapterParamSet          `json:"param_sets,omitempty"`
 	OperationParamSets []AdapterOperationParamSet `json:"operation_param_sets,omitempty"`
 	OperationContracts []AdapterOperationContract `json:"operation_contracts,omitempty"`
+}
+
+type AdapterProtocolProfile struct {
+	Profile          string   `json:"profile"`
+	CapabilityFamily string   `json:"capability_family"`
+	Label            string   `json:"label"`
+	Implemented      bool     `json:"implemented"`
+	Endpoint         string   `json:"endpoint,omitempty"`
+	InheritsDriver   string   `json:"inherits_driver,omitempty"`
+	Operations       []string `json:"operations,omitempty"`
+	RecognizedParams []string `json:"recognized_params,omitempty"`
 }
 
 func commonImageParams() []ParamDef {
@@ -353,6 +367,42 @@ func openAICompatVideoParams() []ParamDef {
 		{Key: "quality", Label: "质量", Type: "select",
 			Options: []string{"standard", "pro"}, Default: "standard"},
 	}
+}
+
+func newAPIVideoParams() []ParamDef {
+	return []ParamDef{
+		{Key: "duration", Label: "时长(秒)", Type: "select",
+			Options: []string{"4", "6", "8", "10", "15"}, Default: "6"},
+		{Key: "width", Label: "宽度", Type: "number", Default: 1280, Min: 1, Max: 4096, Step: 1},
+		{Key: "height", Label: "高度", Type: "number", Default: 720, Min: 1, Max: 4096, Step: 1},
+		{Key: "fps", Label: "帧率", Type: "select",
+			Options: []string{"24", "30"}, Default: "24"},
+		{Key: "seed", Label: "种子", Type: "number", Min: 0, Max: 2147483647, Step: 1},
+		{Key: "n", Label: "生成数量", Type: "number", Default: 1, Min: 1, Max: 4, Step: 1},
+		{Key: "response_format", Label: "返回格式", Type: "select",
+			Options: []string{"url", "b64_json"}, Default: "url"},
+		{Key: "user", Label: "用户标识", Type: "string", Default: ""},
+		{Key: "metadata", Label: "扩展参数 JSON", Type: "text", Default: ""},
+	}
+}
+
+func newAPIEmbeddingParams() []ParamDef {
+	return []ParamDef{
+		{Key: "encoding_format", Label: "编码格式", Type: "select",
+			Options: []string{"float", "base64"}, Default: "float"},
+		{Key: "dimensions", Label: "向量维度", Type: "number", Min: 1, Max: 3072, Step: 1},
+	}
+}
+
+func newAPIRerankParams() []ParamDef {
+	return []ParamDef{
+		{Key: "top_n", Label: "返回数量", Type: "number", Min: 1, Max: 200, Step: 1},
+		{Key: "return_documents", Label: "返回文档", Type: "boolean", Default: false},
+	}
+}
+
+func newAPIModerationParams() []ParamDef {
+	return nil
 }
 
 func yunwuVideoParams() []ParamDef {
@@ -716,6 +766,88 @@ var AdapterDefs = []AdapterDef{
 			{Capability: CapabilityFamilyAudioGeneration, Params: openAICompatAudioTranscribeParams()},
 			{Capability: CapabilityFamilyAudioGeneration, Params: openAICompatSpeechToSpeechParams()},
 			{Capability: CapabilityFamilyAudioGeneration, Params: openAICompatAudioTranscribeParams()},
+		},
+	},
+	{
+		AdapterType:      AdapterNewAPI,
+		DisplayName:      "New API",
+		Description:      "New API 聚合中转站：按路由 protocol_profile 选择 OpenAI 兼容、通用视频、Jimeng、Kling、Sora 等调用格式。",
+		DefaultBaseURL:   "https://api.newapi.pro/v1",
+		SupportsFilesAPI: true,
+		CredFields: []CredField{
+			{Key: "api_key", Label: "API Key", Required: true},
+			{Key: "base_url", Label: "Base URL（必填，New API 部署地址，通常以 /v1 结尾）", Required: true},
+		},
+		ProtocolProfiles: NewAPIAdapterProtocolProfiles(),
+		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityFamilyTextGeneration, Params: commonTextParams()},
+			{Capability: CapabilityFamilyImageGeneration, Params: commonImageParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: openAICompatAudioSpeechParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: openAICompatAudioTranscribeParams()},
+			{Capability: CapabilityFamilyAudioGeneration, Params: openAICompatSpeechToSpeechParams()},
+			{Capability: CapabilityFamilyEmbedding, Params: newAPIEmbeddingParams()},
+			{Capability: CapabilityFamilyRerank, Params: newAPIRerankParams()},
+			{Capability: CapabilityFamilyModeration, Params: newAPIModerationParams()},
+			{Capability: CapabilityFamilyRealtime, Params: nil},
+		},
+		OperationParamSets: []AdapterOperationParamSet{
+			{Capability: CapabilityFamilyVideoGeneration, Operation: VideoOperationPromptToVideo, Params: newAPIVideoParams()},
+			{Capability: CapabilityFamilyVideoGeneration, Operation: VideoOperationImageToVideo, Params: newAPIVideoParams()},
+		},
+		OperationContracts: []AdapterOperationContract{
+			{
+				Capability:  CapabilityFamilyImageGeneration,
+				Operation:   ImageOperationTextToImage,
+				ResultMode:  AdapterResultModeSync,
+				OutputMedia: []string{AdapterOutputMediaArtifactURL},
+			},
+			{
+				Capability:          CapabilityFamilyImageGeneration,
+				Operation:           ImageOperationReferenceToImage,
+				InputMediaTransport: []string{AssetTransportMultipart},
+				ResultMode:          AdapterResultModeSync,
+				OutputMedia:         []string{AdapterOutputMediaArtifactURL},
+			},
+			{
+				Capability:          CapabilityFamilyImageGeneration,
+				Operation:           ImageOperationEditImage,
+				InputMediaTransport: []string{AssetTransportMultipart},
+				ResultMode:          AdapterResultModeSync,
+				OutputMedia:         []string{AdapterOutputMediaArtifactURL},
+			},
+			{
+				Capability:  CapabilityFamilyVideoGeneration,
+				Operation:   VideoOperationPromptToVideo,
+				ResultMode:  AdapterResultModeAsyncTask,
+				OutputMedia: []string{AdapterOutputMediaProviderURL, AdapterOutputMediaArtifactURL},
+			},
+			{
+				Capability:          CapabilityFamilyVideoGeneration,
+				Operation:           VideoOperationImageToVideo,
+				InputMediaTransport: []string{AssetTransportPublicURL, AssetTransportInlineBytes},
+				ResultMode:          AdapterResultModeAsyncTask,
+				OutputMedia:         []string{AdapterOutputMediaProviderURL, AdapterOutputMediaArtifactURL},
+			},
+			{
+				Capability: CapabilityFamilyEmbedding,
+				Operation:  EmbeddingOperationCreateEmbedding,
+				ResultMode: AdapterResultModeSync,
+			},
+			{
+				Capability: CapabilityFamilyRerank,
+				Operation:  RerankOperationCreateRerank,
+				ResultMode: AdapterResultModeSync,
+			},
+			{
+				Capability: CapabilityFamilyModeration,
+				Operation:  ModerationOperationCreateModeration,
+				ResultMode: AdapterResultModeSync,
+			},
+			{
+				Capability: CapabilityFamilyRealtime,
+				Operation:  RealtimeOperationConnectSession,
+				ResultMode: AdapterResultModeRealtime,
+			},
 		},
 	},
 	{
@@ -1175,11 +1307,11 @@ func AdapterOperationContracts(adapterType string) []AdapterOperationContract {
 	if def == nil {
 		return nil
 	}
-	contracts := append([]AdapterOperationContract(nil), def.OperationContracts...)
-	if len(contracts) == 0 {
-		contracts = defaultAdapterOperationContracts(adapterType, def)
+	defaults := defaultAdapterOperationContracts(adapterType, def)
+	if len(def.OperationContracts) == 0 {
+		return normalizeAdapterOperationContracts(defaults)
 	}
-	return normalizeAdapterOperationContracts(contracts)
+	return mergeAdapterOperationContracts(defaults, def.OperationContracts)
 }
 
 func AdapterSupportsOperation(adapterType, capability, operation string) bool {
@@ -1257,6 +1389,9 @@ func adapterSupportsOperationParams(adapterType, capability, operation string, p
 	if len(params) == 0 {
 		return nil
 	}
+	if strings.TrimSpace(adapterType) == AdapterNewAPI {
+		return nil
+	}
 	baseParams := DefaultParamsForAdapterOperation(adapterType, capability, operation)
 	known := make(map[string]bool, len(baseParams))
 	for _, param := range baseParams {
@@ -1306,6 +1441,24 @@ func normalizeAdapterOperationContracts(values []AdapterOperationContract) []Ada
 	return out
 }
 
+func mergeAdapterOperationContracts(defaults, explicit []AdapterOperationContract) []AdapterOperationContract {
+	out := normalizeAdapterOperationContracts(defaults)
+	byKey := make(map[string]int, len(out))
+	for i, value := range out {
+		byKey[value.Capability+"\x00"+value.Operation] = i
+	}
+	for _, value := range normalizeAdapterOperationContracts(explicit) {
+		key := value.Capability + "\x00" + value.Operation
+		if idx, ok := byKey[key]; ok {
+			out[idx] = value
+			continue
+		}
+		byKey[key] = len(out)
+		out = append(out, value)
+	}
+	return out
+}
+
 func defaultAdapterOperationContracts(adapterType string, def *AdapterDef) []AdapterOperationContract {
 	capabilities := map[string]bool{}
 	for _, set := range def.ParamSets {
@@ -1331,7 +1484,7 @@ func defaultAdapterOperationContracts(adapterType string, def *AdapterDef) []Ada
 		}
 	}
 	if capabilities[CapabilityFamilyTextGeneration] || capabilities[CapabilityReasoning] {
-		add(CapabilityFamilyTextGeneration, allTextGenerationOperations(), nil, AdapterResultModeSync, nil)
+		add(CapabilityFamilyTextGeneration, defaultTextOperationsForAdapter(adapterType), nil, AdapterResultModeSync, nil)
 	}
 	if capabilities[CapabilityFamilyImageGeneration] {
 		add(CapabilityFamilyImageGeneration, defaultImageOperationsForAdapter(adapterType), defaultInputTransportForAdapter(adapterType, CapabilityFamilyImageGeneration), AdapterResultModeSync, []string{AdapterOutputMediaArtifactURL})
@@ -1353,15 +1506,17 @@ func defaultInputTransportForAdapter(adapterType, capability string) []string {
 			return []string{AssetTransportPublicURL}
 		case AdapterOpenAIVideoMultipart, AdapterVyroSeedance:
 			return []string{AssetTransportMultipart}
+		case AdapterNewAPI:
+			return []string{AssetTransportPublicURL, AssetTransportInlineBytes}
 		}
 	case CapabilityFamilyImageGeneration:
 		switch strings.TrimSpace(adapterType) {
-		case AdapterOpenAICompat:
+		case AdapterOpenAICompat, AdapterNewAPI:
 			return []string{AssetTransportProviderFileID, AssetTransportMultipart}
 		}
 	case CapabilityFamilyAudioGeneration:
 		switch strings.TrimSpace(adapterType) {
-		case AdapterOpenAICompat, AdapterElevenLabs, AdapterXiaomiMimo:
+		case AdapterOpenAICompat, AdapterNewAPI, AdapterElevenLabs, AdapterXiaomiMimo:
 			return []string{AssetTransportMultipart}
 		}
 	}
@@ -1383,6 +1538,8 @@ func defaultResultModeForAdapter(adapterType, capability string) string {
 
 func defaultImageOperationsForAdapter(adapterType string) []string {
 	switch strings.TrimSpace(adapterType) {
+	case AdapterNewAPI:
+		return NewAPIProtocolProfileOperations(CapabilityFamilyImageGeneration)
 	case AdapterDoubao2API:
 		return []string{ImageOperationTextToImage}
 	default:
@@ -1390,10 +1547,21 @@ func defaultImageOperationsForAdapter(adapterType string) []string {
 	}
 }
 
+func defaultTextOperationsForAdapter(adapterType string) []string {
+	switch strings.TrimSpace(adapterType) {
+	case AdapterNewAPI:
+		return NewAPIProtocolProfileOperations(CapabilityFamilyTextGeneration)
+	default:
+		return allTextGenerationOperations()
+	}
+}
+
 func defaultVideoOperationsForAdapter(adapterType string) []string {
 	switch strings.TrimSpace(adapterType) {
 	case AdapterOfficialVideoGenerations:
 		return []string{VideoOperationPromptToVideo}
+	case AdapterNewAPI:
+		return NewAPIProtocolProfileOperations(CapabilityFamilyVideoGeneration)
 	case AdapterYunwuUnifiedVideo:
 		return []string{VideoOperationImageToVideo}
 	case AdapterDoubao2API:
@@ -1407,6 +1575,8 @@ func defaultVideoOperationsForAdapter(adapterType string) []string {
 
 func defaultAudioOperationsForAdapter(adapterType string) []string {
 	switch strings.TrimSpace(adapterType) {
+	case AdapterNewAPI:
+		return NewAPIProtocolProfileOperations(CapabilityFamilyAudioGeneration)
 	case AdapterElevenLabs:
 		return []string{AudioOperationTextToSpeech, AudioOperationSpeechToText, AudioOperationVoiceClone, AudioOperationVoiceDesign}
 	case AdapterMiniMax:

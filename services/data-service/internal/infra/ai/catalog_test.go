@@ -77,6 +77,302 @@ func TestVyroSeedanceAdapterExposesImageReferenceVideoOperation(t *testing.T) {
 	}
 }
 
+func TestNewAPIAdapterExposesDocumentedVideoOperations(t *testing.T) {
+	for _, operation := range []string{"chat", "responses"} {
+		if !AdapterSupportsOperation(AdapterNewAPI, CapabilityFamilyTextGeneration, operation) {
+			t.Fatalf("expected New API adapter to support text operation %q", operation)
+		}
+	}
+	if AdapterSupportsOperation(AdapterNewAPI, CapabilityFamilyTextGeneration, "agent_task") {
+		t.Fatal("New API adapter must not expose agent_task before an agent runtime mapping exists")
+	}
+	for _, operation := range []string{ImageOperationTextToImage, ImageOperationReferenceToImage, ImageOperationEditImage} {
+		if !AdapterSupportsOperation(AdapterNewAPI, CapabilityFamilyImageGeneration, operation) {
+			t.Fatalf("expected New API adapter to support image operation %q", operation)
+		}
+	}
+	for _, operation := range []string{ImageOperationInpaint, ImageOperationOutpaint, ImageOperationVariation, ImageOperationUpscaleImage} {
+		if AdapterSupportsOperation(AdapterNewAPI, CapabilityFamilyImageGeneration, operation) {
+			t.Fatalf("New API adapter must not expose undocumented image operation %q", operation)
+		}
+	}
+	var textImageContract, editImageContract AdapterOperationContract
+	for _, contract := range AdapterOperationContracts(AdapterNewAPI) {
+		if contract.Capability != CapabilityFamilyImageGeneration {
+			continue
+		}
+		switch contract.Operation {
+		case ImageOperationTextToImage:
+			textImageContract = contract
+		case ImageOperationEditImage:
+			editImageContract = contract
+		}
+	}
+	if len(textImageContract.InputMediaTransport) != 0 {
+		t.Fatalf("New API text_to_image transport = %#v, want none", textImageContract.InputMediaTransport)
+	}
+	if !containsString(editImageContract.InputMediaTransport, AssetTransportMultipart) {
+		t.Fatalf("New API edit_image transport = %#v, want multipart", editImageContract.InputMediaTransport)
+	}
+	for _, operation := range []string{AudioOperationTextToSpeech, AudioOperationSpeechToText, AudioOperationSpeechTranslate, AudioOperationSpeechToSpeech} {
+		if !AdapterSupportsOperation(AdapterNewAPI, CapabilityFamilyAudioGeneration, operation) {
+			t.Fatalf("expected New API adapter to support audio operation %q", operation)
+		}
+	}
+	for _, operation := range []string{AudioOperationVoiceClone, AudioOperationMusicGeneration, AudioOperationForcedAlignment} {
+		if AdapterSupportsOperation(AdapterNewAPI, CapabilityFamilyAudioGeneration, operation) {
+			t.Fatalf("New API adapter must not expose undocumented audio operation %q", operation)
+		}
+	}
+	for _, tt := range []struct {
+		capability string
+		operation  string
+		resultMode string
+	}{
+		{CapabilityFamilyEmbedding, EmbeddingOperationCreateEmbedding, AdapterResultModeSync},
+		{CapabilityFamilyRerank, RerankOperationCreateRerank, AdapterResultModeSync},
+		{CapabilityFamilyModeration, ModerationOperationCreateModeration, AdapterResultModeSync},
+		{CapabilityFamilyRealtime, RealtimeOperationConnectSession, AdapterResultModeRealtime},
+	} {
+		if !AdapterSupportsOperation(AdapterNewAPI, tt.capability, tt.operation) {
+			t.Fatalf("expected New API adapter to support %s operation %q", tt.capability, tt.operation)
+		}
+		found := false
+		for _, contract := range AdapterOperationContracts(AdapterNewAPI) {
+			if contract.Capability == tt.capability && contract.Operation == tt.operation {
+				found = true
+				if contract.ResultMode != tt.resultMode {
+					t.Fatalf("%s/%s result mode = %q, want %q", tt.capability, tt.operation, contract.ResultMode, tt.resultMode)
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("expected New API %s/%s operation contract", tt.capability, tt.operation)
+		}
+	}
+	if !AdapterSupportsOperation(AdapterNewAPI, CapabilityFamilyVideoGeneration, VideoOperationPromptToVideo) {
+		t.Fatal("expected New API adapter to support prompt_to_video")
+	}
+	if !AdapterSupportsOperation(AdapterNewAPI, CapabilityFamilyVideoGeneration, VideoOperationImageToVideo) {
+		t.Fatal("expected New API adapter to support image_to_video")
+	}
+	if !AdapterSupportsOperation(AdapterNewAPI, CapabilityFamilyVideoGeneration, VideoOperationFirstFrameToVideo) {
+		t.Fatal("expected New API adapter to support first_frame_to_video via Jimeng profile")
+	}
+	if !AdapterSupportsOperation(AdapterNewAPI, CapabilityFamilyVideoGeneration, VideoOperationFirstLastFrameToVideo) {
+		t.Fatal("expected New API adapter to support first_last_frame_to_video via Jimeng profile")
+	}
+	for _, operation := range []string{VideoOperationReferenceToVideo, VideoOperationEditVideo, VideoOperationExtendVideo, VideoOperationUpscaleVideo} {
+		if !AdapterSupportsOperation(AdapterNewAPI, CapabilityFamilyVideoGeneration, operation) {
+			t.Fatalf("expected New API adapter to allow Jimeng Action passthrough operation %q", operation)
+		}
+	}
+	promptRequirements := AdapterOperationPublicURLRequirements(AdapterNewAPI, CapabilityFamilyVideoGeneration, VideoOperationPromptToVideo)
+	if promptRequirements.Image || promptRequirements.Video || promptRequirements.Audio {
+		t.Fatalf("New API prompt_to_video public URL requirements = %#v, want none", promptRequirements)
+	}
+	imageRequirements := AdapterOperationPublicURLRequirements(AdapterNewAPI, CapabilityFamilyVideoGeneration, VideoOperationImageToVideo)
+	if !imageRequirements.Image {
+		t.Fatalf("New API image_to_video public URL requirements = %#v, want image", imageRequirements)
+	}
+	def := GetAdapterDef(AdapterNewAPI)
+	if def == nil {
+		t.Fatal("expected New API adapter definition")
+	}
+	if len(def.ProtocolProfiles) == 0 {
+		t.Fatal("expected New API adapter definition to expose protocol profiles")
+	}
+	var chatProfile, claudeProfile, geminiTextProfile, geminiImageProfile, qwenImageProfile, geminiAudioProfile, geminiEmbeddingProfile, jimengProfile AdapterProtocolProfile
+	for _, profile := range def.ProtocolProfiles {
+		switch profile.Profile {
+		case NewAPIProfileOpenAIChatCompletions:
+			chatProfile = profile
+		case NewAPIProfileClaudeMessages:
+			claudeProfile = profile
+		case NewAPIProfileGeminiGenerateContent:
+			geminiTextProfile = profile
+		case NewAPIProfileGeminiImages:
+			geminiImageProfile = profile
+		case NewAPIProfileQwenImages:
+			qwenImageProfile = profile
+		case NewAPIProfileGeminiAudio:
+			geminiAudioProfile = profile
+		case NewAPIProfileGeminiEngineEmbeddings:
+			geminiEmbeddingProfile = profile
+		case NewAPIProfileJimengAction:
+			jimengProfile = profile
+		}
+	}
+	if chatProfile.Profile == "" || chatProfile.Endpoint != "/v1/chat/completions" || chatProfile.CapabilityFamily != CapabilityFamilyTextGeneration {
+		t.Fatalf("New API chat profile = %#v", chatProfile)
+	}
+	if claudeProfile.Profile == "" || !claudeProfile.Implemented || claudeProfile.Endpoint != "/v1/messages" {
+		t.Fatalf("New API Claude profile = %#v", claudeProfile)
+	}
+	if geminiTextProfile.Profile == "" || !geminiTextProfile.Implemented || geminiTextProfile.Endpoint != "/v1beta/models/{model}:generateContent" {
+		t.Fatalf("New API Gemini text profile = %#v", geminiTextProfile)
+	}
+	if geminiImageProfile.Profile == "" || !geminiImageProfile.Implemented || geminiImageProfile.Endpoint != "/v1beta/models/{model}:generateContent" ||
+		geminiImageProfile.CapabilityFamily != CapabilityFamilyImageGeneration ||
+		!containsString(geminiImageProfile.Operations, ImageOperationTextToImage) ||
+		!containsString(geminiImageProfile.Operations, ImageOperationEditImage) {
+		t.Fatalf("New API Gemini image profile = %#v", geminiImageProfile)
+	}
+	if qwenImageProfile.Profile == "" || !qwenImageProfile.Implemented || qwenImageProfile.Endpoint != "/v1/images/{generations|edits}" || qwenImageProfile.CapabilityFamily != CapabilityFamilyImageGeneration {
+		t.Fatalf("New API Qwen image profile = %#v", qwenImageProfile)
+	}
+	if geminiAudioProfile.Profile == "" || !geminiAudioProfile.Implemented || geminiAudioProfile.Endpoint != "/v1beta/models/{model}:generateContent" ||
+		geminiAudioProfile.CapabilityFamily != CapabilityFamilyAudioGeneration ||
+		!containsString(geminiAudioProfile.Operations, AudioOperationTextToSpeech) ||
+		containsString(geminiAudioProfile.Operations, AudioOperationSpeechToText) {
+		t.Fatalf("New API Gemini audio profile = %#v", geminiAudioProfile)
+	}
+	if geminiEmbeddingProfile.Profile == "" || !geminiEmbeddingProfile.Implemented || geminiEmbeddingProfile.Endpoint != "/v1/engines/{model}/embeddings" {
+		t.Fatalf("New API Gemini embedding profile = %#v", geminiEmbeddingProfile)
+	}
+	if jimengProfile.Profile == "" || !jimengProfile.Implemented || jimengProfile.CapabilityFamily != CapabilityFamilyVideoGeneration {
+		t.Fatalf("New API Jimeng profile = %#v", jimengProfile)
+	}
+	for _, param := range []string{"req_key", "prompt", "image_urls", "binary_data_base64", "aspect_ratio", "frames"} {
+		if !containsString(jimengProfile.RecognizedParams, param) {
+			t.Fatalf("New API Jimeng profile recognized params = %#v, missing %q", jimengProfile.RecognizedParams, param)
+		}
+	}
+	for _, operation := range []string{
+		VideoOperationPromptToVideo,
+		VideoOperationImageToVideo,
+		VideoOperationFirstFrameToVideo,
+		VideoOperationFirstLastFrameToVideo,
+		VideoOperationReferenceToVideo,
+		VideoOperationEditVideo,
+		VideoOperationExtendVideo,
+		VideoOperationUpscaleVideo,
+	} {
+		if !containsString(jimengProfile.Operations, operation) {
+			t.Fatalf("New API Jimeng profile operations = %#v, missing %q", jimengProfile.Operations, operation)
+		}
+	}
+	foundParams := false
+	for _, set := range def.OperationParamSets {
+		if set.Capability != CapabilityFamilyVideoGeneration || set.Operation != VideoOperationPromptToVideo {
+			continue
+		}
+		foundParams = true
+		for _, key := range []string{"duration", "width", "height", "fps", "seed", "n", "response_format", "user", "metadata"} {
+			if !hasParam(set.Params, key) {
+				t.Fatalf("New API video params missing %q: %#v", key, set.Params)
+			}
+		}
+		break
+	}
+	if !foundParams {
+		t.Fatal("expected New API prompt_to_video param set")
+	}
+	contracts := AdapterOperationContracts(AdapterNewAPI)
+	for _, contract := range contracts {
+		if contract.Capability != CapabilityFamilyVideoGeneration || contract.Operation != VideoOperationImageToVideo {
+			continue
+		}
+		if !containsString(contract.InputMediaTransport, AssetTransportPublicURL) || !containsString(contract.InputMediaTransport, AssetTransportInlineBytes) {
+			t.Fatalf("New API image_to_video transport = %#v, want public_url and inline_bytes", contract.InputMediaTransport)
+		}
+		if contract.ResultMode != AdapterResultModeAsyncTask {
+			t.Fatalf("New API image_to_video result mode = %q, want async task", contract.ResultMode)
+		}
+		return
+	}
+	t.Fatal("expected New API image_to_video operation contract")
+}
+
+func TestInferNewAPIProtocolProfile(t *testing.T) {
+	tests := []struct {
+		name         string
+		modelID      string
+		capabilities []string
+		want         string
+	}{
+		{
+			name:         "seedance video defaults to jimeng profile",
+			modelID:      "Seedance-2.0",
+			capabilities: []string{CapabilityFamilyVideoGeneration},
+			want:         NewAPIProfileJimengAction,
+		},
+		{
+			name:         "kling video",
+			modelID:      "kling-video-test",
+			capabilities: []string{CapabilityFamilyVideoGeneration},
+			want:         NewAPIProfileKlingVideo,
+		},
+		{
+			name:         "sora video",
+			modelID:      "sora-video-test",
+			capabilities: []string{CapabilityFamilyVideoGeneration},
+			want:         NewAPIProfileSoraVideoMultipart,
+		},
+		{
+			name:         "generic video",
+			modelID:      "veo-video-test",
+			capabilities: []string{CapabilityFamilyVideoGeneration},
+			want:         NewAPIProfileVideoGenerations,
+		},
+		{
+			name:         "image",
+			modelID:      "gpt-image-2",
+			capabilities: []string{CapabilityFamilyImageGeneration},
+			want:         NewAPIProfileOpenAIImages,
+		},
+		{
+			name:         "qwen image",
+			modelID:      "qwen-image-plus",
+			capabilities: []string{CapabilityFamilyImageGeneration},
+			want:         NewAPIProfileQwenImages,
+		},
+		{
+			name:         "gemini image",
+			modelID:      "gemini-3-pro-image-preview",
+			capabilities: []string{CapabilityFamilyImageGeneration},
+			want:         NewAPIProfileGeminiImages,
+		},
+		{
+			name:         "gemini embedding",
+			modelID:      "gemini-embedding-001",
+			capabilities: []string{CapabilityFamilyEmbedding},
+			want:         NewAPIProfileGeminiEngineEmbeddings,
+		},
+		{
+			name:         "gemini audio",
+			modelID:      "gemini-2.5-flash-preview-tts",
+			capabilities: []string{CapabilityFamilyAudioGeneration},
+			want:         NewAPIProfileGeminiAudio,
+		},
+		{
+			name:         "gemini text",
+			modelID:      "gemini-2.5-flash",
+			capabilities: []string{CapabilityFamilyTextGeneration},
+			want:         NewAPIProfileGeminiGenerateContent,
+		},
+		{
+			name:         "reasoning text",
+			modelID:      "deepseek-r1",
+			capabilities: []string{CapabilityFamilyTextGeneration, CapabilityReasoning},
+			want:         NewAPIProfileOpenAIChatCompletions,
+		},
+		{
+			name:         "claude text",
+			modelID:      "claude-3-5-sonnet",
+			capabilities: []string{CapabilityFamilyTextGeneration},
+			want:         NewAPIProfileClaudeMessages,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := InferNewAPIProtocolProfile(tt.modelID, tt.capabilities); got != tt.want {
+				t.Fatalf("InferNewAPIProtocolProfile() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestCatalogTemplatesExposeDisplaySafeDefaultPublicModelID(t *testing.T) {
 	templates := CatalogTemplates()
 	if len(templates) == 0 {

@@ -126,6 +126,13 @@ func TestQdrantVectorIndexProviderSearchMapsPayloadToContract(t *testing.T) {
 func TestQdrantVectorIndexProviderUsesExplicitEmbeddings(t *testing.T) {
 	var upsertBody map[string]any
 	var searchBody map[string]any
+	embedding := make([]float32, localEmbeddingDim)
+	embedding[0] = 0.25
+	embedding[1] = 0.5
+	embedding[2] = 0.75
+	queryEmbedding := make([]float32, localEmbeddingDim)
+	queryEmbedding[0] = 0.125
+	queryEmbedding[1] = 0.625
 	provider := NewQdrantVectorIndexProvider("http://qdrant.local", "", "shot_vectors")
 	if provider == nil {
 		t.Fatal("provider is nil")
@@ -151,15 +158,17 @@ func TestQdrantVectorIndexProviderUsesExplicitEmbeddings(t *testing.T) {
 	})}
 
 	if err := provider.Upsert(context.Background(), providercontract.VectorDocument{
-		ID:        "doc-explicit",
-		Text:      "ignored text",
-		Embedding: []float32{0.25, 0.5, 0.75},
+		ID:             "doc-explicit",
+		Text:           "ignored text",
+		Embedding:      embedding,
+		EmbeddingModel: "newapi:text-embedding-3-small",
 	}); err != nil {
 		t.Fatalf("Upsert returned error: %v", err)
 	}
 	if _, err := provider.Search(context.Background(), providercontract.VectorSearchRequest{
-		Query:     "ignored query",
-		Embedding: []float32{0.125, 0.625},
+		Query:          "ignored query",
+		Embedding:      queryEmbedding,
+		EmbeddingModel: "newapi:text-embedding-3-small",
 	}); err != nil {
 		t.Fatalf("Search returned error: %v", err)
 	}
@@ -167,12 +176,44 @@ func TestQdrantVectorIndexProviderUsesExplicitEmbeddings(t *testing.T) {
 	points, _ := upsertBody["points"].([]any)
 	point, _ := points[0].(map[string]any)
 	upsertVector, _ := point["vector"].([]any)
-	if len(upsertVector) != 3 || upsertVector[0] != 0.25 || upsertVector[2] != 0.75 {
+	if len(upsertVector) != localEmbeddingDim || upsertVector[0] != 0.25 || upsertVector[2] != 0.75 {
 		t.Fatalf("upsert vector = %#v, want explicit embedding", point["vector"])
 	}
+	payload, _ := point["payload"].(map[string]any)
+	if payload["embedding_model"] != "newapi:text-embedding-3-small" {
+		t.Fatalf("payload = %#v, want explicit embedding model", payload)
+	}
 	searchVector, _ := searchBody["vector"].([]any)
-	if len(searchVector) != 2 || searchVector[0] != 0.125 || searchVector[1] != 0.625 {
+	if len(searchVector) != localEmbeddingDim || searchVector[0] != 0.125 || searchVector[1] != 0.625 {
 		t.Fatalf("search vector = %#v, want explicit embedding", searchBody["vector"])
+	}
+	filter, _ := searchBody["filter"].(map[string]any)
+	must, _ := filter["must"].([]any)
+	if len(must) == 0 {
+		t.Fatalf("search filter = %#v, want embedding model condition", searchBody["filter"])
+	}
+	condition, _ := must[0].(map[string]any)
+	if condition["key"] != "embedding_model" {
+		t.Fatalf("search condition = %#v, want embedding_model", condition)
+	}
+}
+
+func TestQdrantVectorIndexProviderRejectsWrongEmbeddingDimension(t *testing.T) {
+	provider := NewQdrantVectorIndexProvider("http://qdrant.local", "", "shot_vectors")
+	if provider == nil {
+		t.Fatal("provider is nil")
+	}
+	provider.client = &http.Client{Transport: shotRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return shotJSONResponse(http.StatusOK, `{"result":{"points_count":1}}`), nil
+	})}
+
+	err := provider.Upsert(context.Background(), providercontract.VectorDocument{
+		ID:        "doc-wrong-dim",
+		Text:      "ignored",
+		Embedding: []float32{0.1, 0.2},
+	})
+	if err == nil || !strings.Contains(err.Error(), "dimension") {
+		t.Fatalf("Upsert error = %v, want dimension error", err)
 	}
 }
 

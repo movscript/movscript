@@ -310,6 +310,7 @@ test('MovScript generation skill resource grants match neutral MCP resource tool
     'system_resource_image_transform_to_resource',
     'system_resource_library_query',
     'system_resource_upload',
+    'system_resource_upload_batch',
     'system_resource_video_contact_sheet_to_resource',
     'system_resource_video_extract_audio_to_resource',
     'system_resource_video_extract_frame_to_resource',

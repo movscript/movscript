@@ -80,6 +80,7 @@ type ModelRouteBinding struct {
 	ProviderID         string `json:"provider_id,omitempty"`
 	AdapterType        string `json:"adapter_type,omitempty"`
 	ProviderModelID    string `json:"provider_model_id"`
+	ProtocolProfile    string `json:"protocol_profile,omitempty"`
 	APIKinds           string `json:"api_kinds,omitempty"`
 	EndpointBaseURL    string `json:"endpoint_base_url,omitempty"`
 	EndpointPathPrefix string `json:"endpoint_path_prefix,omitempty"`
@@ -189,6 +190,7 @@ func modelRouteBindingFromModel(binding persistencemodel.AIModelRouteBinding) Mo
 		ProviderID:         binding.ProviderID,
 		AdapterType:        binding.AdapterType,
 		ProviderModelID:    binding.ProviderModelID,
+		ProtocolProfile:    binding.ProtocolProfile,
 		APIKinds:           binding.APIKinds,
 		EndpointBaseURL:    binding.EndpointBaseURL,
 		EndpointPathPrefix: binding.EndpointPathPrefix,

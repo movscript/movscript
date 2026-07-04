@@ -144,8 +144,8 @@ func (a *OpenAIAdapter) ResponsesStream(ctx context.Context, req ResponsesReques
 	if streamDebug {
 		slog.Info("ai_openai_responses_stream_request",
 			slog.String("model", req.Text.Model),
-			slog.String("endpoint", a.responsesEndpoint()),
-			slog.String("request_body", truncateForStreamDebug(string(httpReqBody))),
+			slog.String("endpoint", sanitizeDebugEndpoint(a.responsesEndpoint())),
+			slog.String("request_body", sanitizeForStreamDebugBody(string(httpReqBody))),
 		)
 	}
 
@@ -170,7 +170,7 @@ func (a *OpenAIAdapter) ResponsesStream(ctx context.Context, req ResponsesReques
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		defer resp.Body.Close()
 		respBody, _ := io.ReadAll(resp.Body)
-		err := fmt.Errorf("openai responses stream HTTP %d: %s", resp.StatusCode, string(respBody))
+		err := fmt.Errorf("openai responses stream HTTP %d: %s", resp.StatusCode, sanitizeAIErrorBody(respBody))
 		recordDebugIfEmpty(ctx, DebugCallResult{
 			Success: false, ModelID: req.Text.Model, Endpoint: a.responsesEndpoint(), Method: "POST",
 			RequestBody: mustJSON(body), ResponseStatus: resp.StatusCode, ResponseBody: string(respBody),
@@ -182,7 +182,7 @@ func (a *OpenAIAdapter) ResponsesStream(ctx context.Context, req ResponsesReques
 	if !strings.Contains(contentType, "text/event-stream") {
 		defer resp.Body.Close()
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		err := fmt.Errorf("openai responses stream expected text/event-stream from %s, got %q: %s", a.responsesEndpoint(), resp.Header.Get("Content-Type"), string(respBody))
+		err := fmt.Errorf("openai responses stream expected text/event-stream from %s, got %q: %s", sanitizeDebugEndpoint(a.responsesEndpoint()), resp.Header.Get("Content-Type"), sanitizeAIErrorBody(respBody))
 		recordDebugIfEmpty(ctx, DebugCallResult{
 			Success: false, ModelID: req.Text.Model, Endpoint: a.responsesEndpoint(), Method: "POST",
 			RequestBody: mustJSON(body), ResponseStatus: resp.StatusCode, ResponseBody: string(respBody),
@@ -215,7 +215,7 @@ func (a *OpenAIAdapter) ResponsesStream(ctx context.Context, req ResponsesReques
 				slog.Info("ai_openai_responses_stream_raw_event",
 					slog.String("model", req.Text.Model),
 					slog.String("event", eventName),
-					slog.String("data", truncateForStreamDebug(data)),
+					slog.String("data", sanitizeForStreamDebugBody(data)),
 				)
 			}
 			var parsed openAIResponsesStreamPayload
@@ -286,12 +286,12 @@ func (a *OpenAIAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan
 	if streamDebug {
 		slog.Info("ai_openai_stream_request",
 			slog.String("model", req.Model),
-			slog.String("endpoint", a.chatEndpoint()),
+			slog.String("endpoint", sanitizeDebugEndpoint(a.chatEndpoint())),
 			slog.Int("message_count", len(req.Messages)),
 			slog.Bool("json_mode", req.JSONMode),
 			slog.Bool("is_reasoning", req.IsReasoning),
-			slog.Any("extra_params", req.ExtraParams),
-			slog.String("request_body", truncateForStreamDebug(string(httpReqBody))),
+			slog.String("extra_params", sanitizeForStreamDebugValue(req.ExtraParams)),
+			slog.String("request_body", sanitizeForStreamDebugBody(string(httpReqBody))),
 		)
 	}
 
@@ -316,7 +316,7 @@ func (a *OpenAIAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		defer resp.Body.Close()
 		respBody, _ := io.ReadAll(resp.Body)
-		err := fmt.Errorf("openai chat stream HTTP %d: %s", resp.StatusCode, string(respBody))
+		err := fmt.Errorf("openai chat stream HTTP %d: %s", resp.StatusCode, sanitizeAIErrorBody(respBody))
 		recordDebugIfEmpty(ctx, DebugCallResult{
 			Success: false, ModelID: req.Model, Endpoint: a.chatEndpoint(), Method: "POST",
 			RequestBody: mustJSON(body), ResponseStatus: resp.StatusCode, ResponseBody: string(respBody),
@@ -350,7 +350,7 @@ func (a *OpenAIAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan
 			if streamDebug {
 				slog.Info("ai_openai_stream_raw_chunk",
 					slog.String("model", req.Model),
-					slog.String("data", truncateForStreamDebug(data)),
+					slog.String("data", sanitizeForStreamDebugBody(data)),
 				)
 			}
 			var chunk openAIChatCompletionChunk
@@ -359,7 +359,7 @@ func (a *OpenAIAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan
 					slog.Warn("ai_openai_stream_decode_failed",
 						slog.String("model", req.Model),
 						slog.String("error", err.Error()),
-						slog.String("data", truncateForStreamDebug(data)),
+						slog.String("data", sanitizeForStreamDebugBody(data)),
 					)
 				}
 				continue
@@ -381,8 +381,8 @@ func (a *OpenAIAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan
 					slog.Int("reasoning_delta_chars", len(event.ReasoningDelta)),
 					slog.Int("tool_call_deltas", len(event.ToolCallDeltas)),
 					slog.String("finish_reason", event.FinishReason),
-					slog.String("content_delta", truncateForStreamDebug(event.ContentDelta)),
-					slog.String("reasoning_delta", truncateForStreamDebug(event.ReasoningDelta)),
+					slog.String("content_delta", sanitizeForStreamDebugText(event.ContentDelta)),
+					slog.String("reasoning_delta", sanitizeForStreamDebugText(event.ReasoningDelta)),
 				)
 			}
 			event.Usage = TokenUsage{
@@ -411,6 +411,25 @@ func truncateForStreamDebug(value string) string {
 		return value
 	}
 	return value[:max] + fmt.Sprintf("\n...[truncated %d bytes]", len(value)-max)
+}
+
+func sanitizeForStreamDebugBody(value string) string {
+	return truncateForStreamDebug(sanitizeDebugBody(value))
+}
+
+func sanitizeForStreamDebugText(value string) string {
+	return truncateForStreamDebug(sanitizeDebugString("", value))
+}
+
+func sanitizeForStreamDebugValue(value any) string {
+	if value == nil {
+		return ""
+	}
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return sanitizeForStreamDebugText(fmt.Sprint(value))
+	}
+	return sanitizeForStreamDebugBody(string(raw))
 }
 
 type openAIChatCompletionResponse struct {
@@ -999,7 +1018,7 @@ func (a *OpenAIAdapter) postOpenAIJSONWithErrorLabel(ctx context.Context, path s
 		return respBody, resp.StatusCode, latency, readErr
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return respBody, resp.StatusCode, latency, fmt.Errorf("%s HTTP %d: %s", errorLabel, resp.StatusCode, string(respBody))
+		return respBody, resp.StatusCode, latency, fmt.Errorf("%s HTTP %d: %s", errorLabel, resp.StatusCode, sanitizeAIErrorBody(respBody))
 	}
 	return respBody, resp.StatusCode, latency, nil
 }
@@ -1357,7 +1376,7 @@ func (a *OpenAIAdapter) editImageMultipartCustomField(ctx context.Context, req I
 		ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: editLatency,
 	})
 	if resp.StatusCode >= 400 {
-		return ImageResponse{}, fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBody))
+		return ImageResponse{}, fmt.Errorf("API error %d: %s", resp.StatusCode, sanitizeAIErrorBody(respBody))
 	}
 	var result struct {
 		Data []struct {
@@ -1552,7 +1571,7 @@ func (a *OpenAIAdapter) VideoStart(ctx context.Context, req VideoRequest) (Video
 		ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: latency,
 	})
 	if resp.StatusCode >= 400 {
-		return VideoResponse{}, fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBody))
+		return VideoResponse{}, fmt.Errorf("API error %d: %s", resp.StatusCode, sanitizeAIErrorBody(respBody))
 	}
 
 	var result struct {
@@ -1560,7 +1579,7 @@ func (a *OpenAIAdapter) VideoStart(ctx context.Context, req VideoRequest) (Video
 		URL string `json:"url"`
 	}
 	if err := jsonUnmarshal(respBody, &result); err != nil {
-		return VideoResponse{}, fmt.Errorf("unexpected response format (got: %.120s): %w", string(respBody), err)
+		return VideoResponse{}, fmt.Errorf("unexpected response format (got: %.120s): %w", sanitizeAIErrorBody(respBody), err)
 	}
 	if result.URL != "" {
 		return VideoResponse{TaskID: result.ID, Status: VideoStatusSucceeded, URL: result.URL, Debug: takeDebug(ctx)}, nil
@@ -1622,11 +1641,11 @@ func (a *OpenAIAdapter) officialVideoGenerationsStart(ctx context.Context, req V
 		ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: latency,
 	})
 	if resp.StatusCode >= 400 {
-		return VideoResponse{}, fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBody))
+		return VideoResponse{}, fmt.Errorf("API error %d: %s", resp.StatusCode, sanitizeAIErrorBody(respBody))
 	}
 	var raw map[string]any
 	if err := jsonUnmarshal(respBody, &raw); err != nil {
-		return VideoResponse{}, fmt.Errorf("unexpected response format (got: %.120s): %w", string(respBody), err)
+		return VideoResponse{}, fmt.Errorf("unexpected response format (got: %.120s): %w", sanitizeAIErrorBody(respBody), err)
 	}
 	taskID := firstNonEmptyAI(
 		stringField(raw, "id", "request_id", "task_id"),
@@ -1682,7 +1701,7 @@ func (a *OpenAIAdapter) VideoPoll(ctx context.Context, req VideoPollRequest) (Vi
 	})
 
 	if resp.StatusCode >= 400 {
-		return VideoResponse{TaskID: taskID}, fmt.Errorf("poll video task API error %d: %s", resp.StatusCode, string(body))
+		return VideoResponse{TaskID: taskID}, fmt.Errorf("poll video task API error %d: %s", resp.StatusCode, sanitizeAIErrorBody(body))
 	}
 
 	var raw map[string]any
@@ -1767,7 +1786,7 @@ func (a *OpenAIAdapter) VideoCancel(ctx context.Context, req VideoCancelRequest)
 		RequestHeaders: reqHeaders, ResponseStatus: resp.StatusCode, ResponseBody: string(body), LatencyMs: latency,
 	})
 	if resp.StatusCode >= 400 {
-		return VideoResponse{TaskID: taskID}, fmt.Errorf("cancel video task API error %d: %s", resp.StatusCode, string(body))
+		return VideoResponse{TaskID: taskID}, fmt.Errorf("cancel video task API error %d: %s", resp.StatusCode, sanitizeAIErrorBody(body))
 	}
 	status := VideoStatusCancelled
 	message := ""
@@ -1814,7 +1833,7 @@ func (a *OpenAIAdapter) downloadVideoContent(ctx context.Context, taskID string)
 			ResponseStatus: resp.StatusCode, ResponseBody: string(body),
 			LatencyMs: latency,
 		})
-		return VideoResponse{}, fmt.Errorf("download video content API error %d: %s", resp.StatusCode, string(body))
+		return VideoResponse{}, fmt.Errorf("download video content API error %d: %s", resp.StatusCode, sanitizeAIErrorBody(body))
 	}
 
 	data, err := io.ReadAll(resp.Body)
@@ -2023,7 +2042,7 @@ func (a *OpenAIAdapter) Transcribe(ctx context.Context, req media.TranscribeRequ
 		RequestHeaders: reqHeaders, RequestBody: debugBody, ResponseStatus: resp.StatusCode, ResponseBody: string(data), LatencyMs: latency,
 	})
 	if resp.StatusCode >= 400 {
-		return media.SubtitleResponse{}, fmt.Errorf("openai audio transcription HTTP %d: %s", resp.StatusCode, string(data))
+		return media.SubtitleResponse{}, fmt.Errorf("openai audio transcription HTTP %d: %s", resp.StatusCode, sanitizeAIErrorBody(data))
 	}
 	timing, transcript := parseOpenAITranscript(data, req.Language)
 	content := []byte(transcript)
@@ -2097,7 +2116,7 @@ func (a *OpenAIAdapter) TranslateSpeech(ctx context.Context, req media.SpeechTra
 		RequestHeaders: reqHeaders, RequestBody: debugBody, ResponseStatus: resp.StatusCode, ResponseBody: string(data), LatencyMs: latency,
 	})
 	if resp.StatusCode >= 400 {
-		return media.SubtitleResponse{}, fmt.Errorf("openai speech translation HTTP %d: %s", resp.StatusCode, string(data))
+		return media.SubtitleResponse{}, fmt.Errorf("openai speech translation HTTP %d: %s", resp.StatusCode, sanitizeAIErrorBody(data))
 	}
 	timing, transcript := parseOpenAITranscript(data, req.TargetLanguage)
 	content := []byte(transcript)

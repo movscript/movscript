@@ -353,7 +353,14 @@ export function ModelCatalogSection({ credentials, adapters }: { credentials: AI
                   ) : (entry.route_bindings ?? []).map((binding) => (
                     <div key={binding.ID} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
                       <div className="min-w-0">
-                        <p className="font-medium text-foreground">{binding.source_type === 'relay_gateway' ? t('admin.modelCatalog.relayGatewayRoute') : t('admin.modelCatalog.localProviderRoute')}</p>
+                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                          <p className="font-medium text-foreground">{binding.source_type === 'relay_gateway' ? t('admin.modelCatalog.relayGatewayRoute') : t('admin.modelCatalog.localProviderRoute')}</p>
+                          {binding.protocol_profile && (
+                            <StatusBadge intent="neutral" className="font-mono text-[10px]">
+                              {binding.protocol_profile}
+                            </StatusBadge>
+                          )}
+                        </div>
                         <p className="truncate text-muted-foreground">
                           {binding.source_type === 'relay_gateway'
                             ? binding.route_group

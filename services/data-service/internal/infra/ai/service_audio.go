@@ -26,6 +26,7 @@ func (s *AIService) CallTTSWithRouteUsage(ctx context.Context, userID uint, rout
 	if attemptReq.Model == "" {
 		attemptReq.Model = route.ProviderModelID
 	}
+	attemptReq.ProtocolProfile = strings.TrimSpace(route.ProtocolProfile)
 	if usage.ReservationID == nil {
 		estimate := estimateUsage(runtime.model.usageProfile(), runtime.def, CapabilityFamilyAudioGeneration, 0, 0, 0, 1)
 		reservation, err := s.ReserveUsage(ctx, userID, route.RuntimeModelID, estimate, usage)
@@ -69,6 +70,7 @@ func (s *AIService) CallAudioGenerateWithRouteUsage(ctx context.Context, userID 
 	if attemptReq.Model == "" {
 		attemptReq.Model = route.ProviderModelID
 	}
+	attemptReq.ProtocolProfile = strings.TrimSpace(route.ProtocolProfile)
 	if usage.ReservationID == nil {
 		estimate := estimateUsage(runtime.model.usageProfile(), runtime.def, capability, 0, 0, positiveAudioDuration(attemptReq.DurationSec, runtime.def), 1)
 		reservation, err := s.ReserveUsage(ctx, userID, route.RuntimeModelID, estimate, usage)
@@ -109,6 +111,7 @@ func (s *AIService) CallSpeechToSpeechWithRouteUsage(ctx context.Context, userID
 	if attemptReq.Model == "" {
 		attemptReq.Model = route.ProviderModelID
 	}
+	attemptReq.ProtocolProfile = strings.TrimSpace(route.ProtocolProfile)
 	if usage.ReservationID == nil {
 		estimate := estimateUsage(runtime.model.usageProfile(), runtime.def, CapabilityFamilyAudioGeneration, 0, 0, 0, 1)
 		reservation, err := s.ReserveUsage(ctx, userID, route.RuntimeModelID, estimate, usage)
@@ -149,6 +152,7 @@ func (s *AIService) CallTranscribeWithRouteUsage(ctx context.Context, userID uin
 	if attemptReq.Model == "" {
 		attemptReq.Model = route.ProviderModelID
 	}
+	attemptReq.ProtocolProfile = strings.TrimSpace(route.ProtocolProfile)
 	if usage.ReservationID == nil {
 		estimate := estimateUsage(runtime.model.usageProfile(), runtime.def, CapabilityFamilyAudioGeneration, 0, 0, 0, 1)
 		reservation, err := s.ReserveUsage(ctx, userID, route.RuntimeModelID, estimate, usage)
@@ -189,6 +193,7 @@ func (s *AIService) CallSpeechTranslateWithRouteUsage(ctx context.Context, userI
 	if attemptReq.Model == "" {
 		attemptReq.Model = route.ProviderModelID
 	}
+	attemptReq.ProtocolProfile = strings.TrimSpace(route.ProtocolProfile)
 	if usage.ReservationID == nil {
 		estimate := estimateUsage(runtime.model.usageProfile(), runtime.def, CapabilityFamilyAudioGeneration, 0, 0, 0, 1)
 		reservation, err := s.ReserveUsage(ctx, userID, route.RuntimeModelID, estimate, usage)
@@ -248,11 +253,13 @@ func (s *AIService) callVoiceProfileWithRouteUsage(ctx context.Context, userID u
 		if cloneReq.Model == "" {
 			cloneReq.Model = route.ProviderModelID
 		}
+		cloneReq.ProtocolProfile = strings.TrimSpace(route.ProtocolProfile)
 		resp, err = voiceProvider.CloneVoice(ctx, cloneReq)
 	case AudioOperationVoiceDesign:
 		if designReq.Model == "" {
 			designReq.Model = route.ProviderModelID
 		}
+		designReq.ProtocolProfile = strings.TrimSpace(route.ProtocolProfile)
 		resp, err = voiceProvider.DesignVoice(ctx, designReq)
 	default:
 		err = fmt.Errorf("unsupported voice profile operation %q", operation)
@@ -291,6 +298,7 @@ func (s *AIService) CallAlignWithRouteUsage(ctx context.Context, userID uint, ro
 		if attemptReq.Model == "" {
 			attemptReq.Model = route.ProviderModelID
 		}
+		attemptReq.ProtocolProfile = strings.TrimSpace(route.ProtocolProfile)
 		if usage.ReservationID == nil {
 			estimate := estimateUsage(runtime.model.usageProfile(), runtime.def, capability, 0, 0, 0, 1)
 			reservation, err := s.ReserveUsage(ctx, userID, route.RuntimeModelID, estimate, usage)
@@ -337,6 +345,7 @@ func (s *AIService) CallDubbingWithRouteUsage(ctx context.Context, userID uint, 
 	if attemptReq.Model == "" {
 		attemptReq.Model = route.ProviderModelID
 	}
+	attemptReq.ProtocolProfile = strings.TrimSpace(route.ProtocolProfile)
 	if usage.ReservationID == nil {
 		estimate := estimateUsage(runtime.model.usageProfile(), runtime.def, CapabilityFamilyAudioGeneration, 0, 0, 0, 1)
 		reservation, err := s.ReserveUsage(ctx, userID, route.RuntimeModelID, estimate, usage)

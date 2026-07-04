@@ -20,8 +20,13 @@ import (
 )
 
 func (w *Worker) prepareImageInputReferences(job *persistencemodel.Job, mediaList []ai.MediaData) string {
+	cloudFileID, _ := w.prepareImageInputReferencesWithTrace(job, mediaList)
+	return cloudFileID
+}
+
+func (w *Worker) prepareImageInputReferencesWithTrace(job *persistencemodel.Job, mediaList []ai.MediaData) (string, []ai.ResourceAccessTrace) {
 	if len(mediaList) == 0 {
-		return ""
+		return "", nil
 	}
 
 	switch w.modelAdapterTypeForJob(job) {
@@ -29,18 +34,16 @@ func (w *Worker) prepareImageInputReferences(job *persistencemodel.Job, mediaLis
 		// These generation APIs accept provider-readable URLs for reference media.
 		// Volcen Files API file_id is supported by Responses multimodal input, but
 		// not by the Seedream / Seedance generation endpoints used here.
-		w.preparePublicMediaReferences(job, mediaList)
-		return ""
+		return "", w.preparePublicMediaReferencesWithTrace(job, mediaList, "image")
 	default:
 		// OpenAI-compatible image edit paths can consume a provider Files API ID.
 		if cloudResult, _ := w.ensureCloudUpload(job, mediaList[0], false); cloudResult.FileID != "" {
 			mediaList[0].CloudFileID = cloudResult.FileID
-			return cloudResult.FileID
+			return cloudResult.FileID, nil
 		} else if cloudResult.URL != "" {
 			mediaList[0].PresignedURL = cloudResult.URL
 		}
-		w.preparePublicMediaReferences(job, mediaList)
-		return ""
+		return "", w.preparePublicMediaReferencesWithTrace(job, mediaList, "image")
 	}
 }
 
@@ -155,21 +158,35 @@ func (w *Worker) preparePublicMediaReferencesWithTrace(job *persistencemodel.Job
 	traces := make([]ai.ResourceAccessTrace, 0, len(mediaList))
 	for i := range mediaList {
 		trace := newRunnerResourceAccessTrace(mediaList[i], resourceType)
+		resourceAccessTried := false
 		if mediaList[i].PresignedURL != "" {
-			trace.Source = "existing_public_url"
-			trace.Status = "resolved"
-			trace = annotateRunnerResourceAccessURL(trace, mediaList[i].PresignedURL)
-			traces = append(traces, trace)
-			continue
-		}
-		accessURL, accessTrace := w.resourceAccessPublicURLWithTrace(mediaList[i], resourceType)
-		if accessTrace.Status != "" {
+			if !runnerResourceAccessURL(mediaList[i].PresignedURL) {
+				trace.Source = "existing_public_url"
+				trace.Status = "resolved"
+				trace = annotateRunnerResourceAccessURL(trace, mediaList[i].PresignedURL)
+				traces = append(traces, trace)
+				continue
+			}
+			resourceAccessTried = true
+			accessURL, accessTrace := w.resourceAccessPublicURLWithTrace(mediaList[i], resourceType)
+			if accessURL != "" {
+				mediaList[i].PresignedURL = accessURL
+				traces = append(traces, accessTrace)
+				continue
+			}
 			trace = accessTrace
+			mediaList[i].PresignedURL = ""
 		}
-		if accessURL != "" {
-			mediaList[i].PresignedURL = accessURL
-			traces = append(traces, trace)
-			continue
+		if !resourceAccessTried {
+			accessURL, accessTrace := w.resourceAccessPublicURLWithTrace(mediaList[i], resourceType)
+			if accessTrace.Status != "" {
+				trace = accessTrace
+			}
+			if accessURL != "" {
+				mediaList[i].PresignedURL = accessURL
+				traces = append(traces, trace)
+				continue
+			}
 		}
 		if cloudResult, _ := w.ensureCloudUpload(job, mediaList[i], true); cloudResult.URL != "" {
 			mediaList[i].PresignedURL = cloudResult.URL
@@ -285,6 +302,15 @@ func annotateRunnerResourceAccessURL(trace ai.ResourceAccessTrace, accessURL str
 	return trace
 }
 
+func runnerResourceAccessURL(accessURL string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(accessURL))
+	if err != nil {
+		return false
+	}
+	path := strings.TrimSpace(parsed.EscapedPath())
+	return strings.Contains(path, "/api/v1/resource-access/resources/") && strings.HasSuffix(path, "/file")
+}
+
 func selectRunnerResourceAccessProfile(settings adminsettings.ResourceAccessSettings) (adminsettings.ResourceAccessProfile, bool) {
 	profileID := strings.TrimSpace(settings.DefaultProfileID)
 	for _, profile := range settings.Profiles {
@@ -344,8 +370,12 @@ func signRunnerResourceAccessURL(profile adminsettings.ResourceAccessProfile, re
 		return ""
 	}
 	mac := hmac.New(sha256.New, []byte(secret))
-	_, _ = mac.Write([]byte(fmt.Sprintf("resource_access:%s:%d:%d", profile.ID, resourceID, expires)))
+	_, _ = mac.Write([]byte(runnerResourceAccessSignaturePayload(profile.ID, resourceID, expires)))
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func runnerResourceAccessSignaturePayload(profileID string, resourceID uint, expires int64) string {
+	return fmt.Sprintf("resource_access:%s:%d:%d", profileID, resourceID, expires)
 }
 
 func (w *Worker) modelAdapterTypeForJob(job *persistencemodel.Job) string {

@@ -2,11 +2,15 @@
 
 Use this reference before writing or updating a MovScript content-unit `edit_prompt` from script text, scene notes, or story-heavy user wording. The goal is to turn source material into production direction, not to copy the source into the prompt.
 
+Open `prompt-mode-router.md` first when the output type, model family, reference roles, quality score, or failure diagnosis is not already obvious.
+
 ## Core Rule
 
 Never use a script excerpt as the content-unit prompt by itself. First analyze the excerpt, then write a prompt-ready description for the specific output type.
 
 Keep exact dialogue only when the generated output must contain that line. Otherwise translate dialogue and prose into visible performance, blocking, emotion, camera, lighting, sound, continuity, and negative constraints.
+
+Treat the `edit_prompt` as model-facing production direction. It may use MovScript semantic refs because the backend can resolve them into resources, but it must not depend on hidden project memory, unresolved pronouns, source-only labels, or abstract story logic that the model cannot see.
 
 ## Script Analysis Pass
 
@@ -22,6 +26,20 @@ Before authoring the prompt, extract:
 8. Continuity and negatives: identity drift, wardrobe/prop state, location layout, unwanted captions/text, extra people, random cuts, distorted hands, or other shot-specific failures.
 
 If any required field is missing and it materially affects generation quality, infer conservatively from project context. Ask only when the ambiguity changes the user's intent or continuity.
+
+## Model-Understandability Pass
+
+Before saving the prompt or using it for generation, reread it as if you were the image/video model and could see only the final prompt plus resolved resources.
+
+Reject and rewrite the prompt if:
+
+- It requires source context not present in the prompt or resolved refs, such as "the previous betrayal", "same as before", "their secret plan", or an unnamed "she".
+- It describes hidden emotion or plot state without observable behavior, such as "he realizes the truth" without eye movement, posture, prop reaction, dialogue, camera emphasis, or sound.
+- It names a relationship or dramatic pressure without visible blocking, gesture, prop, dialogue, camera, or timing.
+- It says "cinematic", "premium", "tense", "sad", "beautiful", or similar taste words without concrete lighting, composition, material, performance, or audio cues.
+- It leaves the model to guess the subject, setting, action order, camera, lighting, or continuity state that materially affects the output.
+
+Rewrite abstract intent into frameable instructions: who/what is visible, where they are, how they move, what changes from beginning to end, how the camera watches it, which light sources shape it, what the viewer hears, and what concrete failures to avoid.
 
 ## Output-Type Routing
 
@@ -53,6 +71,9 @@ Before saving or generating, confirm:
 
 - The prompt contains analyzed production details that were not merely copied from the script.
 - Abstract plot language has been converted into visible/audible direction.
+- A model seeing only the prompt plus resolved refs could understand the subject, setting, action, camera, lighting, timing, and constraints.
+- No unresolved pronouns, private project shorthand, hidden backstory, or invisible motivation remains unless it is converted into visible behavior or dialogue.
 - Characters, setting, props, wardrobe/state, emotion, camera, lighting, and continuity are explicit when relevant.
 - The prompt matches the target content-unit type: storyboard image, keyframe image, asset reference, image edit, or video.
 - Any selected upstream asset/storyboard/keyframe/audio cue dependency is written as a MovScript semantic ref, not as an unresolved prose mention.
+- For stable generation, the prompt would score at least 12/16 using `prompt-mode-router.md` unless the user explicitly asks for a rough unstable draft.

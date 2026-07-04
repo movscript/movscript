@@ -3,6 +3,10 @@ rules:
     profile: gateway
     exclude_labs:
       - open-source-audio
+  - provider_type: new_api
+    profile: gateway
+    exclude_labs:
+      - open-source-audio
   - provider_type: apiyi
     profile: gateway
     exclude_labs:

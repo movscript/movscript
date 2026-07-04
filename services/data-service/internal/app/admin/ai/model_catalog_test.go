@@ -616,6 +616,144 @@ func TestNormalizeModelImportProviderInputDefaultsYunwuGatewayBaseURL(t *testing
 	}
 }
 
+func TestNormalizeModelImportProviderInputDefaultsNewAPIGatewayBaseURL(t *testing.T) {
+	input := normalizeModelImportProviderInput(ModelImportProviderInput{
+		ProviderKind: persistencemodel.AIProviderKindNewAPIGateway,
+		APIKey:       "sk-newapi",
+	})
+	if input.BaseURLPrefix != "https://api.newapi.pro/v1" {
+		t.Fatalf("base_url_prefix = %q, want New API default /v1", input.BaseURLPrefix)
+	}
+	if input.DisplayName != "New API 中转站" {
+		t.Fatalf("display_name = %q, want New API default display name", input.DisplayName)
+	}
+	if input.Credentials["api_key"] != "sk-newapi" || input.Credentials["base_url"] != "https://api.newapi.pro/v1" {
+		t.Fatalf("credentials = %#v, want api key and New API default base url", input.Credentials)
+	}
+}
+
+func TestNormalizeModelImportProviderInputInfersNewAPIGateway(t *testing.T) {
+	input := normalizeModelImportProviderInput(ModelImportProviderInput{
+		BaseURLPrefix: "https://api.newapi.pro/v1/",
+		APIKey:        "sk-newapi",
+	})
+	if input.ProviderKind != persistencemodel.AIProviderKindNewAPIGateway {
+		t.Fatalf("provider_kind = %q, want new_api_gateway", input.ProviderKind)
+	}
+	if input.BaseURLPrefix != "https://api.newapi.pro/v1" {
+		t.Fatalf("base_url_prefix = %q, want trimmed New API /v1", input.BaseURLPrefix)
+	}
+	if input.Credentials["api_key"] != "sk-newapi" || input.Credentials["base_url"] != "https://api.newapi.pro/v1" {
+		t.Fatalf("credentials = %#v, want api key and New API base url", input.Credentials)
+	}
+}
+
+func TestPreviewAndApplyModelImportCreatesNewAPIProtocolProfiles(t *testing.T) {
+	service := newModelImportTestService(t)
+	ctx := context.Background()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || !strings.HasSuffix(r.URL.Path, "/models") {
+			t.Fatalf("unexpected upstream request: %s %s", r.Method, r.URL.String())
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer sk-newapi-import" {
+			t.Fatalf("authorization = %q, want bearer key", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"object":"list","data":[
+			{"id":"claude-3-5-sonnet"},
+			{"id":"gemini-2.5-flash"},
+			{"id":"gpt-5.2"},
+			{"id":"gpt-image-2"},
+			{"id":"qwen-image-plus"},
+			{"id":"gemini-embedding-001"},
+			{"id":"kling-video-test"},
+			{"id":"seedance-2.0-pro"},
+			{"id":"sora-video-test"}
+		]}`))
+	}))
+	defer upstream.Close()
+
+	preview, err := service.PreviewModelImport(ctx, ModelImportPreviewInput{
+		Provider: ModelImportProviderInput{
+			ProviderKind:  persistencemodel.AIProviderKindNewAPIGateway,
+			DisplayName:   "New API Import",
+			BaseURLPrefix: upstream.URL,
+			APIKey:        "sk-newapi-import",
+		},
+	})
+	if err != nil {
+		t.Fatalf("PreviewModelImport() error = %v", err)
+	}
+	wantProfiles := map[string]string{
+		"claude-3-5-sonnet":    infraai.NewAPIProfileClaudeMessages,
+		"gemini-2.5-flash":     infraai.NewAPIProfileGeminiGenerateContent,
+		"gpt-5.2":              infraai.NewAPIProfileOpenAIChatCompletions,
+		"gpt-image-2":          infraai.NewAPIProfileOpenAIImages,
+		"qwen-image-plus":      infraai.NewAPIProfileQwenImages,
+		"gemini-embedding-001": infraai.NewAPIProfileGeminiEngineEmbeddings,
+		"kling-video-test":     infraai.NewAPIProfileKlingVideo,
+		"seedance-2.0-pro":     infraai.NewAPIProfileJimengAction,
+		"sora-video-test":      infraai.NewAPIProfileSoraVideoMultipart,
+	}
+	modelInputs := make([]ModelImportModelInput, 0, len(preview.Models)+1)
+	for _, plan := range preview.Models {
+		if plan.AdapterType != infraai.AdapterNewAPI {
+			t.Fatalf("%s adapter_type = %q, want new_api", plan.ProviderModelID, plan.AdapterType)
+		}
+		if got := plan.ProtocolProfile; got != wantProfiles[plan.ProviderModelID] {
+			t.Fatalf("%s protocol_profile = %q, want %q", plan.ProviderModelID, got, wantProfiles[plan.ProviderModelID])
+		}
+		modelInputs = append(modelInputs, ModelImportModelInput{
+			ProviderModelID: plan.ProviderModelID,
+			PublicModelID:   plan.PublicModelID,
+			DisplayName:     plan.DisplayName,
+			Capabilities:    plan.Capabilities,
+			TemplateID:      plan.TemplateID,
+			ProtocolProfile: plan.ProtocolProfile,
+		})
+	}
+	modelInputs = append(modelInputs, ModelImportModelInput{
+		ProviderModelID: "seedance-override",
+		PublicModelID:   "seedance-override",
+		DisplayName:     "seedance-override",
+		Capabilities:    []string{infraai.CapabilityFamilyVideoGeneration},
+		ProtocolProfile: infraai.NewAPIProfileVideoGenerations,
+	})
+
+	applied, err := service.ApplyModelImport(ctx, ModelImportApplyInput{
+		Provider: ModelImportProviderInput{
+			ProviderKind:  persistencemodel.AIProviderKindNewAPIGateway,
+			DisplayName:   "New API Import",
+			BaseURLPrefix: upstream.URL,
+			APIKey:        "sk-newapi-import",
+		},
+		Models: modelInputs,
+	})
+	if err != nil {
+		t.Fatalf("ApplyModelImport() error = %v", err)
+	}
+	if applied.Provider.ProviderKind != persistencemodel.AIProviderKindNewAPIGateway || applied.Summary.CreatedRouteBindings != len(modelInputs) {
+		t.Fatalf("apply result = %+v, want New API provider and one route per model", applied)
+	}
+	wantProfiles["seedance-override"] = infraai.NewAPIProfileVideoGenerations
+	var bindings []persistencemodel.AIModelRouteBinding
+	if err := service.db.Find(&bindings).Error; err != nil {
+		t.Fatalf("list route bindings: %v", err)
+	}
+	if len(bindings) != len(modelInputs) {
+		t.Fatalf("route bindings = %d, want %d", len(bindings), len(modelInputs))
+	}
+	for _, binding := range bindings {
+		if binding.AdapterType != infraai.AdapterNewAPI {
+			t.Fatalf("%s adapter_type = %q, want new_api", binding.ProviderModelID, binding.AdapterType)
+		}
+		if got := binding.ProtocolProfile; got != wantProfiles[binding.ProviderModelID] {
+			t.Fatalf("%s protocol_profile = %q, want %q", binding.ProviderModelID, got, wantProfiles[binding.ProviderModelID])
+		}
+	}
+}
+
 func TestApplyModelImportCreatesYunwuUnifiedVideoRouteProfile(t *testing.T) {
 	service := newModelImportTestService(t)
 	ctx := context.Background()
@@ -1425,6 +1563,302 @@ func TestModelCatalogRejectsInvalidRouteBindingContracts(t *testing.T) {
 				t.Fatalf("CreateModelRouteBinding() error = %v, want ErrInvalidModelCatalog containing %q", err, tt.want)
 			}
 		})
+	}
+}
+
+func TestModelCatalogValidatesNewAPIProtocolProfile(t *testing.T) {
+	service := newTestService(t)
+	ctx := context.Background()
+	newAPICred := persistencemodel.AICredential{
+		AdapterType: infraai.AdapterNewAPI,
+		DisplayName: "New API",
+		BaseURL:     "https://newapi.test/v1",
+		MaskedKey:   "sk-***",
+		IsEnabled:   true,
+	}
+	if err := service.db.Create(&newAPICred).Error; err != nil {
+		t.Fatalf("create New API credential: %v", err)
+	}
+	openAICred := persistencemodel.AICredential{
+		AdapterType: infraai.AdapterOpenAICompat,
+		DisplayName: "OpenAI-compatible",
+		BaseURL:     "https://gateway.test/v1",
+		MaskedKey:   "sk-***",
+		IsEnabled:   true,
+	}
+	if err := service.db.Create(&openAICred).Error; err != nil {
+		t.Fatalf("create OpenAI-compatible credential: %v", err)
+	}
+	videoEntry, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
+		PublicModelID:         "newapi-video-profile",
+		Capabilities:          "video_generation",
+		ModelCapabilitiesJSON: routeCapabilityPromptVideoJSON,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelCatalogEntry(video) error = %v", err)
+	}
+	nativeParamVideoEntry, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
+		PublicModelID:         "newapi-native-param-video-profile",
+		Capabilities:          "video_generation",
+		ModelCapabilitiesJSON: `{"video_generation":{"operations":["image_to_video"]}}`,
+		SupportedParams:       `{"version":2,"by_operation":{"image_to_video":{"add":[{"key":"aspect_ratio","label":"Ratio","type":"select","options":["16:9"],"default":"16:9"},{"key":"native_only","label":"Native Only","type":"string"}]}}}`,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelCatalogEntry(native param video) error = %v", err)
+	}
+	wideVideoEntry, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
+		PublicModelID:         "newapi-wide-video-profile",
+		Capabilities:          "video_generation",
+		ModelCapabilitiesJSON: `{"video_generation":{"operations":["prompt_to_video","first_last_frame_to_video"]}}`,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelCatalogEntry(wide video) error = %v", err)
+	}
+	firstLastOnlyEntry, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
+		PublicModelID:         "newapi-jimeng-first-last-profile",
+		Capabilities:          "video_generation",
+		ModelCapabilitiesJSON: `{"video_generation":{"operations":["first_last_frame_to_video"]}}`,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelCatalogEntry(first/last video) error = %v", err)
+	}
+	multiCapabilityEntry, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
+		PublicModelID: "newapi-multi-capability-profile",
+		Capabilities:  "video_generation,image_generation",
+		ModelCapabilitiesJSON: `{
+			"video_generation":{"operations":["prompt_to_video","first_last_frame_to_video"]},
+			"image_generation":{"operations":["text_to_image"]}
+		}`,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelCatalogEntry(multi capability) error = %v", err)
+	}
+	imageEntry, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
+		PublicModelID:         "newapi-image-profile",
+		Capabilities:          "image_generation",
+		ModelCapabilitiesJSON: routeCapabilityImageJSON,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelCatalogEntry(image) error = %v", err)
+	}
+	responsesEntry, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
+		PublicModelID:         "newapi-responses-profile",
+		Capabilities:          "text_generation",
+		ModelCapabilitiesJSON: `{"text_generation":{"operations":["responses"]}}`,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelCatalogEntry(responses) error = %v", err)
+	}
+	embeddingEntry, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
+		PublicModelID:         "newapi-embedding-profile",
+		Capabilities:          "embedding",
+		ModelCapabilitiesJSON: `{"embedding":{"operations":["create_embedding"]}}`,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelCatalogEntry(embedding) error = %v", err)
+	}
+
+	binding, err := service.CreateModelRouteBinding(ctx, strconvID(videoEntry.ID), ModelRouteBindingInput{
+		ProviderID:      localProviderTestProviderID(newAPICred.ID),
+		AdapterType:     infraai.AdapterNewAPI,
+		ProviderModelID: "seedance-2.0-480p",
+		ProtocolProfile: infraai.NewAPIProfileVideoGenerations,
+		CapacityWeight:  1,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelRouteBinding(video_generations_json) error = %v", err)
+	}
+	if binding.ProtocolProfile != infraai.NewAPIProfileVideoGenerations {
+		t.Fatalf("protocol_profile = %q, want %q", binding.ProtocolProfile, infraai.NewAPIProfileVideoGenerations)
+	}
+
+	nativeParamBinding, err := service.CreateModelRouteBinding(ctx, strconvID(nativeParamVideoEntry.ID), ModelRouteBindingInput{
+		ProviderID:      localProviderTestProviderID(newAPICred.ID),
+		AdapterType:     infraai.AdapterNewAPI,
+		ProviderModelID: "seedance-native-param",
+		ProtocolProfile: infraai.NewAPIProfileJimengAction,
+		CapacityWeight:  1,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelRouteBinding(native params via New API profile) error = %v", err)
+	}
+	if nativeParamBinding.ProtocolProfile != infraai.NewAPIProfileJimengAction {
+		t.Fatalf("native param protocol_profile = %q, want %q", nativeParamBinding.ProtocolProfile, infraai.NewAPIProfileJimengAction)
+	}
+
+	wideBinding, err := service.CreateModelRouteBinding(ctx, strconvID(wideVideoEntry.ID), ModelRouteBindingInput{
+		ProviderID:      localProviderTestProviderID(newAPICred.ID),
+		AdapterType:     infraai.AdapterNewAPI,
+		ProviderModelID: "wide-seedance-2.0",
+		ProtocolProfile: infraai.NewAPIProfileVideoGenerations,
+		CapacityWeight:  1,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelRouteBinding(wide video with narrow profile) error = %v", err)
+	}
+	if wideBinding.ProtocolProfile != infraai.NewAPIProfileVideoGenerations {
+		t.Fatalf("wide protocol_profile = %q, want %q", wideBinding.ProtocolProfile, infraai.NewAPIProfileVideoGenerations)
+	}
+
+	_, err = service.CreateModelRouteBinding(ctx, strconvID(firstLastOnlyEntry.ID), ModelRouteBindingInput{
+		ProviderID:      localProviderTestProviderID(newAPICred.ID),
+		AdapterType:     infraai.AdapterNewAPI,
+		ProviderModelID: "jimeng-first-last",
+		ProtocolProfile: infraai.NewAPIProfileVideoGenerations,
+		CapacityWeight:  1,
+	})
+	if !errors.Is(err, ErrInvalidModelCatalog) || !strings.Contains(err.Error(), "does not support any declared operation") {
+		t.Fatalf("CreateModelRouteBinding(first/last with generic profile) error = %v, want operation mismatch", err)
+	}
+
+	firstLastBinding, err := service.CreateModelRouteBinding(ctx, strconvID(firstLastOnlyEntry.ID), ModelRouteBindingInput{
+		ProviderID:      localProviderTestProviderID(newAPICred.ID),
+		AdapterType:     infraai.AdapterNewAPI,
+		ProviderModelID: "jimeng-first-last",
+		ProtocolProfile: infraai.NewAPIProfileJimengAction,
+		CapacityWeight:  1,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelRouteBinding(first/last with Jimeng profile) error = %v", err)
+	}
+	if firstLastBinding.ProtocolProfile != infraai.NewAPIProfileJimengAction {
+		t.Fatalf("first/last protocol_profile = %q, want %q", firstLastBinding.ProtocolProfile, infraai.NewAPIProfileJimengAction)
+	}
+
+	multiBinding, err := service.CreateModelRouteBinding(ctx, strconvID(multiCapabilityEntry.ID), ModelRouteBindingInput{
+		RouteGroup:      "multi-video",
+		ProviderID:      localProviderTestProviderID(newAPICred.ID),
+		AdapterType:     infraai.AdapterNewAPI,
+		ProviderModelID: "seedance-multi",
+		ProtocolProfile: infraai.NewAPIProfileJimengAction,
+		CapacityWeight:  1,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelRouteBinding(multi capability with video profile) error = %v", err)
+	}
+	if multiBinding.ProtocolProfile != infraai.NewAPIProfileJimengAction {
+		t.Fatalf("multi capability protocol_profile = %q, want %q", multiBinding.ProtocolProfile, infraai.NewAPIProfileJimengAction)
+	}
+
+	klingBinding, err := service.CreateModelRouteBinding(ctx, strconvID(videoEntry.ID), ModelRouteBindingInput{
+		RouteGroup:      "kling",
+		ProviderID:      localProviderTestProviderID(newAPICred.ID),
+		AdapterType:     infraai.AdapterNewAPI,
+		ProviderModelID: "kling-test",
+		ProtocolProfile: infraai.NewAPIProfileKlingVideo,
+		CapacityWeight:  1,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelRouteBinding(kling_video_json) error = %v", err)
+	}
+	if klingBinding.ProtocolProfile != infraai.NewAPIProfileKlingVideo {
+		t.Fatalf("kling protocol_profile = %q, want %q", klingBinding.ProtocolProfile, infraai.NewAPIProfileKlingVideo)
+	}
+
+	_, err = service.CreateModelRouteBinding(ctx, strconvID(imageEntry.ID), ModelRouteBindingInput{
+		ProviderID:      localProviderTestProviderID(newAPICred.ID),
+		AdapterType:     infraai.AdapterNewAPI,
+		ProviderModelID: "gpt-image-2",
+		ProtocolProfile: infraai.NewAPIProfileVideoGenerations,
+		CapacityWeight:  1,
+	})
+	if !errors.Is(err, ErrInvalidModelCatalog) || !strings.Contains(err.Error(), "requires capability") {
+		t.Fatalf("CreateModelRouteBinding(image with video profile) error = %v, want capability mismatch", err)
+	}
+
+	_, err = service.CreateModelRouteBinding(ctx, strconvID(responsesEntry.ID), ModelRouteBindingInput{
+		ProviderID:      localProviderTestProviderID(newAPICred.ID),
+		AdapterType:     infraai.AdapterNewAPI,
+		ProviderModelID: "gpt-5.2",
+		ProtocolProfile: infraai.NewAPIProfileOpenAIChatCompletions,
+		CapacityWeight:  1,
+	})
+	if !errors.Is(err, ErrInvalidModelCatalog) || !strings.Contains(err.Error(), "does not support any declared operation") {
+		t.Fatalf("CreateModelRouteBinding(responses with chat profile) error = %v, want operation mismatch", err)
+	}
+
+	responsesBinding, err := service.CreateModelRouteBinding(ctx, strconvID(responsesEntry.ID), ModelRouteBindingInput{
+		ProviderID:      localProviderTestProviderID(newAPICred.ID),
+		AdapterType:     infraai.AdapterNewAPI,
+		ProviderModelID: "gpt-5.2",
+		ProtocolProfile: infraai.NewAPIProfileOpenAIResponses,
+		CapacityWeight:  1,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelRouteBinding(openai_responses_json) error = %v", err)
+	}
+	if responsesBinding.ProtocolProfile != infraai.NewAPIProfileOpenAIResponses {
+		t.Fatalf("responses protocol_profile = %q, want %q", responsesBinding.ProtocolProfile, infraai.NewAPIProfileOpenAIResponses)
+	}
+
+	embeddingBinding, err := service.CreateModelRouteBinding(ctx, strconvID(embeddingEntry.ID), ModelRouteBindingInput{
+		ProviderID:      localProviderTestProviderID(newAPICred.ID),
+		AdapterType:     infraai.AdapterNewAPI,
+		ProviderModelID: "embed-test",
+		ProtocolProfile: infraai.NewAPIProfileOpenAIEmbeddings,
+		CapacityWeight:  1,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelRouteBinding(openai_embeddings_json) error = %v", err)
+	}
+	if embeddingBinding.ProtocolProfile != infraai.NewAPIProfileOpenAIEmbeddings {
+		t.Fatalf("embedding protocol_profile = %q, want %q", embeddingBinding.ProtocolProfile, infraai.NewAPIProfileOpenAIEmbeddings)
+	}
+
+	geminiEmbeddingBinding, err := service.CreateModelRouteBinding(ctx, strconvID(embeddingEntry.ID), ModelRouteBindingInput{
+		RouteGroup:      "gemini",
+		ProviderID:      localProviderTestProviderID(newAPICred.ID),
+		AdapterType:     infraai.AdapterNewAPI,
+		ProviderModelID: "gemini-embedding-001",
+		ProtocolProfile: infraai.NewAPIProfileGeminiEngineEmbeddings,
+		CapacityWeight:  1,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelRouteBinding(gemini_engine_embeddings_json) error = %v", err)
+	}
+	if geminiEmbeddingBinding.ProtocolProfile != infraai.NewAPIProfileGeminiEngineEmbeddings {
+		t.Fatalf("gemini embedding protocol_profile = %q, want %q", geminiEmbeddingBinding.ProtocolProfile, infraai.NewAPIProfileGeminiEngineEmbeddings)
+	}
+
+	jimengBinding, err := service.CreateModelRouteBinding(ctx, strconvID(videoEntry.ID), ModelRouteBindingInput{
+		RouteGroup:      "jimeng",
+		ProviderID:      localProviderTestProviderID(newAPICred.ID),
+		AdapterType:     infraai.AdapterNewAPI,
+		ProviderModelID: "jimeng-test",
+		ProtocolProfile: infraai.NewAPIProfileJimengAction,
+		CapacityWeight:  1,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelRouteBinding(jimeng_action_json) error = %v", err)
+	}
+	if jimengBinding.ProtocolProfile != infraai.NewAPIProfileJimengAction {
+		t.Fatalf("jimeng protocol_profile = %q, want %q", jimengBinding.ProtocolProfile, infraai.NewAPIProfileJimengAction)
+	}
+
+	imageBinding, err := service.CreateModelRouteBinding(ctx, strconvID(imageEntry.ID), ModelRouteBindingInput{
+		RouteGroup:      "clear-profile",
+		ProviderID:      localProviderTestProviderID(newAPICred.ID),
+		AdapterType:     infraai.AdapterNewAPI,
+		ProviderModelID: "gpt-image-2",
+		ProtocolProfile: infraai.NewAPIProfileOpenAIImages,
+		CapacityWeight:  1,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelRouteBinding(openai_images_json_multipart) error = %v", err)
+	}
+	updated, err := service.UpdateModelRouteBinding(ctx, strconvID(imageBinding.ID), ModelRouteBindingInput{
+		RouteGroup:      "clear-profile",
+		ProviderID:      localProviderTestProviderID(openAICred.ID),
+		AdapterType:     infraai.AdapterOpenAICompat,
+		ProviderModelID: "gpt-image-compatible",
+		ProtocolProfile: infraai.NewAPIProfileOpenAIImages,
+		CapacityWeight:  1,
+	})
+	if err != nil {
+		t.Fatalf("UpdateModelRouteBinding(non-NewAPI) error = %v", err)
+	}
+	if updated.ProtocolProfile != "" {
+		t.Fatalf("protocol_profile after non-NewAPI update = %q, want empty", updated.ProtocolProfile)
 	}
 }
 

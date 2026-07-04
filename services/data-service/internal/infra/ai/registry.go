@@ -91,6 +91,8 @@ func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelD
 	switch adapterType {
 	case AdapterAnthropic:
 		return NewAnthropicAdapter(apiKey, baseURL), nil
+	case AdapterNewAPI:
+		return NewNewAPIAdapter(apiKey, baseURL), nil
 	case AdapterOpenAIVideoMultipart:
 		return NewOpenAIAdapter(baseURL, apiKey), nil
 	case AdapterOfficialVideoGenerations:

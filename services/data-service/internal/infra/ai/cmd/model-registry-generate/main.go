@@ -408,60 +408,7 @@ func hasStringValue(values []string, target string) bool {
 }
 
 func adapterSupportsRuntimeCapability(adapterType, capability string) bool {
-	switch strings.TrimSpace(adapterType) {
-	case infraai.AdapterOpenAICompat:
-		switch capability {
-		case infraai.CapabilityFamilyTextGeneration, infraai.CapabilityReasoning, infraai.CapabilityFamilyImageGeneration, infraai.CapabilityFamilyAudioGeneration:
-			return true
-		}
-	case infraai.AdapterOpenAIVideoMultipart:
-		return capability == infraai.CapabilityFamilyVideoGeneration
-	case infraai.AdapterOfficialVideoGenerations:
-		return capability == infraai.CapabilityFamilyVideoGeneration
-	case infraai.AdapterYunwuUnifiedVideo:
-		return capability == infraai.CapabilityFamilyVideoGeneration
-	case infraai.AdapterAnthropic:
-		return capability == infraai.CapabilityFamilyTextGeneration || capability == infraai.CapabilityReasoning
-	case infraai.AdapterDashScope:
-		switch capability {
-		case infraai.CapabilityFamilyImageGeneration, infraai.CapabilityFamilyVideoGeneration, infraai.CapabilityFamilyAudioGeneration:
-			return true
-		}
-	case infraai.AdapterVyroSeedance:
-		return capability == infraai.CapabilityFamilyVideoGeneration
-	case infraai.AdapterGemini:
-		switch capability {
-		case infraai.CapabilityFamilyTextGeneration, infraai.CapabilityReasoning, infraai.CapabilityFamilyImageGeneration, infraai.CapabilityFamilyVideoGeneration, infraai.CapabilityFamilyAudioGeneration:
-			return true
-		}
-	case infraai.AdapterVolcen:
-		switch capability {
-		case infraai.CapabilityFamilyTextGeneration, infraai.CapabilityReasoning, infraai.CapabilityFamilyImageGeneration, infraai.CapabilityFamilyVideoGeneration, infraai.CapabilityFamilyAudioGeneration:
-			return true
-		}
-	case infraai.AdapterKling:
-		return capability == infraai.CapabilityFamilyVideoGeneration
-	case infraai.AdapterVidu:
-		return capability == infraai.CapabilityFamilyVideoGeneration
-	case infraai.AdapterElevenLabs:
-		return capability == infraai.CapabilityFamilyAudioGeneration
-	case infraai.AdapterMiniMax:
-		return capability == infraai.CapabilityFamilyAudioGeneration
-	case infraai.AdapterXiaomiMimo:
-		return capability == infraai.CapabilityFamilyTextGeneration || capability == infraai.CapabilityFamilyAudioGeneration
-	case infraai.AdapterMureka:
-		return capability == infraai.CapabilityFamilyTextGeneration || capability == infraai.CapabilityFamilyAudioGeneration
-	case infraai.AdapterStability:
-		return capability == infraai.CapabilityFamilyAudioGeneration
-	case infraai.AdapterDoubao2API:
-		return capability == infraai.CapabilityFamilyImageGeneration || capability == infraai.CapabilityFamilyVideoGeneration
-	case infraai.AdapterLocal:
-		switch capability {
-		case infraai.CapabilityFamilyTextGeneration, infraai.CapabilityReasoning, infraai.CapabilityFamilyImageGeneration, infraai.CapabilityFamilyVideoGeneration, infraai.CapabilityFamilyAudioGeneration:
-			return true
-		}
-	}
-	return false
+	return infraai.AdapterSupportsRuntimeCapability(adapterType, capability)
 }
 
 func loadProviderTemplates(path string) ([]providerTemplateSource, error) {

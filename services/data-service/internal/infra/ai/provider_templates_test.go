@@ -50,6 +50,71 @@ func TestComboTemplatesKeepRelayGatewayAsAggregatorProvider(t *testing.T) {
 	}
 }
 
+func TestProviderTemplatesDeclareNewAPIAsAggregatorGateway(t *testing.T) {
+	var provider ProviderTemplate
+	for _, template := range ProviderTemplates() {
+		if template.ProviderKind == "new_api_gateway" {
+			provider = template
+			break
+		}
+	}
+	if provider.ProviderKind == "" {
+		t.Fatal("expected New API provider template")
+	}
+	if provider.ProviderType != persistencemodel.AIProviderTypeNewAPI || provider.Profile != "gateway" ||
+		provider.ProviderCategory != persistencemodel.AIProviderCategoryAggregatorGateway ||
+		provider.DefaultAdapterType != AdapterNewAPI {
+		t.Fatalf("unexpected New API provider template: %#v", provider)
+	}
+	if provider.Capabilities["aggregates_upstream_models"] != true ||
+		provider.Capabilities["generated_artifact_trust"] != false ||
+		provider.Capabilities["task_polling"] != true ||
+		provider.Capabilities["task_cancel"] != false {
+		t.Fatalf("New API capabilities = %#v", provider.Capabilities)
+	}
+}
+
+func TestComboTemplatesKeepNewAPIOnDedicatedAdapter(t *testing.T) {
+	var found bool
+	for _, template := range ComboTemplates() {
+		if template.ProviderKind != "new_api_gateway" {
+			continue
+		}
+		found = true
+		if template.ProviderType != persistencemodel.AIProviderTypeNewAPI ||
+			template.ProviderCategory != persistencemodel.AIProviderCategoryAggregatorGateway ||
+			template.AdapterType != AdapterNewAPI {
+			t.Fatalf("unexpected New API combo template: %#v", template)
+		}
+	}
+	if !found {
+		t.Fatal("expected at least one New API combo template")
+	}
+}
+
+func TestComboTemplatesExposeNewAPIDocumentedExtensionCapabilities(t *testing.T) {
+	for _, capability := range []string{CapabilityFamilyEmbedding, CapabilityFamilyRerank, CapabilityFamilyModeration, CapabilityFamilyRealtime} {
+		if !AdapterSupportsRuntimeCapability(AdapterNewAPI, capability) {
+			t.Fatalf("New API should expose %s after its runtime provider contract is implemented", capability)
+		}
+		template := CatalogTemplate{
+			ID:           "synthetic:" + capability,
+			Lab:          "openai",
+			ModelID:      "synthetic-" + capability,
+			Capabilities: []string{capability},
+		}
+		found := false
+		for _, rule := range comboProvidersForModelTemplate(template) {
+			if rule.ProviderKind == "new_api_gateway" {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("New API combo rule did not expose supported %s template", capability)
+		}
+	}
+}
+
 func TestComboTemplateRulesKeepGenericOpenAICompatibleGateway(t *testing.T) {
 	templates := ComboTemplates()
 	var openai ComboTemplate
