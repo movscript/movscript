@@ -35,7 +35,7 @@ const CREATED_PROJECT: Project = {
 type WindowCall =
   | { type: 'agent' }
   | { type: 'canvas' }
-  | { type: 'codex-plugin' }
+  | { type: 'agent-provider-targets' }
   | { type: 'editing' }
   | { type: 'tool'; input?: { route?: string } }
   | { type: 'projectData'; input?: { route?: string } }
@@ -61,11 +61,11 @@ test('app home opens agent, project, and canvas entry points', async ({ page }, 
   await expectWindowCall(page, { type: 'agent' })
   await expect(page).toHaveURL(/\/$/)
 
-  await page.getByRole('button', { name: /安装到 Codex|Install to Codex/ }).click()
-  await expectWindowCall(page, { type: 'codex-plugin' })
-  await expect(page.getByText(/Codex 插件已连接到 Home current/)).toBeVisible()
+  await page.getByRole('button', { name: /安装到主流 Agent|Install to mainstream agents/ }).click()
+  await expectWindowCall(page, { type: 'agent-provider-targets' })
+  await expect(page.getByText(/Agent Provider 已连接到 Home current/)).toBeVisible()
   await expect(page.getByText('/tmp/movscript-home', { exact: true })).toBeVisible()
-  await expect(page.getByText('/tmp/movscript-codex-marketplace', { exact: true })).toBeVisible()
+  await expect(page.getByText('codex, harness, openclaw, claude-code', { exact: true })).toBeVisible()
 
   await page.getByRole('button', { name: /工作流画布|Canvas/ }).click()
   await expectWindowCall(page, { type: 'canvas' })
@@ -153,18 +153,49 @@ async function installWindowApiRecorder(page: Page) {
       openAgentWindow: async () => {
         globalWindow.__movscriptWindowCalls?.push({ type: 'agent' })
       },
-      installMovScriptCodexPlugin: async () => {
-        globalWindow.__movscriptWindowCalls?.push({ type: 'codex-plugin' })
+      installMovScriptAgentProviderTargets: async () => {
+        globalWindow.__movscriptWindowCalls?.push({ type: 'agent-provider-targets' })
         return {
           ok: true,
-          openedCodex: false,
           homeDir: '/tmp/movscript-home',
-          marketplaceRoot: '/tmp/movscript-codex-marketplace',
-          marketplacePath: '/tmp/movscript-codex-marketplace/.agents/plugins/marketplace.json',
-          pluginRoot: '/tmp/movscript-codex-marketplace/plugins/movscript',
+          sourcePluginRoot: '/Applications/MovScript.app/Contents/Resources/provider-plugin',
           homeCurrentPluginRoot: '/tmp/movscript-home/plugins/movscript/current',
           homeCurrentPluginVersion: '0.1.0',
-          installCommand: 'codex plugin add movscript@movscript-local',
+          targets: [
+            {
+              target: 'codex',
+              providerRoot: '/tmp/movscript-home/provider/codex',
+              pluginLink: '/tmp/movscript-home/provider/codex/plugins/movscript',
+              registrationPath: '/tmp/movscript-home/provider/codex/registration.json',
+              nativeCommands: ['codex plugin add movscript@movscript'],
+            },
+            {
+              target: 'harness',
+              providerRoot: '/tmp/movscript-home/provider/harness',
+              pluginLink: '/tmp/movscript-home/provider/harness/plugins/movscript',
+              registrationPath: '/tmp/movscript-home/provider/harness/registration.json',
+              nativeCommands: ['Import provider/harness/worker-agent.json as a Harness Worker Agent MCP server configuration.'],
+            },
+            {
+              target: 'openclaw',
+              providerRoot: '/tmp/movscript-home/provider/openclaw',
+              pluginLink: '/tmp/movscript-home/provider/openclaw/plugins/movscript',
+              registrationPath: '/tmp/movscript-home/provider/openclaw/registration.json',
+              nativeCommands: ['openclaw mcp add movscript'],
+            },
+            {
+              target: 'claude-code',
+              providerRoot: '/tmp/movscript-home/provider/claude-code',
+              pluginLink: '/tmp/movscript-home/provider/claude-code/plugins/movscript',
+              registrationPath: '/tmp/movscript-home/provider/claude-code/registration.json',
+              nativeCommands: ['claude mcp add --transport stdio movscript'],
+            },
+          ],
+          installCommands: [
+            'codex plugin add movscript@movscript',
+            'openclaw mcp add movscript',
+            'claude mcp add --transport stdio movscript',
+          ],
         }
       },
       inspectLocalMovScriptProject: async (input: { projectDir: string }) => ({
@@ -245,7 +276,7 @@ async function expectWindowCall(
   expected:
     | { type: 'agent' }
     | { type: 'canvas' }
-    | { type: 'codex-plugin' }
+    | { type: 'agent-provider-targets' }
     | { type: 'editing' }
     | { type: 'projectData' }
     | { type: 'tool'; route?: string }
@@ -253,7 +284,7 @@ async function expectWindowCall(
 ) {
   await expect.poll(async () => page.evaluate(() => {
     return ((window as Window & { __movscriptWindowCalls?: WindowCall[] }).__movscriptWindowCalls ?? [])
-  })).toContainEqual(expected.type === 'agent' || expected.type === 'canvas' || expected.type === 'editing' || expected.type === 'codex-plugin'
+  })).toContainEqual(expected.type === 'agent' || expected.type === 'canvas' || expected.type === 'editing' || expected.type === 'agent-provider-targets'
     ? { type: expected.type }
     : expected.type === 'projectData'
       ? expect.objectContaining({ type: 'projectData' })

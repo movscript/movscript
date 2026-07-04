@@ -16,7 +16,7 @@ import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useLastWorkspaceStore } from '@/shared/infrastructure/session/lastWorkspaceStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
-import type { ElectronMovScriptCodexPluginInstallResult } from '@/shared/contracts/electronApi'
+import type { ElectronMovScriptAgentProviderTargetInstallResult } from '@/shared/contracts/electronApi'
 import type { Project } from '@/types'
 
 export default function GlobalHomePage() {
@@ -32,9 +32,9 @@ export default function GlobalHomePage() {
   const openProjectDialog = useAppShellDialogStore((s) => s.openProjectDialog)
   const agentAvailability = useAgentAvailabilityGuard()
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
-  const [codexPluginInstalling, setCodexPluginInstalling] = useState(false)
-  const [codexPluginError, setCodexPluginError] = useState<string | null>(null)
-  const [codexPluginResult, setCodexPluginResult] = useState<ElectronMovScriptCodexPluginInstallResult | null>(null)
+  const [agentProviderInstalling, setAgentProviderInstalling] = useState(false)
+  const [agentProviderError, setAgentProviderError] = useState<string | null>(null)
+  const [agentProviderResult, setAgentProviderResult] = useState<ElectronMovScriptAgentProviderTargetInstallResult | null>(null)
 
   const projectsQuery = useQuery<Project[]>({
     queryKey: projectKeys.list(currentOrgID),
@@ -65,22 +65,22 @@ export default function GlobalHomePage() {
     })
   }
 
-  async function installMovScriptIntoCodex() {
+  async function installMovScriptIntoAgentProviders() {
     const electronApi = readElectronApi()
-    if (!electronApi?.installMovScriptCodexPlugin) {
-      setCodexPluginError(t('home.codexPlugin.installUnavailable', { defaultValue: '当前环境不支持自动安装 Codex 插件。' }))
+    if (!electronApi?.installMovScriptAgentProviderTargets) {
+      setAgentProviderError(t('home.agentProvider.installUnavailable', { defaultValue: '当前环境不支持自动安装 Agent Provider。' }))
       return
     }
-    setCodexPluginInstalling(true)
-    setCodexPluginError(null)
-    setCodexPluginResult(null)
+    setAgentProviderInstalling(true)
+    setAgentProviderError(null)
+    setAgentProviderResult(null)
     try {
-      const result = await electronApi.installMovScriptCodexPlugin()
-      setCodexPluginResult(result)
+      const result = await electronApi.installMovScriptAgentProviderTargets({ targets: 'all' })
+      setAgentProviderResult(result)
     } catch (error) {
-      setCodexPluginError(error instanceof Error ? error.message : String(error))
+      setAgentProviderError(error instanceof Error ? error.message : String(error))
     } finally {
-      setCodexPluginInstalling(false)
+      setAgentProviderInstalling(false)
     }
   }
 
@@ -197,46 +197,49 @@ export default function GlobalHomePage() {
 
           <button
             type="button"
-            onClick={() => void installMovScriptIntoCodex()}
-            disabled={codexPluginInstalling}
+            onClick={() => void installMovScriptIntoAgentProviders()}
+            disabled={agentProviderInstalling}
             className="group flex min-h-[92px] items-center justify-between gap-3 rounded-lg border border-border bg-background p-3 text-left shadow-sm transition hover:border-foreground/30 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-75"
           >
             <span className="flex min-w-0 items-center gap-3">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-muted text-foreground">
-                {codexPluginInstalling ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                {agentProviderInstalling ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
               </span>
               <span className="min-w-0">
                 <span className="block type-body font-semibold text-foreground">
-                  {t('home.codexPlugin.title', { defaultValue: '安装到 Codex' })}
+                  {t('home.agentProvider.title', { defaultValue: '安装到主流 Agent' })}
                 </span>
                 <span className="mt-1 line-clamp-2 block type-caption leading-4 text-muted-foreground">
-                  {codexPluginInstalling
-                    ? t('home.codexPlugin.installing', { defaultValue: '正在安装 MovScript Codex 插件...' })
-                    : t('home.codexPlugin.description', { defaultValue: '让 Codex 线程直接使用 MovScript 插件能力。' })}
+                  {agentProviderInstalling
+                    ? t('home.agentProvider.installing', { defaultValue: '正在写入 MovScript Agent Provider 配置...' })
+                    : t('home.agentProvider.description', { defaultValue: '生成 Codex、Harness、Claude Code、小龙虾/OpenClaw 的统一接入配置。' })}
                 </span>
-                {codexPluginError ? (
-                  <span className="mt-1 line-clamp-1 block type-caption text-destructive">{codexPluginError}</span>
+                {agentProviderError ? (
+                  <span className="mt-1 line-clamp-1 block type-caption text-destructive">{agentProviderError}</span>
                 ) : null}
               </span>
             </span>
             <ArrowRight size={14} className="shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-foreground" />
           </button>
 
-          {codexPluginResult ? (
+          {agentProviderResult ? (
             <section className="rounded-lg border border-emerald-500/30 bg-emerald-500/[0.07] p-3 text-left">
               <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
                 <CheckCircle2 size={15} className="shrink-0" />
                 <h2 className="type-label font-semibold">
-                  {t('home.codexPlugin.installedTitle', { defaultValue: 'Codex 插件已连接到 Home current' })}
+                  {t('home.agentProvider.installedTitle', { defaultValue: 'Agent Provider 已连接到 Home current' })}
                 </h2>
               </div>
               <dl className="mt-2 grid gap-1.5 type-caption text-muted-foreground">
-                <CodexPluginPathRow label="Home" value={codexPluginResult.homeDir} />
-                <CodexPluginPathRow
+                <AgentProviderPathRow label="Home" value={agentProviderResult.homeDir} />
+                <AgentProviderPathRow
                   label="Current"
-                  value={`${codexPluginResult.homeCurrentPluginVersion} · ${codexPluginResult.homeCurrentPluginRoot}`}
+                  value={`${agentProviderResult.homeCurrentPluginVersion} · ${agentProviderResult.homeCurrentPluginRoot}`}
                 />
-                <CodexPluginPathRow label="Marketplace" value={codexPluginResult.marketplaceRoot} />
+                <AgentProviderPathRow
+                  label="Targets"
+                  value={agentProviderResult.targets.map((target) => target.target).join(', ')}
+                />
               </dl>
             </section>
           ) : null}
@@ -369,7 +372,7 @@ export default function GlobalHomePage() {
   )
 }
 
-function CodexPluginPathRow({ label, value }: { label: string; value: string }) {
+function AgentProviderPathRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid min-w-0 grid-cols-[78px_minmax(0,1fr)] items-start gap-2">
       <dt className="shrink-0 font-medium text-foreground">{label}</dt>

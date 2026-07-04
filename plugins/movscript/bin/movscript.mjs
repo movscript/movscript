@@ -3133,7 +3133,7 @@ import { createReadStream as createReadStream2, existsSync as existsSync9, mkdir
 import { createServer as createServer6 } from "http";
 import { basename as basename52, dirname as dirname112, extname as extname32, join as join112, resolve as resolve122 } from "path";
 function normalizeBackendHTTPError2(method, path, status, body) {
-  const bodyRecord = isRecord36(body) ? body : void 0;
+  const bodyRecord = isRecord35(body) ? body : void 0;
   return {
     type: "backend_http_error",
     method,
@@ -3143,11 +3143,11 @@ function normalizeBackendHTTPError2(method, path, status, body) {
     ...bodyRecord && typeof bodyRecord.code === "string" ? { code: bodyRecord.code } : {},
     ...bodyRecord && typeof bodyRecord.field === "string" ? { field: bodyRecord.field } : {},
     ...bodyRecord && Array.isArray(bodyRecord.allowed_values) ? { allowed_values: bodyRecord.allowed_values } : {},
-    ...bodyRecord && isRecord36(bodyRecord.suggested_fix) ? { suggested_fix: bodyRecord.suggested_fix } : {},
+    ...bodyRecord && isRecord35(bodyRecord.suggested_fix) ? { suggested_fix: bodyRecord.suggested_fix } : {},
     ...bodyRecord && Number.isInteger(bodyRecord.required_min) ? { required_min: bodyRecord.required_min } : {},
     ...bodyRecord && Number.isInteger(bodyRecord.allowed_max) ? { allowed_max: bodyRecord.allowed_max } : {},
     ...bodyRecord && Number.isInteger(bodyRecord.actual_count) ? { actual_count: bodyRecord.actual_count } : {},
-    ...bodyRecord && isRecord36(bodyRecord.details) ? { details: bodyRecord.details } : {}
+    ...bodyRecord && isRecord35(bodyRecord.details) ? { details: bodyRecord.details } : {}
   };
 }
 function parseJSONBody2(rawBody) {
@@ -3159,10 +3159,10 @@ function parseJSONBody2(rawBody) {
   }
 }
 function backendErrorMessage2(body, rawBody) {
-  if (isRecord36(body) && typeof body.error === "string") return body.error;
+  if (isRecord35(body) && typeof body.error === "string") return body.error;
   return rawBody;
 }
-function isRecord36(value) {
+function isRecord35(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function validateApplicationManifest2(value) {
@@ -4006,7 +4006,7 @@ function defaultMovScriptBackendConfig2(baseURL = MOVSCRIPT_DEFAULT_BACKEND_BASE
 function readMovScriptBackendConfig2(workspaceDir = process.cwd()) {
   const paths = resolveMovScriptBackendPaths2(workspaceDir);
   const parsed = readJSON32(paths.configPath);
-  if (!isRecord37(parsed) || parsed.schema !== MOVSCRIPT_BACKEND_CONFIG_SCHEMA2) return defaultMovScriptBackendConfig2();
+  if (!isRecord36(parsed) || parsed.schema !== MOVSCRIPT_BACKEND_CONFIG_SCHEMA2) return defaultMovScriptBackendConfig2();
   const baseURL = stringField28(parsed.baseURL) ?? MOVSCRIPT_DEFAULT_BACKEND_BASE_URL2;
   const realm = normalizeRealm2(parsed.realm);
   const activeUserId = idField14(parsed.activeUserId);
@@ -4036,7 +4036,7 @@ function readMovScriptBackendAuth2(workspaceDir = process.cwd(), realmInput) {
   const requestedRealm = normalizeRealm2(realmInput) ?? config.realm;
   const paths = resolveMovScriptBackendPaths2(workspaceDir, requestedRealm);
   const parsed = readJSON32(paths.authPath);
-  if (!isRecord37(parsed) || parsed.schema !== MOVSCRIPT_BACKEND_AUTH_SCHEMA2) return void 0;
+  if (!isRecord36(parsed) || parsed.schema !== MOVSCRIPT_BACKEND_AUTH_SCHEMA2) return void 0;
   const token = stringField28(parsed.token);
   if (!token) return void 0;
   const tokenType = parsed.tokenType === "Bearer" ? "Bearer" : void 0;
@@ -4122,7 +4122,7 @@ async function loginMovScriptBackend2(input3) {
     token,
     tokenType: "Bearer",
     ...stringField28(response.expires_at) ? { expiresAt: stringField28(response.expires_at) } : {},
-    ...isRecord37(response.user) ? { user: response.user } : {},
+    ...isRecord36(response.user) ? { user: response.user } : {},
     ...normalizeGitCredential2(response.git_credential) ? { gitCredential: normalizeGitCredential2(response.git_credential) } : {}
   };
 }
@@ -4170,7 +4170,7 @@ function writeJSONAtomic32(filePath, value, mode) {
   renameSync32(tmpPath, filePath);
 }
 function normalizeAuthUser2(value) {
-  if (!isRecord37(value)) return void 0;
+  if (!isRecord36(value)) return void 0;
   const id = idField14(value.id);
   const username = stringField28(value.username);
   const displayName22 = stringField28(value.displayName) ?? stringField28(value.display_name);
@@ -4188,7 +4188,7 @@ function normalizeAuthUser2(value) {
   return Object.keys(user).length > 0 ? user : void 0;
 }
 function normalizeGitCredential2(value) {
-  if (!isRecord37(value)) return void 0;
+  if (!isRecord36(value)) return void 0;
   const provider = stringField28(value.provider);
   const username = stringField28(value.username);
   if (provider !== "gitea" || !username) return void 0;
@@ -4206,7 +4206,7 @@ function normalizeGitCredential2(value) {
   };
 }
 function normalizeRealm2(value) {
-  if (!isRecord37(value)) return void 0;
+  if (!isRecord36(value)) return void 0;
   const kind = value.kind === "local" || value.kind === "cloud" ? value.kind : void 0;
   if (!kind) return void 0;
   if (kind === "local") return { kind, id: "local" };
@@ -4221,11 +4221,11 @@ function idField14(value) {
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
 }
-function isRecord37(value) {
+function isRecord36(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function asRecord22(value, label) {
-  if (!isRecord37(value)) throw new Error(`${label} must be a JSON object`);
+  if (!isRecord36(value)) throw new Error(`${label} must be a JSON object`);
   return value;
 }
 function isNotFoundError22(error) {
@@ -8775,6 +8775,167 @@ function isMovScriptNonSourceRootDirectory2(path) {
   if (normalized.includes("/")) return false;
   return normalized === ".movscript" || normalized === ".git" || normalized === ".base" || normalized === ".update" || normalized === "runtime" || normalized === "tmp" || normalized.startsWith(".");
 }
+function buildContentSourceWorkspaceProjectTimelineStatus2(snapshot, _contentUnitSummaries = []) {
+  const namespaceVocabulary = snapshot.namespaceVocabulary ?? {
+    timelineTemplate: void 0,
+    timelineNamespaces: [],
+    settingNamespaces: [],
+    diagnostics: []
+  };
+  const timelineNamespaceNodes = (snapshot.domainNodes ?? []).filter((node) => node.category === "timeline_namespace").sort((left, right) => (left.order ?? 0) - (right.order ?? 0) || String(left.path ?? left.id ?? "").localeCompare(String(right.path ?? right.id ?? ""), "zh-CN"));
+  const timelineNamespaces = timelineNamespaceNodes.map((node) => {
+    const parent = domainParentRefForNode2(snapshot, node);
+    const record = domainRecordForNode2(snapshot, node);
+    const productionType = stringField232(record?.production_type ?? record?.productionType ?? record?.timeline_profile ?? record?.timelineProfile);
+    const nodeTimelineNamespaces = stringArrayField2(record?.timeline_namespaces ?? record?.timelineNamespaces);
+    return {
+      id: node.id,
+      kind: node.kind,
+      title: node.title,
+      path: node.path,
+      order: node.order,
+      entity_kind: stringField232(node.metadata?.entityKind),
+      ...productionType ? { production_type: productionType } : {},
+      ...nodeTimelineNamespaces.length ? { timeline_namespaces: nodeTimelineNamespaces } : {},
+      ...parent ? { parent } : {}
+    };
+  });
+  return {
+    schema: "movscript.project_timeline_status.v1",
+    status: "ok",
+    namespace_vocabulary: {
+      timeline_template: namespaceVocabulary.timelineTemplate,
+      timeline_namespaces: namespaceVocabulary.timelineNamespaces,
+      setting_namespaces: namespaceVocabulary.settingNamespaces,
+      diagnostics: namespaceVocabulary.diagnostics
+    },
+    timeline_namespace_count: timelineNamespaces.length,
+    timeline_namespaces: timelineNamespaces,
+    system_primitives: {
+      scene_moments_count: snapshot.sceneMoments.length,
+      expression_units_count: snapshot.expressionUnits.length,
+      storyboards_count: snapshot.storyboards.length,
+      keyframes_count: snapshot.keyframes.length,
+      audio_cues_count: snapshot.audioCues.length,
+      assets_count: snapshot.assets.length
+    }
+  };
+}
+function contentSourceWorkspaceContentUnitStatusSummaries2(snapshot) {
+  const candidatesByContentUnit = contentCandidateRecordsByContentUnitId5(snapshot.indexDocuments);
+  const selectionsByContentUnit = selectionRecordsByContentUnitId5(snapshot.indexDocuments);
+  return snapshot.contentUnits.map((unit) => summarizeContentUnitStatus2(unit, candidatesByContentUnit, selectionsByContentUnit));
+}
+function summarizeContentUnitStatus2(unit, candidatesByContentUnit, selectionsByContentUnit) {
+  const id = entityId2(unit);
+  const contentUnitId = String(id);
+  const candidates = candidatesByContentUnit.get(contentUnitId) ?? [];
+  const selection = selectionsByContentUnit.get(contentUnitId);
+  const selectedCandidate = selection?.candidate_id !== void 0 ? candidates.find((candidate) => sameId8(candidate.id, selection.candidate_id)) : void 0;
+  const selectedResourceId22 = numberField222(selection?.resource_id) ?? numberField222(firstCandidateOutput22(selectedCandidate)?.resource_id);
+  return {
+    content_unit_id: id,
+    title: stringField232(unit.record.title),
+    path: unit.path,
+    content_unit_type: stringField232(unit.record.content_unit_type),
+    output_kind: stringField232(unit.record.output_kind),
+    target_kind: stringField232(unit.record.target_kind),
+    target_ref: idField32(unit.record.target_ref),
+    candidate_count: candidates.length,
+    candidate_ids: candidates.map((candidate) => idField32(candidate.id)).filter((value) => value !== void 0),
+    selected_candidate: selection?.candidate_id,
+    selected_resource: selectedResourceId22,
+    stale_status: stringField232(selection?.stale_policy) === "accept_stale" ? "accepted_stale" : "ok",
+    blocking_refs: selection?.candidate_id === void 0 && candidates.length > 0 ? ["selection_missing"] : []
+  };
+}
+function domainParentRefForNode2(snapshot, node) {
+  const edge = (snapshot.domainEdges ?? []).find((candidate) => candidate.relation === "parent" && candidate.target.category === node.category && domainRefMatchesNode2(candidate.source, node));
+  return edge ? {
+    id: edge.target.id,
+    kind: edge.target.kind,
+    path: edge.target.path
+  } : void 0;
+}
+function domainRecordForNode2(snapshot, node) {
+  const entityKind = stringField232(node.metadata?.entityKind);
+  const entities = entityKind === "production" ? snapshot.productions : entityKind === "segment" ? snapshot.segments : [];
+  return entities.find(
+    (entity) => node.path !== void 0 && entity.path === node.path || node.id !== void 0 && sameId8(idField32(entity.id ?? entity.record.id ?? entity.record.ID ?? entity.path), node.id)
+  )?.record;
+}
+function domainRefMatchesNode2(ref, node) {
+  return ref.category === node.category && ref.kind === node.kind && (sameId8(ref.id, node.id) || ref.path !== void 0 && ref.path === node.path);
+}
+function contentCandidateRecordsByContentUnitId5(documents) {
+  const output3 = /* @__PURE__ */ new Map();
+  for (const document of documents) {
+    if (!document.path.endsWith("/content_candidate.json") || !isRecord232(document.data)) continue;
+    const contentUnitId = contentUnitIdForRuntimeDocument22(document.path, stringField232(document.data.content_unit_ref));
+    if (!contentUnitId) continue;
+    output3.set(contentUnitId, [...output3.get(contentUnitId) ?? [], document.data]);
+  }
+  return output3;
+}
+function selectionRecordsByContentUnitId5(documents) {
+  const output3 = /* @__PURE__ */ new Map();
+  for (const document of documents) {
+    if (!isRecord232(document.data)) continue;
+    const selection = isRecord232(document.data.selection) ? document.data.selection : void 0;
+    if (!selection) continue;
+    const contentUnitId = contentUnitIdForRuntimeDocument22(document.path, stringField232(document.data.target_ref));
+    if (!contentUnitId) continue;
+    output3.set(contentUnitId, {
+      ...idField32(selection.candidate_id) !== void 0 ? { candidate_id: idField32(selection.candidate_id) } : {},
+      ...numberField222(selection.resource_id) !== void 0 ? { resource_id: numberField222(selection.resource_id) } : {},
+      ...stringField232(selection.stale_policy) ? { stale_policy: stringField232(selection.stale_policy) } : {}
+    });
+  }
+  return output3;
+}
+function entityId2(entity) {
+  return idField32(entity.id ?? entity.record.id ?? entity.record.ID ?? pathSegmentAfter32(entity.path, "content_units") ?? entity.path) ?? entity.path;
+}
+function contentUnitIdForRuntimeDocument22(path, ref) {
+  if (ref) return lastPathSegment10(ref) ?? ref;
+  return pathSegmentAfter32(path, "content_units");
+}
+function firstCandidateOutput22(candidate) {
+  const outputs = Array.isArray(candidate?.outputs) ? candidate.outputs : [];
+  return outputs.find(isRecord232);
+}
+function stringArrayField2(value) {
+  return Array.isArray(value) ? value.filter((item) => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim()) : [];
+}
+function idField32(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) return value.trim();
+  return void 0;
+}
+function stringField232(value) {
+  const id = idField32(value);
+  return id === void 0 ? void 0 : String(id);
+}
+function numberField222(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return void 0;
+}
+function pathSegmentAfter32(path, segment) {
+  if (!path) return void 0;
+  const parts = path.split("/").filter(Boolean);
+  const index = parts.indexOf(segment);
+  return index >= 0 ? parts[index + 1] : void 0;
+}
+function lastPathSegment10(path) {
+  return path?.split("/").filter(Boolean).at(-1);
+}
+function sameId8(left, right) {
+  return left !== void 0 && right !== void 0 && String(left) === String(right);
+}
+function isRecord232(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 function getMovScriptDomainWorkspaceModel2(kind) {
   const model = MOVSCRIPT_DOMAIN_WORKSPACE_MODELS2[kind];
   if (!model) throw new Error(`Unsupported MovScript workspace kind: ${kind}`);
@@ -8851,7 +9012,7 @@ function queryMovScriptWorkspaceSettings2(index, query = {}) {
     limit: query.limit
   });
   if (query.settingId === void 0) return references;
-  return references.filter((entity) => sameId8(entity.id, query.settingId));
+  return references.filter((entity) => sameId22(entity.id, query.settingId));
 }
 function queryMovScriptWorkspaceAssets2(index, query = {}) {
   const assets = queryMovScriptWorkspaceEntities2(index, {
@@ -8860,11 +9021,11 @@ function queryMovScriptWorkspaceAssets2(index, query = {}) {
     settingId: query.settingId,
     settingStateId: query.settingStateId,
     limit: query.limit
-  }).filter((entity) => query.assetId === void 0 || sameId8(entity.id, query.assetId));
+  }).filter((entity) => query.assetId === void 0 || sameId22(entity.id, query.assetId));
   if (!query.includeCandidates) return { assets };
   const candidates = assets.flatMap((entity) => {
     const rows = entity.record.candidates;
-    return Array.isArray(rows) ? rows.filter(isRecord92) : [];
+    return Array.isArray(rows) ? rows.filter(isRecord93) : [];
   });
   return { assets, candidates };
 }
@@ -8876,7 +9037,7 @@ function queryMovScriptWorkspaceProductionContext2(index, query = {}) {
       entityKind: "production",
       query: query.query,
       limit: query.limit
-    }).filter((entity) => query.productionId === void 0 || sameId8(entity.id, query.productionId));
+    }).filter((entity) => query.productionId === void 0 || sameId22(entity.id, query.productionId));
   }
   if (include.has("segments")) {
     result.segments = queryMovScriptWorkspaceEntities2(index, {
@@ -8884,7 +9045,7 @@ function queryMovScriptWorkspaceProductionContext2(index, query = {}) {
       productionId: query.productionId,
       query: query.query,
       limit: query.limit
-    }).filter((entity) => query.segmentId === void 0 || sameId8(entity.id, query.segmentId));
+    }).filter((entity) => query.segmentId === void 0 || sameId22(entity.id, query.segmentId));
   }
   if (include.has("scene_moments")) {
     result.scene_moments = queryMovScriptWorkspaceEntities2(index, {
@@ -8893,7 +9054,7 @@ function queryMovScriptWorkspaceProductionContext2(index, query = {}) {
       segmentId: query.segmentId,
       query: query.query,
       limit: query.limit
-    }).filter((entity) => query.sceneMomentId === void 0 || sameId8(entity.id, query.sceneMomentId));
+    }).filter((entity) => query.sceneMomentId === void 0 || sameId22(entity.id, query.sceneMomentId));
   }
   if (include.has("storyboards")) {
     result.storyboards = queryMovScriptWorkspaceEntities2(index, {
@@ -8903,7 +9064,7 @@ function queryMovScriptWorkspaceProductionContext2(index, query = {}) {
       sceneMomentId: query.sceneMomentId,
       query: query.query,
       limit: query.limit
-    }).filter((entity) => query.storyboardId === void 0 || sameId8(entity.id, query.storyboardId));
+    }).filter((entity) => query.storyboardId === void 0 || sameId22(entity.id, query.storyboardId));
   }
   if (include.has("audio_cues")) {
     result.audio_cues = queryMovScriptWorkspaceEntities2(index, {
@@ -8947,7 +9108,7 @@ function queryMovScriptWorkspaceProductionContext2(index, query = {}) {
 }
 function indexedEntitiesFromDocument2(document) {
   const path = normalizeIndexedDocumentPath2(document.path);
-  if (!isRecord92(document.data)) return [];
+  if (!isRecord93(document.data)) return [];
   const entityKind = entityKindFromSchema2(stringField72(document.data.schema)) ?? entityKindFromPath3(path);
   return entityKind ? [indexedEntity2(entityKind, workspaceRecordWithDocumentMetadata2(document.data, document), path, 0)] : [];
 }
@@ -9071,16 +9232,16 @@ function entityKindFromPath3(path) {
   return void 0;
 }
 function entityPathMatchesProduction2(path, productionId) {
-  return pathSegmentAfter10(path, "productions") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "productions"), productionId, "production");
+  return pathSegmentAfter11(path, "productions") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "productions"), productionId, "production");
 }
 function entityPathMatchesSegment2(path, segmentId) {
-  return pathSegmentAfter10(path, "segments") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "segments"), segmentId, "segment");
+  return pathSegmentAfter11(path, "segments") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "segments"), segmentId, "segment");
 }
 function entityPathMatchesSceneMoment2(path, sceneMomentId) {
-  return pathSegmentAfter10(path, "scene_moments") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "scene_moments"), sceneMomentId, "scene_moment");
+  return pathSegmentAfter11(path, "scene_moments") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "scene_moments"), sceneMomentId, "scene_moment");
 }
 function entityPathMatchesStoryboard2(path, storyboardId) {
-  return pathSegmentAfter10(path, "storyboards") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "storyboards"), storyboardId, "storyboard");
+  return pathSegmentAfter11(path, "storyboards") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "storyboards"), storyboardId, "storyboard");
 }
 function entityMatchesStoryboard2(entity, storyboardId, context) {
   if (entityMatchesScope2(entity, "storyboard", storyboardId, context)) return true;
@@ -9089,13 +9250,13 @@ function entityMatchesStoryboard2(entity, storyboardId, context) {
   return storyboardRef !== void 0 && (entityPathMatchesStoryboard2(storyboardRef, storyboardId) || sameNormalizedEntityPath2(storyboardRef, storyboardId, "storyboard"));
 }
 function entityPathMatchesContentUnit2(path, contentUnitId) {
-  return pathSegmentAfter10(path, "content_units") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "content_units"), contentUnitId, "content_unit");
+  return pathSegmentAfter11(path, "content_units") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "content_units"), contentUnitId, "content_unit");
 }
 function entityPathMatchesSetting2(path, settingId) {
-  return pathSegmentAfter10(path, "settings") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "settings"), settingId, "setting");
+  return pathSegmentAfter11(path, "settings") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "settings"), settingId, "setting");
 }
 function entityPathMatchesSettingState2(path, stateId) {
-  return pathSegmentAfter10(path, "states") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "states"), stateId, "setting_state");
+  return pathSegmentAfter11(path, "states") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "states"), stateId, "setting_state");
 }
 function createEntityQueryContext2(index) {
   const entityByPath = new Map(index.entities.map((entity) => [entity.path, entity]));
@@ -9193,16 +9354,16 @@ function limitEntities2(items, limit) {
   if (!Number.isFinite(limit) || limit <= 0) return [];
   return items.slice(0, Math.floor(limit));
 }
-function sameId8(left, right) {
-  const leftId = idField32(left);
-  const rightId = idField32(right);
+function sameId22(left, right) {
+  const leftId = idField42(left);
+  const rightId = idField42(right);
   return leftId !== void 0 && rightId !== void 0 && String(leftId) === String(rightId);
 }
 function entityIdField2(entityKind, record) {
-  if (entityKind === "project") return idField32(record.project_id ?? record.ID ?? record.id);
-  return idField32(record.ID ?? record.id);
+  if (entityKind === "project") return idField42(record.project_id ?? record.ID ?? record.id);
+  return idField42(record.ID ?? record.id);
 }
-function idField32(value) {
+function idField42(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
@@ -9214,7 +9375,7 @@ function finiteNumber4(value) {
   const next = Number(value);
   return Number.isFinite(next) ? next : void 0;
 }
-function pathSegmentAfter10(path, segment) {
+function pathSegmentAfter11(path, segment) {
   const parts = path.split("/");
   const index = parts.indexOf(segment);
   return index >= 0 ? parts[index + 1] : void 0;
@@ -9231,7 +9392,7 @@ function sameNormalizedEntityPath2(pathOrDir, ref, entityKind) {
 function normalizeIndexedDocumentPath2(path) {
   return normalizeWorkspacePath8(path).replace(/^\.movscript\//, "");
 }
-function isRecord92(value) {
+function isRecord93(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function pruneUndefined17(value) {
@@ -9621,7 +9782,7 @@ function defaultWorkspaceDomainFileFilter2(path) {
   return isMovScriptSourcePath2(path);
 }
 function buildMovScriptCandidateSelectionRecord2(candidate, input3 = {}) {
-  const candidateId = idField42(candidate.id);
+  const candidateId = idField52(candidate.id);
   const resourceId = resourceIdField6(candidate.resource_id ?? candidate.resourceId);
   const artifactRef = stringField92(candidate.artifact_ref ?? candidate.artifactRef);
   if (candidateId === void 0 && resourceId === void 0) {
@@ -9656,16 +9817,16 @@ function clearMovScriptCandidateSelectionRecord2(record, options = {}) {
   return nextRecord;
 }
 function findCandidate2(record, candidateId) {
-  return arrayField7(record.candidates).filter(isRecord102).find((item) => sameId22(item.id, candidateId));
+  return arrayField7(record.candidates).filter(isRecord102).find((item) => sameId32(item.id, candidateId));
 }
 function selectionField2(options) {
   return options.selectionField?.trim() || DEFAULT_SELECTION_FIELD2;
 }
-function sameId22(left, right) {
+function sameId32(left, right) {
   if (left === void 0 || right === void 0) return false;
   return String(left) === String(right);
 }
-function idField42(value) {
+function idField52(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
@@ -11077,9 +11238,9 @@ function promptRefKind4(value) {
   return isContentUnitPromptRefKind2(value) ? value : void 0;
 }
 function sameRefId3(left, right, kind) {
-  return sameEntityRef3(left, right, kind) || lastPathSegment10(left) === right || lastPathSegment10(right) === left;
+  return sameEntityRef3(left, right, kind) || lastPathSegment22(left) === right || lastPathSegment22(right) === left;
 }
-function lastPathSegment10(value) {
+function lastPathSegment22(value) {
   if (typeof value !== "string" || !value.includes("/")) return void 0;
   return value.split("/").filter(Boolean).at(-1);
 }
@@ -11242,7 +11403,7 @@ function createMovScriptBackendDecisionStore2(options) {
         projectId: options.projectId,
         contentUnitId: input3.contentUnitId,
         targetRef,
-        candidateId: idField52(input3.candidate.id),
+        candidateId: idField62(input3.candidate.id),
         candidateCount: context.candidates.length,
         candidateIds: decisionCandidateIds2(context.candidates)
       });
@@ -11416,7 +11577,7 @@ function createMovScriptScopedProjectDataDecisionStore2(options) {
         projectUid: options.projectUid,
         contentUnitId: input3.contentUnitId,
         targetRef,
-        candidateId: idField52(input3.candidate.id),
+        candidateId: idField62(input3.candidate.id),
         candidateCount: context.candidates.length
       });
       return context;
@@ -11479,7 +11640,7 @@ async function overlayMovScriptDecisionDocuments2(documents, decisionStore) {
       data: normalizeDecisionContext2(context, contentUnitRef)
     });
     for (const candidate of context.candidates) {
-      const candidateId = idField52(candidate.id);
+      const candidateId = idField62(candidate.id);
       if (candidateId === void 0) continue;
       overlays.push({
         path: `${contentUnitRef}/candidates/${entityPathSlug2(candidateId, "candidate")}/content_candidate.json`,
@@ -11568,16 +11729,16 @@ async function requiredDecisionContext2(promise) {
 function entityDir33(path) {
   return path.replace(/\/[^/]+$/, "");
 }
-function idField52(value) {
+function idField62(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
 }
 function decisionCandidateIds2(candidates) {
-  return candidates.map((candidate) => idField52(candidate.id)).filter((id) => id !== void 0);
+  return candidates.map((candidate) => idField62(candidate.id)).filter((id) => id !== void 0);
 }
 function stringIdField2(value) {
-  const id = idField52(value);
+  const id = idField62(value);
   return id === void 0 ? void 0 : String(id);
 }
 function requiredResourceId32(value) {
@@ -11658,7 +11819,7 @@ function pruneUndefined122(value) {
 async function upsertMovScriptProjectStandards2(input3) {
   const current = stripWorkspacePrivateFields52(input3.record ?? {});
   const projectStyle = {
-    ...parseProjectStyle4(current.project_style),
+    ...parseProjectStyle3(current.project_style),
     ...input3.projectStyle
   };
   const record = pruneUndefined132({
@@ -11677,7 +11838,7 @@ async function upsertMovScriptProjectStandards2(input3) {
 ` });
   return { path, record };
 }
-function parseProjectStyle4(value) {
+function parseProjectStyle3(value) {
   if (isRecord192(value)) return value;
   if (typeof value !== "string" || !value.trim()) return {};
   try {
@@ -11718,7 +11879,7 @@ async function syncMovScriptProjectStandardSkills2(input3) {
   return results;
 }
 function renderMovScriptProjectStandardSkill2(standards) {
-  const projectStyle = parseProjectStyle22(standards.project_style);
+  const projectStyle = parseProjectStyle23(standards.project_style);
   const coreSections = [
     fieldSection2("Aspect ratio", standards.aspect_ratio ?? projectStyle.aspect_ratio),
     fieldSection2("Visual style", standards.visual_style ?? projectStyle.visual_style),
@@ -11812,7 +11973,7 @@ function resourceIdsFromValue4(value) {
   if (!text) return [];
   return Array.from(text.matchAll(/\b(?:resource[_-]?id|resource)[_:#\s-]*(\d+)\b/gi)).map((match) => Number(match[1])).filter((id) => Number.isInteger(id));
 }
-function parseProjectStyle22(value) {
+function parseProjectStyle23(value) {
   if (isRecord202(value)) return value;
   const text = textValue2(value);
   if (!text) return {};
@@ -12918,167 +13079,6 @@ function newLocalServerId2() {
     return `local-${crypto.randomUUID()}`;
   }
   return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-function buildContentSourceWorkspaceProjectTimelineStatus2(snapshot, _contentUnitSummaries = []) {
-  const namespaceVocabulary = snapshot.namespaceVocabulary ?? {
-    timelineTemplate: void 0,
-    timelineNamespaces: [],
-    settingNamespaces: [],
-    diagnostics: []
-  };
-  const timelineNamespaceNodes = (snapshot.domainNodes ?? []).filter((node) => node.category === "timeline_namespace").sort((left, right) => (left.order ?? 0) - (right.order ?? 0) || String(left.path ?? left.id ?? "").localeCompare(String(right.path ?? right.id ?? ""), "zh-CN"));
-  const timelineNamespaces = timelineNamespaceNodes.map((node) => {
-    const parent = domainParentRefForNode2(snapshot, node);
-    const record = domainRecordForNode2(snapshot, node);
-    const productionType = stringField232(record?.production_type ?? record?.productionType ?? record?.timeline_profile ?? record?.timelineProfile);
-    const nodeTimelineNamespaces = stringArrayField2(record?.timeline_namespaces ?? record?.timelineNamespaces);
-    return {
-      id: node.id,
-      kind: node.kind,
-      title: node.title,
-      path: node.path,
-      order: node.order,
-      entity_kind: stringField232(node.metadata?.entityKind),
-      ...productionType ? { production_type: productionType } : {},
-      ...nodeTimelineNamespaces.length ? { timeline_namespaces: nodeTimelineNamespaces } : {},
-      ...parent ? { parent } : {}
-    };
-  });
-  return {
-    schema: "movscript.project_timeline_status.v1",
-    status: "ok",
-    namespace_vocabulary: {
-      timeline_template: namespaceVocabulary.timelineTemplate,
-      timeline_namespaces: namespaceVocabulary.timelineNamespaces,
-      setting_namespaces: namespaceVocabulary.settingNamespaces,
-      diagnostics: namespaceVocabulary.diagnostics
-    },
-    timeline_namespace_count: timelineNamespaces.length,
-    timeline_namespaces: timelineNamespaces,
-    system_primitives: {
-      scene_moments_count: snapshot.sceneMoments.length,
-      expression_units_count: snapshot.expressionUnits.length,
-      storyboards_count: snapshot.storyboards.length,
-      keyframes_count: snapshot.keyframes.length,
-      audio_cues_count: snapshot.audioCues.length,
-      assets_count: snapshot.assets.length
-    }
-  };
-}
-function contentSourceWorkspaceContentUnitStatusSummaries2(snapshot) {
-  const candidatesByContentUnit = contentCandidateRecordsByContentUnitId5(snapshot.indexDocuments);
-  const selectionsByContentUnit = selectionRecordsByContentUnitId5(snapshot.indexDocuments);
-  return snapshot.contentUnits.map((unit) => summarizeContentUnitStatus2(unit, candidatesByContentUnit, selectionsByContentUnit));
-}
-function summarizeContentUnitStatus2(unit, candidatesByContentUnit, selectionsByContentUnit) {
-  const id = entityId2(unit);
-  const contentUnitId = String(id);
-  const candidates = candidatesByContentUnit.get(contentUnitId) ?? [];
-  const selection = selectionsByContentUnit.get(contentUnitId);
-  const selectedCandidate = selection?.candidate_id !== void 0 ? candidates.find((candidate) => sameId32(candidate.id, selection.candidate_id)) : void 0;
-  const selectedResourceId22 = numberField222(selection?.resource_id) ?? numberField222(firstCandidateOutput22(selectedCandidate)?.resource_id);
-  return {
-    content_unit_id: id,
-    title: stringField232(unit.record.title),
-    path: unit.path,
-    content_unit_type: stringField232(unit.record.content_unit_type),
-    output_kind: stringField232(unit.record.output_kind),
-    target_kind: stringField232(unit.record.target_kind),
-    target_ref: idField62(unit.record.target_ref),
-    candidate_count: candidates.length,
-    candidate_ids: candidates.map((candidate) => idField62(candidate.id)).filter((value) => value !== void 0),
-    selected_candidate: selection?.candidate_id,
-    selected_resource: selectedResourceId22,
-    stale_status: stringField232(selection?.stale_policy) === "accept_stale" ? "accepted_stale" : "ok",
-    blocking_refs: selection?.candidate_id === void 0 && candidates.length > 0 ? ["selection_missing"] : []
-  };
-}
-function domainParentRefForNode2(snapshot, node) {
-  const edge = (snapshot.domainEdges ?? []).find((candidate) => candidate.relation === "parent" && candidate.target.category === node.category && domainRefMatchesNode2(candidate.source, node));
-  return edge ? {
-    id: edge.target.id,
-    kind: edge.target.kind,
-    path: edge.target.path
-  } : void 0;
-}
-function domainRecordForNode2(snapshot, node) {
-  const entityKind = stringField232(node.metadata?.entityKind);
-  const entities = entityKind === "production" ? snapshot.productions : entityKind === "segment" ? snapshot.segments : [];
-  return entities.find(
-    (entity) => node.path !== void 0 && entity.path === node.path || node.id !== void 0 && sameId32(idField62(entity.id ?? entity.record.id ?? entity.record.ID ?? entity.path), node.id)
-  )?.record;
-}
-function domainRefMatchesNode2(ref, node) {
-  return ref.category === node.category && ref.kind === node.kind && (sameId32(ref.id, node.id) || ref.path !== void 0 && ref.path === node.path);
-}
-function contentCandidateRecordsByContentUnitId5(documents) {
-  const output3 = /* @__PURE__ */ new Map();
-  for (const document of documents) {
-    if (!document.path.endsWith("/content_candidate.json") || !isRecord232(document.data)) continue;
-    const contentUnitId = contentUnitIdForRuntimeDocument22(document.path, stringField232(document.data.content_unit_ref));
-    if (!contentUnitId) continue;
-    output3.set(contentUnitId, [...output3.get(contentUnitId) ?? [], document.data]);
-  }
-  return output3;
-}
-function selectionRecordsByContentUnitId5(documents) {
-  const output3 = /* @__PURE__ */ new Map();
-  for (const document of documents) {
-    if (!isRecord232(document.data)) continue;
-    const selection = isRecord232(document.data.selection) ? document.data.selection : void 0;
-    if (!selection) continue;
-    const contentUnitId = contentUnitIdForRuntimeDocument22(document.path, stringField232(document.data.target_ref));
-    if (!contentUnitId) continue;
-    output3.set(contentUnitId, {
-      ...idField62(selection.candidate_id) !== void 0 ? { candidate_id: idField62(selection.candidate_id) } : {},
-      ...numberField222(selection.resource_id) !== void 0 ? { resource_id: numberField222(selection.resource_id) } : {},
-      ...stringField232(selection.stale_policy) ? { stale_policy: stringField232(selection.stale_policy) } : {}
-    });
-  }
-  return output3;
-}
-function entityId2(entity) {
-  return idField62(entity.id ?? entity.record.id ?? entity.record.ID ?? pathSegmentAfter33(entity.path, "content_units") ?? entity.path) ?? entity.path;
-}
-function contentUnitIdForRuntimeDocument22(path, ref) {
-  if (ref) return lastPathSegment22(ref) ?? ref;
-  return pathSegmentAfter33(path, "content_units");
-}
-function firstCandidateOutput22(candidate) {
-  const outputs = Array.isArray(candidate?.outputs) ? candidate.outputs : [];
-  return outputs.find(isRecord232);
-}
-function stringArrayField2(value) {
-  return Array.isArray(value) ? value.filter((item) => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim()) : [];
-}
-function idField62(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) return value.trim();
-  return void 0;
-}
-function stringField232(value) {
-  const id = idField62(value);
-  return id === void 0 ? void 0 : String(id);
-}
-function numberField222(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
-  return void 0;
-}
-function pathSegmentAfter33(path, segment) {
-  if (!path) return void 0;
-  const parts = path.split("/").filter(Boolean);
-  const index = parts.indexOf(segment);
-  return index >= 0 ? parts[index + 1] : void 0;
-}
-function lastPathSegment22(path) {
-  return path?.split("/").filter(Boolean).at(-1);
-}
-function sameId32(left, right) {
-  return left !== void 0 && right !== void 0 && String(left) === String(right);
-}
-function isRecord232(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function createProjectServiceClientFromRuntime2(options = {}) {
   const baseUrl = resolveProjectServiceBaseUrl2(options);
@@ -33003,7 +33003,7 @@ async function readContentUnitSelectionForList(engine, contentUnit) {
   const contentUnitDir = normalizeCliPath(contentUnit.path.replace(/\/content_unit\.json$/, ""));
   const index = await engine.loadIndex().catch(() => void 0);
   const decisionContext = index?.documents.find((document) => {
-    if (!isRecord372(document.data)) return false;
+    if (!isRecord37(document.data)) return false;
     return document.data.schema === "movscript.decision_context.v1" && document.data.target_kind === "content_unit" && document.data.target_ref === contentUnitDir;
   })?.data;
   const overlaySelection = recordField8(recordField8(decisionContext)?.selection);
@@ -33016,7 +33016,7 @@ async function readContentUnitSelectionForList(engine, contentUnit) {
 }
 function contentUnitCandidateListItem(contentUnit, candidate, selectionValidity, selectedCandidateId) {
   const record = candidate.record;
-  const outputs = arrayField72(record.outputs).filter(isRecord372);
+  const outputs = arrayField72(record.outputs).filter(isRecord37);
   const id = record.id;
   const selected = selectedCandidateId !== void 0 && String(selectedCandidateId) === String(id);
   return {
@@ -33042,7 +33042,7 @@ async function readInlineCandidateTarget(engine, target, targetKind) {
   const repository = createCliFileRepositoryFromEngine(engine);
   const file = await repository.read({ path: targetPath });
   const parsed = JSON.parse(file.content);
-  if (!isRecord372(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
+  if (!isRecord37(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
   return {
     entityKind: targetKind,
     id: parsed.id,
@@ -33053,7 +33053,7 @@ async function readInlineCandidateTarget(engine, target, targetKind) {
 function inlineCandidateItemsFromEntity(entity, targetKind) {
   const selection = recordField8(entity.record.lock);
   const selectedCandidateId = selection?.candidate_id;
-  return arrayField72(entity.record.candidates).filter(isRecord372).map((candidate) => {
+  return arrayField72(entity.record.candidates).filter(isRecord37).map((candidate) => {
     const id = candidate.id;
     const resourceId = candidate.resource_id;
     const selected = selectedCandidateId !== void 0 && String(selectedCandidateId) === String(id);
@@ -33316,13 +33316,13 @@ async function createDemoProjectFromCliOptions(options, command) {
       "movscript interpret"
     ]
   }, merged);
-  if (isRecord372(interpretation) && interpretation.status === "failed") process.exitCode = 2;
+  if (isRecord37(interpretation) && interpretation.status === "failed") process.exitCode = 2;
 }
 function summarizeDemoInterpretation(interpretation) {
-  if (!isRecord372(interpretation)) return interpretation;
-  const review = isRecord372(interpretation.review) ? interpretation.review : void 0;
-  const manifest = isRecord372(interpretation.manifest) ? interpretation.manifest : void 0;
-  const output3 = isRecord372(manifest?.output) ? manifest.output : void 0;
+  if (!isRecord37(interpretation)) return interpretation;
+  const review = isRecord37(interpretation.review) ? interpretation.review : void 0;
+  const manifest = isRecord37(interpretation.manifest) ? interpretation.manifest : void 0;
+  const output3 = isRecord37(manifest?.output) ? manifest.output : void 0;
   return pruneUndefined19({
     status: interpretation.status,
     readyToInterpret: review?.readyToInterpret,
@@ -33550,7 +33550,7 @@ async function inspectWorkspaceFromCliOptions(options, command) {
     ...merged.commit ? { commit: merged.commit } : {}
   });
   printResult(result, merged);
-  if (isRecord372(result) && result.readyToInterpret === false) process.exitCode = 2;
+  if (isRecord37(result) && result.readyToInterpret === false) process.exitCode = 2;
 }
 async function interpretWorkspaceFromCliOptions(options, command) {
   const merged = mergeGlobalOptions(options, command);
@@ -33558,7 +33558,7 @@ async function interpretWorkspaceFromCliOptions(options, command) {
     fileRepository: createCliFileRepository(merged)
   });
   printResult(result, merged);
-  if (isRecord372(result) && result.status === "failed") process.exitCode = 2;
+  if (isRecord37(result) && result.status === "failed") process.exitCode = 2;
 }
 async function regenerationPlanFromCliOptions(options, command) {
   const merged = mergeGlobalOptions(options, command);
@@ -34347,7 +34347,7 @@ async function listContentUnitCandidates(engine, contentUnit) {
   const contentUnitDir = normalizeCliPath(contentUnit.path.replace(/\/content_unit\.json$/, ""));
   const index = await engine.loadIndex().catch(() => void 0);
   const indexedCandidates = index?.documents.filter((document) => document.path.startsWith(`${contentUnitDir}/candidates/`) && document.path.endsWith("/content_candidate.json")).map((document) => {
-    if (!isRecord372(document.data)) return void 0;
+    if (!isRecord37(document.data)) return void 0;
     return { path: document.path, record: document.data };
   }).filter((candidate) => candidate !== void 0) ?? [];
   if (indexedCandidates.length > 0) return indexedCandidates;
@@ -34360,7 +34360,7 @@ async function listContentUnitCandidates(engine, contentUnit) {
     const file = await repository.read({ path }).catch(() => void 0);
     if (!file) return void 0;
     const parsed = JSON.parse(file.content);
-    if (!isRecord372(parsed)) return void 0;
+    if (!isRecord37(parsed)) return void 0;
     return { path: file.path, record: parsed };
   }));
   return candidates.filter((candidate) => candidate !== void 0);
@@ -34370,7 +34370,7 @@ async function findContentUnitCandidate(engine, contentUnit, candidateId) {
   return candidates.find((candidate) => String(candidate.record.id ?? "") === candidateId);
 }
 function candidateResourceId(candidate) {
-  const firstOutput = arrayField72(candidate?.outputs).filter(isRecord372)[0];
+  const firstOutput = arrayField72(candidate?.outputs).filter(isRecord37)[0];
   const resourceId = firstOutput?.resource_id;
   return resourceIdOption(resourceId);
 }
@@ -34428,12 +34428,12 @@ function printContentUnitStatusPanel(panel, options) {
   const summary = recordField8(panel.summary);
   const prompt = recordField8(runtime?.prompt);
   const runtimeRequest = recordField8(runtime?.runtime_request);
-  const candidates = arrayField72(panel.candidates).filter(isRecord372);
-  const dependencies = arrayField72(dependencyReport?.dependencies).filter(isRecord372);
-  const upstreamSelections = arrayField72(dependencyReport?.upstream_selections).filter(isRecord372);
-  const runtimeInputs = arrayField72(runtimeRequest?.inputs).filter(isRecord372);
-  const issues = arrayField72(dependencyReport?.issues).filter(isRecord372);
-  const backendBlockers = arrayField72(backendPrompt?.blockers ?? compiledPrompt?.blockers).filter(isRecord372);
+  const candidates = arrayField72(panel.candidates).filter(isRecord37);
+  const dependencies = arrayField72(dependencyReport?.dependencies).filter(isRecord37);
+  const upstreamSelections = arrayField72(dependencyReport?.upstream_selections).filter(isRecord37);
+  const runtimeInputs = arrayField72(runtimeRequest?.inputs).filter(isRecord37);
+  const issues = arrayField72(dependencyReport?.issues).filter(isRecord37);
+  const backendBlockers = arrayField72(backendPrompt?.blockers ?? compiledPrompt?.blockers).filter(isRecord37);
   const lines = [
     `Content Unit: ${scalarDisplayValue2(contentUnit?.id)}  ${scalarDisplayValue2(contentUnit?.title)}`,
     `Path: ${scalarDisplayValue2(contentUnit?.path)}`,
@@ -34484,7 +34484,7 @@ function printContentUnitStatusPanel(panel, options) {
     ...candidates.length ? candidates.map((item) => {
       const record = recordField8(item.record) ?? {};
       const selected = selectionValidity?.candidate_id !== void 0 && String(selectionValidity.candidate_id) === String(record.id) ? "*" : " ";
-      const outputs = arrayField72(record.outputs).filter(isRecord372);
+      const outputs = arrayField72(record.outputs).filter(isRecord37);
       const outputSummary = outputs.length ? outputs.map((output3) => `${scalarDisplayValue2(output3.kind)}:${scalarDisplayValue2(output3.resource_id)}`).join(", ") : "-";
       const candidateHash = shortHash(recordField8(record.input_version)?.hash);
       return ` ${selected} ${scalarDisplayValue2(record.id)} source=${scalarDisplayValue2(record.source)} status=${scalarDisplayValue2(record.status)} hash=${candidateHash} outputs=${outputSummary}`;
@@ -34628,11 +34628,11 @@ function scalarDisplayValue2(value) {
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
   return JSON.stringify(value);
 }
-function isRecord372(value) {
+function isRecord37(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function recordField8(value) {
-  return isRecord372(value) ? value : void 0;
+  return isRecord37(value) ? value : void 0;
 }
 function arrayField72(value) {
   return Array.isArray(value) ? value : [];
@@ -48559,6 +48559,1549 @@ var MOVSCRIPT_SOURCE_ENTITY_FILES = /* @__PURE__ */ new Set([
   "expression_unit.json"
 ]);
 
+// ../../packages/core/dist/chunk-5H5P6PXX.js
+function buildContentSourceWorkspaceData(input3) {
+  const productions = input3.productions;
+  const segments = input3.segments;
+  const sceneMoments = input3.sceneMoments;
+  const storyboards = input3.storyboards;
+  const expressionUnits = input3.expressionUnits;
+  const audioCues = input3.audioCues;
+  const contentUnits = input3.contentUnits;
+  const keyframes = input3.keyframes;
+  const assets = input3.assets;
+  const settings = input3.settings;
+  const settingStates = input3.settingStates;
+  const previewTimelines = input3.previewTimelines;
+  const productionWorkPlan = normalizeProductionWorkPlanView(input3.productionWorkPlan);
+  const domainGraph = buildContentSourceWorkspaceDomainGraph(input3);
+  const ancestryIndex = buildContentSourceWorkspaceEntityAncestryIndex(input3, domainGraph);
+  const contentUnitsByPrimaryRef = groupContentUnitsByPrimaryRef(contentUnits);
+  const candidateRecordsByContentUnitId = groupContentCandidateRecordsByContentUnitId(input3.indexDocuments);
+  const selectionRecordsByContentUnitId23 = groupSelectionRecordsByContentUnitId(input3.indexDocuments);
+  const selectionByContentUnitId = buildSelectionStateByContentUnitId(contentUnits, selectionRecordsByContentUnitId23);
+  const contentUnitCandidates = buildContentUnitCandidates({
+    contentUnits,
+    candidateRecordsByContentUnitId,
+    selectionRecordsByContentUnitId: selectionRecordsByContentUnitId23
+  });
+  const previewMoments = buildPreviewMoments({
+    productions,
+    segments,
+    sceneMoments,
+    expressionUnits,
+    storyboards,
+    keyframes,
+    assets,
+    previewTimelines,
+    ancestryIndex,
+    contentUnitsByPrimaryRef,
+    candidateRecordsByContentUnitId,
+    selectionRecordsByContentUnitId: selectionRecordsByContentUnitId23,
+    selectionByContentUnitId
+  });
+  const expressionUnitsByMoment = buildExpressionUnitsByMoment(expressionUnits, ancestryIndex);
+  const audioCuesByMoment = buildAudioCuesByMoment(audioCues, {
+    ancestryIndex,
+    contentUnitsByPrimaryRef,
+    candidateRecordsByContentUnitId,
+    selectionRecordsByContentUnitId: selectionRecordsByContentUnitId23,
+    selectionByContentUnitId
+  });
+  const expressionUnitWorkspaceDetails = buildExpressionUnitWorkspaceDetails({
+    expressionUnits,
+    storyboards,
+    keyframes,
+    assets,
+    settings,
+    contentUnitsByPrimaryRef,
+    ancestryIndex,
+    candidateRecordsByContentUnitId,
+    selectionRecordsByContentUnitId: selectionRecordsByContentUnitId23,
+    selectionByContentUnitId
+  });
+  const assetReferenceUnits = buildAssetReferenceUnits({
+    assets,
+    settings,
+    settingStates,
+    expressionUnits,
+    storyboards,
+    keyframes,
+    contentUnits,
+    contentUnitsByPrimaryRef,
+    ancestryIndex,
+    candidateRecordsByContentUnitId,
+    selectionRecordsByContentUnitId: selectionRecordsByContentUnitId23,
+    selectionByContentUnitId
+  });
+  return {
+    source: "workspace",
+    domainGraph,
+    hierarchyTree: buildHierarchyTree({
+      settings,
+      settingStates,
+      assets,
+      productions,
+      segments,
+      sceneMoments,
+      storyboards,
+      keyframes,
+      expressionUnits,
+      audioCues,
+      assetReferenceUnits,
+      ancestryIndex
+    }),
+    previewMoments,
+    contentUnitCandidates,
+    expressionUnitsByMoment,
+    audioCuesByMoment,
+    expressionUnitWorkspaceDetails,
+    assetReferenceUnits,
+    editingTimelines: input3.editingTimelines ?? [],
+    productionWorkPlan
+  };
+}
+function buildContentSourceWorkspaceDomainGraph(input3) {
+  const nodes = input3.domainNodes?.length ? input3.domainNodes : deriveContentSourceWorkspaceDomainNodes(input3);
+  const edges = input3.domainEdges?.length ? input3.domainEdges : deriveContentSourceWorkspaceDomainEdges(input3, nodes);
+  return {
+    namespaceVocabulary: input3.namespaceVocabulary ?? deriveContentSourceWorkspaceNamespaceVocabulary(input3),
+    nodes,
+    edges,
+    timelineNamespaceNodes: nodes.filter((node) => node.category === "timeline_namespace"),
+    settingNamespaceNodes: nodes.filter((node) => node.category === "setting_namespace"),
+    systemPrimitiveNodes: nodes.filter((node) => node.category === "system_primitive"),
+    contentUnitNodes: nodes.filter((node) => node.category === "content_unit")
+  };
+}
+function deriveContentSourceWorkspaceNamespaceVocabulary(input3) {
+  const projectDocument = input3.indexDocuments.find(
+    (document) => normalizeWorkspacePath(document.path) === "project.json" && isRecord6(document.data)
+  );
+  return normalizeNamespaceVocabulary(projectDocument?.data);
+}
+function deriveContentSourceWorkspaceDomainNodes(input3) {
+  return sourceWorkspaceDomainEntities(input3).flatMap((entity) => {
+    const category = classifyMovScriptEntityKind(entity.entityKind);
+    if (!category) return [];
+    return [pruneUndefinedRecord({
+      category,
+      kind: projectMovScriptDomainNodeKind(entity.entityKind, entity.record),
+      ...entity.id !== void 0 ? { id: entity.id } : {},
+      path: entity.path,
+      title: stringField7(entity.record.title) ?? stringField7(entity.record.label),
+      order: optionalNumberField(entity.record.order),
+      metadata: { entityKind: entity.entityKind }
+    })];
+  });
+}
+function deriveContentSourceWorkspaceDomainPathParentEdges(nodes) {
+  const nodeByDir = /* @__PURE__ */ new Map();
+  for (const node of nodes) {
+    if (node.path) nodeByDir.set(entityDir2(node.path), node);
+  }
+  const edges = [];
+  for (const node of nodes) {
+    if (!node.path) continue;
+    const parentPath = nearestParentPath(entityDir2(node.path), nodeByDir.keys());
+    if (!parentPath) continue;
+    const parent = nodeByDir.get(parentPath);
+    const normalized = normalizePathParentEdge(domainRefFromNode(node), parent ? domainRefFromNode(parent) : void 0);
+    if (normalized.edge) edges.push(normalized.edge);
+  }
+  return dedupeDomainEdges(edges);
+}
+function deriveContentSourceWorkspaceDomainEdges(input3, nodes) {
+  return dedupeDomainEdges([
+    ...deriveContentSourceWorkspaceDomainPathParentEdges(nodes),
+    ...deriveContentSourceWorkspaceContentUnitTargetEdges(input3.contentUnits, nodes)
+  ]);
+}
+function deriveContentSourceWorkspaceContentUnitTargetEdges(contentUnits, nodes) {
+  const nodeByPath = new Map(nodes.flatMap((node) => node.path ? [[node.path, node]] : []));
+  const timelineNamespaceNodes = nodes.filter((node) => node.category === "timeline_namespace");
+  const edges = [];
+  for (const contentUnit of contentUnits) {
+    const sourceNode = nodeByPath.get(contentUnit.path);
+    if (!sourceNode) continue;
+    edges.push(...normalizeContentUnitTargetEdges({
+      source: domainRefFromNode(sourceNode),
+      record: contentUnit.record,
+      scopeTarget(scope) {
+        return domainRefFromTimelineScope(scope.kind, scope.ref, timelineNamespaceNodes);
+      }
+    }));
+  }
+  return edges;
+}
+function sourceWorkspaceDomainEntities(input3) {
+  return [
+    ...input3.settings,
+    ...input3.settingStates,
+    ...input3.assets,
+    ...input3.productions,
+    ...input3.segments,
+    ...input3.sceneMoments,
+    ...input3.storyboards,
+    ...input3.keyframes,
+    ...input3.expressionUnits,
+    ...input3.audioCues,
+    ...input3.contentUnits
+  ];
+}
+function buildContentSourceWorkspaceEntityAncestryIndex(input3, domainGraph) {
+  const entities = sourceWorkspaceDomainEntities(input3);
+  const entityByPath = new Map(entities.map((entity) => [entity.path, entity]));
+  const entityByDir = new Map(entities.map((entity) => [entityDir2(entity.path), entity]));
+  const parentPathByPath = /* @__PURE__ */ new Map();
+  for (const edge of domainGraph.edges) {
+    if (edge.relation !== "parent" || edge.origin !== "path") continue;
+    if (!edge.source.path || !edge.target.path) continue;
+    parentPathByPath.set(edge.source.path, edge.target.path);
+  }
+  for (const entity of entities) {
+    if (parentPathByPath.has(entity.path)) continue;
+    const parentDir = nearestParentPath(entityDir2(entity.path), entityByDir.keys());
+    const parent = parentDir ? entityByDir.get(parentDir) : void 0;
+    if (parent) parentPathByPath.set(entity.path, parent.path);
+  }
+  const childrenByParentPath = /* @__PURE__ */ new Map();
+  for (const [childPath, parentPath] of parentPathByPath) {
+    const child = entityByPath.get(childPath);
+    if (!child) continue;
+    childrenByParentPath.set(parentPath, [...childrenByParentPath.get(parentPath) ?? [], child]);
+  }
+  return { entityByPath, parentPathByPath, childrenByParentPath };
+}
+function domainRefFromTimelineScope(scopeKind, scopeRef, timelineNamespaceNodes) {
+  const node = timelineNamespaceNodes.find(
+    (candidate) => String(candidate.id ?? "") === scopeRef && (candidate.kind === scopeKind || candidate.metadata?.entityKind === scopeKind)
+  );
+  return node ? domainRefFromNode(node) : { category: "timeline_namespace", kind: scopeKind, id: scopeRef };
+}
+function domainRefFromNode(node) {
+  return {
+    category: node.category,
+    kind: node.kind,
+    ...node.id !== void 0 ? { id: node.id } : {},
+    ...node.path ? { path: node.path } : {}
+  };
+}
+function dedupeDomainEdges(edges) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const edge of edges) {
+    const key = JSON.stringify(edge);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(edge);
+  }
+  return out;
+}
+function normalizeProductionWorkPlanView(plan) {
+  if (!plan) return void 0;
+  if (isProductionWorkPlanView(plan)) {
+    return {
+      summary: {
+        open: optionalNumberField(plan.summary.open) ?? 0,
+        blocking: optionalNumberField(plan.summary.blocking) ?? 0,
+        humanRecommended: optionalNumberField(plan.summary.humanRecommended) ?? 0,
+        agentRecommended: optionalNumberField(plan.summary.agentRecommended) ?? 0,
+        readyToGenerate: optionalNumberField(plan.summary.readyToGenerate) ?? 0,
+        staleSelections: optionalNumberField(plan.summary.staleSelections) ?? 0
+      },
+      items: plan.items.map(normalizeProductionWorkItemView).filter(isDefined)
+    };
+  }
+  const rawPlan = plan;
+  return {
+    summary: {
+      open: optionalNumberField(rawPlan.summary.open) ?? 0,
+      blocking: optionalNumberField(rawPlan.summary.blocking) ?? 0,
+      humanRecommended: optionalNumberField(rawPlan.summary.human_recommended) ?? 0,
+      agentRecommended: optionalNumberField(rawPlan.summary.agent_recommended) ?? 0,
+      readyToGenerate: optionalNumberField(rawPlan.summary.ready_to_generate) ?? 0,
+      staleSelections: optionalNumberField(rawPlan.summary.stale_selections) ?? 0
+    },
+    items: rawPlan.items.map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      status: item.status,
+      severity: item.severity,
+      priority: item.priority,
+      reason: item.reason,
+      targetKind: item.target.entityKind,
+      targetId: item.target.id !== void 0 ? String(item.target.id) : void 0,
+      targetPath: item.target.path,
+      recommendedActor: item.recommended_actor,
+      actionLabels: item.actions.map((action) => productionWorkActionLabel(action.type))
+    }))
+  };
+}
+function isProductionWorkPlanView(plan) {
+  return "humanRecommended" in plan.summary;
+}
+function normalizeProductionWorkItemView(item) {
+  if (!item.id || !item.kind || !item.status || !item.severity || !item.reason || !item.targetKind) return void 0;
+  return {
+    id: item.id,
+    kind: normalizeProductionWorkItemKind(item.kind),
+    status: normalizeProductionWorkItemStatus(item.status),
+    severity: normalizeProductionWorkItemSeverity(item.severity),
+    priority: optionalNumberField(item.priority) ?? 100,
+    reason: item.reason,
+    targetKind: item.targetKind,
+    targetId: item.targetId,
+    targetPath: item.targetPath,
+    recommendedActor: item.recommendedActor === "agent" || item.recommendedActor === "workflow" ? item.recommendedActor : "human",
+    actionLabels: Array.isArray(item.actionLabels) ? item.actionLabels.filter((label) => typeof label === "string" && label.trim()) : []
+  };
+}
+function normalizeProductionWorkItemKind(kind) {
+  switch (kind) {
+    case "fix_source":
+    case "edit_structure":
+    case "create_content_unit":
+    case "generate_candidates":
+    case "select_candidate":
+    case "review_stale_selection":
+    case "review_affected_output":
+      return kind;
+    default:
+      return "edit_structure";
+  }
+}
+function normalizeProductionWorkItemStatus(status) {
+  if (status === "open" || status === "blocked" || status === "ready" || status === "informational") return status;
+  return "open";
+}
+function normalizeProductionWorkItemSeverity(severity) {
+  if (severity === "blocking" || severity === "warning" || severity === "suggestion") return severity;
+  return "warning";
+}
+function productionWorkActionLabel(type) {
+  switch (type) {
+    case "open_editor":
+      return "\u6253\u5F00\u7F16\u8F91\u5668";
+    case "upsert_entity":
+      return "\u8865\u7ED3\u6784";
+    case "derive_content_unit_artifact":
+      return "\u5237\u65B0\u521B\u4F5C\u7247\u6BB5";
+    case "generate_candidates":
+      return "\u751F\u6210\u5019\u9009";
+    case "open_candidate_picker":
+      return "\u6253\u5F00\u5019\u9009\u9009\u62E9";
+    case "agent_review_candidates":
+      return "\u8F85\u52A9\u5BA1\u9605\u5019\u9009";
+    case "accept_stale":
+      return "\u63A5\u53D7 stale";
+    default:
+      return type;
+  }
+}
+function buildHierarchyTree(input3) {
+  return [
+    {
+      id: "settings_root",
+      type: "group",
+      title: "Settings",
+      path: "settings/",
+      children: sortEntities(input3.settings).map((setting) => {
+        const states = childEntitiesForParent(input3.ancestryIndex, input3.settingStates, setting);
+        return entityNode(setting, "setting", {
+          children: sortEntities(states).map((state) => {
+            const stateAssets = childEntitiesForParent(input3.ancestryIndex, input3.assets, state);
+            return entityNode(state, "state", {
+              children: sortEntities(stateAssets).map((asset) => {
+                const unit = input3.assetReferenceUnits[nodeId(asset, "asset")];
+                return entityNode(asset, "asset", { state: unit?.selectionState === "needs_candidate" ? "missing" : void 0 });
+              })
+            });
+          })
+        });
+      })
+    },
+    {
+      id: "productions_group",
+      type: "group",
+      title: "Productions",
+      path: "productions",
+      children: sortEntities(input3.productions).map((production) => {
+        const segments = childEntitiesForParent(input3.ancestryIndex, input3.segments, production);
+        return entityNode(production, "production", {
+          children: sortEntities(segments).map((segment) => {
+            const sceneMoments = childEntitiesForParent(input3.ancestryIndex, input3.sceneMoments, segment);
+            return entityNode(segment, "segment", {
+              children: sortEntities(sceneMoments).map((sceneMoment) => {
+                const momentDir = entityDir2(sceneMoment.path);
+                const expressions = childEntitiesForParent(input3.ancestryIndex, input3.expressionUnits, sceneMoment);
+                const momentStoryboards = childEntitiesForParent(input3.ancestryIndex, input3.storyboards, sceneMoment);
+                const momentKeyframes = childEntitiesForParent(input3.ancestryIndex, input3.keyframes, sceneMoment);
+                const audioCues = childEntitiesForParent(input3.ancestryIndex, input3.audioCues, sceneMoment);
+                const momentId = idText(sceneMoment);
+                const expressionGroup = {
+                  id: `${nodeId(sceneMoment, "scene_moment")}_expression_group`,
+                  type: "group",
+                  title: "Expression Units",
+                  path: `${momentDir}/expression_units`,
+                  momentId,
+                  children: sortEntities(expressions).map((expression) => {
+                    const expressionDir = entityDir2(expression.path);
+                    const expressionUnitId = idText(expression);
+                    const storyboards = childEntitiesForParent(input3.ancestryIndex, input3.storyboards, expression);
+                    const keyframes = childEntitiesForParent(input3.ancestryIndex, input3.keyframes, expression);
+                    return entityNode(expression, "expression_unit", {
+                      momentId,
+                      expressionUnitId,
+                      children: [
+                        {
+                          id: `${nodeId(expression, "expression_unit")}_storyboards_group`,
+                          type: "group",
+                          title: "Storyboards",
+                          path: `${expressionDir}/storyboards`,
+                          momentId,
+                          expressionUnitId,
+                          children: sortEntities(storyboards).map((storyboard) => entityNode(storyboard, "storyboard", { momentId, expressionUnitId }))
+                        },
+                        {
+                          id: `${nodeId(expression, "expression_unit")}_keyframes_group`,
+                          type: "group",
+                          title: "Keyframes",
+                          path: `${expressionDir}/keyframes`,
+                          momentId,
+                          expressionUnitId,
+                          children: sortEntities(keyframes).map((keyframe) => entityNode(keyframe, "keyframe", { momentId, expressionUnitId }))
+                        }
+                      ]
+                    });
+                  })
+                };
+                const storyboardGroup = {
+                  id: `${nodeId(sceneMoment, "scene_moment")}_storyboards_group`,
+                  type: "group",
+                  title: "Storyboards",
+                  path: `${momentDir}/storyboards`,
+                  momentId,
+                  children: sortEntities(momentStoryboards).map((storyboard) => entityNode(storyboard, "storyboard", { momentId }))
+                };
+                const keyframeGroup = {
+                  id: `${nodeId(sceneMoment, "scene_moment")}_keyframes_group`,
+                  type: "group",
+                  title: "Keyframes",
+                  path: `${momentDir}/keyframes`,
+                  momentId,
+                  children: sortEntities(momentKeyframes).map((keyframe) => entityNode(keyframe, "keyframe", { momentId }))
+                };
+                const audioCueGroup = {
+                  id: `${nodeId(sceneMoment, "scene_moment")}_audio_group`,
+                  type: "group",
+                  title: "Audio Cues",
+                  path: `${momentDir}/audio_cues`,
+                  momentId,
+                  children: sortEntities(audioCues).map((audioCue) => entityNode(audioCue, "audio_cue", { momentId }))
+                };
+                return entityNode(sceneMoment, "scene_moment", {
+                  momentId,
+                  children: [expressionGroup, storyboardGroup, keyframeGroup, audioCueGroup]
+                });
+              })
+            });
+          })
+        });
+      })
+    }
+  ];
+}
+function buildPreviewMoments(input3) {
+  return orderedSceneMoments(input3.sceneMoments, input3.previewTimelines).map((moment, momentIndex) => {
+    const segment = ancestorEntity(input3.ancestryIndex, moment, "segment") ?? parentByDir(input3.segments, moment.path);
+    const production = segment ? ancestorEntity(input3.ancestryIndex, segment, "production") ?? parentByDir(input3.productions, segment.path) : ancestorEntity(input3.ancestryIndex, moment, "production");
+    const expressionUnits = orderedChildEntitiesForTimelineParent(input3.expressionUnits, input3.previewTimelines, timelineItemIdForEntity(moment), "expression_unit");
+    const momentExpressionUnits = (expressionUnits.length > 0 ? expressionUnits : sortEntities(childEntitiesForParent(input3.ancestryIndex, input3.expressionUnits, moment))).map(
+      (expressionUnit, expressionUnitIndex) => previewExpressionUnit(expressionUnit, expressionUnitIndex, moment, input3)
+    );
+    return {
+      id: idText(moment),
+      title: titleOf(moment, `Scene Moment ${momentIndex + 1}`),
+      path: entityDir2(moment.path),
+      selectionState: momentSelectionState(momentExpressionUnits),
+      priority: momentIndex < 1 ? "\u9AD8\u4F18\u5148\u7EA7" : momentIndex < 3 ? "\u4E2D\u4F18\u5148\u7EA7" : "\u4F4E\u4F18\u5148\u7EA7",
+      production: production ? titleOf(production, idText(production)) : "",
+      segment: segment ? titleOf(segment, idText(segment)) : "",
+      settings: settingRefsForMoment(moment, momentExpressionUnits, input3.assets),
+      expressionUnits: momentExpressionUnits
+    };
+  });
+}
+function previewExpressionUnit(expressionUnit, expressionUnitIndex, moment, input3) {
+  const storyboards = sortEntities(childEntitiesForParent(input3.ancestryIndex, input3.storyboards, expressionUnit));
+  const keyframes = sortEntities(childEntitiesForParent(input3.ancestryIndex, input3.keyframes, expressionUnit));
+  const primaryStoryboard = storyboards[0];
+  const primaryKeyframe = keyframes[0];
+  const contentUnit = contentUnitForEntity(input3.contentUnitsByPrimaryRef, "expression_unit", expressionUnit) ?? (primaryStoryboard ? contentUnitForEntity(input3.contentUnitsByPrimaryRef, "storyboard", primaryStoryboard) : void 0) ?? (primaryKeyframe ? contentUnitForEntity(input3.contentUnitsByPrimaryRef, "keyframe", primaryKeyframe) : void 0);
+  return {
+    id: idText(expressionUnit),
+    title: titleOf(expressionUnit, `Expression Unit ${expressionUnitIndex + 1}`),
+    kind: stringField7(expressionUnit.record.kind) ?? "expression_unit",
+    camera: shotCameraText(expressionUnit),
+    duration: durationText(recordField(expressionUnit.record.timing_intent)?.duration_sec ?? recordField(expressionUnit.record.timing)?.duration_sec ?? recordField(contentUnit?.record.model_intent)?.duration_sec),
+    expression: shotExpressionText(expressionUnit),
+    stillPosition: stillPositionForIndex(expressionUnitIndex),
+    path: entityDir2(expressionUnit.path),
+    keyframes: keyframes.map((keyframe) => idText(keyframe)),
+    assets: shotAssets(expressionUnit, keyframes, input3.assets),
+    storyboard: primaryStoryboard ? nodeId(primaryStoryboard, "storyboard") : "",
+    contentUnit: previewContentUnit(contentUnit, expressionUnit, moment, primaryStoryboard, keyframes, input3)
+  };
+}
+function orderedSceneMoments(sceneMoments, previewTimelines) {
+  const timelineMoments = previewTimelines.flatMap(
+    (timeline) => timeline.items.filter((item) => item.itemType === "scene_moment").sort((left, right) => left.order - right.order).map((item) => entityForTimelineItem(sceneMoments, item)).filter(isDefined)
+  );
+  if (timelineMoments.length === 0) return sortEntities(sceneMoments);
+  return uniqueEntities([...timelineMoments, ...sortEntities(sceneMoments)]);
+}
+function orderedChildEntitiesForTimelineParent(entities, previewTimelines, parentItemId, itemType) {
+  return previewTimelines.flatMap(
+    (timeline) => timeline.items.filter((item) => item.itemType === itemType && item.parentId === parentItemId).sort((left, right) => left.order - right.order).map((item) => entityForTimelineItem(entities, item)).filter(isDefined)
+  );
+}
+function entityForTimelineItem(entities, item) {
+  return entities.find(
+    (entity) => item.entity.id !== void 0 && String(entity.id ?? "") === String(item.entity.id) || entity.path === item.entity.path
+  );
+}
+function uniqueEntities(entities) {
+  return Array.from(new Map(entities.map((entity) => [entity.path, entity])).values());
+}
+function timelineItemIdForEntity(entity) {
+  return `${entity.entityKind}:${String(entity.id ?? entity.path)}`;
+}
+function previewContentUnit(contentUnit, expressionUnit, moment, storyboard, keyframes, input3) {
+  const type = contentUnitType(contentUnit);
+  const id = contentUnit ? idText(contentUnit) : `cu_${idText(expressionUnit)}`;
+  const selection = input3.selectionRecordsByContentUnitId.get(id);
+  return {
+    id,
+    type,
+    outputKind: outputKindForContentUnit(contentUnit),
+    path: contentUnit?.path ?? `content_units/${id}/content_unit.json`,
+    editPrompt: editPromptText(contentUnit) ?? "",
+    sceneMomentRef: `scene_moment/${idText(moment)}`,
+    expressionUnitRef: idText(expressionUnit),
+    storyboardRef: storyboard ? nodeId(storyboard, "storyboard") : "",
+    keyframeRefs: keyframes.map((keyframe) => idText(keyframe)),
+    selectionState: input3.selectionByContentUnitId.get(id) ?? selectionStateFromSourceSelection(selection, contentUnit),
+    candidates: previewCandidatesForContentUnit(id, input3.candidateRecordsByContentUnitId.get(id) ?? [], selection)
+  };
+}
+function buildExpressionUnitsByMoment(expressionUnits, ancestryIndex) {
+  const output3 = {};
+  for (const expression of sortEntities(expressionUnits)) {
+    const momentId = ancestorId(ancestryIndex, expression, "scene_moment") ?? pathSegmentAfter(expression.path, "scene_moments") ?? "";
+    const item = {
+      id: idText(expression),
+      title: titleOf(expression, stringField7(expression.record.text) ?? idText(expression)),
+      path: expression.path,
+      kind: stringField7(expression.record.slot_kind ?? expression.record.expression_kind ?? expression.record.kind) ?? "visual",
+      slotKind: expressionUnitSlotKindFromRecord(expression.record),
+      text: stringField7(expression.record.text) ?? "",
+      summary: stringField7(expression.record.intent ?? expression.record.note ?? expression.record.text) ?? "",
+      speaker: stringField7(expression.record.speaker),
+      note: stringField7(expression.record.note),
+      sceneMomentId: momentId
+    };
+    output3[momentId] = [...output3[momentId] ?? [], item];
+  }
+  return output3;
+}
+function buildAudioCuesByMoment(audioCues, input3) {
+  const output3 = {};
+  for (const audioCue of sortEntities(audioCues)) {
+    const momentId = ancestorId(input3.ancestryIndex, audioCue, "scene_moment") ?? pathSegmentAfter(audioCue.path, "scene_moments") ?? "";
+    const contentUnit = contentUnitForEntity(input3.contentUnitsByPrimaryRef, "audio_cue", audioCue);
+    const item = {
+      id: idText(audioCue),
+      title: titleOf(audioCue, idText(audioCue)),
+      path: audioCue.path,
+      cueKind: stringField7(audioCue.record.cue_kind ?? audioCue.record.kind) ?? "sound_effect",
+      promptHint: stringField7(audioCue.record.prompt_hint) ?? "",
+      expressionUnitRef: stringField7(audioCue.record.expression_unit_ref),
+      storyboardRef: stringField7(audioCue.record.storyboard_ref),
+      timing: recordField(audioCue.record.timing) ?? {},
+      assetRefs: arrayField(audioCue.record.asset_refs).map(String),
+      sceneMomentId: momentId,
+      ...contentUnit ? { contentUnit: previewAudioCueContentUnit(contentUnit, audioCue, input3) } : {}
+    };
+    output3[momentId] = [...output3[momentId] ?? [], item];
+  }
+  return output3;
+}
+function previewAudioCueContentUnit(contentUnit, audioCue, input3) {
+  const id = idText(contentUnit);
+  const selection = input3.selectionRecordsByContentUnitId.get(id);
+  return {
+    id,
+    type: contentUnitType(contentUnit),
+    outputKind: outputKindForContentUnit(contentUnit),
+    path: contentUnit.path,
+    editPrompt: editPromptText(contentUnit) ?? "",
+    sceneMomentRef: ancestorId(input3.ancestryIndex, audioCue, "scene_moment") ?? pathSegmentAfter(audioCue.path, "scene_moments") ?? "",
+    expressionUnitRef: stringField7(audioCue.record.expression_unit_ref) ?? "",
+    storyboardRef: stringField7(audioCue.record.storyboard_ref) ?? "",
+    keyframeRefs: [],
+    selectionState: input3.selectionByContentUnitId.get(id) ?? selectionStateFromSourceSelection(selection, contentUnit),
+    candidates: previewCandidatesForContentUnit(id, input3.candidateRecordsByContentUnitId.get(id) ?? [], selection)
+  };
+}
+function transitionFromEntity(entity) {
+  const transition = recordField(entity.record.transition);
+  if (!transition) return void 0;
+  const value = {
+    in: stringField7(transition.in),
+    out: stringField7(transition.out),
+    notes: stringField7(transition.notes)
+  };
+  return Object.values(value).some(Boolean) ? value : void 0;
+}
+function storyboardTimelineFromEntity(entity) {
+  const timeline = recordField(entity.record.timeline);
+  if (!timeline) return void 0;
+  const value = {
+    caption: stringField7(timeline.caption),
+    gapAfterSec: optionalNumberField(timeline.gap_after_sec),
+    durationSec: optionalNumberField(timeline.duration_sec)
+  };
+  return Object.values(value).some((item) => item !== void 0) ? value : void 0;
+}
+function buildExpressionUnitWorkspaceDetails(input3) {
+  return Object.fromEntries(input3.expressionUnits.map((expressionUnit) => {
+    const keyframes = sortEntities(childEntitiesForParent(input3.ancestryIndex, input3.keyframes, expressionUnit));
+    const storyboards = sortEntities(childEntitiesForParent(input3.ancestryIndex, input3.storyboards, expressionUnit));
+    const refs = shotAssets(expressionUnit, keyframes, input3.assets);
+    const assets = refs.map((ref) => ({
+      id: ref.title,
+      title: ref.title.replace(/^asset\//, ""),
+      owner: ref.title,
+      status: ref.status === "missing" ? "missing" : ref.status === "locked" ? "locked" : "current",
+      summary: ref.status === "missing" ? "\u8BE5\u7D20\u6750\u5F15\u7528\u5C1A\u672A\u5728 setting/state asset \u4E2D\u89E3\u6790\u3002" : "\u6765\u81EA workspace source \u7684\u7D20\u6750\u5F15\u7528\u3002",
+      downstream: [idText(expressionUnit)]
+    }));
+    const settings = input3.settings.slice(0, 4).map((setting) => ({
+      id: nodeId(setting, "setting"),
+      title: titleOf(setting, idText(setting)),
+      owner: setting.path,
+      status: "current",
+      summary: stringField7(setting.record.summary ?? setting.record.description ?? setting.record.prompt_hint) ?? "Workspace setting context.",
+      downstream: [idText(expressionUnit)]
+    }));
+    return [idText(expressionUnit), {
+      settings,
+      assets,
+      keyframes: keyframes.map((keyframe) => expressionUnitChildOption(keyframe, "keyframe", expressionUnit, input3)),
+      storyboards: storyboards.map((storyboard) => expressionUnitChildOption(storyboard, "storyboard", expressionUnit, input3)),
+      impacts: []
+    }];
+  }));
+}
+function buildAssetReferenceUnits(input3) {
+  return Object.fromEntries(input3.assets.map((asset) => {
+    const contentUnit = contentUnitForEntity(input3.contentUnitsByPrimaryRef, "asset", asset);
+    const contentUnitId = contentUnit ? idText(contentUnit) : `cu_${idText(asset)}`;
+    const ownerState = ancestorEntity(input3.ancestryIndex, asset, "setting_state") ?? parentByDir(input3.settingStates, asset.path);
+    const ownerSetting = ownerState ? ancestorEntity(input3.ancestryIndex, ownerState, "setting") ?? parentByDir(input3.settings, ownerState.path) : ancestorEntity(input3.ancestryIndex, asset, "setting");
+    const assetId = nodeId(asset, "asset");
+    const selection = input3.selectionRecordsByContentUnitId.get(contentUnitId);
+    const selectionState = contentUnit ? input3.selectionByContentUnitId.get(contentUnitId) ?? "needs_candidate" : "ready";
+    return [assetId, {
+      assetId,
+      title: titleOf(asset, idText(asset)),
+      path: contentUnit?.path ?? `content_units/${contentUnitId}/content_unit.json`,
+      contentUnitId,
+      contentUnitType: "asset_ref",
+      outputKind: "image",
+      editPrompt: editPromptText(contentUnit) ?? "",
+      usage: `${titleOf(asset, idText(asset))} \u4F5C\u4E3A setting/state \u4E0B\u7684\u7D20\u6750\u53C2\u8003\u8F93\u5165\u3002`,
+      lockPolicy: "\u9009\u62E9\u53D8\u5316\u540E\uFF0C\u4E0B\u6E38\u5F15\u7528\u8BE5 asset_ref \u7684\u521B\u4F5C\u7247\u6BB5\u9700\u8981\u91CD\u65B0\u68C0\u67E5\u3002",
+      selectionState,
+      upstream: [
+        ...ownerSetting ? [{ id: `setting:${idText(ownerSetting)}`, title: titleOf(ownerSetting, idText(ownerSetting)), kind: "setting", ownerNodeId: nodeId(ownerSetting, "setting"), state: "current", summary: ownerSetting.path }] : [],
+        ...ownerState ? [{ id: `state:${idText(ownerState)}`, title: titleOf(ownerState, idText(ownerState)), kind: "state", ownerNodeId: nodeId(ownerState, "state"), state: "current", summary: ownerState.path }] : []
+      ],
+      candidates: previewAssetCandidatesForContentUnit(contentUnitId, input3.candidateRecordsByContentUnitId.get(contentUnitId) ?? [], selection),
+      downstream: buildAssetDownstreamUnits(asset, input3)
+    }];
+  }));
+}
+function buildAssetDownstreamUnits(asset, input3) {
+  const assetId = idText(asset);
+  const refs = /* @__PURE__ */ new Set([assetId, nodeId(asset, "asset")]);
+  return input3.contentUnits.filter((contentUnit) => {
+    const promptRefs = editPromptRefs(contentUnit);
+    const referencesAsset = promptRefs.some((ref) => ref.kind === "asset" && refs.has(ref.id));
+    const isOwnAssetRef = stringField7(contentUnit.record.content_unit_type) === "asset_ref" && primaryRefIdsForContentUnitRecord2(contentUnit.record, "asset").some((ref) => refs.has(ref));
+    return referencesAsset && !isOwnAssetRef;
+  }).map((contentUnit) => {
+    const contentUnitId = idText(contentUnit);
+    const owner = primaryOwnerForContentUnit(contentUnit, input3);
+    const selection = input3.selectionRecordsByContentUnitId.get(contentUnitId);
+    const selectedCandidateId = idValue(selection?.candidate_id);
+    const selectedCandidate = selectedCandidateId ? input3.candidateRecordsByContentUnitId.get(contentUnitId)?.find((candidate) => selectionCandidateMatches(selection, idValue(candidate.id) ?? "")) : void 0;
+    const state = input3.selectionByContentUnitId.get(contentUnitId) ?? selectionStateFromSourceSelection(selection, contentUnit);
+    return {
+      id: `asset:${assetId}:content_unit:${contentUnitId}`,
+      title: titleOf(contentUnit, contentUnitId),
+      kind: "content_unit",
+      ownerNodeId: owner?.nodeId ?? contentUnitId,
+      momentId: owner?.momentId ?? "",
+      expressionUnitId: owner?.expressionUnitId ?? "",
+      dependencyHash: selectedCandidate ? candidateInputHash(selectedCandidate, contentUnitId) : contentUnitId,
+      state,
+      action: state === "selected" ? "\u5DF2\u9009\u62E9\u5019\u9009\u5F15\u7528\u8BE5 asset" : "\u9700\u8981\u5019\u9009\u6216\u9009\u62E9\u786E\u8BA4",
+      preview: `${contentUnitId} \u5728 edit_prompt \u4E2D\u5F15\u7528 ${nodeId(asset, "asset")}\u3002`
+    };
+  });
+}
+function primaryOwnerForContentUnit(contentUnit, input3) {
+  const expressionUnitRef = primaryRefIdsForContentUnitRecord2(contentUnit.record, "expression_unit")[0];
+  if (expressionUnitRef) {
+    const expressionUnit = input3.expressionUnits.find((item) => entityMatchesRef(item, expressionUnitRef, "expression_unit"));
+    return {
+      nodeId: expressionUnit ? idText(expressionUnit) : expressionUnitRef,
+      momentId: expressionUnit ? ancestorId(input3.ancestryIndex, expressionUnit, "scene_moment") ?? pathSegmentAfter(expressionUnit.path, "scene_moments") ?? "" : "",
+      expressionUnitId: expressionUnit ? idText(expressionUnit) : expressionUnitRef
+    };
+  }
+  const storyboardRef = primaryRefIdsForContentUnitRecord2(contentUnit.record, "storyboard")[0];
+  if (storyboardRef) {
+    const storyboard = input3.storyboards.find((item) => entityMatchesRef(item, storyboardRef, "storyboard"));
+    return {
+      nodeId: storyboard ? nodeId(storyboard, "storyboard") : `storyboard/${storyboardRef}`,
+      momentId: storyboard ? ancestorId(input3.ancestryIndex, storyboard, "scene_moment") ?? pathSegmentAfter(storyboard.path, "scene_moments") ?? "" : "",
+      expressionUnitId: storyboard ? ancestorId(input3.ancestryIndex, storyboard, "expression_unit") ?? pathSegmentAfter(storyboard.path, "expression_units") ?? "" : ""
+    };
+  }
+  const keyframeRef = primaryRefIdsForContentUnitRecord2(contentUnit.record, "keyframe")[0];
+  if (keyframeRef) {
+    const keyframe = input3.keyframes.find((item) => entityMatchesRef(item, keyframeRef, "keyframe"));
+    return {
+      nodeId: keyframe ? idText(keyframe) : keyframeRef,
+      momentId: keyframe ? ancestorId(input3.ancestryIndex, keyframe, "scene_moment") ?? pathSegmentAfter(keyframe.path, "scene_moments") ?? "" : "",
+      expressionUnitId: keyframe ? ancestorId(input3.ancestryIndex, keyframe, "expression_unit") ?? pathSegmentAfter(keyframe.path, "expression_units") ?? "" : ""
+    };
+  }
+  return void 0;
+}
+function expressionUnitChildOption(entity, primaryKind, expressionUnit, input3) {
+  const contentUnit = contentUnitForEntity(input3.contentUnitsByPrimaryRef, primaryKind, entity);
+  const contentUnitId = contentUnit ? idText(contentUnit) : "";
+  const selection = contentUnitId ? input3.selectionRecordsByContentUnitId.get(contentUnitId) : void 0;
+  return {
+    id: idText(entity),
+    title: titleOf(entity, idText(entity)),
+    status: contentUnit ? "candidate" : "draft",
+    inputHash: contentUnitId || "source",
+    summary: stringField7(entity.record.visual_intent ?? entity.record.summary ?? entity.record.description ?? entity.record.slot) ?? entity.path,
+    ...contentUnit ? {
+      contentUnit: {
+        id: contentUnitId,
+        type: primaryKind === "keyframe" ? "keyframe_ref" : "storyboard_ref",
+        outputKind: outputKindForContentUnit(contentUnit),
+        path: contentUnit.path,
+        editPrompt: editPromptText(contentUnit) ?? "",
+        sceneMomentRef: `scene_moment/${ancestorId(input3.ancestryIndex, expressionUnit, "scene_moment") ?? pathSegmentAfter(expressionUnit.path, "scene_moments") ?? ""}`,
+        expressionUnitRef: idText(expressionUnit),
+        storyboardRef: primaryKind === "storyboard" ? nodeId(entity, "storyboard") : "",
+        keyframeRefs: primaryKind === "keyframe" ? [idText(entity)] : [],
+        selectionState: input3.selectionByContentUnitId.get(contentUnitId) ?? selectionStateFromSourceSelection(selection, contentUnit),
+        candidates: previewCandidatesForContentUnit(contentUnitId, input3.candidateRecordsByContentUnitId.get(contentUnitId) ?? [], selection)
+      }
+    } : {}
+  };
+}
+function buildContentUnitCandidates(input3) {
+  const ids = /* @__PURE__ */ new Set([
+    ...input3.contentUnits.map(idText),
+    ...input3.candidateRecordsByContentUnitId.keys(),
+    ...input3.selectionRecordsByContentUnitId.keys()
+  ]);
+  const output3 = {};
+  for (const contentUnitId of ids) {
+    output3[contentUnitId] = previewCandidatesForContentUnit(
+      contentUnitId,
+      input3.candidateRecordsByContentUnitId.get(contentUnitId) ?? [],
+      input3.selectionRecordsByContentUnitId.get(contentUnitId)
+    );
+  }
+  return output3;
+}
+function groupContentUnitsByPrimaryRef(contentUnits) {
+  const output3 = /* @__PURE__ */ new Map();
+  for (const contentUnit of contentUnits) {
+    const type = stringField7(contentUnit.record.content_unit_type);
+    const primaryKind = primaryKindForContentUnitType(type);
+    if (!primaryKind) continue;
+    for (const ref of primaryRefIdsForContentUnitRecord2(contentUnit.record, primaryKind)) {
+      for (const key of primaryRefKeys(primaryKind, ref)) {
+        output3.set(key, [...output3.get(key) ?? [], contentUnit]);
+      }
+    }
+  }
+  return output3;
+}
+function groupContentCandidateRecordsByContentUnitId(documents) {
+  const output3 = /* @__PURE__ */ new Map();
+  for (const document of documents) {
+    if (document.path.endsWith("/content_candidate.json") && isContentCandidateRecord(document.data)) {
+      const contentUnitId2 = contentUnitIdForRuntimeDocument(document.path, document.data.content_unit_ref);
+      if (!contentUnitId2) continue;
+      appendContentCandidateRecord(output3, contentUnitId2, document.data);
+      continue;
+    }
+    if (!isDecisionContextRecord(document.data)) continue;
+    const contentUnitId = contentUnitIdForRuntimeDocument(document.path, stringField7(document.data.target_ref));
+    if (!contentUnitId) continue;
+    for (const candidate of arrayField(document.data.candidates)) {
+      const record = normalizeDecisionContentCandidateRecord(candidate, contentUnitId);
+      if (record) appendContentCandidateRecord(output3, contentUnitId, record);
+    }
+  }
+  for (const [contentUnitId, candidates] of output3.entries()) {
+    output3.set(contentUnitId, candidates.sort((left, right) => (stringField7(right.created_at) ?? "").localeCompare(stringField7(left.created_at) ?? "")));
+  }
+  return output3;
+}
+function appendContentCandidateRecord(output3, contentUnitId, candidate) {
+  const candidates = output3.get(contentUnitId) ?? [];
+  const candidateId = idValue(candidate.id);
+  if (!candidateId) {
+    output3.set(contentUnitId, [...candidates, candidate]);
+    return;
+  }
+  const existingIndex = candidates.findIndex((existing) => idValue(existing.id) === candidateId);
+  if (existingIndex < 0) {
+    output3.set(contentUnitId, [...candidates, candidate]);
+    return;
+  }
+  output3.set(contentUnitId, [
+    ...candidates.slice(0, existingIndex),
+    mergeContentCandidateRecords(candidates[existingIndex], candidate),
+    ...candidates.slice(existingIndex + 1)
+  ]);
+}
+function normalizeDecisionContentCandidateRecord(value, contentUnitId) {
+  if (!isRecord6(value) || !idValue(value.id)) return void 0;
+  return {
+    ...value,
+    content_unit_ref: stringField7(value.content_unit_ref) ?? `content_units/${contentUnitId}`
+  };
+}
+function mergeContentCandidateRecords(existing, incoming) {
+  const merged = { ...existing, ...incoming };
+  if (arrayField(incoming.outputs).length === 0 && arrayField(existing.outputs).length > 0) merged.outputs = existing.outputs;
+  if (!recordField(incoming.producer) && recordField(existing.producer)) merged.producer = existing.producer;
+  if (!recordField(incoming.prompt_snapshot) && recordField(existing.prompt_snapshot)) merged.prompt_snapshot = existing.prompt_snapshot;
+  if (!stringField7(incoming.status) && stringField7(existing.status)) merged.status = existing.status;
+  if (!stringField7(incoming.source) && stringField7(existing.source)) merged.source = existing.source;
+  if (!stringField7(incoming.created_at) && stringField7(existing.created_at)) merged.created_at = existing.created_at;
+  if (!stringField7(incoming.content_unit_ref) && stringField7(existing.content_unit_ref)) merged.content_unit_ref = existing.content_unit_ref;
+  return merged;
+}
+function groupSelectionRecordsByContentUnitId(documents) {
+  const output3 = /* @__PURE__ */ new Map();
+  for (const document of documents) {
+    if (!isDecisionContextRecord(document.data)) continue;
+    const selection = recordField(document.data.selection);
+    if (!selection) continue;
+    const contentUnitId = contentUnitIdForRuntimeDocument(document.path, stringField7(document.data.target_ref));
+    if (!contentUnitId) continue;
+    output3.set(contentUnitId, normalizeContentSelectionRecord(selection));
+  }
+  return output3;
+}
+function previewCandidatesForContentUnit(contentUnitId, candidates, selection) {
+  return candidates.map((candidate, index) => {
+    const id = idValue(candidate.id) ?? `candidate_${index + 1}`;
+    const output3 = firstCandidateOutput(candidate);
+    return {
+      id,
+      title: candidateTitle(candidate, candidateOrdinalTitle(index)),
+      model: candidateModel(candidate),
+      inputHash: candidateInputHash(candidate, contentUnitId),
+      selected: selectionCandidateMatches(selection, id),
+      note: candidateNote(candidate),
+      resourceId: resourceIdValue(output3?.resource_id),
+      streamId: streamIdValue(output3?.stream_id),
+      resourceKind: stringField7(output3?.kind),
+      artifactRef: stringField7(output3?.artifact_ref),
+      status: stringField7(candidate.status),
+      decisionStatus: candidateDecisionStatus(candidate),
+      decisionReason: candidateDecisionReason(candidate),
+      source: stringField7(candidate.source),
+      producer: candidate.producer,
+      outputs: candidate.outputs,
+      promptSnapshot: candidate.prompt_snapshot,
+      createdAt: stringField7(candidate.created_at)
+    };
+  });
+}
+function previewAssetCandidatesForContentUnit(contentUnitId, candidates, selection) {
+  return candidates.map((candidate, index) => {
+    const id = idValue(candidate.id) ?? `candidate_${index + 1}`;
+    const output3 = firstCandidateOutput(candidate);
+    return {
+      id,
+      title: candidateTitle(candidate, candidateOrdinalTitle(index)),
+      model: candidateModel(candidate),
+      inputHash: candidateInputHash(candidate, contentUnitId),
+      selected: selectionCandidateMatches(selection, id),
+      note: candidateNote(candidate),
+      resourceId: resourceIdValue(output3?.resource_id),
+      streamId: streamIdValue(output3?.stream_id),
+      resourceKind: stringField7(output3?.kind),
+      artifactRef: stringField7(output3?.artifact_ref),
+      status: stringField7(candidate.status),
+      decisionStatus: candidateDecisionStatus(candidate),
+      decisionReason: candidateDecisionReason(candidate),
+      source: stringField7(candidate.source),
+      producer: candidate.producer,
+      outputs: candidate.outputs,
+      promptSnapshot: candidate.prompt_snapshot,
+      createdAt: stringField7(candidate.created_at),
+      confirmation: assetCandidateConfirmation(candidate, selection, id)
+    };
+  });
+}
+function selectionStateFromSourceSelection(selection, contentUnit) {
+  if (selection?.candidate_id !== void 0) return "selected";
+  return contentUnit ? "needs_candidate" : "ready";
+}
+function buildSelectionStateByContentUnitId(contentUnits, selections) {
+  const entries = contentUnits.map((contentUnit) => {
+    const id = idText(contentUnit);
+    const selection = selections.get(id);
+    if (selection?.candidate_id !== void 0) return [id, "selected"];
+    return [id, "needs_candidate"];
+  });
+  return new Map(entries);
+}
+function contentUnitForEntity(contentUnitsByPrimaryRef, entityKind, entity) {
+  if (entity.id === void 0) return void 0;
+  return contentUnitsByPrimaryRef.get(primaryRefKey(entityKind, entity.id))?.[0];
+}
+function primaryKindForContentUnitType(type) {
+  return type ? primaryRefKindForContentUnitType(type) : void 0;
+}
+function primaryRefIdsForContentUnitRecord2(record, kind) {
+  return isContentUnitPromptRefKind(kind) ? primaryRefIdsForContentUnitRecord(record, kind) : [];
+}
+function editPromptRefs(contentUnit) {
+  const text = editPromptText(contentUnit) ?? "";
+  const refs = [];
+  const pattern = /\{\{\s*([a-z_]+)\s*:\s*([^}\s]+)\s*\}\}/g;
+  let match = pattern.exec(text);
+  while (match) {
+    refs.push({ kind: match[1] ?? "", id: match[2] ?? "" });
+    match = pattern.exec(text);
+  }
+  return refs;
+}
+function editPromptText(contentUnit) {
+  const prompt = contentUnit?.record.edit_prompt;
+  if (typeof prompt === "string") return prompt;
+  if (isRecord6(prompt)) return stringField7(prompt.text);
+  return void 0;
+}
+function entityNode(entity, type, extras = {}) {
+  return {
+    id: nodeId(entity, type),
+    type,
+    title: titleOf(entity, idText(entity)),
+    path: entity.path,
+    transition: supportsTransition(type) ? transitionFromEntity(entity) : void 0,
+    storyboardTimeline: type === "storyboard" ? storyboardTimelineFromEntity(entity) : void 0,
+    ...extras
+  };
+}
+function supportsTransition(type) {
+  return type === "production" || type === "segment" || type === "scene_moment" || type === "storyboard";
+}
+function nodeId(entity, type) {
+  if (type === "setting") return `setting/${idText(entity)}`;
+  if (type === "state") return `state/${pathSegmentAfter(entity.path, "settings") ?? ""}/${idText(entity)}`;
+  if (type === "asset") return `asset/${idText(entity)}`;
+  if (type === "storyboard") return `storyboard/${idText(entity)}`;
+  return idText(entity);
+}
+function titleOf(entity, fallback) {
+  return stringField7(entity.record.title ?? entity.record.name ?? entity.record.label ?? entity.record.text) ?? fallback;
+}
+function idText(entity) {
+  return String(entity.id ?? entity.record.id ?? entity.record.ID ?? entity.path);
+}
+function entityMatchesRef(entity, ref, kind) {
+  const normalized = ref.replace(/\/+$/, "");
+  const dir = entity.path.replace(/\/[^/]+$/, "");
+  return String(entity.id ?? "") === ref || dir === normalized || entity.path === `${normalized}/${kind}.json`;
+}
+function sortEntities(entities) {
+  return [...entities].sort((left, right) => numberField2(left.record.order) - numberField2(right.record.order) || left.path.localeCompare(right.path));
+}
+function childEntitiesForParent(ancestryIndex, entities, parent) {
+  const directChildren = new Set((ancestryIndex.childrenByParentPath.get(parent.path) ?? []).map((entity) => entity.path));
+  return entities.filter((entity) => directChildren.has(entity.path));
+}
+function ancestorEntity(ancestryIndex, entity, entityKind) {
+  const seen = /* @__PURE__ */ new Set([entity.path]);
+  let currentPath = entity.path;
+  while (true) {
+    const parentPath = ancestryIndex.parentPathByPath.get(currentPath);
+    if (!parentPath || seen.has(parentPath)) return void 0;
+    seen.add(parentPath);
+    const parent = ancestryIndex.entityByPath.get(parentPath);
+    if (!parent) return void 0;
+    if (parent.entityKind === entityKind) return parent;
+    currentPath = parent.path;
+  }
+}
+function ancestorId(ancestryIndex, entity, entityKind) {
+  const ancestor = ancestorEntity(ancestryIndex, entity, entityKind);
+  return ancestor ? idText(ancestor) : void 0;
+}
+function parentByDir(entities, childPath) {
+  const childDir = entityDir2(childPath);
+  return entities.find((entity) => childDir.startsWith(`${entityDir2(entity.path)}/`));
+}
+function entityDir2(path) {
+  return path.replace(/\/[^/]+$/, "");
+}
+function pathSegmentAfter(path, segment) {
+  const parts = path.split("/");
+  const index = parts.indexOf(segment);
+  return index >= 0 ? parts[index + 1] : void 0;
+}
+function primaryRefKey(kind, id) {
+  return `${kind}:${String(id ?? "")}`;
+}
+function primaryRefKeys(kind, ref) {
+  const value = String(ref);
+  const keys = [primaryRefKey(kind, value)];
+  const lastSegment = value.split("/").filter(Boolean).at(-1);
+  if (lastSegment && lastSegment !== value) keys.push(primaryRefKey(kind, lastSegment));
+  return keys;
+}
+function shotCameraText(shot) {
+  return [
+    stringField7(shot.record.shot_size),
+    stringField7(recordField(shot.record.camera)?.movement),
+    stringField7(recordField(shot.record.camera)?.angle)
+  ].filter(Boolean).join(" \xB7 ") || stringField7(shot.record.shot_kind) || "shot";
+}
+function shotExpressionText(shot) {
+  return stringField7(shot.record.description ?? shot.record.summary ?? recordField(shot.record.expression)?.text ?? recordField(shot.record.expression)?.intent) ?? titleOf(shot, idText(shot));
+}
+function durationText(value) {
+  const duration = Number(value);
+  return Number.isFinite(duration) && duration > 0 ? `${duration}s` : "\u5F85\u5B9A";
+}
+function stillPositionForIndex(index) {
+  return ["0% 0%", "100% 0%", "0% 100%", "100% 100%"][index % 4] ?? "0% 0%";
+}
+function contentUnitType(contentUnit) {
+  const type = stringField7(contentUnit?.record.content_unit_type);
+  if (type === "keyframe_ref" || type === "storyboard_ref" || type === "audio_cue_ref" || type === "scence_moment_ref" || type === "scene_moment_ref" || type === "expression_unit_ref") return type;
+  return "expression_unit_ref";
+}
+function outputKindForContentUnit(contentUnit) {
+  const outputKind = stringField7(contentUnit?.record.output_kind);
+  if (outputKind === "image" || outputKind === "video" || outputKind === "audio" || outputKind === "text" || outputKind === "metadata" || outputKind === "storyboard") return outputKind;
+  const type = contentUnitType(contentUnit);
+  if (type === "keyframe_ref" || type === "storyboard_ref") return "image";
+  if (type === "audio_cue_ref") return "audio";
+  return "video";
+}
+function momentSelectionState(expressionUnits) {
+  if (expressionUnits.some((expressionUnit) => expressionUnit.contentUnit.selectionState === "stale")) return "stale";
+  if (expressionUnits.some((expressionUnit) => expressionUnit.contentUnit.selectionState === "needs_candidate")) return "needs_candidate";
+  if (expressionUnits.some((expressionUnit) => expressionUnit.contentUnit.selectionState === "selected")) return "selected";
+  return "ready";
+}
+function settingRefsForMoment(_moment, expressionUnits, assets) {
+  const refs = /* @__PURE__ */ new Set();
+  for (const expressionUnit of expressionUnits) {
+    for (const asset of expressionUnit.assets) refs.add(asset.title);
+  }
+  if (refs.size === 0) {
+    for (const asset of assets.slice(0, 3)) refs.add(nodeId(asset, "asset"));
+  }
+  return [...refs];
+}
+function shotAssets(shot, keyframes, assets) {
+  const refs = [
+    ...arrayField(shot.record.reference_asset_refs),
+    ...keyframes.flatMap((keyframe) => arrayField(keyframe.record.reference_asset_refs))
+  ].map(String);
+  const uniqueRefs = [...new Set(refs)];
+  return uniqueRefs.map((ref) => ({
+    title: ref.startsWith("asset/") ? ref : `asset/${ref}`,
+    status: assets.some((asset) => String(asset.id ?? "") === ref || entityDir2(asset.path) === ref || asset.path.startsWith(`${ref}/`)) ? "ready" : "missing"
+  }));
+}
+function contentUnitIdForRuntimeDocument(path, explicitRef) {
+  const ref = explicitRef ?? entityDir2(path);
+  const id = pathSegmentAfter(ref, "content_units");
+  return id;
+}
+function candidateTitle(candidate, fallback) {
+  const explicitTitle = stringField7(candidate.prompt_snapshot?.title) ?? stringField7(candidate.producer?.title) ?? stringField7(candidate.producer?.name);
+  if (explicitTitle && !candidateTitleIsGeneric(explicitTitle)) return explicitTitle;
+  return readableCandidateTitleFallback(fallback);
+}
+function candidateOrdinalTitle(index) {
+  return `\u5019\u9009 ${index + 1}`;
+}
+function candidateTitleIsGeneric(value) {
+  const normalized = value.trim().toLowerCase();
+  return normalized === "queued generation" || normalized === "pending generation" || normalized === "content unit image generation" || normalized === "content unit video generation" || technicalCandidateIdPattern.test(normalized);
+}
+function readableCandidateTitleFallback(value) {
+  return technicalCandidateIdPattern.test(value.trim().toLowerCase()) ? "\u5019\u9009" : value;
+}
+var technicalCandidateIdPattern = /^(canvas|resource|content)_candidate_[\w-]+$|^resource_\d+_[\w-]+$|^gen_(image|video)_\d+_\d+$/;
+function candidateModel(candidate) {
+  return stringField7(candidate.producer?.model_id) ?? stringField7(candidate.producer?.model) ?? stringField7(candidate.producer?.kind) ?? stringField7(candidate.source) ?? "runtime";
+}
+function candidateInputHash(candidate, contentUnitId) {
+  return stringField7(candidate.prompt_snapshot?.input_hash) ?? stringField7(candidate.prompt_snapshot?.content_hash) ?? stringField7(candidate.prompt_snapshot?.hash) ?? stringField7(candidate.created_at) ?? contentUnitId;
+}
+function candidateNote(candidate) {
+  const output3 = firstCandidateOutput(candidate);
+  return stringField7(candidate.prompt_snapshot?.note) ?? stringField7(candidate.prompt_snapshot?.summary) ?? stringField7(output3?.mime_type) ?? stringField7(candidate.status) ?? "Workspace runtime candidate.";
+}
+function candidateDecisionStatus(candidate) {
+  const record = candidate;
+  return stringField7(record.decision_status) ?? stringField7(record.decisionStatus);
+}
+function candidateDecisionReason(candidate) {
+  const record = candidate;
+  return stringField7(record.decision_reason) ?? stringField7(record.decisionReason);
+}
+function firstCandidateOutput(candidate) {
+  return arrayField(candidate.outputs).filter(isRecord6)[0];
+}
+function assetCandidateConfirmation(candidate, selection, candidateId) {
+  if (selectionCandidateMatches(selection, candidateId)) return "confirmed";
+  if (candidate.status === "failed" || candidate.status === "canceled") return "stale";
+  return "review";
+}
+function selectionCandidateMatches(selection, candidateId) {
+  return selection?.candidate_id !== void 0 && String(selection.candidate_id) === candidateId;
+}
+function idValue(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "string" && value.trim()) return value.trim();
+  return void 0;
+}
+function recordField(value) {
+  return isRecord6(value) ? value : void 0;
+}
+function stringField7(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function numberField2(value) {
+  const numberValue24 = Number(value);
+  return Number.isFinite(numberValue24) ? numberValue24 : Number.MAX_SAFE_INTEGER;
+}
+function optionalNumberField(value) {
+  const numberValue24 = Number(value);
+  return Number.isFinite(numberValue24) ? numberValue24 : void 0;
+}
+function pruneUndefinedRecord(record) {
+  const output3 = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (value !== void 0) output3[key] = value;
+  }
+  return output3;
+}
+function arrayField(value) {
+  return Array.isArray(value) ? value : [];
+}
+function isRecord6(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function isContentCandidateRecord(value) {
+  return isRecord6(value) && value.schema === "movscript.content_candidate.v1";
+}
+function isDecisionContextRecord(value) {
+  return isRecord6(value) && value.schema === "movscript.decision_context.v1" && value.target_kind === "content_unit";
+}
+function normalizeContentSelectionRecord(value) {
+  return {
+    candidate_id: value.candidate_id,
+    resource_id: resourceIdValue(value.resource_id),
+    stream_id: streamIdValue(value.stream_id),
+    artifact_ref: stringField7(value.artifact_ref),
+    stale_policy: value.stale_policy,
+    reason: value.reason,
+    selected_at: value.selected_at
+  };
+}
+function streamIdValue(value) {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return void 0;
+}
+function resourceIdValue(value) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  }
+  return void 0;
+}
+function isDefined(value) {
+  return value !== void 0;
+}
+function buildContentSourceWorkspaceProjectTimelineStatus(snapshot, _contentUnitSummaries = []) {
+  const namespaceVocabulary = snapshot.namespaceVocabulary ?? {
+    timelineTemplate: void 0,
+    timelineNamespaces: [],
+    settingNamespaces: [],
+    diagnostics: []
+  };
+  const timelineNamespaceNodes = (snapshot.domainNodes ?? []).filter((node) => node.category === "timeline_namespace").sort((left, right) => (left.order ?? 0) - (right.order ?? 0) || String(left.path ?? left.id ?? "").localeCompare(String(right.path ?? right.id ?? ""), "zh-CN"));
+  const timelineNamespaces = timelineNamespaceNodes.map((node) => {
+    const parent = domainParentRefForNode(snapshot, node);
+    const record = domainRecordForNode(snapshot, node);
+    const productionType = stringField23(record?.production_type ?? record?.productionType ?? record?.timeline_profile ?? record?.timelineProfile);
+    const nodeTimelineNamespaces = stringArrayField(record?.timeline_namespaces ?? record?.timelineNamespaces);
+    return {
+      id: node.id,
+      kind: node.kind,
+      title: node.title,
+      path: node.path,
+      order: node.order,
+      entity_kind: stringField23(node.metadata?.entityKind),
+      ...productionType ? { production_type: productionType } : {},
+      ...nodeTimelineNamespaces.length ? { timeline_namespaces: nodeTimelineNamespaces } : {},
+      ...parent ? { parent } : {}
+    };
+  });
+  return {
+    schema: "movscript.project_timeline_status.v1",
+    status: "ok",
+    namespace_vocabulary: {
+      timeline_template: namespaceVocabulary.timelineTemplate,
+      timeline_namespaces: namespaceVocabulary.timelineNamespaces,
+      setting_namespaces: namespaceVocabulary.settingNamespaces,
+      diagnostics: namespaceVocabulary.diagnostics
+    },
+    timeline_namespace_count: timelineNamespaces.length,
+    timeline_namespaces: timelineNamespaces,
+    system_primitives: {
+      scene_moments_count: snapshot.sceneMoments.length,
+      expression_units_count: snapshot.expressionUnits.length,
+      storyboards_count: snapshot.storyboards.length,
+      keyframes_count: snapshot.keyframes.length,
+      audio_cues_count: snapshot.audioCues.length,
+      assets_count: snapshot.assets.length
+    }
+  };
+}
+function contentSourceWorkspaceContentUnitStatusSummaries(snapshot) {
+  const candidatesByContentUnit = contentCandidateRecordsByContentUnitId(snapshot.indexDocuments);
+  const selectionsByContentUnit = selectionRecordsByContentUnitId(snapshot.indexDocuments);
+  return snapshot.contentUnits.map((unit) => summarizeContentUnitStatus(unit, candidatesByContentUnit, selectionsByContentUnit));
+}
+function summarizeContentUnitStatus(unit, candidatesByContentUnit, selectionsByContentUnit) {
+  const id = entityId(unit);
+  const contentUnitId = String(id);
+  const candidates = candidatesByContentUnit.get(contentUnitId) ?? [];
+  const selection = selectionsByContentUnit.get(contentUnitId);
+  const selectedCandidate = selection?.candidate_id !== void 0 ? candidates.find((candidate) => sameId(candidate.id, selection.candidate_id)) : void 0;
+  const selectedResourceId3 = numberField22(selection?.resource_id) ?? numberField22(firstCandidateOutput2(selectedCandidate)?.resource_id);
+  return {
+    content_unit_id: id,
+    title: stringField23(unit.record.title),
+    path: unit.path,
+    content_unit_type: stringField23(unit.record.content_unit_type),
+    output_kind: stringField23(unit.record.output_kind),
+    target_kind: stringField23(unit.record.target_kind),
+    target_ref: idField2(unit.record.target_ref),
+    candidate_count: candidates.length,
+    candidate_ids: candidates.map((candidate) => idField2(candidate.id)).filter((value) => value !== void 0),
+    selected_candidate: selection?.candidate_id,
+    selected_resource: selectedResourceId3,
+    stale_status: stringField23(selection?.stale_policy) === "accept_stale" ? "accepted_stale" : "ok",
+    blocking_refs: selection?.candidate_id === void 0 && candidates.length > 0 ? ["selection_missing"] : []
+  };
+}
+function domainParentRefForNode(snapshot, node) {
+  const edge = (snapshot.domainEdges ?? []).find((candidate) => candidate.relation === "parent" && candidate.target.category === node.category && domainRefMatchesNode(candidate.source, node));
+  return edge ? {
+    id: edge.target.id,
+    kind: edge.target.kind,
+    path: edge.target.path
+  } : void 0;
+}
+function domainRecordForNode(snapshot, node) {
+  const entityKind = stringField23(node.metadata?.entityKind);
+  const entities = entityKind === "production" ? snapshot.productions : entityKind === "segment" ? snapshot.segments : [];
+  return entities.find(
+    (entity) => node.path !== void 0 && entity.path === node.path || node.id !== void 0 && sameId(idField2(entity.id ?? entity.record.id ?? entity.record.ID ?? entity.path), node.id)
+  )?.record;
+}
+function domainRefMatchesNode(ref, node) {
+  return ref.category === node.category && ref.kind === node.kind && (sameId(ref.id, node.id) || ref.path !== void 0 && ref.path === node.path);
+}
+function contentCandidateRecordsByContentUnitId(documents) {
+  const output3 = /* @__PURE__ */ new Map();
+  for (const document of documents) {
+    if (!document.path.endsWith("/content_candidate.json") || !isRecord23(document.data)) continue;
+    const contentUnitId = contentUnitIdForRuntimeDocument2(document.path, stringField23(document.data.content_unit_ref));
+    if (!contentUnitId) continue;
+    output3.set(contentUnitId, [...output3.get(contentUnitId) ?? [], document.data]);
+  }
+  return output3;
+}
+function selectionRecordsByContentUnitId(documents) {
+  const output3 = /* @__PURE__ */ new Map();
+  for (const document of documents) {
+    if (!isRecord23(document.data)) continue;
+    const selection = isRecord23(document.data.selection) ? document.data.selection : void 0;
+    if (!selection) continue;
+    const contentUnitId = contentUnitIdForRuntimeDocument2(document.path, stringField23(document.data.target_ref));
+    if (!contentUnitId) continue;
+    output3.set(contentUnitId, {
+      ...idField2(selection.candidate_id) !== void 0 ? { candidate_id: idField2(selection.candidate_id) } : {},
+      ...numberField22(selection.resource_id) !== void 0 ? { resource_id: numberField22(selection.resource_id) } : {},
+      ...stringField23(selection.stale_policy) ? { stale_policy: stringField23(selection.stale_policy) } : {}
+    });
+  }
+  return output3;
+}
+function entityId(entity) {
+  return idField2(entity.id ?? entity.record.id ?? entity.record.ID ?? pathSegmentAfter3(entity.path, "content_units") ?? entity.path) ?? entity.path;
+}
+function contentUnitIdForRuntimeDocument2(path, ref) {
+  if (ref) return lastPathSegment(ref) ?? ref;
+  return pathSegmentAfter3(path, "content_units");
+}
+function firstCandidateOutput2(candidate) {
+  const outputs = Array.isArray(candidate?.outputs) ? candidate.outputs : [];
+  return outputs.find(isRecord23);
+}
+function stringArrayField(value) {
+  return Array.isArray(value) ? value.filter((item) => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim()) : [];
+}
+function idField2(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) return value.trim();
+  return void 0;
+}
+function stringField23(value) {
+  const id = idField2(value);
+  return id === void 0 ? void 0 : String(id);
+}
+function numberField22(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return void 0;
+}
+function pathSegmentAfter3(path, segment) {
+  if (!path) return void 0;
+  const parts = path.split("/").filter(Boolean);
+  const index = parts.indexOf(segment);
+  return index >= 0 ? parts[index + 1] : void 0;
+}
+function lastPathSegment(path) {
+  return path?.split("/").filter(Boolean).at(-1);
+}
+function sameId(left, right) {
+  return left !== void 0 && right !== void 0 && String(left) === String(right);
+}
+function isRecord23(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+var PROJECT_CONTEXT_STYLE_REFERENCE_RULE_KEY = "style_reference_images";
+var PROJECT_CONTEXT_CORE_STANDARDS = [
+  { key: "aspect_ratio", label: "\u753B\u5E45\u6BD4\u4F8B", promptRole: "context" },
+  { key: "visual_style", label: "\u89C6\u89C9\u98CE\u683C", promptRole: "style" },
+  { key: "shot_size_system", label: "\u955C\u5934\u5927\u5C0F\u4F53\u7CFB", promptRole: "style" },
+  { key: "camera_language", label: "\u955C\u5934\u8BED\u8A00", promptRole: "style" },
+  { key: "lighting_style", label: "\u706F\u5149\u89C4\u5219", promptRole: "style" },
+  { key: "color_palette", label: "\u8272\u5F69\u89C4\u5219", promptRole: "style" },
+  { key: "pacing_rules", label: "\u8282\u594F\u89C4\u5219", promptRole: "constraint" },
+  { key: "negative_rules", label: "\u8D1F\u9762\u89C4\u5219", promptRole: "negative" }
+];
+function buildProjectContextSnapshot(input3) {
+  const entity = input3.standardsEntity;
+  const standards = entity?.record ?? {};
+  const namespaceVocabulary = input3.namespaceVocabulary ?? {
+    timelineTemplate: void 0,
+    timelineNamespaces: [],
+    settingNamespaces: [],
+    diagnostics: []
+  };
+  const projectStyle = parseProjectStyle(standards.project_style);
+  const core = PROJECT_CONTEXT_CORE_STANDARDS.map((item) => {
+    const value = projectContextFieldText(item.key === "aspect_ratio" ? standards.aspect_ratio ?? projectStyle.aspect_ratio : item.key === "visual_style" ? standards.visual_style ?? projectStyle.visual_style : projectStyle[item.key] ?? standards[item.key]);
+    return {
+      key: item.key,
+      label: item.label,
+      prompt_role: item.promptRole,
+      required: true,
+      value,
+      filled: Boolean(value)
+    };
+  });
+  const customRules = normalizeProjectContextRules(projectStyle.custom_rules);
+  const enabledRules = customRules.filter((rule) => rule.enabled && rule.value);
+  const promptPreview = buildProjectContextPromptPreview(core, enabledRules);
+  const styleReferenceResourceIds = Array.from(new Set(
+    enabledRules.flatMap((rule) => rule.key === PROJECT_CONTEXT_STYLE_REFERENCE_RULE_KEY ? extractProjectContextResourceIds(rule.value) : [])
+  ));
+  return {
+    schema: "movscript.project_context_snapshot.v1",
+    kind: "project_context_snapshot",
+    source: {
+      entity_kind: "project_standards",
+      entity_id: entity?.id ?? standards.id ?? "project_standards",
+      path: entity?.path ?? "project_standards.json",
+      updated_at: standards.updated_at
+    },
+    namespace_vocabulary: {
+      timeline_template: namespaceVocabulary.timelineTemplate,
+      timeline_namespaces: namespaceVocabulary.timelineNamespaces,
+      setting_namespaces: namespaceVocabulary.settingNamespaces,
+      diagnostics: namespaceVocabulary.diagnostics
+    },
+    standards_hash: stableProjectContextHash({
+      aspect_ratio: standards.aspect_ratio,
+      visual_style: standards.visual_style,
+      project_style: projectStyle,
+      namespace_vocabulary: namespaceVocabulary
+    }),
+    core_standards: core,
+    missing_core_keys: core.filter((item) => !item.filled).map((item) => item.key),
+    missing_core_labels: core.filter((item) => !item.filled).map((item) => item.label),
+    custom_rules: customRules,
+    enabled_rules: enabledRules,
+    style_reference_resource_ids: styleReferenceResourceIds,
+    prompt_preview: promptPreview,
+    agent_guidance: [
+      "Read this snapshot before planning, content-unit work, or generation that depends on project house style or constraints.",
+      "Use namespace_vocabulary for project-specific timeline/setting terms; do not infer concrete parent relationships from vocabulary templates.",
+      "Do not modify project standards just because fields are missing; only use domain_upsert_project_standards when the user asks to add, remove, or change standards.",
+      "When visual generation supports reference images, pass style_reference_resource_ids as house-style reference_resource_ids."
+    ]
+  };
+}
+function parseProjectStyle(value) {
+  if (isRecord32(value)) return value;
+  if (typeof value !== "string" || !value.trim()) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return isRecord32(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+function projectContextFieldText(value) {
+  if (value === void 0 || value === null) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.map((item) => projectContextFieldText(item)).filter(Boolean).join("\uFF1B");
+  if (isRecord32(value)) {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+  return String(value);
+}
+function normalizeProjectContextRules(value) {
+  const rules = Array.isArray(value) ? value.filter(isRecord32) : [];
+  return rules.map((rule, index) => {
+    const key = projectContextFieldText(rule.key).toLowerCase().replace(/\s+/g, "_");
+    const label = projectContextFieldText(rule.label ?? rule.name ?? rule.key) || `\u6269\u5C55\u89C4\u8303 ${index + 1}`;
+    const ruleValue = projectContextFieldText(rule.value ?? rule.content ?? rule.description);
+    return {
+      id: projectContextFieldText(rule.id) || `rule_${key || index}_${index}`,
+      key: key || label.toLowerCase().replace(/\s+/g, "_"),
+      label,
+      category: projectContextFieldText(rule.category) || "\u901A\u7528",
+      value: ruleValue,
+      prompt_role: normalizeProjectContextPromptRole(rule.prompt_role ?? rule.promptRole ?? rule.role),
+      enabled: typeof rule.enabled === "boolean" ? rule.enabled : true,
+      required: typeof rule.required === "boolean" ? rule.required : false,
+      order: numberValue2(rule.order) ?? (index + 1) * 10
+    };
+  }).filter((rule) => rule.key || rule.label || rule.value).sort((left, right) => left.order - right.order || left.label.localeCompare(right.label));
+}
+function normalizeProjectContextPromptRole(value) {
+  if (value === "context" || value === "style" || value === "constraint" || value === "negative" || value === "quality_gate") return value;
+  return "constraint";
+}
+function buildProjectContextPromptPreview(core, rules) {
+  const items = [
+    ...core.filter((item) => item.value),
+    ...rules.filter((item) => item.value)
+  ];
+  const sections = [
+    { role: "context", title: "\u9879\u76EE\u80CC\u666F\u89C4\u8303" },
+    { role: "style", title: "\u89C6\u89C9\u4E0E\u8868\u8FBE\u89C4\u8303" },
+    { role: "constraint", title: "\u5FC5\u987B\u9075\u5B88" },
+    { role: "negative", title: "\u7981\u6B62\u51FA\u73B0" },
+    { role: "quality_gate", title: "\u8D28\u68C0\u53E3\u5F84" }
+  ].flatMap((section) => {
+    const sectionItems = items.filter((item) => item.prompt_role === section.role);
+    if (sectionItems.length === 0) return [];
+    return [`${section.title}\uFF1A`, ...sectionItems.map((item) => `- ${item.label}\uFF1A${item.value}`)];
+  });
+  return sections.length > 0 ? `\u9879\u76EE\u89C4\u8303\uFF1A
+${sections.join("\n")}` : "\u9879\u76EE\u89C4\u8303\uFF1A\n- \u6682\u65E0\u5DF2\u542F\u7528\u89C4\u8303\u3002";
+}
+function extractProjectContextResourceIds(value) {
+  const ids = /* @__PURE__ */ new Set();
+  for (const pattern of [/resource#(\d+)/gi, /reference_resource_ids\s*[:=]\s*\[?([0-9,\s]+)\]?/gi]) {
+    for (const match of value.matchAll(pattern)) {
+      const idText2 = match[1] ?? "";
+      for (const part of idText2.split(",")) {
+        const id = Number(part.trim());
+        if (Number.isInteger(id) && id > 0) ids.add(id);
+      }
+    }
+  }
+  return Array.from(ids);
+}
+function stableProjectContextHash(value) {
+  const text = stableStringify(value);
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+function stableStringify(value) {
+  if (Array.isArray(value)) return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  if (isRecord32(value)) {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+function isRecord32(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function numberValue2(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string" || !value.trim()) return void 0;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : void 0;
+}
+
 // ../../packages/workspace/dist/chunk-LJ7J62DV.js
 function deriveMovScriptWorkspaceDomainIndex(documents) {
   const entities = documents.flatMap((document) => indexedEntitiesFromDocument(document));
@@ -48597,7 +50140,7 @@ function queryMovScriptWorkspaceSettings(index, query = {}) {
     limit: query.limit
   });
   if (query.settingId === void 0) return references;
-  return references.filter((entity) => sameId(entity.id, query.settingId));
+  return references.filter((entity) => sameId2(entity.id, query.settingId));
 }
 function queryMovScriptWorkspaceAssets(index, query = {}) {
   const assets = queryMovScriptWorkspaceEntities(index, {
@@ -48606,11 +50149,11 @@ function queryMovScriptWorkspaceAssets(index, query = {}) {
     settingId: query.settingId,
     settingStateId: query.settingStateId,
     limit: query.limit
-  }).filter((entity) => query.assetId === void 0 || sameId(entity.id, query.assetId));
+  }).filter((entity) => query.assetId === void 0 || sameId2(entity.id, query.assetId));
   if (!query.includeCandidates) return { assets };
   const candidates = assets.flatMap((entity) => {
     const rows = entity.record.candidates;
-    return Array.isArray(rows) ? rows.filter(isRecord6) : [];
+    return Array.isArray(rows) ? rows.filter(isRecord7) : [];
   });
   return { assets, candidates };
 }
@@ -48622,7 +50165,7 @@ function queryMovScriptWorkspaceProductionContext(index, query = {}) {
       entityKind: "production",
       query: query.query,
       limit: query.limit
-    }).filter((entity) => query.productionId === void 0 || sameId(entity.id, query.productionId));
+    }).filter((entity) => query.productionId === void 0 || sameId2(entity.id, query.productionId));
   }
   if (include.has("segments")) {
     result.segments = queryMovScriptWorkspaceEntities(index, {
@@ -48630,7 +50173,7 @@ function queryMovScriptWorkspaceProductionContext(index, query = {}) {
       productionId: query.productionId,
       query: query.query,
       limit: query.limit
-    }).filter((entity) => query.segmentId === void 0 || sameId(entity.id, query.segmentId));
+    }).filter((entity) => query.segmentId === void 0 || sameId2(entity.id, query.segmentId));
   }
   if (include.has("scene_moments")) {
     result.scene_moments = queryMovScriptWorkspaceEntities(index, {
@@ -48639,7 +50182,7 @@ function queryMovScriptWorkspaceProductionContext(index, query = {}) {
       segmentId: query.segmentId,
       query: query.query,
       limit: query.limit
-    }).filter((entity) => query.sceneMomentId === void 0 || sameId(entity.id, query.sceneMomentId));
+    }).filter((entity) => query.sceneMomentId === void 0 || sameId2(entity.id, query.sceneMomentId));
   }
   if (include.has("storyboards")) {
     result.storyboards = queryMovScriptWorkspaceEntities(index, {
@@ -48649,7 +50192,7 @@ function queryMovScriptWorkspaceProductionContext(index, query = {}) {
       sceneMomentId: query.sceneMomentId,
       query: query.query,
       limit: query.limit
-    }).filter((entity) => query.storyboardId === void 0 || sameId(entity.id, query.storyboardId));
+    }).filter((entity) => query.storyboardId === void 0 || sameId2(entity.id, query.storyboardId));
   }
   if (include.has("audio_cues")) {
     result.audio_cues = queryMovScriptWorkspaceEntities(index, {
@@ -48693,14 +50236,14 @@ function queryMovScriptWorkspaceProductionContext(index, query = {}) {
 }
 function indexedEntitiesFromDocument(document) {
   const path = normalizeIndexedDocumentPath(document.path);
-  if (!isRecord6(document.data)) return [];
-  const entityKind = entityKindFromSchema(stringField7(document.data.schema)) ?? entityKindFromPath(path);
+  if (!isRecord7(document.data)) return [];
+  const entityKind = entityKindFromSchema(stringField8(document.data.schema)) ?? entityKindFromPath(path);
   return entityKind ? [indexedEntity(entityKind, workspaceRecordWithDocumentMetadata(document.data, document), path, 0)] : [];
 }
 function indexedEntity(entityKind, record, path, index) {
-  const schema = stringField7(record.schema);
+  const schema = stringField8(record.schema);
   const id = entityIdField(entityKind, record);
-  const clientId = stringField7(record.client_id ?? record.clientId);
+  const clientId = stringField8(record.client_id ?? record.clientId);
   return {
     entityKind,
     record,
@@ -48720,7 +50263,7 @@ function deriveMovScriptDomainNodes(entities) {
       kind: projectMovScriptDomainNodeKind(entity.entityKind, entity.record),
       ...entity.id !== void 0 ? { id: entity.id } : {},
       path: entity.path,
-      title: stringField7(entity.record.title) ?? stringField7(entity.record.label),
+      title: stringField8(entity.record.title) ?? stringField8(entity.record.label),
       order: finiteNumber(entity.record.order),
       metadata: {
         entityKind: entity.entityKind
@@ -48740,13 +50283,13 @@ function deriveMovScriptDomainPathParentEdges(nodes) {
     const parentPath = nearestParentPath(entityDir(node.path), nodeByDir.keys());
     if (!parentPath) continue;
     const parent = nodeByDir.get(parentPath);
-    const normalized = normalizePathParentEdge(domainRefFromNode(node), parent ? domainRefFromNode(parent) : void 0);
+    const normalized = normalizePathParentEdge(domainRefFromNode2(node), parent ? domainRefFromNode2(parent) : void 0);
     if (normalized.edge) edges.push(normalized.edge);
   }
-  return dedupeDomainEdges(edges);
+  return dedupeDomainEdges2(edges);
 }
 function deriveMovScriptDomainEdges(entities, nodes) {
-  return dedupeDomainEdges([
+  return dedupeDomainEdges2([
     ...deriveMovScriptDomainPathParentEdges(nodes),
     ...deriveMovScriptContentUnitTargetEdges(entities, nodes)
   ]);
@@ -48760,22 +50303,22 @@ function deriveMovScriptContentUnitTargetEdges(entities, nodes) {
     const sourceNode = nodeByPath.get(entity.path);
     if (!sourceNode) continue;
     edges.push(...normalizeContentUnitTargetEdges({
-      source: domainRefFromNode(sourceNode),
+      source: domainRefFromNode2(sourceNode),
       record: entity.record,
       scopeTarget(scope) {
-        return domainRefFromTimelineScope(scope.kind, scope.ref, timelineNamespaceNodes);
+        return domainRefFromTimelineScope2(scope.kind, scope.ref, timelineNamespaceNodes);
       }
     }));
   }
   return edges;
 }
-function domainRefFromTimelineScope(scopeKind, scopeRef, timelineNamespaceNodes) {
+function domainRefFromTimelineScope2(scopeKind, scopeRef, timelineNamespaceNodes) {
   const node = timelineNamespaceNodes.find(
     (candidate) => String(candidate.id ?? "") === scopeRef && (candidate.kind === scopeKind || candidate.metadata?.entityKind === scopeKind)
   );
-  return node ? domainRefFromNode(node) : { category: "timeline_namespace", kind: scopeKind, id: scopeRef };
+  return node ? domainRefFromNode2(node) : { category: "timeline_namespace", kind: scopeKind, id: scopeRef };
 }
-function domainRefFromNode(node) {
+function domainRefFromNode2(node) {
   return {
     category: node.category,
     kind: node.kind,
@@ -48835,31 +50378,31 @@ var schemaEntityKinds = {
   asset: "asset"
 };
 function entityPathMatchesProduction(path, productionId) {
-  return pathSegmentAfter(path, "productions") !== void 0 && sameEntityRef(pathSegmentAfter(path, "productions"), productionId, "production");
+  return pathSegmentAfter2(path, "productions") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "productions"), productionId, "production");
 }
 function entityPathMatchesSegment(path, segmentId) {
-  return pathSegmentAfter(path, "segments") !== void 0 && sameEntityRef(pathSegmentAfter(path, "segments"), segmentId, "segment");
+  return pathSegmentAfter2(path, "segments") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "segments"), segmentId, "segment");
 }
 function entityPathMatchesSceneMoment(path, sceneMomentId) {
-  return pathSegmentAfter(path, "scene_moments") !== void 0 && sameEntityRef(pathSegmentAfter(path, "scene_moments"), sceneMomentId, "scene_moment");
+  return pathSegmentAfter2(path, "scene_moments") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "scene_moments"), sceneMomentId, "scene_moment");
 }
 function entityPathMatchesStoryboard(path, storyboardId) {
-  return pathSegmentAfter(path, "storyboards") !== void 0 && sameEntityRef(pathSegmentAfter(path, "storyboards"), storyboardId, "storyboard");
+  return pathSegmentAfter2(path, "storyboards") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "storyboards"), storyboardId, "storyboard");
 }
 function entityMatchesStoryboard(entity, storyboardId, context) {
   if (entityMatchesScope(entity, "storyboard", storyboardId, context)) return true;
   if (entityPathMatchesStoryboard(entity.path, storyboardId)) return true;
-  const storyboardRef = stringField7(entity.record.storyboard_ref);
+  const storyboardRef = stringField8(entity.record.storyboard_ref);
   return storyboardRef !== void 0 && (entityPathMatchesStoryboard(storyboardRef, storyboardId) || sameNormalizedEntityPath(storyboardRef, storyboardId, "storyboard"));
 }
 function entityPathMatchesContentUnit(path, contentUnitId) {
-  return pathSegmentAfter(path, "content_units") !== void 0 && sameEntityRef(pathSegmentAfter(path, "content_units"), contentUnitId, "content_unit");
+  return pathSegmentAfter2(path, "content_units") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "content_units"), contentUnitId, "content_unit");
 }
 function entityPathMatchesSetting(path, settingId) {
-  return pathSegmentAfter(path, "settings") !== void 0 && sameEntityRef(pathSegmentAfter(path, "settings"), settingId, "setting");
+  return pathSegmentAfter2(path, "settings") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "settings"), settingId, "setting");
 }
 function entityPathMatchesSettingState(path, stateId) {
-  return pathSegmentAfter(path, "states") !== void 0 && sameEntityRef(pathSegmentAfter(path, "states"), stateId, "setting_state");
+  return pathSegmentAfter2(path, "states") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "states"), stateId, "setting_state");
 }
 function createEntityQueryContext(index) {
   const entityByPath = new Map(index.entities.map((entity) => [entity.path, entity]));
@@ -48947,7 +50490,7 @@ function recordKindMatches(record, kind) {
     record.expressionKind,
     record.cue_kind,
     record.cueKind
-  ].some((value) => stringField7(value) === kind);
+  ].some((value) => stringField8(value) === kind);
 }
 function isDeletedWorkspaceRecord(record) {
   return record.__delete === true || record.deleted === true;
@@ -48957,28 +50500,28 @@ function limitEntities(items, limit) {
   if (!Number.isFinite(limit) || limit <= 0) return [];
   return items.slice(0, Math.floor(limit));
 }
-function sameId(left, right) {
-  const leftId = idField2(left);
-  const rightId = idField2(right);
+function sameId2(left, right) {
+  const leftId = idField3(left);
+  const rightId = idField3(right);
   return leftId !== void 0 && rightId !== void 0 && String(leftId) === String(rightId);
 }
 function entityIdField(entityKind, record) {
-  if (entityKind === "project") return idField2(record.project_id ?? record.ID ?? record.id);
-  return idField2(record.ID ?? record.id);
+  if (entityKind === "project") return idField3(record.project_id ?? record.ID ?? record.id);
+  return idField3(record.ID ?? record.id);
 }
-function idField2(value) {
+function idField3(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
 }
-function stringField7(value) {
+function stringField8(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
 function finiteNumber(value) {
   const next = Number(value);
   return Number.isFinite(next) ? next : void 0;
 }
-function pathSegmentAfter(path, segment) {
+function pathSegmentAfter2(path, segment) {
   const parts = path.split("/");
   const index = parts.indexOf(segment);
   return index >= 0 ? parts[index + 1] : void 0;
@@ -48995,7 +50538,7 @@ function sameNormalizedEntityPath(pathOrDir, ref, entityKind) {
 function normalizeIndexedDocumentPath(path) {
   return normalizeWorkspacePath(path).replace(/^\.movscript\//, "");
 }
-function isRecord6(value) {
+function isRecord7(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function pruneUndefined(value) {
@@ -49005,7 +50548,7 @@ function pruneUndefined(value) {
   }
   return output3;
 }
-function dedupeDomainEdges(edges) {
+function dedupeDomainEdges2(edges) {
   const seen = /* @__PURE__ */ new Set();
   const out = [];
   for (const edge of edges) {
@@ -49020,9 +50563,9 @@ function dedupeDomainEdges(edges) {
 // ../../packages/decision/dist/index.js
 var DEFAULT_SELECTION_FIELD = "lock";
 function buildMovScriptCandidateSelectionRecord(candidate, input3 = {}) {
-  const candidateId = idField3(candidate.id);
+  const candidateId = idField4(candidate.id);
   const resourceId = resourceIdField(candidate.resource_id ?? candidate.resourceId);
-  const artifactRef = stringField8(candidate.artifact_ref ?? candidate.artifactRef);
+  const artifactRef = stringField9(candidate.artifact_ref ?? candidate.artifactRef);
   if (candidateId === void 0 && resourceId === void 0) {
     throw new Error("candidate selection requires candidate id or resource_id");
   }
@@ -49055,16 +50598,16 @@ function clearMovScriptCandidateSelectionRecord(record, options = {}) {
   return nextRecord;
 }
 function findCandidate(record, candidateId) {
-  return arrayField(record.candidates).filter(isRecord7).find((item) => sameId2(item.id, candidateId));
+  return arrayField2(record.candidates).filter(isRecord8).find((item) => sameId3(item.id, candidateId));
 }
 function selectionField(options) {
   return options.selectionField?.trim() || DEFAULT_SELECTION_FIELD;
 }
-function sameId2(left, right) {
+function sameId3(left, right) {
   if (left === void 0 || right === void 0) return false;
   return String(left) === String(right);
 }
-function idField3(value) {
+function idField4(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
@@ -49077,13 +50620,13 @@ function resourceIdField(value) {
   }
   return void 0;
 }
-function stringField8(value) {
+function stringField9(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
-function arrayField(value) {
+function arrayField2(value) {
   return Array.isArray(value) ? value : [];
 }
-function isRecord7(value) {
+function isRecord8(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function pruneUndefined2(value) {
@@ -49148,7 +50691,7 @@ async function appendMovScriptInlineCandidate(input3) {
   const current = await readTargetRecord(input3.fileRepository, targetPath);
   validateTargetKind(input3.targetKind, current);
   const candidate = buildInlineCandidate(input3.payload, input3.nonce);
-  const candidates = arrayField2(current.candidates).filter(isRecord8);
+  const candidates = arrayField3(current.candidates).filter(isRecord9);
   if (candidates.some((item) => String(item.id) === String(candidate.id))) {
     throw new Error(`candidate already exists: ${String(candidate.id)}`);
   }
@@ -49174,14 +50717,14 @@ async function updateMovScriptInlineCandidate(input3) {
   const targetPath = normalizeWorkspacePath2(input3.targetPath ?? input3.targetEntity?.path ?? workspacePath(input3.targetRecord));
   const current = await readTargetRecord(input3.fileRepository, targetPath);
   validateTargetKind(input3.targetKind, current);
-  const candidates = arrayField2(current.candidates).filter(isRecord8);
+  const candidates = arrayField3(current.candidates).filter(isRecord9);
   const candidateIndex = candidates.findIndex((item) => String(item.id) === input3.candidateId);
   if (candidateIndex < 0) throw new Error(`candidate not found: ${input3.candidateId}`);
   const currentCandidate = candidates[candidateIndex];
   const candidate = pruneUndefined3({
     ...currentCandidate,
     ...input3.payload.resource_id !== void 0 || input3.payload.resourceId !== void 0 ? { resource_id: requiredResourceId(input3.payload.resource_id ?? input3.payload.resourceId) } : {},
-    ...input3.payload.artifact_ref !== void 0 || input3.payload.artifactRef !== void 0 ? { artifact_ref: stringField9(input3.payload.artifact_ref ?? input3.payload.artifactRef) } : {},
+    ...input3.payload.artifact_ref !== void 0 || input3.payload.artifactRef !== void 0 ? { artifact_ref: stringField10(input3.payload.artifact_ref ?? input3.payload.artifactRef) } : {},
     ...input3.payload.source !== void 0 ? { source: input3.payload.source } : {},
     ...input3.payload.notes !== void 0 ? { notes: input3.payload.notes } : {},
     ...input3.payload.metadata !== void 0 ? { metadata: input3.payload.metadata } : {}
@@ -49211,7 +50754,7 @@ async function unlockMovScriptInlineCandidate(input3) {
 function readTargetRecord(fileRepository, targetPath) {
   return fileRepository.read({ path: targetPath }).then((file) => {
     const parsed = JSON.parse(file.content);
-    if (!isRecord8(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
+    if (!isRecord9(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
     return parsed;
   });
 }
@@ -49233,7 +50776,7 @@ function buildInlineCandidate(payload, nonce) {
   return pruneUndefined3({
     id,
     resource_id: resourceId,
-    artifact_ref: stringField9(payload.artifact_ref ?? payload.artifactRef),
+    artifact_ref: stringField10(payload.artifact_ref ?? payload.artifactRef),
     source: payload.source ?? "manual",
     notes: payload.notes,
     metadata: payload.metadata
@@ -49258,7 +50801,7 @@ function requiredResourceId(value) {
   }
   throw new Error("resource_id must be a positive integer RawResource ID");
 }
-function stringField9(value) {
+function stringField10(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
 function randomNonce() {
@@ -49266,10 +50809,10 @@ function randomNonce() {
   if (random?.randomUUID) return random.randomUUID();
   return `${Date.now()}_${Math.random().toString(36).slice(2)}`;
 }
-function arrayField2(value) {
+function arrayField3(value) {
   return Array.isArray(value) ? value : [];
 }
-function isRecord8(value) {
+function isRecord9(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function pruneUndefined3(value) {
@@ -49286,7 +50829,7 @@ async function updateMovScriptContentUnitEditPrompt(input3) {
     text: stringValue3(input3.editPrompt.text),
     negative_text: stringValue3(input3.editPrompt.negative_text),
     notes: stringValue3(input3.editPrompt.notes),
-    structured: isRecord23(input3.editPrompt.structured) ? input3.editPrompt.structured : void 0
+    structured: isRecord24(input3.editPrompt.structured) ? input3.editPrompt.structured : void 0
   });
   const record = {
     ...current,
@@ -49301,7 +50844,7 @@ async function updateMovScriptContentUnitEditPrompt(input3) {
 function readContentUnitRecord(fileRepository, targetPath) {
   return fileRepository.read({ path: targetPath }).then((file) => {
     const parsed = JSON.parse(file.content);
-    if (!isRecord23(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
+    if (!isRecord24(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
     const schemaKind = typeof parsed.schema === "string" ? parsed.schema.replace(/^movscript\./, "").replace(/\.v\d+$/, "") : void 0;
     if (parsed.kind !== "content_unit" && schemaKind !== "content_unit") {
       throw new Error("target kind mismatch: expected content_unit");
@@ -49327,7 +50870,7 @@ function positiveNumberValue(value) {
   }
   return void 0;
 }
-function isRecord23(value) {
+function isRecord24(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function pruneUndefined22(value) {
@@ -49340,7 +50883,7 @@ function pruneUndefined22(value) {
 function normalizeGenerationReferences(value) {
   if (!Array.isArray(value)) return void 0;
   const refs = value.flatMap((item) => {
-    if (!isRecord23(item)) return [];
+    if (!isRecord24(item)) return [];
     const ref = pruneUndefined22({
       id: stringValue3(item.id),
       kind: stringValue3(item.kind ?? item.ref_kind ?? item.refKind ?? item.type),
@@ -49360,7 +50903,7 @@ function normalizeGenerationReferences(value) {
 function normalizeReferenceAssets(value) {
   if (!Array.isArray(value)) return void 0;
   const refs = value.flatMap((item) => {
-    if (!isRecord23(item)) return [];
+    if (!isRecord24(item)) return [];
     const ref = pruneUndefined22({
       role: stringValue3(item.role),
       media_type: stringValue3(item.media_type ?? item.mediaType),
@@ -49372,7 +50915,7 @@ function normalizeReferenceAssets(value) {
   return refs.length > 0 ? refs : void 0;
 }
 function normalizeModelIntent(value) {
-  if (!isRecord23(value)) return void 0;
+  if (!isRecord24(value)) return void 0;
   const out = pruneUndefined22({ ...value });
   return Object.keys(out).length > 0 ? out : void 0;
 }
@@ -49516,7 +51059,7 @@ async function updateMovScriptStoryboardTimeline(input3) {
 async function readWorkspaceRecord(fileRepository, targetPath, expectedKind) {
   const file = await fileRepository.read({ path: targetPath });
   const parsed = JSON.parse(file.content);
-  if (!isRecord32(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
+  if (!isRecord33(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
   const schemaKind = typeof parsed.schema === "string" ? parsed.schema.replace(/^movscript\./, "").replace(/\.v\d+$/, "") : void 0;
   if (expectedKind !== void 0 && parsed.kind !== expectedKind && schemaKind !== expectedKind) {
     throw new Error(`target kind mismatch: expected ${expectedKind}`);
@@ -49527,7 +51070,7 @@ async function readOptionalWorkspaceRecord(fileRepository, targetPath) {
   const file = await fileRepository.read({ path: targetPath }).catch(() => void 0);
   if (!file) return {};
   const parsed = JSON.parse(file.content);
-  if (!isRecord32(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
+  if (!isRecord33(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
   return parsed;
 }
 function assertRecordKind(current, expectedKind, targetPath) {
@@ -49565,7 +51108,7 @@ function stringValue22(value) {
 function finiteNumber2(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : void 0;
 }
-function isRecord32(value) {
+function isRecord33(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function stripWorkspacePrivateFields(record) {
@@ -49675,7 +51218,7 @@ function createMovScriptWorkspaceAssetSlotCandidateRecord(input3) {
       resource_id: resourceId,
       source_type: sourceType,
       source_id: sourceId,
-      score: numberValue2(input3.payload.score),
+      score: numberValue3(input3.payload.score),
       note
     }))
   });
@@ -49695,14 +51238,14 @@ function createMovScriptWorkspaceKeyframeCandidateRecord(input3) {
     target: { type: "keyframe", id: targetKeyframeId },
     keyframe_id: targetKeyframeId,
     resource_id: resourceId,
-    production_id: numberValue2(input3.payload.production_id ?? input3.payload.productionId),
-    scene_moment_id: numberValue2(input3.payload.scene_moment_id ?? input3.payload.sceneMomentId),
-    content_unit_id: numberValue2(input3.payload.content_unit_id ?? input3.payload.contentUnitId),
-    canvas_id: numberValue2(input3.payload.canvas_id ?? input3.payload.canvasId),
+    production_id: numberValue3(input3.payload.production_id ?? input3.payload.productionId),
+    scene_moment_id: numberValue3(input3.payload.scene_moment_id ?? input3.payload.sceneMomentId),
+    content_unit_id: numberValue3(input3.payload.content_unit_id ?? input3.payload.contentUnitId),
+    canvas_id: numberValue3(input3.payload.canvas_id ?? input3.payload.canvasId),
     title: stringValue32(input3.payload.title) ?? `\u5019\u9009\u753B\u9762 #${resourceId}`,
     description: stringValue32(input3.payload.description) ?? "",
     prompt: stringValue32(input3.payload.prompt) ?? "",
-    order: numberValue2(input3.payload.order ?? input3.payload.sort_order ?? input3.payload.sortOrder) ?? 0
+    order: numberValue3(input3.payload.order ?? input3.payload.sort_order ?? input3.payload.sortOrder) ?? 0
   });
 }
 function inlineCandidatePayload(payload) {
@@ -49732,7 +51275,7 @@ function workspaceCandidateRecordFromInline(input3) {
     target: { type: input3.targetKind, id: targetId },
     asset_slot_id: input3.targetKind === "asset" ? numericId(targetId) : void 0,
     keyframe_id: input3.targetKind === "keyframe" ? numericId(targetId) : void 0,
-    resource_id: resourceIdValue(input3.candidate.resource_id),
+    resource_id: resourceIdValue2(input3.candidate.resource_id),
     artifact_ref: stringValue32(input3.candidate.artifact_ref),
     source_type: input3.candidate.source,
     note: input3.candidate.notes,
@@ -49784,10 +51327,10 @@ function safeFileToken2(value) {
   return value.replace(/[^a-zA-Z0-9_-]+/g, "_");
 }
 function positiveNumber(value) {
-  const number = numberValue2(value);
+  const number = numberValue3(value);
   return number !== void 0 && number > 0 ? number : void 0;
 }
-function numberValue2(value) {
+function numberValue3(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) {
     const number = Number(value);
@@ -49796,9 +51339,9 @@ function numberValue2(value) {
   return void 0;
 }
 function numericId(value) {
-  return numberValue2(value);
+  return numberValue3(value);
 }
-function resourceIdValue(value) {
+function resourceIdValue2(value) {
   if (value === void 0) return void 0;
   return requiredResourceId2(value);
 }
@@ -49852,8 +51395,8 @@ async function upsertMovScriptWorkspaceAsset(input3) {
   const current = stripEntityPrivateFields(input3.entity?.record ?? input3.record ?? {});
   const payload = stripEntityPrivateFields(input3.payload);
   const identity = entityIdentity(entityIdentityValue(current, payload, input3.now), "asset");
-  const sourcePathSettingId = sourcePath ? pathSegmentAfter2(sourcePath, "settings") : void 0;
-  const sourcePathSettingStateId = sourcePath ? pathSegmentAfter2(sourcePath, "states") : void 0;
+  const sourcePathSettingId = sourcePath ? pathSegmentAfter4(sourcePath, "settings") : void 0;
+  const sourcePathSettingStateId = sourcePath ? pathSegmentAfter4(sourcePath, "states") : void 0;
   if (sourcePath && !sourcePathSettingStateId) {
     throw new Error("asset source path must be under a setting state");
   }
@@ -49894,7 +51437,7 @@ async function upsertMovScriptWorkspaceSettingState(input3) {
   const current = stripEntityPrivateFields(input3.entity?.record ?? input3.record ?? {});
   const payload = stripEntityPrivateFields(input3.payload);
   const identity = entityIdentity(entityIdentityValue(current, payload, input3.now), "setting_state");
-  const sourcePathSettingId = sourcePath ? pathSegmentAfter2(sourcePath, "settings") : void 0;
+  const sourcePathSettingId = sourcePath ? pathSegmentAfter4(sourcePath, "settings") : void 0;
   const settingId = entityRef(
     payload.setting_id ?? payload.settingId ?? payload.setting_ref ?? payload.settingRef ?? current.setting_id ?? current.settingId ?? current.setting_ref ?? current.settingRef,
     "setting"
@@ -49970,7 +51513,7 @@ function normalizeProfile(payload, current) {
 function workspacePath3(record) {
   return stringValue4(record.__workspace_path ?? record.workspace_path ?? record.path);
 }
-function pathSegmentAfter2(path, segment) {
+function pathSegmentAfter4(path, segment) {
   const parts = path.split("/");
   const index = parts.indexOf(segment);
   return index >= 0 ? parts[index + 1] : void 0;
@@ -50529,9 +52072,9 @@ function promptRefKind(value) {
   return isContentUnitPromptRefKind(value) ? value : void 0;
 }
 function sameRefId(left, right, kind) {
-  return sameEntityRef(left, right, kind) || lastPathSegment(left) === right || lastPathSegment(right) === left;
+  return sameEntityRef(left, right, kind) || lastPathSegment2(left) === right || lastPathSegment2(right) === left;
 }
-function lastPathSegment(value) {
+function lastPathSegment2(value) {
   if (typeof value !== "string" || !value.includes("/")) return void 0;
   return value.split("/").filter(Boolean).at(-1);
 }
@@ -50712,7 +52255,7 @@ function createMovScriptScopedProjectDataDecisionStore(options) {
         projectUid: options.projectUid,
         contentUnitId: input3.contentUnitId,
         targetRef,
-        candidateId: idField4(input3.candidate.id),
+        candidateId: idField5(input3.candidate.id),
         candidateCount: context.candidates.length
       });
       return context;
@@ -50763,7 +52306,7 @@ async function overlayMovScriptDecisionDocuments(documents, decisionStore) {
     if (contentUnit.id === void 0) continue;
     const context = decisionsByContentUnitId.get(String(contentUnit.id));
     if (!context) continue;
-    const contentUnitRef = entityDir2(contentUnit.path);
+    const contentUnitRef = entityDir3(contentUnit.path);
     rows.push({
       contentUnitId: contentUnit.id,
       targetRef: context.target_ref,
@@ -50775,7 +52318,7 @@ async function overlayMovScriptDecisionDocuments(documents, decisionStore) {
       data: normalizeDecisionContext(context, contentUnitRef)
     });
     for (const candidate of context.candidates) {
-      const candidateId = idField4(candidate.id);
+      const candidateId = idField5(candidate.id);
       if (candidateId === void 0) continue;
       overlays.push({
         path: `${contentUnitRef}/candidates/${entityPathSlug(candidateId, "candidate")}/content_candidate.json`,
@@ -50861,19 +52404,19 @@ async function requiredDecisionContext(promise) {
   if (!context) throw new Error("backend decision context not found");
   return context;
 }
-function entityDir2(path) {
+function entityDir3(path) {
   return path.replace(/\/[^/]+$/, "");
 }
-function idField4(value) {
+function idField5(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
 }
 function decisionCandidateIds(candidates) {
-  return candidates.map((candidate) => idField4(candidate.id)).filter((id) => id !== void 0);
+  return candidates.map((candidate) => idField5(candidate.id)).filter((id) => id !== void 0);
 }
 function stringIdField(value) {
-  const id = idField4(value);
+  const id = idField5(value);
   return id === void 0 ? void 0 : String(id);
 }
 function requiredResourceId3(value) {
@@ -50924,7 +52467,7 @@ function normalizeOutputs(outputs) {
       ...output3,
       resource_id: resourceId,
       stream_id: streamId,
-      artifact_ref: stringField23(output3.artifact_ref)
+      artifact_ref: stringField24(output3.artifact_ref)
     });
   });
 }
@@ -50941,7 +52484,7 @@ function streamIdField(value) {
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
   return void 0;
 }
-function stringField23(value) {
+function stringField24(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
 function pruneUndefined10(value) {
@@ -50954,7 +52497,7 @@ function pruneUndefined10(value) {
 async function upsertMovScriptProjectStandards(input3) {
   const current = stripWorkspacePrivateFields5(input3.record ?? {});
   const projectStyle = {
-    ...parseProjectStyle(current.project_style),
+    ...parseProjectStyle2(current.project_style),
     ...input3.projectStyle
   };
   const record = pruneUndefined11({
@@ -50973,12 +52516,12 @@ async function upsertMovScriptProjectStandards(input3) {
 ` });
   return { path, record };
 }
-function parseProjectStyle(value) {
-  if (isRecord9(value)) return value;
+function parseProjectStyle2(value) {
+  if (isRecord92(value)) return value;
   if (typeof value !== "string" || !value.trim()) return {};
   try {
     const parsed = JSON.parse(value);
-    return isRecord9(parsed) ? parsed : {};
+    return isRecord92(parsed) ? parsed : {};
   } catch {
     return {};
   }
@@ -50994,7 +52537,7 @@ function stripWorkspacePrivateFields5(record) {
 function stringValue8(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
-function isRecord9(value) {
+function isRecord92(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function pruneUndefined11(value) {
@@ -51019,7 +52562,7 @@ async function syncMovScriptProjectStandardSkills(input3) {
   return results;
 }
 function renderMovScriptProjectStandardSkill(standards) {
-  const projectStyle = parseProjectStyle2(standards.project_style);
+  const projectStyle = parseProjectStyle22(standards.project_style);
   const coreSections = [
     fieldSection("Aspect ratio", standards.aspect_ratio ?? projectStyle.aspect_ratio),
     fieldSection("Visual style", standards.visual_style ?? projectStyle.visual_style),
@@ -51113,7 +52656,7 @@ function resourceIdsFromValue(value) {
   if (!text) return [];
   return Array.from(text.matchAll(/\b(?:resource[_-]?id|resource)[_:#\s-]*(\d+)\b/gi)).map((match) => Number(match[1])).filter((id) => Number.isInteger(id));
 }
-function parseProjectStyle2(value) {
+function parseProjectStyle22(value) {
   if (isRecord10(value)) return value;
   const text = textValue(value);
   if (!text) return {};
@@ -51461,114 +53004,114 @@ function normalizeMentionPart(value) {
 }
 function deriveMovScriptWorkspacePreviewTimelines(index) {
   const sourceEntities = canonicalEntities(index);
-  const contentUnitsByPrimaryRef = groupContentUnitsByPrimaryRef(index);
+  const contentUnitsByPrimaryRef = groupContentUnitsByPrimaryRef2(index);
   return sourceEntities.filter(isProductionWithId).map((production) => {
-    const productionDir = entityDir3(production.path);
+    const productionDir = entityDir4(production.path);
     const segments = childEntities(index, productionDir, "segment");
     const items = [];
     let order = 0;
-    for (const segment of sortEntities(segments)) {
+    for (const segment of sortEntities2(segments)) {
       const segmentItemId = timelineItemId(segment);
       items.push({
         ...timelineItem(segmentItemId, "segment", segment, order++),
-        transition: recordField(segment.record.transition)
+        transition: recordField2(segment.record.transition)
       });
-      const sceneMoments = childEntities(index, entityDir3(segment.path), "scene_moment");
-      for (const sceneMoment of sortEntities(sceneMoments)) {
+      const sceneMoments = childEntities(index, entityDir4(segment.path), "scene_moment");
+      for (const sceneMoment of sortEntities2(sceneMoments)) {
         const sceneMomentItemId = timelineItemId(sceneMoment);
         const sceneMomentContentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "scene_moment", sceneMoment);
         items.push({
           ...timelineItem(sceneMomentItemId, "scene_moment", sceneMoment, order++),
           parentId: segmentItemId,
-          transition: recordField(sceneMoment.record.transition),
-          contentUnitIds: sceneMomentContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
+          transition: recordField2(sceneMoment.record.transition),
+          contentUnitIds: sceneMomentContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
         });
-        for (const contentUnit of sortEntities(sceneMomentContentUnits)) {
+        for (const contentUnit of sortEntities2(sceneMomentContentUnits)) {
           items.push({
             ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
             parentId: sceneMomentItemId
           });
         }
-        for (const storyboard of sortEntities(childEntities(index, entityDir3(sceneMoment.path), "storyboard"))) {
+        for (const storyboard of sortEntities2(childEntities(index, entityDir4(sceneMoment.path), "storyboard"))) {
           const storyboardItemId = timelineItemId(storyboard);
           const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "storyboard", storyboard);
-          const timeline = recordField(storyboard.record.timeline);
+          const timeline = recordField2(storyboard.record.timeline);
           items.push({
             ...timelineItem(storyboardItemId, "storyboard", storyboard, order++),
             parentId: sceneMomentItemId,
-            caption: stringField10(timeline?.caption),
-            gapAfterSec: numberField2(timeline?.gap_after_sec),
+            caption: stringField11(timeline?.caption),
+            gapAfterSec: numberField3(timeline?.gap_after_sec),
             timing: timeline,
-            transition: recordField(storyboard.record.transition),
-            contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
+            transition: recordField2(storyboard.record.transition),
+            contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
           });
-          for (const contentUnit of sortEntities(contentUnits)) {
+          for (const contentUnit of sortEntities2(contentUnits)) {
             items.push({
               ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
               parentId: storyboardItemId
             });
           }
         }
-        for (const keyframe of sortEntities(childEntities(index, entityDir3(sceneMoment.path), "keyframe"))) {
+        for (const keyframe of sortEntities2(childEntities(index, entityDir4(sceneMoment.path), "keyframe"))) {
           const keyframeItemId = timelineItemId(keyframe);
           const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "keyframe", keyframe);
           items.push({
             ...timelineItem(keyframeItemId, "keyframe", keyframe, order++),
             parentId: sceneMomentItemId,
-            timing: recordField(keyframe.record.timing),
-            contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
+            timing: recordField2(keyframe.record.timing),
+            contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
           });
-          for (const contentUnit of sortEntities(contentUnits)) {
+          for (const contentUnit of sortEntities2(contentUnits)) {
             items.push({
               ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
               parentId: keyframeItemId
             });
           }
         }
-        for (const expressionUnit of sortEntities(childEntities(index, entityDir3(sceneMoment.path), "expression_unit"))) {
+        for (const expressionUnit of sortEntities2(childEntities(index, entityDir4(sceneMoment.path), "expression_unit"))) {
           const expressionUnitItemId = timelineItemId(expressionUnit);
           const expressionUnitContentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "expression_unit", expressionUnit);
           items.push({
             ...timelineItem(expressionUnitItemId, "expression_unit", expressionUnit, order++),
             parentId: sceneMomentItemId,
-            contentUnitIds: expressionUnitContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
+            contentUnitIds: expressionUnitContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
           });
-          for (const contentUnit of sortEntities(expressionUnitContentUnits)) {
+          for (const contentUnit of sortEntities2(expressionUnitContentUnits)) {
             items.push({
               ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
               parentId: expressionUnitItemId
             });
           }
-          for (const storyboard of sortEntities(childEntities(index, entityDir3(expressionUnit.path), "storyboard"))) {
+          for (const storyboard of sortEntities2(childEntities(index, entityDir4(expressionUnit.path), "storyboard"))) {
             const storyboardItemId = timelineItemId(storyboard);
             const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "storyboard", storyboard);
-            const timeline = recordField(storyboard.record.timeline);
+            const timeline = recordField2(storyboard.record.timeline);
             items.push({
               ...timelineItem(storyboardItemId, "storyboard", storyboard, order++),
               parentId: expressionUnitItemId,
-              caption: stringField10(timeline?.caption),
-              gapAfterSec: numberField2(timeline?.gap_after_sec),
+              caption: stringField11(timeline?.caption),
+              gapAfterSec: numberField3(timeline?.gap_after_sec),
               timing: timeline,
-              transition: recordField(storyboard.record.transition),
-              contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
+              transition: recordField2(storyboard.record.transition),
+              contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
             });
-            for (const contentUnit of sortEntities(contentUnits)) {
+            for (const contentUnit of sortEntities2(contentUnits)) {
               items.push({
                 ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
                 parentId: storyboardItemId
               });
             }
           }
-          for (const keyframe of sortEntities(childEntities(index, entityDir3(expressionUnit.path), "keyframe"))) {
+          for (const keyframe of sortEntities2(childEntities(index, entityDir4(expressionUnit.path), "keyframe"))) {
             const keyframeItemId = timelineItemId(keyframe);
             const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "keyframe", keyframe);
             items.push({
               ...timelineItem(keyframeItemId, "keyframe", keyframe, order++),
               parentId: expressionUnitItemId,
-              timing: recordField(keyframe.record.timing),
-              contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
+              timing: recordField2(keyframe.record.timing),
+              contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
             });
-            for (const contentUnit of sortEntities(contentUnits)) {
+            for (const contentUnit of sortEntities2(contentUnits)) {
               items.push({
                 ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
                 parentId: keyframeItemId
@@ -51576,12 +53119,12 @@ function deriveMovScriptWorkspacePreviewTimelines(index) {
             }
           }
         }
-        for (const audioCue of sortEntities(childEntities(index, entityDir3(sceneMoment.path), "audio_cue"))) {
+        for (const audioCue of sortEntities2(childEntities(index, entityDir4(sceneMoment.path), "audio_cue"))) {
           items.push({
             ...timelineItem(timelineItemId(audioCue), "audio_cue", audioCue, order++),
             parentId: sceneMomentItemId,
-            cueKind: stringField10(audioCue.record.cue_kind),
-            timing: recordField(audioCue.record.timing)
+            cueKind: stringField11(audioCue.record.cue_kind),
+            timing: recordField2(audioCue.record.timing)
           });
         }
       }
@@ -51594,11 +53137,11 @@ function deriveMovScriptWorkspacePreviewTimelines(index) {
     };
   });
 }
-function groupContentUnitsByPrimaryRef(index) {
+function groupContentUnitsByPrimaryRef2(index) {
   const out = /* @__PURE__ */ new Map();
   for (const entity of canonicalEntities(index)) {
     if (entity.entityKind !== "content_unit") continue;
-    const contentUnitType2 = stringField10(entity.record.content_unit_type);
+    const contentUnitType2 = stringField11(entity.record.content_unit_type);
     if (!contentUnitType2 || !hasSpecializedContentUnitType(contentUnitType2)) continue;
     const primaryKind = primaryRefKindForContentUnitType(contentUnitType2);
     if (!primaryKind) continue;
@@ -51606,7 +53149,7 @@ function groupContentUnitsByPrimaryRef(index) {
     if (primaryRefs.length !== 1) continue;
     const primaryRef = primaryRefs[0];
     if (!primaryRef) continue;
-    for (const key of primaryRefKeys(primaryKind, primaryRef)) {
+    for (const key of primaryRefKeys2(primaryKind, primaryRef)) {
       out.set(key, [...out.get(key) ?? [], entity]);
     }
   }
@@ -51614,16 +53157,16 @@ function groupContentUnitsByPrimaryRef(index) {
 }
 function contentUnitsForEntity(contentUnitsByPrimaryRef, entityKind, entity) {
   if (entity.id === void 0) return [];
-  return contentUnitsByPrimaryRef.get(primaryRefKey(entityKind, entity.id)) ?? [];
+  return contentUnitsByPrimaryRef.get(primaryRefKey2(entityKind, entity.id)) ?? [];
 }
-function primaryRefKey(kind, id) {
+function primaryRefKey2(kind, id) {
   return `${kind}:${String(id)}`;
 }
-function primaryRefKeys(kind, ref) {
+function primaryRefKeys2(kind, ref) {
   const value = String(ref);
-  const keys = [primaryRefKey(kind, value)];
+  const keys = [primaryRefKey2(kind, value)];
   const lastSegment = value.split("/").filter(Boolean).at(-1);
-  if (lastSegment && lastSegment !== value) keys.push(primaryRefKey(kind, lastSegment));
+  if (lastSegment && lastSegment !== value) keys.push(primaryRefKey2(kind, lastSegment));
   return keys;
 }
 function timelineItem(id, itemType, entity, order) {
@@ -51632,7 +53175,7 @@ function timelineItem(id, itemType, entity, order) {
     itemType,
     entity: entityRef2(entity),
     order,
-    title: stringField10(entity.record.title) ?? String(entity.id ?? entity.path)
+    title: stringField11(entity.record.title) ?? String(entity.id ?? entity.path)
   };
 }
 function timelineItemId(entity) {
@@ -51648,7 +53191,7 @@ function entityRef2(entity) {
 function childEntities(index, parentDir, entityKind) {
   const collectionName = collectionDirForEntityKind(entityKind);
   if (!collectionName) return [];
-  return canonicalEntities(index).filter((entity) => entity.entityKind === entityKind && entity.path.startsWith(`${parentDir}/${collectionName}/`) && entityDir3(entity.path).replace(`${parentDir}/${collectionName}/`, "").split("/").length === 1);
+  return canonicalEntities(index).filter((entity) => entity.entityKind === entityKind && entity.path.startsWith(`${parentDir}/${collectionName}/`) && entityDir4(entity.path).replace(`${parentDir}/${collectionName}/`, "").split("/").length === 1);
 }
 function collectionDirForEntityKind(entityKind) {
   if (entityKind === "segment") return "segments";
@@ -51665,27 +53208,27 @@ function canonicalEntities(index) {
 function isProductionWithId(entity) {
   return entity.entityKind === "production" && entity.id !== void 0;
 }
-function sortEntities(entities) {
+function sortEntities2(entities) {
   return [...entities].sort((left, right) => {
-    const leftOrder = numberField2(left.record.order) ?? Number.MAX_SAFE_INTEGER;
-    const rightOrder = numberField2(right.record.order) ?? Number.MAX_SAFE_INTEGER;
+    const leftOrder = numberField3(left.record.order) ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder = numberField3(right.record.order) ?? Number.MAX_SAFE_INTEGER;
     if (leftOrder !== rightOrder) return leftOrder - rightOrder;
     return left.path.localeCompare(right.path);
   });
 }
-function entityDir3(path) {
+function entityDir4(path) {
   return path.replace(/\/[^/]+$/, "");
 }
-function recordField(value) {
+function recordField2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
 }
-function stringField10(value) {
+function stringField11(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
-function numberField2(value) {
+function numberField3(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : void 0;
 }
-function isDefined(value) {
+function isDefined2(value) {
   return value !== void 0;
 }
 function createMovScriptWorkspaceService(options) {
@@ -51731,9 +53274,9 @@ function createMovScriptWorkspaceService(options) {
       const now = options.now?.() ?? /* @__PURE__ */ new Date();
       const createdAt = now.toISOString();
       const existingWorkspace = await readJSONArtifact(options.fileRepository, "workspace.json");
-      const title = stringField24(input3.title) ?? "MovScript Project";
-      const projectId = stringField24(input3.localProjectId) ?? stringField24(input3.local_project_id) ?? stringField24(input3.projectId) ?? stringField24(input3.project_id) ?? stringField24(existingWorkspace?.project_id) ?? safeProjectSlug(title);
-      const projectUid = stringField24(input3.projectUid) ?? stringField24(existingWorkspace?.project_uid) ?? stringField24(existingWorkspace?.projectUid) ?? createMovScriptProjectUid();
+      const title = stringField25(input3.title) ?? "MovScript Project";
+      const projectId = stringField25(input3.localProjectId) ?? stringField25(input3.local_project_id) ?? stringField25(input3.projectId) ?? stringField25(input3.project_id) ?? stringField25(existingWorkspace?.project_id) ?? safeProjectSlug(title);
+      const projectUid = stringField25(input3.projectUid) ?? stringField25(existingWorkspace?.project_uid) ?? stringField25(existingWorkspace?.projectUid) ?? createMovScriptProjectUid();
       const standardsRecord = {
         schema: "movscript.project_standards.v1",
         kind: "project_standards",
@@ -51757,7 +53300,7 @@ function createMovScriptWorkspaceService(options) {
           project_uid: projectUid,
           project_id: projectId,
           title,
-          created_at: stringField24(existingWorkspace?.created_at) ?? createdAt,
+          created_at: stringField25(existingWorkspace?.created_at) ?? createdAt,
           updated_at: createdAt
         }, Boolean(input3.overwrite)),
         await writeJSONDocument(options.fileRepository, "project.json", {
@@ -51765,7 +53308,7 @@ function createMovScriptWorkspaceService(options) {
           kind: "project",
           project_id: projectId,
           title,
-          language: stringField24(input3.language),
+          language: stringField25(input3.language),
           created_at: createdAt,
           updated_at: createdAt
         }, Boolean(input3.overwrite)),
@@ -52064,11 +53607,11 @@ async function updateMovScriptExpressionUnit(fileRepository, input3) {
   if (existing.kind !== "expression_unit") throw new Error(`Target is not an expression_unit: ${normalizedPath}`);
   const record = pruneUndefined12({
     ...existing,
-    schema: stringField24(existing.schema) ?? "movscript.expression_unit.v1",
+    schema: stringField25(existing.schema) ?? "movscript.expression_unit.v1",
     kind: "expression_unit",
     title: input3.patch.title !== void 0 ? input3.patch.title : existing.title,
     slot_kind: input3.patch.slotKind !== void 0 ? normalizeExpressionUnitSlotKind(input3.patch.slotKind) : normalizeExpressionUnitSlotKind(existing.slot_kind ?? existing.slotKind ?? existing.expression_kind ?? existing.kind),
-    expression_kind: input3.patch.expressionKind !== void 0 ? legacyExpressionKind(input3.patch.expressionKind, stringField24(existing.expression_kind)) : existing.expression_kind,
+    expression_kind: input3.patch.expressionKind !== void 0 ? legacyExpressionKind(input3.patch.expressionKind, stringField25(existing.expression_kind)) : existing.expression_kind,
     speaker: input3.patch.speaker !== void 0 ? input3.patch.speaker : existing.speaker,
     text: input3.patch.text !== void 0 ? input3.patch.text : existing.text,
     note: input3.patch.note !== void 0 ? input3.patch.note : existing.note,
@@ -52096,7 +53639,7 @@ async function updateMovScriptAudioCue(fileRepository, input3) {
   if (existing.kind !== "audio_cue") throw new Error(`Target is not an audio_cue: ${normalizedPath}`);
   const record = pruneUndefined12({
     ...existing,
-    schema: stringField24(existing.schema) ?? "movscript.audio_cue.v1",
+    schema: stringField25(existing.schema) ?? "movscript.audio_cue.v1",
     kind: "audio_cue",
     title: input3.patch.title !== void 0 ? input3.patch.title : existing.title,
     cue_kind: input3.patch.cueKind !== void 0 ? input3.patch.cueKind : existing.cue_kind,
@@ -52132,7 +53675,7 @@ function mergePromptSnapshots(runtimePrompt, promptSnapshot) {
   return pruneUndefined12({ ...runtimePrompt, ...promptSnapshot });
 }
 function firstCandidateResourceId(candidate) {
-  const firstOutput = arrayField3(candidate?.outputs).filter(isRecord11)[0];
+  const firstOutput = arrayField4(candidate?.outputs).filter(isRecord11)[0];
   const resourceId = firstOutput?.resource_id;
   return resourceIdField2(resourceId);
 }
@@ -52144,7 +53687,7 @@ function resourceIdField2(value) {
   }
   return void 0;
 }
-function arrayField3(value) {
+function arrayField4(value) {
   return Array.isArray(value) ? value : [];
 }
 var MOVSCRIPT_GITIGNORE_PATH = ".gitignore";
@@ -52232,9 +53775,9 @@ async function contentUnitWithGeneratedEntityId(loadIndex, unit) {
 async function existingWorkspaceEntityIds(loadIndex, entityKind) {
   const entities = queryMovScriptWorkspaceEntities(await loadIndex(), { entityKind });
   return entities.flatMap((entity) => [
-    stringField24(entity.id),
-    stringField24(entity.record.id),
-    stringField24(entity.record.ID)
+    stringField25(entity.id),
+    stringField25(entity.record.id),
+    stringField25(entity.record.ID)
   ]).filter((id) => Boolean(id));
 }
 function hasEntityIdentity(record) {
@@ -52247,12 +53790,12 @@ function hasEntityIdentity(record) {
     record.ID,
     record.client_id,
     record.clientId
-  ].some((value) => stringField24(value) !== void 0);
+  ].some((value) => stringField25(value) !== void 0);
 }
 function entityTitleSeed(payload, current) {
   return payload.title ?? payload.name ?? payload.slot ?? payload.slot_key ?? payload.slotKey ?? payload.text ?? payload.description ?? current.title ?? current.name ?? current.slot ?? current.slot_key ?? current.slotKey ?? current.text ?? current.description;
 }
-function stringField24(value) {
+function stringField25(value) {
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
@@ -52582,8 +54125,8 @@ function buildContentUnitGenerationOutputCandidate(input3) {
   const jobId = contentUnitGenerationJobId(input3.job);
   const candidateId = input3.candidateId ?? contentUnitGenerationCandidateId(input3.outputKind, jobId, input3.resourceId);
   const promptSnapshot = input3.promptSnapshot ?? {};
-  const modelId = input3.modelId ?? stringField11(input3.job.model_id) ?? stringField11(promptSnapshot.model_id);
-  const modelParams = nonEmptyRecord(input3.modelParams ?? recordField2(promptSnapshot.model_params));
+  const modelId = input3.modelId ?? stringField12(input3.job.model_id) ?? stringField12(promptSnapshot.model_id);
+  const modelParams = nonEmptyRecord(input3.modelParams ?? recordField3(promptSnapshot.model_params));
   return {
     contentUnitId: String(input3.contentUnitId),
     candidateId: String(candidateId),
@@ -52594,7 +54137,7 @@ function buildContentUnitGenerationOutputCandidate(input3) {
       tool: contentUnitGenerationToolName(input3.outputKind),
       job_id: jobId,
       ...modelId ? { model_id: modelId } : {},
-      ...stringField11(input3.job.job_type) ? { job_type: stringField11(input3.job.job_type) } : {},
+      ...stringField12(input3.job.job_type) ? { job_type: stringField12(input3.job.job_type) } : {},
       ...modelParams ? { model_params: modelParams } : {}
     },
     outputs: [{
@@ -52603,19 +54146,19 @@ function buildContentUnitGenerationOutputCandidate(input3) {
       metadata: {
         job_id: jobId,
         ...modelId ? { model_id: modelId } : {},
-        ...stringField11(input3.job.job_type) ? { job_type: stringField11(input3.job.job_type) } : {},
+        ...stringField12(input3.job.job_type) ? { job_type: stringField12(input3.job.job_type) } : {},
         tool: contentUnitGenerationMonitorToolName(input3.outputKind)
       }
     }],
     promptSnapshot,
-    createdAt: stringField11(input3.job.CreatedAt) ?? stringField11(input3.job.created_at) ?? (/* @__PURE__ */ new Date()).toISOString()
+    createdAt: stringField12(input3.job.CreatedAt) ?? stringField12(input3.job.created_at) ?? (/* @__PURE__ */ new Date()).toISOString()
   };
 }
 function contentUnitGenerationCandidateId(outputKind, jobId, resourceId) {
   return `gen_${outputKind}_${String(jobId)}_${String(resourceId)}`;
 }
 function compiledContentUnitGenerationPromptText(prompt) {
-  const text = stringField11(prompt.text);
+  const text = stringField12(prompt.text);
   if (text) return normalizeCompiledPromptResourceMentions(text);
   throw new Error("compiled content unit prompt has no text");
 }
@@ -52636,8 +54179,8 @@ function normalizeCompiledPromptResourceMentions(text) {
 }
 function compiledContentUnitGenerationPromptResourceIds(prompt) {
   return positiveIntegerIds([
-    ...resourceIdsFromMentions(stringField11(prompt.text)),
-    ...resourceIdsFromMentions(stringField11(prompt.negative_text)),
+    ...resourceIdsFromMentions(stringField12(prompt.text)),
+    ...resourceIdsFromMentions(stringField12(prompt.negative_text)),
     ...numericList(prompt.resource_ids),
     ...numericList(prompt.resourceIds),
     ...numericList(prompt.style_reference_resource_ids),
@@ -52647,9 +54190,9 @@ function compiledContentUnitGenerationPromptResourceIds(prompt) {
 function compiledContentUnitGenerationPromptReferenceAssets(prompt) {
   const declared = referenceAssetsFromValue(prompt.reference_assets ?? prompt.referenceAssets);
   const mentioned = [
-    ...referenceAssetsFromMentions(stringField11(prompt.text)),
-    ...referenceAssetsFromMentions(stringField11(prompt.negative_text)),
-    ...referenceAssetsFromMentions(stringField11(prompt.notes))
+    ...referenceAssetsFromMentions(stringField12(prompt.text)),
+    ...referenceAssetsFromMentions(stringField12(prompt.negative_text)),
+    ...referenceAssetsFromMentions(stringField12(prompt.notes))
   ];
   const all = [...declared, ...mentioned];
   const seen = /* @__PURE__ */ new Set();
@@ -52695,7 +54238,7 @@ function contentUnitGenerationParams(outputKind, prompt, params = {}) {
   const next = { ...params };
   if (outputKind === "image") {
     if (next.aspect_ratio === void 0) next.aspect_ratio = "1:1";
-    const negativePrompt = stringField11(prompt.negative_text);
+    const negativePrompt = stringField12(prompt.negative_text);
     if (negativePrompt && next.negative_prompt === void 0) next.negative_prompt = negativePrompt;
   } else {
     if (next.aspect_ratio === void 0) next.aspect_ratio = "16:9";
@@ -52711,14 +54254,14 @@ function contentUnitGenerationJobId(job) {
 function referenceAssetsFromValue(value) {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
-    const record = recordField2(item);
+    const record = recordField3(item);
     if (!record) return [];
     const resourceId = numericId2(record.resource_id ?? record.resourceId ?? record.id);
     if (resourceId === void 0) return [];
-    const role = stringField11(record.role);
-    const mediaType = stringField11(record.media_type ?? record.mediaType);
-    const referenceId = stringField11(record.reference_id ?? record.referenceId);
-    const sourceKind = stringField11(record.source_kind ?? record.sourceKind);
+    const role = stringField12(record.role);
+    const mediaType = stringField12(record.media_type ?? record.mediaType);
+    const referenceId = stringField12(record.reference_id ?? record.referenceId);
+    const sourceKind = stringField12(record.source_kind ?? record.sourceKind);
     const sourceId = stringOrNumberField(record.source_id ?? record.sourceId);
     const sourceRef = stringOrNumberField(record.source_ref ?? record.sourceRef);
     return [{
@@ -52757,16 +54300,16 @@ function numericId2(value) {
 }
 function stringOrNumberField(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
-  return stringField11(value);
+  return stringField12(value);
 }
-function stringField11(value) {
+function stringField12(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
-function recordField2(value) {
+function recordField3(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
 }
 function nonEmptyRecord(value) {
-  const record = recordField2(value);
+  const record = recordField3(value);
   return record && Object.keys(record).length > 0 ? record : void 0;
 }
 var DEFAULT_GENERATION_TOOLS_SETTINGS = {
@@ -52813,1549 +54356,6 @@ function newLocalServerId() {
     return `local-${crypto.randomUUID()}`;
   }
   return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-// ../../packages/core/dist/chunk-5H5P6PXX.js
-function buildContentSourceWorkspaceData(input3) {
-  const productions = input3.productions;
-  const segments = input3.segments;
-  const sceneMoments = input3.sceneMoments;
-  const storyboards = input3.storyboards;
-  const expressionUnits = input3.expressionUnits;
-  const audioCues = input3.audioCues;
-  const contentUnits = input3.contentUnits;
-  const keyframes = input3.keyframes;
-  const assets = input3.assets;
-  const settings = input3.settings;
-  const settingStates = input3.settingStates;
-  const previewTimelines = input3.previewTimelines;
-  const productionWorkPlan = normalizeProductionWorkPlanView(input3.productionWorkPlan);
-  const domainGraph = buildContentSourceWorkspaceDomainGraph(input3);
-  const ancestryIndex = buildContentSourceWorkspaceEntityAncestryIndex(input3, domainGraph);
-  const contentUnitsByPrimaryRef = groupContentUnitsByPrimaryRef2(contentUnits);
-  const candidateRecordsByContentUnitId = groupContentCandidateRecordsByContentUnitId(input3.indexDocuments);
-  const selectionRecordsByContentUnitId23 = groupSelectionRecordsByContentUnitId(input3.indexDocuments);
-  const selectionByContentUnitId = buildSelectionStateByContentUnitId(contentUnits, selectionRecordsByContentUnitId23);
-  const contentUnitCandidates = buildContentUnitCandidates({
-    contentUnits,
-    candidateRecordsByContentUnitId,
-    selectionRecordsByContentUnitId: selectionRecordsByContentUnitId23
-  });
-  const previewMoments = buildPreviewMoments({
-    productions,
-    segments,
-    sceneMoments,
-    expressionUnits,
-    storyboards,
-    keyframes,
-    assets,
-    previewTimelines,
-    ancestryIndex,
-    contentUnitsByPrimaryRef,
-    candidateRecordsByContentUnitId,
-    selectionRecordsByContentUnitId: selectionRecordsByContentUnitId23,
-    selectionByContentUnitId
-  });
-  const expressionUnitsByMoment = buildExpressionUnitsByMoment(expressionUnits, ancestryIndex);
-  const audioCuesByMoment = buildAudioCuesByMoment(audioCues, {
-    ancestryIndex,
-    contentUnitsByPrimaryRef,
-    candidateRecordsByContentUnitId,
-    selectionRecordsByContentUnitId: selectionRecordsByContentUnitId23,
-    selectionByContentUnitId
-  });
-  const expressionUnitWorkspaceDetails = buildExpressionUnitWorkspaceDetails({
-    expressionUnits,
-    storyboards,
-    keyframes,
-    assets,
-    settings,
-    contentUnitsByPrimaryRef,
-    ancestryIndex,
-    candidateRecordsByContentUnitId,
-    selectionRecordsByContentUnitId: selectionRecordsByContentUnitId23,
-    selectionByContentUnitId
-  });
-  const assetReferenceUnits = buildAssetReferenceUnits({
-    assets,
-    settings,
-    settingStates,
-    expressionUnits,
-    storyboards,
-    keyframes,
-    contentUnits,
-    contentUnitsByPrimaryRef,
-    ancestryIndex,
-    candidateRecordsByContentUnitId,
-    selectionRecordsByContentUnitId: selectionRecordsByContentUnitId23,
-    selectionByContentUnitId
-  });
-  return {
-    source: "workspace",
-    domainGraph,
-    hierarchyTree: buildHierarchyTree({
-      settings,
-      settingStates,
-      assets,
-      productions,
-      segments,
-      sceneMoments,
-      storyboards,
-      keyframes,
-      expressionUnits,
-      audioCues,
-      assetReferenceUnits,
-      ancestryIndex
-    }),
-    previewMoments,
-    contentUnitCandidates,
-    expressionUnitsByMoment,
-    audioCuesByMoment,
-    expressionUnitWorkspaceDetails,
-    assetReferenceUnits,
-    editingTimelines: input3.editingTimelines ?? [],
-    productionWorkPlan
-  };
-}
-function buildContentSourceWorkspaceDomainGraph(input3) {
-  const nodes = input3.domainNodes?.length ? input3.domainNodes : deriveContentSourceWorkspaceDomainNodes(input3);
-  const edges = input3.domainEdges?.length ? input3.domainEdges : deriveContentSourceWorkspaceDomainEdges(input3, nodes);
-  return {
-    namespaceVocabulary: input3.namespaceVocabulary ?? deriveContentSourceWorkspaceNamespaceVocabulary(input3),
-    nodes,
-    edges,
-    timelineNamespaceNodes: nodes.filter((node) => node.category === "timeline_namespace"),
-    settingNamespaceNodes: nodes.filter((node) => node.category === "setting_namespace"),
-    systemPrimitiveNodes: nodes.filter((node) => node.category === "system_primitive"),
-    contentUnitNodes: nodes.filter((node) => node.category === "content_unit")
-  };
-}
-function deriveContentSourceWorkspaceNamespaceVocabulary(input3) {
-  const projectDocument = input3.indexDocuments.find(
-    (document) => normalizeWorkspacePath(document.path) === "project.json" && isRecord12(document.data)
-  );
-  return normalizeNamespaceVocabulary(projectDocument?.data);
-}
-function deriveContentSourceWorkspaceDomainNodes(input3) {
-  return sourceWorkspaceDomainEntities(input3).flatMap((entity) => {
-    const category = classifyMovScriptEntityKind(entity.entityKind);
-    if (!category) return [];
-    return [pruneUndefinedRecord({
-      category,
-      kind: projectMovScriptDomainNodeKind(entity.entityKind, entity.record),
-      ...entity.id !== void 0 ? { id: entity.id } : {},
-      path: entity.path,
-      title: stringField12(entity.record.title) ?? stringField12(entity.record.label),
-      order: optionalNumberField(entity.record.order),
-      metadata: { entityKind: entity.entityKind }
-    })];
-  });
-}
-function deriveContentSourceWorkspaceDomainPathParentEdges(nodes) {
-  const nodeByDir = /* @__PURE__ */ new Map();
-  for (const node of nodes) {
-    if (node.path) nodeByDir.set(entityDir4(node.path), node);
-  }
-  const edges = [];
-  for (const node of nodes) {
-    if (!node.path) continue;
-    const parentPath = nearestParentPath(entityDir4(node.path), nodeByDir.keys());
-    if (!parentPath) continue;
-    const parent = nodeByDir.get(parentPath);
-    const normalized = normalizePathParentEdge(domainRefFromNode2(node), parent ? domainRefFromNode2(parent) : void 0);
-    if (normalized.edge) edges.push(normalized.edge);
-  }
-  return dedupeDomainEdges2(edges);
-}
-function deriveContentSourceWorkspaceDomainEdges(input3, nodes) {
-  return dedupeDomainEdges2([
-    ...deriveContentSourceWorkspaceDomainPathParentEdges(nodes),
-    ...deriveContentSourceWorkspaceContentUnitTargetEdges(input3.contentUnits, nodes)
-  ]);
-}
-function deriveContentSourceWorkspaceContentUnitTargetEdges(contentUnits, nodes) {
-  const nodeByPath = new Map(nodes.flatMap((node) => node.path ? [[node.path, node]] : []));
-  const timelineNamespaceNodes = nodes.filter((node) => node.category === "timeline_namespace");
-  const edges = [];
-  for (const contentUnit of contentUnits) {
-    const sourceNode = nodeByPath.get(contentUnit.path);
-    if (!sourceNode) continue;
-    edges.push(...normalizeContentUnitTargetEdges({
-      source: domainRefFromNode2(sourceNode),
-      record: contentUnit.record,
-      scopeTarget(scope) {
-        return domainRefFromTimelineScope2(scope.kind, scope.ref, timelineNamespaceNodes);
-      }
-    }));
-  }
-  return edges;
-}
-function sourceWorkspaceDomainEntities(input3) {
-  return [
-    ...input3.settings,
-    ...input3.settingStates,
-    ...input3.assets,
-    ...input3.productions,
-    ...input3.segments,
-    ...input3.sceneMoments,
-    ...input3.storyboards,
-    ...input3.keyframes,
-    ...input3.expressionUnits,
-    ...input3.audioCues,
-    ...input3.contentUnits
-  ];
-}
-function buildContentSourceWorkspaceEntityAncestryIndex(input3, domainGraph) {
-  const entities = sourceWorkspaceDomainEntities(input3);
-  const entityByPath = new Map(entities.map((entity) => [entity.path, entity]));
-  const entityByDir = new Map(entities.map((entity) => [entityDir4(entity.path), entity]));
-  const parentPathByPath = /* @__PURE__ */ new Map();
-  for (const edge of domainGraph.edges) {
-    if (edge.relation !== "parent" || edge.origin !== "path") continue;
-    if (!edge.source.path || !edge.target.path) continue;
-    parentPathByPath.set(edge.source.path, edge.target.path);
-  }
-  for (const entity of entities) {
-    if (parentPathByPath.has(entity.path)) continue;
-    const parentDir = nearestParentPath(entityDir4(entity.path), entityByDir.keys());
-    const parent = parentDir ? entityByDir.get(parentDir) : void 0;
-    if (parent) parentPathByPath.set(entity.path, parent.path);
-  }
-  const childrenByParentPath = /* @__PURE__ */ new Map();
-  for (const [childPath, parentPath] of parentPathByPath) {
-    const child = entityByPath.get(childPath);
-    if (!child) continue;
-    childrenByParentPath.set(parentPath, [...childrenByParentPath.get(parentPath) ?? [], child]);
-  }
-  return { entityByPath, parentPathByPath, childrenByParentPath };
-}
-function domainRefFromTimelineScope2(scopeKind, scopeRef, timelineNamespaceNodes) {
-  const node = timelineNamespaceNodes.find(
-    (candidate) => String(candidate.id ?? "") === scopeRef && (candidate.kind === scopeKind || candidate.metadata?.entityKind === scopeKind)
-  );
-  return node ? domainRefFromNode2(node) : { category: "timeline_namespace", kind: scopeKind, id: scopeRef };
-}
-function domainRefFromNode2(node) {
-  return {
-    category: node.category,
-    kind: node.kind,
-    ...node.id !== void 0 ? { id: node.id } : {},
-    ...node.path ? { path: node.path } : {}
-  };
-}
-function dedupeDomainEdges2(edges) {
-  const seen = /* @__PURE__ */ new Set();
-  const out = [];
-  for (const edge of edges) {
-    const key = JSON.stringify(edge);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(edge);
-  }
-  return out;
-}
-function normalizeProductionWorkPlanView(plan) {
-  if (!plan) return void 0;
-  if (isProductionWorkPlanView(plan)) {
-    return {
-      summary: {
-        open: optionalNumberField(plan.summary.open) ?? 0,
-        blocking: optionalNumberField(plan.summary.blocking) ?? 0,
-        humanRecommended: optionalNumberField(plan.summary.humanRecommended) ?? 0,
-        agentRecommended: optionalNumberField(plan.summary.agentRecommended) ?? 0,
-        readyToGenerate: optionalNumberField(plan.summary.readyToGenerate) ?? 0,
-        staleSelections: optionalNumberField(plan.summary.staleSelections) ?? 0
-      },
-      items: plan.items.map(normalizeProductionWorkItemView).filter(isDefined2)
-    };
-  }
-  const rawPlan = plan;
-  return {
-    summary: {
-      open: optionalNumberField(rawPlan.summary.open) ?? 0,
-      blocking: optionalNumberField(rawPlan.summary.blocking) ?? 0,
-      humanRecommended: optionalNumberField(rawPlan.summary.human_recommended) ?? 0,
-      agentRecommended: optionalNumberField(rawPlan.summary.agent_recommended) ?? 0,
-      readyToGenerate: optionalNumberField(rawPlan.summary.ready_to_generate) ?? 0,
-      staleSelections: optionalNumberField(rawPlan.summary.stale_selections) ?? 0
-    },
-    items: rawPlan.items.map((item) => ({
-      id: item.id,
-      kind: item.kind,
-      status: item.status,
-      severity: item.severity,
-      priority: item.priority,
-      reason: item.reason,
-      targetKind: item.target.entityKind,
-      targetId: item.target.id !== void 0 ? String(item.target.id) : void 0,
-      targetPath: item.target.path,
-      recommendedActor: item.recommended_actor,
-      actionLabels: item.actions.map((action) => productionWorkActionLabel(action.type))
-    }))
-  };
-}
-function isProductionWorkPlanView(plan) {
-  return "humanRecommended" in plan.summary;
-}
-function normalizeProductionWorkItemView(item) {
-  if (!item.id || !item.kind || !item.status || !item.severity || !item.reason || !item.targetKind) return void 0;
-  return {
-    id: item.id,
-    kind: normalizeProductionWorkItemKind(item.kind),
-    status: normalizeProductionWorkItemStatus(item.status),
-    severity: normalizeProductionWorkItemSeverity(item.severity),
-    priority: optionalNumberField(item.priority) ?? 100,
-    reason: item.reason,
-    targetKind: item.targetKind,
-    targetId: item.targetId,
-    targetPath: item.targetPath,
-    recommendedActor: item.recommendedActor === "agent" || item.recommendedActor === "workflow" ? item.recommendedActor : "human",
-    actionLabels: Array.isArray(item.actionLabels) ? item.actionLabels.filter((label) => typeof label === "string" && label.trim()) : []
-  };
-}
-function normalizeProductionWorkItemKind(kind) {
-  switch (kind) {
-    case "fix_source":
-    case "edit_structure":
-    case "create_content_unit":
-    case "generate_candidates":
-    case "select_candidate":
-    case "review_stale_selection":
-    case "review_affected_output":
-      return kind;
-    default:
-      return "edit_structure";
-  }
-}
-function normalizeProductionWorkItemStatus(status) {
-  if (status === "open" || status === "blocked" || status === "ready" || status === "informational") return status;
-  return "open";
-}
-function normalizeProductionWorkItemSeverity(severity) {
-  if (severity === "blocking" || severity === "warning" || severity === "suggestion") return severity;
-  return "warning";
-}
-function productionWorkActionLabel(type) {
-  switch (type) {
-    case "open_editor":
-      return "\u6253\u5F00\u7F16\u8F91\u5668";
-    case "upsert_entity":
-      return "\u8865\u7ED3\u6784";
-    case "derive_content_unit_artifact":
-      return "\u5237\u65B0\u521B\u4F5C\u7247\u6BB5";
-    case "generate_candidates":
-      return "\u751F\u6210\u5019\u9009";
-    case "open_candidate_picker":
-      return "\u6253\u5F00\u5019\u9009\u9009\u62E9";
-    case "agent_review_candidates":
-      return "\u8F85\u52A9\u5BA1\u9605\u5019\u9009";
-    case "accept_stale":
-      return "\u63A5\u53D7 stale";
-    default:
-      return type;
-  }
-}
-function buildHierarchyTree(input3) {
-  return [
-    {
-      id: "settings_root",
-      type: "group",
-      title: "Settings",
-      path: "settings/",
-      children: sortEntities2(input3.settings).map((setting) => {
-        const states = childEntitiesForParent(input3.ancestryIndex, input3.settingStates, setting);
-        return entityNode(setting, "setting", {
-          children: sortEntities2(states).map((state) => {
-            const stateAssets = childEntitiesForParent(input3.ancestryIndex, input3.assets, state);
-            return entityNode(state, "state", {
-              children: sortEntities2(stateAssets).map((asset) => {
-                const unit = input3.assetReferenceUnits[nodeId(asset, "asset")];
-                return entityNode(asset, "asset", { state: unit?.selectionState === "needs_candidate" ? "missing" : void 0 });
-              })
-            });
-          })
-        });
-      })
-    },
-    {
-      id: "productions_group",
-      type: "group",
-      title: "Productions",
-      path: "productions",
-      children: sortEntities2(input3.productions).map((production) => {
-        const segments = childEntitiesForParent(input3.ancestryIndex, input3.segments, production);
-        return entityNode(production, "production", {
-          children: sortEntities2(segments).map((segment) => {
-            const sceneMoments = childEntitiesForParent(input3.ancestryIndex, input3.sceneMoments, segment);
-            return entityNode(segment, "segment", {
-              children: sortEntities2(sceneMoments).map((sceneMoment) => {
-                const momentDir = entityDir4(sceneMoment.path);
-                const expressions = childEntitiesForParent(input3.ancestryIndex, input3.expressionUnits, sceneMoment);
-                const momentStoryboards = childEntitiesForParent(input3.ancestryIndex, input3.storyboards, sceneMoment);
-                const momentKeyframes = childEntitiesForParent(input3.ancestryIndex, input3.keyframes, sceneMoment);
-                const audioCues = childEntitiesForParent(input3.ancestryIndex, input3.audioCues, sceneMoment);
-                const momentId = idText(sceneMoment);
-                const expressionGroup = {
-                  id: `${nodeId(sceneMoment, "scene_moment")}_expression_group`,
-                  type: "group",
-                  title: "Expression Units",
-                  path: `${momentDir}/expression_units`,
-                  momentId,
-                  children: sortEntities2(expressions).map((expression) => {
-                    const expressionDir = entityDir4(expression.path);
-                    const expressionUnitId = idText(expression);
-                    const storyboards = childEntitiesForParent(input3.ancestryIndex, input3.storyboards, expression);
-                    const keyframes = childEntitiesForParent(input3.ancestryIndex, input3.keyframes, expression);
-                    return entityNode(expression, "expression_unit", {
-                      momentId,
-                      expressionUnitId,
-                      children: [
-                        {
-                          id: `${nodeId(expression, "expression_unit")}_storyboards_group`,
-                          type: "group",
-                          title: "Storyboards",
-                          path: `${expressionDir}/storyboards`,
-                          momentId,
-                          expressionUnitId,
-                          children: sortEntities2(storyboards).map((storyboard) => entityNode(storyboard, "storyboard", { momentId, expressionUnitId }))
-                        },
-                        {
-                          id: `${nodeId(expression, "expression_unit")}_keyframes_group`,
-                          type: "group",
-                          title: "Keyframes",
-                          path: `${expressionDir}/keyframes`,
-                          momentId,
-                          expressionUnitId,
-                          children: sortEntities2(keyframes).map((keyframe) => entityNode(keyframe, "keyframe", { momentId, expressionUnitId }))
-                        }
-                      ]
-                    });
-                  })
-                };
-                const storyboardGroup = {
-                  id: `${nodeId(sceneMoment, "scene_moment")}_storyboards_group`,
-                  type: "group",
-                  title: "Storyboards",
-                  path: `${momentDir}/storyboards`,
-                  momentId,
-                  children: sortEntities2(momentStoryboards).map((storyboard) => entityNode(storyboard, "storyboard", { momentId }))
-                };
-                const keyframeGroup = {
-                  id: `${nodeId(sceneMoment, "scene_moment")}_keyframes_group`,
-                  type: "group",
-                  title: "Keyframes",
-                  path: `${momentDir}/keyframes`,
-                  momentId,
-                  children: sortEntities2(momentKeyframes).map((keyframe) => entityNode(keyframe, "keyframe", { momentId }))
-                };
-                const audioCueGroup = {
-                  id: `${nodeId(sceneMoment, "scene_moment")}_audio_group`,
-                  type: "group",
-                  title: "Audio Cues",
-                  path: `${momentDir}/audio_cues`,
-                  momentId,
-                  children: sortEntities2(audioCues).map((audioCue) => entityNode(audioCue, "audio_cue", { momentId }))
-                };
-                return entityNode(sceneMoment, "scene_moment", {
-                  momentId,
-                  children: [expressionGroup, storyboardGroup, keyframeGroup, audioCueGroup]
-                });
-              })
-            });
-          })
-        });
-      })
-    }
-  ];
-}
-function buildPreviewMoments(input3) {
-  return orderedSceneMoments(input3.sceneMoments, input3.previewTimelines).map((moment, momentIndex) => {
-    const segment = ancestorEntity(input3.ancestryIndex, moment, "segment") ?? parentByDir(input3.segments, moment.path);
-    const production = segment ? ancestorEntity(input3.ancestryIndex, segment, "production") ?? parentByDir(input3.productions, segment.path) : ancestorEntity(input3.ancestryIndex, moment, "production");
-    const expressionUnits = orderedChildEntitiesForTimelineParent(input3.expressionUnits, input3.previewTimelines, timelineItemIdForEntity(moment), "expression_unit");
-    const momentExpressionUnits = (expressionUnits.length > 0 ? expressionUnits : sortEntities2(childEntitiesForParent(input3.ancestryIndex, input3.expressionUnits, moment))).map(
-      (expressionUnit, expressionUnitIndex) => previewExpressionUnit(expressionUnit, expressionUnitIndex, moment, input3)
-    );
-    return {
-      id: idText(moment),
-      title: titleOf(moment, `Scene Moment ${momentIndex + 1}`),
-      path: entityDir4(moment.path),
-      selectionState: momentSelectionState(momentExpressionUnits),
-      priority: momentIndex < 1 ? "\u9AD8\u4F18\u5148\u7EA7" : momentIndex < 3 ? "\u4E2D\u4F18\u5148\u7EA7" : "\u4F4E\u4F18\u5148\u7EA7",
-      production: production ? titleOf(production, idText(production)) : "",
-      segment: segment ? titleOf(segment, idText(segment)) : "",
-      settings: settingRefsForMoment(moment, momentExpressionUnits, input3.assets),
-      expressionUnits: momentExpressionUnits
-    };
-  });
-}
-function previewExpressionUnit(expressionUnit, expressionUnitIndex, moment, input3) {
-  const storyboards = sortEntities2(childEntitiesForParent(input3.ancestryIndex, input3.storyboards, expressionUnit));
-  const keyframes = sortEntities2(childEntitiesForParent(input3.ancestryIndex, input3.keyframes, expressionUnit));
-  const primaryStoryboard = storyboards[0];
-  const primaryKeyframe = keyframes[0];
-  const contentUnit = contentUnitForEntity(input3.contentUnitsByPrimaryRef, "expression_unit", expressionUnit) ?? (primaryStoryboard ? contentUnitForEntity(input3.contentUnitsByPrimaryRef, "storyboard", primaryStoryboard) : void 0) ?? (primaryKeyframe ? contentUnitForEntity(input3.contentUnitsByPrimaryRef, "keyframe", primaryKeyframe) : void 0);
-  return {
-    id: idText(expressionUnit),
-    title: titleOf(expressionUnit, `Expression Unit ${expressionUnitIndex + 1}`),
-    kind: stringField12(expressionUnit.record.kind) ?? "expression_unit",
-    camera: shotCameraText(expressionUnit),
-    duration: durationText(recordField3(expressionUnit.record.timing_intent)?.duration_sec ?? recordField3(expressionUnit.record.timing)?.duration_sec ?? recordField3(contentUnit?.record.model_intent)?.duration_sec),
-    expression: shotExpressionText(expressionUnit),
-    stillPosition: stillPositionForIndex(expressionUnitIndex),
-    path: entityDir4(expressionUnit.path),
-    keyframes: keyframes.map((keyframe) => idText(keyframe)),
-    assets: shotAssets(expressionUnit, keyframes, input3.assets),
-    storyboard: primaryStoryboard ? nodeId(primaryStoryboard, "storyboard") : "",
-    contentUnit: previewContentUnit(contentUnit, expressionUnit, moment, primaryStoryboard, keyframes, input3)
-  };
-}
-function orderedSceneMoments(sceneMoments, previewTimelines) {
-  const timelineMoments = previewTimelines.flatMap(
-    (timeline) => timeline.items.filter((item) => item.itemType === "scene_moment").sort((left, right) => left.order - right.order).map((item) => entityForTimelineItem(sceneMoments, item)).filter(isDefined2)
-  );
-  if (timelineMoments.length === 0) return sortEntities2(sceneMoments);
-  return uniqueEntities([...timelineMoments, ...sortEntities2(sceneMoments)]);
-}
-function orderedChildEntitiesForTimelineParent(entities, previewTimelines, parentItemId, itemType) {
-  return previewTimelines.flatMap(
-    (timeline) => timeline.items.filter((item) => item.itemType === itemType && item.parentId === parentItemId).sort((left, right) => left.order - right.order).map((item) => entityForTimelineItem(entities, item)).filter(isDefined2)
-  );
-}
-function entityForTimelineItem(entities, item) {
-  return entities.find(
-    (entity) => item.entity.id !== void 0 && String(entity.id ?? "") === String(item.entity.id) || entity.path === item.entity.path
-  );
-}
-function uniqueEntities(entities) {
-  return Array.from(new Map(entities.map((entity) => [entity.path, entity])).values());
-}
-function timelineItemIdForEntity(entity) {
-  return `${entity.entityKind}:${String(entity.id ?? entity.path)}`;
-}
-function previewContentUnit(contentUnit, expressionUnit, moment, storyboard, keyframes, input3) {
-  const type = contentUnitType(contentUnit);
-  const id = contentUnit ? idText(contentUnit) : `cu_${idText(expressionUnit)}`;
-  const selection = input3.selectionRecordsByContentUnitId.get(id);
-  return {
-    id,
-    type,
-    outputKind: outputKindForContentUnit(contentUnit),
-    path: contentUnit?.path ?? `content_units/${id}/content_unit.json`,
-    editPrompt: editPromptText(contentUnit) ?? "",
-    sceneMomentRef: `scene_moment/${idText(moment)}`,
-    expressionUnitRef: idText(expressionUnit),
-    storyboardRef: storyboard ? nodeId(storyboard, "storyboard") : "",
-    keyframeRefs: keyframes.map((keyframe) => idText(keyframe)),
-    selectionState: input3.selectionByContentUnitId.get(id) ?? selectionStateFromSourceSelection(selection, contentUnit),
-    candidates: previewCandidatesForContentUnit(id, input3.candidateRecordsByContentUnitId.get(id) ?? [], selection)
-  };
-}
-function buildExpressionUnitsByMoment(expressionUnits, ancestryIndex) {
-  const output3 = {};
-  for (const expression of sortEntities2(expressionUnits)) {
-    const momentId = ancestorId(ancestryIndex, expression, "scene_moment") ?? pathSegmentAfter3(expression.path, "scene_moments") ?? "";
-    const item = {
-      id: idText(expression),
-      title: titleOf(expression, stringField12(expression.record.text) ?? idText(expression)),
-      path: expression.path,
-      kind: stringField12(expression.record.slot_kind ?? expression.record.expression_kind ?? expression.record.kind) ?? "visual",
-      slotKind: expressionUnitSlotKindFromRecord(expression.record),
-      text: stringField12(expression.record.text) ?? "",
-      summary: stringField12(expression.record.intent ?? expression.record.note ?? expression.record.text) ?? "",
-      speaker: stringField12(expression.record.speaker),
-      note: stringField12(expression.record.note),
-      sceneMomentId: momentId
-    };
-    output3[momentId] = [...output3[momentId] ?? [], item];
-  }
-  return output3;
-}
-function buildAudioCuesByMoment(audioCues, input3) {
-  const output3 = {};
-  for (const audioCue of sortEntities2(audioCues)) {
-    const momentId = ancestorId(input3.ancestryIndex, audioCue, "scene_moment") ?? pathSegmentAfter3(audioCue.path, "scene_moments") ?? "";
-    const contentUnit = contentUnitForEntity(input3.contentUnitsByPrimaryRef, "audio_cue", audioCue);
-    const item = {
-      id: idText(audioCue),
-      title: titleOf(audioCue, idText(audioCue)),
-      path: audioCue.path,
-      cueKind: stringField12(audioCue.record.cue_kind ?? audioCue.record.kind) ?? "sound_effect",
-      promptHint: stringField12(audioCue.record.prompt_hint) ?? "",
-      expressionUnitRef: stringField12(audioCue.record.expression_unit_ref),
-      storyboardRef: stringField12(audioCue.record.storyboard_ref),
-      timing: recordField3(audioCue.record.timing) ?? {},
-      assetRefs: arrayField4(audioCue.record.asset_refs).map(String),
-      sceneMomentId: momentId,
-      ...contentUnit ? { contentUnit: previewAudioCueContentUnit(contentUnit, audioCue, input3) } : {}
-    };
-    output3[momentId] = [...output3[momentId] ?? [], item];
-  }
-  return output3;
-}
-function previewAudioCueContentUnit(contentUnit, audioCue, input3) {
-  const id = idText(contentUnit);
-  const selection = input3.selectionRecordsByContentUnitId.get(id);
-  return {
-    id,
-    type: contentUnitType(contentUnit),
-    outputKind: outputKindForContentUnit(contentUnit),
-    path: contentUnit.path,
-    editPrompt: editPromptText(contentUnit) ?? "",
-    sceneMomentRef: ancestorId(input3.ancestryIndex, audioCue, "scene_moment") ?? pathSegmentAfter3(audioCue.path, "scene_moments") ?? "",
-    expressionUnitRef: stringField12(audioCue.record.expression_unit_ref) ?? "",
-    storyboardRef: stringField12(audioCue.record.storyboard_ref) ?? "",
-    keyframeRefs: [],
-    selectionState: input3.selectionByContentUnitId.get(id) ?? selectionStateFromSourceSelection(selection, contentUnit),
-    candidates: previewCandidatesForContentUnit(id, input3.candidateRecordsByContentUnitId.get(id) ?? [], selection)
-  };
-}
-function transitionFromEntity(entity) {
-  const transition = recordField3(entity.record.transition);
-  if (!transition) return void 0;
-  const value = {
-    in: stringField12(transition.in),
-    out: stringField12(transition.out),
-    notes: stringField12(transition.notes)
-  };
-  return Object.values(value).some(Boolean) ? value : void 0;
-}
-function storyboardTimelineFromEntity(entity) {
-  const timeline = recordField3(entity.record.timeline);
-  if (!timeline) return void 0;
-  const value = {
-    caption: stringField12(timeline.caption),
-    gapAfterSec: optionalNumberField(timeline.gap_after_sec),
-    durationSec: optionalNumberField(timeline.duration_sec)
-  };
-  return Object.values(value).some((item) => item !== void 0) ? value : void 0;
-}
-function buildExpressionUnitWorkspaceDetails(input3) {
-  return Object.fromEntries(input3.expressionUnits.map((expressionUnit) => {
-    const keyframes = sortEntities2(childEntitiesForParent(input3.ancestryIndex, input3.keyframes, expressionUnit));
-    const storyboards = sortEntities2(childEntitiesForParent(input3.ancestryIndex, input3.storyboards, expressionUnit));
-    const refs = shotAssets(expressionUnit, keyframes, input3.assets);
-    const assets = refs.map((ref) => ({
-      id: ref.title,
-      title: ref.title.replace(/^asset\//, ""),
-      owner: ref.title,
-      status: ref.status === "missing" ? "missing" : ref.status === "locked" ? "locked" : "current",
-      summary: ref.status === "missing" ? "\u8BE5\u7D20\u6750\u5F15\u7528\u5C1A\u672A\u5728 setting/state asset \u4E2D\u89E3\u6790\u3002" : "\u6765\u81EA workspace source \u7684\u7D20\u6750\u5F15\u7528\u3002",
-      downstream: [idText(expressionUnit)]
-    }));
-    const settings = input3.settings.slice(0, 4).map((setting) => ({
-      id: nodeId(setting, "setting"),
-      title: titleOf(setting, idText(setting)),
-      owner: setting.path,
-      status: "current",
-      summary: stringField12(setting.record.summary ?? setting.record.description ?? setting.record.prompt_hint) ?? "Workspace setting context.",
-      downstream: [idText(expressionUnit)]
-    }));
-    return [idText(expressionUnit), {
-      settings,
-      assets,
-      keyframes: keyframes.map((keyframe) => expressionUnitChildOption(keyframe, "keyframe", expressionUnit, input3)),
-      storyboards: storyboards.map((storyboard) => expressionUnitChildOption(storyboard, "storyboard", expressionUnit, input3)),
-      impacts: []
-    }];
-  }));
-}
-function buildAssetReferenceUnits(input3) {
-  return Object.fromEntries(input3.assets.map((asset) => {
-    const contentUnit = contentUnitForEntity(input3.contentUnitsByPrimaryRef, "asset", asset);
-    const contentUnitId = contentUnit ? idText(contentUnit) : `cu_${idText(asset)}`;
-    const ownerState = ancestorEntity(input3.ancestryIndex, asset, "setting_state") ?? parentByDir(input3.settingStates, asset.path);
-    const ownerSetting = ownerState ? ancestorEntity(input3.ancestryIndex, ownerState, "setting") ?? parentByDir(input3.settings, ownerState.path) : ancestorEntity(input3.ancestryIndex, asset, "setting");
-    const assetId = nodeId(asset, "asset");
-    const selection = input3.selectionRecordsByContentUnitId.get(contentUnitId);
-    const selectionState = contentUnit ? input3.selectionByContentUnitId.get(contentUnitId) ?? "needs_candidate" : "ready";
-    return [assetId, {
-      assetId,
-      title: titleOf(asset, idText(asset)),
-      path: contentUnit?.path ?? `content_units/${contentUnitId}/content_unit.json`,
-      contentUnitId,
-      contentUnitType: "asset_ref",
-      outputKind: "image",
-      editPrompt: editPromptText(contentUnit) ?? "",
-      usage: `${titleOf(asset, idText(asset))} \u4F5C\u4E3A setting/state \u4E0B\u7684\u7D20\u6750\u53C2\u8003\u8F93\u5165\u3002`,
-      lockPolicy: "\u9009\u62E9\u53D8\u5316\u540E\uFF0C\u4E0B\u6E38\u5F15\u7528\u8BE5 asset_ref \u7684\u521B\u4F5C\u7247\u6BB5\u9700\u8981\u91CD\u65B0\u68C0\u67E5\u3002",
-      selectionState,
-      upstream: [
-        ...ownerSetting ? [{ id: `setting:${idText(ownerSetting)}`, title: titleOf(ownerSetting, idText(ownerSetting)), kind: "setting", ownerNodeId: nodeId(ownerSetting, "setting"), state: "current", summary: ownerSetting.path }] : [],
-        ...ownerState ? [{ id: `state:${idText(ownerState)}`, title: titleOf(ownerState, idText(ownerState)), kind: "state", ownerNodeId: nodeId(ownerState, "state"), state: "current", summary: ownerState.path }] : []
-      ],
-      candidates: previewAssetCandidatesForContentUnit(contentUnitId, input3.candidateRecordsByContentUnitId.get(contentUnitId) ?? [], selection),
-      downstream: buildAssetDownstreamUnits(asset, input3)
-    }];
-  }));
-}
-function buildAssetDownstreamUnits(asset, input3) {
-  const assetId = idText(asset);
-  const refs = /* @__PURE__ */ new Set([assetId, nodeId(asset, "asset")]);
-  return input3.contentUnits.filter((contentUnit) => {
-    const promptRefs = editPromptRefs(contentUnit);
-    const referencesAsset = promptRefs.some((ref) => ref.kind === "asset" && refs.has(ref.id));
-    const isOwnAssetRef = stringField12(contentUnit.record.content_unit_type) === "asset_ref" && primaryRefIdsForContentUnitRecord2(contentUnit.record, "asset").some((ref) => refs.has(ref));
-    return referencesAsset && !isOwnAssetRef;
-  }).map((contentUnit) => {
-    const contentUnitId = idText(contentUnit);
-    const owner = primaryOwnerForContentUnit(contentUnit, input3);
-    const selection = input3.selectionRecordsByContentUnitId.get(contentUnitId);
-    const selectedCandidateId = idValue(selection?.candidate_id);
-    const selectedCandidate = selectedCandidateId ? input3.candidateRecordsByContentUnitId.get(contentUnitId)?.find((candidate) => selectionCandidateMatches(selection, idValue(candidate.id) ?? "")) : void 0;
-    const state = input3.selectionByContentUnitId.get(contentUnitId) ?? selectionStateFromSourceSelection(selection, contentUnit);
-    return {
-      id: `asset:${assetId}:content_unit:${contentUnitId}`,
-      title: titleOf(contentUnit, contentUnitId),
-      kind: "content_unit",
-      ownerNodeId: owner?.nodeId ?? contentUnitId,
-      momentId: owner?.momentId ?? "",
-      expressionUnitId: owner?.expressionUnitId ?? "",
-      dependencyHash: selectedCandidate ? candidateInputHash(selectedCandidate, contentUnitId) : contentUnitId,
-      state,
-      action: state === "selected" ? "\u5DF2\u9009\u62E9\u5019\u9009\u5F15\u7528\u8BE5 asset" : "\u9700\u8981\u5019\u9009\u6216\u9009\u62E9\u786E\u8BA4",
-      preview: `${contentUnitId} \u5728 edit_prompt \u4E2D\u5F15\u7528 ${nodeId(asset, "asset")}\u3002`
-    };
-  });
-}
-function primaryOwnerForContentUnit(contentUnit, input3) {
-  const expressionUnitRef = primaryRefIdsForContentUnitRecord2(contentUnit.record, "expression_unit")[0];
-  if (expressionUnitRef) {
-    const expressionUnit = input3.expressionUnits.find((item) => entityMatchesRef(item, expressionUnitRef, "expression_unit"));
-    return {
-      nodeId: expressionUnit ? idText(expressionUnit) : expressionUnitRef,
-      momentId: expressionUnit ? ancestorId(input3.ancestryIndex, expressionUnit, "scene_moment") ?? pathSegmentAfter3(expressionUnit.path, "scene_moments") ?? "" : "",
-      expressionUnitId: expressionUnit ? idText(expressionUnit) : expressionUnitRef
-    };
-  }
-  const storyboardRef = primaryRefIdsForContentUnitRecord2(contentUnit.record, "storyboard")[0];
-  if (storyboardRef) {
-    const storyboard = input3.storyboards.find((item) => entityMatchesRef(item, storyboardRef, "storyboard"));
-    return {
-      nodeId: storyboard ? nodeId(storyboard, "storyboard") : `storyboard/${storyboardRef}`,
-      momentId: storyboard ? ancestorId(input3.ancestryIndex, storyboard, "scene_moment") ?? pathSegmentAfter3(storyboard.path, "scene_moments") ?? "" : "",
-      expressionUnitId: storyboard ? ancestorId(input3.ancestryIndex, storyboard, "expression_unit") ?? pathSegmentAfter3(storyboard.path, "expression_units") ?? "" : ""
-    };
-  }
-  const keyframeRef = primaryRefIdsForContentUnitRecord2(contentUnit.record, "keyframe")[0];
-  if (keyframeRef) {
-    const keyframe = input3.keyframes.find((item) => entityMatchesRef(item, keyframeRef, "keyframe"));
-    return {
-      nodeId: keyframe ? idText(keyframe) : keyframeRef,
-      momentId: keyframe ? ancestorId(input3.ancestryIndex, keyframe, "scene_moment") ?? pathSegmentAfter3(keyframe.path, "scene_moments") ?? "" : "",
-      expressionUnitId: keyframe ? ancestorId(input3.ancestryIndex, keyframe, "expression_unit") ?? pathSegmentAfter3(keyframe.path, "expression_units") ?? "" : ""
-    };
-  }
-  return void 0;
-}
-function expressionUnitChildOption(entity, primaryKind, expressionUnit, input3) {
-  const contentUnit = contentUnitForEntity(input3.contentUnitsByPrimaryRef, primaryKind, entity);
-  const contentUnitId = contentUnit ? idText(contentUnit) : "";
-  const selection = contentUnitId ? input3.selectionRecordsByContentUnitId.get(contentUnitId) : void 0;
-  return {
-    id: idText(entity),
-    title: titleOf(entity, idText(entity)),
-    status: contentUnit ? "candidate" : "draft",
-    inputHash: contentUnitId || "source",
-    summary: stringField12(entity.record.visual_intent ?? entity.record.summary ?? entity.record.description ?? entity.record.slot) ?? entity.path,
-    ...contentUnit ? {
-      contentUnit: {
-        id: contentUnitId,
-        type: primaryKind === "keyframe" ? "keyframe_ref" : "storyboard_ref",
-        outputKind: outputKindForContentUnit(contentUnit),
-        path: contentUnit.path,
-        editPrompt: editPromptText(contentUnit) ?? "",
-        sceneMomentRef: `scene_moment/${ancestorId(input3.ancestryIndex, expressionUnit, "scene_moment") ?? pathSegmentAfter3(expressionUnit.path, "scene_moments") ?? ""}`,
-        expressionUnitRef: idText(expressionUnit),
-        storyboardRef: primaryKind === "storyboard" ? nodeId(entity, "storyboard") : "",
-        keyframeRefs: primaryKind === "keyframe" ? [idText(entity)] : [],
-        selectionState: input3.selectionByContentUnitId.get(contentUnitId) ?? selectionStateFromSourceSelection(selection, contentUnit),
-        candidates: previewCandidatesForContentUnit(contentUnitId, input3.candidateRecordsByContentUnitId.get(contentUnitId) ?? [], selection)
-      }
-    } : {}
-  };
-}
-function buildContentUnitCandidates(input3) {
-  const ids = /* @__PURE__ */ new Set([
-    ...input3.contentUnits.map(idText),
-    ...input3.candidateRecordsByContentUnitId.keys(),
-    ...input3.selectionRecordsByContentUnitId.keys()
-  ]);
-  const output3 = {};
-  for (const contentUnitId of ids) {
-    output3[contentUnitId] = previewCandidatesForContentUnit(
-      contentUnitId,
-      input3.candidateRecordsByContentUnitId.get(contentUnitId) ?? [],
-      input3.selectionRecordsByContentUnitId.get(contentUnitId)
-    );
-  }
-  return output3;
-}
-function groupContentUnitsByPrimaryRef2(contentUnits) {
-  const output3 = /* @__PURE__ */ new Map();
-  for (const contentUnit of contentUnits) {
-    const type = stringField12(contentUnit.record.content_unit_type);
-    const primaryKind = primaryKindForContentUnitType(type);
-    if (!primaryKind) continue;
-    for (const ref of primaryRefIdsForContentUnitRecord2(contentUnit.record, primaryKind)) {
-      for (const key of primaryRefKeys2(primaryKind, ref)) {
-        output3.set(key, [...output3.get(key) ?? [], contentUnit]);
-      }
-    }
-  }
-  return output3;
-}
-function groupContentCandidateRecordsByContentUnitId(documents) {
-  const output3 = /* @__PURE__ */ new Map();
-  for (const document of documents) {
-    if (document.path.endsWith("/content_candidate.json") && isContentCandidateRecord(document.data)) {
-      const contentUnitId2 = contentUnitIdForRuntimeDocument(document.path, document.data.content_unit_ref);
-      if (!contentUnitId2) continue;
-      appendContentCandidateRecord(output3, contentUnitId2, document.data);
-      continue;
-    }
-    if (!isDecisionContextRecord(document.data)) continue;
-    const contentUnitId = contentUnitIdForRuntimeDocument(document.path, stringField12(document.data.target_ref));
-    if (!contentUnitId) continue;
-    for (const candidate of arrayField4(document.data.candidates)) {
-      const record = normalizeDecisionContentCandidateRecord(candidate, contentUnitId);
-      if (record) appendContentCandidateRecord(output3, contentUnitId, record);
-    }
-  }
-  for (const [contentUnitId, candidates] of output3.entries()) {
-    output3.set(contentUnitId, candidates.sort((left, right) => (stringField12(right.created_at) ?? "").localeCompare(stringField12(left.created_at) ?? "")));
-  }
-  return output3;
-}
-function appendContentCandidateRecord(output3, contentUnitId, candidate) {
-  const candidates = output3.get(contentUnitId) ?? [];
-  const candidateId = idValue(candidate.id);
-  if (!candidateId) {
-    output3.set(contentUnitId, [...candidates, candidate]);
-    return;
-  }
-  const existingIndex = candidates.findIndex((existing) => idValue(existing.id) === candidateId);
-  if (existingIndex < 0) {
-    output3.set(contentUnitId, [...candidates, candidate]);
-    return;
-  }
-  output3.set(contentUnitId, [
-    ...candidates.slice(0, existingIndex),
-    mergeContentCandidateRecords(candidates[existingIndex], candidate),
-    ...candidates.slice(existingIndex + 1)
-  ]);
-}
-function normalizeDecisionContentCandidateRecord(value, contentUnitId) {
-  if (!isRecord12(value) || !idValue(value.id)) return void 0;
-  return {
-    ...value,
-    content_unit_ref: stringField12(value.content_unit_ref) ?? `content_units/${contentUnitId}`
-  };
-}
-function mergeContentCandidateRecords(existing, incoming) {
-  const merged = { ...existing, ...incoming };
-  if (arrayField4(incoming.outputs).length === 0 && arrayField4(existing.outputs).length > 0) merged.outputs = existing.outputs;
-  if (!recordField3(incoming.producer) && recordField3(existing.producer)) merged.producer = existing.producer;
-  if (!recordField3(incoming.prompt_snapshot) && recordField3(existing.prompt_snapshot)) merged.prompt_snapshot = existing.prompt_snapshot;
-  if (!stringField12(incoming.status) && stringField12(existing.status)) merged.status = existing.status;
-  if (!stringField12(incoming.source) && stringField12(existing.source)) merged.source = existing.source;
-  if (!stringField12(incoming.created_at) && stringField12(existing.created_at)) merged.created_at = existing.created_at;
-  if (!stringField12(incoming.content_unit_ref) && stringField12(existing.content_unit_ref)) merged.content_unit_ref = existing.content_unit_ref;
-  return merged;
-}
-function groupSelectionRecordsByContentUnitId(documents) {
-  const output3 = /* @__PURE__ */ new Map();
-  for (const document of documents) {
-    if (!isDecisionContextRecord(document.data)) continue;
-    const selection = recordField3(document.data.selection);
-    if (!selection) continue;
-    const contentUnitId = contentUnitIdForRuntimeDocument(document.path, stringField12(document.data.target_ref));
-    if (!contentUnitId) continue;
-    output3.set(contentUnitId, normalizeContentSelectionRecord(selection));
-  }
-  return output3;
-}
-function previewCandidatesForContentUnit(contentUnitId, candidates, selection) {
-  return candidates.map((candidate, index) => {
-    const id = idValue(candidate.id) ?? `candidate_${index + 1}`;
-    const output3 = firstCandidateOutput(candidate);
-    return {
-      id,
-      title: candidateTitle(candidate, candidateOrdinalTitle(index)),
-      model: candidateModel(candidate),
-      inputHash: candidateInputHash(candidate, contentUnitId),
-      selected: selectionCandidateMatches(selection, id),
-      note: candidateNote(candidate),
-      resourceId: resourceIdValue2(output3?.resource_id),
-      streamId: streamIdValue(output3?.stream_id),
-      resourceKind: stringField12(output3?.kind),
-      artifactRef: stringField12(output3?.artifact_ref),
-      status: stringField12(candidate.status),
-      decisionStatus: candidateDecisionStatus(candidate),
-      decisionReason: candidateDecisionReason(candidate),
-      source: stringField12(candidate.source),
-      producer: candidate.producer,
-      outputs: candidate.outputs,
-      promptSnapshot: candidate.prompt_snapshot,
-      createdAt: stringField12(candidate.created_at)
-    };
-  });
-}
-function previewAssetCandidatesForContentUnit(contentUnitId, candidates, selection) {
-  return candidates.map((candidate, index) => {
-    const id = idValue(candidate.id) ?? `candidate_${index + 1}`;
-    const output3 = firstCandidateOutput(candidate);
-    return {
-      id,
-      title: candidateTitle(candidate, candidateOrdinalTitle(index)),
-      model: candidateModel(candidate),
-      inputHash: candidateInputHash(candidate, contentUnitId),
-      selected: selectionCandidateMatches(selection, id),
-      note: candidateNote(candidate),
-      resourceId: resourceIdValue2(output3?.resource_id),
-      streamId: streamIdValue(output3?.stream_id),
-      resourceKind: stringField12(output3?.kind),
-      artifactRef: stringField12(output3?.artifact_ref),
-      status: stringField12(candidate.status),
-      decisionStatus: candidateDecisionStatus(candidate),
-      decisionReason: candidateDecisionReason(candidate),
-      source: stringField12(candidate.source),
-      producer: candidate.producer,
-      outputs: candidate.outputs,
-      promptSnapshot: candidate.prompt_snapshot,
-      createdAt: stringField12(candidate.created_at),
-      confirmation: assetCandidateConfirmation(candidate, selection, id)
-    };
-  });
-}
-function selectionStateFromSourceSelection(selection, contentUnit) {
-  if (selection?.candidate_id !== void 0) return "selected";
-  return contentUnit ? "needs_candidate" : "ready";
-}
-function buildSelectionStateByContentUnitId(contentUnits, selections) {
-  const entries = contentUnits.map((contentUnit) => {
-    const id = idText(contentUnit);
-    const selection = selections.get(id);
-    if (selection?.candidate_id !== void 0) return [id, "selected"];
-    return [id, "needs_candidate"];
-  });
-  return new Map(entries);
-}
-function contentUnitForEntity(contentUnitsByPrimaryRef, entityKind, entity) {
-  if (entity.id === void 0) return void 0;
-  return contentUnitsByPrimaryRef.get(primaryRefKey2(entityKind, entity.id))?.[0];
-}
-function primaryKindForContentUnitType(type) {
-  return type ? primaryRefKindForContentUnitType(type) : void 0;
-}
-function primaryRefIdsForContentUnitRecord2(record, kind) {
-  return isContentUnitPromptRefKind(kind) ? primaryRefIdsForContentUnitRecord(record, kind) : [];
-}
-function editPromptRefs(contentUnit) {
-  const text = editPromptText(contentUnit) ?? "";
-  const refs = [];
-  const pattern = /\{\{\s*([a-z_]+)\s*:\s*([^}\s]+)\s*\}\}/g;
-  let match = pattern.exec(text);
-  while (match) {
-    refs.push({ kind: match[1] ?? "", id: match[2] ?? "" });
-    match = pattern.exec(text);
-  }
-  return refs;
-}
-function editPromptText(contentUnit) {
-  const prompt = contentUnit?.record.edit_prompt;
-  if (typeof prompt === "string") return prompt;
-  if (isRecord12(prompt)) return stringField12(prompt.text);
-  return void 0;
-}
-function entityNode(entity, type, extras = {}) {
-  return {
-    id: nodeId(entity, type),
-    type,
-    title: titleOf(entity, idText(entity)),
-    path: entity.path,
-    transition: supportsTransition(type) ? transitionFromEntity(entity) : void 0,
-    storyboardTimeline: type === "storyboard" ? storyboardTimelineFromEntity(entity) : void 0,
-    ...extras
-  };
-}
-function supportsTransition(type) {
-  return type === "production" || type === "segment" || type === "scene_moment" || type === "storyboard";
-}
-function nodeId(entity, type) {
-  if (type === "setting") return `setting/${idText(entity)}`;
-  if (type === "state") return `state/${pathSegmentAfter3(entity.path, "settings") ?? ""}/${idText(entity)}`;
-  if (type === "asset") return `asset/${idText(entity)}`;
-  if (type === "storyboard") return `storyboard/${idText(entity)}`;
-  return idText(entity);
-}
-function titleOf(entity, fallback) {
-  return stringField12(entity.record.title ?? entity.record.name ?? entity.record.label ?? entity.record.text) ?? fallback;
-}
-function idText(entity) {
-  return String(entity.id ?? entity.record.id ?? entity.record.ID ?? entity.path);
-}
-function entityMatchesRef(entity, ref, kind) {
-  const normalized = ref.replace(/\/+$/, "");
-  const dir = entity.path.replace(/\/[^/]+$/, "");
-  return String(entity.id ?? "") === ref || dir === normalized || entity.path === `${normalized}/${kind}.json`;
-}
-function sortEntities2(entities) {
-  return [...entities].sort((left, right) => numberField3(left.record.order) - numberField3(right.record.order) || left.path.localeCompare(right.path));
-}
-function childEntitiesForParent(ancestryIndex, entities, parent) {
-  const directChildren = new Set((ancestryIndex.childrenByParentPath.get(parent.path) ?? []).map((entity) => entity.path));
-  return entities.filter((entity) => directChildren.has(entity.path));
-}
-function ancestorEntity(ancestryIndex, entity, entityKind) {
-  const seen = /* @__PURE__ */ new Set([entity.path]);
-  let currentPath = entity.path;
-  while (true) {
-    const parentPath = ancestryIndex.parentPathByPath.get(currentPath);
-    if (!parentPath || seen.has(parentPath)) return void 0;
-    seen.add(parentPath);
-    const parent = ancestryIndex.entityByPath.get(parentPath);
-    if (!parent) return void 0;
-    if (parent.entityKind === entityKind) return parent;
-    currentPath = parent.path;
-  }
-}
-function ancestorId(ancestryIndex, entity, entityKind) {
-  const ancestor = ancestorEntity(ancestryIndex, entity, entityKind);
-  return ancestor ? idText(ancestor) : void 0;
-}
-function parentByDir(entities, childPath) {
-  const childDir = entityDir4(childPath);
-  return entities.find((entity) => childDir.startsWith(`${entityDir4(entity.path)}/`));
-}
-function entityDir4(path) {
-  return path.replace(/\/[^/]+$/, "");
-}
-function pathSegmentAfter3(path, segment) {
-  const parts = path.split("/");
-  const index = parts.indexOf(segment);
-  return index >= 0 ? parts[index + 1] : void 0;
-}
-function primaryRefKey2(kind, id) {
-  return `${kind}:${String(id ?? "")}`;
-}
-function primaryRefKeys2(kind, ref) {
-  const value = String(ref);
-  const keys = [primaryRefKey2(kind, value)];
-  const lastSegment = value.split("/").filter(Boolean).at(-1);
-  if (lastSegment && lastSegment !== value) keys.push(primaryRefKey2(kind, lastSegment));
-  return keys;
-}
-function shotCameraText(shot) {
-  return [
-    stringField12(shot.record.shot_size),
-    stringField12(recordField3(shot.record.camera)?.movement),
-    stringField12(recordField3(shot.record.camera)?.angle)
-  ].filter(Boolean).join(" \xB7 ") || stringField12(shot.record.shot_kind) || "shot";
-}
-function shotExpressionText(shot) {
-  return stringField12(shot.record.description ?? shot.record.summary ?? recordField3(shot.record.expression)?.text ?? recordField3(shot.record.expression)?.intent) ?? titleOf(shot, idText(shot));
-}
-function durationText(value) {
-  const duration = Number(value);
-  return Number.isFinite(duration) && duration > 0 ? `${duration}s` : "\u5F85\u5B9A";
-}
-function stillPositionForIndex(index) {
-  return ["0% 0%", "100% 0%", "0% 100%", "100% 100%"][index % 4] ?? "0% 0%";
-}
-function contentUnitType(contentUnit) {
-  const type = stringField12(contentUnit?.record.content_unit_type);
-  if (type === "keyframe_ref" || type === "storyboard_ref" || type === "audio_cue_ref" || type === "scence_moment_ref" || type === "scene_moment_ref" || type === "expression_unit_ref") return type;
-  return "expression_unit_ref";
-}
-function outputKindForContentUnit(contentUnit) {
-  const outputKind = stringField12(contentUnit?.record.output_kind);
-  if (outputKind === "image" || outputKind === "video" || outputKind === "audio" || outputKind === "text" || outputKind === "metadata" || outputKind === "storyboard") return outputKind;
-  const type = contentUnitType(contentUnit);
-  if (type === "keyframe_ref" || type === "storyboard_ref") return "image";
-  if (type === "audio_cue_ref") return "audio";
-  return "video";
-}
-function momentSelectionState(expressionUnits) {
-  if (expressionUnits.some((expressionUnit) => expressionUnit.contentUnit.selectionState === "stale")) return "stale";
-  if (expressionUnits.some((expressionUnit) => expressionUnit.contentUnit.selectionState === "needs_candidate")) return "needs_candidate";
-  if (expressionUnits.some((expressionUnit) => expressionUnit.contentUnit.selectionState === "selected")) return "selected";
-  return "ready";
-}
-function settingRefsForMoment(_moment, expressionUnits, assets) {
-  const refs = /* @__PURE__ */ new Set();
-  for (const expressionUnit of expressionUnits) {
-    for (const asset of expressionUnit.assets) refs.add(asset.title);
-  }
-  if (refs.size === 0) {
-    for (const asset of assets.slice(0, 3)) refs.add(nodeId(asset, "asset"));
-  }
-  return [...refs];
-}
-function shotAssets(shot, keyframes, assets) {
-  const refs = [
-    ...arrayField4(shot.record.reference_asset_refs),
-    ...keyframes.flatMap((keyframe) => arrayField4(keyframe.record.reference_asset_refs))
-  ].map(String);
-  const uniqueRefs = [...new Set(refs)];
-  return uniqueRefs.map((ref) => ({
-    title: ref.startsWith("asset/") ? ref : `asset/${ref}`,
-    status: assets.some((asset) => String(asset.id ?? "") === ref || entityDir4(asset.path) === ref || asset.path.startsWith(`${ref}/`)) ? "ready" : "missing"
-  }));
-}
-function contentUnitIdForRuntimeDocument(path, explicitRef) {
-  const ref = explicitRef ?? entityDir4(path);
-  const id = pathSegmentAfter3(ref, "content_units");
-  return id;
-}
-function candidateTitle(candidate, fallback) {
-  const explicitTitle = stringField12(candidate.prompt_snapshot?.title) ?? stringField12(candidate.producer?.title) ?? stringField12(candidate.producer?.name);
-  if (explicitTitle && !candidateTitleIsGeneric(explicitTitle)) return explicitTitle;
-  return readableCandidateTitleFallback(fallback);
-}
-function candidateOrdinalTitle(index) {
-  return `\u5019\u9009 ${index + 1}`;
-}
-function candidateTitleIsGeneric(value) {
-  const normalized = value.trim().toLowerCase();
-  return normalized === "queued generation" || normalized === "pending generation" || normalized === "content unit image generation" || normalized === "content unit video generation" || technicalCandidateIdPattern.test(normalized);
-}
-function readableCandidateTitleFallback(value) {
-  return technicalCandidateIdPattern.test(value.trim().toLowerCase()) ? "\u5019\u9009" : value;
-}
-var technicalCandidateIdPattern = /^(canvas|resource|content)_candidate_[\w-]+$|^resource_\d+_[\w-]+$|^gen_(image|video)_\d+_\d+$/;
-function candidateModel(candidate) {
-  return stringField12(candidate.producer?.model_id) ?? stringField12(candidate.producer?.model) ?? stringField12(candidate.producer?.kind) ?? stringField12(candidate.source) ?? "runtime";
-}
-function candidateInputHash(candidate, contentUnitId) {
-  return stringField12(candidate.prompt_snapshot?.input_hash) ?? stringField12(candidate.prompt_snapshot?.content_hash) ?? stringField12(candidate.prompt_snapshot?.hash) ?? stringField12(candidate.created_at) ?? contentUnitId;
-}
-function candidateNote(candidate) {
-  const output3 = firstCandidateOutput(candidate);
-  return stringField12(candidate.prompt_snapshot?.note) ?? stringField12(candidate.prompt_snapshot?.summary) ?? stringField12(output3?.mime_type) ?? stringField12(candidate.status) ?? "Workspace runtime candidate.";
-}
-function candidateDecisionStatus(candidate) {
-  const record = candidate;
-  return stringField12(record.decision_status) ?? stringField12(record.decisionStatus);
-}
-function candidateDecisionReason(candidate) {
-  const record = candidate;
-  return stringField12(record.decision_reason) ?? stringField12(record.decisionReason);
-}
-function firstCandidateOutput(candidate) {
-  return arrayField4(candidate.outputs).filter(isRecord12)[0];
-}
-function assetCandidateConfirmation(candidate, selection, candidateId) {
-  if (selectionCandidateMatches(selection, candidateId)) return "confirmed";
-  if (candidate.status === "failed" || candidate.status === "canceled") return "stale";
-  return "review";
-}
-function selectionCandidateMatches(selection, candidateId) {
-  return selection?.candidate_id !== void 0 && String(selection.candidate_id) === candidateId;
-}
-function idValue(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  if (typeof value === "string" && value.trim()) return value.trim();
-  return void 0;
-}
-function recordField3(value) {
-  return isRecord12(value) ? value : void 0;
-}
-function stringField12(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : void 0;
-}
-function numberField3(value) {
-  const numberValue24 = Number(value);
-  return Number.isFinite(numberValue24) ? numberValue24 : Number.MAX_SAFE_INTEGER;
-}
-function optionalNumberField(value) {
-  const numberValue24 = Number(value);
-  return Number.isFinite(numberValue24) ? numberValue24 : void 0;
-}
-function pruneUndefinedRecord(record) {
-  const output3 = {};
-  for (const [key, value] of Object.entries(record)) {
-    if (value !== void 0) output3[key] = value;
-  }
-  return output3;
-}
-function arrayField4(value) {
-  return Array.isArray(value) ? value : [];
-}
-function isRecord12(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-function isContentCandidateRecord(value) {
-  return isRecord12(value) && value.schema === "movscript.content_candidate.v1";
-}
-function isDecisionContextRecord(value) {
-  return isRecord12(value) && value.schema === "movscript.decision_context.v1" && value.target_kind === "content_unit";
-}
-function normalizeContentSelectionRecord(value) {
-  return {
-    candidate_id: value.candidate_id,
-    resource_id: resourceIdValue2(value.resource_id),
-    stream_id: streamIdValue(value.stream_id),
-    artifact_ref: stringField12(value.artifact_ref),
-    stale_policy: value.stale_policy,
-    reason: value.reason,
-    selected_at: value.selected_at
-  };
-}
-function streamIdValue(value) {
-  if (typeof value === "string" && value.trim()) return value.trim();
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  return void 0;
-}
-function resourceIdValue2(value) {
-  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value);
-    if (Number.isInteger(parsed) && parsed > 0) return parsed;
-  }
-  return void 0;
-}
-function isDefined2(value) {
-  return value !== void 0;
-}
-function buildContentSourceWorkspaceProjectTimelineStatus(snapshot, _contentUnitSummaries = []) {
-  const namespaceVocabulary = snapshot.namespaceVocabulary ?? {
-    timelineTemplate: void 0,
-    timelineNamespaces: [],
-    settingNamespaces: [],
-    diagnostics: []
-  };
-  const timelineNamespaceNodes = (snapshot.domainNodes ?? []).filter((node) => node.category === "timeline_namespace").sort((left, right) => (left.order ?? 0) - (right.order ?? 0) || String(left.path ?? left.id ?? "").localeCompare(String(right.path ?? right.id ?? ""), "zh-CN"));
-  const timelineNamespaces = timelineNamespaceNodes.map((node) => {
-    const parent = domainParentRefForNode(snapshot, node);
-    const record = domainRecordForNode(snapshot, node);
-    const productionType = stringField25(record?.production_type ?? record?.productionType ?? record?.timeline_profile ?? record?.timelineProfile);
-    const nodeTimelineNamespaces = stringArrayField(record?.timeline_namespaces ?? record?.timelineNamespaces);
-    return {
-      id: node.id,
-      kind: node.kind,
-      title: node.title,
-      path: node.path,
-      order: node.order,
-      entity_kind: stringField25(node.metadata?.entityKind),
-      ...productionType ? { production_type: productionType } : {},
-      ...nodeTimelineNamespaces.length ? { timeline_namespaces: nodeTimelineNamespaces } : {},
-      ...parent ? { parent } : {}
-    };
-  });
-  return {
-    schema: "movscript.project_timeline_status.v1",
-    status: "ok",
-    namespace_vocabulary: {
-      timeline_template: namespaceVocabulary.timelineTemplate,
-      timeline_namespaces: namespaceVocabulary.timelineNamespaces,
-      setting_namespaces: namespaceVocabulary.settingNamespaces,
-      diagnostics: namespaceVocabulary.diagnostics
-    },
-    timeline_namespace_count: timelineNamespaces.length,
-    timeline_namespaces: timelineNamespaces,
-    system_primitives: {
-      scene_moments_count: snapshot.sceneMoments.length,
-      expression_units_count: snapshot.expressionUnits.length,
-      storyboards_count: snapshot.storyboards.length,
-      keyframes_count: snapshot.keyframes.length,
-      audio_cues_count: snapshot.audioCues.length,
-      assets_count: snapshot.assets.length
-    }
-  };
-}
-function contentSourceWorkspaceContentUnitStatusSummaries(snapshot) {
-  const candidatesByContentUnit = contentCandidateRecordsByContentUnitId(snapshot.indexDocuments);
-  const selectionsByContentUnit = selectionRecordsByContentUnitId(snapshot.indexDocuments);
-  return snapshot.contentUnits.map((unit) => summarizeContentUnitStatus(unit, candidatesByContentUnit, selectionsByContentUnit));
-}
-function summarizeContentUnitStatus(unit, candidatesByContentUnit, selectionsByContentUnit) {
-  const id = entityId(unit);
-  const contentUnitId = String(id);
-  const candidates = candidatesByContentUnit.get(contentUnitId) ?? [];
-  const selection = selectionsByContentUnit.get(contentUnitId);
-  const selectedCandidate = selection?.candidate_id !== void 0 ? candidates.find((candidate) => sameId3(candidate.id, selection.candidate_id)) : void 0;
-  const selectedResourceId3 = numberField22(selection?.resource_id) ?? numberField22(firstCandidateOutput2(selectedCandidate)?.resource_id);
-  return {
-    content_unit_id: id,
-    title: stringField25(unit.record.title),
-    path: unit.path,
-    content_unit_type: stringField25(unit.record.content_unit_type),
-    output_kind: stringField25(unit.record.output_kind),
-    target_kind: stringField25(unit.record.target_kind),
-    target_ref: idField5(unit.record.target_ref),
-    candidate_count: candidates.length,
-    candidate_ids: candidates.map((candidate) => idField5(candidate.id)).filter((value) => value !== void 0),
-    selected_candidate: selection?.candidate_id,
-    selected_resource: selectedResourceId3,
-    stale_status: stringField25(selection?.stale_policy) === "accept_stale" ? "accepted_stale" : "ok",
-    blocking_refs: selection?.candidate_id === void 0 && candidates.length > 0 ? ["selection_missing"] : []
-  };
-}
-function domainParentRefForNode(snapshot, node) {
-  const edge = (snapshot.domainEdges ?? []).find((candidate) => candidate.relation === "parent" && candidate.target.category === node.category && domainRefMatchesNode(candidate.source, node));
-  return edge ? {
-    id: edge.target.id,
-    kind: edge.target.kind,
-    path: edge.target.path
-  } : void 0;
-}
-function domainRecordForNode(snapshot, node) {
-  const entityKind = stringField25(node.metadata?.entityKind);
-  const entities = entityKind === "production" ? snapshot.productions : entityKind === "segment" ? snapshot.segments : [];
-  return entities.find(
-    (entity) => node.path !== void 0 && entity.path === node.path || node.id !== void 0 && sameId3(idField5(entity.id ?? entity.record.id ?? entity.record.ID ?? entity.path), node.id)
-  )?.record;
-}
-function domainRefMatchesNode(ref, node) {
-  return ref.category === node.category && ref.kind === node.kind && (sameId3(ref.id, node.id) || ref.path !== void 0 && ref.path === node.path);
-}
-function contentCandidateRecordsByContentUnitId(documents) {
-  const output3 = /* @__PURE__ */ new Map();
-  for (const document of documents) {
-    if (!document.path.endsWith("/content_candidate.json") || !isRecord24(document.data)) continue;
-    const contentUnitId = contentUnitIdForRuntimeDocument2(document.path, stringField25(document.data.content_unit_ref));
-    if (!contentUnitId) continue;
-    output3.set(contentUnitId, [...output3.get(contentUnitId) ?? [], document.data]);
-  }
-  return output3;
-}
-function selectionRecordsByContentUnitId(documents) {
-  const output3 = /* @__PURE__ */ new Map();
-  for (const document of documents) {
-    if (!isRecord24(document.data)) continue;
-    const selection = isRecord24(document.data.selection) ? document.data.selection : void 0;
-    if (!selection) continue;
-    const contentUnitId = contentUnitIdForRuntimeDocument2(document.path, stringField25(document.data.target_ref));
-    if (!contentUnitId) continue;
-    output3.set(contentUnitId, {
-      ...idField5(selection.candidate_id) !== void 0 ? { candidate_id: idField5(selection.candidate_id) } : {},
-      ...numberField22(selection.resource_id) !== void 0 ? { resource_id: numberField22(selection.resource_id) } : {},
-      ...stringField25(selection.stale_policy) ? { stale_policy: stringField25(selection.stale_policy) } : {}
-    });
-  }
-  return output3;
-}
-function entityId(entity) {
-  return idField5(entity.id ?? entity.record.id ?? entity.record.ID ?? pathSegmentAfter32(entity.path, "content_units") ?? entity.path) ?? entity.path;
-}
-function contentUnitIdForRuntimeDocument2(path, ref) {
-  if (ref) return lastPathSegment2(ref) ?? ref;
-  return pathSegmentAfter32(path, "content_units");
-}
-function firstCandidateOutput2(candidate) {
-  const outputs = Array.isArray(candidate?.outputs) ? candidate.outputs : [];
-  return outputs.find(isRecord24);
-}
-function stringArrayField(value) {
-  return Array.isArray(value) ? value.filter((item) => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim()) : [];
-}
-function idField5(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) return value.trim();
-  return void 0;
-}
-function stringField25(value) {
-  const id = idField5(value);
-  return id === void 0 ? void 0 : String(id);
-}
-function numberField22(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
-  return void 0;
-}
-function pathSegmentAfter32(path, segment) {
-  if (!path) return void 0;
-  const parts = path.split("/").filter(Boolean);
-  const index = parts.indexOf(segment);
-  return index >= 0 ? parts[index + 1] : void 0;
-}
-function lastPathSegment2(path) {
-  return path?.split("/").filter(Boolean).at(-1);
-}
-function sameId3(left, right) {
-  return left !== void 0 && right !== void 0 && String(left) === String(right);
-}
-function isRecord24(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-var PROJECT_CONTEXT_STYLE_REFERENCE_RULE_KEY = "style_reference_images";
-var PROJECT_CONTEXT_CORE_STANDARDS = [
-  { key: "aspect_ratio", label: "\u753B\u5E45\u6BD4\u4F8B", promptRole: "context" },
-  { key: "visual_style", label: "\u89C6\u89C9\u98CE\u683C", promptRole: "style" },
-  { key: "shot_size_system", label: "\u955C\u5934\u5927\u5C0F\u4F53\u7CFB", promptRole: "style" },
-  { key: "camera_language", label: "\u955C\u5934\u8BED\u8A00", promptRole: "style" },
-  { key: "lighting_style", label: "\u706F\u5149\u89C4\u5219", promptRole: "style" },
-  { key: "color_palette", label: "\u8272\u5F69\u89C4\u5219", promptRole: "style" },
-  { key: "pacing_rules", label: "\u8282\u594F\u89C4\u5219", promptRole: "constraint" },
-  { key: "negative_rules", label: "\u8D1F\u9762\u89C4\u5219", promptRole: "negative" }
-];
-function buildProjectContextSnapshot(input3) {
-  const entity = input3.standardsEntity;
-  const standards = entity?.record ?? {};
-  const namespaceVocabulary = input3.namespaceVocabulary ?? {
-    timelineTemplate: void 0,
-    timelineNamespaces: [],
-    settingNamespaces: [],
-    diagnostics: []
-  };
-  const projectStyle = parseProjectStyle3(standards.project_style);
-  const core = PROJECT_CONTEXT_CORE_STANDARDS.map((item) => {
-    const value = projectContextFieldText(item.key === "aspect_ratio" ? standards.aspect_ratio ?? projectStyle.aspect_ratio : item.key === "visual_style" ? standards.visual_style ?? projectStyle.visual_style : projectStyle[item.key] ?? standards[item.key]);
-    return {
-      key: item.key,
-      label: item.label,
-      prompt_role: item.promptRole,
-      required: true,
-      value,
-      filled: Boolean(value)
-    };
-  });
-  const customRules = normalizeProjectContextRules(projectStyle.custom_rules);
-  const enabledRules = customRules.filter((rule) => rule.enabled && rule.value);
-  const promptPreview = buildProjectContextPromptPreview(core, enabledRules);
-  const styleReferenceResourceIds = Array.from(new Set(
-    enabledRules.flatMap((rule) => rule.key === PROJECT_CONTEXT_STYLE_REFERENCE_RULE_KEY ? extractProjectContextResourceIds(rule.value) : [])
-  ));
-  return {
-    schema: "movscript.project_context_snapshot.v1",
-    kind: "project_context_snapshot",
-    source: {
-      entity_kind: "project_standards",
-      entity_id: entity?.id ?? standards.id ?? "project_standards",
-      path: entity?.path ?? "project_standards.json",
-      updated_at: standards.updated_at
-    },
-    namespace_vocabulary: {
-      timeline_template: namespaceVocabulary.timelineTemplate,
-      timeline_namespaces: namespaceVocabulary.timelineNamespaces,
-      setting_namespaces: namespaceVocabulary.settingNamespaces,
-      diagnostics: namespaceVocabulary.diagnostics
-    },
-    standards_hash: stableProjectContextHash({
-      aspect_ratio: standards.aspect_ratio,
-      visual_style: standards.visual_style,
-      project_style: projectStyle,
-      namespace_vocabulary: namespaceVocabulary
-    }),
-    core_standards: core,
-    missing_core_keys: core.filter((item) => !item.filled).map((item) => item.key),
-    missing_core_labels: core.filter((item) => !item.filled).map((item) => item.label),
-    custom_rules: customRules,
-    enabled_rules: enabledRules,
-    style_reference_resource_ids: styleReferenceResourceIds,
-    prompt_preview: promptPreview,
-    agent_guidance: [
-      "Read this snapshot before planning, content-unit work, or generation that depends on project house style or constraints.",
-      "Use namespace_vocabulary for project-specific timeline/setting terms; do not infer concrete parent relationships from vocabulary templates.",
-      "Do not modify project standards just because fields are missing; only use domain_upsert_project_standards when the user asks to add, remove, or change standards.",
-      "When visual generation supports reference images, pass style_reference_resource_ids as house-style reference_resource_ids."
-    ]
-  };
-}
-function parseProjectStyle3(value) {
-  if (isRecord33(value)) return value;
-  if (typeof value !== "string" || !value.trim()) return {};
-  try {
-    const parsed = JSON.parse(value);
-    return isRecord33(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-function projectContextFieldText(value) {
-  if (value === void 0 || value === null) return "";
-  if (typeof value === "string") return value.trim();
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  if (Array.isArray(value)) return value.map((item) => projectContextFieldText(item)).filter(Boolean).join("\uFF1B");
-  if (isRecord33(value)) {
-    try {
-      return JSON.stringify(value);
-    } catch {
-      return String(value);
-    }
-  }
-  return String(value);
-}
-function normalizeProjectContextRules(value) {
-  const rules = Array.isArray(value) ? value.filter(isRecord33) : [];
-  return rules.map((rule, index) => {
-    const key = projectContextFieldText(rule.key).toLowerCase().replace(/\s+/g, "_");
-    const label = projectContextFieldText(rule.label ?? rule.name ?? rule.key) || `\u6269\u5C55\u89C4\u8303 ${index + 1}`;
-    const ruleValue = projectContextFieldText(rule.value ?? rule.content ?? rule.description);
-    return {
-      id: projectContextFieldText(rule.id) || `rule_${key || index}_${index}`,
-      key: key || label.toLowerCase().replace(/\s+/g, "_"),
-      label,
-      category: projectContextFieldText(rule.category) || "\u901A\u7528",
-      value: ruleValue,
-      prompt_role: normalizeProjectContextPromptRole(rule.prompt_role ?? rule.promptRole ?? rule.role),
-      enabled: typeof rule.enabled === "boolean" ? rule.enabled : true,
-      required: typeof rule.required === "boolean" ? rule.required : false,
-      order: numberValue3(rule.order) ?? (index + 1) * 10
-    };
-  }).filter((rule) => rule.key || rule.label || rule.value).sort((left, right) => left.order - right.order || left.label.localeCompare(right.label));
-}
-function normalizeProjectContextPromptRole(value) {
-  if (value === "context" || value === "style" || value === "constraint" || value === "negative" || value === "quality_gate") return value;
-  return "constraint";
-}
-function buildProjectContextPromptPreview(core, rules) {
-  const items = [
-    ...core.filter((item) => item.value),
-    ...rules.filter((item) => item.value)
-  ];
-  const sections = [
-    { role: "context", title: "\u9879\u76EE\u80CC\u666F\u89C4\u8303" },
-    { role: "style", title: "\u89C6\u89C9\u4E0E\u8868\u8FBE\u89C4\u8303" },
-    { role: "constraint", title: "\u5FC5\u987B\u9075\u5B88" },
-    { role: "negative", title: "\u7981\u6B62\u51FA\u73B0" },
-    { role: "quality_gate", title: "\u8D28\u68C0\u53E3\u5F84" }
-  ].flatMap((section) => {
-    const sectionItems = items.filter((item) => item.prompt_role === section.role);
-    if (sectionItems.length === 0) return [];
-    return [`${section.title}\uFF1A`, ...sectionItems.map((item) => `- ${item.label}\uFF1A${item.value}`)];
-  });
-  return sections.length > 0 ? `\u9879\u76EE\u89C4\u8303\uFF1A
-${sections.join("\n")}` : "\u9879\u76EE\u89C4\u8303\uFF1A\n- \u6682\u65E0\u5DF2\u542F\u7528\u89C4\u8303\u3002";
-}
-function extractProjectContextResourceIds(value) {
-  const ids = /* @__PURE__ */ new Set();
-  for (const pattern of [/resource#(\d+)/gi, /reference_resource_ids\s*[:=]\s*\[?([0-9,\s]+)\]?/gi]) {
-    for (const match of value.matchAll(pattern)) {
-      const idText2 = match[1] ?? "";
-      for (const part of idText2.split(",")) {
-        const id = Number(part.trim());
-        if (Number.isInteger(id) && id > 0) ids.add(id);
-      }
-    }
-  }
-  return Array.from(ids);
-}
-function stableProjectContextHash(value) {
-  const text = stableStringify(value);
-  let hash = 2166136261;
-  for (let index = 0; index < text.length; index += 1) {
-    hash ^= text.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(16).padStart(8, "0");
-}
-function stableStringify(value) {
-  if (Array.isArray(value)) return `[${value.map((item) => stableStringify(item)).join(",")}]`;
-  if (isRecord33(value)) {
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
-function isRecord33(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function numberValue3(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value !== "string" || !value.trim()) return void 0;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : void 0;
 }
 
 // ../../packages/project/dist/index.js
@@ -55832,14 +55832,14 @@ async function updateEntityBasics(workspaceService, input3) {
   }
   if (entityKind === "production") {
     return saveProduction(workspaceService, {
-      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter4(input3.targetPath ?? "", "productions"),
+      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter5(input3.targetPath ?? "", "productions"),
       title: stringValue9(patched.title)
     });
   }
   if (entityKind === "segment") {
     return saveSegment(workspaceService, {
-      productionId: input3.productionId ?? pathSegmentAfter4(input3.targetPath ?? "", "productions"),
-      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter4(input3.targetPath ?? "", "segments"),
+      productionId: input3.productionId ?? pathSegmentAfter5(input3.targetPath ?? "", "productions"),
+      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter5(input3.targetPath ?? "", "segments"),
       title: stringValue9(patched.title),
       summary: stringValue9(patched.summary ?? patched.description),
       kind: stringValue9(patched.segment_kind ?? patched.kind)
@@ -55847,9 +55847,9 @@ async function updateEntityBasics(workspaceService, input3) {
   }
   if (entityKind === "scene_moment") {
     return saveSceneMoment(workspaceService, {
-      productionId: input3.productionId ?? pathSegmentAfter4(input3.targetPath ?? "", "productions"),
-      segmentId: input3.segmentId ?? pathSegmentAfter4(input3.targetPath ?? "", "segments"),
-      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter4(input3.targetPath ?? "", "scene_moments"),
+      productionId: input3.productionId ?? pathSegmentAfter5(input3.targetPath ?? "", "productions"),
+      segmentId: input3.segmentId ?? pathSegmentAfter5(input3.targetPath ?? "", "segments"),
+      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter5(input3.targetPath ?? "", "scene_moments"),
       title: stringValue9(patched.title),
       actionText: stringValue9(patched.action_text ?? patched.action),
       description: stringValue9(patched.description),
@@ -55858,10 +55858,10 @@ async function updateEntityBasics(workspaceService, input3) {
   }
   if (entityKind === "expression_unit") {
     return saveExpressionUnit(workspaceService, {
-      productionId: input3.productionId ?? pathSegmentAfter4(input3.targetPath ?? "", "productions"),
-      segmentId: input3.segmentId ?? pathSegmentAfter4(input3.targetPath ?? "", "segments"),
-      sceneMomentId: input3.sceneMomentId ?? idValue2(record.scene_moment_id) ?? pathSegmentAfter4(input3.targetPath ?? "", "scene_moments"),
-      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter4(input3.targetPath ?? "", "expression_units"),
+      productionId: input3.productionId ?? pathSegmentAfter5(input3.targetPath ?? "", "productions"),
+      segmentId: input3.segmentId ?? pathSegmentAfter5(input3.targetPath ?? "", "segments"),
+      sceneMomentId: input3.sceneMomentId ?? idValue2(record.scene_moment_id) ?? pathSegmentAfter5(input3.targetPath ?? "", "scene_moments"),
+      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter5(input3.targetPath ?? "", "expression_units"),
       title: stringValue9(patched.title),
       slotKind: stringValue9(patched.slot_kind ?? patched.slotKind),
       kind: stringValue9(patched.kind),
@@ -55871,32 +55871,32 @@ async function updateEntityBasics(workspaceService, input3) {
   }
   if (entityKind === "keyframe") {
     return saveKeyframe(workspaceService, {
-      productionId: input3.productionId ?? pathSegmentAfter4(input3.targetPath ?? "", "productions"),
-      segmentId: input3.segmentId ?? pathSegmentAfter4(input3.targetPath ?? "", "segments"),
-      sceneMomentId: input3.sceneMomentId ?? idValue2(record.scene_moment_id) ?? pathSegmentAfter4(input3.targetPath ?? "", "scene_moments"),
-      expressionUnitId: input3.expressionUnitId ?? idValue2(record.expression_unit_id) ?? pathSegmentAfter4(input3.targetPath ?? "", "expression_units"),
-      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter4(input3.targetPath ?? "", "keyframes"),
+      productionId: input3.productionId ?? pathSegmentAfter5(input3.targetPath ?? "", "productions"),
+      segmentId: input3.segmentId ?? pathSegmentAfter5(input3.targetPath ?? "", "segments"),
+      sceneMomentId: input3.sceneMomentId ?? idValue2(record.scene_moment_id) ?? pathSegmentAfter5(input3.targetPath ?? "", "scene_moments"),
+      expressionUnitId: input3.expressionUnitId ?? idValue2(record.expression_unit_id) ?? pathSegmentAfter5(input3.targetPath ?? "", "expression_units"),
+      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter5(input3.targetPath ?? "", "keyframes"),
       title: stringValue9(patched.title),
       role: stringValue9(patched.role),
       visualIntent: stringValue9(patched.visual_intent ?? patched.description),
-      timing: isRecord13(patched.timing) ? patched.timing : void 0,
-      composition: isRecord13(patched.composition) ? patched.composition : void 0,
-      continuity: isRecord13(patched.continuity) ? patched.continuity : void 0,
+      timing: isRecord12(patched.timing) ? patched.timing : void 0,
+      composition: isRecord12(patched.composition) ? patched.composition : void 0,
+      continuity: isRecord12(patched.continuity) ? patched.continuity : void 0,
       referenceAssetRefs: Array.isArray(patched.reference_asset_refs) ? patched.reference_asset_refs : void 0,
       referenceKeyframeRefs: Array.isArray(patched.reference_keyframe_refs) ? patched.reference_keyframe_refs : void 0
     });
   }
   if (entityKind === "storyboard") {
     return saveStoryboard(workspaceService, {
-      productionId: input3.productionId ?? pathSegmentAfter4(input3.targetPath ?? "", "productions"),
-      segmentId: input3.segmentId ?? pathSegmentAfter4(input3.targetPath ?? "", "segments"),
-      sceneMomentId: input3.sceneMomentId ?? idValue2(record.scene_moment_id) ?? pathSegmentAfter4(input3.targetPath ?? "", "scene_moments"),
-      expressionUnitId: input3.expressionUnitId ?? idValue2(record.expression_unit_id) ?? pathSegmentAfter4(input3.targetPath ?? "", "expression_units"),
-      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter4(input3.targetPath ?? "", "storyboards"),
+      productionId: input3.productionId ?? pathSegmentAfter5(input3.targetPath ?? "", "productions"),
+      segmentId: input3.segmentId ?? pathSegmentAfter5(input3.targetPath ?? "", "segments"),
+      sceneMomentId: input3.sceneMomentId ?? idValue2(record.scene_moment_id) ?? pathSegmentAfter5(input3.targetPath ?? "", "scene_moments"),
+      expressionUnitId: input3.expressionUnitId ?? idValue2(record.expression_unit_id) ?? pathSegmentAfter5(input3.targetPath ?? "", "expression_units"),
+      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter5(input3.targetPath ?? "", "storyboards"),
       title: stringValue9(patched.title),
       visualIntent: stringValue9(patched.visual_intent ?? patched.description),
-      timeline: isRecord13(patched.timeline) ? patched.timeline : void 0,
-      graph: isRecord13(patched.graph) ? patched.graph : void 0
+      timeline: isRecord12(patched.timeline) ? patched.timeline : void 0,
+      graph: isRecord12(patched.graph) ? patched.graph : void 0
     });
   }
   throw new Error(`Unsupported entity basics update kind: ${entityKind}`);
@@ -55912,8 +55912,8 @@ function connectSceneMomentSetting(workspaceService, input3) {
   const settingStateId = idValue2(input3.settingStateId);
   const alreadyLinked = currentRefs.some((ref) => String(idValue2(ref.id ?? ref.settingId) ?? "") === String(settingId) && String(idValue2(ref.settingStateId) ?? "") === String(settingStateId ?? ""));
   return saveSceneMoment(workspaceService, {
-    productionId: input3.productionId ?? pathSegmentAfter4(stringValue9(sceneMomentRecord.__workspace_path ?? sceneMomentRecord.workspace_path ?? "") ?? "", "productions"),
-    segmentId: input3.segmentId ?? pathSegmentAfter4(stringValue9(sceneMomentRecord.__workspace_path ?? sceneMomentRecord.workspace_path ?? "") ?? "", "segments"),
+    productionId: input3.productionId ?? pathSegmentAfter5(stringValue9(sceneMomentRecord.__workspace_path ?? sceneMomentRecord.workspace_path ?? "") ?? "", "productions"),
+    segmentId: input3.segmentId ?? pathSegmentAfter5(stringValue9(sceneMomentRecord.__workspace_path ?? sceneMomentRecord.workspace_path ?? "") ?? "", "segments"),
     id: sceneMomentId,
     title: stringValue9(sceneMomentRecord.title),
     actionText: stringValue9(sceneMomentRecord.action_text ?? sceneMomentRecord.action),
@@ -56298,7 +56298,7 @@ function pathPreservingHierarchyRecord(targetPath, record, entityKind) {
 }
 function entityIdFromTargetPath(targetPath, entityKind) {
   const collection = collectionSegmentForSourceKind(entityKind);
-  const collectionId = collection ? pathSegmentAfter4(targetPath, collection) : void 0;
+  const collectionId = collection ? pathSegmentAfter5(targetPath, collection) : void 0;
   if (collectionId) return collectionId;
   const parts = normalizePath(targetPath).split("/").filter(Boolean);
   const filename = parts.at(-1);
@@ -56359,7 +56359,7 @@ function patchEntityBasics(record, input3) {
 }
 function contentUnitInputFromPatchedRecord(record, input3) {
   return {
-    id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter4(input3.targetPath ?? "", "content_units"),
+    id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter5(input3.targetPath ?? "", "content_units"),
     title: stringValue9(record.title),
     contentUnitType: stringValue9(record.content_unit_type ?? record.kind),
     outputKind: stringValue9(record.output_kind),
@@ -56375,7 +56375,7 @@ function contentUnitInputFromPatchedRecord(record, input3) {
   };
 }
 function settingRefsFromRecord(record) {
-  const refs = Array.isArray(record.setting_refs) ? record.setting_refs.filter(isRecord13) : [];
+  const refs = Array.isArray(record.setting_refs) ? record.setting_refs.filter(isRecord12) : [];
   return refs.flatMap((ref) => {
     const settingId = idValue2(ref.setting_id ?? ref.settingId ?? ref.setting_ref ?? ref.settingRef);
     if (!settingId) return [];
@@ -56424,7 +56424,7 @@ function normalizeEntityRef(value, kind) {
   if (value === void 0 || value === null || String(value).trim() === "") throw new Error(`${kind} ref is required`);
   const raw = normalizePath(String(value));
   const collection = collectionSegmentForTargetKind(kind);
-  const pathId = pathSegmentAfter4(raw, collection);
+  const pathId = pathSegmentAfter5(raw, collection);
   if (pathId) return pathId;
   if (raw.endsWith(".json")) {
     const parts = raw.split("/").filter(Boolean);
@@ -56454,7 +56454,7 @@ function entityRefAliases2(value) {
   if (tail) aliases.add(tail);
   if (tail?.endsWith(".json") && parts.at(-2)) aliases.add(parts.at(-2));
   for (const marker of ["assets", "scene_moments", "expression_units", "keyframes", "storyboards", "content_units"]) {
-    const segment = pathSegmentAfter4(raw, marker);
+    const segment = pathSegmentAfter5(raw, marker);
     if (segment) aliases.add(segment);
   }
   return [...aliases];
@@ -56466,7 +56466,7 @@ function compactStrings2(...values) {
   });
 }
 function recordValue(value) {
-  return isRecord13(value) ? value : void 0;
+  return isRecord12(value) ? value : void 0;
 }
 function numberValue4(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -56519,11 +56519,11 @@ function normalizePath(value) {
 }
 function pathSegmentMatches(path, marker, id, entityKind) {
   if (!path) return false;
-  const segment = pathSegmentAfter4(path, marker);
+  const segment = pathSegmentAfter5(path, marker);
   if (!segment) return false;
   return refAliases(id, entityKind).includes(segment);
 }
-function pathSegmentAfter4(path, marker) {
+function pathSegmentAfter5(path, marker) {
   const parts = normalizePath(path).split("/").filter(Boolean);
   const index = parts.indexOf(marker);
   return index >= 0 ? parts[index + 1] : void 0;
@@ -56533,7 +56533,7 @@ function refAliases(value, entityKind) {
   const withoutPrefix = raw.startsWith(`${entityKind}_`) ? raw.slice(entityKind.length + 1) : raw;
   return [raw, withoutPrefix, `${entityKind}_${withoutPrefix}`];
 }
-function isRecord13(value) {
+function isRecord12(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function stringValue9(value) {
@@ -56797,7 +56797,7 @@ function jsonPointerToFieldPath(pointer) {
 function diffJsonValueAtPointer(before, after, pointer) {
   if (jsonValueEquals(before, after)) return [];
   if (Array.isArray(before) && Array.isArray(after)) return diffJsonArrayAtPointer(before, after, pointer);
-  if (isRecord14(before) && isRecord14(after)) return diffJsonObjectAtPointer(before, after, pointer);
+  if (isRecord13(before) && isRecord13(after)) return diffJsonObjectAtPointer(before, after, pointer);
   if (before === void 0) return [{ path: pointer, operation: "added", newValue: after }];
   if (after === void 0) return [{ path: pointer, operation: "removed", oldValue: before }];
   return [{ path: pointer, operation: "replaced", oldValue: before, newValue: after }];
@@ -56893,7 +56893,7 @@ function diffTrackableJsonArrayAtPointer(before, after, beforeKeys, afterKeys, p
   return changes.sort(compareJsonChanges);
 }
 function stableArrayItemKey(value) {
-  if (isRecord14(value)) {
+  if (isRecord13(value)) {
     const id = value.id ?? value.ID ?? value.client_id ?? value.key ?? value.name;
     if (typeof id === "string" && id.trim()) return id.trim();
     if (typeof id === "number" && Number.isFinite(id)) return String(id);
@@ -56919,7 +56919,7 @@ function unescapeJsonPointerSegment(segment) {
 function jsonValueEquals(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
-function isRecord14(value) {
+function isRecord13(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -56981,7 +56981,7 @@ function buildSourceDomainGraph(files) {
   const records = files.map((file) => {
     const data = parseWorkspaceDocument2(file.path, file.content);
     const entityKind = sourceEntityKindFromRelativePath(file.relativePath);
-    const id = isRecord15(data) && entityKind ? sourceEntityStableId(data, entityKind) : void 0;
+    const id = isRecord14(data) && entityKind ? sourceEntityStableId(data, entityKind) : void 0;
     return {
       file,
       data,
@@ -57024,7 +57024,7 @@ function changedEntitiesFromFiles(changedFiles, sourceGraph, currentGraph) {
     const sourceRecord = sourceByPath.get(file.path);
     const currentRecord = currentByRelativePath.get(file.path);
     const record = sourceRecord ?? currentRecord;
-    const entity = isRecord15(record?.data) ? record.data : {};
+    const entity = isRecord14(record?.data) ? record.data : {};
     const entityKind = record?.entityKind ?? entityKindFromFilePath(file.path, entity);
     const id = sourceEntityStableId(entity, entityKind);
     return [{
@@ -57103,7 +57103,7 @@ function idField6(value) {
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
 }
-function isRecord15(value) {
+function isRecord14(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -57145,7 +57145,7 @@ function interpretWorkspaceOverview(input3) {
 function projectInfoFromSource(source) {
   const projectFile = source.files.find((file) => file.relativePath === "project.json");
   const project = projectFile ? parseWorkspaceDocument3(projectFile.path, projectFile.content) : void 0;
-  if (!isRecord16(project)) return {};
+  if (!isRecord15(project)) return {};
   const projectId = idField7(project.project_id ?? project.ID ?? project.id);
   return {
     ...projectId !== void 0 ? { projectId } : {},
@@ -57171,7 +57171,7 @@ function idField7(value) {
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
 }
-function isRecord16(value) {
+function isRecord15(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -57587,7 +57587,7 @@ function dedupeTargets(targets) {
   });
 }
 function selectionRecord(value) {
-  if (!isRecord17(value)) return void 0;
+  if (!isRecord16(value)) return void 0;
   return pruneUndefined14({
     contentUnitId: idField8(value.contentUnitId),
     contentUnitPath: stringField14(value.contentUnitPath),
@@ -57646,12 +57646,12 @@ function parseWorkspaceDocument4(path, content) {
   }
 }
 function isInterpretManifest(value) {
-  return isRecord17(value) && value.schema === "movscript.workspace-interpret.v1" && typeof value.interpretationId === "string" && typeof value.interpretedAt === "string" && isRecord17(value.output);
+  return isRecord16(value) && value.schema === "movscript.workspace-interpret.v1" && typeof value.interpretationId === "string" && typeof value.interpretedAt === "string" && isRecord16(value.output);
 }
 function isImpactReportArtifact(value) {
-  return isRecord17(value) && value.schema === "movscript.impact-report.v1" && Array.isArray(value.changedEntities);
+  return isRecord16(value) && value.schema === "movscript.impact-report.v1" && Array.isArray(value.changedEntities);
 }
-function isRecord17(value) {
+function isRecord16(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -57688,285 +57688,6 @@ async function validateGitFileChangeCoverage(fileRepository, baseline, changedFi
   }];
 }
 
-// ../../packages/interpreter/dist/chunk-ESMK3XVG.js
-var FIELD_SEMANTIC_RULES = [
-  {
-    matches: (entity, fieldChange) => entity.entityKind === "expression_unit" && isExpressionUnitSemanticInputField(fieldChange.field),
-    semanticKind: "semantic_input_changed",
-    businessKind: "expression_unit_changed",
-    propagation: "self"
-  },
-  {
-    matches: (_entity, fieldChange) => isSelectionField(fieldChange.field),
-    semanticKind: "selection_changed",
-    businessKind: "selection_changed",
-    propagation: "downstream_reference"
-  },
-  {
-    matches: (_entity, fieldChange) => isReferenceField(fieldChange.field),
-    semanticKind: "reference_changed",
-    businessKind: "reference_changed",
-    propagation: "downstream_reference"
-  },
-  {
-    matches: (_entity, fieldChange) => isMetadataField(fieldChange.field),
-    semanticKind: "metadata_changed",
-    businessKind: "metadata_changed",
-    propagation: "none"
-  }
-];
-function semanticChangesFromEntityChanges(changedEntities) {
-  return changedEntities.flatMap((entity) => {
-    const fieldChanges = entity.fieldChanges?.length ? entity.fieldChanges : [{ field: "*", operation: entity.state }];
-    const grouped = /* @__PURE__ */ new Map();
-    for (const fieldChange of fieldChanges) {
-      const semantic = semanticForFieldChange(entity, fieldChange);
-      const key = `${semantic.kind}:${semantic.businessKind}:${semantic.propagation}`;
-      const group = grouped.get(key) ?? {
-        kind: semantic.kind,
-        businessKind: semantic.businessKind,
-        propagation: semantic.propagation,
-        fields: []
-      };
-      if (!group.fields.includes(fieldChange.field)) group.fields.push(fieldChange.field);
-      grouped.set(key, group);
-    }
-    return [...grouped.values()].map((group) => ({
-      entity: {
-        kind: entity.entityKind,
-        ...entity.id !== void 0 ? { id: entity.id } : {}
-      },
-      kind: group.kind,
-      businessKind: group.businessKind,
-      propagation: group.propagation,
-      fields: group.fields.sort(),
-      sourceChange: {
-        operation: entity.state,
-        path: entity.path
-      }
-    }));
-  });
-}
-function semanticForFieldChange(entity, fieldChange) {
-  if (entity.state === "added" || entity.state === "deleted") {
-    return {
-      kind: "semantic_input_changed",
-      businessKind: businessKindForEntityChange(entity.entityKind),
-      propagation: entity.entityKind === "content_unit" ? "self" : "downstream_reference"
-    };
-  }
-  if (fieldChange.jsonOperation === "reordered" || fieldChange.jsonOperation === "moved") {
-    const base = semanticCategoryForFieldChange(entity, fieldChange);
-    return {
-      kind: base.kind,
-      businessKind: "sequence_reordered",
-      propagation: base.propagation
-    };
-  }
-  const rule = FIELD_SEMANTIC_RULES.find((item) => item.matches(entity, fieldChange));
-  if (rule) {
-    return {
-      kind: rule.semanticKind,
-      businessKind: rule.businessKind,
-      propagation: rule.propagation
-    };
-  }
-  return semanticCategoryForFieldChange(entity, fieldChange);
-}
-function semanticCategoryForFieldChange(entity, fieldChange) {
-  const rule = FIELD_SEMANTIC_RULES.find((item) => item.matches(entity, fieldChange));
-  if (rule) {
-    return {
-      kind: rule.semanticKind,
-      businessKind: rule.businessKind,
-      propagation: rule.propagation
-    };
-  }
-  return {
-    kind: "semantic_input_changed",
-    businessKind: businessKindForEntityChange(entity.entityKind),
-    propagation: entity.entityKind === "content_unit" ? "self" : "downstream_reference"
-  };
-}
-function businessKindForEntityChange(entityKind) {
-  switch (entityKind) {
-    case "expression_unit":
-      return "expression_unit_changed";
-    case "storyboard":
-      return "storyboard_changed";
-    case "keyframe":
-      return "keyframe_changed";
-    case "content_unit":
-      return "content_unit_changed";
-    case "project":
-    case "project_standards":
-    case "script":
-    case "script_version":
-    case "script_block":
-      return "project_context_changed";
-    case "production":
-    case "segment":
-    case "scene_moment":
-      return "production_structure_changed";
-    default:
-      return "domain_entity_changed";
-  }
-}
-function isExpressionUnitSemanticInputField(field) {
-  return field === "*" || field === "slot_kind" || field === "slotKind" || field === "expression_kind" || field === "expressionKind" || field === "text" || field.startsWith("text.") || field === "angle" || field.startsWith("angle.") || field === "lens" || field.startsWith("lens.") || field === "camera" || field.startsWith("camera.") || field === "movement" || field.startsWith("movement.") || field === "blocking" || field.startsWith("blocking.") || field === "lighting" || field.startsWith("lighting.") || field === "sound" || field.startsWith("sound.") || field === "performance" || field.startsWith("performance.") || field === "duration" || field.startsWith("duration.") || field === "intent" || field.startsWith("intent.") || field === "visual_intent" || field.startsWith("visual_intent.") || field === "narrative_intent" || field.startsWith("narrative_intent.");
-}
-function isMetadataField(field) {
-  return /(^|\.)metadata(\.|$)/.test(field) || /(^|\.)notes?$/.test(field) || /(^|\.)title$/.test(field) || /(^|\.)description$/.test(field) || /(^|\.)created_at$/.test(field) || /(^|\.)updated_at$/.test(field) || /(^|\.)selected_at$/.test(field) || /(^|\.)selected_by$/.test(field);
-}
-function isReferenceField(field) {
-  return /(^|_|\.)refs?(\.|$)/.test(field) || field.endsWith("_ref") || field.includes("_ref.") || field.endsWith("_refs") || field.includes("_refs.");
-}
-function isSelectionField(field) {
-  return field === "lock" || field.startsWith("lock.") || field === "selection" || field.startsWith("selection.") || field === "stale_policy" || field.endsWith(".candidate_id") || field.endsWith(".resource_id");
-}
-
-// ../../packages/interpreter/dist/chunk-V3CPV4UL.js
-function businessChangesFromChangedEntities(changedEntities, sourceGraph, currentGraph, semanticChanges = []) {
-  const semanticByEntity = groupSemanticChangesByEntity(semanticChanges);
-  return changedEntities.map((entity) => {
-    const record = sourceRecordForChangedEntity(sourceGraph, entity) ?? sourceRecordForChangedEntity(currentGraph, entity);
-    const title = isRecord18(record?.data) ? stringField15(record.data.title) : void 0;
-    const entitySemanticChanges = semanticByEntity.get(entitySemanticKey(entity.entityKind, entity.id)) ?? [];
-    const businessKinds = uniqueSorted(entitySemanticChanges.map((change) => change.businessKind));
-    const semanticKinds = uniqueSorted(entitySemanticChanges.map((change) => change.kind));
-    return {
-      ...entity,
-      ...title !== void 0 ? { title } : {},
-      summary: businessChangeSummary(entity, title, businessKinds),
-      impactAreas: businessImpactAreasForEntityKind(entity.entityKind),
-      sourcePaths: [entity.path],
-      semanticKinds,
-      businessKinds
-    };
-  });
-}
-function summarizeReview(changedFiles, businessChanges, issues) {
-  return {
-    total: changedFiles.length,
-    added: changedFiles.filter((file) => file.state === "added").length,
-    modified: changedFiles.filter((file) => file.state === "modified").length,
-    deleted: changedFiles.filter((file) => file.state === "deleted").length,
-    businessChanges: businessChanges.length,
-    errors: issues.filter((issue) => issue.severity === "error").length,
-    warnings: issues.filter((issue) => issue.severity === "warning").length
-  };
-}
-function sourceRecordForChangedEntity(graph, entity) {
-  return graph.records.find((record) => {
-    return record.entityKind === entity.entityKind && (record.file.path === entity.path || record.file.relativePath === entity.path || record.id !== void 0 && entity.id !== void 0 && String(record.id) === String(entity.id));
-  });
-}
-function businessChangeSummary(entity, title, businessKinds = []) {
-  const label = title ?? String(entity.id ?? entity.path);
-  const state = businessStateVerb(entity.state);
-  const primaryBusinessKind = businessKinds[0];
-  if (entity.state === "modified" && primaryBusinessKind) return `${businessKindLabel(primaryBusinessKind)}: ${label}`;
-  return `${businessEntityLabel(entity.entityKind)} ${state}: ${label}`;
-}
-function businessStateVerb(state) {
-  switch (state) {
-    case "added":
-      return "added";
-    case "modified":
-      return "changed";
-    case "deleted":
-      return "deleted";
-    case "unchanged":
-      return "unchanged";
-  }
-}
-function businessEntityLabel(entityKind) {
-  const labels = {
-    project: "Project",
-    project_standards: "Project standards",
-    script: "Script",
-    script_version: "Script version",
-    script_block: "Script block",
-    production: "Production",
-    segment: "Segment",
-    scene_moment: "Scene moment",
-    shot: "Shot",
-    storyboard: "Storyboard",
-    audio_cue: "Audio cue",
-    expression_unit: "Expression unit",
-    content_unit: "Content unit",
-    keyframe: "Keyframe",
-    setting: "Setting",
-    setting_state: "Setting state",
-    asset: "Asset"
-  };
-  return labels[entityKind] ?? entityKind;
-}
-function businessImpactAreasForEntityKind(entityKind) {
-  switch (entityKind) {
-    case "project":
-    case "project_standards":
-    case "script":
-    case "script_version":
-    case "script_block":
-      return ["workspace_context", "generation_prompts"];
-    case "setting":
-    case "setting_state":
-    case "asset":
-      return ["asset_index", "generation_context"];
-    case "production":
-    case "segment":
-    case "scene_moment":
-    case "shot":
-    case "storyboard":
-    case "audio_cue":
-    case "expression_unit":
-      return ["planning_tree", "preview_timeline", "generation_prompts"];
-    case "content_unit":
-    case "keyframe":
-      return ["content_production", "generation_prompts", "preview_timeline"];
-    default:
-      return ["domain_index"];
-  }
-}
-function groupSemanticChangesByEntity(semanticChanges) {
-  const groups = /* @__PURE__ */ new Map();
-  for (const change of semanticChanges) {
-    const key = entitySemanticKey(change.entity.kind, change.entity.id);
-    groups.set(key, [...groups.get(key) ?? [], change]);
-  }
-  return groups;
-}
-function entitySemanticKey(entityKind, id) {
-  return `${entityKind}:${String(id ?? "")}`;
-}
-function uniqueSorted(values) {
-  return [...new Set(values)].sort();
-}
-function businessKindLabel(kind) {
-  const labels = {
-    metadata_changed: "Metadata changed",
-    semantic_input_changed: "Semantic input changed",
-    reference_changed: "Reference changed",
-    selection_changed: "Selection changed",
-    sequence_reordered: "Sequence reordered",
-    expression_unit_changed: "Expression unit changed",
-    storyboard_changed: "Storyboard changed",
-    keyframe_changed: "Keyframe changed",
-    content_unit_changed: "Content unit changed",
-    project_context_changed: "Project context changed",
-    production_structure_changed: "Production structure changed",
-    domain_entity_changed: "Domain entity changed"
-  };
-  return labels[kind];
-}
-function stringField15(value) {
-  return typeof value === "string" && value.trim() ? value : void 0;
-}
-function isRecord18(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 // ../../packages/interpreter/dist/chunk-RONWCVAV.js
 function projectStyleReferenceResourceIds(index) {
   const standards = firstEntity(index, "project_standards");
@@ -57975,7 +57696,7 @@ function projectStyleReferenceResourceIds(index) {
     ...resourceIdsFromValue2(standards.record.style_reference_images),
     ...resourceIdsFromValue2(standards.record.style_references),
     ...resourceIdsFromValue2(standards.record.reference_resource_ids),
-    ...arrayField5(standards.record.custom_rules).filter(isRecord19).filter((rule) => rule.enabled !== false).filter((rule) => stringField16(rule.key) === "style_reference_images").flatMap((rule) => resourceIdsFromValue2(rule.value))
+    ...arrayField5(standards.record.custom_rules).filter(isRecord17).filter((rule) => rule.enabled !== false).filter((rule) => stringField15(rule.key) === "style_reference_images").flatMap((rule) => resourceIdsFromValue2(rule.value))
   ]);
 }
 var PROMPT_REF_PATTERN2 = /\{\{([a-z_]+)::?([^{}:\s][^{}]*)\}\}/g;
@@ -57983,9 +57704,9 @@ function parseContentUnitEditPromptRefs2(value) {
   const editPrompt = recordField4(value);
   const structuredText = structuredPromptTextFromUnknown(editPrompt?.structured);
   return [
-    ...parsePromptRefsFromText2(stringField16(editPrompt?.text), "edit_prompt.text"),
-    ...parsePromptRefsFromText2(stringField16(editPrompt?.negative_text), "edit_prompt.negative_text"),
-    ...parsePromptRefsFromText2(stringField16(editPrompt?.notes), "edit_prompt.notes"),
+    ...parsePromptRefsFromText2(stringField15(editPrompt?.text), "edit_prompt.text"),
+    ...parsePromptRefsFromText2(stringField15(editPrompt?.negative_text), "edit_prompt.negative_text"),
+    ...parsePromptRefsFromText2(stringField15(editPrompt?.notes), "edit_prompt.notes"),
     ...parsePromptRefsFromText2(structuredText, "edit_prompt.structured")
   ];
 }
@@ -57993,9 +57714,9 @@ function parseUnsupportedContentUnitEditPromptRefs(value) {
   const editPrompt = recordField4(value);
   const structuredText = structuredPromptTextFromUnknown(editPrompt?.structured);
   return [
-    ...parseUnsupportedPromptRefsFromText(stringField16(editPrompt?.text), "edit_prompt.text"),
-    ...parseUnsupportedPromptRefsFromText(stringField16(editPrompt?.negative_text), "edit_prompt.negative_text"),
-    ...parseUnsupportedPromptRefsFromText(stringField16(editPrompt?.notes), "edit_prompt.notes"),
+    ...parseUnsupportedPromptRefsFromText(stringField15(editPrompt?.text), "edit_prompt.text"),
+    ...parseUnsupportedPromptRefsFromText(stringField15(editPrompt?.negative_text), "edit_prompt.negative_text"),
+    ...parseUnsupportedPromptRefsFromText(stringField15(editPrompt?.notes), "edit_prompt.notes"),
     ...parseUnsupportedPromptRefsFromText(structuredText, "edit_prompt.structured")
   ];
 }
@@ -58110,7 +57831,7 @@ function activeProviderAssetCertification(assetRecord, input3 = {}) {
   for (const [provider, rawCertification] of Object.entries(certifications)) {
     const certification = recordField4(rawCertification);
     if (!certification) continue;
-    if (stringField16(certification.status) !== "active") continue;
+    if (stringField15(certification.status) !== "active") continue;
     const assetUri = providerAssetUri(certification);
     if (!assetUri) continue;
     const sourceResourceId2 = resourceIdField4(certification.source_resource_id ?? certification.sourceResourceId);
@@ -58121,12 +57842,12 @@ function activeProviderAssetCertification(assetRecord, input3 = {}) {
       provider,
       status: "active",
       asset_uri: assetUri,
-      ...stringField16(certification.hub_asset_id ?? certification.hubAssetId) ? { hub_asset_id: stringField16(certification.hub_asset_id ?? certification.hubAssetId) } : {},
+      ...stringField15(certification.hub_asset_id ?? certification.hubAssetId) ? { hub_asset_id: stringField15(certification.hub_asset_id ?? certification.hubAssetId) } : {},
       ...sourceResourceId2 !== void 0 ? { source_resource_id: sourceResourceId2 } : {},
       ...sourceCandidateId !== void 0 ? { source_candidate_id: sourceCandidateId } : {},
-      ...stringField16(certification.source_hash ?? certification.sourceHash) ? { source_hash: stringField16(certification.source_hash ?? certification.sourceHash) } : {},
-      ...stringField16(certification.certified_at ?? certification.certifiedAt) ? { certified_at: stringField16(certification.certified_at ?? certification.certifiedAt) } : {},
-      ...stringField16(certification.updated_at ?? certification.updatedAt) ? { updated_at: stringField16(certification.updated_at ?? certification.updatedAt) } : {}
+      ...stringField15(certification.source_hash ?? certification.sourceHash) ? { source_hash: stringField15(certification.source_hash ?? certification.sourceHash) } : {},
+      ...stringField15(certification.certified_at ?? certification.certifiedAt) ? { certified_at: stringField15(certification.certified_at ?? certification.certifiedAt) } : {},
+      ...stringField15(certification.updated_at ?? certification.updatedAt) ? { updated_at: stringField15(certification.updated_at ?? certification.updatedAt) } : {}
     };
   }
   return void 0;
@@ -58168,7 +57889,7 @@ function lastPathSegment3(value) {
 }
 function readSelectedContentUnit(index, contentUnitRef) {
   const context = index.documents.find((document) => {
-    if (!isRecord19(document.data)) return false;
+    if (!isRecord17(document.data)) return false;
     if (document.data.schema !== "movscript.decision_context.v1") return false;
     return document.data.target_kind === "content_unit" && document.data.target_ref === contentUnitRef;
   })?.data;
@@ -58206,7 +57927,7 @@ function findEntityByRef(index, entityKind, ref) {
   });
 }
 function requiredString(value, message) {
-  const next = stringField16(value);
+  const next = stringField15(value);
   if (!next) throw new Error(message);
   return next;
 }
@@ -58220,14 +57941,14 @@ function entityDir5(path) {
   return path.replace(/\/[^/]+$/, "");
 }
 function recordField4(value) {
-  return isRecord19(value) ? value : void 0;
+  return isRecord17(value) ? value : void 0;
 }
 function arrayField5(value) {
   return Array.isArray(value) ? value : [];
 }
 function resourceIdsFromValue2(value) {
   if (Array.isArray(value)) return value.flatMap(resourceIdsFromValue2);
-  const text = stringField16(value);
+  const text = stringField15(value);
   if (text) {
     const ids = [];
     const patterns = [
@@ -58249,7 +57970,7 @@ function resourceIdsFromValue2(value) {
   }
   const id = resourceIdField4(value);
   if (id !== void 0) return [id];
-  if (isRecord19(value)) return resourceIdsFromValue2(value.resource_id ?? value.resourceId ?? value.id);
+  if (isRecord17(value)) return resourceIdsFromValue2(value.resource_id ?? value.resourceId ?? value.id);
   return [];
 }
 function uniqueIds(values) {
@@ -58263,7 +57984,7 @@ function uniqueIds(values) {
   }
   return output3;
 }
-function stringField16(value) {
+function stringField15(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
 function contentUnitOutputKind2(value) {
@@ -58284,17 +58005,17 @@ function resourceIdField4(value) {
   return void 0;
 }
 function providerAssetUri(certification) {
-  const direct = stringField16(certification.asset_uri ?? certification.assetUri);
+  const direct = stringField15(certification.asset_uri ?? certification.assetUri);
   if (direct) return direct;
-  const hubAssetId = stringField16(certification.hub_asset_id ?? certification.hubAssetId);
+  const hubAssetId = stringField15(certification.hub_asset_id ?? certification.hubAssetId);
   return hubAssetId ? `asset://${hubAssetId}` : void 0;
 }
 function stableJsonValue(value) {
   if (Array.isArray(value)) return value.map(stableJsonValue);
-  if (!isRecord19(value)) return value;
+  if (!isRecord17(value)) return value;
   return Object.fromEntries(Object.entries(value).filter(([key]) => !key.startsWith("__workspace_")).sort(([left], [right]) => left.localeCompare(right)).map(([key, item]) => [key, stableJsonValue(item)]));
 }
-function isRecord19(value) {
+function isRecord17(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function isDefined3(value) {
@@ -58902,7 +58623,7 @@ function getSemanticEntitySchemaEntry(schemaId) {
   return SEMANTIC_ENTITY_SCHEMA_REGISTRY[schemaId] ?? null;
 }
 
-// ../../packages/interpreter/dist/chunk-FLQGLAYV.js
+// ../../packages/interpreter/dist/chunk-XN62JBAH.js
 function validateEditableFiles(files) {
   const issues = [];
   for (const file of files) {
@@ -58924,7 +58645,7 @@ function validateSourceDomainGraph(graph) {
   const issues = [];
   for (const entry of graph.records) {
     if (!entry.file.path.endsWith(".json")) continue;
-    if (!isRecord20(entry.data)) continue;
+    if (!isRecord18(entry.data)) continue;
     const expectedKind = entry.entityKind;
     const schemaKind = typeof entry.data.schema === "string" ? entry.data.schema.replace(/^movscript\./, "").replace(/\.v\d+$/, "") : void 0;
     const actualKind = typeof entry.data.kind === "string" ? entry.data.kind : void 0;
@@ -59023,7 +58744,7 @@ function validateSourceDomainGraph(graph) {
   return issues;
 }
 function validateExplicitPathParentRefs(entry, graph, issues) {
-  if (!entry.entityKind || !isRecord20(entry.data)) return;
+  if (!entry.entityKind || !isRecord18(entry.data)) return;
   for (const ref of explicitPathParentRefs(entry.entityKind, entry.data)) {
     const pathParent = ref.parentKind ? nearestAncestorRecord(graph, entry.file.relativePath, ref.parentKind) : nearestPathParentRecord(graph, entry);
     const childId = sourceRecordStableRef(entry);
@@ -59308,7 +59029,7 @@ function validateAudioCueRefs(file, record, graph, issues) {
   }
 }
 function validateStoryboardSettingRefs(file, record, graph, issues) {
-  const settingRefs = Array.isArray(record.setting_refs) ? record.setting_refs.filter(isRecord20) : [];
+  const settingRefs = Array.isArray(record.setting_refs) ? record.setting_refs.filter(isRecord18) : [];
   for (const [index, settingRef] of settingRefs.entries()) {
     const settingId = idField10(settingRef.setting_id);
     const settingStateId = idField10(settingRef.setting_state_id);
@@ -59363,7 +59084,7 @@ function validateKeyframeReferenceAssetRefs(file, record, graph, issues) {
   }
 }
 function validateJsonSchemaValue(value, schema, path) {
-  if (!isRecord20(schema)) return [];
+  if (!isRecord18(schema)) return [];
   const messages = [];
   if ("const" in schema && !jsonValueEquals2(value, schema.const)) {
     messages.push(`${path} must be ${JSON.stringify(schema.const)}`);
@@ -59378,8 +59099,8 @@ function validateJsonSchemaValue(value, schema, path) {
   if (typeof value === "string" && typeof schema.minLength === "number" && value.length < schema.minLength) {
     messages.push(`${path} must contain at least ${schema.minLength} character${schema.minLength === 1 ? "" : "s"}`);
   }
-  if (schema.type === "object" && isRecord20(value)) {
-    const properties = isRecord20(schema.properties) ? schema.properties : {};
+  if (schema.type === "object" && isRecord18(value)) {
+    const properties = isRecord18(schema.properties) ? schema.properties : {};
     const required = Array.isArray(schema.required) ? schema.required.filter((item) => typeof item === "string") : [];
     for (const key of required) {
       if (value[key] === void 0) messages.push(`${path}.${key} is required`);
@@ -59402,7 +59123,7 @@ function validateJsonSchemaValue(value, schema, path) {
 }
 function jsonSchemaTypeMatches(value, type) {
   if (Array.isArray(type)) return type.some((item) => jsonSchemaTypeMatches(value, item));
-  if (type === "object") return isRecord20(value);
+  if (type === "object") return isRecord18(value);
   if (type === "array") return Array.isArray(value);
   if (type === "string") return typeof value === "string";
   if (type === "number") return typeof value === "number" && Number.isFinite(value);
@@ -59467,8 +59188,287 @@ function lastPathSegment4(value) {
   if (typeof value !== "string" || !value.includes("/")) return void 0;
   return value.split("/").filter(Boolean).at(-1);
 }
-function isRecord20(value) {
+function isRecord18(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// ../../packages/interpreter/dist/chunk-V3CPV4UL.js
+function businessChangesFromChangedEntities(changedEntities, sourceGraph, currentGraph, semanticChanges = []) {
+  const semanticByEntity = groupSemanticChangesByEntity(semanticChanges);
+  return changedEntities.map((entity) => {
+    const record = sourceRecordForChangedEntity(sourceGraph, entity) ?? sourceRecordForChangedEntity(currentGraph, entity);
+    const title = isRecord19(record?.data) ? stringField16(record.data.title) : void 0;
+    const entitySemanticChanges = semanticByEntity.get(entitySemanticKey(entity.entityKind, entity.id)) ?? [];
+    const businessKinds = uniqueSorted(entitySemanticChanges.map((change) => change.businessKind));
+    const semanticKinds = uniqueSorted(entitySemanticChanges.map((change) => change.kind));
+    return {
+      ...entity,
+      ...title !== void 0 ? { title } : {},
+      summary: businessChangeSummary(entity, title, businessKinds),
+      impactAreas: businessImpactAreasForEntityKind(entity.entityKind),
+      sourcePaths: [entity.path],
+      semanticKinds,
+      businessKinds
+    };
+  });
+}
+function summarizeReview(changedFiles, businessChanges, issues) {
+  return {
+    total: changedFiles.length,
+    added: changedFiles.filter((file) => file.state === "added").length,
+    modified: changedFiles.filter((file) => file.state === "modified").length,
+    deleted: changedFiles.filter((file) => file.state === "deleted").length,
+    businessChanges: businessChanges.length,
+    errors: issues.filter((issue) => issue.severity === "error").length,
+    warnings: issues.filter((issue) => issue.severity === "warning").length
+  };
+}
+function sourceRecordForChangedEntity(graph, entity) {
+  return graph.records.find((record) => {
+    return record.entityKind === entity.entityKind && (record.file.path === entity.path || record.file.relativePath === entity.path || record.id !== void 0 && entity.id !== void 0 && String(record.id) === String(entity.id));
+  });
+}
+function businessChangeSummary(entity, title, businessKinds = []) {
+  const label = title ?? String(entity.id ?? entity.path);
+  const state = businessStateVerb(entity.state);
+  const primaryBusinessKind = businessKinds[0];
+  if (entity.state === "modified" && primaryBusinessKind) return `${businessKindLabel(primaryBusinessKind)}: ${label}`;
+  return `${businessEntityLabel(entity.entityKind)} ${state}: ${label}`;
+}
+function businessStateVerb(state) {
+  switch (state) {
+    case "added":
+      return "added";
+    case "modified":
+      return "changed";
+    case "deleted":
+      return "deleted";
+    case "unchanged":
+      return "unchanged";
+  }
+}
+function businessEntityLabel(entityKind) {
+  const labels = {
+    project: "Project",
+    project_standards: "Project standards",
+    script: "Script",
+    script_version: "Script version",
+    script_block: "Script block",
+    production: "Production",
+    segment: "Segment",
+    scene_moment: "Scene moment",
+    shot: "Shot",
+    storyboard: "Storyboard",
+    audio_cue: "Audio cue",
+    expression_unit: "Expression unit",
+    content_unit: "Content unit",
+    keyframe: "Keyframe",
+    setting: "Setting",
+    setting_state: "Setting state",
+    asset: "Asset"
+  };
+  return labels[entityKind] ?? entityKind;
+}
+function businessImpactAreasForEntityKind(entityKind) {
+  switch (entityKind) {
+    case "project":
+    case "project_standards":
+    case "script":
+    case "script_version":
+    case "script_block":
+      return ["workspace_context", "generation_prompts"];
+    case "setting":
+    case "setting_state":
+    case "asset":
+      return ["asset_index", "generation_context"];
+    case "production":
+    case "segment":
+    case "scene_moment":
+    case "shot":
+    case "storyboard":
+    case "audio_cue":
+    case "expression_unit":
+      return ["planning_tree", "preview_timeline", "generation_prompts"];
+    case "content_unit":
+    case "keyframe":
+      return ["content_production", "generation_prompts", "preview_timeline"];
+    default:
+      return ["domain_index"];
+  }
+}
+function groupSemanticChangesByEntity(semanticChanges) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const change of semanticChanges) {
+    const key = entitySemanticKey(change.entity.kind, change.entity.id);
+    groups.set(key, [...groups.get(key) ?? [], change]);
+  }
+  return groups;
+}
+function entitySemanticKey(entityKind, id) {
+  return `${entityKind}:${String(id ?? "")}`;
+}
+function uniqueSorted(values) {
+  return [...new Set(values)].sort();
+}
+function businessKindLabel(kind) {
+  const labels = {
+    metadata_changed: "Metadata changed",
+    semantic_input_changed: "Semantic input changed",
+    reference_changed: "Reference changed",
+    selection_changed: "Selection changed",
+    sequence_reordered: "Sequence reordered",
+    expression_unit_changed: "Expression unit changed",
+    storyboard_changed: "Storyboard changed",
+    keyframe_changed: "Keyframe changed",
+    content_unit_changed: "Content unit changed",
+    project_context_changed: "Project context changed",
+    production_structure_changed: "Production structure changed",
+    domain_entity_changed: "Domain entity changed"
+  };
+  return labels[kind];
+}
+function stringField16(value) {
+  return typeof value === "string" && value.trim() ? value : void 0;
+}
+function isRecord19(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// ../../packages/interpreter/dist/chunk-ESMK3XVG.js
+var FIELD_SEMANTIC_RULES = [
+  {
+    matches: (entity, fieldChange) => entity.entityKind === "expression_unit" && isExpressionUnitSemanticInputField(fieldChange.field),
+    semanticKind: "semantic_input_changed",
+    businessKind: "expression_unit_changed",
+    propagation: "self"
+  },
+  {
+    matches: (_entity, fieldChange) => isSelectionField(fieldChange.field),
+    semanticKind: "selection_changed",
+    businessKind: "selection_changed",
+    propagation: "downstream_reference"
+  },
+  {
+    matches: (_entity, fieldChange) => isReferenceField(fieldChange.field),
+    semanticKind: "reference_changed",
+    businessKind: "reference_changed",
+    propagation: "downstream_reference"
+  },
+  {
+    matches: (_entity, fieldChange) => isMetadataField(fieldChange.field),
+    semanticKind: "metadata_changed",
+    businessKind: "metadata_changed",
+    propagation: "none"
+  }
+];
+function semanticChangesFromEntityChanges(changedEntities) {
+  return changedEntities.flatMap((entity) => {
+    const fieldChanges = entity.fieldChanges?.length ? entity.fieldChanges : [{ field: "*", operation: entity.state }];
+    const grouped = /* @__PURE__ */ new Map();
+    for (const fieldChange of fieldChanges) {
+      const semantic = semanticForFieldChange(entity, fieldChange);
+      const key = `${semantic.kind}:${semantic.businessKind}:${semantic.propagation}`;
+      const group = grouped.get(key) ?? {
+        kind: semantic.kind,
+        businessKind: semantic.businessKind,
+        propagation: semantic.propagation,
+        fields: []
+      };
+      if (!group.fields.includes(fieldChange.field)) group.fields.push(fieldChange.field);
+      grouped.set(key, group);
+    }
+    return [...grouped.values()].map((group) => ({
+      entity: {
+        kind: entity.entityKind,
+        ...entity.id !== void 0 ? { id: entity.id } : {}
+      },
+      kind: group.kind,
+      businessKind: group.businessKind,
+      propagation: group.propagation,
+      fields: group.fields.sort(),
+      sourceChange: {
+        operation: entity.state,
+        path: entity.path
+      }
+    }));
+  });
+}
+function semanticForFieldChange(entity, fieldChange) {
+  if (entity.state === "added" || entity.state === "deleted") {
+    return {
+      kind: "semantic_input_changed",
+      businessKind: businessKindForEntityChange(entity.entityKind),
+      propagation: entity.entityKind === "content_unit" ? "self" : "downstream_reference"
+    };
+  }
+  if (fieldChange.jsonOperation === "reordered" || fieldChange.jsonOperation === "moved") {
+    const base = semanticCategoryForFieldChange(entity, fieldChange);
+    return {
+      kind: base.kind,
+      businessKind: "sequence_reordered",
+      propagation: base.propagation
+    };
+  }
+  const rule = FIELD_SEMANTIC_RULES.find((item) => item.matches(entity, fieldChange));
+  if (rule) {
+    return {
+      kind: rule.semanticKind,
+      businessKind: rule.businessKind,
+      propagation: rule.propagation
+    };
+  }
+  return semanticCategoryForFieldChange(entity, fieldChange);
+}
+function semanticCategoryForFieldChange(entity, fieldChange) {
+  const rule = FIELD_SEMANTIC_RULES.find((item) => item.matches(entity, fieldChange));
+  if (rule) {
+    return {
+      kind: rule.semanticKind,
+      businessKind: rule.businessKind,
+      propagation: rule.propagation
+    };
+  }
+  return {
+    kind: "semantic_input_changed",
+    businessKind: businessKindForEntityChange(entity.entityKind),
+    propagation: entity.entityKind === "content_unit" ? "self" : "downstream_reference"
+  };
+}
+function businessKindForEntityChange(entityKind) {
+  switch (entityKind) {
+    case "expression_unit":
+      return "expression_unit_changed";
+    case "storyboard":
+      return "storyboard_changed";
+    case "keyframe":
+      return "keyframe_changed";
+    case "content_unit":
+      return "content_unit_changed";
+    case "project":
+    case "project_standards":
+    case "script":
+    case "script_version":
+    case "script_block":
+      return "project_context_changed";
+    case "production":
+    case "segment":
+    case "scene_moment":
+      return "production_structure_changed";
+    default:
+      return "domain_entity_changed";
+  }
+}
+function isExpressionUnitSemanticInputField(field) {
+  return field === "*" || field === "slot_kind" || field === "slotKind" || field === "expression_kind" || field === "expressionKind" || field === "text" || field.startsWith("text.") || field === "angle" || field.startsWith("angle.") || field === "lens" || field.startsWith("lens.") || field === "camera" || field.startsWith("camera.") || field === "movement" || field.startsWith("movement.") || field === "blocking" || field.startsWith("blocking.") || field === "lighting" || field.startsWith("lighting.") || field === "sound" || field.startsWith("sound.") || field === "performance" || field.startsWith("performance.") || field === "duration" || field.startsWith("duration.") || field === "intent" || field.startsWith("intent.") || field === "visual_intent" || field.startsWith("visual_intent.") || field === "narrative_intent" || field.startsWith("narrative_intent.");
+}
+function isMetadataField(field) {
+  return /(^|\.)metadata(\.|$)/.test(field) || /(^|\.)notes?$/.test(field) || /(^|\.)title$/.test(field) || /(^|\.)description$/.test(field) || /(^|\.)created_at$/.test(field) || /(^|\.)updated_at$/.test(field) || /(^|\.)selected_at$/.test(field) || /(^|\.)selected_by$/.test(field);
+}
+function isReferenceField(field) {
+  return /(^|_|\.)refs?(\.|$)/.test(field) || field.endsWith("_ref") || field.includes("_ref.") || field.endsWith("_refs") || field.includes("_refs.");
+}
+function isSelectionField(field) {
+  return field === "lock" || field.startsWith("lock.") || field === "selection" || field.startsWith("selection.") || field === "stale_policy" || field.endsWith(".candidate_id") || field.endsWith(".resource_id");
 }
 
 // ../../packages/interpreter/dist/chunk-WK5FVG7T.js
@@ -59635,7 +59635,7 @@ function basePrompt(context, options) {
     ...inputBlockers(context, resolvedRefs)
   ];
   const runtimeRequest = {
-    capability: stringField16(modelIntent?.capability) ?? capabilityForOutputKind(options.outputKind),
+    capability: stringField15(modelIntent?.capability) ?? capabilityForOutputKind(options.outputKind),
     model_intent: modelIntent,
     inputs: [
       ...hasGenerationReferencePool ? [...generationSemanticInputs, ...generationResourceInputs] : semanticInputs,
@@ -59831,7 +59831,7 @@ function upstreamSelectionStatus(context, ref) {
   }
   const candidatePrompt = normalizedContentUnitPrompt(candidate?.prompt_snapshot);
   if (!candidatePrompt) return { stale: true };
-  const contentUnitType2 = stringField16(upstreamContentUnit.record.content_unit_type);
+  const contentUnitType2 = stringField15(upstreamContentUnit.record.content_unit_type);
   if (!contentUnitType2) return { stale: true };
   const adapter = contentUnitAdapterFor(contentUnitType2);
   const currentPrompt = adapter.derivePrompt({
@@ -59888,10 +59888,10 @@ function normalizedEditPrompt(value) {
   const record = recordField4(value);
   if (!record) return void 0;
   return pruneUndefined15({
-    text: stringField16(record.text),
-    negative_text: stringField16(record.negative_text),
-    notes: stringField16(record.notes),
-    structured: isRecord19(record.structured) ? record.structured : void 0
+    text: stringField15(record.text),
+    negative_text: stringField15(record.negative_text),
+    notes: stringField15(record.notes),
+    structured: isRecord17(record.structured) ? record.structured : void 0
   });
 }
 function capabilityForOutputKind(outputKind) {
@@ -59913,16 +59913,16 @@ function inputKindForRef(context, ref) {
   return contentUnitOutputKind2(upstream?.record.output_kind);
 }
 function hasExplicitGenerationReferencePool(record) {
-  return arrayField5(record.generation_references ?? record.generationReferences).some(isRecord19) || arrayField5(record.reference_assets ?? record.referenceAssets).some(isRecord19);
+  return arrayField5(record.generation_references ?? record.generationReferences).some(isRecord17) || arrayField5(record.reference_assets ?? record.referenceAssets).some(isRecord17);
 }
 function contentUnitGenerationPromptRefs(record) {
   return arrayField5(record.generation_references ?? record.generationReferences).flatMap((item) => {
-    if (!isRecord19(item)) return [];
-    const kindValue = stringField16(item.kind ?? item.ref_kind ?? item.refKind ?? item.type);
+    if (!isRecord17(item)) return [];
+    const kindValue = stringField15(item.kind ?? item.ref_kind ?? item.refKind ?? item.type);
     if (!isContentUnitPromptRefKind(kindValue)) return [];
     const id = idField9(item.ref ?? item.target_ref ?? item.targetRef ?? item.id);
     if (id === void 0) return [];
-    const raw = stringField16(item.raw ?? item.source_ref ?? item.sourceRef) ?? `{{${kindValue}::${String(id)}}}`;
+    const raw = stringField15(item.raw ?? item.source_ref ?? item.sourceRef) ?? `{{${kindValue}::${String(id)}}}`;
     return [{
       kind: kindValue,
       id: String(id),
@@ -59933,28 +59933,28 @@ function contentUnitGenerationPromptRefs(record) {
 }
 function contentUnitGenerationResourceInputs(record) {
   const fromGenerationReferences = arrayField5(record.generation_references ?? record.generationReferences).flatMap((item) => {
-    if (!isRecord19(item)) return [];
-    const kind = stringField16(item.kind ?? item.ref_kind ?? item.refKind ?? item.type);
+    if (!isRecord17(item)) return [];
+    const kind = stringField15(item.kind ?? item.ref_kind ?? item.refKind ?? item.type);
     const resourceId = resourceIdField4(item.resource_id ?? item.resourceId) ?? (kind === "resource" ? resourceIdField4(item.ref ?? item.target_ref ?? item.targetRef) : void 0);
     if (resourceId === void 0) return [];
     const mediaType = generationReferenceMediaType(item.media_type ?? item.mediaType, item.role);
     return [{
-      role: stringField16(item.role) ?? generationReferenceRoleForMediaType(mediaType),
+      role: stringField15(item.role) ?? generationReferenceRoleForMediaType(mediaType),
       kind: mediaType,
-      ref: stringField16(item.raw ?? item.source_ref ?? item.sourceRef),
+      ref: stringField15(item.raw ?? item.source_ref ?? item.sourceRef),
       resource_id: resourceId,
       required: true
     }];
   });
   const fromReferenceAssets = arrayField5(record.reference_assets ?? record.referenceAssets).flatMap((item) => {
-    if (!isRecord19(item)) return [];
+    if (!isRecord17(item)) return [];
     const resourceId = resourceIdField4(item.resource_id ?? item.resourceId);
     if (resourceId === void 0) return [];
     const mediaType = generationReferenceMediaType(item.media_type ?? item.mediaType, item.role);
     return [{
-      role: stringField16(item.role) ?? generationReferenceRoleForMediaType(mediaType),
+      role: stringField15(item.role) ?? generationReferenceRoleForMediaType(mediaType),
       kind: mediaType,
-      ref: stringField16(item.source_ref ?? item.sourceRef),
+      ref: stringField15(item.source_ref ?? item.sourceRef),
       resource_id: resourceId,
       required: true
     }];
@@ -60063,7 +60063,7 @@ function selectionValidityFor(index, contentUnit, currentPrompt) {
     ...selectedResourceId3 !== void 0 ? { resource_id: selectedResourceId3 } : {},
     stale: staleReasons.length > 0,
     stale_policy: stalePolicy3,
-    reason: stringField16(selection?.reason),
+    reason: stringField15(selection?.reason),
     ...staleReasons.length > 0 ? { stale_reasons: staleReasons } : {}
   };
 }
@@ -60161,10 +60161,10 @@ function findEntityByRef2(entities, entityKind, ref) {
 function parentExpressionUnitForEntity(entity, entityByPathDir, entityById) {
   const expressionUnitRef = normalizedRefDir(entity.record.expression_unit_ref);
   if (expressionUnitRef) return entityByPathDir.get(expressionUnitRef) ?? entityById.get(entityKey2("expression_unit", expressionUnitRef));
-  const expressionUnitId = pathSegmentAfter5(entity.path, "expression_units");
+  const expressionUnitId = pathSegmentAfter6(entity.path, "expression_units");
   return expressionUnitId ? entityById.get(entityKey2("expression_unit", expressionUnitId)) : void 0;
 }
-function pathSegmentAfter5(path, segment) {
+function pathSegmentAfter6(path, segment) {
   const parts = path.split("/");
   const index = parts.indexOf(segment);
   return index >= 0 ? parts[index + 1] : void 0;
@@ -60319,13 +60319,13 @@ function contentUnitsForSceneMoment(index, sceneMoment, expressionUnits) {
   const sceneMomentDir = entityDir5(sceneMoment.path);
   const expressions = expressionUnits.filter((expressionUnit) => entityDir5(expressionUnit.path).startsWith(`${sceneMomentDir}/expression_units/`));
   return queryMovScriptWorkspaceEntities(index, { entityKind: "content_unit" }).filter((contentUnit) => {
-    const targetKind = stringField16(contentUnit.record.target_kind);
-    const targetRef = stringField16(contentUnit.record.target_ref);
+    const targetKind = stringField15(contentUnit.record.target_kind);
+    const targetRef = stringField15(contentUnit.record.target_ref);
     if (targetKind === "scene_moment" && refMatches(sceneMoment, targetRef)) return true;
     if (String(contentUnit.record.content_unit_type ?? "") === "scene_moment_ref" && refMatches(sceneMoment, contentUnit.record.scene_moment_ref)) return true;
     if (String(contentUnit.record.content_unit_type ?? "") === "scence_moment_ref" && refMatches(sceneMoment, contentUnit.record.scene_moment_ref ?? contentUnit.record.scence_moment_ref)) return true;
     if (targetKind === "expression_unit" || String(contentUnit.record.content_unit_type ?? "") === "expression_unit_ref") {
-      const expressionRef = targetRef ?? stringField16(contentUnit.record.expression_unit_ref);
+      const expressionRef = targetRef ?? stringField15(contentUnit.record.expression_unit_ref);
       return expressions.some((expressionUnit) => refMatches(expressionUnit, expressionRef));
     }
     return false;
@@ -60336,8 +60336,8 @@ function productionForSceneMoment(index, sceneMoment) {
   return queryMovScriptWorkspaceEntities(index, { entityKind: "production" }).find((entity) => sameEntityRef(entity.id, productionId, "production") || entityDir5(entity.path) === `productions/${productionId}`);
 }
 function trackItemFor(contentUnit, artifact, sceneMoment, expressionByRef, fallbackOrder) {
-  const targetKind = stringField16(contentUnit.record.target_kind) ?? primaryTargetKind(contentUnit);
-  const targetRef = stringField16(contentUnit.record.target_ref) ?? primaryTargetRef(contentUnit) ?? entityDir5(sceneMoment.path);
+  const targetKind = stringField15(contentUnit.record.target_kind) ?? primaryTargetKind(contentUnit);
+  const targetRef = stringField15(contentUnit.record.target_ref) ?? primaryTargetRef(contentUnit) ?? entityDir5(sceneMoment.path);
   const expressionUnit = targetKind === "expression_unit" ? expressionByRef.get(targetRef) ?? expressionByRef.get(lastPathSegment5(targetRef) ?? "") : void 0;
   return {
     id: `edit_item_${String(contentUnit.id ?? fallbackOrder)}`,
@@ -60348,14 +60348,14 @@ function trackItemFor(contentUnit, artifact, sceneMoment, expressionByRef, fallb
     target_ref: targetRef,
     ...expressionUnit ? { expression_unit_ref: entityDir5(expressionUnit.path) } : {},
     ...expressionUnit ? { expression_slot_kind: expressionUnitSlotKindFromRecord(expressionUnit.record) } : {},
-    ...expressionUnit ? { expression_modality: stringField16(expressionUnit.record.modality) ?? legacyExpressionModality(expressionUnit) } : {},
-    ...expressionUnit ? { expression_role: stringField16(expressionUnit.record.role) ?? stringField16(expressionUnit.record.expression_kind) } : {},
+    ...expressionUnit ? { expression_modality: stringField15(expressionUnit.record.modality) ?? legacyExpressionModality(expressionUnit) } : {},
+    ...expressionUnit ? { expression_role: stringField15(expressionUnit.record.role) ?? stringField15(expressionUnit.record.expression_kind) } : {},
     ...artifact.selectionValidity.candidate_id !== void 0 ? { candidate_id: artifact.selectionValidity.candidate_id } : {},
     ...artifact.selectionValidity.resource_id !== void 0 ? { resource_id: artifact.selectionValidity.resource_id } : {},
     selected: artifact.selectionValidity.selected,
     stale: artifact.selectionValidity.stale,
     timing_intent: recordField4(expressionUnit?.record.timing_intent),
-    generation_role: stringField16(contentUnit.record.generation_role),
+    generation_role: stringField15(contentUnit.record.generation_role),
     order: numberField23(contentUnit.record.order) ?? numberField23(expressionUnit?.record.order) ?? fallbackOrder
   };
 }
@@ -60383,10 +60383,10 @@ function primaryTargetKind(contentUnit) {
   return "metadata";
 }
 function primaryTargetRef(contentUnit) {
-  return stringField16(contentUnit.record.expression_unit_ref) ?? stringField16(contentUnit.record.scene_moment_ref) ?? stringField16(contentUnit.record.scence_moment_ref) ?? stringField16(contentUnit.record.content_unit_ref);
+  return stringField15(contentUnit.record.expression_unit_ref) ?? stringField15(contentUnit.record.scene_moment_ref) ?? stringField15(contentUnit.record.scence_moment_ref) ?? stringField15(contentUnit.record.content_unit_ref);
 }
 function legacyExpressionModality(expressionUnit) {
-  const kind = stringField16(expressionUnit.record.expression_kind);
+  const kind = stringField15(expressionUnit.record.expression_kind);
   if (kind === "dialogue" || kind === "narration") return "verbal";
   if (kind === "subtitle" || kind === "caption") return "text";
   if (kind === "visual_note" || kind === "action") return "visual";
@@ -61467,7 +61467,7 @@ function businessImpactLabel2(businessKind) {
   return labels[businessKind];
 }
 
-// ../../packages/interpreter/dist/chunk-TTR5HR7U.js
+// ../../packages/interpreter/dist/chunk-VIYR4SFO.js
 async function reviewMovScriptWorkspace(input3) {
   const now = input3.now ?? /* @__PURE__ */ new Date();
   const sourceOptions = workspaceSourceOptions(input3);
@@ -62427,7 +62427,7 @@ function selectedResourceId(decision) {
   return firstCandidateResourceId2(candidate);
 }
 function firstCandidateResourceId2(candidate) {
-  const output3 = arrayField6(candidate?.outputs).filter(isRecord21)[0];
+  const output3 = arrayField6(candidate?.outputs).filter(isRecord20)[0];
   return resourceIdField5(output3?.resource_id);
 }
 function latestResourceCandidate(candidates) {
@@ -62532,7 +62532,7 @@ function projectStyleReferenceResourceIds2(index) {
     ...resourceIdsFromValue3(standards.record.style_reference_images),
     ...resourceIdsFromValue3(standards.record.style_references),
     ...resourceIdsFromValue3(standards.record.reference_resource_ids),
-    ...arrayField6(standards.record.custom_rules).filter(isRecord21).filter((rule) => rule.enabled !== false).filter((rule) => stringField17(rule.key) === "style_reference_images").flatMap((rule) => resourceIdsFromValue3(rule.value))
+    ...arrayField6(standards.record.custom_rules).filter(isRecord20).filter((rule) => rule.enabled !== false).filter((rule) => stringField17(rule.key) === "style_reference_images").flatMap((rule) => resourceIdsFromValue3(rule.value))
   ]);
 }
 function resourceIdsFromValue3(value) {
@@ -62559,7 +62559,7 @@ function resourceIdsFromValue3(value) {
   }
   const id = resourceIdField5(value);
   if (id !== void 0) return [id];
-  if (isRecord21(value)) return resourceIdsFromValue3(value.resource_id ?? value.resourceId ?? value.id);
+  if (isRecord20(value)) return resourceIdsFromValue3(value.resource_id ?? value.resourceId ?? value.id);
   return [];
 }
 function referenceAssetsForResolvedRefs(refs) {
@@ -62638,7 +62638,7 @@ function dedupeBlockers2(blockers) {
   return output3;
 }
 function recordField5(value) {
-  return isRecord21(value) ? value : void 0;
+  return isRecord20(value) ? value : void 0;
 }
 function arrayField6(value) {
   return Array.isArray(value) ? value : [];
@@ -62690,7 +62690,7 @@ function promptEntityReferenceIdField(value, kind) {
   if (kind === "resource" || kind === "candidate" || typeof id !== "string") return id;
   return id.trim().replace(new RegExp(`^${kind}(?:::|:)`, "i"), "");
 }
-function isRecord21(value) {
+function isRecord20(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function pruneUndefined16(value) {
@@ -65398,7 +65398,7 @@ function selectionRecordsByContentUnitId2(documents) {
 }
 function contentUnitIdForRuntimeDocument3(path, ref) {
   if (ref) return lastPathSegment7(ref) ?? ref;
-  return pathSegmentAfter6(path, "content_units");
+  return pathSegmentAfter7(path, "content_units");
 }
 function entityStatusLine(entity) {
   return {
@@ -65436,7 +65436,7 @@ function firstOutputStreamId(outputs) {
   }
   return void 0;
 }
-function pathSegmentAfter6(path, segment) {
+function pathSegmentAfter7(path, segment) {
   if (!path) return void 0;
   const parts = path.split("/").filter(Boolean);
   const index = parts.indexOf(segment);
@@ -75019,7 +75019,7 @@ async function runMovScriptWorkspaceCommand(specOrName, args = {}) {
   }
 }
 function unwrapCommandDataWithDebug(execution) {
-  if (isRecord27(execution.data) && !Array.isArray(execution.data)) {
+  if (isRecord21(execution.data) && !Array.isArray(execution.data)) {
     return {
       ...execution.data,
       contract: execution.contract,
@@ -75117,7 +75117,7 @@ async function runtimeStatus(args = {}) {
   const desktop = await probeDesktop(timeoutMs, runtimeHome);
   const localAvailable = localProbe.available;
   const cloudConfigured = Boolean(cloudBaseURL || runtimeGatewayBaseURL || cloudAuth.authenticated || !configuredIsLocal && configuredSession.token);
-  const cloudAvailable = Boolean(cloudBaseURL && isRecord27(cloudProbe) && cloudProbe.available === true);
+  const cloudAvailable = Boolean(cloudBaseURL && isRecord21(cloudProbe) && cloudProbe.available === true);
   const selected = selectedBackendMode({
     configuredIsLocal,
     localAvailable,
@@ -75171,7 +75171,7 @@ async function runtimeStatus(args = {}) {
         ...cloudBaseURL ? { baseURL: cloudBaseURL } : {},
         ...runtimeGatewayBaseURL ? { runtimeGatewayBaseURL } : {},
         authenticated: Boolean(cloudAuth.authenticated || !configuredIsLocal && configuredSession.token),
-        ...isRecord27(cloudProbe) && typeof cloudProbe.error === "string" ? { error: cloudProbe.error } : {}
+        ...isRecord21(cloudProbe) && typeof cloudProbe.error === "string" ? { error: cloudProbe.error } : {}
       },
       selected
     },
@@ -75257,7 +75257,7 @@ async function runtimeDoctor(args = {}) {
   };
 }
 function runtimeDoctorRecommendedNextCommands(preflight) {
-  const checks = Array.isArray(preflight.checks) ? preflight.checks.filter(isRecord27) : [];
+  const checks = Array.isArray(preflight.checks) ? preflight.checks.filter(isRecord21) : [];
   const blocked = new Set(checks.filter((check) => check.status === "blocked").map((check) => stringValue10(check.id)).filter(Boolean));
   const warnings = new Set(checks.filter((check) => check.status === "warning").map((check) => stringValue10(check.id)).filter(Boolean));
   const commands = [];
@@ -75328,7 +75328,7 @@ async function fetchCanonicalRuntimeDescriptor(gatewayBaseURL) {
     });
     if (!response.ok) return void 0;
     const payload = await response.json().catch(() => void 0);
-    if (!isRecord27(payload) || payload.schema !== "movscript.runtime-descriptor.v1") return void 0;
+    if (!isRecord21(payload) || payload.schema !== "movscript.runtime-descriptor.v1") return void 0;
     return payload;
   } catch {
     return void 0;
@@ -75600,8 +75600,8 @@ function inspectProjectSource(projectDir) {
   const sourceRootFiles = Array.from(MOVSCRIPT_SOURCE_ROOT_FILES2).filter((name) => existsSync4(resolve7(projectDir, name))).sort();
   const hasSourceDirs = sourceCollections.length > 0;
   const hasSourceRootFiles = sourceRootFiles.length > 0;
-  const projectUid = isRecord27(metadata) ? stringValue10(metadata.project_uid ?? metadata.projectUid) : void 0;
-  const projectTitle = isRecord27(metadata) ? stringValue10(metadata.title ?? metadata.name) : void 0;
+  const projectUid = isRecord21(metadata) ? stringValue10(metadata.project_uid ?? metadata.projectUid) : void 0;
+  const projectTitle = isRecord21(metadata) ? stringValue10(metadata.title ?? metadata.name) : void 0;
   return {
     isMovScriptProject: Boolean(metadataPath || hasSourceDirs || hasSourceRootFiles),
     hasMetadata: Boolean(metadataPath),
@@ -75925,7 +75925,7 @@ function findCloudAuth(workspaceDir) {
     for (const realmId of readdirSync2(cloudRoot)) {
       const authPath = resolve7(cloudRoot, realmId, "auth.json");
       const auth = readJSON4(authPath);
-      if (isRecord27(auth) && stringValue10(auth.token)) return { authenticated: true };
+      if (isRecord21(auth) && stringValue10(auth.token)) return { authenticated: true };
     }
   } catch {
   }
@@ -76040,7 +76040,7 @@ async function callAdminBackend(spec, path, args) {
   }
 }
 function adminPathWithQuery(path, args) {
-  const query = isRecord27(args.query) ? args.query : {};
+  const query = isRecord21(args.query) ? args.query : {};
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (typeof value === "string" && value.trim()) params.set(key, value.trim());
@@ -76053,7 +76053,7 @@ function adminPathWithQuery(path, args) {
 function adminPayload(args) {
   const payload = args.payload ?? args.body;
   if (payload === void 0) return {};
-  if (!isRecord27(payload)) throw new Error("admin command payload must be an object");
+  if (!isRecord21(payload)) throw new Error("admin command payload must be an object");
   return payload;
 }
 function adminCommandPayload(spec, args) {
@@ -76092,8 +76092,8 @@ function adminGenerationToolCallPayload(args) {
     server_scope: stringValue10(args.toolServerScope ?? args.tool_server_scope ?? args.serverScope ?? args.server_scope),
     operation: stringValue10(args.operation),
     path: stringValue10(args.toolPath ?? args.tool_path ?? args.path),
-    workflow: isRecord27(args.workflow) ? args.workflow : void 0,
-    payload: isRecord27(args.toolPayload ?? args.tool_payload) ? args.toolPayload ?? args.tool_payload : void 0,
+    workflow: isRecord21(args.workflow) ? args.workflow : void 0,
+    payload: isRecord21(args.toolPayload ?? args.tool_payload) ? args.toolPayload ?? args.tool_payload : void 0,
     client_id: stringValue10(args.clientID ?? args.clientId ?? args.client_id),
     prompt_id: stringValue10(args.promptID ?? args.promptId ?? args.prompt_id),
     filename: stringValue10(args.filename),
@@ -76143,7 +76143,7 @@ function adminDebugCliArgv(spec, args) {
   appendPathArg(argv, args, ["subfolder"], "--subfolder");
   appendPathArg(argv, args, ["fileType", "file_type"], "--file-type");
   appendPathArg(argv, args, ["id"], "--id");
-  if (isRecord27(args.query)) {
+  if (isRecord21(args.query)) {
     for (const [key, value] of Object.entries(args.query)) {
       argv.push("--query", `${key}=${String(value)}`);
     }
@@ -76337,7 +76337,7 @@ function systemDebugCliArgv(spec, args) {
   if (args.continue_on_error === true || args.continueOnError === true) argv.push("--continue-on-error");
   const referenceAssets = Array.isArray(args.reference_assets) ? args.reference_assets : Array.isArray(args.referenceAssets) ? args.referenceAssets : [];
   for (const item of referenceAssets) {
-    if (!isRecord27(item)) continue;
+    if (!isRecord21(item)) continue;
     const role = stringValue10(item.role);
     if (!role) continue;
     const mediaType = stringValue10(item.media_type ?? item.mediaType);
@@ -76966,7 +76966,7 @@ function objectSchema3(properties, required = []) {
 }
 function toolInputSchema(tools, name) {
   const schema = tools.find((tool) => tool.name === name)?.inputSchema;
-  if (isRecord27(schema)) return schema;
+  if (isRecord21(schema)) return schema;
   return objectSchema3({});
 }
 function stringValue10(value) {
@@ -76980,7 +76980,7 @@ function numberValue6(value) {
   return void 0;
 }
 function recordValue2(value) {
-  return isRecord27(value) ? value : {};
+  return isRecord21(value) ? value : {};
 }
 function readJSON4(path) {
   try {
@@ -77016,7 +77016,7 @@ function adminRequiredNumberArg(args, keys) {
 function compactObject(input3) {
   return Object.fromEntries(Object.entries(input3).filter(([, value]) => value !== void 0));
 }
-function isRecord27(value) {
+function isRecord21(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function errorMessage6(error) {
@@ -77170,18 +77170,18 @@ function mergeTools(primary, secondary) {
   return tools;
 }
 function objectParam(value, key) {
-  if (!isRecord28(value)) return {};
+  if (!isRecord27(value)) return {};
   const candidate = value[key];
-  return isRecord28(candidate) ? candidate : {};
+  return isRecord27(candidate) ? candidate : {};
 }
 function stringParam2(value, key) {
-  if (!isRecord28(value)) return void 0;
+  if (!isRecord27(value)) return void 0;
   return stringValue11(value[key]);
 }
 function stringValue11(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
-function isRecord28(value) {
+function isRecord27(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function errorMessage7(error) {
@@ -79778,18 +79778,18 @@ function mergeTools2(primary, secondary) {
   return tools;
 }
 function objectParam2(value, key) {
-  if (!isRecord29(value)) return {};
+  if (!isRecord28(value)) return {};
   const candidate = value[key];
-  return isRecord29(candidate) ? candidate : {};
+  return isRecord28(candidate) ? candidate : {};
 }
 function stringParam3(value, key) {
-  if (!isRecord29(value)) return void 0;
+  if (!isRecord28(value)) return void 0;
   return stringValue12(value[key]);
 }
 function stringValue12(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
-function isRecord29(value) {
+function isRecord28(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function errorMessage8(error) {
@@ -79956,12 +79956,12 @@ function endpointURL7(endpoint) {
   return void 0;
 }
 function objectParam3(value, key) {
-  if (!isRecord30(value)) return {};
+  if (!isRecord29(value)) return {};
   const candidate = value[key];
-  return isRecord30(candidate) ? candidate : {};
+  return isRecord29(candidate) ? candidate : {};
 }
 function stringParam4(value, key) {
-  if (!isRecord30(value)) return void 0;
+  if (!isRecord29(value)) return void 0;
   return stringValue13(value[key]);
 }
 function explicitRuntimeGatewayBaseURL() {
@@ -79981,7 +79981,7 @@ function stringValue13(value) {
 function positiveNumberValue2(value) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : void 0;
 }
-function isRecord30(value) {
+function isRecord29(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function writeMessage(message) {
@@ -80214,7 +80214,7 @@ async function handleRuntimeTextRequest({ fetchImpl, modelGatewayBaseURL, reques
     writeJSON(response, 400, { error: "model_id is required" });
     return;
   }
-  const params = isRecord31(input3.params) ? input3.params : {};
+  const params = isRecord30(input3.params) ? input3.params : {};
   const upstream = await fetchImpl(`${modelGatewayBaseURL}/v1/chat/completions`, {
     method: "POST",
     headers: {
@@ -80333,7 +80333,7 @@ async function readJSONBody(request) {
   if (body.length === 0) return {};
   return JSON.parse(body.toString("utf8"));
 }
-function isRecord31(value) {
+function isRecord30(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function normalizeOptionalBaseURL(value, label) {
@@ -80709,7 +80709,7 @@ function sameTimelineProductionId(left, right) {
   return sameId6(left, right) || safeId2(String(left)) === safeId2(String(right));
 }
 function productionTimelineClips(input3) {
-  const contentUnitsById = new Map(input3.contentUnits.map((unit) => [String(unit.id ?? pathSegmentAfter7(unit.path, "content_units") ?? unit.path), unit]));
+  const contentUnitsById = new Map(input3.contentUnits.map((unit) => [String(unit.id ?? pathSegmentAfter8(unit.path, "content_units") ?? unit.path), unit]));
   const candidatesByContentUnitId = contentCandidateRecordsByContentUnitId3(input3.documents);
   const selectionsByContentUnitId = selectionRecordsByContentUnitId3(input3.documents);
   return input3.previewTimeline.items.filter((item) => item.itemType === "scene_moment").sort((left, right) => left.order - right.order).flatMap((item, index) => {
@@ -80759,7 +80759,7 @@ function productionTimelineClips(input3) {
 }
 function productionSceneMomentContentUnitIds(contentUnits, item) {
   const fromTimeline = previewTimelineItemContentUnitIds(item);
-  const scanned = contentUnits.filter((unit) => recordValue3(unit.record) && isSceneMomentVideoContentUnit(unit.record) && sceneMomentRefMatches(unit.record, item)).map((unit) => unit.id ?? pathSegmentAfter7(unit.path, "content_units")).filter((id) => typeof id === "string" || typeof id === "number");
+  const scanned = contentUnits.filter((unit) => recordValue3(unit.record) && isSceneMomentVideoContentUnit(unit.record) && sceneMomentRefMatches(unit.record, item)).map((unit) => unit.id ?? pathSegmentAfter8(unit.path, "content_units")).filter((id) => typeof id === "string" || typeof id === "number");
   return Array.from(new Map([...fromTimeline, ...scanned].map((id) => [String(id), id])).values());
 }
 function previewTimelineItemTitle(item) {
@@ -80808,7 +80808,7 @@ function selectionRecordsByContentUnitId3(documents) {
 }
 function contentUnitIdForRuntimeDocument4(path, ref) {
   if (ref) return lastPathSegment8(ref) ?? ref;
-  return pathSegmentAfter7(path, "content_units");
+  return pathSegmentAfter8(path, "content_units");
 }
 function selectedVideoResourceId(candidate) {
   const output3 = firstCandidateOutput4(candidate);
@@ -82198,7 +82198,7 @@ function projectDirFromBody(body) {
   }
   return resolve10(projectDir);
 }
-function pathSegmentAfter7(path, segment) {
+function pathSegmentAfter8(path, segment) {
   if (!path) return void 0;
   const parts = path.split("/").filter(Boolean);
   const index = parts.indexOf(segment);
@@ -84351,7 +84351,7 @@ async function loadContentSourceWorkspaceSnapshotFromEngine(engine) {
       const sceneMomentId = idField13(sceneMoment.id ?? sceneMoment.record.id ?? sceneMoment.record.ID);
       if (sceneMomentId === void 0) return void 0;
       const editPlan = await readSceneMomentEditPlanForIndexedEntity(engine, sceneMoment).catch(() => void 0);
-      if (!isRecord35(editPlan)) return void 0;
+      if (!isRecord31(editPlan)) return void 0;
       const mediaEditingProject = createMediaEditingProjectFromMovScriptEditPlan(editPlan, {
         projectId: String(editPlan.productionId ?? "MovScript"),
         title: String(sceneMoment.record.title ?? editPlan.sceneMomentId ?? sceneMomentId)
@@ -84400,12 +84400,12 @@ async function readSceneMomentEditPlanForIndexedEntity(engine, sceneMoment) {
   if (sceneMomentDir === sceneMoment.path) return void 0;
   const path = join12(engine.projectDir, MOVSCRIPT_INTERPRET_CURRENT_DIR, sceneMomentDir, "edit_plan.json");
   const parsed = JSON.parse(await readFile6(path, "utf8"));
-  return isRecord35(parsed) ? parsed : void 0;
+  return isRecord31(parsed) ? parsed : void 0;
 }
 function productionTimelineFromPreview(input3) {
   const candidateRecords = contentCandidateRecordsByContentUnitId4(input3.documents);
   const selections = selectionRecordsByContentUnitId4(input3.documents);
-  const contentUnitsById = new Map(input3.contentUnits.map((unit) => [String(unit.id ?? pathSegmentAfter8(unit.path, "content_units") ?? unit.path), unit]));
+  const contentUnitsById = new Map(input3.contentUnits.map((unit) => [String(unit.id ?? pathSegmentAfter9(unit.path, "content_units") ?? unit.path), unit]));
   const blockers = [];
   const clips = input3.previewTimeline.items.filter((item) => item.itemType === "scene_moment").sort((left, right) => left.order - right.order).flatMap((item, index) => {
     const contentUnitIds = productionSceneMomentContentUnitIds2(input3.contentUnits, item);
@@ -84477,7 +84477,7 @@ function uniquePreviewTimelines(timelines) {
 }
 function productionSceneMomentContentUnitIds2(contentUnits, item) {
   const explicit = Array.isArray(item.contentUnitIds) ? (item.contentUnitIds ?? []).filter((id) => typeof id === "string" || typeof id === "number") : [];
-  const scanned = contentUnits.filter((unit) => isSceneMomentVideoContentUnit2(unit.record) && sceneMomentRefMatches2(unit.record, item)).map((unit) => unit.id ?? pathSegmentAfter8(unit.path, "content_units")).filter((id) => typeof id === "string" || typeof id === "number");
+  const scanned = contentUnits.filter((unit) => isSceneMomentVideoContentUnit2(unit.record) && sceneMomentRefMatches2(unit.record, item)).map((unit) => unit.id ?? pathSegmentAfter9(unit.path, "content_units")).filter((id) => typeof id === "string" || typeof id === "number");
   return [...new Map([...explicit, ...scanned].map((id) => [String(id), id])).values()];
 }
 function previewTimelineItemTitle2(item) {
@@ -84501,7 +84501,7 @@ function sceneMomentRefMatches2(record, item) {
 function contentCandidateRecordsByContentUnitId4(documents) {
   const output3 = /* @__PURE__ */ new Map();
   for (const document of documents) {
-    if (!document.path.endsWith("/content_candidate.json") || !isRecord35(document.data)) continue;
+    if (!document.path.endsWith("/content_candidate.json") || !isRecord31(document.data)) continue;
     const contentUnitId = contentUnitIdForRuntimeDocument5(document.path, stringField19(document.data.content_unit_ref));
     if (!contentUnitId) continue;
     output3.set(contentUnitId, [...output3.get(contentUnitId) ?? [], document.data]);
@@ -84511,8 +84511,8 @@ function contentCandidateRecordsByContentUnitId4(documents) {
 function selectionRecordsByContentUnitId4(documents) {
   const output3 = /* @__PURE__ */ new Map();
   for (const document of documents) {
-    if (!isRecord35(document.data)) continue;
-    const selection = isRecord35(document.data.selection) ? document.data.selection : void 0;
+    if (!isRecord31(document.data)) continue;
+    const selection = isRecord31(document.data.selection) ? document.data.selection : void 0;
     if (!selection) continue;
     const contentUnitId = contentUnitIdForRuntimeDocument5(document.path, stringField19(document.data.target_ref));
     if (!contentUnitId) continue;
@@ -84524,19 +84524,19 @@ function selectionRecordsByContentUnitId4(documents) {
 }
 function contentUnitIdForRuntimeDocument5(path, ref) {
   if (ref) return lastPathSegment9(ref) ?? ref;
-  return pathSegmentAfter8(path, "content_units");
+  return pathSegmentAfter9(path, "content_units");
 }
 function firstCandidateOutput5(candidate) {
-  return Array.isArray(candidate?.outputs) ? candidate.outputs.find(isRecord35) : void 0;
+  return Array.isArray(candidate?.outputs) ? candidate.outputs.find(isRecord31) : void 0;
 }
 function productionWorkPlanFromReview(value) {
-  if (!isRecord35(value)) return void 0;
+  if (!isRecord31(value)) return void 0;
   return value.productionWorkPlan;
 }
 function isDefined5(value) {
   return value !== void 0;
 }
-function isRecord35(value) {
+function isRecord31(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function idField13(value) {
@@ -84553,7 +84553,7 @@ function numberField7(value) {
   if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
   return void 0;
 }
-function pathSegmentAfter8(path, segment) {
+function pathSegmentAfter9(path, segment) {
   if (!path) return void 0;
   const parts = path.split("/").filter(Boolean);
   const index = parts.indexOf(segment);
@@ -84650,7 +84650,7 @@ function numberValue8(value) {
 function recordValue8(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
 }
-function pathSegmentAfter9(path, segment) {
+function pathSegmentAfter10(path, segment) {
   const parts = String(path ?? "").split("/").filter(Boolean);
   const index = parts.indexOf(segment);
   return index >= 0 ? parts[index + 1] : void 0;
@@ -84920,7 +84920,7 @@ function contentCanvasRunAffectedContentUnitIds(canvasRecord, snapshot) {
   }
   const affected = [];
   for (const unit of snapshot.contentUnits ?? []) {
-    const unitId = idValue4(unit.id ?? unit.record?.id ?? pathSegmentAfter9(unit.path, "content_units"));
+    const unitId = idValue4(unit.id ?? unit.record?.id ?? pathSegmentAfter10(unit.path, "content_units"));
     if (unitId === void 0) continue;
     const refs = contentUnitRunRefs(unit);
     if (refs.some((ref) => nodeRefs.has(ref) || nodeRefs.has(contentCanvasNodeIdSuffix(ref)))) {
@@ -84931,7 +84931,7 @@ function contentCanvasRunAffectedContentUnitIds(canvasRecord, snapshot) {
 }
 function contentUnitRunRefs(unit) {
   const record = recordValue8(unit.record) ?? {};
-  const id = idValue4(unit.id ?? record.id ?? pathSegmentAfter9(unit.path, "content_units"));
+  const id = idValue4(unit.id ?? record.id ?? pathSegmentAfter10(unit.path, "content_units"));
   const refs = [
     id,
     id !== void 0 ? `content_unit:${id}` : void 0,
@@ -86338,7 +86338,7 @@ function productionEditingContentUnitKind(entity) {
   return void 0;
 }
 function productionEditingContentUnitId(entity) {
-  return contentUnitRefValue(entity?.id ?? entity?.record?.id ?? entity?.record?.ID ?? pathSegmentAfter9(entity?.path, "content_units"));
+  return contentUnitRefValue(entity?.id ?? entity?.record?.id ?? entity?.record?.ID ?? pathSegmentAfter10(entity?.path, "content_units"));
 }
 function productionEditingContentUnitMatchesProduction(entity, productionId, productionContext) {
   const kind = productionEditingContentUnitKind(entity);
@@ -86577,7 +86577,7 @@ function projectDecisionContextContentUnitRefs(context) {
     context.targetRef
   ].flatMap((value) => [
     contentUnitRefValue(value),
-    contentUnitRefValue(pathSegmentAfter9(value, "content_units"))
+    contentUnitRefValue(pathSegmentAfter10(value, "content_units"))
   ]).filter(Boolean);
 }
 function contentUnitRefValue(value) {
@@ -86585,7 +86585,7 @@ function contentUnitRefValue(value) {
   if (ref === void 0) return void 0;
   const text = String(ref).trim();
   if (!text) return void 0;
-  const suffix = pathSegmentAfter9(text, "content_units");
+  const suffix = pathSegmentAfter10(text, "content_units");
   const normalized = suffix || text;
   return normalized.startsWith("content_unit_") ? normalized.replace(/^content_unit_/, "") : normalized;
 }
@@ -87796,7 +87796,7 @@ function namespaceEntityIdFromPath(targetPath, entityKind) {
     setting: "settings",
     setting_state: "states"
   }[entityKind];
-  return pathSegmentAfter9(targetPath, collection) ?? targetPath.split("/").filter(Boolean).at(-2);
+  return pathSegmentAfter10(targetPath, collection) ?? targetPath.split("/").filter(Boolean).at(-2);
 }
 async function readProjectReadModel(context, now) {
   const engine = createProjectWorkspaceEngine(context);
@@ -88254,7 +88254,7 @@ function projectScriptVersionRefValues(version) {
     version.record?.scriptId,
     version.record?.script_ref,
     version.record?.scriptRef,
-    pathSegmentAfter9(version.path, "scripts")
+    pathSegmentAfter10(version.path, "scripts")
   ].map(scriptRefValue).filter(Boolean);
   return [...new Set(refs)];
 }
@@ -88268,7 +88268,7 @@ function projectScriptRefValues(entity, record) {
     record.scriptId,
     record.script_ref,
     record.scriptRef,
-    pathSegmentAfter9(entity.path, "scripts")
+    pathSegmentAfter10(entity.path, "scripts")
   ].map(scriptRefValue).filter(Boolean);
   return [...new Set(refs)];
 }
@@ -88323,7 +88323,7 @@ function projectDecisionContextContentUnitRefs2(context) {
     context.targetRef
   ].flatMap((value) => [
     contentUnitRefValue2(value),
-    contentUnitRefValue2(pathSegmentAfter9(value, "content_units"))
+    contentUnitRefValue2(pathSegmentAfter10(value, "content_units"))
   ]).filter(Boolean);
 }
 function projectContentUnitReadModelRecord({ contentUnitId, entity, decisionContext }) {
@@ -88395,7 +88395,7 @@ function projectContentUnitRefValues(entity) {
     record.id,
     record.content_unit_id,
     record.contentUnitId,
-    pathSegmentAfter9(entity?.path, "content_units")
+    pathSegmentAfter10(entity?.path, "content_units")
   ].map(contentUnitRefValue2).filter(Boolean);
   return [...new Set(refs)];
 }
@@ -88404,7 +88404,7 @@ function contentUnitRefValue2(value) {
   if (ref === void 0) return void 0;
   const text = String(ref).trim();
   if (!text) return void 0;
-  const suffix = pathSegmentAfter9(text, "content_units");
+  const suffix = pathSegmentAfter10(text, "content_units");
   const normalized = suffix || text;
   return normalized.startsWith("content_unit_") ? normalized.replace(/^content_unit_/, "") : normalized;
 }

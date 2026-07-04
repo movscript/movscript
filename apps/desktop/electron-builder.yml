@@ -40,6 +40,7 @@ extraResources:
   - from: ../../plugins/movscript
     to: provider-plugins/movscript
     filter:
+      - .agent-package/**
       - .provider-plugin/**
       - .codex-plugin/**
       - .mcp.json

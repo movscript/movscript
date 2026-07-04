@@ -29,7 +29,8 @@ Options:
   --asset <filename>         Plugin release asset filename. Defaults to auto-detect.
   --asset-prefix <prefix>    Asset prefix used for auto-detect.
   --local-zip <path>         Install a locally built plugin zip instead of downloading.
-  --provider <name>          Agent provider registration target. Defaults to codex.
+  --provider <targets>       Agent provider registration targets. Defaults to codex.
+                             Supports codex,harness,openclaw,claude-code,all.
   --retain <count>           Keep this many plugin bundle versions. Defaults to 2.
   --rollback                 Switch current plugin bundle back to the previous bundle.
   --rollback-version <ver>   Switch current plugin bundle to a retained version.
@@ -230,11 +231,120 @@ EOF
   chmod +x "$MOVSCRIPT_BIN/movscript" "$MOVSCRIPT_BIN/movscript.mjs" 2>/dev/null || true
 }
 
+json_escape() {
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
+normalize_provider_target() {
+  target=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr '_' '-')
+  case "$target" in
+    codex|openai-codex) printf '%s\n' "codex" ;;
+    harness|harness-agent) printf '%s\n' "harness" ;;
+    openclaw|open-claw|xiaolongxia) printf '%s\n' "openclaw" ;;
+    claude|claude-code|anthropic-claude) printf '%s\n' "claude-code" ;;
+    all) printf '%s\n' "all" ;;
+    *) printf '%s\n' "$target" ;;
+  esac
+}
+
+provider_targets() {
+  result=""
+  for raw in $(printf '%s' "$1" | tr ',' ' '); do
+    target=$(normalize_provider_target "$raw")
+    [ -n "$target" ] || continue
+    if [ "$target" = "all" ]; then
+      expanded="codex harness openclaw claude-code"
+    else
+      expanded="$target"
+    fi
+    for item in $expanded; do
+      case " $result " in
+        *" $item "*) ;;
+        *) result="${result:+$result }$item" ;;
+      esac
+    done
+  done
+  printf '%s\n' "${result:-codex}"
+}
+
+provider_registration_native_command() {
+  target=$1
+  mcp_command=$2
+  case "$target" in
+    codex)
+      printf '%s\n' "codex plugin marketplace add \"\$MOVSCRIPT_HOME/provider/codex\""
+      printf '%s\n' "codex plugin add movscript@movscript"
+      ;;
+    claude-code)
+      printf '%s\n' "claude mcp add --transport stdio movscript -- \"$mcp_command\" mcp stdio"
+      ;;
+    openclaw)
+      printf '%s\n' "openclaw mcp add movscript -- \"$mcp_command\" mcp stdio"
+      ;;
+    harness)
+      printf '%s\n' "Import provider/harness/worker-agent.json as a Harness Worker Agent MCP server configuration."
+      ;;
+  esac
+}
+
+provider_registration_native_commands_json() {
+  target=$1
+  mcp_command=$2
+  first=1
+  printf '['
+  provider_registration_native_command "$target" "$mcp_command" | while IFS= read -r command_line; do
+    if [ "$first" -eq 1 ]; then
+      first=0
+    else
+      printf ', '
+    fi
+    printf '"%s"' "$(json_escape "$command_line")"
+  done
+  printf ']'
+}
+
 write_provider_registration() {
-  log "writing Codex marketplace registration"
-  mkdir -p "$CODEX_ROOT/plugins"
-  switch_plugin_pointer "$CODEX_PLUGIN_LINK" "$PLUGIN_STORE/current"
-  cat > "$CODEX_MARKETPLACE" <<EOF
+  for target in $PROVIDER_TARGETS; do
+    write_provider_target_registration "$target"
+  done
+}
+
+write_provider_target_registration() {
+  target=$1
+  provider_root="$MOVSCRIPT_HOME/provider/$target"
+  plugin_link="$provider_root/plugins/movscript"
+  registration_path="$provider_root/registration.json"
+  mcp_command="$MOVSCRIPT_BIN/movscript"
+  mcp_command_json=$(json_escape "$mcp_command")
+  native_commands_json=$(provider_registration_native_commands_json "$target" "$mcp_command")
+
+  log "writing $target provider registration"
+  mkdir -p "$provider_root/plugins"
+  switch_plugin_pointer "$plugin_link" "$PLUGIN_STORE/current"
+  cat > "$registration_path" <<EOF
+{
+  "schema": "movscript.agent-provider-registration.v1",
+  "target": "$target",
+  "plugin": {
+    "id": "movscript",
+    "name": "MovScript",
+    "currentLink": "$(json_escape "$PLUGIN_STORE/current")",
+    "pluginLink": "$(json_escape "$plugin_link")"
+  },
+  "mcpServers": {
+    "movscript": {
+      "transport": "stdio",
+      "command": "$mcp_command_json",
+      "args": ["mcp", "stdio"]
+    }
+  },
+  "nativeCommands": $native_commands_json
+}
+EOF
+
+  case "$target" in
+    codex)
+      cat > "$provider_root/marketplace.json" <<EOF
 {
   "name": "movscript",
   "interface": {
@@ -256,6 +366,51 @@ write_provider_registration() {
   ]
 }
 EOF
+      ;;
+    claude-code)
+      cat > "$provider_root/.mcp.json" <<EOF
+{
+  "mcpServers": {
+    "movscript": {
+      "type": "stdio",
+      "command": "$mcp_command_json",
+      "args": ["mcp", "stdio"]
+    }
+  }
+}
+EOF
+      ;;
+    openclaw)
+      cat > "$provider_root/mcp.json" <<EOF
+{
+  "mcpServers": {
+    "movscript": {
+      "transport": "stdio",
+      "command": "$mcp_command_json",
+      "args": ["mcp", "stdio"]
+    }
+  }
+}
+EOF
+      ;;
+    harness)
+      cat > "$provider_root/worker-agent.json" <<EOF
+{
+  "schema": "movscript.harness-worker-agent-export.v1",
+  "name": "MovScript",
+  "instructions": "Use the MovScript MCP server for project, generation, and editing workflows.",
+  "mcpServers": [
+    {
+      "name": "movscript",
+      "transport": "stdio",
+      "command": "$mcp_command_json",
+      "args": ["mcp", "stdio"]
+    }
+  ]
+}
+EOF
+      ;;
+  esac
 }
 
 is_plugin_bundle_dir() {
@@ -410,10 +565,13 @@ case "$REPO" in
   *) fail "--repo must be in owner/repo form" ;;
 esac
 
-case "$PROVIDER" in
-  codex) ;;
-  *) fail "unsupported provider: $PROVIDER" ;;
-esac
+PROVIDER_TARGETS=$(provider_targets "$PROVIDER")
+for provider_target in $PROVIDER_TARGETS; do
+  case "$provider_target" in
+    codex|harness|openclaw|claude-code) ;;
+    *) fail "unsupported provider target: $provider_target" ;;
+  esac
+done
 
 case "$PLUGIN_RETAIN" in
   ''|*[!0-9]*) fail "--retain must be a positive integer" ;;
@@ -454,7 +612,7 @@ CHECKSUM_URL=$(url_for_asset "$CHECKSUM_ASSET")
 
 log "repository: $REPO"
 log "release: $RELEASE"
-log "provider: $PROVIDER"
+log "provider targets: $PROVIDER_TARGETS"
 log "movscript home: $MOVSCRIPT_HOME"
 log "plugin retain count: $PLUGIN_RETAIN"
 if [ -n "$ASSET" ]; then
@@ -586,6 +744,7 @@ mkdir -p "$EXTRACT_DIR"
 unzip -q "$ZIP_PATH" -d "$EXTRACT_DIR"
 
 [ -f "$EXTRACT_DIR/.mcp.json" ] || fail "plugin package is missing .mcp.json"
+[ -f "$EXTRACT_DIR/.agent-package/package.json" ] || fail "plugin package is missing .agent-package/package.json"
 [ -f "$EXTRACT_DIR/.codex-plugin/plugin.json" ] || fail "plugin package is missing .codex-plugin/plugin.json"
 [ -f "$EXTRACT_DIR/bin/movscript" ] || fail "plugin package is missing bin/movscript"
 [ -f "$EXTRACT_DIR/bin/movscript.mjs" ] || fail "plugin package is missing bin/movscript.mjs"
@@ -627,6 +786,13 @@ rm -rf "$BACKUP_DIR"
 write_bundle_identity "$TARGET_DIR" "$VERSION" "$PREVIOUS_CURRENT_TARGET" "install"
 prune_plugin_versions "$PLUGIN_RETAIN"
 log "installed MovScript Agent Plugin $VERSION"
-log "Codex marketplace: $CODEX_MARKETPLACE"
-log "If Codex has not seen this marketplace before, add it with:"
-log "  codex plugin marketplace add $CODEX_ROOT"
+for provider_target in $PROVIDER_TARGETS; do
+  log "$provider_target registration: $MOVSCRIPT_HOME/provider/$provider_target"
+done
+case " $PROVIDER_TARGETS " in
+  *" codex "*)
+    log "Codex marketplace: $CODEX_MARKETPLACE"
+    log "If Codex has not seen this marketplace before, add it with:"
+    log "  codex plugin marketplace add $CODEX_ROOT"
+    ;;
+esac

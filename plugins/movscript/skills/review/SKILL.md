@@ -6,6 +6,7 @@ toolGrants:
   - mcp__movscript__domain_overview
   - mcp__movscript__domain_query_entities
   - mcp__movscript__domain_query_production_context
+  - mcp__movscript__domain_read_script_source
   - mcp__movscript__domain_derive_content_unit_artifact
   - mcp__movscript__domain_read_preview_timeline
   - mcp__movscript__domain_read_content_unit_runtime_panel
@@ -33,6 +34,7 @@ Use this skill when a user asks what changed, whether the project is ready, what
 ## Rules
 
 - Start with `domain_overview` for interpret status and next actions.
+- When reviewing unclear story, continuity, scene-beat, dialogue, or script-derived impact, read the relevant script source before explaining readiness or downstream effects.
 - If review tools fail because Project Service, Data Service, Editing Service, or Media Pipeline is missing, call `movscript_runtime_status`, classify the runtime owner/data plane, and explain the capability gap. Do not require Desktop or cloud when the local runtime daemon can satisfy the workflow.
 - When a review, impact, candidate, preview timeline, prompt, or project-status result includes `surface.kind: "browser_url"` and `surface.url`, include that URL in the user-facing response and tell the user to open it to complete the review action.
 - Describe the page's job: inspect readiness, compare candidates, accept stale impact, edit/save the prompt, or inspect preview blockers. A returned URL does not mean the action is complete until the user uses the page or a matching domain decision is written.
@@ -50,11 +52,12 @@ Use this skill when a user asks what changed, whether the project is ready, what
 
 1. Resolve the intended project and optional timeline namespace, production editing workspace, or content-unit target from explicit user input, a passed locator, or Project Service context. Do not infer it from UI focus.
 2. Call `domain_overview`.
-3. If source has pending edits, call `domain_inspect` and explain changed files, changed entities, business changes, blocking issues, and `readyToInterpret`.
-4. If the user asks to validate/refresh diagnostics and `domain_inspect` has no blocking errors, run `domain_interpret`; describe it as diagnostic/artifact refresh, not a publish, approval, commit, checkpoint, or product-state transition.
-5. If explaining generated output readiness or staleness, read content unit artifacts in this order: dependency report, input version, selection validity, runtime panel.
-6. After interpret, call `domain_regeneration_plan` when downstream content may need review.
-7. Open `references/affected-vs-regenerate.md` when explaining stale or affected outputs.
+3. If the review depends on story, continuity, dialogue, or script-derived planning context, read the relevant script source before explaining the result.
+4. If source has pending edits, call `domain_inspect` and explain changed files, changed entities, business changes, blocking issues, and `readyToInterpret`.
+5. If the user asks to validate/refresh diagnostics and `domain_inspect` has no blocking errors, run `domain_interpret`; describe it as diagnostic/artifact refresh, not a publish, approval, commit, checkpoint, or product-state transition.
+6. If explaining generated output readiness or staleness, read content unit artifacts in this order: dependency report, input version, selection validity, runtime panel.
+7. After interpret, call `domain_regeneration_plan` when downstream content may need review.
+8. Open `references/affected-vs-regenerate.md` when explaining stale or affected outputs.
 
 ## Output
 

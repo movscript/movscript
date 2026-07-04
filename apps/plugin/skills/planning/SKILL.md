@@ -1,6 +1,6 @@
 ---
 name: planning
-description: "Plan MovScript production work in business terms: project context, production type or custom timeline vocabulary, script-derived beats, continuity references, scene beats, visual/audio materials, storyboard/keyframe evidence, and output tasks. Use only the needed internal source entities and domain tools for simple videos, reusable assets, custom structures, or larger productions."
+description: "Plan MovScript production work in business terms: project context, project screenplay/script source, production type or custom timeline vocabulary, script-derived beats, continuity references, scene beats, visual/audio materials, storyboard/keyframe evidence, and output tasks. Use only the needed internal source entities and domain tools for simple videos, reusable assets, custom structures, or larger productions."
 toolGrants:
   - mcp__movscript__movscript_runtime_status
   - mcp__movscript__system_production_workflow
@@ -10,6 +10,7 @@ toolGrants:
   - mcp__movscript__domain_query_settings
   - mcp__movscript__domain_query_assets
   - mcp__movscript__domain_query_production_context
+  - mcp__movscript__domain_upsert_script
   - mcp__movscript__domain_read_script_source
   - mcp__movscript__domain_snapshot_script_version
   - mcp__movscript__domain_read_project_context_snapshot
@@ -37,7 +38,7 @@ toolGrants:
 
 # Planning
 
-Use this skill when a user asks to plan or change MovScript creative work: project standards, reusable characters/props/places/voices, story structure, scene beats, visual/audio/text materials, storyboard/keyframe references, or outputs to generate. Think like a production assistant first, then map the plan to MovScript internal entity names only when calling tools or editing source. If runtime ownership or service availability is unclear, use the `runtime` skill first.
+Use this skill when a user asks to plan or change MovScript creative work: project standards, durable script/story source, reusable characters/props/places/voices, story structure, scene beats, visual/audio/text materials, storyboard/keyframe references, or outputs to generate. Think like a production assistant first, then map the plan to MovScript internal entity names only when calling tools or editing source. If runtime ownership or service availability is unclear, use the `runtime` skill first.
 
 ## Production Contract
 
@@ -54,6 +55,8 @@ Use this skill when a user asks to plan or change MovScript creative work: proje
 - Before creating a new production, clarify or infer the creative structure that matters: deliverable, source material, audience/platform, duration, review granularity, continuity/reuse needs, and whether the work fits a known production type or needs custom timeline vocabulary.
 - Use user-facing words in analysis and replies: project context, continuity reference, scene beat, visual material, storyboard, keyframe, output task, generated option, adopted choice, and impact review.
 - Use current `movscript-lang` entity names only in tool calls, source edits, and concise diagnostics. Chinese/product terms are not separate source entities.
+- Treat `scripts/**` as the durable screenplay and project story memory. When the user provides important story intent, dialogue, scene order, character motivation, recurring world facts, or project-level narrative decisions, write or update the script before deriving scene moments, expression units, content units, or generation prompts.
+- When a project task has unclear story, continuity, character, beat, or dialogue context, read the existing script before asking the user or guessing. Ask only when the script is missing, contradictory, or the ambiguity changes the user's intent.
 - Prefer the smallest useful plan. Add continuity references, storyboards, keyframes, or expression materials only when they protect consistency, clarify the shot, or unblock generation.
 
 ## Rules
@@ -68,6 +71,9 @@ Use this skill when a user asks to plan or change MovScript creative work: proje
 - Planning depends on Project Service and Data Service runtime capabilities. If project/domain tools fail because a service endpoint is missing, call `movscript_runtime_status`, classify local daemon, cloud/external data plane, or basic/diagnostic mode, and report the missing capability instead of changing source files directly.
 - Before project-scoped planning, call `domain_read_project_context_snapshot`. Use its aspect ratio, style, prompt rules, negative rules, and style references as upstream context for planning decisions.
 - If the snapshot reports missing project standards, mention the gap only when it matters to the user's goal. Do not add default standards unless the user explicitly asks to add, remove, or adjust project standards.
+- Use `domain_upsert_script` for screenplay/source text writes. Do not hand-edit script metadata and markdown unless no structured tool covers the change and `domain_get_model` has returned the source scope.
+- Keep scripts for durable story material: screenplay text, scene order, dialogue, narration, recurring world/character intent, and project-level creative decisions. Do not store transient task notes, generation job state, provider URLs, resource binaries, or unconfirmed guesses in script source.
+- After meaningful script changes, run `domain_inspect`; run `domain_snapshot_script_version` when downstream scene moments, expression units, or content units need stable script-block references.
 - Open `references/video-production-paths.md` when mapping a requested video into concept-short, long-video, image-driven, or storyboard-driven MovScript structure. Open `references/planning-workflows.md` when deciding planning depth, project-vs-simple-video scope, prerequisite ordering, continuity structure, or reference-shot imitation prerequisites. Open `../generation/references/continuity-asset-prompts.md` when planning reusable asset prompts or deciding how an `asset_ref` should stay reusable.
 - Open `../domain/references/entity-glossary.md` or `references/entity-mapping.md` when mapping user terms to source entities.
 - Start planning by deciding the output/scope granularity: one short direct scene-beat output (`scene_moment`), one composed scene beat from materials, multiple scene beats, or a timeline namespace scope that will later be assembled in a production editing workspace.
@@ -101,10 +107,10 @@ Use this skill when a user asks to plan or change MovScript creative work: proje
 ## Workflow
 
 1. Resolve the intended source workspace from explicit user input, a passed `projectDir`/`project_dir`/`cwd`, or a Project Service locator. Do not infer it from UI focus.
-2. Call `domain_read_project_context_snapshot`, then `domain_overview`, then query existing continuity references, scripts, output tasks, and production context.
+2. Call `domain_read_project_context_snapshot`, then `domain_overview`, then query existing continuity references, scripts, output tasks, and production context. If the task depends on story context that is unclear, read the script source before planning downstream structure.
 3. Open `references/video-production-paths.md`, then decide scope and granularity: simple one-off video or reusable project; known production type or custom timeline vocabulary; concept-driven, long-video, image-driven, or storyboard-driven path; one short direct `scene_moment`, one composed `scene_moment`, multiple scene moments, or a timeline namespace scope that will be assembled in a production editing workspace.
 4. Open `references/entity-mapping.md` when mapping product language or legacy terms to current entities.
-5. If using script text as source material, read the script and snapshot script versions/blocks before downstream planning when stable script refs are needed.
+5. If the user provides important project-level story, screenplay, dialogue, or narrative decisions, read the existing script and update it with `domain_upsert_script` before downstream planning. If using script text as source material, read the script and snapshot script versions/blocks before downstream planning when stable script refs are needed.
 6. Choose the working center: `scene_moment` for direct output, or `scene_moment` plus expression units for composed output. When the center comes from script text, analyze it into shootable scene details before creating downstream content-unit prompts.
 7. Decide which evidence is needed for consistency: setting/state/asset for reuse, keyframe/storyboard for visual anchors, expression/audio for performance and sound. If an evidence item is not needed for the current goal, leave it uncreated.
 8. Choose the path: direct short scene-moment generation, or multiple short scene moments plus editing composition when the request exceeds about 10 seconds or has several beats. Add schematic `gpt-image-2` storyboard panels before video generation unless the user explicitly wants a fast unstable draft.

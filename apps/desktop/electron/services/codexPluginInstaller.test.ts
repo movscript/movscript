@@ -6,6 +6,7 @@ import test from 'node:test'
 import {
   codexCommandEnv,
   installMovScriptCodexPlugin,
+  prepareMovScriptAgentProviderTargets,
   prepareMovScriptCodexMarketplace,
   resolveCodexExecutable,
 } from './codexPluginInstaller'
@@ -68,6 +69,63 @@ test('installMovScriptCodexPlugin runs marketplace and plugin install commands',
   }
 })
 
+test('prepareMovScriptAgentProviderTargets writes provider registrations for mainstream agents', () => {
+  const root = mkdtempSync(join(tmpdir(), 'movscript-agent-provider-targets-'))
+  try {
+    const source = writePluginSource(root)
+    const homeDir = join(root, 'home')
+
+    const result = prepareMovScriptAgentProviderTargets({ sourcePluginRoot: source, homeDir, targets: 'all' })
+
+    assert.equal(result.paths.homeDir, homeDir)
+    assert.equal(result.paths.homeCurrentPluginRoot, join(homeDir, 'plugins', 'movscript', '0.1.0+abcdef123456'))
+    assert.deepEqual(result.targets.map((registration) => registration.target), [
+      'codex',
+      'harness',
+      'openclaw',
+      'claude-code',
+    ])
+    assert.equal(result.installCommands.some((command) => command.includes('codex plugin add movscript@movscript')), true)
+    assert.equal(result.installCommands.some((command) => command.includes('claude mcp add')), true)
+    assert.equal(result.installCommands.some((command) => command.includes('openclaw mcp add')), true)
+
+    for (const target of ['codex', 'harness', 'openclaw', 'claude-code']) {
+      const providerRoot = join(homeDir, 'provider', target)
+      assert.equal(existsSync(join(providerRoot, 'registration.json')), true)
+      assert.equal(realpathSync(join(providerRoot, 'plugins', 'movscript')), realpathSync(result.paths.homeCurrentPluginRoot))
+    }
+
+    assert.equal(existsSync(join(homeDir, 'provider', 'codex', 'marketplace.json')), true)
+    assert.equal(existsSync(join(homeDir, 'provider', 'claude-code', '.mcp.json')), true)
+    assert.equal(existsSync(join(homeDir, 'provider', 'openclaw', 'mcp.json')), true)
+    assert.equal(existsSync(join(homeDir, 'provider', 'harness', 'worker-agent.json')), true)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('prepareMovScriptAgentProviderTargets normalizes agent target aliases', () => {
+  const root = mkdtempSync(join(tmpdir(), 'movscript-agent-provider-targets-'))
+  try {
+    const source = writePluginSource(root)
+    const homeDir = join(root, 'home')
+
+    const result = prepareMovScriptAgentProviderTargets({
+      sourcePluginRoot: source,
+      homeDir,
+      targets: ['xiaolongxia', 'claude', 'harness-agent'],
+    })
+
+    assert.deepEqual(result.targets.map((registration) => registration.target), [
+      'openclaw',
+      'claude-code',
+      'harness',
+    ])
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('resolveCodexExecutable falls back to common macOS CLI locations when GUI PATH is sparse', () => {
   const found = resolveCodexExecutable({
     env: { PATH: '/usr/bin:/bin' },
@@ -105,6 +163,7 @@ test('codexCommandEnv prepends Homebrew paths so env node works from GUI launche
 
 function writePluginSource(root: string): string {
   const source = join(root, 'source-plugin')
+  mkdirSync(join(source, '.agent-package'), { recursive: true })
   mkdirSync(join(source, '.provider-plugin'), { recursive: true })
   mkdirSync(join(source, '.codex-plugin'), { recursive: true })
   mkdirSync(join(source, 'skills', 'generation'), { recursive: true })
@@ -116,6 +175,20 @@ function writePluginSource(root: string): string {
   }
   writeFileSync(join(source, '.provider-plugin', 'plugin.json'), JSON.stringify(manifest), 'utf8')
   writeFileSync(join(source, '.codex-plugin', 'plugin.json'), JSON.stringify(manifest), 'utf8')
+  writeFileSync(join(source, '.agent-package', 'package.json'), JSON.stringify({
+    schema: 'movscript.agent-package.v1',
+    id: 'movscript',
+    name: 'MovScript',
+    version: '0.1.0',
+    kind: 'runtime-agent',
+    displayName: 'MovScript',
+    targets: {
+      codex: true,
+      harness: true,
+      openclaw: true,
+      'claude-code': true,
+    },
+  }), 'utf8')
   writeFileSync(join(source, '.mcp.json'), JSON.stringify({ mcpServers: {} }), 'utf8')
   writeFileSync(join(source, 'skills', 'generation', 'SKILL.md'), '---\nname: generation\n---\n', 'utf8')
   writeFileSync(join(source, 'bin', 'movscript'), '#!/bin/sh\n', 'utf8')

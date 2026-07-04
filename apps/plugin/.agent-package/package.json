@@ -1,0 +1,39 @@
+{
+  "schema": "movscript.agent-package.v1",
+  "id": "movscript",
+  "name": "MovScript",
+  "version": "0.1.2",
+  "description": "MovScript runtime agent package for agent providers that support skills, MCP servers, or provider-native plugin registries.",
+  "kind": "runtime-agent",
+  "displayName": "MovScript",
+  "contributes": {
+    "skills": "./skills",
+    "mcpServers": "./.mcp.json",
+    "runtimeBundle": "./manifest.runtime.json"
+  },
+  "targets": {
+    "codex": {
+      "manifest": "./.codex-plugin/plugin.json",
+      "registration": "marketplace",
+      "capabilities": ["skills", "mcpServers"]
+    },
+    "claude-code": {
+      "manifest": "./.provider-plugin/plugin.json",
+      "registration": "mcp-json",
+      "capabilities": ["skills", "mcpServers"],
+      "notes": ["Use claude mcp add or the generated .mcp.json projection."]
+    },
+    "openclaw": {
+      "manifest": "./.provider-plugin/plugin.json",
+      "registration": "mcp-registry",
+      "capabilities": ["mcpServers"],
+      "notes": ["Use openclaw mcp add or the generated MCP registry projection."]
+    },
+    "harness": {
+      "manifest": "./.provider-plugin/plugin.json",
+      "registration": "worker-agent",
+      "capabilities": ["mcpServers", "instructions"],
+      "notes": ["Import the generated Worker Agent export into Harness."]
+    }
+  }
+}

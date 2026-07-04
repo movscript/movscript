@@ -7,14 +7,17 @@ import test from 'node:test'
 import {
   extractProviderPluginCatalogFiles,
   normalizeProviderPluginMarketplace,
+  normalizeAgentProviderTargets,
   providerPluginArchiveContributions,
   providerPluginInstallInput,
   providerPluginMarketplaceKey,
+  readAgentPackageManifestFromArchive,
   readProviderPluginManifestFromArchive,
 } from '../dist/index.js'
 import {
   installMovScriptHomePluginBundle,
   readMovScriptHomePluginBundleIdentity,
+  registerMovScriptAgentProviderTargets,
   resolveMovScriptHomeCurrentPluginRoot,
   resolveMovScriptHomePreviousPluginRoot,
   rollbackMovScriptHomePluginBundle,
@@ -53,6 +56,63 @@ test('plugins package reads provider plugin archive manifests and catalog files'
   assert.deepEqual(await extractProviderPluginCatalogFiles(archive, manifest), [
     { path: 'plugin-skills/story/SKILL.md', content: 'Use story.' },
   ])
+})
+
+test('plugins package reads neutral agent package manifests and target aliases', async () => {
+  const archive = fakeArchive({
+    '.agent-package/package.json': JSON.stringify({
+      schema: 'movscript.agent-package.v1',
+      id: 'movscript',
+      name: 'MovScript',
+      version: '1.2.3',
+      kind: 'runtime-agent',
+      contributes: {
+        skills: './skills',
+        mcpServers: './.mcp.json',
+        runtimeBundle: './manifest.runtime.json',
+      },
+      targets: {
+        codex: {
+          manifest: './.codex-plugin/plugin.json',
+          registration: 'marketplace',
+        },
+        claude: {
+          registration: 'mcp-json',
+        },
+        'open-claw': {
+          registration: 'mcp-registry',
+        },
+        'harness-agent': {
+          registration: 'worker-agent',
+        },
+      },
+    }),
+  })
+
+  const manifest = await readAgentPackageManifestFromArchive(archive)
+
+  assert.equal(manifest?.schema, 'movscript.agent-package.v1')
+  assert.equal(manifest?.id, 'movscript')
+  assert.deepEqual(manifest?.targets.map((target) => target.id).sort(), ['claude-code', 'codex', 'harness', 'openclaw'])
+  assert.deepEqual(normalizeAgentProviderTargets('codex,claude,xiaolongxia,harness-agent'), ['codex', 'claude-code', 'openclaw', 'harness'])
+})
+
+test('plugins package synthesizes an agent package from provider plugin archives', async () => {
+  const archive = fakeArchive({
+    '.provider-plugin/plugin.json': JSON.stringify({
+      name: 'story-pack',
+      version: '1.0.0',
+      skills: './skills',
+      mcpServers: './mcp.json',
+    }),
+  })
+
+  const manifest = await readAgentPackageManifestFromArchive(archive)
+
+  assert.equal(manifest?.id, 'story-pack')
+  assert.equal(manifest?.kind, 'runtime-agent')
+  assert.deepEqual(manifest?.targets.map((target) => target.id).sort(), ['claude-code', 'codex', 'harness', 'openclaw'])
+  assert.equal(manifest?.providerPlugin?.name, 'story-pack')
 })
 
 test('plugins package normalizes provider marketplace inventories', () => {
@@ -129,6 +189,57 @@ test('plugins package normalizes local plugin lists as installed provider plugin
   assert.equal(items[0]?.marketplaceName, 'provider-local')
   assert.equal(items[0]?.developerName, 'Local Team')
   assert.equal(providerPluginMarketplaceKey('mova', undefined, 'provider-local', 'story-pack'), 'mova:provider-local:story-pack')
+})
+
+test('agent provider registration writes codex, Claude Code, OpenClaw, and Harness adapters', () => {
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-provider-registration-'))
+  const source = fakeMovScriptPluginBundle('0.1.40', 'hash-provider')
+  try {
+    const installed = installMovScriptHomePluginBundle({
+      homeDir,
+      sourcePluginRoot: source,
+      reason: 'agent-package-test',
+      provider: 'all',
+      now: new Date('2026-07-04T00:00:00.000Z'),
+    })
+    const registrations = registerMovScriptAgentProviderTargets({
+      homeDir,
+      targets: 'codex,claude-code,openclaw,harness',
+      currentLink: installed.paths.currentLink,
+      packageManifest: {
+        schema: 'movscript.agent-package.v1',
+        id: 'movscript',
+        name: 'MovScript',
+        version: installed.version,
+        kind: 'runtime-agent',
+        targets: [],
+      },
+      now: new Date('2026-07-04T00:01:00.000Z'),
+    })
+
+    assert.deepEqual(registrations.map((registration) => registration.target), ['codex', 'claude-code', 'openclaw', 'harness'])
+    for (const target of ['codex', 'claude-code', 'openclaw', 'harness']) {
+      assert.equal(realpathSync(join(homeDir, 'provider', target, 'plugins', 'movscript')), realpathSync(installed.paths.currentLink))
+      const registration = JSON.parse(readFileSync(join(homeDir, 'provider', target, 'registration.json'), 'utf8'))
+      assert.equal(registration.schema, 'movscript.agent-provider-registration.v1')
+      assert.equal(registration.target, target)
+      assert.equal(registration.plugin.id, 'movscript')
+      assert.equal(registration.mcpServers.movscript.transport, 'stdio')
+    }
+
+    const codexMarketplace = JSON.parse(readFileSync(join(homeDir, 'provider', 'codex', 'marketplace.json'), 'utf8'))
+    assert.equal(codexMarketplace.plugins[0].source.path, './plugins/movscript')
+    const claudeMcp = JSON.parse(readFileSync(join(homeDir, 'provider', 'claude-code', '.mcp.json'), 'utf8'))
+    assert.deepEqual(claudeMcp.mcpServers.movscript.args, ['mcp', 'stdio'])
+    const openclawMcp = JSON.parse(readFileSync(join(homeDir, 'provider', 'openclaw', 'mcp.json'), 'utf8'))
+    assert.equal(openclawMcp.mcpServers.movscript.transport, 'stdio')
+    const harnessWorker = JSON.parse(readFileSync(join(homeDir, 'provider', 'harness', 'worker-agent.json'), 'utf8'))
+    assert.equal(harnessWorker.schema, 'movscript.harness-worker-agent-export.v1')
+    assert.equal(harnessWorker.mcpServers[0].name, 'movscript')
+  } finally {
+    rmSync(homeDir, { recursive: true, force: true })
+    rmSync(source, { recursive: true, force: true })
+  }
 })
 
 test('plugin marketplace rules stay independent from frontend runtime', () => {

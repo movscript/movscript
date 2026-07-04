@@ -6,6 +6,7 @@
   "license": "MIT",
   "type": "module",
   "files": [
+    ".agent-package",
     ".codex-plugin",
     ".provider-plugin",
     ".mcp.json",

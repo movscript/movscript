@@ -34,6 +34,7 @@ toolGrants:
   - mcp__movscript__domain_query_remote_assets
   - mcp__movscript__domain_query_production_context
   - mcp__movscript__domain_read_project_context_snapshot
+  - mcp__movscript__domain_read_script_source
   - mcp__movscript__domain_read_scene_moment_edit_plan
   - mcp__movscript__domain_derive_content_unit_artifact
   - mcp__movscript__domain_build_content_unit_backend_prompt
@@ -75,6 +76,7 @@ Use this skill when a user asks to generate or prepare creative outputs through 
 - If the user chooses LibTV or another external generation system but the result must return to MovScript, open `references/external-generation-bridge.md`. External outputs must be materialized into MovScript RawResources before they are referenced downstream.
 - If the user explicitly says to use MovScript, or the request is already inside a MovScript project/output-task workflow, treat the tool choice as satisfied and continue with MovScript readiness, prompt, dependency, spend, and adoption gates.
 - Treat prompt writing as the core generation task. Do not pass user prose, script excerpts, scene summaries, or project-internal shorthand straight to the model. First turn them into precise model-facing production direction.
+- When project generation depends on unclear story, continuity, character, beat, dialogue, or narration context, read the script source before writing or compiling prompts. Use the script to recover project intent, then translate it into model-visible production direction.
 - Before updating a generation prompt, calling `generation_prepare`, or asking the user to confirm paid video generation, run a model-understandability audit: would a model that sees only this prompt plus resolved resources know exactly what to draw, move, frame, light, and hear? If not, rewrite the prompt before continuing.
 - Keep model-facing prompts grounded in concrete visual/audio facts: subject identity, visible state, physical setting, action beats, camera/framing, timing, lighting, sound, style, continuity refs, and shot-specific negatives. Remove or translate abstract narrative such as backstory, relationship logic, hidden intention, "he realizes", "she feels betrayed", or "the family pressure peaks" unless it is expressed as observable gesture, dialogue, blocking, camera, or sound.
 - Treat a successful generation as a new option, not as the chosen result. It becomes stable only after the user or workflow chooses `采纳`/`adopt` or explicitly selects it.
@@ -144,7 +146,7 @@ Use this skill when a user asks to generate or prepare creative outputs through 
 
 ## Workflow
 
-1. Read workspace context first when the request references project entities, scenes, script passages, keyframes, asset slots, or house style.
+1. Read workspace context first when the request references project entities, scenes, script passages, keyframes, asset slots, or house style. If the request is unclear about story or continuity, read the script source before authoring the generation prompt.
 2. Resolve the intended source workspace from explicit user input, a passed `projectDir`/`project_dir`/`cwd`, or a Project Service locator. Do not infer it from UI focus. Call `domain_read_project_context_snapshot`, then use `domain_overview`, `domain_query_production_context`, `domain_query_assets`, and content-unit artifact tools before reading many files.
 3. Identify the output center: a direct `scene_moment`, an `expression_unit` material, or an upstream evidence item such as an asset, keyframe, or storyboard.
 4. Decide whether the current goal needs strong consistency evidence or a fast draft path. Do not block a simple draft only because optional setting, asset, keyframe, or storyboard references are absent.

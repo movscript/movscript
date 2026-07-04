@@ -2,11 +2,29 @@ import { BrowserWindow, clipboard, dialog, ipcMain } from 'electron'
 import type { ElectronAPI } from '../../src/shared/contracts/electronApi'
 import {
   codexPluginInstallCommand,
+  installMovScriptAgentProviderTargets,
   installMovScriptCodexPlugin,
   openCodexApp,
 } from '../services/codexPluginInstaller'
 
 export function registerCodexPluginIpcHandlers(): void {
+  ipcMain.handle('agent-provider-targets:install-movscript', async (
+    _event,
+    input?: { targets?: string | string[] },
+  ): Promise<Awaited<ReturnType<NonNullable<ElectronAPI['installMovScriptAgentProviderTargets']>>>> => {
+    const result = installMovScriptAgentProviderTargets({ targets: input?.targets ?? 'all' })
+    return {
+      ok: true,
+      homeDir: result.paths.homeDir,
+      sourcePluginRoot: result.paths.sourcePluginRoot,
+      homeCurrentPluginRoot: result.paths.homeCurrentPluginRoot,
+      homeCurrentPluginVersion: result.paths.homeCurrentPluginVersion,
+      ...(result.paths.homeCurrentBundleHash ? { homeCurrentBundleHash: result.paths.homeCurrentBundleHash } : {}),
+      targets: result.targets,
+      installCommands: result.installCommands,
+    }
+  })
+
   ipcMain.handle('codex-plugin:install-movscript', async (event): Promise<Awaited<ReturnType<NonNullable<ElectronAPI['installMovScriptCodexPlugin']>>>> => {
     const win = BrowserWindow.fromWebContents(event.sender)
     let installed = false

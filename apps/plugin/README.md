@@ -2,8 +2,9 @@
 
 Provider-native workspace plugin bundle for MovScript.
 
-MovScript keeps a provider-neutral manifest and a Codex-compatible plugin manifest for providers that read that shape directly:
+MovScript keeps a provider-neutral Agent Package manifest, a provider plugin manifest, and a Codex-compatible plugin manifest for providers that read that shape directly:
 
+- `.agent-package/package.json`
 - `.provider-plugin/plugin.json`
 - Codex-compatible manifest at `.codex-plugin/plugin.json`
 - `skills/domain/SKILL.md`
@@ -18,6 +19,8 @@ MovScript keeps a provider-neutral manifest and a Codex-compatible plugin manife
 - `.mcp.json`
 
 The `.mcp.json` file starts the Agent MCP host through `bin/movscript mcp stdio`, which locates Node.js and then runs the bundled `bin/movscript.mjs` product CLI. The MCP server key is `movscript`, so provider tool grants use names such as `mcp__movscript__domain_interpret`. The host detects local/cloud backend availability and proxies business tools to the daemon MCP endpoint when available; it does not require MovScript Desktop to be running. MovScript keeps business source files in the project Git workspace; `.interpret/` is interpreter debug output, not product state.
+
+`.agent-package/package.json` is the canonical install unit. Provider-specific directories are target projections: Codex uses marketplace registration, Claude Code uses an MCP JSON projection, OpenClaw uses an MCP registry projection, and Harness uses a Worker Agent export. All projections point back to the same MovScript Home current bundle.
 
 The same plugin bundle also carries the MovScript command line entrypoint:
 

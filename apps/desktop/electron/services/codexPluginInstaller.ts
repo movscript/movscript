@@ -3,7 +3,15 @@ import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync
 import { homedir } from 'node:os'
 import { delimiter, dirname, isAbsolute, join } from 'node:path'
 import { promisify } from 'node:util'
-import { installMovScriptHomePluginBundle } from '@movscript/plugins/node'
+import {
+  installMovScriptHomePluginBundle,
+  normalizeAgentPackageManifest,
+  normalizeAgentProviderTargets,
+  registerMovScriptAgentProviderTargets,
+  type AgentPackageManifest,
+  type AgentProviderRegistrationResult,
+  type AgentProviderTargetId,
+} from '@movscript/plugins/node'
 import { resolveMovScriptBundledPluginSource, validateMovScriptBundledPluginSource } from './movscriptBundledPluginSource'
 import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
 
@@ -28,11 +36,40 @@ export interface CodexPluginInstallResult {
   installCommand: string
 }
 
+export interface AgentProviderTargetInstallPaths {
+  homeDir: string
+  sourcePluginRoot: string
+  homeCurrentPluginRoot: string
+  homeCurrentPluginVersion: string
+  homeCurrentBundleHash?: string
+}
+
+export interface AgentProviderTargetInstallSummary {
+  target: AgentProviderTargetId
+  providerRoot: string
+  pluginLink: string
+  registrationPath: string
+  nativeCommands: string[]
+}
+
+export interface AgentProviderTargetInstallResult {
+  paths: AgentProviderTargetInstallPaths
+  targets: AgentProviderTargetInstallSummary[]
+  installCommands: string[]
+}
+
 export interface InstallMovScriptCodexPluginOptions {
   sourcePluginRoot?: string
   homeDir?: string
   marketplaceRoot?: string
   execCodex?: (args: string[]) => Promise<void>
+}
+
+export interface InstallMovScriptAgentProviderTargetsOptions {
+  sourcePluginRoot?: string
+  homeDir?: string
+  targets?: string | string[]
+  now?: Date
 }
 
 export interface ResolveCodexExecutableOptions {
@@ -76,15 +113,19 @@ export async function openCodexApp(): Promise<void> {
 export function prepareMovScriptCodexMarketplace(
   options: Pick<InstallMovScriptCodexPluginOptions, 'sourcePluginRoot' | 'homeDir' | 'marketplaceRoot'> = {},
 ): CodexPluginInstallPaths {
-  const sourcePluginRoot = options.sourcePluginRoot ?? resolveMovScriptBundledPluginSource()
-  validateMovScriptBundledPluginSource(sourcePluginRoot)
-  const homeDir = options.homeDir ?? resolveDesktopDefaultMovScriptWorkspaceDir()
-  const installed = installMovScriptHomePluginBundle({
-    homeDir,
-    sourcePluginRoot,
-    mode: 'seed-or-upgrade',
+  const seeded = seedMovScriptHomePluginForAgentProviders({
+    sourcePluginRoot: options.sourcePluginRoot,
+    homeDir: options.homeDir,
+    targets: 'codex',
     reason: 'desktop-codex-install',
-    provider: 'codex',
+  })
+  const { homeDir, installed, sourcePluginRoot } = seeded
+
+  registerMovScriptAgentProviderTargets({
+    homeDir,
+    targets: seeded.targets,
+    currentLink: installed.paths.currentLink,
+    ...(seeded.packageManifest ? { packageManifest: seeded.packageManifest } : {}),
   })
 
   const marketplaceRoot = options.marketplaceRoot ?? defaultCodexMarketplaceRoot(homeDir)
@@ -115,6 +156,43 @@ export function prepareMovScriptCodexMarketplace(
   }
 }
 
+export function installMovScriptAgentProviderTargets(
+  options: InstallMovScriptAgentProviderTargetsOptions = {},
+): AgentProviderTargetInstallResult {
+  return prepareMovScriptAgentProviderTargets(options)
+}
+
+export function prepareMovScriptAgentProviderTargets(
+  options: InstallMovScriptAgentProviderTargetsOptions = {},
+): AgentProviderTargetInstallResult {
+  const seeded = seedMovScriptHomePluginForAgentProviders({
+    sourcePluginRoot: options.sourcePluginRoot,
+    homeDir: options.homeDir,
+    targets: options.targets ?? 'all',
+    reason: 'desktop-agent-provider-target-install',
+    now: options.now,
+  })
+  const registrations = registerMovScriptAgentProviderTargets({
+    homeDir: seeded.homeDir,
+    targets: seeded.targets,
+    currentLink: seeded.installed.paths.currentLink,
+    ...(seeded.packageManifest ? { packageManifest: seeded.packageManifest } : {}),
+    ...(options.now ? { now: options.now } : {}),
+  }).map(agentProviderTargetInstallSummary)
+
+  return {
+    paths: {
+      homeDir: seeded.homeDir,
+      sourcePluginRoot: seeded.sourcePluginRoot,
+      homeCurrentPluginRoot: seeded.installed.targetPluginRoot,
+      homeCurrentPluginVersion: seeded.installed.version,
+      ...(seeded.installed.bundleHash ? { homeCurrentBundleHash: seeded.installed.bundleHash } : {}),
+    },
+    targets: registrations,
+    installCommands: registrations.flatMap((registration) => registration.nativeCommands),
+  }
+}
+
 export function codexPluginInstallCommand(marketplaceRoot = defaultCodexMarketplaceRoot()): string {
   return [
     `codex plugin marketplace add ${shellQuote(marketplaceRoot)}`,
@@ -142,6 +220,60 @@ function codexMarketplaceManifest(): Record<string, unknown> {
         category: 'Productivity',
       },
     ],
+  }
+}
+
+function seedMovScriptHomePluginForAgentProviders(options: {
+  sourcePluginRoot?: string | undefined
+  homeDir?: string | undefined
+  targets: string | string[]
+  reason: string
+  now?: Date | undefined
+}): {
+  sourcePluginRoot: string
+  homeDir: string
+  targets: AgentProviderTargetId[]
+  packageManifest?: AgentPackageManifest
+  installed: ReturnType<typeof installMovScriptHomePluginBundle>
+} {
+  const sourcePluginRoot = options.sourcePluginRoot ?? resolveMovScriptBundledPluginSource()
+  validateMovScriptBundledPluginSource(sourcePluginRoot)
+  const homeDir = options.homeDir ?? resolveDesktopDefaultMovScriptWorkspaceDir()
+  const targets = normalizeAgentProviderTargets(options.targets)
+  const installed = installMovScriptHomePluginBundle({
+    homeDir,
+    sourcePluginRoot,
+    mode: 'seed-or-upgrade',
+    reason: options.reason,
+    provider: targets.join(','),
+    ...(options.now ? { now: options.now } : {}),
+  })
+
+  const packageManifest = readAgentPackageManifestFromPluginSource(sourcePluginRoot)
+  return {
+    sourcePluginRoot,
+    homeDir,
+    targets,
+    ...(packageManifest ? { packageManifest } : {}),
+    installed,
+  }
+}
+
+function readAgentPackageManifestFromPluginSource(sourcePluginRoot: string): AgentPackageManifest | undefined {
+  const manifestPath = join(sourcePluginRoot, '.agent-package', 'package.json')
+  if (!existsSync(manifestPath)) return undefined
+  return normalizeAgentPackageManifest(JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown>)
+}
+
+function agentProviderTargetInstallSummary(
+  registration: AgentProviderRegistrationResult,
+): AgentProviderTargetInstallSummary {
+  return {
+    target: registration.target,
+    providerRoot: registration.providerRoot,
+    pluginLink: registration.pluginLink,
+    registrationPath: registration.registrationPath,
+    nativeCommands: registration.nativeCommands,
   }
 }
 

@@ -176,6 +176,13 @@
     "emptyProjects": "No recent projects",
     "new": "New",
     "newProject": "New Project",
+    "agentProvider": {
+      "title": "Install to mainstream agents",
+      "description": "Generate unified Codex, Harness, Claude Code, and OpenClaw provider configs.",
+      "installing": "Writing MovScript Agent Provider config...",
+      "installUnavailable": "This environment cannot install Agent Providers automatically.",
+      "installedTitle": "Agent Provider connected to Home current"
+    },
     "mode": {
       "projectData": "Review production memory and candidate decisions across project data spaces.",
       "canvas": "Manage global workflow canvases, resource organization, and cross-project visual boards.",

@@ -10,6 +10,7 @@ const distributionDir = resolve(repoRoot, 'plugins/movscript')
 const rootPackage = readJSON(resolve(repoRoot, 'package.json'))
 const pluginPackage = readJSON(resolve(sourceDir, 'package.json'))
 const mirroredPaths = [
+  '.agent-package',
   '.codex-plugin',
   '.provider-plugin',
   '.mcp.json',
@@ -203,6 +204,7 @@ function pluginBundleHash(pluginDir) {
 
 function pluginBundleFiles(pluginDir) {
   const roots = [
+    '.agent-package',
     '.codex-plugin',
     '.provider-plugin',
     '.mcp.json',

@@ -11,7 +11,9 @@ When unclear, ask whether the user is:
 
 For a simple video, use the smallest useful structure: a focused short `scene_moment`, optional visual `expression_unit`, `storyboard`, and/or `content_unit`.
 
-For a project, add reusable structure only where it helps: project standards, timeline namespace nodes, settings, setting-state namespaces, assets, script blocks, scene moments, visual expression units, keyframes, storyboards, expression units, audio cues, and content units. Current production/segment tools and source paths are legacy projections for timeline namespace nodes, not proof that every project must be shaped as production -> segment.
+For a project, add reusable structure only where it helps: project standards, script source, timeline namespace nodes, settings, setting-state namespaces, assets, script blocks, scene moments, visual expression units, keyframes, storyboards, expression units, audio cues, and content units. Current production/segment tools and source paths are legacy projections for timeline namespace nodes, not proof that every project must be shaped as production -> segment.
+
+Use `scripts/**` as the durable screenplay and project story memory. If the user gives important story intent, dialogue, scene order, character motivation, narration, or recurring world facts, write or update the script before turning that material into scene moments, expression units, content units, or generation prompts. If a downstream task is unclear, read the script before guessing.
 
 For video requests that resemble Seedance-style paths, open `video-production-paths.md` first and classify the request as concept-driven short clip, long-video pipeline, image-driven video, or storyboard-driven workflow. Use that path classification to decide how much structure is needed.
 
@@ -46,6 +48,7 @@ Use this order when the requested scope needs it:
 
 ```text
 project_standards
+-> script
 -> setting / setting_state / asset
 -> timeline namespace node (legacy production/segment projection when needed) / scene_moment
 -> expression_unit
@@ -61,7 +64,7 @@ This is an ordering guide, not a requirement to create every layer.
 
 For story-to-shot planning:
 
-1. Capture or read the source story/script.
+1. Capture or read the source story/script. For durable project-level story material, update the script with `domain_upsert_script` before writing downstream planning entities.
 2. Analyze each useful beat before writing content units: dramatic purpose, characters/entities, setting, visible action, blocking, camera intent, lighting, audio/performance, continuity notes, and any required semantic refs.
 3. Create the necessary timeline namespace nodes and scene moments. Prefer `domain_upsert_timeline_namespace_tree` for new path-first structures. Use `production` / `segment` write tools only as the current legacy projection of those namespace nodes.
 4. Create only the visual expression units needed for the current task.

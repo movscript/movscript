@@ -7,6 +7,7 @@ toolGrants:
   - mcp__movscript__system_resource_video_probe
   - mcp__movscript__domain_overview
   - mcp__movscript__domain_query_production_context
+  - mcp__movscript__domain_read_script_source
   - mcp__movscript__domain_read_scene_moment_edit_plan
   - mcp__movscript__domain_read_scene_moment_timeline
   - mcp__movscript__domain_read_production_timeline
@@ -107,6 +108,7 @@ Do not use domain planning/production records as the editing workspace. Domain r
 1. Resolve the intended project and optional timeline namespace, production editing workspace, or scene-moment target from explicit user input, a passed locator, or Project Service context. Do not infer it from UI focus.
 2. Use domain tools only to gather source context and selected materials:
    - use `domain_query_production_context` to inspect the legacy production projection, scene structure, and candidate selections,
+   - use `domain_read_script_source` when cut rhythm, dialogue placement, continuity, or story intent is unclear from selected materials,
    - use `domain_read_scene_moment_edit_plan` or `domain_read_scene_moment_timeline` when a scene-moment handoff is useful,
    - use `domain_read_production_timeline` only as a production-level material handoff, not as a promise that the production has one canonical edit.
 3. If required expression-unit materials are missing or unselected, stop and ask for generation/selection first unless the user explicitly wants an unstable draft.
@@ -159,6 +161,7 @@ Do not use domain planning/production records as the editing workspace. Domain r
 
 - Use `editing_*` for all product editing. `domain_compose_scene_moment_from_edit_plan` and `domain_compose_production_from_timeline` are not available editing paths; do not plan around them. Do not use resource-level video utilities as the editing path.
 - Do not use production or scene-moment domain handoff tools as mutable editing state. They are context readers. The mutable editing state is the `MediaEditingProject` returned by or passed through `editing_project_*` and `editing_timeline_*`.
+- If an editing decision depends on unclear story, continuity, dialogue, or narration context, read script source before choosing cuts, clip order, or timing.
 - Do not assume `domain_read_production_edit_plan` or any production-level handoff is the correct default. A production can require many separate cuts and versions; create a dedicated editing project for the current task, then bring the exported artifact back explicitly.
 - Do not overwrite or rewrite production orchestration records, namespace nodes, or scene-moment source merely because a cut was rendered. Returning an edit to the domain means importing the artifact and, when explicitly requested, creating/adopting/selecting a content candidate.
 - Use resource/media transform tools only for neutral preparation such as frame extraction, image transforms, or diagnostic probes. They must not be treated as product timeline render.

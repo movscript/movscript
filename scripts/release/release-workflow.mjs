@@ -649,6 +649,7 @@ export function packagePluginArtifact(root = repoRoot, options = {}) {
   validatePluginArtifactInputs(pluginDir)
 
   const files = [
+    '.agent-package',
     '.codex-plugin',
     '.provider-plugin',
     '.mcp.json',
@@ -740,6 +741,7 @@ function pluginBundleHash(pluginDir) {
 
 function pluginBundleFiles(pluginDir) {
   const roots = [
+    '.agent-package',
     '.codex-plugin',
     '.provider-plugin',
     '.mcp.json',
@@ -772,6 +774,7 @@ function collectPluginBundleFiles(pluginDir, relativePath, files) {
 
 function syncPluginDistribution(sourceDir, pluginDir) {
   const paths = [
+    '.agent-package',
     '.codex-plugin',
     '.provider-plugin',
     '.mcp.json',
@@ -817,6 +820,7 @@ function dataServiceBinaryName() {
 
 function validatePluginArtifactInputs(pluginDir) {
   const required = [
+    '.agent-package/package.json',
     '.codex-plugin/plugin.json',
     '.provider-plugin/plugin.json',
     '.mcp.json',

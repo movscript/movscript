@@ -3,7 +3,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { openHomeWindow } from './appWindowRegistry'
-import { codexPluginInstallCommand, installMovScriptCodexPlugin } from './codexPluginInstaller'
+import { codexPluginInstallCommand, installMovScriptAgentProviderTargets } from './codexPluginInstaller'
 import {
   ensureDefaultAppServerRuntimePackageInstalled,
 } from './appServerRuntimeCommand'
@@ -32,7 +32,7 @@ type TrayRuntimeAction = 'download' | 'update' | 'uninstall'
 type TrayRuntimeOperationStatus = 'running' | 'success' | 'error'
 type TrayCommandId =
   | 'open-home'
-  | 'install-codex-plugin'
+  | 'install-agent-provider-targets'
   | 'copy-codex-install-command'
   | 'quit'
   | `runtime:${TrayRuntimeAgent['id']}:${TrayRuntimeAction}`
@@ -184,10 +184,10 @@ function buildTrayMenuItems(): TrayMenuItemModel[] {
     },
     { type: 'separator' },
     {
-      id: 'install-codex-plugin',
+      id: 'install-agent-provider-targets',
       label: installing
-        ? trayLabel('正在安装 Codex 的 MovScript 插件...', 'Installing MovScript plugin for Codex...')
-        : trayLabel('安装 Codex 的 MovScript 插件', 'Install MovScript plugin for Codex'),
+        ? trayLabel('正在安装 MovScript Agent Provider...', 'Installing MovScript Agent Provider...')
+        : trayLabel('安装到主流 Agent', 'Install to mainstream agents'),
       enabled: !installing,
     },
     {
@@ -319,8 +319,8 @@ function dispatchTrayCommand(id: string): void {
     openHomeWindow()
     return
   }
-  if (id === 'install-codex-plugin') {
-    void installCodexPluginFromTray()
+  if (id === 'install-agent-provider-targets') {
+    void installAgentProviderTargetsFromTray()
     return
   }
   if (id === 'copy-codex-install-command') {
@@ -426,32 +426,30 @@ function broadcastRuntimeOperation(key: string): void {
   })
 }
 
-async function installCodexPluginFromTray(): Promise<void> {
+async function installAgentProviderTargetsFromTray(): Promise<void> {
   if (installing) return
   installing = true
   refreshTrayMenu()
   try {
-    const result = await installMovScriptCodexPlugin()
+    const result = installMovScriptAgentProviderTargets({ targets: 'all' })
     dialog.showMessageBox({
       type: 'info',
       title: trayLabel('MovScript 插件已安装', 'MovScript plugin installed'),
-      message: trayLabel('已为 Codex 安装 MovScript 插件。', 'MovScript plugin installed for Codex.'),
+      message: trayLabel('已为主流 Agent 写入 MovScript 配置。', 'MovScript provider configs were written for mainstream agents.'),
       detail: [
         `${trayLabel('Home', 'Home')}: ${result.paths.homeDir}`,
         `${trayLabel('Current', 'Current')}: ${result.paths.homeCurrentPluginVersion} (${result.paths.homeCurrentPluginRoot})`,
-        `${trayLabel('Codex marketplace', 'Codex marketplace')}: ${result.paths.marketplaceRoot}`,
-        trayLabel('重启 Codex 或新建 Codex 线程后即可使用。', 'Restart Codex or start a new Codex thread to use it.'),
+        `${trayLabel('Targets', 'Targets')}: ${result.targets.map((target) => target.target).join(', ')}`,
+        trayLabel('重启对应 Agent 或导入生成的配置后即可使用。', 'Restart the target agent or import the generated config to use it.'),
       ].join('\n'),
       buttons: [trayLabel('确定', 'OK')],
     })
   } catch (error) {
-    const command = codexPluginInstallCommand()
-    clipboard.writeText(command)
     dialog.showMessageBox({
       type: 'error',
-      title: trayLabel('Codex 插件安装失败', 'Codex plugin install failed'),
-      message: trayLabel('MovScript 无法自动安装 Codex 插件。', 'MovScript could not install the Codex plugin automatically.'),
-      detail: `${errorMessage(error)}\n\n${trayLabel('安装命令已复制到剪贴板。', 'The install command has been copied to your clipboard.')}`,
+      title: trayLabel('Agent Provider 安装失败', 'Agent Provider install failed'),
+      message: trayLabel('MovScript 无法自动写入 Agent Provider 配置。', 'MovScript could not write Agent Provider config automatically.'),
+      detail: errorMessage(error),
       buttons: [trayLabel('确定', 'OK')],
     })
   } finally {

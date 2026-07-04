@@ -47,7 +47,7 @@ test('native macOS tray receives menu models and dispatches commands back to Ele
   assert.match(source, /Plugin current/)
   assert.match(source, /Plugin root/)
   assert.match(source, /Daemon gateway/)
-  assert.match(source, /id: 'install-codex-plugin'/)
+  assert.match(source, /id: 'install-agent-provider-targets'/)
   assert.match(source, /id: 'copy-codex-install-command'/)
   assert.match(source, /id: 'quit'/)
   assert.match(source, /function sendNativeTrayMenu/)

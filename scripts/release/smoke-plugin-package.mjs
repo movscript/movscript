@@ -367,6 +367,7 @@ function readBundleIdentity(path) {
 function validatePluginRoot(pluginRoot, dataPlane) {
   const required = [
     '.mcp.json',
+    '.agent-package/package.json',
     '.codex-plugin/plugin.json',
     '.provider-plugin/plugin.json',
     'bin/movscript',

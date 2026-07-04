@@ -50,9 +50,10 @@ that target.
 When `smoke-desktop-package` runs with `--local-runtime`, it also checks that
 the packaged Desktop seeded Home current, that `current.identity` matches the
 runtime bundle manifest, and that `/v1/runtime/descriptor` reports the same
-bundle identity. The same smoke verifies the Desktop-to-Codex marketplace
-handoff by ensuring the generated Codex marketplace plugin link targets that
-Home current bundle.
+bundle identity. The same smoke verifies the Codex compatibility marketplace
+handoff by ensuring the generated marketplace plugin link targets that Home
+current bundle; provider target projections are covered by the Agent Plugin
+installer smoke and desktop service tests.
 Pass `--existing-home-current newer` or set
 `MOVSCRIPT_DESKTOP_SMOKE_EXISTING_HOME_CURRENT=newer` to preseed a newer Agent
 Plugin current and verify Desktop does not downgrade it while starting the

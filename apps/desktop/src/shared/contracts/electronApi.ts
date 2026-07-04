@@ -184,6 +184,25 @@ export interface ElectronMovScriptCodexPluginInstallResult {
   installCommand: string
 }
 
+export interface ElectronMovScriptAgentProviderTargetInstallSummary {
+  target: string
+  providerRoot: string
+  pluginLink: string
+  registrationPath: string
+  nativeCommands: string[]
+}
+
+export interface ElectronMovScriptAgentProviderTargetInstallResult {
+  ok: true
+  homeDir: string
+  sourcePluginRoot: string
+  homeCurrentPluginRoot: string
+  homeCurrentPluginVersion: string
+  homeCurrentBundleHash?: string
+  targets: ElectronMovScriptAgentProviderTargetInstallSummary[]
+  installCommands: string[]
+}
+
 export type ElectronAPI = {
   platform?: NodeJS.Platform
   openFile?: () => Promise<string | null>
@@ -237,6 +256,7 @@ export type ElectronAPI = {
   openAdminConsole?: (input?: { path?: string; authSession?: ElectronAdminAuthSessionInput | null }) => Promise<{ url: string }>
   openExternalURL?: (input: { url: string }) => Promise<{ url: string }>
   installMovScriptCodexPlugin?: () => Promise<ElectronMovScriptCodexPluginInstallResult>
+  installMovScriptAgentProviderTargets?: (input?: { targets?: string | string[] }) => Promise<ElectronMovScriptAgentProviderTargetInstallResult>
   embeddedBrowserNavigate?: (input: { tabId?: string; url: string; bounds?: ElectronEmbeddedBrowserBounds | null }) => Promise<ElectronEmbeddedBrowserState>
   embeddedBrowserActivate?: (input: { tabId: string; bounds?: ElectronEmbeddedBrowserBounds | null }) => Promise<ElectronEmbeddedBrowserState>
   embeddedBrowserSetBounds?: (input: { bounds?: ElectronEmbeddedBrowserBounds | null } | null) => Promise<ElectronEmbeddedBrowserState>

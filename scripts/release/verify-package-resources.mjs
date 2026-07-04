@@ -363,6 +363,7 @@ function pluginBundleHash(pluginDir) {
 
 function pluginBundleFiles(pluginDir) {
   const roots = [
+    '.agent-package',
     '.codex-plugin',
     '.provider-plugin',
     '.mcp.json',

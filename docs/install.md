@@ -20,24 +20,35 @@ The plugin installer only installs the Agent Plugin package. It does not install
 
 Desktop reuses the same `movscript.local-node` daemon as Agent Plugin and CLI when local execution is needed. The daemon is shared runtime infrastructure, not a separate public download.
 
-## Agent Plugin Install
+## Agent Package / Agent Plugin Install
 
 ```bash
 curl -fsSL https://movscript.github.io/movscript/install-plugin.sh | sh
 ```
 
-The plugin installer downloads `movscript-agent-plugin-*.zip`, verifies it with `SHA256SUMS.txt`, installs it into `$MOVSCRIPT_HOME/plugins/movscript/<version>`, points `$MOVSCRIPT_HOME/plugins/movscript/current` at that bundle, writes the shared CLI shim under `$MOVSCRIPT_HOME/bin`, and writes the provider registration for the selected provider. It also writes `$MOVSCRIPT_HOME/plugins/movscript/current.identity` and keeps the current plus previous bundle by default so `sh install-plugin.sh --rollback` can switch back without reinstalling Desktop. If the current plugin bundle cannot start the local daemon, the plugin ensure path automatically switches `current` back to `previous`, rewrites `current.identity`, and retries daemon startup from the previous bundle.
+The plugin installer downloads `movscript-agent-plugin-*.zip`, verifies it with `SHA256SUMS.txt`, requires the neutral `.agent-package/package.json` manifest, installs it into `$MOVSCRIPT_HOME/plugins/movscript/<version>`, points `$MOVSCRIPT_HOME/plugins/movscript/current` at that bundle, writes the shared CLI shim under `$MOVSCRIPT_HOME/bin`, and writes provider registrations for the selected target providers. It also writes `$MOVSCRIPT_HOME/plugins/movscript/current.identity` and keeps the current plus previous bundle by default so `sh install-plugin.sh --rollback` can switch back without reinstalling Desktop. If the current plugin bundle cannot start the local daemon, the plugin ensure path automatically switches `current` back to `previous`, rewrites `current.identity`, and retries daemon startup from the previous bundle.
 
 Useful plugin install controls:
 
 ```bash
 sh install-plugin.sh --local-zip plugins/movscript/release/movscript-agent-plugin-0.1.30.zip
+sh install-plugin.sh --provider codex,claude-code,openclaw,harness
+sh install-plugin.sh --provider all
 sh install-plugin.sh --retain 3
 sh install-plugin.sh --rollback
 sh install-plugin.sh --rollback-version 0.1.30
 ```
 
-This path is for users who want an Agent/provider entry first.
+This path is for users who want an Agent/provider entry first. The shared package remains one installed Home bundle; each provider target gets a small projection under `$MOVSCRIPT_HOME/provider/<target>`:
+
+| Target | Projection |
+| --- | --- |
+| `codex` | `marketplace.json` plus `plugins/movscript -> Home current` |
+| `claude-code` | `.mcp.json` plus `registration.json` |
+| `openclaw` | `mcp.json` plus `registration.json` |
+| `harness` | `worker-agent.json` plus `registration.json` |
+
+`xiaolongxia` is accepted as an alias for `openclaw`.
 
 ## MovScript Home And Distribution Profiles
 

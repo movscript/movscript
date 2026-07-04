@@ -176,6 +176,13 @@
     "emptyProjects": "暂无最近项目",
     "new": "新建",
     "newProject": "新建项目",
+    "agentProvider": {
+      "title": "安装到主流 Agent",
+      "description": "生成 Codex、Harness、Claude Code、小龙虾/OpenClaw 的统一接入配置。",
+      "installing": "正在写入 MovScript Agent Provider 配置...",
+      "installUnavailable": "当前环境不支持自动安装 Agent Provider。",
+      "installedTitle": "Agent Provider 已连接到 Home current"
+    },
     "mode": {
       "projectData": "查看生产记忆与候选决策，快速定位待选择的数据空间。",
       "canvas": "管理全局工作流画布、素材组织和跨项目的可视化灵感板。",
