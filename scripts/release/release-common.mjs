@@ -19,6 +19,8 @@ export const desktopReleaseTargets = Object.freeze([
 export const ffmpegStaticReleaseTag = 'b6.1.1'
 export const ffmpegStaticLicense = 'GPL-3.0-or-later'
 export const ffmpegStaticBaseUrl = 'https://github.com/eugeneware/ffmpeg-static/releases/download'
+export const ffmpegStaticLinuxReleaseTag = 'autobuild-2026-07-03-13-21'
+export const ffmpegStaticLinuxBaseUrl = 'https://github.com/BtbN/FFmpeg-Builds/releases/download'
 export const ffmpegStaticDefaultVersion = 'ffmpeg version 6.1.1-static'
 export const ffmpegVersionTimeoutMs = 30000
 export const ffmpegProbeAttempts = 2
@@ -112,27 +114,66 @@ export function assertFFmpegStaticTarget(platform, arch) {
 
 export function ffmpegStaticAssetName(platform, arch) {
   assertFFmpegStaticTarget(platform, arch)
+  if (platform === 'linux') return ffmpegStaticLinuxAsset(arch).assetName
   return `ffmpeg-${platform}-${arch}.gz`
 }
 
 export function ffmpegStaticBinaryUrl(platform, arch, tag = ffmpegStaticReleaseTag) {
+  if (platform === 'linux') {
+    return `${ffmpegStaticLinuxBaseUrl}/${ffmpegStaticLinuxReleaseTag}/${ffmpegStaticAssetName(platform, arch)}`
+  }
   return `${ffmpegStaticBaseUrl}/${tag}/${ffmpegStaticAssetName(platform, arch)}`
 }
 
 export function ffmpegStaticReadmeUrl(platform, arch, tag = ffmpegStaticReleaseTag) {
   assertFFmpegStaticTarget(platform, arch)
+  if (platform === 'linux') {
+    return `https://github.com/BtbN/FFmpeg-Builds/releases/tag/${ffmpegStaticLinuxReleaseTag}`
+  }
   return `${ffmpegStaticBaseUrl}/${tag}/${platform}-${arch}.README`
 }
 
 export function ffmpegStaticSourcePlan(platform, arch, tag = ffmpegStaticReleaseTag) {
+  if (platform === 'linux') {
+    const asset = ffmpegStaticLinuxAsset(arch)
+    return {
+      arch,
+      archive: 'tar.xz',
+      binary: desktopFFmpegBinaryName(platform),
+      license: ffmpegStaticLicense,
+      memberPath: `${asset.rootDir}/bin/ffmpeg`,
+      platform,
+      readmeUrl: ffmpegStaticReadmeUrl(platform, arch, tag),
+      sourceSha256: asset.sha256,
+      sourceUrl: ffmpegStaticBinaryUrl(platform, arch, tag),
+      tag: ffmpegStaticLinuxReleaseTag,
+    }
+  }
   return {
     arch,
+    archive: 'gz',
     binary: desktopFFmpegBinaryName(platform),
     license: ffmpegStaticLicense,
     platform,
     readmeUrl: ffmpegStaticReadmeUrl(platform, arch, tag),
     sourceUrl: ffmpegStaticBinaryUrl(platform, arch, tag),
     tag,
+  }
+}
+
+function ffmpegStaticLinuxAsset(arch) {
+  assertFFmpegStaticTarget('linux', arch)
+  if (arch === 'x64') {
+    return {
+      assetName: 'ffmpeg-N-125444-g6d72600a30-linux64-gpl.tar.xz',
+      rootDir: 'ffmpeg-N-125444-g6d72600a30-linux64-gpl',
+      sha256: '3e56eae0894bfd91f41e15ed36c77bc65b3a87becc1bb1cc470b573f1eed16c8',
+    }
+  }
+  return {
+    assetName: 'ffmpeg-N-125444-g6d72600a30-linuxarm64-gpl.tar.xz',
+    rootDir: 'ffmpeg-N-125444-g6d72600a30-linuxarm64-gpl',
+    sha256: '31e1544295faf80ce6598a74d446c901eb5b180cb8800fa64246ba49d4c87c0e',
   }
 }
 

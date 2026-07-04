@@ -13,10 +13,12 @@ Expected layout:
 - `win32/x64/ffmpeg.exe`
 - `win32/x64/METADATA.json`
 
-The default release matrix follows the `eugeneware/ffmpeg-static` binary release
-coverage and currently packages macOS x64/arm64, Linux x64/arm64, and Windows
-x64. Windows ARM64 is not part of the default matrix because that upstream
-source does not publish a `win32 arm64` binary.
+The default release matrix uses vetted upstream binary releases and currently
+packages macOS x64/arm64, Linux x64/arm64, and Windows x64. macOS and Windows
+come from `eugeneware/ffmpeg-static`; Linux comes from BtbN GPL builds because
+the eugeneware Linux static asset does not include the `drawtext` filter needed
+by MovScript caption rendering. Windows ARM64 is not part of the default matrix
+because the default upstream sources do not publish a `win32 arm64` binary.
 
 Development builds also use `FFMPEG_PATH`, `MOVSCRIPT_FFMPEG_PATH`, or `ffmpeg`
 from `PATH`.
@@ -38,9 +40,9 @@ MOVSCRIPT_FFMPEG_LICENSE=LGPL-2.1-or-later \
 pnpm run release -- stage-ffmpeg
 ```
 
-For the default ffmpeg source, use `eugeneware/ffmpeg-static` release assets.
-The helper downloads the matching `.gz` artifact, expands it into the executable,
-stages it, and writes GPL metadata:
+For the default ffmpeg source, use the release helper. The helper downloads the
+matching artifact, expands it into the executable, stages it, and writes GPL
+metadata:
 
 ```sh
 pnpm run release -- download-ffmpeg-static --platform=darwin --arch=arm64
@@ -53,19 +55,20 @@ pnpm run release -- download-ffmpeg-static --matrix
 ```
 
 When downloading for a platform or architecture that cannot run on the current
-machine, the helper records the pinned `ffmpeg-static` version line. You can
-override it with the first line from that target binary's `ffmpeg -version`:
+machine, the helper records the pinned fallback version line. You can override
+it with the exact first line from that target binary's `ffmpeg -version`:
 
 ```sh
-MOVSCRIPT_FFMPEG_VERSION='ffmpeg version 6.1.1-static' \
+MOVSCRIPT_FFMPEG_VERSION='ffmpeg version ...' \
 pnpm run release -- download-ffmpeg-static --platform=linux --arch=arm64
 ```
 
-The default source URLs are generated from
+The default macOS and Windows source URLs are generated from
 `https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/` with
-asset names like `ffmpeg-darwin-arm64.gz` and `ffmpeg-win32-x64.gz`. Override the
-binary release tag with `--tag=b6.1.1` or `MOVSCRIPT_FFMPEG_STATIC_TAG=b6.1.1`
-when needed.
+asset names like `ffmpeg-darwin-arm64.gz` and `ffmpeg-win32-x64.gz`. Linux uses
+BtbN `autobuild-2026-07-03-13-21` GPL `.tar.xz` assets with pinned sha256
+checksums. Override the eugeneware binary release tag with `--tag=b6.1.1` or
+`MOVSCRIPT_FFMPEG_STATIC_TAG=b6.1.1` when needed.
 
 Set `ACTUAL_FFMPEG_RELEASE_URL` to the real upstream release page or artifact URL
 before running the command. `MOVSCRIPT_FFMPEG_BIN` can point directly at the

@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { createWriteStream, chmodSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { copyFileSync, createWriteStream, chmodSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { get as httpsGet } from 'node:https'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
@@ -16,6 +16,7 @@ import {
   parseDesktopArchArg,
   parseDesktopPlatformArg,
   resolveDesktopFFmpegPath,
+  sha256File,
 } from './release-common.mjs'
 import { readFFmpegVersion, stageFFmpegBinary } from './stage-ffmpeg.mjs'
 
@@ -84,8 +85,9 @@ export async function downloadAndStageFFmpegStatic(root = repoRoot, options = {}
   const target = resolveDesktopFFmpegPath(root, platform, arch)
   const tempDir = mkdtempSync(join(tmpdir(), 'movscript-ffmpeg-static-'))
   const tempBinary = join(tempDir, plan.binary)
+  const tempSource = join(tempDir, basename(new URL(plan.sourceUrl).pathname))
   try {
-    await retryDownload(() => download(plan.sourceUrl, tempBinary), {
+    await retryDownload(() => downloadSource(plan, tempSource, tempBinary, download), {
       attempts: downloadAttempts,
       label: plan.sourceUrl,
     })
@@ -108,6 +110,37 @@ export async function downloadAndStageFFmpegStatic(root = repoRoot, options = {}
   } finally {
     rmSync(tempDir, { recursive: true, force: true })
   }
+}
+
+async function downloadSource(plan, tempSource, tempBinary, downloadGzip = downloadGzipFile) {
+  if (plan.archive === 'tar.xz') {
+    await downloadFile(plan.sourceUrl, tempSource)
+    verifyDownloadedSource(plan, tempSource)
+    extractTarXzFFmpeg(tempSource, tempBinary, plan)
+    return
+  }
+  await downloadGzip(plan.sourceUrl, tempBinary)
+  verifyDownloadedSource(plan, tempBinary)
+}
+
+function verifyDownloadedSource(plan, sourcePath) {
+  if (!plan.sourceSha256) return
+  const actual = sha256File(sourcePath)
+  if (actual !== plan.sourceSha256) {
+    throw new Error(`Downloaded ffmpeg source checksum mismatch for ${plan.sourceUrl}: expected ${plan.sourceSha256}, got ${actual}`)
+  }
+}
+
+function extractTarXzFFmpeg(archivePath, tempBinary, plan) {
+  if (!plan.memberPath) throw new Error(`ffmpeg tar.xz source plan is missing memberPath: ${plan.sourceUrl}`)
+  const extractDir = join(dirname(tempBinary), 'extract')
+  mkdirSync(extractDir, { recursive: true })
+  const result = spawnSync('tar', ['-xf', archivePath, '-C', extractDir], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+  if (result.error) throw result.error
+  if (result.status !== 0) {
+    throw new Error(`Failed to extract ${basename(archivePath)}: ${result.stderr?.trim() || `tar exited with ${result.status}`}`)
+  }
+  copyFileSync(resolve(extractDir, plan.memberPath), tempBinary)
 }
 
 async function retryDownload(download, options = {}) {
@@ -144,6 +177,11 @@ function prepareMacOSExecutableForLaunch(path) {
 export async function downloadGzipFile(url, destinationPath) {
   mkdirSync(dirname(destinationPath), { recursive: true })
   await pipeline(await getHTTPStream(url), createGunzip(), createWriteStream(destinationPath))
+}
+
+export async function downloadFile(url, destinationPath) {
+  mkdirSync(dirname(destinationPath), { recursive: true })
+  await pipeline(await getHTTPStream(url), createWriteStream(destinationPath))
 }
 
 export function parseFFmpegStaticTag(args = [], defaultTag = ffmpegStaticReleaseTag) {
