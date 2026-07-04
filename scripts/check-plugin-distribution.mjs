@@ -208,7 +208,6 @@ function pluginBundleFiles(pluginDir) {
     '.mcp.json',
     'assets',
     'bin',
-    'runtime',
     'skills',
     'README.md',
   ]
