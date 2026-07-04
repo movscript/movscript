@@ -476,7 +476,7 @@ export function findPackagedExecutable(releaseDir, platform = process.platform) 
       if (normalized.includes('/win-unpacked/') && /^Movscript\.exe$/i.test(name)) candidates.push(path)
       return
     }
-    if (normalized.includes('/linux') && normalized.includes('-unpacked/') && /^movscript$/i.test(name) && isExecutable(info)) {
+    if (platform === 'linux' && basename(dirname(path)).endsWith('-unpacked') && isExecutable(info)) {
       candidates.push(path)
     }
   })
