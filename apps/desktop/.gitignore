@@ -5,6 +5,9 @@ release
 bin
 /backend
 build
+!build/
+!build/entitlements.mac.plist
+!build/entitlements.mac.inherit.plist
 plugin-cache
 providers
 .codex

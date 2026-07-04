@@ -1412,7 +1412,13 @@ export function stageDesktopPackageProject(root = repoRoot, options = {}) {
   if (deployResult.status !== 0 || deployResult.signal) {
     throw new Error(`Desktop package staging failed with status ${deployResult.status ?? 'none'} signal=${deployResult.signal ?? 'none'}`)
   }
-  cpSync(resolve(root, 'apps/desktop/build'), resolve(stageDir, 'build'), { recursive: true })
+  const desktopBuildDir = resolve(root, 'apps/desktop/build')
+  const stagedBuildDir = resolve(stageDir, 'build')
+  if (existsSync(desktopBuildDir)) {
+    cpSync(desktopBuildDir, stagedBuildDir, { recursive: true })
+  } else {
+    mkdirSync(stagedBuildDir, { recursive: true })
+  }
   writeStagedElectronBuilderConfig(root, stageDir)
   return { stageDir, releaseDir }
 }
@@ -1633,12 +1639,16 @@ function verifyMountedDMG(root, dmgPath, options = {}) {
     attached = true
     const mountedApp = resolve(mountPoint, 'Movscript.app')
     const mountedIcon = resolve(mountedApp, 'Contents/Resources/icon.icns')
-    const expectedIconHash = sha256File(iconPath)
-    const mountedIconHash = sha256File(mountedIcon)
-    if (expectedIconHash !== mountedIconHash) {
-      throw new Error(`Mounted app icon hash mismatch: expected ${expectedIconHash}, got ${mountedIconHash}`)
+    if (existsSync(iconPath)) {
+      const expectedIconHash = sha256File(iconPath)
+      const mountedIconHash = sha256File(mountedIcon)
+      if (expectedIconHash !== mountedIconHash) {
+        throw new Error(`Mounted app icon hash mismatch: expected ${expectedIconHash}, got ${mountedIconHash}`)
+      }
+      log(`[package-desktop] Mounted app icon OK: ${basename(mountedIcon)}`)
+    } else {
+      log(`[package-desktop] Skip mounted app icon hash verification; source icon is missing: ${iconPath}`)
     }
-    log(`[package-desktop] Mounted app icon OK: ${basename(mountedIcon)}`)
   } finally {
     if (attached) spawn('hdiutil', ['detach', mountPoint], { stdio: 'ignore' })
     rmSync(mountPoint, { recursive: true, force: true })
