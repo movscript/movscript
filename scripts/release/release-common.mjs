@@ -337,7 +337,7 @@ export function verifyDesktopPackage(root, options = {}) {
   }
 
   const ffmpegPath = resolveDesktopFFmpegPath(root, platform, arch)
-  if (manifestHasResource(packageResourceManifest, 'ffmpeg')) {
+  if (manifestHasResource(packageResourceManifest, 'ffmpeg', { platform, arch })) {
     const ffmpegError = verifyDesktopFFmpeg(ffmpegPath, root, spawn, ffmpegVersionTimeoutMs, {
       arch,
       runCheck: platform === currentPlatform && arch === currentArch,
@@ -366,14 +366,14 @@ export function verifyDesktopPackage(root, options = {}) {
     return false
   }
 
-  const bundledResourcesError = verifyBundledPackageResources(releaseDir, platform, packageResourceManifest)
+  const bundledResourcesError = verifyBundledPackageResources(releaseDir, platform, packageResourceManifest, { arch })
   if (bundledResourcesError) {
     logError(bundledResourcesError)
     exit(1)
     return false
   }
 
-  if (manifestHasResource(packageResourceManifest, 'ffmpeg')) {
+  if (manifestHasResource(packageResourceManifest, 'ffmpeg', { platform, arch })) {
     const bundledFFmpegError = verifyBundledDesktopFFmpeg(releaseDir, platform, { sourcePath: ffmpegPath, arch, signingMode })
     if (bundledFFmpegError) {
       logError(bundledFFmpegError)
@@ -391,17 +391,18 @@ export function verifyDesktopPackage(root, options = {}) {
 
 export function requiredDesktopPackagePrerequisites(root, manifest, platform = process.platform, arch = process.arch) {
   const required = []
-  if (manifestHasResource(manifest, 'provider-plugin')) {
+  const target = { platform, arch }
+  if (manifestHasResource(manifest, 'provider-plugin', target)) {
     const pluginRuntimeRoot = resolve(root, 'plugins/movscript/runtime/services')
     required.push(
       resolve(pluginRuntimeRoot, 'data-service/bin', dataServiceBinaryName(platform)),
       resolve(pluginRuntimeRoot, 'local-surface-host/dist/index.html'),
     )
   }
-  if (manifestHasResource(manifest, 'renderer-admin')) {
+  if (manifestHasResource(manifest, 'renderer-admin', target)) {
     required.push(resolve(root, 'surface/admin/dist/index.html'))
   }
-  if (manifestHasResource(manifest, 'ffmpeg')) {
+  if (manifestHasResource(manifest, 'ffmpeg', target)) {
     required.push(resolveDesktopFFmpegPath(root, platform, arch))
   }
   return required
@@ -411,7 +412,7 @@ function dataServiceBinaryName(platform = process.platform) {
   return platform === 'win32' ? 'movscript-server.exe' : 'movscript-server'
 }
 
-export function verifyBundledPackageResources(releaseDir, platform = process.platform, manifest) {
+export function verifyBundledPackageResources(releaseDir, platform = process.platform, manifest, options = {}) {
   if (!existsSync(releaseDir)) {
     return `Electron release directory does not exist: ${releaseDir}`
   }
@@ -422,6 +423,7 @@ export function verifyBundledPackageResources(releaseDir, platform = process.pla
   const missing = []
   for (const resource of manifest?.resources ?? []) {
     if (resource.required !== true) continue
+    if (!resourceMatchesTarget(resource, platform, options.arch)) continue
     const expected = resourceDirs.map((resourcesPath) => resolve(resourcesPath, resource.to))
     if (!expected.some((path) => existsSync(path))) {
       missing.push(`${resource.id}: expected one of ${expected.join(', ')}`)
@@ -432,12 +434,18 @@ export function verifyBundledPackageResources(releaseDir, platform = process.pla
     : ''
 }
 
-function manifestResource(manifest, id) {
-  return manifest?.resources?.find((resource) => resource.id === id)
+function manifestResource(manifest, id, target = {}) {
+  return manifest?.resources?.find((resource) => resource.id === id && resourceMatchesTarget(resource, target.platform, target.arch))
 }
 
-function manifestHasResource(manifest, id) {
-  return Boolean(manifestResource(manifest, id))
+function manifestHasResource(manifest, id, target = {}) {
+  return Boolean(manifestResource(manifest, id, target))
+}
+
+function resourceMatchesTarget(resource, platform = process.platform, arch = process.arch) {
+  if (Array.isArray(resource?.platforms) && !resource.platforms.includes(platform)) return false
+  if (Array.isArray(resource?.arches) && arch && !resource.arches.includes(arch)) return false
+  return true
 }
 
 export function verifyDesktopFFmpeg(path, cwd = process.cwd(), spawn = spawnSync, timeoutMs = ffmpegVersionTimeoutMs, expected = {}) {

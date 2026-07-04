@@ -1460,6 +1460,8 @@ function writeStagedElectronBuilderConfig(root, stageDir) {
     ['../../surface/admin/dist', resolve(root, 'surface/admin/dist')],
     ['../../plugins/movscript', resolve(root, 'plugins/movscript')],
     ['vendor/ffmpeg', resolve(root, 'apps/desktop/vendor/ffmpeg')],
+    ['build/entitlements.mac.plist', resolve(stageDir, 'build/entitlements.mac.plist')],
+    ['build/entitlements.mac.inherit.plist', resolve(stageDir, 'build/entitlements.mac.inherit.plist')],
   ])
   for (const [from, to] of replacements) config = config.replaceAll(from, to)
   config = config.replace(/(\n\s*output:\s*)release(\s*\n)/, `$1${JSON.stringify(resolve(root, 'apps/desktop/release'))}$2`)
