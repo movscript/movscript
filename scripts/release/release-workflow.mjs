@@ -619,6 +619,9 @@ export function packagePluginArtifact(root = repoRoot, options = {}) {
   const artifactPath = resolve(releaseDir, artifactName)
 
   log('[package-plugin] Build local full-node runtime prerequisites')
+  const workspaceBuildResult = spawn(pnpm, ['--workspace-concurrency=1', '--filter', './packages/*', 'build'], releaseSpawnOptions(process.env))
+  if (workspaceBuildResult.error) throw workspaceBuildResult.error
+  if (workspaceBuildResult.status !== 0) throw new Error(`Plugin workspace package build failed with status ${workspaceBuildResult.status ?? 1}`)
   for (const [filter, script] of [
     ['@movscript/runtime-contracts', 'build'],
     ['@movscript/app-runner', 'build'],
