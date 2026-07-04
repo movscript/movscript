@@ -7064,7 +7064,7 @@ function resourceMediaTools2() {
     },
     {
       name: "movscript_resource_upload",
-      description: "Upload an agent-accessible image or video artifact to the MovScript RawResource library. Accepts artifact/local paths, .movscript workspace paths, data URLs, or base64 bytes. Use the returned resource_id in shot groups or generation input_resource_ids/reference_resource_ids.",
+      description: "Upload an agent-accessible image, video, audio, or text artifact to the MovScript RawResource library. Accepts artifact/local paths, .movscript workspace paths, data URLs, or base64 bytes. Use the returned resource_id in shot groups or generation input_resource_ids/reference_resource_ids.",
       inputSchema: objectSchema4({
         artifact_path: { type: "string", description: "Local artifact path returned by movscript_resource_image_annotate or another agent tool." },
         artifactPath: { type: "string", description: "Camel-case alias for artifact_path." },
@@ -7102,7 +7102,7 @@ function resourceMediaTools2() {
     },
     {
       name: "movscript_resource_upload_batch",
-      description: "Upload multiple agent-accessible image or video artifacts to the MovScript RawResource library. Each item accepts the same fields as movscript_resource_upload. Results are returned in input order with per-item errors so agents can keep partial successes.",
+      description: "Upload multiple agent-accessible image, video, audio, or text artifacts to the MovScript RawResource library. Each item accepts the same fields as movscript_resource_upload. Results are returned in input order with per-item errors so agents can keep partial successes.",
       inputSchema: objectSchema4({
         items: {
           type: "array",
@@ -23729,7 +23729,7 @@ async function uploadAgentImageResource2(args) {
     filename,
     mime_type: input3.mimeType,
     size_bytes: input3.bytes.length,
-    message: "Agent-created image was uploaded to MovScript RawResource library. Use resource_id in generation input_resource_ids/reference_resource_ids."
+    message: "Agent-accessible artifact was uploaded to MovScript RawResource library. Use resource_id in generation input_resource_ids/reference_resource_ids."
   };
 }
 async function uploadAgentImageResources2(args) {
@@ -24712,6 +24712,24 @@ function mimeTypeFromFilename2(filename) {
       return "video/webm";
     case ".mkv":
       return "video/x-matroska";
+    case ".mp3":
+      return "audio/mpeg";
+    case ".wav":
+      return "audio/wav";
+    case ".m4a":
+      return "audio/mp4";
+    case ".aac":
+      return "audio/aac";
+    case ".flac":
+      return "audio/flac";
+    case ".ogg":
+      return "audio/ogg";
+    case ".txt":
+      return "text/plain";
+    case ".md":
+      return "text/markdown";
+    case ".json":
+      return "application/json";
     case ".png":
     default:
       return "image/png";
@@ -24735,6 +24753,26 @@ function extensionForMimeType2(mimeType) {
       return ".webm";
     case "video/x-matroska":
       return ".mkv";
+    case "audio/mpeg":
+      return ".mp3";
+    case "audio/wav":
+    case "audio/wave":
+    case "audio/x-wav":
+      return ".wav";
+    case "audio/mp4":
+      return ".m4a";
+    case "audio/aac":
+      return ".aac";
+    case "audio/flac":
+      return ".flac";
+    case "audio/ogg":
+      return ".ogg";
+    case "text/plain":
+      return ".txt";
+    case "text/markdown":
+      return ".md";
+    case "application/json":
+      return ".json";
     case "image/png":
     default:
       return ".png";
@@ -28344,13 +28382,7 @@ function supportedParamMap2(model, operation) {
   const paramsByOperation = isRecord43(model.supported_params_by_operation) ? model.supported_params_by_operation : void 0;
   const params = operationKey && Array.isArray(paramsByOperation?.[operationKey]) ? paramsByOperation[operationKey] : void 0;
   if (params) {
-    const out = /* @__PURE__ */ new Map();
-    for (const item of params) {
-      if (!isRecord43(item)) continue;
-      const key = stringField332(item.key);
-      if (key) out.set(key, item);
-    }
-    return out;
+    return paramMapFromDefinitions2(params);
   }
   const keysByOperation = isRecord43(model.supported_param_keys_by_operation) ? model.supported_param_keys_by_operation : void 0;
   const operationKeys = operationKey && Array.isArray(keysByOperation?.[operationKey]) ? keysByOperation[operationKey] : void 0;
@@ -28366,17 +28398,19 @@ function supportedParamMap2(model, operation) {
   if (properties) {
     return new Map(Object.keys(properties).map((key) => [key, { key, ...isRecord43(properties[key]) ? properties[key] : {} }]));
   }
-  const flatParams = Array.isArray(model.supported_params) ? model.supported_params : void 0;
-  if (flatParams) {
-    const out = /* @__PURE__ */ new Map();
-    for (const item of flatParams) {
-      if (!isRecord43(item)) continue;
-      const key = stringField332(item.key);
-      if (key) out.set(key, item);
-    }
-    return out;
+  if (Array.isArray(model.supported_params)) {
+    return paramMapFromDefinitions2(model.supported_params);
   }
   return void 0;
+}
+function paramMapFromDefinitions2(params) {
+  const out = /* @__PURE__ */ new Map();
+  for (const item of params) {
+    if (!isRecord43(item)) continue;
+    const key = stringField332(item.key);
+    if (key) out.set(key, item);
+  }
+  return out;
 }
 function aspectRatioToImageSize2(aspectRatio, imageSizeParam) {
   const options = Array.isArray(imageSizeParam?.options) ? imageSizeParam.options.filter((item) => typeof item === "string") : [];
@@ -29260,7 +29294,7 @@ function productionWorkflowContract2() {
     schema: "movscript.production_workflow.v1",
     status: "ready",
     mode: "cli_only",
-    summary: "Plan content, plan timeline, generate candidates, then export artifacts. Each stage is explicit and review-gated; generated or rendered outputs do not become stable project state until a candidate decision records adoption.",
+    summary: "Plan content, plan timeline, generate candidates, then export artifacts. Each stage is explicit and review-gated; generated or rendered outputs do not become stable project state until a candidate decision records adoption. Generic text/image/video/audio generation requests must choose MovScript or another generation system before generation. External generation results must be imported as MovScript RawResources before downstream use, and scene/expression outputs require manual candidate registration. Prompt writing is a first-class gate: model-facing prompts must be concrete, self-contained after refs resolve, and grounded in visible/audible direction. Video generation submission is a paid action and requires explicit user confirmation; image generation may proceed under normal readiness gates after tool choice is clear.",
     stages: [
       {
         stage_id: "plan_content",
@@ -29284,12 +29318,16 @@ function productionWorkflowContract2() {
         blockers: [
           "missing_project_dir",
           "missing_project_source",
+          "generation_tool_choice_missing",
           "unresolved_content_unit_prompt_refs",
+          "prompt_not_model_understandable",
           "missing_upstream_candidate_adoption",
           "domain_inspect_blockers"
         ],
         human_review: [
           "Review production scope, source entities, prompt blockers, and dependency report before generation.",
+          "Ask the user to choose MovScript or another generation system before planning MovScript work for generic text/image/video/audio generation requests.",
+          "Rewrite source prose into prompt-ready visual/audio direction; do not pass script excerpts or hidden story context as model prompts.",
           "Adopt or defer upstream candidate choices before using them as stable downstream references."
         ],
         does_not: [
@@ -29353,17 +29391,32 @@ function productionWorkflowContract2() {
         ],
         blockers: [
           "provider_not_configured",
+          "generation_tool_choice_missing",
           "model_route_missing",
           "credential_missing",
           "resource_access_unavailable",
           "prompt_compile_blocked",
+          "prompt_not_model_understandable",
+          "video_generation_confirmation_missing",
+          "external_generation_result_not_uploaded",
+          "manual_candidate_registration_missing",
           "generation_job_failed"
         ],
         human_review: [
+          "Confirm the generation tool choice for generic text/image/video/audio requests before using MovScript generation tools.",
+          "Review the model-facing prompt before generation: every required instruction must be visible, audible, a resolved reference, a camera/timing/light directive, or a concrete negative constraint.",
+          "Confirm paid video generation explicitly before any generation_submit call with video_generation or video operations.",
+          "For external systems such as LibTV, upload every generated text/image/video/audio result to MovScript RawResource before downstream use.",
+          "For scene-moment, expression-unit, asset, storyboard, keyframe, or audio-cue targets, manually register the uploaded RawResource as a content-unit candidate.",
           "Review generated candidate outputs before adoption.",
           "Record adopt, reject, or defer; generation success alone must not unlock stable downstream dependencies."
         ],
         does_not: [
+          "Does not default generic generation requests to MovScript when the user has not chosen MovScript.",
+          "Does not treat external generation URLs, canvas nodes, or provider task IDs as MovScript-ready outputs until uploaded as RawResources.",
+          "Does not auto-select manually imported external candidates.",
+          "Does not submit prompts that rely on hidden MovScript/project/chat context the model cannot see.",
+          "Does not submit video generation jobs without explicit user confirmation; unconfirmed video requests stop at planning, prompt compilation, and readiness reporting.",
           "Does not automatically adopt or select candidates.",
           "Does not publish generated RawResources as final project state."
         ]
@@ -29408,6 +29461,11 @@ function productionWorkflowContract2() {
     global_gates: [
       "runtime readiness must name the missing owner: daemon, Data Service, Project Service, Editing Service, Media Pipeline, provider key, resource access, or renderer dependency",
       "model/provider/admin configuration stays in movscript admin commands",
+      "generic text/image/video/audio generation requests require an explicit tool choice: MovScript or another available generation system such as LibTV",
+      "external generation results must be uploaded as MovScript RawResources before downstream use",
+      "external outputs targeting scene moments or expression units require manual content-unit candidate registration before adoption",
+      "model-facing prompts must be understandable from the compiled prompt plus resolved resources; hidden story context blocks generation",
+      "paid video generation requires explicit user confirmation before generation_submit; images, storyboard panels, and keyframe images can be generated under ordinary readiness gates",
       "render success, artifact upload success, and generation success are separate from adoption",
       "stable downstream work requires adopted or explicitly selected content-unit candidates"
     ],
@@ -44205,7 +44263,7 @@ function isRecord22(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// ../../packages/core/dist/chunk-2EPBG2QD.js
+// ../../packages/core/dist/chunk-OAR4ABRL.js
 function isRecord4(value) {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
@@ -47029,7 +47087,7 @@ function resourceMediaTools() {
     },
     {
       name: "movscript_resource_upload",
-      description: "Upload an agent-accessible image or video artifact to the MovScript RawResource library. Accepts artifact/local paths, .movscript workspace paths, data URLs, or base64 bytes. Use the returned resource_id in shot groups or generation input_resource_ids/reference_resource_ids.",
+      description: "Upload an agent-accessible image, video, audio, or text artifact to the MovScript RawResource library. Accepts artifact/local paths, .movscript workspace paths, data URLs, or base64 bytes. Use the returned resource_id in shot groups or generation input_resource_ids/reference_resource_ids.",
       inputSchema: objectSchema({
         artifact_path: { type: "string", description: "Local artifact path returned by movscript_resource_image_annotate or another agent tool." },
         artifactPath: { type: "string", description: "Camel-case alias for artifact_path." },
@@ -47067,7 +47125,7 @@ function resourceMediaTools() {
     },
     {
       name: "movscript_resource_upload_batch",
-      description: "Upload multiple agent-accessible image or video artifacts to the MovScript RawResource library. Each item accepts the same fields as movscript_resource_upload. Results are returned in input order with per-item errors so agents can keep partial successes.",
+      description: "Upload multiple agent-accessible image, video, audio, or text artifacts to the MovScript RawResource library. Each item accepts the same fields as movscript_resource_upload. Results are returned in input order with per-item errors so agents can keep partial successes.",
       inputSchema: objectSchema({
         items: {
           type: "array",
@@ -67029,7 +67087,7 @@ async function uploadAgentImageResource(args) {
     filename,
     mime_type: input3.mimeType,
     size_bytes: input3.bytes.length,
-    message: "Agent-created image was uploaded to MovScript RawResource library. Use resource_id in generation input_resource_ids/reference_resource_ids."
+    message: "Agent-accessible artifact was uploaded to MovScript RawResource library. Use resource_id in generation input_resource_ids/reference_resource_ids."
   };
 }
 async function uploadAgentImageResources(args) {
@@ -68012,6 +68070,24 @@ function mimeTypeFromFilename(filename) {
       return "video/webm";
     case ".mkv":
       return "video/x-matroska";
+    case ".mp3":
+      return "audio/mpeg";
+    case ".wav":
+      return "audio/wav";
+    case ".m4a":
+      return "audio/mp4";
+    case ".aac":
+      return "audio/aac";
+    case ".flac":
+      return "audio/flac";
+    case ".ogg":
+      return "audio/ogg";
+    case ".txt":
+      return "text/plain";
+    case ".md":
+      return "text/markdown";
+    case ".json":
+      return "application/json";
     case ".png":
     default:
       return "image/png";
@@ -68035,6 +68111,26 @@ function extensionForMimeType(mimeType) {
       return ".webm";
     case "video/x-matroska":
       return ".mkv";
+    case "audio/mpeg":
+      return ".mp3";
+    case "audio/wav":
+    case "audio/wave":
+    case "audio/x-wav":
+      return ".wav";
+    case "audio/mp4":
+      return ".m4a";
+    case "audio/aac":
+      return ".aac";
+    case "audio/flac":
+      return ".flac";
+    case "audio/ogg":
+      return ".ogg";
+    case "text/plain":
+      return ".txt";
+    case "text/markdown":
+      return ".md";
+    case "application/json":
+      return ".json";
     case "image/png":
     default:
       return ".png";
@@ -71677,13 +71773,7 @@ function supportedParamMap(model, operation) {
   const paramsByOperation = isRecord4(model.supported_params_by_operation) ? model.supported_params_by_operation : void 0;
   const params = operationKey && Array.isArray(paramsByOperation?.[operationKey]) ? paramsByOperation[operationKey] : void 0;
   if (params) {
-    const out = /* @__PURE__ */ new Map();
-    for (const item of params) {
-      if (!isRecord4(item)) continue;
-      const key = stringField34(item.key);
-      if (key) out.set(key, item);
-    }
-    return out;
+    return paramMapFromDefinitions(params);
   }
   const keysByOperation = isRecord4(model.supported_param_keys_by_operation) ? model.supported_param_keys_by_operation : void 0;
   const operationKeys = operationKey && Array.isArray(keysByOperation?.[operationKey]) ? keysByOperation[operationKey] : void 0;
@@ -71699,17 +71789,19 @@ function supportedParamMap(model, operation) {
   if (properties) {
     return new Map(Object.keys(properties).map((key) => [key, { key, ...isRecord4(properties[key]) ? properties[key] : {} }]));
   }
-  const flatParams = Array.isArray(model.supported_params) ? model.supported_params : void 0;
-  if (flatParams) {
-    const out = /* @__PURE__ */ new Map();
-    for (const item of flatParams) {
-      if (!isRecord4(item)) continue;
-      const key = stringField34(item.key);
-      if (key) out.set(key, item);
-    }
-    return out;
+  if (Array.isArray(model.supported_params)) {
+    return paramMapFromDefinitions(model.supported_params);
   }
   return void 0;
+}
+function paramMapFromDefinitions(params) {
+  const out = /* @__PURE__ */ new Map();
+  for (const item of params) {
+    if (!isRecord4(item)) continue;
+    const key = stringField34(item.key);
+    if (key) out.set(key, item);
+  }
+  return out;
 }
 function aspectRatioToImageSize(aspectRatio, imageSizeParam) {
   const options = Array.isArray(imageSizeParam?.options) ? imageSizeParam.options.filter((item) => typeof item === "string") : [];
@@ -74602,7 +74694,7 @@ function productionWorkflowContract() {
     schema: "movscript.production_workflow.v1",
     status: "ready",
     mode: "cli_only",
-    summary: "Plan content, plan timeline, generate candidates, then export artifacts. Each stage is explicit and review-gated; generated or rendered outputs do not become stable project state until a candidate decision records adoption.",
+    summary: "Plan content, plan timeline, generate candidates, then export artifacts. Each stage is explicit and review-gated; generated or rendered outputs do not become stable project state until a candidate decision records adoption. Generic text/image/video/audio generation requests must choose MovScript or another generation system before generation. External generation results must be imported as MovScript RawResources before downstream use, and scene/expression outputs require manual candidate registration. Prompt writing is a first-class gate: model-facing prompts must be concrete, self-contained after refs resolve, and grounded in visible/audible direction. Video generation submission is a paid action and requires explicit user confirmation; image generation may proceed under normal readiness gates after tool choice is clear.",
     stages: [
       {
         stage_id: "plan_content",
@@ -74626,12 +74718,16 @@ function productionWorkflowContract() {
         blockers: [
           "missing_project_dir",
           "missing_project_source",
+          "generation_tool_choice_missing",
           "unresolved_content_unit_prompt_refs",
+          "prompt_not_model_understandable",
           "missing_upstream_candidate_adoption",
           "domain_inspect_blockers"
         ],
         human_review: [
           "Review production scope, source entities, prompt blockers, and dependency report before generation.",
+          "Ask the user to choose MovScript or another generation system before planning MovScript work for generic text/image/video/audio generation requests.",
+          "Rewrite source prose into prompt-ready visual/audio direction; do not pass script excerpts or hidden story context as model prompts.",
           "Adopt or defer upstream candidate choices before using them as stable downstream references."
         ],
         does_not: [
@@ -74695,17 +74791,32 @@ function productionWorkflowContract() {
         ],
         blockers: [
           "provider_not_configured",
+          "generation_tool_choice_missing",
           "model_route_missing",
           "credential_missing",
           "resource_access_unavailable",
           "prompt_compile_blocked",
+          "prompt_not_model_understandable",
+          "video_generation_confirmation_missing",
+          "external_generation_result_not_uploaded",
+          "manual_candidate_registration_missing",
           "generation_job_failed"
         ],
         human_review: [
+          "Confirm the generation tool choice for generic text/image/video/audio requests before using MovScript generation tools.",
+          "Review the model-facing prompt before generation: every required instruction must be visible, audible, a resolved reference, a camera/timing/light directive, or a concrete negative constraint.",
+          "Confirm paid video generation explicitly before any generation_submit call with video_generation or video operations.",
+          "For external systems such as LibTV, upload every generated text/image/video/audio result to MovScript RawResource before downstream use.",
+          "For scene-moment, expression-unit, asset, storyboard, keyframe, or audio-cue targets, manually register the uploaded RawResource as a content-unit candidate.",
           "Review generated candidate outputs before adoption.",
           "Record adopt, reject, or defer; generation success alone must not unlock stable downstream dependencies."
         ],
         does_not: [
+          "Does not default generic generation requests to MovScript when the user has not chosen MovScript.",
+          "Does not treat external generation URLs, canvas nodes, or provider task IDs as MovScript-ready outputs until uploaded as RawResources.",
+          "Does not auto-select manually imported external candidates.",
+          "Does not submit prompts that rely on hidden MovScript/project/chat context the model cannot see.",
+          "Does not submit video generation jobs without explicit user confirmation; unconfirmed video requests stop at planning, prompt compilation, and readiness reporting.",
           "Does not automatically adopt or select candidates.",
           "Does not publish generated RawResources as final project state."
         ]
@@ -74750,6 +74861,11 @@ function productionWorkflowContract() {
     global_gates: [
       "runtime readiness must name the missing owner: daemon, Data Service, Project Service, Editing Service, Media Pipeline, provider key, resource access, or renderer dependency",
       "model/provider/admin configuration stays in movscript admin commands",
+      "generic text/image/video/audio generation requests require an explicit tool choice: MovScript or another available generation system such as LibTV",
+      "external generation results must be uploaded as MovScript RawResources before downstream use",
+      "external outputs targeting scene moments or expression units require manual content-unit candidate registration before adoption",
+      "model-facing prompts must be understandable from the compiled prompt plus resolved resources; hidden story context blocks generation",
+      "paid video generation requires explicit user confirmation before generation_submit; images, storyboard panels, and keyframe images can be generated under ordinary readiness gates",
       "render success, artifact upload success, and generation success are separate from adoption",
       "stable downstream work requires adopted or explicitly selected content-unit candidates"
     ],
