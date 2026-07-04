@@ -18,6 +18,10 @@ import {
 } from '@movscript/project-surface/runtime'
 
 import {
+  desktopDataScopeFromContext,
+  desktopDataScopeFromOwner,
+  desktopPrincipalHint,
+  desktopProjectDecisionStoreConfig,
   desktopRemotionStudioShellBinding,
   desktopRemotionStudioShellFinishedBeforeReady,
   desktopRemotionStudioShellWorkspaceKey,
@@ -81,17 +85,11 @@ const desktopRemotionStudioShellSessions = new Map<string, DesktopRemotionStudio
 const desktopRemotionStudioShellStartPromises = new Map<string, Promise<DesktopRemotionStudioShellBinding>>()
 
 function desktopRemotionStudioShellBindingKeys(sessionId?: string, workspaceKey?: string): string[] {
-  const keys: string[] = []
-  if (sessionId) keys.push(sessionId)
-  if (workspaceKey && workspaceKey !== sessionId) keys.push(workspaceKey)
-  return keys
+  return [sessionId, workspaceKey].filter((key, index, keys): key is string => Boolean(key) && (index === 0 || key !== keys[0]))
 }
 
 function firstDesktopRemotionStudioShellMapValue<T>(map: Map<string, T>, keys: string[]): T | undefined {
-  for (const key of keys) {
-    const value = map.get(key)
-    if (value !== undefined) return value
-  }
+  for (const key of keys) if (map.has(key)) return map.get(key)
   return undefined
 }
 
@@ -104,9 +102,7 @@ function deleteDesktopRemotionStudioShellMapKeys<T>(map: Map<string, T>, keys: s
 }
 
 function deleteDesktopRemotionStudioShellBinding(binding: DesktopRemotionStudioShellBinding): void {
-  for (const [key, value] of Array.from(desktopRemotionStudioShellSessions.entries())) {
-    if (value.shellSessionId === binding.shellSessionId) desktopRemotionStudioShellSessions.delete(key)
-  }
+  for (const [key, value] of desktopRemotionStudioShellSessions.entries()) if (value.shellSessionId === binding.shellSessionId) desktopRemotionStudioShellSessions.delete(key)
 }
 
 export interface DesktopProjectSurfaceProviderProps {
@@ -740,54 +736,6 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
     daemonGatewayBaseURL,
     workspaceRoot,
   ])
-}
-
-function desktopProjectDecisionStoreConfig(input: {
-  projectUid?: string
-  title?: string
-  baseURL?: string
-  context?: MovScriptContextEnvelope
-  owner: ReturnType<typeof workspaceOwnerContext>
-}): Record<string, unknown> | undefined {
-  const projectUid = input.projectUid?.trim()
-  const baseUrl = input.baseURL?.trim()
-  if (!projectUid || !baseUrl) return undefined
-  const contextScope = desktopDataScopeFromContext(input.context)
-  const scopeKind = contextScope?.scopeKind ?? (input.owner.orgId !== undefined ? 'org' : 'user')
-  const scopeId = contextScope?.scopeId ?? input.owner.orgId ?? input.owner.userId
-  if (scopeId === undefined) return undefined
-  return {
-    kind: 'scoped-project-data',
-    baseUrl,
-    projectUid,
-    ...(input.title?.trim() ? { title: input.title.trim() } : {}),
-    scopeKind,
-    scopeId,
-  }
-}
-
-function desktopPrincipalHint(owner: ReturnType<typeof workspaceOwnerContext>): Record<string, unknown> {
-  if (owner.orgId !== undefined) {
-    return { scopeKind: 'org', scopeId: owner.orgId, userId: String(owner.orgId) }
-  }
-  if (owner.userId !== undefined) {
-    return { scopeKind: 'user', scopeId: owner.userId, userId: String(owner.userId) }
-  }
-  return {}
-}
-
-function desktopDataScopeFromContext(context: MovScriptContextEnvelope | undefined): { scopeKind: 'user' | 'org'; scopeId: string | number } | undefined {
-  const principal = context?.principal
-  if (!principal) return undefined
-  if (principal.scopeKind === 'org' && principal.scopeId !== undefined) return { scopeKind: 'org', scopeId: principal.scopeId }
-  const scopeId = principal.scopeId ?? principal.userId
-  return scopeId !== undefined ? { scopeKind: 'user', scopeId } : undefined
-}
-
-function desktopDataScopeFromOwner(owner: ReturnType<typeof workspaceOwnerContext>): { scopeKind: 'user' | 'org'; scopeId: string | number | undefined } {
-  return owner.orgId !== undefined
-    ? { scopeKind: 'org', scopeId: owner.orgId }
-    : { scopeKind: 'user', scopeId: owner.userId }
 }
 
 export function useDesktopProjectReadModel() {

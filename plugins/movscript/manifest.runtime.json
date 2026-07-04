@@ -1,0 +1,36 @@
+{
+  "schema": "movscript.runtime-bundle.v1",
+  "appId": "plugin",
+  "applicationId": "movscript.agent-plugin",
+  "artifact": "movscript-agent-plugin",
+  "version": "0.1.40",
+  "packageName": "@movscript/plugin-movscript",
+  "generatedAt": "2026-07-04T06:16:14.652Z",
+  "apiVersion": "1.0",
+  "minDaemonApiVersion": "1.0",
+  "bundleHash": "5f9c279c3bf7ac6c51018c646a6ebeb0fdc47d4e8b7dab3f130f2aeee0a6fc7d",
+  "bundleHashAlgorithm": "sha256",
+  "capabilities": {
+    "cli": true,
+    "mcp": true,
+    "daemon": true,
+    "project": true,
+    "timeline": true,
+    "canvas": true,
+    "resources": true,
+    "editing": true,
+    "media": true
+  },
+  "mcpServer": "movscript",
+  "entrypoint": "./bin/movscript",
+  "mcpArgs": [
+    "mcp",
+    "stdio"
+  ],
+  "daemonArgs": [
+    "daemon",
+    "run"
+  ],
+  "cliEntrypoint": "./bin/movscript",
+  "legacyMcpEntrypoint": "./bin/movscript-agent-mcp"
+}

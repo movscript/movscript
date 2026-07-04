@@ -42,6 +42,7 @@ surface/*/dist-lib/
 plugins/*/dist/
 plugins/*/release/
 plugins/*/manifest.runtime.json
+!plugins/movscript/manifest.runtime.json
 *.tsbuildinfo
 
 # Local prototypes and design exports

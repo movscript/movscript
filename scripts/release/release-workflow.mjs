@@ -75,6 +75,7 @@ export function releaseWorkflowSteps(mode, args = []) {
       ['Validate runtime registry', pnpmCommand, ['run', 'runtime:registry']],
       ['Run script and architecture boundary tests', pnpmCommand, ['run', 'test:scripts']],
       ['Build workspace packages', pnpmCommand, ['--workspace-concurrency=1', '--filter', './packages/*', 'build']],
+      ['Build movscript CLI', pnpmCommand, ['--filter', '@movscript/cli', 'build']],
       ['Run workspace typecheck', pnpmCommand, ['run', 'typecheck']],
       ['Run workspace package tests', pnpmCommand, ['run', 'test:packages']],
       ['Run desktop tests', pnpmCommand, ['--filter', '@movscript/desktop', 'test']],

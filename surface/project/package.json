@@ -55,7 +55,7 @@
   },
   "scripts": {
     "build": "tsup",
-    "test": "pnpm build && node --test tests/*.test.mjs",
+    "test": "pnpm --filter @movscript/project-surface... --if-present build && node --test tests/*.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {

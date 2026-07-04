@@ -1,3 +1,4 @@
+import type { MovScriptContextEnvelope } from '@movscript/shared'
 import { projectSurfacePath } from '@movscript/project-surface/routes'
 import type {
   ProjectSurfaceRemotionStudioSession,
@@ -8,6 +9,7 @@ import type {
 } from '@movscript/project-surface/runtime'
 
 import { ROUTES } from '@/routes/projectRoutes'
+import type { WorkspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
 
 export type DesktopRemotionStudioShellBinding = {
   shellSessionId: string
@@ -166,7 +168,62 @@ export function rendererCommandValue(value: unknown): string | string[] | undefi
   return items.length > 0 ? items : undefined
 }
 
+export function desktopProjectDecisionStoreConfig(input: {
+  projectUid?: string
+  title?: string
+  baseURL?: string
+  context?: MovScriptContextEnvelope
+  owner: WorkspaceOwnerContext
+}): Record<string, unknown> | undefined {
+  const projectUid = input.projectUid?.trim()
+  const baseUrl = input.baseURL?.trim()
+  if (!projectUid || !baseUrl) return undefined
+  const contextScope = desktopDataScopeFromContext(input.context)
+  const scopeKind = contextScope?.scopeKind ?? (input.owner.orgId !== undefined ? 'org' : 'user')
+  const scopeId = contextScope?.scopeId ?? input.owner.orgId ?? input.owner.userId
+  if (scopeId === undefined) return undefined
+  return {
+    kind: 'scoped-project-data',
+    baseUrl,
+    projectUid,
+    ...(input.title?.trim() ? { title: input.title.trim() } : {}),
+    scopeKind,
+    scopeId,
+  }
+}
+
+export function desktopPrincipalHint(owner: WorkspaceOwnerContext): Record<string, unknown> {
+  if (owner.orgId !== undefined) {
+    return { scopeKind: 'org', scopeId: owner.orgId, userId: String(owner.orgId) }
+  }
+  if (owner.userId !== undefined) {
+    return { scopeKind: 'user', scopeId: owner.userId, userId: String(owner.userId) }
+  }
+  return {}
+}
+
+export function desktopDataScopeFromContext(context: MovScriptContextEnvelope | undefined): { scopeKind: 'user' | 'org'; scopeId: string | number } | undefined {
+  const principal = context?.principal
+  if (!principal) return undefined
+  if (principal.scopeKind === 'org' && principal.scopeId !== undefined) return { scopeKind: 'org', scopeId: principal.scopeId }
+  const scopeId = principal.scopeId ?? principal.userId
+  return scopeId !== undefined ? { scopeKind: 'user', scopeId } : undefined
+}
+
+export function desktopDataScopeFromOwner(owner: WorkspaceOwnerContext): { scopeKind: 'user' | 'org'; scopeId: string | number | undefined } {
+  return owner.orgId !== undefined
+    ? { scopeKind: 'org', scopeId: owner.orgId }
+    : { scopeKind: 'user', scopeId: owner.userId }
+}
+
 export function desktopRemotionStudioShellFinishedBeforeReady(
+  session: Record<string, unknown>,
+  shellSession?: ProjectSurfaceShellSession,
+): boolean {
+  return remotionStudioShellFinishedBeforeReady(session, shellSession)
+}
+
+function remotionStudioShellFinishedBeforeReady(
   session: Record<string, unknown>,
   shellSession?: ProjectSurfaceShellSession,
 ): boolean {

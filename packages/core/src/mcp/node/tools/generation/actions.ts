@@ -1769,13 +1769,7 @@ function supportedParamMap(model: Record<string, unknown> | undefined, operation
   const paramsByOperation = isRecord(model.supported_params_by_operation) ? model.supported_params_by_operation : undefined
   const params = operationKey && Array.isArray(paramsByOperation?.[operationKey]) ? paramsByOperation[operationKey] : undefined
   if (params) {
-    const out = new Map<string, Record<string, unknown>>()
-    for (const item of params) {
-      if (!isRecord(item)) continue
-      const key = stringField(item.key)
-      if (key) out.set(key, item)
-    }
-    return out
+    return paramMapFromDefinitions(params)
   }
   const keysByOperation = isRecord(model.supported_param_keys_by_operation) ? model.supported_param_keys_by_operation : undefined
   const operationKeys = operationKey && Array.isArray(keysByOperation?.[operationKey]) ? keysByOperation[operationKey] : undefined
@@ -1791,7 +1785,20 @@ function supportedParamMap(model: Record<string, unknown> | undefined, operation
   if (properties) {
     return new Map(Object.keys(properties).map((key) => [key, { key, ...(isRecord(properties[key]) ? properties[key] : {}) }]))
   }
+  if (Array.isArray(model.supported_params)) {
+    return paramMapFromDefinitions(model.supported_params)
+  }
   return undefined
+}
+
+function paramMapFromDefinitions(params: unknown[]): Map<string, Record<string, unknown>> {
+  const out = new Map<string, Record<string, unknown>>()
+  for (const item of params) {
+    if (!isRecord(item)) continue
+    const key = stringField(item.key)
+    if (key) out.set(key, item)
+  }
+  return out
 }
 
 function aspectRatioToImageSize(aspectRatio: string, imageSizeParam: Record<string, unknown> | undefined): string | undefined {

@@ -50,6 +50,9 @@
       "@movscript/resource-surface/resource-browser": [
         "../resource/src/resource-browser.ts"
       ],
+      "@movscript/resource-surface/resource-media": [
+        "../resource/src/resourceMediaBrowser.ts"
+      ],
       "@movscript/resource-surface/resource-media-components": [
         "../resource/src/resourceMediaComponents.tsx"
       ],

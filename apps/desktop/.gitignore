@@ -1,9 +1,9 @@
 .movscript
 realms
 release
-sdk-runtime
+/sdk-runtime
 bin
-backend
+/backend
 build
 plugin-cache
 providers

@@ -6,6 +6,26 @@ This project follows semantic versioning once stable releases begin.
 
 ## Unreleased
 
+## 0.1.40 - 2026-07-04
+
+### Added
+
+- Added admin overview navigation and metrics for the desktop admin surface.
+- Expanded local daemon, app-server, and agent runtime tooling.
+- Added adapter coverage and registry updates for newer generation providers.
+
+### Changed
+
+- Refactored the desktop shell and runtime integration paths.
+- Improved route endpoint configuration and effective URL handling.
+- Refined project picker and project home surfaces.
+- Bumped release package manifests to 0.1.40.
+
+### Packaging
+
+- Kept the GitHub Actions release flow publishing Agent Plugin plus macOS, Windows, and Linux Desktop artifacts.
+- Continued release readiness, package resource, desktop smoke, plugin smoke, and checksum verification in CI.
+
 ## 0.1.7 - 2026-06-21
 
 ### Changed

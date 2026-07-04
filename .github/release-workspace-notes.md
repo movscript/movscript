@@ -2,44 +2,35 @@
 
 ## Release Summary
 
-This release publishes two user-facing packages from the same GitHub Release:
+Movscript 0.1.40 publishes two user-facing packages from the same GitHub Release:
 
-- Movscript Agent Plugin, a plugin-only package for Codex or another Agent provider without installing Desktop.
+- Movscript Agent Plugin, a plugin-only `movscript-agent-plugin` package for Codex or another Agent provider without installing Desktop.
 - Movscript Desktop, the local visual workspace for macOS Apple Silicon, macOS Intel, Windows x64, and Linux x64.
 
 Both packages reuse the same local `movscript.local-node` daemon when local execution is needed. The daemon is a shared runtime component, not a third public download choice.
 
-This release continues to target early community testing of the desktop workflow: project planning, assets, scripts, generation jobs, provider configuration, assistant workflows, and rough-cut production flows.
-
 ## Highlights
 
-- Publish the plugin-only `movscript-agent-plugin` package for Agent/provider usage without Desktop.
-- Publish the macOS Apple Silicon / arm64 desktop package.
-- Publish the macOS Intel / x64 desktop package.
-- Publish the Windows x64 desktop package as an installer and portable artifact.
-- Publish the Linux x64 desktop package as an AppImage artifact.
-- Stop bundling the app-server runtime by default; Mova and Codex app-server agents now become available only after the runtime is installed.
-- Install the app-server runtime on demand from the `@movscript/mova-app-server` meta package, which resolves the matching platform package.
-- Prevent ordinary runtime requests from auto-installing app-server packages; only the Console download/update action and tray runtime actions can use the install channel.
-- Add tray status and nested download, update, and uninstall actions for the built-in Mova, Codex, and Claude Code agent runtimes.
-- Reuse the same React runtime operation dialog for Console downloads and tray runtime tasks, including simultaneous multi-agent download status.
-- Remember local projects opened, fetched, or initialized through MovScript MCP project tools in the desktop recent projects list.
-- Bind project-scoped MCP tools and desktop project views to explicit local project directories, with user-scoped project data decisions when no org scope is present.
-- Build the macOS Intel / x64 package on the macOS 14 runner to avoid stalled macOS 13 Intel runner allocation.
-- Ad-hoc sign unsigned macOS preview packages before creating DMGs so downloaded apps have a valid bundle signature.
-- Preserve the macOS Electron entitlements required for ad-hoc signed preview builds so Electron Framework can load at launch.
-- Recommend the matching desktop download on GitHub Pages based on the visitor's OS and architecture when browser detection is available.
-- Use a Windows-specific Movscript Home default under `%LOCALAPPDATA%\Movscript\Home`, with a settings-page directory picker for moving data to a larger drive.
-- Persist SDK runtime thread snapshots and provider resume tokens in MovScript Home so Claude SDK conversations restore their visible history after desktop restarts.
+- Refactor the desktop shell and runtime integration path.
+- Expand local daemon, app-server, and agent runtime tooling.
+- Add an admin overview surface with operational metrics and navigation links.
+- Improve route endpoint configuration and effective URL handling.
+- Expand runtime tooling for project, agent, and generation workflows.
+- Add and test newer provider adapter coverage, including Vyro Seedance and Xiaomi MiMo related paths.
+- Improve project picker and project home surface structure.
+- Continue publishing the Agent Plugin package separately from Desktop.
+- Continue publishing macOS Apple Silicon, macOS Intel, Windows x64, and Linux x64 Desktop artifacts.
+- Publish the Linux x64 Desktop package as an AppImage artifact.
+- Continue attaching SHA256 checksums for release assets.
 
 ## Packaging And Verification
 
-- Release readiness check validates the tag against the package version.
+- Release readiness checks validate the tag against the package version.
 - Package resource contract verification runs as part of the release workflow.
-- The Agent Plugin package is built and attached as a separate release artifact.
-- The macOS, Windows, and Linux packaged app smoke tests run as part of the release workflow.
-- DMG checksum verification and mounted app verification run as part of the release workflow.
-- SHA256 checksums are attached with the release artifacts.
+- The Agent Plugin package is built, smoke tested, and attached as a separate release artifact.
+- Desktop packages are built and smoke tested on macOS, Windows, and Linux runners.
+- DMG checksum verification and mounted app verification run as part of the macOS release workflow.
+- Build provenance attestations are generated for release artifacts.
 
 ## Known Issues
 
@@ -53,5 +44,6 @@ This release continues to target early community testing of the desktop workflow
 
 - Release readiness verified by GitHub Actions
 - Package resources verified by GitHub Actions
+- Agent Plugin smoke test verified by GitHub Actions
 - Desktop smoke test verified by GitHub Actions
 - SHA256 checksums attached by GitHub Actions

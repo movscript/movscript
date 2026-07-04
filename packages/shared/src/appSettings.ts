@@ -169,10 +169,7 @@ function normalizeOptionalLocalGatewayBaseURL(value: string | undefined): string
   if (!normalized) return undefined
   try {
     const url = new URL(normalized)
-    const hostname = url.hostname.toLowerCase()
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]') {
-      return normalized
-    }
+    if (url.protocol === 'http:' || url.protocol === 'https:') return normalized
   } catch {
     return undefined
   }
