@@ -508,11 +508,20 @@ function linuxSmokeRunner(platform, env) {
 }
 
 function desktopSmokeRunner(executable, platform, env, smokeArgs) {
+  const args = linuxSmokeNoSandboxEnabled(platform, env) ? [...smokeArgs, '--no-sandbox'] : smokeArgs
   const linuxRunner = linuxSmokeRunner(platform, env)
-  if (linuxRunner) return { command: linuxRunner, args: ['-a', executable, ...smokeArgs] }
+  if (linuxRunner) return { command: linuxRunner, args: ['-a', executable, ...args] }
   // Validate that macOS smoke still targets an app bundle before running its binary directly.
   if (platform === 'darwin') darwinAppBundlePath(executable)
-  return { command: executable, args: smokeArgs }
+  return { command: executable, args }
+}
+
+function linuxSmokeNoSandboxEnabled(platform, env) {
+  if (platform !== 'linux') return false
+  const override = env.MOVSCRIPT_DESKTOP_SMOKE_NO_SANDBOX?.trim().toLowerCase()
+  if (override === '0' || override === 'false' || override === 'no') return false
+  if (override === '1' || override === 'true' || override === 'yes') return true
+  return env.CI === 'true' || env.GITHUB_ACTIONS === 'true'
 }
 
 function darwinAppBundlePath(executable) {
