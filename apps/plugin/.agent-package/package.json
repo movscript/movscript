@@ -2,7 +2,7 @@
   "schema": "movscript.agent-package.v1",
   "id": "movscript",
   "name": "MovScript",
-  "version": "0.1.2",
+  "version": "0.1.42",
   "description": "MovScript runtime agent package for agent providers that support skills, MCP servers, or provider-native plugin registries.",
   "kind": "runtime-agent",
   "displayName": "MovScript",

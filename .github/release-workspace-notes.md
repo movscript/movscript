@@ -2,7 +2,7 @@
 
 ## Release Summary
 
-Movscript 0.1.41 publishes two user-facing packages from the same GitHub Release:
+Movscript 0.1.42 publishes two user-facing packages from the same GitHub Release:
 
 - Movscript Agent Plugin, a plugin-only `movscript-agent-plugin` package for Codex or another Agent provider without installing Desktop.
 - Movscript Desktop, the local visual workspace for macOS Apple Silicon, macOS Intel, Windows x64, and Linux x64.
@@ -11,10 +11,10 @@ Both packages reuse the same local `movscript.local-node` daemon when local exec
 
 ## Highlights
 
-- Enhance MovScript resource upload support for image, video, audio, and text artifacts.
-- Add backend launch policy and SDK runtime client coverage.
-- Keep the real-time workflow, embedding, reranking, moderation, and provider adapter updates from the latest mainline.
-- Keep admin model management and route/runtime improvements from the latest mainline.
+- Add Agent Plugin package metadata for provider-native registration and installer handoff.
+- Improve Desktop bundled provider plugin installation and Home current/previous runtime handling.
+- Align Agent Plugin, Codex plugin, provider plugin, and runtime bundle metadata with the release version.
+- Keep the resource upload, backend launch policy, SDK runtime client, and provider adapter updates from the latest mainline.
 - Continue publishing the Agent Plugin package separately from Desktop.
 - Continue publishing macOS Apple Silicon, macOS Intel, Windows x64, and Linux x64 Desktop artifacts.
 - Publish the Linux x64 Desktop package as an AppImage artifact.

@@ -1,6 +1,6 @@
 {
   "name": "movscript",
-  "version": "0.1.2",
+  "version": "0.1.42",
   "description": "MovScript daemon runtime, admin/system management, project/domain planning, review, media query, AI generation, timeline compile, and Electron media editing tools backed by a headless MCP host.",
   "keywords": [
     "workspace",

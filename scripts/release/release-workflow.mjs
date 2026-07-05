@@ -686,6 +686,7 @@ export function prepareProviderPluginResources(root = repoRoot, options = {}) {
 
   log('Sync provider plugin distribution resources')
   syncPluginDistribution(sourceDir, pluginDir)
+  syncPluginMetadataVersions(pluginDir, version)
   syncPluginRuntime(root, pluginDir)
   writePluginRuntimeManifest(pluginDir, {
     version,
@@ -791,6 +792,16 @@ function syncPluginDistribution(sourceDir, pluginDir) {
   mkdirSync(pluginDir, { recursive: true })
   for (const path of paths.filter((path) => path !== 'manifest.runtime.json' && path !== 'runtime')) {
     cpSync(resolve(sourceDir, path), resolve(pluginDir, path), { recursive: true })
+  }
+}
+
+function syncPluginMetadataVersions(pluginDir, version) {
+  for (const relativePath of ['.agent-package/package.json', '.codex-plugin/plugin.json', '.provider-plugin/plugin.json']) {
+    const manifestPath = resolve(pluginDir, relativePath)
+    const manifest = readJSONFile(manifestPath)
+    if (manifest.version === version) continue
+    manifest.version = version
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
   }
 }
 

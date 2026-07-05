@@ -5,10 +5,10 @@
   "artifact": "movscript-agent-plugin",
   "version": "0.1.42",
   "packageName": "@movscript/plugin-movscript",
-  "generatedAt": "2026-07-04T19:59:54.984Z",
+  "generatedAt": "2026-07-05T16:42:15.487Z",
   "apiVersion": "1.0",
   "minDaemonApiVersion": "1.0",
-  "bundleHash": "46f097c489980838d214f89d54a7a7868b5fec72bee9815b9c3df0bb06e421b5",
+  "bundleHash": "d0262aa2aa4c583a7006721a9052d4c1ee11091b98b4678fde9f5e554ee8595c",
   "bundleHashAlgorithm": "sha256",
   "capabilities": {
     "cli": true,

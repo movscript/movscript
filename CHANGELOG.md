@@ -6,6 +6,18 @@ This project follows semantic versioning once stable releases begin.
 
 ## Unreleased
 
+## 0.1.42 - 2026-07-06
+
+### Added
+
+- Added Agent Plugin package metadata for provider-native registration and installer handoff.
+- Added Desktop bundled provider plugin installation coverage for Home current/previous runtime behavior.
+
+### Changed
+
+- Bumped release package manifests to 0.1.42.
+- Improved plugin distribution metadata version alignment across Agent Plugin, Codex plugin, provider plugin, and runtime bundle manifests.
+
 ## 0.1.41 - 2026-07-05
 
 ### Added
