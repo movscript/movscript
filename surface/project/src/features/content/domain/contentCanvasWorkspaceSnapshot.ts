@@ -82,7 +82,7 @@ export function buildContentCanvasWorkspaceSnapshot(data: ContentCanvasProjectDa
   const resourceNodes = dedupeNodes(candidateNodes.flatMap(createResourceNodes))
   const rawResourceNodes = createRawResourceReferenceNodes(contentUnitRawResourceRefs(data.contentUnits))
   const baseNodes = dedupeNodes([...entityNodes, ...candidateNodes, ...selectionNodes, ...resourceNodes, ...rawResourceNodes])
-  const nodeByEntityKindAndKey = new Map(baseNodes.map((node) => [`${node.kind}:${node.entityKey}`, node]))
+  const nodeByEntityKindAndKey = contentCanvasNodeLookup(baseNodes)
   const nodeByPath = new Map(baseNodes.filter((node) => node.sourcePath).map((node) => [node.sourcePath, node]))
   const domainParentByNodeId = buildDomainParentByNodeId(data.domainGraph, nodeByEntityKindAndKey, nodeByPath)
   attachDomainParentContext(baseNodes, domainParentByNodeId)
@@ -452,14 +452,14 @@ function parentNodeForEntity(
     return findNode(nodes, 'production', record.production_id, pathSegmentAfter(entity.path, 'productions')) ?? projectNode
   }
   if (kind === 'scene_moment') {
-    return findNode(nodes, 'segment', record.segment_id, pathSegmentAfter(entity.path, 'segments'))
+    return findNode(nodes, 'segment', scopedSegmentKeyForPath(entity.path), record.segment_id, pathSegmentAfter(entity.path, 'segments'))
       ?? findNode(nodes, 'production', record.production_id, pathSegmentAfter(entity.path, 'productions'))
       ?? projectNode
   }
   if (kind === 'content_unit') {
     const sceneMomentRef = stringValue(record.scene_moment_ref)
     return findNode(nodes, 'scene_moment', record.scene_moment_id, pathSegmentAfter(sceneMomentRef, 'scene_moments'), pathSegmentAfter(entity.path, 'scene_moments'))
-      ?? findNode(nodes, 'segment', record.segment_id, pathSegmentAfter(entity.path, 'segments'))
+      ?? findNode(nodes, 'segment', scopedSegmentKeyForPath(entity.path), record.segment_id, pathSegmentAfter(entity.path, 'segments'))
       ?? projectNode
   }
   if (kind === 'expression_unit') {
@@ -530,6 +530,39 @@ function findNode(
     if (node) return node
   }
   return undefined
+}
+
+function contentCanvasNodeLookup(nodes: ContentCanvasNode[]): Map<string, ContentCanvasNode> {
+  const out = new Map<string, ContentCanvasNode>()
+  for (const node of nodes) {
+    out.set(node.id, node)
+    const legacyKey = `${node.kind}:${node.entityKey}`
+    if (!out.has(legacyKey)) out.set(legacyKey, node)
+  }
+  return out
+}
+
+function scopedSegmentKeyForPath(path: string | undefined): string | undefined {
+  const productionId = scopedSegmentParentKey(path)
+  const segmentId = pathSegmentAfter(path, 'segments')
+    ?? fallbackEntityDirName(path, 'segment.json')
+  return productionId && segmentId ? `${productionId}/${segmentId}` : undefined
+}
+
+function scopedSegmentParentKey(path: string | undefined): string | undefined {
+  if (!path) return undefined
+  const parts = path.split('/').filter(Boolean)
+  const entityDir = parts.slice(0, -1)
+  const segmentCollectionIndex = entityDir.lastIndexOf('segments')
+  if (segmentCollectionIndex > 0 && entityDir[segmentCollectionIndex + 1]) return entityDir[segmentCollectionIndex - 1]
+  const parent = entityDir.at(-2)
+  return parent && parent !== 'segments' && parent !== 'productions' ? parent : undefined
+}
+
+function fallbackEntityDirName(path: string | undefined, filename: string): string | undefined {
+  if (!path) return undefined
+  const parts = path.split('/').filter(Boolean)
+  return parts.at(-1) === filename ? parts.at(-2) : undefined
 }
 
 function dedupeEdges(edges: ContentCanvasEdge[]): ContentCanvasEdge[] {

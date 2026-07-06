@@ -1856,7 +1856,7 @@ function contentCanvasEditingProjectsByNodeId(input) {
 }
 
 function contentCanvasNodeIdForEntity(entity, projectId) {
-  return `${contentCanvasKind(entity)}:${contentCanvasEntityKey(entity, projectId)}`
+  return `${contentCanvasKind(entity)}:${contentCanvasNodeKey(entity, projectId)}`
 }
 
 function contentCanvasKind(entity) {
@@ -1868,6 +1868,26 @@ function contentCanvasKind(entity) {
 function contentCanvasEntityKey(entity, projectId) {
   if (entity.entityKind === 'project') return String(entity.id ?? entity.record.project_id ?? projectId)
   return idValue(entity.id ?? entity.record.ID ?? entity.record.id) ?? `${entity.entityKind}:${entity.path}`
+}
+
+function contentCanvasNodeKey(entity, projectId) {
+  const key = contentCanvasEntityKey(entity, projectId)
+  if (entity.entityKind === 'segment') {
+    const parentKey = contentCanvasScopedSegmentParentKey(entity.path)
+      ?? idValue(entity.record.production_id ?? entity.record.productionId)
+    return parentKey ? `${parentKey}/${key}` : key
+  }
+  return key
+}
+
+function contentCanvasScopedSegmentParentKey(path) {
+  if (!path) return undefined
+  const parts = String(path).split('/').filter(Boolean)
+  const entityDir = parts.slice(0, -1)
+  const segmentCollectionIndex = entityDir.lastIndexOf('segments')
+  if (segmentCollectionIndex > 0 && entityDir[segmentCollectionIndex + 1]) return entityDir[segmentCollectionIndex - 1]
+  const parent = entityDir.at(-2)
+  return parent && parent !== 'segments' && parent !== 'productions' ? parent : undefined
 }
 
 function sortProjectCanvasEntities(items) {

@@ -335,7 +335,7 @@ test('content canvas domain graph treats namespaces as structure, not candidate 
     },
   })
   const episode = graph.nodes.find((node) => node.id === 'production:pilot')
-  const beat = graph.nodes.find((node) => node.id === 'segment:opening')
+  const beat = graph.nodes.find((node) => node.id === 'segment:pilot/opening')
   const scene = graph.nodes.find((node) => node.id === 'scene_moment:rain_call')
 
   assert.equal(episode.domainCategory, 'timeline_namespace')
@@ -492,28 +492,28 @@ test('content canvas hierarchy prefers normalized domain parent edges over legac
       contentUnitNodes: [],
     },
   })
-  const segmentNode = graph.nodes.find((node) => node.id === 'segment:opening')
+  const segmentNode = graph.nodes.find((node) => node.id === 'segment:pilot/opening')
   const sceneNode = graph.nodes.find((node) => node.id === 'scene_moment:rain_call')
 
   assert.equal(graph.edges.some((edge) =>
     edge.kind === 'hierarchy'
     && edge.source === 'production:pilot'
-    && edge.target === 'segment:opening',
+    && edge.target === 'segment:pilot/opening',
   ), true)
   assert.equal(graph.edges.some((edge) =>
     edge.kind === 'hierarchy'
-    && edge.source === 'segment:opening'
+    && edge.source === 'segment:pilot/opening'
     && edge.target === 'scene_moment:rain_call',
   ), true)
   assert.equal(graph.edges.some((edge) =>
     edge.kind === 'hierarchy'
     && edge.source === 'production:legacy_wrong'
-    && edge.target === 'segment:opening',
+    && edge.target === 'segment:pilot/opening',
   ), false)
   assert.equal(segmentNode?.domainParentNodeId, 'production:pilot')
   assert.deepEqual(segmentNode?.domainAncestorNodeIds, ['production:pilot'])
-  assert.equal(sceneNode?.domainParentNodeId, 'segment:opening')
-  assert.deepEqual(sceneNode?.domainAncestorNodeIds, ['segment:opening', 'production:pilot'])
+  assert.equal(sceneNode?.domainParentNodeId, 'segment:pilot/opening')
+  assert.deepEqual(sceneNode?.domainAncestorNodeIds, ['segment:pilot/opening', 'production:pilot'])
 })
 
 test('content canvas maps audio cue content units as system primitive production tasks', () => {

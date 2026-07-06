@@ -252,6 +252,33 @@ test('interpreter interpret reads hierarchical source root and writes derived ar
   assert.ok(impactReport.changedEntities.some((entity) => entity.entityKind === 'content_unit' && entity.editorImpacts.some((impact) => impact.includes('Content production context'))))
 })
 
+test('workspace service reads nested content unit derived artifacts by source path', async () => {
+  const files = new Map(sourceFileEntries())
+  const nestedContentUnit = files.get('content_units/k41m/content_unit.json')
+  files.delete('content_units/k41m/content_unit.json')
+  files.set('productions/p8f3/content_units/k41m/content_unit.json', nestedContentUnit)
+  const repository = memoryWorkspaceFileRepository(files)
+
+  await interpretMovScriptWorkspace({
+    fileRepository: repository,
+    now: new Date('2026-06-07T00:00:00.000Z'),
+  })
+
+  assert.equal(files.has('.interpret/current/content_units/k41m/runtime_panel.json'), false)
+  assert.equal(files.has('.interpret/current/productions/p8f3/content_units/k41m/runtime_panel.json'), true)
+
+  const service = createMovScriptWorkspaceService({ fileRepository: repository })
+  const runtimePanel = await service.readContentUnitRuntimePanel('k41m')
+  const generationPrompt = await service.readContentUnitGenerationPrompt('k41m')
+  const dependencyReport = await service.readContentUnitDependencyReport('k41m')
+  const selectionValidity = await service.readContentUnitSelectionValidity('k41m')
+
+  assert.equal(runtimePanel?.schema, 'movscript.content_unit_runtime_panel.v1')
+  assert.equal(generationPrompt?.schema, 'movscript.content_unit_prompt.v1')
+  assert.equal(dependencyReport?.schema, 'movscript.content_unit_dependency_report.v1')
+  assert.equal(selectionValidity?.schema, 'movscript.content_unit_selection_validity.v2')
+})
+
 test('interpreter tracks scence_moment_ref content units as scene videos', async () => {
   const files = new Map(sourceFileEntries())
   files.set('content_units/cu_r72k_scene_video/content_unit.json', JSON.stringify({

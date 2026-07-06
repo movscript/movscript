@@ -22,6 +22,7 @@ import {
   assertNodeKind,
   createInputOrDefault,
   createdNodeResult,
+  pathSegmentAfter,
   requiredProductionId,
   safeToken,
   type ContentCanvasCreateNodeOptions,
@@ -337,7 +338,7 @@ async function createTimelineNamespaceHierarchyNode(
     targetPath,
     record: timelineNamespaceChildRecord(projectId, input, entityKind),
   })
-  return createdNodeResult(`${entityKind}:${input.id}`, message, position, parentNode.id)
+  return createdNodeResult(timelineNamespaceNodeIdForPath(entityKind, input.id, targetPath, parentNode), message, position, parentNode.id)
 }
 
 function timelineNamespaceChildPath(
@@ -351,6 +352,20 @@ function timelineNamespaceChildPath(
   const folder = entityKind === 'segment' ? 'segments' : 'scene_moments'
   const file = entityKind === 'segment' ? 'segment' : 'scene_moment'
   return `${parentDir}/${folder}/${safeToken(childId)}/${file}.json`
+}
+
+function timelineNamespaceNodeIdForPath(
+  entityKind: 'segment' | 'scene_moment',
+  entityId: string,
+  targetPath: string,
+  parentNode: ContentCanvasNode,
+): string {
+  if (entityKind === 'segment') {
+    const parentKey = pathSegmentAfter(targetPath, 'productions')
+      ?? (parentNode.kind === 'production' ? parentNode.entityKey : undefined)
+    return `segment:${parentKey ? `${parentKey}/${entityId}` : entityId}`
+  }
+  return `${entityKind}:${entityId}`
 }
 
 function timelineNamespaceChildRecord(

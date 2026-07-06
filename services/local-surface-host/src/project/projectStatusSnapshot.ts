@@ -53,13 +53,33 @@ export function projectReadModelToStatusSummary(
   const productionSummary = recordValue(model.productionSummary ?? overview?.production)
   const contentSummary = recordValue(model.contentSummary ?? overview?.content)
   const readiness = recordValue(model.readiness ?? overview?.readiness)
-  const contentUnits = readModelContentUnits(contentSummary, readiness)
+  const contentUnits = readModelContentUnits(model, contentSummary, readiness)
   const productionItems = arrayValue(productionSummary?.items ?? productionSummary?.productions ?? productionSummary?.productionItems)
-  const firstProduction = recordValue(productionItems[0])
-  const productionId = target.productionId
+  const timelineProductionItems = arrayValue(projectTimelineStatus?.timeline_namespaces ?? projectTimelineStatus?.timelineNamespaces)
+    .map((item) => recordValue(item))
+    .filter((item): item is Record<string, unknown> => Boolean(item && isProductionTimelineNamespace(item)))
+  const sourceProductions = timelineProductionItems.length > 0 ? timelineProductionItems : productionItems
+  const firstProduction = recordValue(sourceProductions[0])
+  const fallbackProductionId = target.productionId
     ?? stringValue(firstProduction?.production_id ?? firstProduction?.productionId ?? firstProduction?.id)
     ?? stringValue(workspace?.productionId ?? workspace?.production_id)
     ?? 'default'
+  const contentUnitsByProduction = groupContentUnitsByProduction(contentUnits)
+  const visibleProductionItems = target.productionId
+    ? sourceProductions.filter((item) => sameId(productionIdFromRecord(recordValue(item)), target.productionId))
+    : sourceProductions
+  const productions = (visibleProductionItems.length > 0 ? visibleProductionItems : [{ id: fallbackProductionId }])
+    .map((item) => statusProductionSummary(
+      recordValue(item) ?? {},
+      fallbackProductionId,
+      target,
+      workspace,
+      contentUnitsByProduction,
+      contentUnits,
+      readiness,
+      model,
+      overview,
+    ))
 
   return {
     schema: 'movscript.production_status_summary.v1',
@@ -72,18 +92,7 @@ export function projectReadModelToStatusSummary(
       namespace_vocabulary: projectTimelineStatus.namespace_vocabulary,
       timeline_namespaces: projectTimelineStatus.timeline_namespaces,
     } : {}),
-    productions: [
-      {
-        production_id: productionId,
-        title: stringValue(firstProduction?.title ?? firstProduction?.name)
-          ?? stringValue(workspace?.title)
-          ?? target.projectId,
-        content_units: contentUnits,
-        blocking_refs: arrayValue(readiness?.blocking_refs ?? readiness?.blockingRefs),
-        stale_status: stringValue(model.status ?? overview?.status) ?? 'unknown',
-        job_status: stringValue(readiness?.job_status ?? readiness?.jobStatus) ?? 'not_tracked_in_project_read_model',
-      },
-    ],
+    productions,
   }
 }
 
@@ -102,11 +111,16 @@ export function targetFieldsForDomainFocus(focus: MovScriptNormalizedFocus | und
 }
 
 function readModelContentUnits(
+  model: Record<string, unknown>,
   contentSummary: Record<string, unknown> | undefined,
   readiness: Record<string, unknown> | undefined,
 ): Record<string, unknown>[] {
   const items = arrayValue(
-    contentSummary?.items
+    model.contentUnitSummaries
+      ?? model.content_unit_summaries
+      ?? model.contentUnits
+      ?? model.content_units
+      ?? contentSummary?.items
       ?? contentSummary?.content_units
       ?? contentSummary?.contentUnits
       ?? readiness?.content_units
@@ -138,6 +152,7 @@ function readModelContentUnit(unit: Record<string, unknown>, index: number): Rec
   return {
     content_unit_id: contentUnitId,
     title: stringValue(unit.title ?? unit.name) ?? contentUnitId,
+    path: stringValue(unit.path ?? unit.__workspace_path),
     output_kind: stringValue(unit.output_kind ?? unit.outputKind ?? unit.kind ?? unit.type) ?? 'unknown',
     candidate_count: Number.isFinite(candidateCount) ? candidateCount : candidateIds.length,
     ...(selectedCandidate ? { selected_candidate: selectedCandidate } : {}),
@@ -145,4 +160,66 @@ function readModelContentUnit(unit: Record<string, unknown>, index: number): Rec
     blocking_refs: arrayValue(unit.blocking_refs ?? unit.blockingRefs),
     candidate_ids: candidateIds,
   }
+}
+
+function statusProductionSummary(
+  production: Record<string, unknown>,
+  fallbackProductionId: string,
+  target: { projectId: string; productionId?: string },
+  workspace: Record<string, unknown> | undefined,
+  contentUnitsByProduction: Map<string, Record<string, unknown>[]>,
+  allContentUnits: Record<string, unknown>[],
+  readiness: Record<string, unknown> | undefined,
+  model: Record<string, unknown>,
+  overview: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  const productionId = productionIdFromRecord(production) ?? fallbackProductionId
+  const scopedContentUnits = contentUnitsByProduction.get(productionId)
+    ?? (target.productionId || productionId !== 'default' ? [] : allContentUnits)
+  return {
+    production_id: productionId,
+    title: stringValue(production.title ?? production.name)
+      ?? stringValue(workspace?.title)
+      ?? target.projectId,
+    content_units: scopedContentUnits,
+    blocking_refs: arrayValue(readiness?.blocking_refs ?? readiness?.blockingRefs),
+    stale_status: stringValue(model.status ?? overview?.status) ?? 'unknown',
+    job_status: stringValue(readiness?.job_status ?? readiness?.jobStatus) ?? 'not_tracked_in_project_read_model',
+  }
+}
+
+function groupContentUnitsByProduction(contentUnits: Record<string, unknown>[]): Map<string, Record<string, unknown>[]> {
+  const out = new Map<string, Record<string, unknown>[]>()
+  for (const unit of contentUnits) {
+    const productionId = stringValue(unit.production_id ?? unit.productionId)
+      ?? pathSegmentAfter(stringValue(unit.path ?? unit.__workspace_path), 'productions')
+    if (!productionId) continue
+    out.set(productionId, [...(out.get(productionId) ?? []), unit])
+  }
+  return out
+}
+
+function productionIdFromRecord(record: Record<string, unknown> | undefined): string | undefined {
+  return stringValue(record?.production_id ?? record?.productionId ?? record?.id)
+    ?? pathSegmentAfter(stringValue(record?.path ?? record?.__workspace_path), 'productions')
+}
+
+function isProductionTimelineNamespace(record: Record<string, unknown>): boolean {
+  const entityKind = stringValue(record.entity_kind ?? record.entityKind)
+  const path = stringValue(record.path)
+  const parent = recordValue(record.parent)
+  return entityKind === 'production'
+    || path?.endsWith('/production.json') === true
+    || (!parent && stringValue(record.kind) === 'production')
+}
+
+function pathSegmentAfter(path: string | undefined, segment: string): string | undefined {
+  if (!path) return undefined
+  const parts = path.split('/').filter(Boolean)
+  const index = parts.indexOf(segment)
+  return index >= 0 ? parts[index + 1] : undefined
+}
+
+function sameId(left: unknown, right: unknown): boolean {
+  return left !== undefined && right !== undefined && String(left) === String(right)
 }

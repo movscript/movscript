@@ -46,12 +46,22 @@ export function createContentCanvasEntityNode(
 }
 
 export function nodeIdForEntity(entity: MovScriptWorkspaceIndexedEntity, projectId: number) {
-  return `${contentCanvasKind(entity)}:${entityKey(entity, projectId)}`
+  return `${contentCanvasKind(entity)}:${nodeKeyForEntity(entity, projectId)}`
 }
 
 export function entityKey(entity: MovScriptWorkspaceIndexedEntity, projectId: number) {
   if (entity.entityKind === 'project') return String(entity.id ?? entity.record.project_id ?? projectId)
   return idValue(entity.id ?? entity.record.ID ?? entity.record.id) ?? `${entity.entityKind}:${entity.path}`
+}
+
+export function nodeKeyForEntity(entity: MovScriptWorkspaceIndexedEntity, projectId: number) {
+  const key = entityKey(entity, projectId)
+  if (entity.entityKind === 'segment') {
+    const parentKey = scopedSegmentParentKey(entity.path)
+      ?? idValue(entity.record.production_id ?? entity.record.productionId)
+    return parentKey ? `${parentKey}/${key}` : key
+  }
+  return key
 }
 
 export function contentCanvasKind(entity: MovScriptWorkspaceIndexedEntity): ContentCanvasNodeKind {
@@ -88,6 +98,16 @@ export function pathSegmentAfter(path: string | undefined, segment: string): str
   const parts = path.split('/')
   const index = parts.indexOf(segment)
   return index >= 0 ? parts[index + 1] : undefined
+}
+
+function scopedSegmentParentKey(path: string | undefined): string | undefined {
+  if (!path) return undefined
+  const parts = path.split('/').filter(Boolean)
+  const entityDir = parts.slice(0, -1)
+  const segmentCollectionIndex = entityDir.lastIndexOf('segments')
+  if (segmentCollectionIndex > 0 && entityDir[segmentCollectionIndex + 1]) return entityDir[segmentCollectionIndex - 1]
+  const parent = entityDir.at(-2)
+  return parent && parent !== 'segments' && parent !== 'productions' ? parent : undefined
 }
 
 export function compactStrings(...values: unknown[]): string[] {

@@ -54,3 +54,31 @@ test('local project status snapshot keeps production scope as legacy alias', () 
   assert.equal(snapshot.target.production_id, 'pilot')
   assert.equal(snapshot.target.timeline_scope_kind, 'production')
 })
+
+test('local project status snapshot keeps multiple productions and groups nested content units', () => {
+  const snapshot = projectReadModelToStatusSnapshot({
+    projectId: '7',
+    projectDir: '/tmp/farming-tech',
+    readModel: {
+      projectReadModel: {
+        projectTimelineStatus: {
+          schema: 'movscript.project_timeline_status.v1',
+          timeline_namespaces: [
+            { id: 'prod_ep01', entity_kind: 'production', title: '第 1 集', path: 'productions/prod_ep01/production.json' },
+            { id: 'prod_ep10', entity_kind: 'production', title: '第 10 集', path: 'productions/prod_ep10/production.json' },
+          ],
+        },
+        contentUnitSummaries: [
+          { content_unit_id: 'cu_ep01_voice', title: 'EP01 voice', path: 'productions/prod_ep01/content_units/cu_ep01_voice/content_unit.json' },
+          { content_unit_id: 'cu_ep10_voice', title: 'EP10 voice', path: 'productions/prod_ep10/content_units/cu_ep10_voice/content_unit.json' },
+        ],
+      },
+    },
+  })
+
+  const summary = snapshot.data?.status_summary as Record<string, unknown>
+  const productions = summary.productions as Array<Record<string, unknown>>
+  assert.deepEqual(productions.map((item) => item.production_id), ['prod_ep01', 'prod_ep10'])
+  assert.deepEqual((productions[0].content_units as Array<Record<string, unknown>>).map((item) => item.content_unit_id), ['cu_ep01_voice'])
+  assert.deepEqual((productions[1].content_units as Array<Record<string, unknown>>).map((item) => item.content_unit_id), ['cu_ep10_voice'])
+})

@@ -376,16 +376,16 @@ export function createMovScriptWorkspaceService(
       return readJSONArtifact(options.fileRepository, `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/${sceneMoment.path.replace(/\/scene_moment\.json$/, '')}/edit_plan.json`)
     },
     readContentUnitRuntimePanel(contentUnitId) {
-      return readJSONArtifact(options.fileRepository, `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/content_units/${entityPathSlug(contentUnitId, 'content_unit')}/runtime_panel.json`)
+      return readContentUnitDerivedArtifact(loadIndex, options.fileRepository, contentUnitId, 'runtime_panel.json')
     },
     readContentUnitGenerationPrompt(contentUnitId) {
-      return readJSONArtifact(options.fileRepository, `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/content_units/${entityPathSlug(contentUnitId, 'content_unit')}/generation_prompt.json`)
+      return readContentUnitDerivedArtifact(loadIndex, options.fileRepository, contentUnitId, 'generation_prompt.json')
     },
     readContentUnitDependencyReport(contentUnitId) {
-      return readJSONArtifact(options.fileRepository, `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/content_units/${entityPathSlug(contentUnitId, 'content_unit')}/dependency_report.json`)
+      return readContentUnitDerivedArtifact(loadIndex, options.fileRepository, contentUnitId, 'dependency_report.json')
     },
     readContentUnitSelectionValidity(contentUnitId) {
-      return readJSONArtifact(options.fileRepository, `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/content_units/${entityPathSlug(contentUnitId, 'content_unit')}/selection_validity.json`)
+      return readContentUnitDerivedArtifact(loadIndex, options.fileRepository, contentUnitId, 'selection_validity.json')
     },
     async upsertSetting(input) {
       const payload = await writePayloadWithGeneratedEntityId(loadIndex, 'setting', input)
@@ -505,7 +505,7 @@ export function createMovScriptWorkspaceService(
     },
     async createContentCandidate(input) {
       const promptSnapshot = mergePromptSnapshots(
-        await readContentUnitGenerationPromptArtifact(options.fileRepository, input.contentUnitId),
+        await readContentUnitDerivedArtifact(loadIndex, options.fileRepository, input.contentUnitId, 'generation_prompt.json'),
         input.promptSnapshot,
       )
       if (options.decisionStore) {
@@ -709,19 +709,37 @@ function contentUnitDerivedArtifactPath(contentUnitId: string | number, filename
   return `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/content_units/${entityPathSlug(contentUnitId, 'content_unit')}/${filename}`
 }
 
-async function readContentUnitGenerationPromptArtifact(
+async function readContentUnitDerivedArtifact(
+  loadIndex: () => Promise<MovScriptWorkspaceDomainIndex>,
   fileRepository: MovScriptWorkspaceFileRepository,
   contentUnitId: string | number,
+  filename: string,
 ): Promise<Record<string, unknown> | undefined> {
-  return readJSONArtifact(fileRepository, contentUnitDerivedArtifactPath(contentUnitId, 'generation_prompt.json'))
+  const paths = await contentUnitDerivedArtifactCandidatePaths(loadIndex, contentUnitId, filename)
+  for (const path of paths) {
+    const artifact = await readJSONArtifact(fileRepository, path)
+    if (artifact) return artifact
+  }
+  return undefined
 }
 
-async function readContentUnitRuntimePrompt(
-  fileRepository: MovScriptWorkspaceFileRepository,
+async function contentUnitDerivedArtifactCandidatePaths(
+  loadIndex: () => Promise<MovScriptWorkspaceDomainIndex>,
   contentUnitId: string | number,
-): Promise<Record<string, unknown> | undefined> {
-  const runtimePanel = await readJSONArtifact(fileRepository, contentUnitDerivedArtifactPath(contentUnitId, 'runtime_panel.json'))
-  return recordField(runtimePanel?.prompt)
+  filename: string,
+): Promise<string[]> {
+  const paths: string[] = []
+  const index = await loadIndex().catch(() => undefined)
+  const contentUnit = index?.byKind.get('content_unit')?.find((entity) =>
+    sameEntityId(entity.id, contentUnitId)
+    || sameEntityId(pathSegmentAfter(entity.path, 'content_units'), contentUnitId),
+  )
+  if (contentUnit) {
+    const contentUnitDir = normalizeWorkspacePath(contentUnit.path).replace(/\/content_unit\.json$/, '')
+    paths.push(`${MOVSCRIPT_INTERPRET_CURRENT_DIR}/${contentUnitDir}/${filename}`)
+  }
+  paths.push(contentUnitDerivedArtifactPath(contentUnitId, filename))
+  return [...new Set(paths)]
 }
 
 async function readBackendContentCandidateRecord(
@@ -933,6 +951,13 @@ function createMovScriptProjectUid(): string {
 
 function sameEntityId(left: unknown, right: unknown): boolean {
   return String(left ?? '') === String(right ?? '')
+}
+
+function pathSegmentAfter(path: string | undefined, segment: string): string | undefined {
+  if (!path) return undefined
+  const parts = path.split('/').filter(Boolean)
+  const index = parts.indexOf(segment)
+  return index >= 0 ? parts[index + 1] : undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

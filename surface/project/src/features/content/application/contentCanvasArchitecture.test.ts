@@ -6297,7 +6297,7 @@ test('content canvas preview view model scopes production and setting perspectiv
   assert.equal(productionView.previewScope.kind, 'production')
   assert.equal(productionView.previewScope.rootNode?.id, 'production:prod_b')
   assert.deepEqual(productionView.tree.map((node) => node.id), ['production:prod_b'])
-  assert.deepEqual(productionView.previewTree.map((node) => node.id), ['segment:seg_b'])
+  assert.deepEqual(productionView.previewTree.map((node) => node.id), ['segment:prod_b/seg_b'])
   assert.deepEqual(productionView.graph.nodes.filter((node) => node.kind === 'production').map((node) => node.id), ['production:prod_b'])
   assert.deepEqual(productionView.graph.nodes.filter((node) => node.kind === 'scene_moment').map((node) => node.id), ['scene_moment:scene_b'])
   assert.equal(productionView.graph.nodes.some((node) => node.kind === 'setting'), false)
@@ -6320,6 +6320,68 @@ test('content canvas preview view model scopes production and setting perspectiv
   assert.deepEqual(settingView.previewTree.map((node) => node.id), ['state:base'])
   assert.deepEqual(settingView.graph.nodes.filter((node) => node.kind === 'asset').map((node) => node.id), ['asset:portrait'])
   assert.equal(settingView.graph.nodes.some((node) => node.kind === 'production'), false)
+})
+
+test('content canvas production preview keeps repeated segment ids scoped by production path', () => {
+  const projectData = {
+    projectId: 7,
+    project: null,
+    productions: [
+      entityFixture('production', 'prod_ep01', 'productions/prod_ep01/production.json', { id: 'prod_ep01', title: 'Episode 1' }),
+      entityFixture('production', 'prod_ep10', 'productions/prod_ep10/production.json', { id: 'prod_ep10', title: 'Episode 10' }),
+    ],
+    segments: [
+      entityFixture('segment', 'seg01_opening_conflict', 'productions/prod_ep01/segments/seg01_opening_conflict/segment.json', { id: 'seg01_opening_conflict', title: 'Opening EP01' }),
+      entityFixture('segment', 'seg01_opening_conflict', 'productions/prod_ep10/segments/seg01_opening_conflict/segment.json', { id: 'seg01_opening_conflict', title: 'Opening EP10' }),
+    ],
+    sceneMoments: [
+      entityFixture('scene_moment', 'ep01_sm01', 'productions/prod_ep01/segments/seg01_opening_conflict/scene_moments/ep01_sm01/scene_moment.json', { id: 'ep01_sm01', title: 'Scene EP01' }),
+      entityFixture('scene_moment', 'ep10_sm01', 'productions/prod_ep10/segments/seg01_opening_conflict/scene_moments/ep10_sm01/scene_moment.json', { id: 'ep10_sm01', title: 'Scene EP10' }),
+    ],
+    storyboards: [],
+    expressionUnits: [],
+    contentUnits: [],
+    keyframes: [],
+    settings: [],
+    settingStates: [],
+    assets: [],
+    audioCues: [],
+    contentUnitCandidates: {},
+  }
+
+  const ep01View = buildContentCanvasWorkspaceViewModel({
+    projectData,
+    activeKind: 'all',
+    activeCanvasNodeId: 'production:prod_ep01',
+    activeProductionId: 'production:prod_ep01',
+    activeSceneId: null,
+    activeSettingId: null,
+    preview: { kind: 'production', targetNodeId: 'production:prod_ep01' },
+    selection: { kind: 'other', nodeId: 'production:prod_ep01' },
+    settingQuery: '',
+  })
+  const ep10View = buildContentCanvasWorkspaceViewModel({
+    projectData,
+    activeKind: 'all',
+    activeCanvasNodeId: 'production:prod_ep10',
+    activeProductionId: 'production:prod_ep10',
+    activeSceneId: null,
+    activeSettingId: null,
+    preview: { kind: 'production', targetNodeId: 'production:prod_ep10' },
+    selection: { kind: 'other', nodeId: 'production:prod_ep10' },
+    settingQuery: '',
+  })
+
+  assert.deepEqual(
+    ep01View.graph.nodes.filter((node) => node.kind === 'segment').map((node) => node.id),
+    ['segment:prod_ep01/seg01_opening_conflict'],
+  )
+  assert.deepEqual(ep01View.previewTree.map((node) => node.id), ['segment:prod_ep01/seg01_opening_conflict'])
+  assert.deepEqual(
+    ep10View.graph.nodes.filter((node) => node.kind === 'segment').map((node) => node.id),
+    ['segment:prod_ep10/seg01_opening_conflict'],
+  )
+  assert.deepEqual(ep10View.previewTree.map((node) => node.id), ['segment:prod_ep10/seg01_opening_conflict'])
 })
 
 test('content canvas workspace keeps inspector selection separate from entered canvas node', () => {

@@ -39,19 +39,24 @@ export function AgentProjectStatusSurface({
   const timelineNamespaces = arrayValue(timelineStatus?.timeline_namespaces ?? timelineStatus?.timelineNamespaces ?? summary?.timeline_namespaces ?? summary?.timelineNamespaces)
   const timelineAssemblies = arrayValue(timelineStatus?.timeline_assemblies ?? timelineStatus?.timelineAssemblies ?? summary?.timeline_assemblies ?? summary?.timelineAssemblies)
   const productions = arrayValue(summary?.productions)
-  const firstProduction = recordValue(productions[0])
-  const contentUnits = timelineAssemblies.length > 0 ? timelineAssemblies : arrayValue(firstProduction?.content_units)
+  const domainFocus = agentSurfaceSnapshotDomainFocus(snapshot)
+    ?? agentSurfaceDomainFocus(params, { projectId, productionId })
+  const legacyProductionId = agentSurfaceLegacyProductionId(domainFocus, productionId)
+  const visibleProductions = legacyProductionId
+    ? productions.filter((item) => sameId(productionIdFromRecord(recordValue(item)), legacyProductionId))
+    : productions
+  const firstProduction = recordValue(visibleProductions[0] ?? productions[0])
+  const contentUnits = timelineAssemblies.length > 0
+    ? timelineAssemblies
+    : visibleProductions.flatMap((item) => arrayValue(recordValue(item)?.content_units ?? recordValue(item)?.contentUnits))
   const blockers = timelineAssemblies.length > 0
     ? timelineAssemblies.flatMap((item) => arrayValue(recordValue(item)?.blocking_refs ?? recordValue(item)?.blockingRefs))
-    : arrayValue(firstProduction?.blocking_refs)
+    : visibleProductions.flatMap((item) => arrayValue(recordValue(item)?.blocking_refs ?? recordValue(item)?.blockingRefs))
   const readyToGenerate = contentUnits.filter((unit) => contentUnitBucket(recordValue(unit)) === 'ready')
   const needsSelection = contentUnits.filter((unit) => contentUnitBucket(recordValue(unit)) === 'selection')
   const needsFix = contentUnits.filter((unit) => contentUnitBucket(recordValue(unit)) === 'fix')
   const recentCandidates = recentCandidateEntries(contentUnits)
   const selectedResources = selectedResourceEntries(contentUnits)
-  const domainFocus = agentSurfaceSnapshotDomainFocus(snapshot)
-    ?? agentSurfaceDomainFocus(params, { projectId, productionId })
-  const legacyProductionId = agentSurfaceLegacyProductionId(domainFocus, productionId)
   const focusLabel = agentSurfaceFocusLabel(domainFocus, legacyProductionId ? `production: ${legacyProductionId}` : '')
 
   return (
@@ -116,6 +121,14 @@ export function AgentProjectStatusSurface({
       )}
     </AgentSurfaceShell>
   )
+}
+
+function productionIdFromRecord(record: Record<string, unknown> | undefined): string | undefined {
+  return stringValue(record?.production_id ?? record?.productionId ?? record?.id)
+}
+
+function sameId(left: unknown, right: unknown): boolean {
+  return left !== undefined && right !== undefined && String(left) === String(right)
 }
 
 function RecentCandidates({
