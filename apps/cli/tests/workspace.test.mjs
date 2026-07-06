@@ -23,28 +23,29 @@ after(async () => {
   await new Promise((resolveClose) => server.close(resolveClose))
 })
 
-test('workspace get-model returns the standard command JSON envelope without a frontend', () => {
+test('workspace get-model aliases the canonical domain command without a frontend', () => {
   const result = runMovscript(['workspace', 'get-model', 'project', '--entity-id', 'project_01', '--json'])
 
   assert.equal(result.status, 0)
   assert.equal(result.json.schema, 'movscript.command_result.v1')
   assert.equal(result.json.status, 'ok')
-  assert.equal(result.json.commandId, 'workspace.get_model')
+  assert.equal(result.json.commandId, 'domain.get_model')
   assert.equal(result.json.mcpToolName, 'domain_get_model')
   assert.equal(result.json.data.workspaceKind, 'project_workspace')
   assert.equal(result.json.data.entityKind, 'project')
   assert.deepEqual(result.json.debug.cli_argv, [
     'movscript',
-    'workspace',
+    'domain',
     'get-model',
-    'project',
     '--json',
+    '--entity-kind',
+    'project',
     '--entity-id',
     'project_01',
   ])
 })
 
-test('workspace review returns diagnostics JSON and exit code 2 when source has blockers', async () => {
+test('workspace review aliases domain diagnostics inspect and returns exit code 2 when source has blockers', async () => {
   projectRequests = []
   const projectDir = mkdtempSync(join(tmpdir(), 'movscript-cli-review-'))
   const result = await runMovscriptAsync([
@@ -61,7 +62,7 @@ test('workspace review returns diagnostics JSON and exit code 2 when source has 
 
   assert.equal(result.json.schema, 'movscript.command_result.v1')
   assert.equal(result.json.status, 'ok')
-  assert.equal(result.json.commandId, 'workspace.review')
+  assert.equal(result.json.commandId, 'domain.diagnostics.inspect')
   assert.equal(result.json.mcpToolName, 'domain_inspect')
   assert.equal(result.json.data.schema, 'movscript.workspace-inspection.v1')
   assert.equal(result.json.data.readyToInterpret, false)
@@ -72,13 +73,14 @@ test('workspace review returns diagnostics JSON and exit code 2 when source has 
   }])
   assert.deepEqual(result.json.debug.cli_argv, [
     'movscript',
-    'workspace',
-    'review',
+    'domain',
+    'diagnostics',
+    'inspect',
     '--json',
-    '--server',
-    baseURL,
     '--project-dir',
     projectDir,
+    '--server',
+    baseURL,
     '--project-uid',
     'prj_cli_review',
   ])
@@ -87,7 +89,7 @@ test('workspace review returns diagnostics JSON and exit code 2 when source has 
   assert.deepEqual(projectRequests[0]?.body, { projectDir })
 })
 
-test('workspace interpret binds project uid and calls Project Service without a frontend', async () => {
+test('workspace interpret aliases domain diagnostics interpret and binds project uid without a frontend', async () => {
   projectRequests = []
   const projectDir = mkdtempSync(join(tmpdir(), 'movscript-cli-interpret-'))
   const result = await runMovscriptAsync([
@@ -104,20 +106,21 @@ test('workspace interpret binds project uid and calls Project Service without a 
 
   assert.equal(result.json.schema, 'movscript.command_result.v1')
   assert.equal(result.json.status, 'ok')
-  assert.equal(result.json.commandId, 'workspace.interpret')
+  assert.equal(result.json.commandId, 'domain.diagnostics.interpret')
   assert.equal(result.json.mcpToolName, 'domain_interpret')
   assert.equal(result.json.data.schema, 'movscript.workspace-interpret-result.v1')
   assert.equal(result.json.data.status, 'refreshed')
   assert.equal(result.json.data.manifest.output.editorStatePath, '.interpret/current/editor-state.json')
   assert.deepEqual(result.json.debug.cli_argv, [
     'movscript',
-    'workspace',
+    'domain',
+    'diagnostics',
     'interpret',
     '--json',
-    '--server',
-    baseURL,
     '--project-dir',
     projectDir,
+    '--server',
+    baseURL,
     '--project-uid',
     'prj_cli_interpret',
   ])

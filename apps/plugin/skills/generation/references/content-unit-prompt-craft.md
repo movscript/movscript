@@ -6,7 +6,7 @@ Open `prompt-mode-router.md` first when the output type, model family, reference
 
 ## Core Rule
 
-Never use a script excerpt as the content-unit prompt by itself. First analyze the excerpt, then write a prompt-ready description for the specific output type.
+Never use a script excerpt as the saved prompt by itself. First analyze the excerpt, then write a prompt-ready description for the specific output type.
 
 Keep exact dialogue only when the generated output must contain that line. Otherwise translate dialogue and prose into visible performance, blocking, emotion, camera, lighting, sound, continuity, and negative constraints.
 

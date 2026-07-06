@@ -4,23 +4,23 @@ Use this when deciding whether a MovScript scene moment should be generated dire
 
 ## Default Path
 
-Default to a direct `scene_moment_ref` content unit and one complete video-generation prompt only when the requested output is one coherent short scene moment, normally about 10 seconds or less.
+Default to a direct `scene_moment_ref` 内容制作任务 (`content_unit`) and one complete video-generation prompt only when the requested output is one coherent short story beat, normally about 10 seconds or less.
 
-Do not split a short atomic scene moment into multiple shots or expression-unit material content units just because the structure would look more detailed. Split into multiple scene moments or material content units when one of these is true:
+Do not split a short atomic story beat into multiple shots or material output tasks just because the structure would look more detailed. Split into multiple story beats or material output tasks when one of these is true:
 
 - the requested scene moment exceeds about 10 seconds, changes time/place, or contains several independently reviewable actions;
 - the selected video model is confirmed to support the needed video input, start/end frames, multi-reference conditioning, or shot-continuity controls;
 - the workflow is explicitly going through editing composition after separate materials are generated;
 - the user asks for multi-shot planning, multiple clips, or a composed timeline;
-- the scene moment truly contains independently reusable materials such as voiceover, subtitles, music, sfx, or a visual asset that must be generated and adopted separately.
+- the story beat truly contains independently reusable materials such as voiceover, subtitles, music, sfx, or a visual asset that must be generated and adopted separately.
 
-If model capability is unknown, prefer direct generation with a strong prompt only for short atomic scene moments. For longer beats, split into short scene moments first and compose later.
+If model capability is unknown, prefer direct generation with a strong prompt only for short atomic story beats. For longer beats, split into short story beats first and compose later.
 
 After model discovery or selection, use `video-model-prompt-routing.md` to align the prompt shape with model capabilities. Do not choose multi-shot, audio/dialogue, start/end-frame, or reference-heavy prompting unless the selected model or workflow supports it.
 
 For Seedance-like requests, use `seedance2-prompt-methods.md` before deciding whether the request is a short concept clip, long-video pipeline, image-driven video, or storyboard-driven workflow.
 
-For image generation, open `image-prompt-craft.md`. Prefer `gpt-image-2` when available for non-person images, storyboard panels, schematic composition guides, environments, props, and visual anchors. Prefer Seedream/Seedream 5.0 lite when available for reusable human/person identity images that will be used as Seedance face references, so the resource can carry provider-generated trust/provenance required by Seedance review.
+For image generation, open `image-prompt-craft.md`. Prefer `gpt-image-2` when available for non-person images, 分镜图, schematic composition guides, environments, props, and visual anchors. Prefer Seedream/Seedream 5.0 lite when available for reusable human/person identity images that will be used as Seedance face references, so the resource can carry provider-generated trust/provenance required by Seedance review.
 
 ## Prompt Requirements
 
@@ -33,13 +33,15 @@ Prompts should be production-ready and minimize model guessing. Include the impo
 - lighting, color, texture, visual style, and negative constraints;
 - duration, aspect ratio, and motion requirements when relevant.
 
-When the source is a script, screenplay block, scene note, or story-heavy user wording, do not paste it as the final content-unit prompt. Run `content-unit-prompt-craft.md` first: extract story beat, characters, setting, visible action, blocking, camera, lighting, audio/performance, continuity, and negatives, then write a prompt that matches the target output type.
+When the source is a script, screenplay block, scene note, or story-heavy user wording, do not paste it as the final saved prompt. Run `content-unit-prompt-craft.md` first: extract story beat, characters, setting, visible action, blocking, camera, lighting, audio/performance, continuity, and negatives, then write a prompt that matches the target output type.
 
 For image outputs, use `image-prompt-craft.md` after the script analysis pass. A good image prompt is a single-frame production brief: purpose, subject, composition, setting, lighting, style/medium, details, and restrictions. Do not include video-like time progression unless describing one frozen key moment.
 
 Before writing or refining a video prompt, use `video-model-prompt-routing.md` and `video-prompt-craft.md` to classify the prompt mode and run the prompt pass. A `scene_moment_ref` prompt for video generation is still a video prompt: it should direct a scene over time, not merely summarize the scene moment or describe a still image.
 
-Use semantic refs such as `{{asset::id}}`, `{{storyboard::id}}`, and `{{keyframe::id}}` for selected upstream dependencies in the content unit `edit_prompt`. Before generation, compile the content unit with `domain_build_content_unit_backend_prompt` and inspect blockers, `semantic_ref_replacements`, and resolved `resource_ids`. Use direct RawResource IDs only for loose references or explicit `{{resource::123}}` inputs outside tracked dependency semantics.
+Use semantic refs such as `{{asset::id}}`, `{{storyboard::id}}`, and `{{keyframe::id}}` for selected upstream dependencies in the saved `edit_prompt`. Before generation, compile the output task with `domain_build_content_unit_backend_prompt` and inspect blockers, `semantic_ref_replacements`, and resolved `resource_ids`. Use direct RawResource IDs only for loose references or explicit `{{resource::123}}` inputs outside tracked dependency semantics.
+
+Before any MovScript, LibTV, or external executor runs for a MovScript project target, create or update the internal output task and save its `edit_prompt` as the prompt backup. Provider prompts and external node prompts should be derived from this saved prompt, not be the only copy.
 
 ## Settings and Standards
 
@@ -47,17 +49,23 @@ Create `setting` / `setting_state` / `asset` only for concrete reusable entities
 
 Do not create settings for abstract styles, moods, genres, rules, or one-off prompt text. Put durable project-wide constraints in `project_standards` only when the user explicitly asks or clearly confirms they are reusable standards.
 
+Script-related image or video generation requires a confirmed project style baseline before execution. If the style is simple and unambiguous, use a confirmed text style prompt saved in `visual_style` or `project_style.custom_rules[key=style_prompt]`, and cite that prompt in every later 内容制作任务 prompt and model-facing generation prompt. If the style is special, composite, uncommon, subjective, or ambiguous, generate a style-reference image batch from a style prompt: write a project-level style-reference output-task `edit_prompt`, summarize the full context, ask the user to confirm batch generation, have the user choose the style image(s), then save selected RawResource IDs in `project_standards.json` under `project_style.custom_rules[key=style_reference_images]`. Use those selected style images globally as reference inputs for every supported downstream visual generation.
+
 When an asset is needed, use `continuity-asset-prompts.md` to keep identity/state prompts reusable and separate from downstream motion, camera, and scene lighting.
+
+When a group of reference images is needed for one setting, do not generate the set as independent images from repeated text. Use `continuity-asset-prompts.md` and create a source-of-truth base asset first. After the base `asset_ref` candidate is adopted/selected, create derivative prompts that cite the base with semantic refs such as `{{asset::base_character}}`, `{{asset::base_room_layout}}`, or `{{asset::base_prop_shape}}`. This keeps character identity, scene-space layout, prop shape, material, and state variants tied to one source.
+
+For reusable places, scene spaces, rooms, sets, exterior locations, stages, or environments, treat the reference set as a scene reference pack. Create/adopt `base_scene_view` as the visual source of truth before any top-down, floor-plan, control-map, corner-view, or state derivative. Then derive `topdown_layout_ref` as an abstract structural source from `{{asset::base_scene_view}}`; later clean plates, corner/cardinal views, depth/line/control maps, material details, and state variants should cite the selected base scene and selected top-down layout when available. Do not use scene derivatives downstream if they contradict the selected base in door/window count, major object placement, orientation, scale, materials, or light-source logic.
 
 When a conversation cannot complete all user tasks, persist only reusable standards that help future turns continue correctly. Do not persist temporary task plans, generated job state, candidate ids, resource URLs, or guesses.
 
 ## Candidate Semantics
 
-Content-unit image/video generation creates or refreshes candidates automatically when the monitored job succeeds; it does not create final selected state. A generated RawResource becomes stable only after the resulting candidate is adopted/selected.
+Internal output-task image/video generation creates or refreshes candidates automatically when the monitored job succeeds; it does not create final selected state. A generated RawResource becomes stable only after the resulting candidate is adopted/selected.
 
 - RawResource: media/resource body.
-- Candidate: content-unit candidate record that points to outputs.
+- Candidate: generated-option record attached to a 内容制作任务 and pointing to outputs.
 - Selection: current stable chosen candidate/resource.
 - Adoption: user or workflow decision that writes selection.
 
-Do not manually call `domain_create_content_candidate` after `generation_submit` content-unit image/video jobs`. Use `domain_register_raw_resource_as_content_unit_candidate` only when an existing RawResource from upload, transform, import, editing export, or low-level generation should enter the candidate pool. Use `domain_decide_content_unit_candidate` with `adopt`, `reject`, or `defer` for user decisions.
+Do not manually call `domain_create_content_candidate` after `generation_submit` `content_unit` image/video jobs. Use `domain_register_raw_resource_as_content_unit_candidate` only when an existing RawResource from upload, transform, import, editing export, or low-level generation should enter the candidate pool. Use `domain_decide_content_unit_candidate` with `adopt`, `reject`, or `defer` for user decisions.

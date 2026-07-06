@@ -15,11 +15,11 @@ Use when:
 - duration is within one model generation and normally no more than about 10 seconds;
 - continuity needs are low or optional.
 
-MovScript structure:
+MovScript internal structure:
 
 ```text
 scene_moment
--> scene_moment_ref content unit
+-> scene_moment_ref 内容制作任务
 ```
 
 Optional evidence:
@@ -40,15 +40,15 @@ Use when:
 - the user asks for a short drama, trailer, MV, brand film, course/explainer, multi-scene ad, or reusable project;
 - continuity, subtitles, voice, music, or later edits matter.
 
-MovScript structure:
+MovScript internal structure:
 
 ```text
 production
 -> segment(s) when useful
 -> scene_moment(s)
 -> expression_unit(s) for visual, voice, subtitle, music, sfx, ambience
--> asset_ref / storyboard_ref / keyframe_ref content units where needed
--> expression_unit_ref or scene_moment_ref content units
+-> asset_ref / storyboard_ref / keyframe_ref 内容制作任务 where needed
+-> expression_unit_ref or scene_moment_ref 内容制作任务
 -> editing project for assembly
 ```
 
@@ -56,7 +56,7 @@ Rules:
 
 - Stabilize reusable assets before downstream visual generation.
 - Split long action into short scene moments that can each be prompted, reviewed, regenerated, and adopted independently.
-- Use expression units for independently generated materials that will be edited together.
+- Use concrete material records for independently generated shots, dialogue voice, narration voice, subtitles, music, sound effects, or ambience that will be edited together.
 - Use editing for assembly, trimming, color matching, subtitles, music sync, and final export.
 - Do not hide a long video in one giant prompt.
 
@@ -73,7 +73,7 @@ MovScript structure:
 ```text
 keyframe or direct RawResource
 -> scene_moment
--> scene_moment_ref content unit with prompt ref/input resource
+-> scene_moment_ref 内容制作任务 with prompt ref/input resource
 ```
 
 Use `keyframe_ref` when:
@@ -110,24 +110,24 @@ For small, coherent storyboards:
 
 ```text
 storyboard
--> storyboard_ref content unit
+-> storyboard_ref 内容制作任务
 -> scene_moment
--> scene_moment_ref content unit
+-> scene_moment_ref 内容制作任务
 ```
 
 For many panels or independently reviewable clips:
 
 ```text
 storyboard
--> storyboard_ref content unit
+-> storyboard_ref 内容制作任务
 -> scene_moment(s) / expression_unit(s)
--> expression_unit_ref content units per shot/material
+-> expression_unit_ref 内容制作任务 per shot/material
 -> editing project for assembly
 ```
 
 Rules:
 
-- Storyboard panels/images are visual evidence, not the final video output.
+- 分镜图 are visual evidence, not the final video output.
 - Require adoption/selection of storyboard candidates when downstream video depends on them.
 - Explicitly prevent panel borders, labels, captions, UI, or grid lines from becoming generated video content.
 
@@ -135,17 +135,25 @@ Rules:
 
 ### Video Spend Gate
 
-Planning may create video content units, write/refine video prompts, compile readiness, and generate supporting images such as storyboards, keyframes, and asset references. Do not submit a video generation job until the user explicitly confirms the paid video generation action. Without that confirmation, the next step is readiness reporting and a confirmation request, not `generation_submit`.
+Planning may create internal output tasks, write/refine saved prompts, and compile readiness for videos, 分镜图, 关键帧, asset references, voice, music, sound effects, subtitles, or any other generated output. Do not run any generation tool or external generation system until the user has seen the full generation context and explicitly confirmed the specific task. Without that confirmation, the next step is readiness reporting and a confirmation request, not `generation_prepare`, `generation_submit`, or external generation.
+
+### Saved Prompt Gate
+
+Before any MovScript, LibTV, or external generation executor runs for project content, create or update the target internal output task and save its `edit_prompt`. This saved prompt is the durable prompt backup; provider prompts, node prompts, and chat prose must be derived from it, not replace it.
+
+### Project Style Gate
+
+Before script-related image or video generation, require a confirmed project style baseline. This applies to 分镜图, 关键帧, asset images derived from the script, story-beat videos, and concrete visual shot outputs. If the style is simple and unambiguous, summarize the proposed reusable style prompt, ask the user to confirm it, then save it to `project_standards.json` with `domain_upsert_project_standards` under `visual_style` or `project_style.custom_rules[key=style_prompt]`; use that prompt in every downstream generation prompt. If the style is special, composite, uncommon, subjective, or ambiguous, generate a style-reference image batch from the style prompt: write the project-level internal output-task `edit_prompt`, summarize the full context, ask the user to confirm the batch, then save the user-selected RawResource IDs under `project_style.custom_rules[key=style_reference_images]`; use those selected style images as global references for every supported downstream visual generation.
 
 ### Scene Moment Duration Gate
 
 Use `scene_moment` as a short atomic video beat. If a requested moment is likely to run longer than about 10 seconds, split it into several scene moments with clear beginning/middle/end actions and compose them later through editing.
 
-For each planned scene moment, prefer a schematic `gpt-image-2` storyboard panel before downstream video generation. Avoid real-person likenesses in these storyboard panels; use them as visual direction evidence, not as human identity assets.
+For each planned short story beat, prefer a schematic `gpt-image-2` 分镜图 before downstream video generation. Avoid real-person likenesses in these 分镜图; use them as visual direction evidence, not as human identity assets.
 
 ### Continuity Gate
 
-Open `../../generation/references/continuity-asset-prompts.md` when a character, product, prop, place, costume, material state, instrument, or voice identity must stay stable.
+Open `../../generation/references/continuity-asset-prompts.md` when a character/person, product, prop, reusable place/scene space/set, costume, material state, instrument, or voice identity must stay stable. If the user says "场景" and means a location, environment, room, stage, or set, treat it as `setting`, not `scene_moment`.
 
 Planning structure:
 
@@ -153,7 +161,7 @@ Planning structure:
 setting
 -> setting_state
 -> asset
--> asset_ref content unit
+-> asset_ref 内容制作任务
 -> adoption/selection
 ```
 
@@ -161,7 +169,7 @@ Only after adoption/selection should downstream prompts use `{{asset::id}}` as a
 
 ### Visual Anchor Gate
 
-Use storyboards/keyframes when:
+Use 分镜图/关键帧 when:
 
 - composition, blocking, camera motion, subject placement, timing, or rhythm matters;
 - prior generations failed because composition drifted;
@@ -173,10 +181,10 @@ Planning structure:
 ```text
 shot or visual expression_unit
 -> storyboard
--> storyboard_ref content unit
+-> storyboard_ref 内容制作任务
 -> keyframe(s)
--> keyframe_ref content unit(s)
--> downstream video content unit
+-> keyframe_ref 内容制作任务
+-> downstream video 内容制作任务
 ```
 
 ### Editing Gate
@@ -200,7 +208,7 @@ Before writing entities:
 - Are reusable assets required before downstream generation?
 - Are storyboard/keyframe anchors required before video?
 - Will the final deliverable require editing?
-- Which content unit type is the smallest stable fit?
+- Which 内容制作任务 type (`content_unit_type`) is the smallest stable fit?
 
 ## Reporting
 
@@ -210,4 +218,4 @@ When reporting the plan, state:
 - planned MovScript entities;
 - required upstream selections before generation;
 - whether the path is stable or an explicit fast/unstable draft;
-- next action: create/update planning records, generate assets/keyframes/storyboards, ask for paid video generation confirmation when video candidates are ready, or switch to editing.
+- next action: create/update planning records, summarize full context and ask for generation confirmation, or switch to editing.

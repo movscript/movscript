@@ -100,7 +100,7 @@ Do not paste dialogue or scene prose into the image prompt. Convert it into visi
 
 ## Quality Checks
 
-Before submitting an image prompt, confirm:
+Before submitting an image prompt, run the quality check, then summarize the full image-generation context to the user and wait for explicit confirmation:
 
 - The prompt has a clear image purpose and target content-unit type.
 - Subject, composition, setting, lighting, style, details, and restrictions are explicit enough to prevent guessing.

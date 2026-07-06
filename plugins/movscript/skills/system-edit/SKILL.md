@@ -32,6 +32,10 @@ Use this skill after `production-editing` opens a `system_editing` workspace and
 
 This skill owns concrete `MediaEditingProject` work: assets, tracks, clips, validation, rendering, logs, and export/import.
 
+Open `../domain/references/resource-discoverability.md` before importing rendered files or creating candidates so previews/exports have clear names, revision status, and source provenance.
+
+Open `../domain/references/user-facing-response.md` before ordinary edit, render, import, or blocker replies so the user hears what changed, what was saved, and what choice remains.
+
 ## Workflow
 
 1. Read the handoff context, especially `mediaProjectId`, `mediaEditingProjectId`, `productionId`, and `workspaceId`.
@@ -39,7 +43,7 @@ This skill owns concrete `MediaEditingProject` work: assets, tracks, clips, vali
 3. Add assets, tracks, and clips with `editing_project_*` and `editing_timeline_*`.
 4. Validate with `editing_timeline_validate`.
 5. Render only when the user asks, using `editing_runtime_capabilities_get` and `editing_task_render_create`.
-6. Import rendered output as RawResource only when requested or when the production-bound workflow explicitly calls for import.
+6. Import rendered output as RawResource by default when render succeeds, unless the user explicitly asks for local-only output or import is unavailable.
 7. Create candidates only as a separate explicit decision.
 
 ## Rules
@@ -55,4 +59,4 @@ This skill owns concrete `MediaEditingProject` work: assets, tracks, clips, vali
 - Systems/config: Requires Editing Service `MediaEditingProject` access, Project Service workspace provenance, and Media Pipeline for render execution.
 - Blockers: Missing editing project, invalid timeline, unavailable Editing Service or Media Pipeline, missing media assets, or render failure.
 - Human review: Users approve timeline edits, renders, imports, and any candidate creation/adoption/selection.
-- Output: Saved `MediaEditingProject` changes, validation/render status, optional RawResource import, and no automatic candidate decision.
+- Output: Saved `MediaEditingProject` changes, validation/render status, RawResource import when possible, and no automatic candidate decision.

@@ -7,10 +7,10 @@ Use this reference before writing or updating a MovScript video-generation promp
 This file is a prompt-craft layer, not a provider adapter. Keep MovScript semantics intact:
 
 - Use MovScript prompt refs such as `{{asset::id}}`, `{{storyboard::id}}`, `{{keyframe::id}}`, `{{audio_cue::id}}`, `{{scene_moment::id}}`, `{{expression_unit::id}}`, `{{content_unit::id}}`, `{{candidate::id}}`, and `{{resource::123}}`.
-- Do not write provider-only reference syntax such as `@image1`, `@video1`, or `@audio1` in a content-unit prompt. Translate those ideas into MovScript refs or `input_resource_ids` / `reference_resource_ids`.
+- Do not write provider-only reference syntax such as `@image1`, `@video1`, or `@audio1` in a saved prompt. Translate those ideas into MovScript refs or `input_resource_ids` / `reference_resource_ids`.
 - Treat duration, aspect ratio, resolution, model name, and provider parameter keys as external generation settings unless the specific provider requires those words inside the prompt.
 - For image-to-video, use the selected image as the visual anchor. The prompt should focus on motion, performance, camera, environmental change, and audio, not re-describe every visible detail.
-- For content-unit generation, a strong prompt still produces a candidate, not a final accepted selection.
+- For output-task generation, a strong prompt still produces a candidate, not a final accepted selection.
 - For `scene_moment_ref` video generation, always write a video prompt. Do not pass a plain scene-moment synopsis, entity description, or still-image prompt to the video model.
 - When the source is script or story text, run `content-unit-prompt-craft.md` first. Use its script analysis pass as the extraction layer, then use this file to turn the analyzed beat into video direction.
 
@@ -40,7 +40,7 @@ Before generating video, run this pass mentally and fill any missing part that m
    Name real light sources and color behavior: golden-hour sun through curtains, flickering neon on wet pavement, candlelight on skin, cold monitor glow, practical lamps, smoke catching a backlight. Avoid only saying "dramatic lighting".
 
 8. Performance and Emotion
-   Direct expression, body language, micro-action, tension, rhythm, and interaction. If dialogue is present, identify the speaker, tone, pause timing, and any physical action around the line.
+   Direct expression, body language, micro-action, tension, rhythm, and interaction. If dialogue is present, identify the speaker, tone, pause timing, and any physical action around the line. When a face is prominent, write the expression as visible mechanics over time: baseline face -> trigger -> final face, naming brows, eyes/gaze, mouth/lips/jaw, breath, and tiny head movement only when they matter.
 
 9. Audio
    Include audio only when the selected model/workflow supports it or when audio assets are being generated separately. Use concrete sound design: room tone, footsteps, fabric rustle, engine hum, distant sirens, music tempo, beat-sync moments, dialogue tone.
@@ -62,6 +62,39 @@ Every sentence in the final video prompt must do at least one of these jobs:
 If a sentence only explains plot logic, backstory, motivation, theme, or mood, rewrite it into observable direction. For example, replace "she realizes he betrayed her" with a visible progression: she stops mid-step, looks from his face to the torn contract in his hand, her grip tightens around the phone, the camera pushes into her eyes as room tone drops.
 
 Do not leave shorthand such as "same person", "the earlier room", "the argument continues", "their relationship breaks", or "make it cinematic" unless the prompt or resolved refs define the subject, setting, action, camera, and lighting concretely enough for generation.
+
+## Facial Performance Detail
+
+Use this layer for close-ups, dialogue, reaction shots, talking-head output, romance/suspense beats, and any scene where a face carries the story turn.
+
+Do not stop at an emotion label. Use the label as a shorthand for the agent, then translate it into visible facial motion for the model.
+
+Facial performance shape:
+
+```text
+Expression arc: [baseline expression] -> [trigger, line, or realization] -> [final expression].
+Face mechanics: brows [raise/lower/draw together/relax]; eyes/gaze [widen/narrow/soften/drop/shift to target]; mouth/lips/jaw [corner lift/drop, lips press, jaw tightens, lower lip trembles].
+Micro-action: [breath, swallow, blink, tiny head tilt, shoulder tension] if visible.
+Timing: [0.5-1.5s morph, held pause, or beat before/after dialogue].
+```
+
+Rules:
+
+- Use 2-4 facial features per beat. Too many anatomical instructions can make the face unstable.
+- For expression changes, describe the transition: initial face, cause, visible changes, final face, and approximate timing.
+- For dialogue, pair the quoted line with delivery and lip/jaw behavior: tone, pace, pause, volume, mouth tension, or breath before the line.
+- For image-to-video, let the source image carry identity and composition; add only the emotional micro-beats, camera constraint, and preservation rules.
+- For multi-character scenes, separate speaking beats from reaction beats unless the model/provider supports reliable multi-person dialogue.
+- For face-sensitive Seedance-like work, avoid close-up orbiting or aggressive camera moves; prefer locked-off, slow push-in, or gentle handheld drift.
+
+Weak-to-strong expression examples:
+
+| Weak | Stronger |
+|------|----------|
+| "angry" | "brows lower and draw together; eyes narrow; jaw tightens; lips press into a flat line before the line" |
+| "sad" | "inner brows lift; gaze drops away from the other person; lower lip trembles once; mouth closes around a quiet breath" |
+| "surprised, then determined" | "eyes widen and mouth opens for half a beat; after the pause, brows lower, eyes narrow, and the mouth sets into a firm line" |
+| "warm confidence" | "small asymmetrical smile; cheeks lift slightly; eyes hold steady on camera; shoulders stay relaxed" |
 
 ## Narrative to Shootable Direction
 
@@ -168,7 +201,7 @@ Shot 2 (3-6s): [framing, subject, action, camera, lighting, audio].
 Shot 3 (6-10s): [framing, subject, action, camera, lighting, audio].
 ```
 
-For MovScript content-unit generation, prefer separate expression-unit material content units plus editing when the shots must become independently selectable assets.
+For MovScript output-task generation, prefer separate shot/material output tasks plus editing when the shots must become independently selectable assets.
 
 ### Video Extension or Edit
 
@@ -211,17 +244,18 @@ Strong:
 
 ## Quality Checks
 
-Before submitting a video prompt, confirm:
+Before submitting a video prompt, run the quality check, then summarize the full video-generation context to the user and wait for explicit confirmation:
 
 - The prompt directs a scene over time, not a still image.
 - A `scene_moment_ref` content unit uses video-prompt form, not a scene synopsis.
 - Story-heavy wording has been translated into cast/blocking, visible actions, dialogue, lighting, camera, and audio layers.
 - A model seeing only the compiled prompt plus resolved refs can understand what appears on screen, what changes over time, and how the camera/lighting/audio behave.
+- Prominent faces have expression mechanics, not only emotion labels: brows, eyes/gaze, mouth/lips/jaw, breath, and timing where relevant.
 - No hidden backstory, unresolved pronouns, private shorthand, or invisible emotion remains as a required instruction.
-- Script text has been analyzed into scene details instead of copied as the content-unit prompt.
+- Script text has been analyzed into scene details instead of copied as the saved prompt.
 - The subject identity and selected MovScript refs are explicit when continuity matters.
 - The action has a beginning, middle, and end if duration or complexity calls for it.
 - Camera and lighting are concrete enough to influence output.
 - Negative constraints are relevant and not a generic junk drawer.
-- Provider-only syntax has not leaked into MovScript content-unit prompts.
+- Provider-only syntax has not leaked into MovScript saved prompts.
 - Required upstream refs have selected/adopted candidates. If candidates exist but are unselected, guide the user to adopt/select one first. Continue only when the user explicitly asks for an unstable draft.

@@ -20,6 +20,7 @@ import {
   handleDaemonMCPJSONRPC,
   listDaemonMCPTools,
   readDaemonMCPResource,
+  toMCPCallToolResult,
 } from '@movscript/local-daemon/mcp'
 import {
   findRuntimeEndpoint,
@@ -191,7 +192,15 @@ async function proxyMCPHostJSONRPCToDaemon(
     throw new Error(`MovScript daemon MCP endpoint ${endpoint} returned HTTP ${response.status}${text ? `: ${text}` : ''}`)
   }
   if (!text.trim()) return undefined
-  return JSON.parse(text) as JSONRPCResponse
+  return normalizeProxiedMCPResponse(req, JSON.parse(text) as JSONRPCResponse)
+}
+
+function normalizeProxiedMCPResponse(req: JSONRPCRequest, response: JSONRPCResponse): JSONRPCResponse {
+  if (req.method !== 'tools/call' || response.result === undefined || response.error !== undefined) return response
+  return {
+    ...response,
+    result: toMCPCallToolResult(response.result),
+  }
 }
 
 function runtimeDiscoveredEndpoints(runtimeHome: RuntimeHomeSnapshot): Record<string, string> {

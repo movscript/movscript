@@ -33,7 +33,7 @@ bin/movscript admin provider list
 bin/movscript system generation prepare --capability image_generation --json
 bin/movscript production editing workspace list --production-id pilot --json
 bin/movscript production editing workspace open --production-id pilot --workspace-id rough_cut_v1 --json
-bin/movscript workspace get-model project --json
+bin/movscript domain get-model --entity-kind project --json
 ```
 
 This CLI is a product surface, not only an MCP launch script. In no-frontend or CI sessions, `bin/movscript ... --json` should be enough to start/inspect the daemon, configure admin systems, use system generation/resource tools, create/open production editing workspaces, and return structured diagnostics. The MCP host wraps the same command runners and includes `debug.cli_argv` so agent calls can be reproduced from a terminal.

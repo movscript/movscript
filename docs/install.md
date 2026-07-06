@@ -32,23 +32,26 @@ Useful plugin install controls:
 
 ```bash
 sh install-plugin.sh --local-zip plugins/movscript/release/movscript-agent-plugin-0.1.30.zip
-sh install-plugin.sh --provider codex,claude-code,openclaw,harness
+sh install-plugin.sh --provider codex,claude-code,openclaw,harness,workbuddy,trae
 sh install-plugin.sh --provider all
+sh install-plugin.sh --provider all --no-native
 sh install-plugin.sh --retain 3
 sh install-plugin.sh --rollback
 sh install-plugin.sh --rollback-version 0.1.30
 ```
 
-This path is for users who want an Agent/provider entry first. The shared package remains one installed Home bundle; each provider target gets a small projection under `$MOVSCRIPT_HOME/provider/<target>`:
+This path is for users who want an Agent/provider entry first. The shared package remains one installed Home bundle; each provider target gets a small projection under `$MOVSCRIPT_HOME/provider/<target>`. By default the installer also calls the native provider CLI or writes the native provider config when it is available: Codex removes prior MovScript plugin installs, removes the legacy `movscript-local` marketplace, then receives `codex plugin marketplace add` plus `codex plugin add`; Claude Code receives `claude mcp add`; OpenClaw receives `openclaw plugins install --link`; WorkBuddy receives a merge into `~/.workbuddy/mcp.json`; and Trae receives a merge into `~/Library/Application Support/Trae/User/mcp.json` on macOS. Harness receives a Worker Agent export file for import. For Codex, the installer also updates `$CODEX_HOME/plugins/movscript` or `~/.codex/plugins/movscript` as a compatibility link to Home current. Use `--no-native` or `MOVSCRIPT_NATIVE_PROVIDER_INSTALL=0` when you only want to generate the files.
 
 | Target | Projection |
 | --- | --- |
-| `codex` | `marketplace.json` plus `plugins/movscript -> Home current` |
+| `codex` | `.agents/plugins/marketplace.json`, `marketplace.json`, plus `plugins/movscript -> Home current` |
 | `claude-code` | `.mcp.json` plus `registration.json` |
-| `openclaw` | `mcp.json` plus `registration.json` |
+| `openclaw` | OpenClaw plugin package under `plugin/`, `mcp.json`, plus `registration.json` |
 | `harness` | `worker-agent.json` plus `registration.json` |
+| `workbuddy` | `mcp.json` plus `registration.json`; native install merges into `~/.workbuddy/mcp.json` |
+| `trae` | `mcp.json`, project template `project/.trae/mcp.json`, plus `registration.json`; native install merges into macOS Trae user MCP config |
 
-`xiaolongxia` is accepted as an alias for `openclaw`.
+`xiaolongxia` is accepted as an alias for `openclaw`. `trea` is accepted as a typo-tolerant alias for `trae`.
 
 ## MovScript Home And Distribution Profiles
 

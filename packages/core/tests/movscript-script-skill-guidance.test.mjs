@@ -48,6 +48,29 @@ test('planning skill persists important story intent in scripts before downstrea
   assert.match(workflows, /update the script with `domain_upsert_script` before writing downstream planning entities/)
 })
 
+test('script guidance captures brainstorming inspiration during deep discussion', () => {
+  const planning = readRepoFile('plugins/movscript/skills/planning/SKILL.md')
+  const workflows = readRepoFile('plugins/movscript/skills/planning/references/planning-workflows.md')
+  const domain = readRepoFile('plugins/movscript/skills/domain/SKILL.md')
+  const project = readRepoFile('plugins/movscript/skills/project/SKILL.md')
+
+  assert.match(planning, /## Script Capture Gate/)
+  assert.match(planning, /During brainstorming or deep discussion, treat durable user inspirations as script material/)
+  assert.match(planning, /Do not let important project inspiration live only in chat/)
+  assert.match(planning, /read the current script first, merge the new inspiration, and write it with `domain_upsert_script` before deriving scene moments, expression units, content units, settings, assets, or generation prompts/)
+  assert.match(planning, /Label uncertain but useful ideas as exploratory\/候选\/待定/)
+
+  assert.match(workflows, /## Deep Discussion And Inspiration Capture/)
+  assert.match(workflows, /capture durable inspirations into `scripts\/\*\*` before planning downstream structure/)
+  assert.match(workflows, /Preserve the user's words when a phrase, line, or image idea may matter later/)
+
+  assert.match(domain, /During brainstorming or deep discussion, use `domain_read_script_source` then `domain_upsert_script`/)
+  assert.match(domain, /Keep confirmed story facts separate from exploratory\/候选\/待定 ideas and rejected ideas/)
+
+  assert.match(project, /deep discussion produces durable story inspiration/)
+  assert.match(project, /route to planning or domain to update the script before downstream execution/)
+})
+
 test('domain and project skills route unclear creative work through script source first', () => {
   const domain = readRepoFile('plugins/movscript/skills/domain/SKILL.md')
   const project = readRepoFile('plugins/movscript/skills/project/SKILL.md')

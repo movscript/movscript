@@ -231,6 +231,7 @@ function runInstaller(root, artifact, homeDir, env, spawn) {
     env: {
       ...env,
       MOVSCRIPT_HOME: homeDir,
+      MOVSCRIPT_NATIVE_PROVIDER_INSTALL: '0',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     timeout: 60_000,
@@ -262,6 +263,7 @@ function runInstallerRollback(root, homeDir, env, spawn) {
     env: {
       ...env,
       MOVSCRIPT_HOME: homeDir,
+      MOVSCRIPT_NATIVE_PROVIDER_INSTALL: '0',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     timeout: 60_000,
@@ -299,10 +301,12 @@ function locateInstalledPluginRoot(homeDir, expectedVersion = '', options = {}) 
   const pluginRoot = resolve(pluginStore, 'current')
   const identityPath = resolve(pluginStore, 'current.identity')
   const marketplacePath = resolve(homeDir, 'provider/codex/marketplace.json')
+  const codexNativeMarketplacePath = resolve(homeDir, 'provider/codex/.agents/plugins/marketplace.json')
   const codexPluginLink = resolve(homeDir, 'provider/codex/plugins/movscript')
   if (!existsSync(pluginRoot)) throw new Error(`Plugin installer did not create current pointer: ${pluginRoot}`)
   if (!existsSync(identityPath)) throw new Error(`Plugin installer did not write current.identity: ${identityPath}`)
   if (!existsSync(marketplacePath)) throw new Error(`Plugin installer did not write Codex marketplace: ${marketplacePath}`)
+  if (!existsSync(codexNativeMarketplacePath)) throw new Error(`Plugin installer did not write Codex native marketplace: ${codexNativeMarketplacePath}`)
   if (!existsSync(codexPluginLink)) throw new Error(`Plugin installer did not write Codex plugin link: ${codexPluginLink}`)
   const currentTarget = realpathSync(pluginRoot)
   const identity = readBundleIdentity(identityPath)

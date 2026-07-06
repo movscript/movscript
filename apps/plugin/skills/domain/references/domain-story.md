@@ -7,18 +7,20 @@ The shared story is:
 ```text
 request
 -> output/scope granularity decision
--> focused scene_moment or expression_unit material
--> optional consistency evidence
--> content unit production task
--> candidates / selection
+-> focused story beat or concrete material: shot video/image, dialogue voice, narration voice, subtitle, sound, music, ambience, 分镜图, or 关键帧
+-> optional continuity reference: character, place, prop, costume, voice, style, or selected upstream material
+-> internal output task and saved prompt
+-> generated/imported options and user choice
 -> interpreter review and stale checks
 ```
 
-MovScript planning should first ask what is being made: a single output, visual material inside a scene moment, a complete scene moment, several scene moments, or a timeline namespace scope that needs production editing playback. Most video work should then center on a `scene_moment`; shot-like visual intent lives under that scene moment as an `expression_unit` with `modality=visual` and `role=shot`.
+MovScript planning should first ask what is being made in user language: one simple video, one shot, a short story beat, several story beats, a dialogue/narration/subtitle/sound/music material, a 分镜图, a 关键帧, a reusable character/place/prop/costume/voice reference, or a larger piece that needs editing assembly. Internally, most short video work centers on a `scene_moment`; shot-like visual intent lives under that scene moment as an `expression_unit` with `modality=visual` and `role=shot`.
 
-Settings, assets, keyframes, storyboards, expression units, and audio cues are evidence or scaffolding for that center. Add them when they protect consistency, reuse, or generation quality; skip them when the user wants a quick low-stakes draft.
+Settings, assets, 关键帧, 分镜图, visual/audio/text materials, and audio cues are evidence or scaffolding for that center. Add them when they protect consistency, reuse, or generation quality; skip them when the user wants a quick low-stakes draft.
 
-When a reusable concrete production entity, such as a character, prop, place, instrument, costume, or voice identity, will appear across generation tasks, or when the user is dissatisfied with its appearance or sound, stabilize it through `setting` / `setting_state` / `asset` and an adopted/selected `asset_ref` content unit before downstream keyframe, storyboard, audio, or video work. Do not use `setting` for abstract style/rules/mood; use project standards or production/expression fields. When composition or camera intent is important but underspecified, stabilize storyboard panels/images before keyframes and video.
+When a reusable concrete production entity, such as a character/person, prop, place, scene space, set, instrument, costume, or voice identity, will appear across generation tasks, or when the user is dissatisfied with its appearance or sound, stabilize it through `setting` / `setting_state` / `asset` and an adopted/selected `asset_ref` content unit before downstream 关键帧, 分镜图, audio, or video work. Do not use `setting` for abstract style/rules/mood; use project standards or production/expression fields. When composition or camera intent is important but underspecified, stabilize 分镜图 before 关键帧 and video.
+
+Chinese "场景" is overloaded. If it means a reusable place, environment, room, stage, or set, map it to `setting`; if it means the short dramatic/action event that happens there, map that beat to `scene_moment`.
 
 ## Structure Before Content Units
 
@@ -27,7 +29,7 @@ Everything except `content_unit` is production structure or a prerequisite for g
 - Timeline namespace nodes organize story rhythm, order, and user vocabulary. Current source and MCP compatibility tools may write them as `production` / `segment`, but treat those as namespace projections.
 - `scene_moment` describes the smallest stable dramatic moment that can become production work.
 - `expression_unit` and `audio_cue` describe narrative expression and sound continuity inside a scene moment.
-- `setting`, `setting_state`, and `asset` describe concrete reusable production entities, their state namespaces, and state-owned resource slots.
+- `setting`, `setting_state`, and `asset` describe concrete reusable production entities, including characters, props, places/scene spaces/sets, costumes, instruments, voice identities, their state namespaces, and state-owned resource slots.
 - `storyboard` and `keyframe` describe visual organization and visual anchors, usually for a visual expression unit or the scene moment itself.
 
 Do not design every namespace node, scene moment, shot, storyboard, keyframe, expression unit, audio cue, and asset at once by default. Choose the smallest useful prerequisite structure for the user's current goal, then deepen it through review and generation work.
@@ -51,7 +53,7 @@ Unknown content unit types may be valid generic slots, but they are not fully tr
 
 Do not add user namespace-specific content unit types such as `episode_ref` or `beat_ref`. Namespace nodes organize story structure; production editing workspaces own namespace-scope playback and finishing.
 
-Legacy source may still contain `shot` or `shot_ref` records. Do not create them for new plans; represent camera-unit work as `expression_unit_ref` content units targeting visual expression units.
+Legacy source may still contain `shot` or `shot_ref` records. Do not create them for new plans; represent camera-unit work as shot/visual-material output tasks (`expression_unit_ref` content units targeting visual expression units).
 
 ## Selection Gate
 
@@ -69,6 +71,6 @@ It answers:
 - what changed semantically,
 - whether a change affects only the edited entity or downstream references,
 - whether a selection is stale,
-- which content units need review.
+- which internal output tasks need review.
 
 `affected` means a decision is needed. It does not mean automatic regeneration.

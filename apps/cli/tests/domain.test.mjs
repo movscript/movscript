@@ -23,6 +23,88 @@ after(async () => {
   await new Promise((resolveClose) => server.close(resolveClose))
 })
 
+test('domain model and diagnostics CLI commands are canonical project workflows', async () => {
+  projectRequests = []
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-cli-domain-diagnostics-'))
+
+  const model = await runMovscript([
+    'domain',
+    'get-model',
+    '--project-dir',
+    projectDir,
+    '--entity-kind',
+    'project',
+    '--entity-id',
+    'project_01',
+    '--json',
+  ])
+  assert.equal(model.status, 0)
+  assert.equal(model.json.commandId, 'domain.get_model')
+  assert.equal(model.json.mcpToolName, 'domain_get_model')
+  assert.deepEqual(model.json.contract.permissions, ['project:read'])
+  assert.equal(model.json.data.workspaceKind, 'project_workspace')
+  assert.deepEqual(model.json.debug.cli_argv, [
+    'movscript',
+    'domain',
+    'get-model',
+    '--json',
+    '--project-dir',
+    projectDir,
+    '--entity-kind',
+    'project',
+    '--entity-id',
+    'project_01',
+  ])
+
+  const inspection = await runMovscript([
+    'domain',
+    'diagnostics',
+    'inspect',
+    '--server',
+    baseURL,
+    '--project-dir',
+    projectDir,
+    '--commit',
+    'HEAD',
+    '--json',
+  ])
+  assert.equal(inspection.status, 0)
+  assert.equal(inspection.json.commandId, 'domain.diagnostics.inspect')
+  assert.equal(inspection.json.mcpToolName, 'domain_inspect')
+  assert.deepEqual(inspection.json.contract.permissions, ['project:read'])
+  assert.equal(inspection.json.data.schema, 'movscript.workspace-inspection.v1')
+  assert.equal(inspection.json.data.readyToInterpret, true)
+
+  const interpretation = await runMovscript([
+    'domain',
+    'diagnostics',
+    'interpret',
+    '--server',
+    baseURL,
+    '--project-dir',
+    projectDir,
+    '--project-uid',
+    'prj_domain_diag',
+    '--json',
+  ])
+  assert.equal(interpretation.status, 0)
+  assert.equal(interpretation.json.commandId, 'domain.diagnostics.interpret')
+  assert.equal(interpretation.json.mcpToolName, 'domain_interpret')
+  assert.deepEqual(interpretation.json.contract.permissions, ['project:read', 'project:interpret'])
+  assert.equal(interpretation.json.data.schema, 'movscript.workspace-interpret-result.v1')
+  assert.equal(interpretation.json.data.status, 'refreshed')
+
+  assert.deepEqual(projectRequests.map((request) => request.url), [
+    '/v1/project/source/inspect',
+    '/v1/project/locator/resolve',
+    '/api/v1/projects/ensure',
+    '/api/v1/project-data/spaces',
+    '/v1/project/source/interpret',
+  ])
+  assert.deepEqual(projectRequests[0].body, { projectDir, commit: 'HEAD' })
+  assert.deepEqual(projectRequests[4].body, { projectDir })
+})
+
 test('domain read/query CLI commands inspect project state without a frontend', async () => {
   projectRequests = []
   const projectDir = mkdtempSync(join(tmpdir(), 'movscript-cli-domain-read-'))
@@ -457,6 +539,66 @@ test('domain candidate CLI commands make candidate creation, selection, and adop
   assert.equal(projectRequests[14].body.input.decision, 'adopt')
 })
 
+test('domain candidate CLI uses scoped project-data env defaults', async () => {
+  projectRequests = []
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-cli-domain-env-'))
+  const outputs = [{ kind: 'image', resource_id: 202, mime_type: 'image/png' }]
+
+  const created = await runMovscript([
+    'domain',
+    'candidate',
+    'create-content',
+    '--server',
+    baseURL,
+    '--token',
+    'test-token',
+    '--project-dir',
+    projectDir,
+    '--content-unit-id',
+    'cu_env',
+    '--candidate-id',
+    'candidate_env_1',
+    '--source',
+    'manual',
+    '--outputs',
+    JSON.stringify(outputs),
+    '--json',
+  ], {
+    env: {
+      MOVSCRIPT_PROJECT_UID: 'prj_env_domain',
+      MOVSCRIPT_PROJECT_TITLE: 'Env Project',
+      MOVSCRIPT_SCOPE_KIND: 'user',
+      MOVSCRIPT_SCOPE_ID: '1',
+      MOVSCRIPT_USER_ID: '1',
+    },
+  })
+
+  assert.equal(created.status, 0)
+  assert.equal(created.json.commandId, 'domain.candidate.create_content')
+  assert.equal(projectRequests.at(-1)?.url, '/v1/project/content-candidates/create')
+  assert.equal(projectRequests.at(-1)?.body.decisionStore.projectUid, 'prj_env_domain')
+  assert.equal(projectRequests.at(-1)?.body.decisionStore.title, 'CLI Domain Project')
+  assert.equal(projectRequests.at(-1)?.body.decisionStore.scopeKind, 'user')
+  assert.equal(projectRequests.at(-1)?.body.decisionStore.scopeId, '1')
+  assert.deepEqual(created.json.debug.cli_argv.slice(0, 13), [
+    'movscript',
+    'domain',
+    'candidate',
+    'create-content',
+    '--json',
+    '--project-dir',
+    projectDir,
+    '--server',
+    baseURL,
+    '--token',
+    '<redacted>',
+    '--project-uid',
+    'prj_env_domain',
+  ])
+  assert.ok(created.json.debug.cli_argv.includes('--scope-kind'))
+  assert.ok(created.json.debug.cli_argv.includes('--scope-id'))
+})
+
 test('domain provider remote asset CLI commands query backend without a frontend', async () => {
   projectRequests = []
 
@@ -526,9 +668,15 @@ function runMovscript(args, options = {}) {
   return new Promise((resolveRun, reject) => {
     const env = { ...process.env }
     delete env.MOVSCRIPT_DATA_SERVICE_TOKEN
+    delete env.MOVSCRIPT_PROJECT_UID
+    delete env.MOVSCRIPT_PROJECT_TITLE
+    delete env.MOVSCRIPT_SCOPE_KIND
+    delete env.MOVSCRIPT_SCOPE_ID
+    delete env.MOVSCRIPT_USER_ID
+    delete env.MOVSCRIPT_ORG_ID
     const child = spawn(process.execPath, ['dist/index.cjs', '--', ...args], {
       cwd: cliDir,
-      env,
+      env: { ...env, ...(options.env ?? {}) },
       stdio: ['ignore', 'pipe', 'pipe'],
     })
     let stdout = ''
@@ -624,6 +772,33 @@ function createProjectServiceServer() {
             schema: 'movscript.workspace-overview.v1',
             status: 'ready',
             summary: { issues: 0 },
+          },
+        })
+        return
+      }
+      if (req.method === 'POST' && req.url === '/v1/project/source/inspect') {
+        projectRequests.push({ method: req.method, url: req.url, body: parsedBody })
+        writeJSON(res, {
+          inspection: {
+            schema: 'movscript.workspace-inspection.v1',
+            readyToInterpret: true,
+            changedFiles: [],
+            issues: [],
+          },
+        })
+        return
+      }
+      if (req.method === 'POST' && req.url === '/v1/project/source/interpret') {
+        projectRequests.push({ method: req.method, url: req.url, body: parsedBody })
+        writeJSON(res, {
+          interpretation: {
+            schema: 'movscript.workspace-interpret-result.v1',
+            status: 'refreshed',
+            manifest: {
+              output: {
+                editorStatePath: '.interpret/current/editor-state.json',
+              },
+            },
           },
         })
         return

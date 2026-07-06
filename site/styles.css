@@ -142,8 +142,8 @@ h1 {
 
 .install-grid {
   display: grid;
-  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 28px;
   align-items: start;
 }
 
@@ -186,7 +186,7 @@ h3 {
 }
 
 .option-copy {
-  min-height: 78px;
+  min-height: 0;
   margin: 0 auto 14px;
   color: var(--muted);
   font-size: 14px;
@@ -399,12 +399,7 @@ code {
   }
 
   .install-grid {
-    grid-template-columns: 1fr;
     gap: 28px;
-  }
-
-  .option-copy {
-    min-height: 0;
   }
 
   .platform-switch {

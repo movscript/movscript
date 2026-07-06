@@ -43,7 +43,7 @@ Use {{resource::123}} as music rhythm reference for beat-aligned motion.
 - Text-to-video needs a hook, subject/state, visible action progression, environment, camera, lighting/color, audio when supported, and concrete negatives.
 - Image-to-video should trust the image. Do not re-describe every visible detail; describe what moves, changes, performs, or must remain locked.
 - Multi-reference prompts must explain the role of each reference and what must not transfer.
-- Long or multi-beat work should split into assets, storyboards/keyframes, short content-unit clips, and editing assembly. Do not hide a long video inside one giant prompt.
+- Long or multi-beat work should split into assets, 分镜图/关键帧, short output-task clips, and editing assembly. Do not hide a long video inside one giant prompt.
 - A short clip should use one main camera axis and, at most, one supporting focus or height change.
 - Audio belongs only when the model/workflow supports it; otherwise route music sync, voice placement, subtitles, and burn-in to editing.
 
@@ -90,7 +90,7 @@ Edit {{resource::123}}. Preserve [identity, pose, angle, background geometry, li
 
 ## Prompt Quality Score
 
-Before saving, compiling, requesting paid video confirmation, or submitting generation, score the prompt 0-2 on each item. A stable generation prompt should usually be at least 12/16. If it scores lower, rewrite before generation unless the user explicitly requests a rough unstable draft.
+Before saving, compiling, requesting generation confirmation, or submitting generation, score the prompt 0-2 on each item. A stable generation prompt should usually be at least 12/16. If it scores lower, rewrite before generation unless the user explicitly requests a rough unstable draft. Before any generation tool runs, summarize the full context to the user and wait for explicit confirmation.
 
 | Item | 0 | 1 | 2 |
 | --- | --- | --- | --- |

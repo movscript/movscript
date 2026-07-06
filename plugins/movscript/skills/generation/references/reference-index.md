@@ -5,10 +5,10 @@ Use this index when deciding which generation reference files to open. Open only
 ## Core Routing
 
 - `external-generation-bridge.md`: when the user chooses LibTV or another external generation system and generated text/image/video/audio must return into MovScript as RawResources and manual candidates.
-- `model-usage.md`: decide whether to generate a scene moment directly, split into expression-unit materials, or route through editing.
+- `model-usage.md`: decide whether to generate a story beat directly, split into shot/voice/subtitle/sound/music materials, or route through editing.
 - `prompt-mode-router.md`: before writing or diagnosing image/video prompts with multiple output modes, reference roles, model families, quality-score checks, or failure symptoms.
-- `content-unit-prompt-craft.md`: before writing or refining content-unit prompts from scripts, scene notes, or story-heavy wording; convert source text into analyzed production direction instead of copying it.
-- `image-prompt-craft.md`: before writing or refining image prompts for storyboard panels, keyframes, asset images, products/props, environment references, non-person scene images, and image edits.
+- `content-unit-prompt-craft.md`: before writing or refining saved prompts from scripts, scene notes, or story-heavy wording; convert source text into analyzed production direction instead of copying it.
+- `image-prompt-craft.md`: before writing or refining image prompts for 分镜图, 关键帧, asset images, products/props, environment references, non-person scene images, and image edits.
 - `video-model-prompt-routing.md`: after model discovery/selection, align video prompt structure with model capabilities.
 - `video-prompt-craft.md`: before writing or refining a video prompt, run the director-style prompt pass, including narrative-to-shootable layering for story-heavy scenes.
 - `seedance2-prompt-methods.md`: for 即梦 / Seedance-like requests, image-to-video, storyboard-driven prompts, camera codec, aesthetic layer, and AI clip rhythm.
@@ -19,6 +19,7 @@ Use this index when deciding which generation reference files to open. Open only
 - `continuity-asset-prompts.md`: when stabilizing reusable characters, products, props, places, costumes, material states, instruments, or voice identities.
 - `candidate-selection-flow.md`: when writing, registering, adopting, rejecting, deferring, or selecting candidates.
 - `resource-id-rules.md`: when a request mixes URLs, local files, MCP resources, uploaded resources, prompt refs, or RawResource IDs.
+- `../../domain/references/resource-discoverability.md`: when generated/imported/uploaded/rendered artifacts become Resources or candidates and need user-readable names, purpose, status, and provenance.
 
 ## Visual Evidence and Imitation
 
@@ -81,7 +82,7 @@ Use this index when deciding which generation reference files to open. Open only
 2. `prompt-mode-router.md`
 3. `seedance2-prompt-methods.md` for Path B/D-style decomposition when relevant
 4. `../../planning/references/video-production-paths.md` when the request needs planning before generation
-5. `content-unit-prompt-craft.md` for script-to-content-unit prompt conversion
+5. `content-unit-prompt-craft.md` for script-to-saved prompt conversion
 6. `continuity-asset-prompts.md` for reusable assets
 7. Switch to the editing skill when clips must be assembled, trimmed, color-matched, subtitled, or exported.
 8. In the editing skill, open `../../editing/references/ai-clip-editing-rhythm.md` when the timeline needs rhythm, clip trimming, transition, color/style matching, or AI artifact mitigation guidance.
@@ -89,6 +90,6 @@ Use this index when deciding which generation reference files to open. Open only
 ## Do Not
 
 - Do not open every reference file by default.
-- Do not use provider-only placeholder syntax in MovScript content-unit prompts unless a provider adapter explicitly owns that conversion.
+- Do not use provider-only placeholder syntax in MovScript saved prompts unless a provider adapter explicitly owns that conversion.
 - Do not use unselected upstream candidates as stable continuity refs. If asset/storyboard/keyframe/audio cue candidates exist but are unselected, guide the user to adopt/select one before downstream generation. Continue only when the user explicitly asks for an unstable draft.
 - Do not route editing, subtitle burn-in, final stitching, color matching, or export through generation references; use the editing skill.

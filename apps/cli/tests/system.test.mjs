@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -87,7 +87,7 @@ test('production workflow returns CLI-only production gates through the product 
     'generate',
     'export',
   ])
-  assert.ok(result.json.data.stages[0].primary_cli.some((argv) => argv.join(' ') === 'movscript workspace review --json'))
+  assert.ok(result.json.data.stages[0].primary_cli.some((argv) => argv.join(' ') === 'movscript domain diagnostics inspect --json'))
   assert.ok(result.json.data.stages[2].mcp_tools.includes('generation_submit'))
   assert.ok(result.json.data.stages[2].does_not.includes('Does not automatically adopt or select candidates.'))
   assert.ok(result.json.data.stages[3].mcp_tools.includes('system_artifact_upload_export'))
@@ -370,6 +370,47 @@ test('project create is a top-level product CLI backed by the shared system comm
   }])
 })
 
+test('project create uses backend config when --server is not provided', async () => {
+  projectRequests = []
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-configured-backend-'))
+  const backendDir = join(workspaceDir, 'backend')
+  mkdirSync(backendDir, { recursive: true })
+  writeFileSync(join(backendDir, 'config.json'), JSON.stringify({
+    schema: 'movscript.backend-config.v1',
+    baseURL,
+    updatedAt: '2026-07-05T00:00:00.000Z',
+  }, null, 2))
+
+  const result = await runMovscriptAsync([
+    'project',
+    'create',
+    '--workspace',
+    workspaceDir,
+    '--name',
+    'Configured Launch',
+    '--total-episodes',
+    '1',
+    '--json',
+  ], {
+    env: {
+      MOVSCRIPT_API_BASE_URL: '',
+    },
+  })
+
+  assert.equal(result.status, 0)
+  assert.equal(result.json.commandId, 'system.project.create')
+  assert.equal(result.json.data.status, 'created')
+  assert.equal(result.json.debug.runtime_endpoint, baseURL)
+  assert.deepEqual(projectRequests, [{
+    method: 'POST',
+    url: '/api/v1/projects',
+    body: {
+      name: 'Configured Launch',
+      total_episodes: 1,
+    },
+  }])
+})
+
 test('resource image annotate returns local artifact JSON through the product CLI', () => {
   const outputDir = mkdtempSync(join(tmpdir(), 'movscript-annotate-'))
   const outputPath = join(outputDir, 'annotated.svg')
@@ -480,6 +521,10 @@ test('shot group create is a top-level product CLI backed by shared command JSON
 function runMovscript(args, options = {}) {
   const child = spawnSync(process.execPath, ['dist/index.cjs', '--', ...args], {
     cwd: cliDir,
+    env: {
+      ...process.env,
+      ...options.env,
+    },
     encoding: 'utf8',
   })
   const expectedStatus = options.expectStatus ?? 0
@@ -496,6 +541,10 @@ function runMovscriptAsync(args, options = {}) {
   return new Promise((resolveResult, reject) => {
     const child = spawn(process.execPath, ['dist/index.cjs', '--', ...args], {
       cwd: cliDir,
+      env: {
+        ...process.env,
+        ...options.env,
+      },
       stdio: ['ignore', 'pipe', 'pipe'],
     })
     let stdout = ''

@@ -51,7 +51,7 @@
 
 .project-overview-summary__kicker {
   margin: 0 0 6px;
-  color: #0f766e;
+  color: var(--ms-color-muted-foreground);
   font-size: var(--ms-text-caption);
   font-weight: 760;
   line-height: var(--ms-leading-caption);
@@ -108,12 +108,9 @@
   min-height: 0;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 8px;
-  border: 1px solid color-mix(in srgb, #0f766e 24%, var(--ms-color-border));
-  border-left: 3px solid #0f766e;
+  border: 1px solid var(--ms-color-border);
   border-radius: var(--ms-radius-md);
-  background:
-    linear-gradient(90deg, color-mix(in srgb, #0f766e 8%, transparent), transparent 70%),
-    color-mix(in srgb, var(--ms-color-muted) 13%, var(--ms-color-background));
+  background: color-mix(in srgb, var(--ms-color-muted) 13%, var(--ms-color-background));
   padding: 10px;
 }
 
@@ -139,10 +136,10 @@
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  border: 1px solid color-mix(in srgb, #0f766e 26%, var(--ms-color-border));
+  border: 1px solid var(--ms-color-border);
   border-radius: var(--ms-radius-sm);
-  background: color-mix(in srgb, #0f766e 9%, var(--ms-color-background));
-  color: #0f766e;
+  background: color-mix(in srgb, var(--ms-color-muted) 18%, transparent);
+  color: var(--ms-color-muted-foreground);
 }
 
 .project-overview-plugin-panel h2 {
@@ -206,7 +203,7 @@
   min-width: 0;
   align-items: center;
   gap: 7px;
-  color: #0f766e;
+  color: var(--ms-color-muted-foreground);
 }
 
 .project-home-plugin-card h3 {
@@ -248,9 +245,9 @@
 }
 
 .project-home-card-group {
-  --project-home-accent: var(--ms-color-primary);
-  --project-home-accent-soft: color-mix(in srgb, var(--project-home-accent) 9%, transparent);
-  --project-home-accent-border: color-mix(in srgb, var(--project-home-accent) 34%, var(--ms-color-border));
+  --project-home-accent: var(--ms-color-muted-foreground);
+  --project-home-accent-soft: color-mix(in srgb, var(--ms-color-muted) 18%, transparent);
+  --project-home-accent-border: var(--ms-color-border);
 
   display: flex;
   min-width: 0;
@@ -260,26 +257,6 @@
   border: 1px solid var(--ms-color-border);
   border-radius: var(--ms-radius-lg);
   background: var(--ms-color-background);
-}
-
-.project-home-card-group[data-variant="anchor"] {
-  --project-home-accent: #0f766e;
-}
-
-.project-home-card-group[data-variant="library"] {
-  --project-home-accent: #2563eb;
-}
-
-.project-home-card-group[data-variant="canvas"] {
-  --project-home-accent: #15803d;
-}
-
-.project-home-card-group[data-variant="pipeline"] {
-  --project-home-accent: #b45309;
-}
-
-.project-home-card-group[data-variant="reference"] {
-  --project-home-accent: #6d28d9;
 }
 
 .project-home-card-group__header {
@@ -467,7 +444,6 @@
   grid-template-columns: minmax(0, 1fr) 92px 92px 112px;
   gap: 10px;
   align-items: center;
-  border-left: 3px solid #b45309;
   padding: 12px;
 }
 
@@ -518,8 +494,8 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--ms-radius-sm);
-  background: color-mix(in srgb, #2563eb 9%, var(--ms-color-background));
-  color: #2563eb;
+  background: color-mix(in srgb, var(--ms-color-muted) 18%, transparent);
+  color: var(--ms-color-muted-foreground);
 }
 
 .project-home-script-row__copy {
@@ -565,7 +541,6 @@
   min-height: 0;
   aspect-ratio: 1;
   flex-direction: column;
-  border-top: 3px solid #15803d;
   color: inherit;
   padding: 9px;
   text-decoration: none;
@@ -621,7 +596,7 @@
   flex: 0 0 auto;
   align-items: center;
   gap: 4px;
-  color: #15803d;
+  color: var(--ms-color-muted-foreground);
   font-size: 10px;
   font-weight: 760;
   line-height: 1.2;
@@ -649,7 +624,7 @@
   border: 1px solid var(--ms-color-border);
   border-radius: var(--ms-radius-md);
   background: var(--ms-color-background);
-  color: #15803d;
+  color: var(--ms-color-muted-foreground);
 }
 
 .project-home-canvas-create-card strong {
@@ -700,7 +675,7 @@
 .project-home-setting-card__image {
   display: block;
   object-fit: cover;
-  background: color-mix(in srgb, #6d28d9 10%, var(--ms-color-background));
+  background: color-mix(in srgb, var(--ms-color-muted) 18%, var(--ms-color-background));
 }
 
 .project-home-setting-card__placeholder {

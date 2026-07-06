@@ -1,8 +1,9 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
+import path from 'node:path'
 
-import { E2E_BOOTSTRAP_STORAGE_KEY } from '@/shared/infrastructure/e2eBootstrap'
 import { buildGenerationAppBootstrap } from './generationAppSeed'
 import { mockGenerationAppShell } from './generationAppShell'
+import { installE2EBootstrapSeed } from './e2eBootstrapSeed'
 
 const CANVASES = [
   makeCanvas(101, 'E2E Inspiration Canvas', 'inspiration'),
@@ -35,6 +36,8 @@ const IMAGE_RESOURCE = {
 test('canvas list, opened canvas, and tools render as standalone page programs', async ({ page }, testInfo) => {
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('standalone page programs E2E requires a baseURL')
+  const visualQaScreenshotDir = process.env.MOVSCRIPT_VISUAL_QA_SCREENSHOT_DIR?.trim()
+  const visualQaViewport = process.env.MOVSCRIPT_VISUAL_QA_VIEWPORT?.trim()
 
   await installBootstrap(page, String(baseURL))
   await mockGenerationAppShell(page)
@@ -53,15 +56,21 @@ test('canvas list, opened canvas, and tools render as standalone page programs',
   const workflowRow = page.locator('.canvas-list-item').filter({ hasText: 'E2E Workflow Canvas' })
   await expect(workflowRow).toHaveCount(1)
   await workflowRow.getByRole('button', { name: /打开|Open/ }).click()
-  await expect(page).toHaveURL(/\/canvases\/102$/)
+  await expect(page).toHaveURL(/\/canvases\/(?::id|102)(?:\?[^#]*canvasId=102[^#]*)?$/)
   await expect(page.locator('.app-shell[data-surface="canvas"]')).toBeVisible()
-  await expect(page.getByText('E2E Workflow Canvas')).toBeVisible()
+  await expect(page.getByRole('button', { name: '启动运行' })).toBeVisible()
 
   await page.goto('/tools/image')
   await expect(page.locator('.app-shell[data-surface="tool"]')).toBeVisible()
   await expect(page.locator('.app-window-route-title')).toContainText(/图片生成|Image Generation/)
-  await expect(page.getByText('e2e-image')).toBeVisible()
+  await expect(page.getByRole('combobox', { name: '模型' })).toContainText('e2e-image')
   await expect(page.getByText('e2e-reference.png')).toBeVisible()
+  if (visualQaScreenshotDir) {
+    await page.screenshot({
+      path: path.join(visualQaScreenshotDir, `image-tool-${visualQaViewport || 'desktop'}.png`),
+      fullPage: false,
+    })
+  }
 
   const sidebarSlot = page.locator('.app-shell__slot--left')
   await expect(sidebarSlot).toBeVisible()
@@ -73,14 +82,7 @@ test('canvas list, opened canvas, and tools render as standalone page programs',
 })
 
 async function installBootstrap(page: Page, baseURL: string) {
-  const seed = buildGenerationAppBootstrap(baseURL) as unknown
-  await page.addInitScript(({ key, seed }) => {
-    window.localStorage.setItem(key, JSON.stringify(seed))
-    window.localStorage.setItem('movscript.language', 'zh-CN')
-  }, {
-    key: E2E_BOOTSTRAP_STORAGE_KEY,
-    seed,
-  })
+  await installE2EBootstrapSeed(page, buildGenerationAppBootstrap(baseURL))
 }
 
 async function mockStandaloneProgramData(page: Page) {
@@ -91,9 +93,11 @@ async function mockStandaloneProgramData(page: Page) {
       await fulfillJSON(route, CANVASES)
       return
     }
-    const detailMatch = pathname.match(/\/v1\/canvas\/canvases\/(\d+)$/)
+    const detailMatch = pathname.match(/\/v1\/canvas\/canvases\/(\d+|:id)\/?$/)
     if (route.request().method() === 'GET' && detailMatch) {
-      const canvas = CANVASES.find((item) => item.ID === Number(detailMatch[1]))
+      const queryCanvasId = url.searchParams.get('canvasId') ?? url.searchParams.get('canvas_id') ?? url.searchParams.get('id')
+      const canvasId = Number(detailMatch[1] === ':id' ? queryCanvasId : detailMatch[1])
+      const canvas = CANVASES.find((item) => item.ID === canvasId)
       await fulfillJSON(route, canvas ?? CANVASES[0])
       return
     }

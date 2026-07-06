@@ -10,8 +10,8 @@
 
 - Agent Package 是安装单元，schema 为 `movscript.agent-package.v1`，随插件包放在 `.agent-package/package.json`。
 - Provider target 是宿主投影，不再把 Codex plugin 当作唯一包格式。
-- 默认 target 覆盖 Codex、Harness Worker Agent、OpenClaw 和 Claude Code；旧称 `xiaolongxia` 归一到 `openclaw`。
-- Codex target 写 marketplace；Claude Code target 写 `.mcp.json`；OpenClaw target 写 MCP registry JSON；Harness target 写 Worker Agent export。
+- 默认 target 覆盖 Codex、Harness Worker Agent、OpenClaw、Claude Code、WorkBuddy 和 Trae；旧称 `xiaolongxia` 归一到 `openclaw`，`trea` 归一到 `trae`。
+- Codex target 写 marketplace；Claude Code target 写 `.mcp.json`；OpenClaw target 写 MCP registry JSON；Harness target 写 Worker Agent export；WorkBuddy 和 Trae target 写标准 `mcpServers` JSON。
 - 统一安装仍落到 Home current/previous，并让每个 provider target 通过 symlink 指向同一个 Home current。
 
 ## Home Plugin Store

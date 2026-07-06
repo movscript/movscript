@@ -202,8 +202,12 @@ test('movscript mcp stdio defaults to persistent full-local local-node without D
   assert.equal(result.exitCode, 0, result.stderr)
   const responses = parseJSONRPCResponses(result.stdout)
   assert.equal(responses.get('initialize')?.result?.serverInfo?.name, 'movscript-mcp-host')
-  assert.ok(responses.get('tools-list')?.result?.tools?.some((tool) => tool.name === 'domain_inspect'))
-  assert.ok(responses.get('tools-list')?.result?.tools?.some((tool) => tool.name === 'movscript_runtime_status'))
+  const toolNames = responses.get('tools-list')?.result?.tools?.map((tool) => tool.name) ?? []
+  assert.ok(toolNames.includes('domain_inspect'))
+  assert.equal(toolNames.filter((name) => name === 'domain_inspect').length, 1)
+  assert.ok(toolNames.includes('movscript_runtime_status'))
+  assert.equal(responses.get('runtime-status')?.result?.content?.[0]?.type, 'text')
+  assert.equal(responses.get('runtime-status')?.result?.structuredContent?.status, 'ok')
   const runtimeStatus = toolData(responses.get('runtime-status'))
   assert.equal(runtimeStatus.status, 'ok')
   assert.equal(runtimeStatus.backend.local.available, true)
@@ -219,6 +223,7 @@ test('movscript mcp stdio defaults to persistent full-local local-node without D
   assert.equal(runtimeStatus.mediaPipeline.available, true)
   assert.equal(runtimeStatus.workspace.isMovScriptProject, true)
   assert.equal(responses.get('domain-inspect')?.error, undefined)
+  assert.equal(responses.get('domain-inspect')?.result?.structuredContent?.schema, 'movscript.workspace-inspection.v1')
   assert.equal(toolData(responses.get('domain-inspect')).schema, 'movscript.workspace-inspection.v1')
 
   const records = readPluginRecords(homeDir, result.pid)
@@ -352,7 +357,9 @@ test('movscript mcp stdio defaults to persistent full-local local-node without D
   })
   assert.equal(daemonMcpTools.ok, true)
   const daemonMcpToolsPayload = await daemonMcpTools.json()
-  assert.equal(daemonMcpToolsPayload.result.tools.some((tool) => tool.name === 'domain_inspect'), true)
+  const daemonToolNames = daemonMcpToolsPayload.result.tools.map((tool) => tool.name)
+  assert.equal(daemonToolNames.some((name) => name === 'domain_inspect'), true)
+  assert.equal(daemonToolNames.filter((name) => name === 'domain_inspect').length, 1)
   assert.equal(daemonMcpToolsPayload.result.tools.some((tool) => tool.name === 'runtime_daemon_ensure'), true)
 
   const daemonContextUpdate = await fetch(`${localNode.gatewayEndpoint.url}/v1/context/sessions`, {

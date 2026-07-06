@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { createServer } from 'node:net'
 import test from 'node:test'
 
 import {
@@ -8,11 +9,16 @@ import {
   normalizeAdminConsoleBaseURL,
   normalizeAdminConsolePath,
   normalizeBackendHTTPError,
+  normalizeBackendNetworkError,
   parseJSONBody,
   resolveAdminConsoleURL,
   resolveAPIErrorResponseIntent,
   stringErrorValue,
 } from '../dist/backend/index.js'
+import {
+  backendPost,
+  setMovScriptBackendAPIBaseURL,
+} from '../dist/backend/node/index.js'
 
 test('core backend errors normalize HTTP error payloads', () => {
   assert.deepEqual(normalizeBackendHTTPError('POST', '/jobs', 400, {
@@ -40,6 +46,32 @@ test('core backend errors normalize HTTP error payloads', () => {
   assert.equal(backendErrorMessage({ error: 'backend failed' }, 'raw'), 'backend failed')
 })
 
+test('core backend errors normalize network failures with target URL', () => {
+  assert.deepEqual(normalizeBackendNetworkError('POST', '/projects', 'http://127.0.0.1:8766/api/v1/projects', Object.assign(new Error('fetch failed'), { code: 'ECONNREFUSED' })), {
+    type: 'backend_network_error',
+    method: 'POST',
+    path: '/projects',
+    url: 'http://127.0.0.1:8766/api/v1/projects',
+    cause: 'fetch failed',
+    code: 'ECONNREFUSED',
+  })
+})
+
+test('core backend client reports network failures with method and URL', async () => {
+  const port = await reserveClosedPort()
+  const baseURL = `http://127.0.0.1:${port}`
+  setMovScriptBackendAPIBaseURL(baseURL)
+  await assert.rejects(
+    () => backendPost('/projects', { name: 'Network failure probe' }),
+    (error) => {
+      assert.equal(error.name, 'BackendNetworkError')
+      assert.match(error.message, new RegExp(`Backend POST ${baseURL}/api/v1/projects failed before response:`))
+      return true
+    },
+  )
+  setMovScriptBackendAPIBaseURL('http://localhost:8766')
+})
+
 test('core backend classifies model setup actionable errors', () => {
   assert.equal(needsModelSetupAction('no model config found - configure a backend model config first'), true)
   assert.equal(needsModelSetupAction(new Error('no text-capable model configured and enabled')), true)
@@ -49,6 +81,22 @@ test('core backend classifies model setup actionable errors', () => {
   assert.equal(needsModelSetupAction('MCP server is unavailable'), false)
   assert.equal(needsModelSetupAction({ error: 'project not found' }), false)
 })
+
+function reserveClosedPort() {
+  return new Promise((resolvePort, reject) => {
+    const server = createServer()
+    server.on('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address()
+      if (!address || typeof address !== 'object') {
+        server.close(() => reject(new Error('failed to reserve TCP port')))
+        return
+      }
+      const port = address.port
+      server.close(() => resolvePort(port))
+    })
+  })
+}
 
 test('core backend resolves admin console URLs without frontend runtime state', () => {
   assert.equal(normalizeAdminConsoleBaseURL(' http://localhost:8766/api/v1/ '), 'http://localhost:8766')

@@ -3,6 +3,7 @@ import { toMCPJSONValue } from './jsonValue.js'
 import { renderMarkdown } from './markdown.js'
 
 export function toolText(value: unknown, displayValue: unknown = value): MCPJSONValue {
+  const data = toMCPJSONValue(value ?? null)
   return {
     content: [
       {
@@ -10,7 +11,8 @@ export function toolText(value: unknown, displayValue: unknown = value): MCPJSON
         text: renderMarkdown(displayValue ?? null),
       },
     ],
-    data: toMCPJSONValue(value ?? null),
+    structuredContent: data,
+    data,
   }
 }
 

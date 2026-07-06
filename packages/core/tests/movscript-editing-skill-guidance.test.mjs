@@ -343,7 +343,7 @@ test('MovScript MCP tool definitions and generation skill expose batch generatio
   ]) {
     assert.match(skill, new RegExp(grant))
   }
-  assert.match(skill, /When tracking multiple jobs, use `generation_job_get_batch`/)
+  assert.match(skill, /When tracking multiple calls, use `generation_job_get_batch`/)
 })
 
 test('MovScript generation skill routes content-unit visual generation through the unified generation contract', () => {
@@ -376,13 +376,13 @@ test('MovScript generation skill routes content-unit visual generation through t
     assert.match(skill, new RegExp(grant))
   }
 
-  assert.match(skill, /first write or update the content unit `edit_prompt`.*call `generation_submit` with `scope: "content_unit"`/)
-  assert.match(skill, /Do not manually call `domain_create_content_candidate` after `generation_submit` content-unit image\/video jobs/)
+  assert.match(skill, /first write or update the 内容制作任务 `edit_prompt`.*call `generation_submit` with `scope: "content_unit"`/)
+  assert.match(skill, /Do not manually call `domain_create_content_candidate` after `generation_submit` output-task image\/video calls/)
   assert.match(skill, /Use `generation_submit` with `scope: "free"` for low-level prompt channels/)
   assert.match(candidateSelectionFlow, /Successful terminal polls automatically create or refresh backend content candidates/)
-  assert.match(candidateSelectionFlow, /Do not manually call `domain_create_content_candidate` after `generation_submit` content-unit image\/video jobs/)
+  assert.match(candidateSelectionFlow, /Do not manually call `domain_create_content_candidate` after `generation_submit` `content_unit` image\/video jobs/)
   assert.match(cachedCandidateSelectionFlow, /Successful terminal polls automatically create or refresh backend content candidates/)
-  assert.match(cachedCandidateSelectionFlow, /Do not manually call `domain_create_content_candidate` after `generation_submit` content-unit image\/video jobs/)
+  assert.match(cachedCandidateSelectionFlow, /Do not manually call `domain_create_content_candidate` after `generation_submit` `content_unit` image\/video jobs/)
 
   assert.match(coreDefinitions, /generation_submit/)
   assert.match(coreDefinitions, /generation_job_get/)
@@ -404,7 +404,7 @@ test('MovScript skills and MCP definitions expose raw-resource candidate registr
   assert.match(generationSkill, /mcp__movscript__domain_register_raw_resource_as_content_unit_candidate/)
   assert.match(generationSkill, /mcp__movscript__domain_production_status_summary/)
   assert.match(domainSkill, /RawResource is the media\/resource body/)
-  assert.match(modelUsage, /Default to a direct `scene_moment_ref` content unit/)
+  assert.match(modelUsage, /Default to a direct `scene_moment_ref` 内容制作任务 \(`content_unit`\)/)
   assert.match(modelUsage, /Use `domain_register_raw_resource_as_content_unit_candidate`/)
 })
 
@@ -443,7 +443,7 @@ test('MovScript generation editing and review skills describe production editing
     const reviewSkill = readRepoFile(`${skillRoot}/review/SKILL.md`)
 
     assert.match(generationSkill, /Production-level assembled playback belongs in a production editing workspace/)
-    assert.match(candidateSelectionFlow, /content-unit candidate/)
+    assert.match(candidateSelectionFlow, /内容制作任务 candidates/)
     assert.doesNotMatch(generationSkill, /timeline_assembly_ref/)
     assert.doesNotMatch(candidateSelectionFlow, /timeline assembly outputs/)
     assert.doesNotMatch(generationSkill, /requested production work/)

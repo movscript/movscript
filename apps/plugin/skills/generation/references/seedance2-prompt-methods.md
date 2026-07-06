@@ -2,7 +2,7 @@
 
 Use this reference when the selected model/provider is Seedance-like or when the user asks for 即梦 / Seedance 2.0 / 图生视频 / 运镜 / 音乐卡点 / 分镜板驱动 / 视频延长. It adapts Seedance prompt-writing methods to MovScript content-unit generation.
 
-This file is based on public Seedance skill patterns, including MapleShaw's Seedance 2.0 prompt skill methods: path selection, Z/Y/X/F camera coding, concise image-to-video prompting, storyboard-driven generation, aesthetic constraints, and AI clip editing rhythm. In MovScript, keep semantic refs and candidate selection semantics; do not write platform-only placeholders such as `@图片1` into content-unit prompts.
+This file is based on public Seedance skill patterns, including MapleShaw's Seedance 2.0 prompt skill methods: path selection, Z/Y/X/F camera coding, concise image-to-video prompting, storyboard-driven generation, aesthetic constraints, and AI clip editing rhythm. In MovScript, keep semantic refs and candidate selection semantics; do not write platform-only placeholders such as `@图片1` into saved prompts.
 
 Public Seedance prompt skills converge on one practical rule: write a short shooting brief the model can execute, not a story synopsis. Effective prompts assign each reference a role, describe what changes on screen, name the camera and timing, preserve what must stay stable, and remove filler that does not become pixels, motion, or sound.
 
@@ -12,7 +12,7 @@ Public Seedance prompt skills converge on one practical rule: write a short shoo
 - Use `input_resource_ids` / `reference_resource_ids` for loose RawResource references when dependency tracking is not needed.
 - Use `generation_submit` with `scope: "content_unit"` for content-unit candidates; do not treat the generated resource as selected until adoption/selection.
 - Keep duration, aspect ratio, and provider parameters outside the prompt when the generation API already accepts them as settings.
-- If a provider adapter converts MovScript refs to Seedance-style numbered references internally, keep that conversion outside the authored content-unit prompt.
+- If a provider adapter converts MovScript refs to Seedance-style numbered references internally, keep that conversion outside the authored saved prompt.
 
 ## Seedance Model-Understandability Rule
 
@@ -24,9 +24,28 @@ Before using a Seedance prompt, audit it against these questions:
 - Does every abstract idea become visible or audible: gesture, posture, gaze, prop movement, dialogue tone, camera emphasis, environmental motion, sound, or edit rhythm?
 - Does the prompt say what must not transfer from a reference when using it only for style, pose, camera, or rhythm?
 - For image-to-video, does the text add only motion, timing, camera, emotional micro-beats, environmental change, audio, and preservation constraints instead of fighting the image?
+- When a face carries the beat, are the facial mechanics visible and timed rather than only named as an emotion?
 - Could someone film the prompt without reading the MovScript project? If not, rewrite it before generation.
 
 Use time bands for longer or more complex clips, but keep a single Seedance clip focused on one coherent action. Split multi-beat stories into multiple content units and assemble them in editing.
+
+## Facial Micro-Beat Pattern
+
+Use this pattern when Seedance-like video needs a readable human reaction, close-up dialogue, or image-to-video face animation.
+
+```text
+[Subject/ref] holds [baseline expression]. At [trigger or quoted line], the expression shifts to [final state]:
+brows [specific change], eyes/gaze [specific change], mouth/lips/jaw [specific change],
+with [breath/blink/tiny head movement] over [0.5-1.5s]. Camera [locked-off / slow push-in / gentle handheld drift].
+Preserve face identity; avoid overacting, frozen expression, face warping, unwanted smile, and hard cuts.
+```
+
+Keep the face prompt restrained:
+
+- Name the expression arc, then use 2-4 visible mechanics. Do not list every facial muscle.
+- For dialogue, keep the line short and pair it with delivery: tone, pace, pause, mouth tension, and breath.
+- For image-to-video reaction mode, let the image define the face and wardrobe; add only the ordered micro-beats.
+- For close-ups, avoid large orbit/crane moves. Face identity holds better with locked-off, slow push-in, or gentle handheld drift.
 
 ## Four Production Paths
 
@@ -113,7 +132,7 @@ First classify panel relationships:
 
 MovScript choices:
 
-- If panels are <=4 and total duration fits the model, one content-unit prompt with time bands can work.
+- If panels are <=4 and total duration fits the model, one saved prompt with time bands can work.
 - If panels are >=5 or need independent review, create storyboard/expression-unit content units and route through editing.
 - Always prevent the model from reproducing panel borders, labels, grid lines, UI, or frame numbers.
 
@@ -190,7 +209,7 @@ For MovScript, these are editing concerns. Switch to the `editing` skill when th
 
 ## Seedance Prompt Review
 
-Before calling generation, confirm:
+Before calling generation, run this review, then summarize the full Seedance generation context to the user and wait for explicit confirmation:
 
 - The request is routed to Path A, B, C, or D.
 - The prompt uses MovScript refs and resource inputs rather than raw `@图片` placeholders.

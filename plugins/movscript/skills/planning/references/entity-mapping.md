@@ -11,13 +11,13 @@ Use current `movscript-lang` entity names in tool calls and source files.
 | script | `script` |
 | script version | `script_version` |
 | script block | `script_block` |
-| setting / concrete production entity | `setting` |
+| setting / concrete production entity / character / prop / place / scene space / set / 人物/场景空间/道具 | `setting` |
 | setting state / entity state namespace | `setting_state` |
 | asset slot / state asset description | `asset` |
 | timeline namespace node / episode / act / sequence / beat | current source uses legacy `production` / `segment` records projected as `timeline_namespace` |
 | legacy production source record | `production` |
 | legacy segment source record | `segment` |
-| scene beat / plot beat / 情节 | `scene_moment` |
+| scene beat / plot beat / 情节 / action moment / one short makeable scene | `scene_moment` |
 | shot / camera unit / visual material | `expression_unit` with `modality=visual`, `role=shot` |
 | key visual anchor | `keyframe` |
 | storyboard / shot board / panels | `storyboard` |
@@ -25,7 +25,7 @@ Use current `movscript-lang` entity names in tool calls and source files.
 | music/sfx/ambience/dialogue/foley cue | `expression_unit` with `modality=audio` |
 | legacy shot / camera unit | `shot` |
 | legacy music/sfx/ambience/dialogue/foley cue | `audio_cue` |
-| production task / output slot | `content_unit` |
+| content-production task / output slot / 内容制作任务 | `content_unit` |
 | namespace-scope assembly/playback | `ProductionEditingWorkspace` (`system_editing` or `remotion`) |
 | generated/uploaded/imported option | `candidate` |
 | chosen/confirmed option | `selection` |
@@ -41,6 +41,8 @@ Canonical ownership:
 - optional legacy audio anchors: `scene_moment -> audio_cue`
 - `content_unit` is top-level and references upstream entities with flat refs.
 
-Except for `content_unit`, these entities are production structure or generation prerequisites. Create only the parts needed for the user's current goal. For new designs, prefer project vocabulary for timeline namespace planning, `scene_moment` plus multimodal `expression_unit` records for production work, then generate materials through `expression_unit_ref` or `scene_moment_ref` content units. When a namespace scope itself needs playable assembly or finishing, hand off to a production editing workspace; do not invent `episode_ref`, `beat_ref`, or other namespace-specific content unit types.
+Except for `content_unit`, these entities are production structure or generation prerequisites. Create only the parts needed for the user's current goal. For new designs, prefer user/project vocabulary for timeline planning, short story beats plus concrete shot/voice/subtitle/sound/music material records for production work, then generate materials through `expression_unit_ref` or `scene_moment_ref` internal output tasks. When a namespace scope itself needs playable assembly or finishing, hand off to a production editing workspace; do not invent `episode_ref`, `beat_ref`, or other namespace-specific `content_unit_type` values.
 
-`setting` is only for concrete film/music entities to make or reuse, such as a character, prop, place, instrument, costume, or voice identity. `setting_state` is a namespace under one setting for a named condition/version. `asset` belongs under a setting state and describes one asset slot for that state, such as front view, side view, turnaround sheet, material reference, voice timbre, or instrument tone. For image assets, prefer plain white or very clean backgrounds unless scene context is explicitly required.
+Chinese "场景" is overloaded. If it means a reusable location, environment, set, room, stage, or scene space, map it to `setting`; if it means what happens in a short dramatic/action beat, map that beat to `scene_moment`.
+
+`setting` is only for concrete screenplay/production entities to make or reuse, such as a character/person, prop, place, scene space, set, instrument, costume, or voice identity. `setting_state` is a namespace under one setting for a named condition/version. `asset` belongs under a setting state and describes one asset slot for that state, such as front view, side view, layout view, turnaround sheet, material reference, voice timbre, or instrument tone. For image assets, prefer plain white or very clean backgrounds unless scene context is explicitly required.

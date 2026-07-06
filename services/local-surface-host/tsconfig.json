@@ -223,6 +223,18 @@
       "@movscript/workspace": [
         "../../packages/workspace/src/index.ts"
       ],
+      "@movscript/workspace/home": [
+        "../../packages/workspace/src/home/index.ts"
+      ],
+      "@movscript/workspace/indexer": [
+        "../../packages/workspace/src/indexer/index.ts"
+      ],
+      "@movscript/workspace/layout": [
+        "../../packages/workspace/src/layout/index.ts"
+      ],
+      "@movscript/workspace/repository": [
+        "../../packages/workspace/src/repository/index.ts"
+      ],
       "@movscript/engine": [
         "../../packages/engine/src/index.ts"
       ],

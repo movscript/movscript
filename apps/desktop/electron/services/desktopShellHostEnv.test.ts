@@ -17,6 +17,8 @@ test('desktopShellHostEnv injects data service auth and base URL for movscript C
     userId: 'user_1',
     orgId: 'org_1',
     projectId: '42',
+    projectUid: 'prj_demo',
+    projectTitle: 'Demo Film',
     resolveBackendSession: () => ({
       workspaceDir,
       baseURL: 'http://localhost:8765',
@@ -34,7 +36,11 @@ test('desktopShellHostEnv injects data service auth and base URL for movscript C
   assert.equal(env.MOVSCRIPT_PROJECT_DIR, projectDir)
   assert.equal(env.MOVSCRIPT_USER_ID, 'user_1')
   assert.equal(env.MOVSCRIPT_ORG_ID, 'org_1')
-  assert.equal(env.MOVSCRIPT_PROJECT_ID, '42')
+  assert.equal(env.MOVSCRIPT_PROJECT_ID, undefined)
+  assert.equal(env.MOVSCRIPT_PROJECT_UID, 'prj_demo')
+  assert.equal(env.MOVSCRIPT_PROJECT_TITLE, 'Demo Film')
+  assert.equal(env.MOVSCRIPT_SCOPE_KIND, 'org')
+  assert.equal(env.MOVSCRIPT_SCOPE_ID, 'org_1')
   assert.equal(env.MOVSCRIPT_DATA_SERVICE_URL, 'http://localhost:8765')
   assert.equal(env.MOVSCRIPT_DATA_SERVICE_TOKEN, 'backend-token')
   assert.equal(env.MOVSCRIPT_CLI_BIN_DIR, cliBinDir)

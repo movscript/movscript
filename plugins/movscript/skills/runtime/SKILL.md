@@ -16,6 +16,8 @@ The first decision is runtime ownership: the per-user MovScript local runtime da
 
 Open `references/install-distribution.md` when explaining install paths, MovScript Home, release asset names, rollback, Desktop-vs-plugin distribution, or cloud/external runtime gateway setup.
 
+Open `../domain/references/user-facing-response.md` before ordinary runtime blocker replies. Lead with what the user can or cannot do in the project, then add technical service names only when they are needed for diagnosis or setup.
+
 ## Production Contract
 
 - Production step: cross-cutting runtime prerequisite before project, planning, generation, timeline, editing, export, or admin work.

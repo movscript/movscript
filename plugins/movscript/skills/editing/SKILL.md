@@ -1,6 +1,6 @@
 ---
 name: editing
-description: Create MovScript MediaEditingProjects, edit timelines through Editing Service, run media-pipeline render/transcode/HLS tasks when available, and explicitly import/export editing artifacts without writing candidate decisions by default.
+description: Create MovScript MediaEditingProjects, edit timelines through Editing Service, run media-pipeline render/transcode/HLS tasks when available, preserve completed render/export artifacts as RawResources when possible, and avoid writing candidate decisions by default.
 toolGrants:
   - mcp__movscript__movscript_runtime_status
   - mcp__movscript__system_resource_library_query
@@ -61,7 +61,7 @@ toolGrants:
 
 # Editing
 
-Use this skill when the user asks to cut, trim, compose, align, stitch, render, export, or revise a MovScript video timeline. If runtime ownership or media execution availability is unclear, use the `runtime` skill first.
+Use this skill when the user asks to cut, trim, compose, align, stitch, render, export, or revise a MovScript video timeline. If project locator, initialization, open/fetch state, or service availability is unclear, use the `project` skill's Project Management Gate before editing. If runtime ownership or media execution availability is unclear, use the `runtime` skill first.
 
 The default editing path is the dedicated `editing_*` tool family. Timeline state and editing business logic run through MovScript `MediaEditingProject` and `movscript.editing.service`; media execution runs through Electron `mediaPipeline` / `movscript.media.pipeline` when available. Do not use removed composition tools as the editing path.
 
@@ -69,17 +69,21 @@ Use the `production-editing` skill when the task is to create, list, or open a p
 
 Open `references/ai-clip-editing-rhythm.md` when assembling AI-generated clips, choosing a cut rhythm, trimming unstable generated clip starts/ends, matching color/style across generated candidates, planning transitions, or building a social/ad/trailer/music-video timeline.
 
+Open `../domain/references/resource-discoverability.md` before importing render/export artifacts or creating edited-result candidates so rough cuts, previews, final exports, and diagnostic artifacts have findable names, status, and provenance.
+
+Open `../domain/references/user-facing-response.md` before ordinary editing, render, export, or blocker replies so the user hears what changed in the cut, what was saved, what remains blocked, and what decision is next.
+
 ## Production Contract
 
 - Production step: export/render and track-based editing after content and timeline intent are ready.
 - Systems/config: Editing Service owns MediaEditingProject/timeline business state; Media Pipeline owns render/transcode/HLS/reframe execution; Project/Data services provide selected source resources; runtime/daemon advertises service and FFmpeg readiness.
-- Blockers: no explicit project/timeline target, unselected upstream materials, invalid timeline, missing Editing Service/Media Pipeline/FFmpeg, non-MediaEditingProject workspace selected for an editing-only operation, or absent artifact paths.
-- Human review: final cut approval, render/export acceptance, candidate creation/adoption, and destructive timeline changes are separate decisions.
+- Blockers: no explicit project/timeline target, unresolved project initialization/open state, unselected upstream materials, invalid timeline, missing Editing Service/Media Pipeline/FFmpeg, non-MediaEditingProject workspace selected for an editing-only operation, or absent artifact paths.
+- Human review: final cut approval, render/export acceptance, candidate creation/adoption, and destructive timeline changes are separate decisions. RawResource preservation of completed render/export artifacts is separate from candidate acceptance.
 - Output: report editing project id/revision, validation status, render/export task or artifact status, remaining blockers, review URL, and the next user decision.
 
 ## Agent Surface URLs
 
-- When a timeline, preview, candidate, generation job, resource, or project-status MCP result includes `surface.kind: "browser_url"` and `surface.url`, include that URL in the user-facing response and tell the user to open it for the next editing/review step.
+- When a timeline, preview, candidate, generation tool run, resource, or project-status MCP result includes `surface.kind: "browser_url"` and `surface.url`, include that URL in the user-facing response and tell the user to open it for the next editing/review step.
 - Describe the action the page supports: inspect preview timeline clips/blockers, review generated source candidates before editing, monitor render/generation status, inspect resources, or record a candidate decision after export.
 - Do not treat the returned URL as final approval, candidate adoption, or editing completion. Those are complete only after the user acts in the page or the agent writes the matching editing/domain decision through a tool.
 - If secondary surfaces are returned, lead with the primary `surface.url`; include secondary URLs only when they help the next decision. Use URLs exactly as returned.
@@ -98,20 +102,20 @@ Open `references/ai-clip-editing-rhythm.md` when assembling AI-generated clips, 
 - Subtitle burn-in is an editing concern: text/subtitle clips may use ASS/libass rendering, and subtitle assets such as `.ass`, `.ssa`, `.srt`, or `.vtt` are burned by the media pipeline during render.
 - `editing_export_*` handles completed editing artifacts. Export import uploads a local artifact as RawResource; HLS publish uploads manifest/segments as a MediaStreamArtifact; candidate creation remains an explicit separate action.
 - `edit_plan` and domain timeline handoffs are read-only source/context snapshots from selected candidates. Use them to understand context or recover provenance only; do not create editing projects from them or treat them as final editing state.
-- The return path is explicit: render/export locally, then bring the artifact back as a RawResource or hosted HLS preview; only write or select a domain candidate when the user/workflow asks for that decision.
+- The return path is explicit but Resource-first: completed render/export artifacts should be brought back as RawResources with discoverable title/status/provenance when possible unless the user explicitly asks for local-only output or the import capability is unavailable. Only write or select a domain candidate when the user/workflow asks for that decision.
 
 Do not use `timeline_document` or historical third-party fields as the main workflow contract. They are historical artifacts, not the MovScript editing model.
 Do not use domain planning/production records as the editing workspace. Domain records describe intended structure and selected source material; editing projects contain concrete cuts, trims, overlays, subtitles, and export task state.
 
 ## Workflow
 
-1. Resolve the intended project and optional timeline namespace, production editing workspace, or scene-moment target from explicit user input, a passed locator, or Project Service context. Do not infer it from UI focus.
+1. Resolve the intended project and optional timeline namespace, production editing workspace, or scene-moment target from explicit user input, a passed locator, or Project Service context. Do not infer it from UI focus. If project initialization, open/fetch state, or Project Service context is unclear, run the `project` skill's Project Management Gate before editing. Use project init/create only when the user explicitly asks or confirms.
 2. Use domain tools only to gather source context and selected materials:
    - use `domain_query_production_context` to inspect the legacy production projection, scene structure, and candidate selections,
    - use `domain_read_script_source` when cut rhythm, dialogue placement, continuity, or story intent is unclear from selected materials,
    - use `domain_read_scene_moment_edit_plan` or `domain_read_scene_moment_timeline` when a scene-moment handoff is useful,
    - use `domain_read_production_timeline` only as a production-level material handoff, not as a promise that the production has one canonical edit.
-3. If required expression-unit materials are missing or unselected, stop and ask for generation/selection first unless the user explicitly wants an unstable draft.
+3. If required shot/voice/subtitle/sound/music materials are missing or unselected, stop and ask for generation/selection first unless the user explicitly wants an unstable draft.
 4. Create the editing project:
    - Use `editing_project_create` for a manual project, imported local media, alternate cut, revision, or direct system editing task.
    - Use the `production-editing` skill when the task is to create, list, or open a production-bound editing workspace.
@@ -143,11 +147,11 @@ Do not use domain planning/production records as the editing workspace. Domain r
     - use `editing_result_watch_external_nle_create` when the daemon should keep watching an External NLE export directory in the background after the CLI/MCP call returns. Follow with `editing_result_watch_get` / `editing_result_watch_list` and then `editing_result_get` once the watch succeeds. Cancel with `editing_result_watch_cancel` when the external handoff is abandoned,
     - use `editing_result_register` only to register a completed result from another backend such as Remotion, HyperFrames, or External NLE when the result object is already known. Registering or recovering a result is not upload, candidate creation, adoption, or selection,
     - export/import/publish/candidate gates can accept `resultId` / `result` directly; this only resolves output paths, HLS manifest/segments, stream/resource/candidate ids, and runtime provenance from the result registry.
-13. Bring the completed artifact back explicitly:
+13. Bring the completed artifact back explicitly as a Resource-first result:
     - use `editing_export_save_local` with `savePath` to copy a completed single-file media-pipeline output to a user-selected local file path, or with `saveDirectory` to copy a complete HLS bundle locally,
     - for HLS, pass `hlsDirectory` when available so the runtime can merge directory-discovered manifest/playlist/init/segment files with any explicit `segmentPaths`,
     - without `savePath` / `saveDirectory`, use `editing_export_save_local` only to report/confirm an existing local output path; `resultId` can provide that path without requiring Electron runtime,
-    - if render output should enter the resource library, either set `output.importToResource` on the render request or call `editing_export_import_resource` for an existing local output path,
+    - for single-file render/export outputs, prefer setting `output.importToResource` on the render request or calling `editing_export_import_resource` for an existing local output path so the artifact becomes a RawResource before quality judgment; preserve a user-readable title such as rough cut/final export/preview, target production or scene, revision, and source selection provenance when available,
     - if HLS output should be served for preview/playback, call `editing_export_publish_hls` after `editing_task_hls_create` succeeds,
     - use `system_artifact_upload_export` or `system_artifact_upload_hls_stream` only for completed artifacts that are already outside the editing task workflow; both can accept `resultId` / `result` to resolve local output or HLS paths from the Media Pipeline result registry before the explicit upload gate,
     - when any export or artifact tool resolves an Electron task by `taskId`, pass the matching `mediaProjectId` as well; this applies to `editing_export_save_local`, `editing_export_import_resource`, `editing_export_publish_hls`, `system_artifact_upload_export`, and `system_artifact_upload_hls_stream`.
@@ -166,7 +170,7 @@ Do not use domain planning/production records as the editing workspace. Domain r
 - Do not overwrite or rewrite production orchestration records, namespace nodes, or scene-moment source merely because a cut was rendered. Returning an edit to the domain means importing the artifact and, when explicitly requested, creating/adopting/selecting a content candidate.
 - Use resource/media transform tools only for neutral preparation such as frame extraction, image transforms, or diagnostic probes. They must not be treated as product timeline render.
 - Do not call AI generation tools from this skill unless the user asks to create missing source material. Generation outputs must enter candidate/selection flow before becoming stable dependencies.
-- Do not automatically create, adopt, or select candidates after a render succeeds. Render success, RawResource upload, and domain adoption are separate user/workflow decisions.
+- Do not automatically create, adopt, or select candidates after a render succeeds. Render success, RawResource upload, and domain adoption are separate user/workflow decisions. Do not skip RawResource preservation because the render is a draft, rejected cut, or visually imperfect output.
 - For AI-generated source clips, review starts/ends, color/style continuity, artifact risk, first-two-second hook, and transition intent before rendering. Use `references/ai-clip-editing-rhythm.md` for the checklist.
 - Do not edit `.interpret/**` or generated `edit_plan` artifacts directly. They are diagnostic context and can be regenerated.
 - Do not put local paths, external URLs, or binary payloads in domain JSON. Local files belong in `MediaAssetDescriptor` / editing runtime workspace flow; stable domain state should reference RawResource IDs.

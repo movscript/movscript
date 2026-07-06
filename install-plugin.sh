@@ -10,6 +10,7 @@ CHECKSUM_ASSET="${MOVSCRIPT_CHECKSUM_ASSET:-SHA256SUMS.txt}"
 PROVIDER="${MOVSCRIPT_AGENT_PROVIDER:-codex}"
 LOCAL_ZIP="${MOVSCRIPT_PLUGIN_LOCAL_ZIP:-}"
 PLUGIN_RETAIN="${MOVSCRIPT_PLUGIN_RETAIN:-2}"
+NATIVE_PROVIDER_INSTALL="${MOVSCRIPT_NATIVE_PROVIDER_INSTALL:-auto}"
 VERIFY_CHECKSUM=1
 DRY_RUN=0
 ROLLBACK=0
@@ -30,7 +31,8 @@ Options:
   --asset-prefix <prefix>    Asset prefix used for auto-detect.
   --local-zip <path>         Install a locally built plugin zip instead of downloading.
   --provider <targets>       Agent provider registration targets. Defaults to codex.
-                             Supports codex,harness,openclaw,claude-code,all.
+                             Supports codex,harness,openclaw,claude-code,workbuddy,trae,all.
+  --no-native                Do not call provider CLIs after writing registrations.
   --retain <count>           Keep this many plugin bundle versions. Defaults to 2.
   --rollback                 Switch current plugin bundle back to the previous bundle.
   --rollback-version <ver>   Switch current plugin bundle to a retained version.
@@ -42,7 +44,8 @@ Environment overrides:
   MOVSCRIPT_GITHUB_REPO, MOVSCRIPT_RELEASE, MOVSCRIPT_HOME,
   MOVSCRIPT_PLUGIN_ASSET, MOVSCRIPT_PLUGIN_ASSET_PREFIX,
   MOVSCRIPT_PLUGIN_LOCAL_ZIP, MOVSCRIPT_AGENT_PROVIDER,
-  MOVSCRIPT_CHECKSUM_ASSET, MOVSCRIPT_PLUGIN_RETAIN.
+  MOVSCRIPT_NATIVE_PROVIDER_INSTALL, MOVSCRIPT_CHECKSUM_ASSET,
+  MOVSCRIPT_PLUGIN_RETAIN.
 EOF
 }
 
@@ -242,6 +245,8 @@ normalize_provider_target() {
     harness|harness-agent) printf '%s\n' "harness" ;;
     openclaw|open-claw|xiaolongxia) printf '%s\n' "openclaw" ;;
     claude|claude-code|anthropic-claude) printf '%s\n' "claude-code" ;;
+    workbuddy|work-buddy|tencent-workbuddy) printf '%s\n' "workbuddy" ;;
+    trae|trea|trae-ide) printf '%s\n' "trae" ;;
     all) printf '%s\n' "all" ;;
     *) printf '%s\n' "$target" ;;
   esac
@@ -253,7 +258,7 @@ provider_targets() {
     target=$(normalize_provider_target "$raw")
     [ -n "$target" ] || continue
     if [ "$target" = "all" ]; then
-      expanded="codex harness openclaw claude-code"
+      expanded="codex harness openclaw claude-code workbuddy trae"
     else
       expanded="$target"
     fi
@@ -272,6 +277,9 @@ provider_registration_native_command() {
   mcp_command=$2
   case "$target" in
     codex)
+      printf '%s\n' "codex plugin remove movscript@movscript-local || true"
+      printf '%s\n' "codex plugin marketplace remove movscript-local || true"
+      printf '%s\n' "codex plugin remove movscript@movscript || true"
       printf '%s\n' "codex plugin marketplace add \"\$MOVSCRIPT_HOME/provider/codex\""
       printf '%s\n' "codex plugin add movscript@movscript"
       ;;
@@ -279,10 +287,183 @@ provider_registration_native_command() {
       printf '%s\n' "claude mcp add --transport stdio movscript -- \"$mcp_command\" mcp stdio"
       ;;
     openclaw)
-      printf '%s\n' "openclaw mcp add movscript -- \"$mcp_command\" mcp stdio"
+      printf '%s\n' "openclaw plugins install --link \"\$MOVSCRIPT_HOME/provider/openclaw/plugin\""
       ;;
     harness)
       printf '%s\n' "Import provider/harness/worker-agent.json as a Harness Worker Agent MCP server configuration."
+      ;;
+    workbuddy)
+      printf '%s\n' "Merge \"\$MOVSCRIPT_HOME/provider/workbuddy/mcp.json\" into \"\$HOME/.workbuddy/mcp.json\" or paste it in WorkBuddy MCP settings."
+      ;;
+    trae)
+      printf '%s\n' "Merge \"\$MOVSCRIPT_HOME/provider/trae/mcp.json\" into \"\$HOME/Library/Application Support/Trae/User/mcp.json\" or paste it in Trae MCP settings."
+      ;;
+  esac
+}
+
+should_install_native_provider_targets() {
+  case "$(printf '%s' "$NATIVE_PROVIDER_INSTALL" | tr '[:upper:]' '[:lower:]')" in
+    1|yes|true|auto) return 0 ;;
+    0|no|false|off|none) return 1 ;;
+    *) fail "MOVSCRIPT_NATIVE_PROVIDER_INSTALL must be auto, 1, or 0" ;;
+  esac
+}
+
+install_native_provider_targets() {
+  should_install_native_provider_targets || {
+    log "native provider CLI install disabled"
+    return 0
+  }
+  for target in $PROVIDER_TARGETS; do
+    install_native_provider_target "$target"
+  done
+}
+
+merge_mcp_server_config() {
+  target_path=$1
+  server_name=$2
+  command_path=$3
+  config_label=$4
+  generated_config_path=$5
+  if command -v node >/dev/null 2>&1; then
+    if TARGET_PATH="$target_path" SERVER_NAME="$server_name" MCP_COMMAND="$command_path" node <<'NODE'
+const fs = require('node:fs')
+const path = require('node:path')
+
+const targetPath = process.env.TARGET_PATH
+const serverName = process.env.SERVER_NAME
+const command = process.env.MCP_COMMAND
+if (!targetPath || !serverName || !command) {
+  console.error('missing TARGET_PATH, SERVER_NAME, or MCP_COMMAND')
+  process.exit(2)
+}
+
+let config = {}
+if (fs.existsSync(targetPath)) {
+  const raw = fs.readFileSync(targetPath, 'utf8').trim()
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        config = parsed
+      }
+    } catch (error) {
+      console.error(`invalid JSON in ${targetPath}: ${error.message}`)
+      process.exit(2)
+    }
+  }
+}
+
+if (!config.mcpServers || typeof config.mcpServers !== 'object' || Array.isArray(config.mcpServers)) {
+  config.mcpServers = {}
+}
+config.mcpServers[serverName] = {
+  command,
+  args: ['mcp', 'stdio'],
+}
+
+fs.mkdirSync(path.dirname(targetPath), { recursive: true })
+fs.writeFileSync(targetPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8')
+NODE
+    then
+      log "$config_label MCP config updated: $target_path"
+    else
+      log "warning: could not update $config_label MCP config; generated config: $generated_config_path"
+    fi
+  else
+    log "Node not found; generated $config_label MCP config: $generated_config_path"
+  fi
+}
+
+remove_codex_plugin_if_installed() {
+  selector=$1
+  if codex plugin remove "$selector" >/dev/null 2>&1; then
+    log "Codex plugin removed before replacement: $selector"
+  fi
+}
+
+remove_codex_marketplace_if_configured() {
+  marketplace=$1
+  if codex plugin marketplace remove "$marketplace" >/dev/null 2>&1; then
+    log "Codex marketplace removed before replacement: $marketplace"
+  fi
+}
+
+install_native_provider_target() {
+  target=$1
+  mcp_command="$MOVSCRIPT_BIN/movscript"
+  case "$target" in
+    codex)
+      if command -v codex >/dev/null 2>&1; then
+        log "installing MovScript into Codex"
+        codex_home_dir="${CODEX_HOME:-$HOME/.codex}"
+        mkdir -p "$codex_home_dir"
+        mkdir -p "$codex_home_dir/plugins"
+        codex_home_plugin_link="$codex_home_dir/plugins/movscript"
+        if [ -e "$codex_home_plugin_link" ] && [ ! -L "$codex_home_plugin_link" ]; then
+          log "warning: cannot replace non-symlink Codex plugin path: $codex_home_plugin_link"
+        else
+          switch_plugin_pointer "$codex_home_plugin_link" "$PLUGIN_STORE/current"
+          log "Codex home plugin link: $codex_home_plugin_link"
+        fi
+        if codex plugin marketplace add "$MOVSCRIPT_HOME/provider/codex" >/dev/null 2>&1; then
+          log "Codex marketplace added: $MOVSCRIPT_HOME/provider/codex"
+        else
+          log "warning: Codex marketplace add failed or already exists; continuing"
+        fi
+        remove_codex_plugin_if_installed "movscript@movscript-local"
+        remove_codex_marketplace_if_configured "movscript-local"
+        remove_codex_plugin_if_installed "movscript@movscript"
+        if codex plugin add movscript@movscript >/dev/null 2>&1; then
+          log "Codex plugin installed: movscript@movscript"
+        else
+          log "warning: Codex plugin replace failed; run: codex plugin remove movscript@movscript && codex plugin add movscript@movscript"
+        fi
+      else
+        log "Codex CLI not found; run: codex plugin remove movscript@movscript-local || true; codex plugin remove movscript@movscript || true; codex plugin marketplace add $MOVSCRIPT_HOME/provider/codex && codex plugin add movscript@movscript"
+      fi
+      ;;
+    claude-code)
+      if command -v claude >/dev/null 2>&1; then
+        log "installing MovScript MCP server into Claude Code"
+        if claude mcp add --transport stdio movscript -- "$mcp_command" mcp stdio >/dev/null 2>&1; then
+          log "Claude Code MCP server installed: movscript"
+        elif claude mcp list 2>/dev/null | grep '^movscript:' >/dev/null 2>&1; then
+          log "Claude Code MCP server already installed: movscript"
+        else
+          log "warning: Claude Code MCP install failed; run: claude mcp add --transport stdio movscript -- $mcp_command mcp stdio"
+        fi
+      else
+        log "Claude Code CLI not found; generated config: $MOVSCRIPT_HOME/provider/claude-code/.mcp.json"
+      fi
+      ;;
+    openclaw)
+      if command -v openclaw >/dev/null 2>&1; then
+        log "installing MovScript plugin into OpenClaw"
+        openclaw_plugin_dir=$(canonical_dir "$MOVSCRIPT_HOME/provider/openclaw/plugin")
+        if openclaw plugins install --link "$openclaw_plugin_dir" >/dev/null 2>&1; then
+          log "OpenClaw plugin installed: movscript"
+        else
+          log "warning: OpenClaw plugin install failed; run: openclaw plugins install --link $MOVSCRIPT_HOME/provider/openclaw/plugin"
+        fi
+      else
+        log "OpenClaw CLI not found; generated plugin package: $MOVSCRIPT_HOME/provider/openclaw/plugin"
+      fi
+      ;;
+    harness)
+      log "Harness Worker Agent export: $MOVSCRIPT_HOME/provider/harness/worker-agent.json"
+      ;;
+    workbuddy)
+      log "installing MovScript MCP server into WorkBuddy"
+      merge_mcp_server_config "$HOME/.workbuddy/mcp.json" "movscript" "$mcp_command" "WorkBuddy" "$MOVSCRIPT_HOME/provider/workbuddy/mcp.json"
+      ;;
+    trae)
+      log "installing MovScript MCP server into Trae"
+      if [ "$(uname -s 2>/dev/null || printf unknown)" = "Darwin" ]; then
+        merge_mcp_server_config "$HOME/Library/Application Support/Trae/User/mcp.json" "movscript" "$mcp_command" "Trae" "$MOVSCRIPT_HOME/provider/trae/mcp.json"
+      else
+        log "Trae native config path is platform-specific; generated config: $MOVSCRIPT_HOME/provider/trae/mcp.json"
+      fi
       ;;
   esac
 }
@@ -301,6 +482,208 @@ provider_registration_native_commands_json() {
     printf '"%s"' "$(json_escape "$command_line")"
   done
   printf ']'
+}
+
+write_openclaw_plugin_package() {
+  provider_root=$1
+  mcp_command=$2
+  plugin_root="$provider_root/plugin"
+  mcp_command_json=$(json_escape "$mcp_command")
+  home_dir_json=$(json_escape "$MOVSCRIPT_HOME")
+  plugin_version=$(runtime_manifest_field "$PLUGIN_STORE/current" version)
+  [ -n "$plugin_version" ] || plugin_version="0.0.0"
+  plugin_version_json=$(json_escape "$plugin_version")
+
+  mkdir -p "$plugin_root"
+  cat > "$plugin_root/package.json" <<EOF
+{
+  "name": "movscript",
+  "version": "$plugin_version_json",
+  "private": true,
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
+EOF
+  cat > "$plugin_root/openclaw.plugin.json" <<EOF
+{
+  "id": "movscript",
+  "name": "MovScript",
+  "description": "Run MovScript project, generation, and editing workflows from OpenClaw.",
+  "version": "$plugin_version_json",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
+EOF
+  cat > "$plugin_root/index.ts" <<EOF
+import { spawn } from 'node:child_process'
+
+const MOVSCRIPT_COMMAND = process.env.MOVSCRIPT_COMMAND || "$mcp_command_json"
+const MOVSCRIPT_HOME_DIR = process.env.MOVSCRIPT_HOME || "$home_dir_json"
+const DEFAULT_TIMEOUT_MS = 120000
+const MAX_OUTPUT_CHARS = 1000000
+
+function textResult(payload) {
+  const text = typeof payload.stdout === 'string' && payload.stdout.trim()
+    ? payload.stdout.trim()
+    : JSON.stringify(payload, null, 2)
+  return {
+    content: [{ type: 'text', text }],
+    details: payload,
+  }
+}
+
+function normalizeArgs(value) {
+  if (!Array.isArray(value)) throw new Error('args must be a non-empty string array')
+  const args = value.map((item) => {
+    if (typeof item !== 'string') throw new Error('args must contain only strings')
+    return item
+  })
+  if (args.length === 0) throw new Error('args must be a non-empty string array')
+  return args
+}
+
+function normalizedTimeout(value) {
+  if (value === undefined || value === null) return DEFAULT_TIMEOUT_MS
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return DEFAULT_TIMEOUT_MS
+  return Math.min(Math.max(Math.trunc(parsed), 1000), 600000)
+}
+
+function clampOutput(value) {
+  if (value.length <= MAX_OUTPUT_CHARS) return value
+  return value.slice(value.length - MAX_OUTPUT_CHARS)
+}
+
+function runMovScript(args, options) {
+  return new Promise((resolve) => {
+    let stdout = ''
+    let stderr = ''
+    let timedOut = false
+    let aborted = false
+    const child = spawn(MOVSCRIPT_COMMAND, args, {
+      cwd: options.cwd || undefined,
+      env: {
+        ...process.env,
+        MOVSCRIPT_HOME: MOVSCRIPT_HOME_DIR,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    const timer = setTimeout(() => {
+      timedOut = true
+      child.kill('SIGTERM')
+    }, options.timeoutMs)
+    const abortHandler = () => {
+      aborted = true
+      child.kill('SIGTERM')
+    }
+    if (options.signal) options.signal.addEventListener('abort', abortHandler, { once: true })
+    child.stdout?.on('data', (chunk) => {
+      stdout = clampOutput(stdout + String(chunk))
+    })
+    child.stderr?.on('data', (chunk) => {
+      stderr = clampOutput(stderr + String(chunk))
+    })
+    child.on('error', (error) => {
+      clearTimeout(timer)
+      if (options.signal) options.signal.removeEventListener('abort', abortHandler)
+      resolve({
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+        args,
+        stdout,
+        stderr,
+      })
+    })
+    child.on('close', (code, signal) => {
+      clearTimeout(timer)
+      if (options.signal) options.signal.removeEventListener('abort', abortHandler)
+      resolve({
+        ok: code === 0 && !timedOut && !aborted,
+        code,
+        signal,
+        timedOut,
+        aborted,
+        args,
+        stdout,
+        stderr,
+      })
+    })
+  })
+}
+
+const plugin = {
+  id: 'movscript',
+  name: 'MovScript',
+  description: 'Run MovScript project, generation, and editing workflows from OpenClaw.',
+  version: "$plugin_version_json",
+  configSchema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {},
+  },
+  register(api) {
+    api.registerTool({
+      name: 'movscript',
+      label: 'MovScript',
+      description: 'Run MovScript CLI actions. Pass args as an array, for example ["overview", "--json"] or ["project", "list", "--json"].',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          args: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 64,
+            items: { type: 'string' },
+            description: 'MovScript CLI arguments without the executable name.',
+          },
+          cwd: {
+            type: 'string',
+            description: 'Optional working directory for the MovScript command.',
+          },
+          json: {
+            type: 'boolean',
+            description: 'Prepend --json when the args do not already include it.',
+          },
+          timeoutMs: {
+            type: 'integer',
+            minimum: 1000,
+            maximum: 600000,
+            description: 'Command timeout in milliseconds.',
+          },
+        },
+        required: ['args'],
+      },
+      async execute(_toolCallId, params, signal) {
+        try {
+          const rawArgs = normalizeArgs(params?.args)
+          const args = params?.json && !rawArgs.includes('--json') ? ['--json', ...rawArgs] : rawArgs
+          const result = await runMovScript(args, {
+            cwd: typeof params?.cwd === 'string' && params.cwd.trim() ? params.cwd.trim() : undefined,
+            timeoutMs: normalizedTimeout(params?.timeoutMs),
+            signal,
+          })
+          return textResult(result)
+        } catch (error) {
+          return textResult({
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
+      },
+    })
+  },
+}
+
+export default plugin
+EOF
 }
 
 write_provider_registration() {
@@ -344,7 +727,8 @@ EOF
 
   case "$target" in
     codex)
-      cat > "$provider_root/marketplace.json" <<EOF
+      mkdir -p "$provider_root/.agents/plugins"
+      codex_marketplace_manifest=$(cat <<EOF
 {
   "name": "movscript",
   "interface": {
@@ -366,6 +750,9 @@ EOF
   ]
 }
 EOF
+)
+      printf '%s\n' "$codex_marketplace_manifest" > "$provider_root/marketplace.json"
+      printf '%s\n' "$codex_marketplace_manifest" > "$provider_root/.agents/plugins/marketplace.json"
       ;;
     claude-code)
       cat > "$provider_root/.mcp.json" <<EOF
@@ -392,6 +779,7 @@ EOF
   }
 }
 EOF
+      write_openclaw_plugin_package "$provider_root" "$mcp_command"
       ;;
     harness)
       cat > "$provider_root/worker-agent.json" <<EOF
@@ -409,6 +797,32 @@ EOF
   ]
 }
 EOF
+      ;;
+    workbuddy)
+      cat > "$provider_root/mcp.json" <<EOF
+{
+  "mcpServers": {
+    "movscript": {
+      "command": "$mcp_command_json",
+      "args": ["mcp", "stdio"]
+    }
+  }
+}
+EOF
+      ;;
+    trae)
+      cat > "$provider_root/mcp.json" <<EOF
+{
+  "mcpServers": {
+    "movscript": {
+      "command": "$mcp_command_json",
+      "args": ["mcp", "stdio"]
+    }
+  }
+}
+EOF
+      mkdir -p "$provider_root/project/.trae"
+      cp "$provider_root/mcp.json" "$provider_root/project/.trae/mcp.json"
       ;;
   esac
 }
@@ -475,6 +889,7 @@ perform_plugin_rollback() {
   fi
   write_home_cli_shim
   write_provider_registration
+  install_native_provider_targets
   write_bundle_identity "$rollback_target" "$(version_from_target "$rollback_target")" "$old_current" "rollback"
   log "rolled back MovScript Agent Plugin to $(version_from_target "$rollback_target")"
   exit 0
@@ -527,6 +942,10 @@ while [ "$#" -gt 0 ]; do
       PROVIDER=$2
       shift 2
       ;;
+    --no-native)
+      NATIVE_PROVIDER_INSTALL=0
+      shift
+      ;;
     --retain)
       [ "$#" -ge 2 ] || fail "--retain requires a value"
       PLUGIN_RETAIN=$2
@@ -568,7 +987,7 @@ esac
 PROVIDER_TARGETS=$(provider_targets "$PROVIDER")
 for provider_target in $PROVIDER_TARGETS; do
   case "$provider_target" in
-    codex|harness|openclaw|claude-code) ;;
+    codex|harness|openclaw|claude-code|workbuddy|trae) ;;
     *) fail "unsupported provider target: $provider_target" ;;
   esac
 done
@@ -613,6 +1032,7 @@ CHECKSUM_URL=$(url_for_asset "$CHECKSUM_ASSET")
 log "repository: $REPO"
 log "release: $RELEASE"
 log "provider targets: $PROVIDER_TARGETS"
+log "native provider install: $NATIVE_PROVIDER_INSTALL"
 log "movscript home: $MOVSCRIPT_HOME"
 log "plugin retain count: $PLUGIN_RETAIN"
 if [ -n "$ASSET" ]; then
@@ -780,6 +1200,7 @@ fi
 
 write_home_cli_shim
 write_provider_registration
+install_native_provider_targets
 
 INSTALL_COMMITTED=1
 rm -rf "$BACKUP_DIR"

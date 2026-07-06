@@ -1,9 +1,9 @@
 import type { Command } from 'commander'
 import {
-  runMovScriptWorkspaceCommand,
-  workspaceCommandById,
+  domainCommandById,
+  runMovScriptDomainCommand,
   type MovScriptCommandExecution,
-  type WorkspaceCommandSpec,
+  type DomainCommandSpec,
 } from '@movscript/cli-commands'
 
 interface WorkspaceCommandOptions {
@@ -26,11 +26,11 @@ export function registerWorkspaceCommands(program: Command): void {
   const workspace = program
     .command('workspace')
     .alias('ws')
-    .description('Inspect, review, and interpret MovScript project workspaces')
+    .description('Deprecated aliases for domain project diagnostics')
 
   workspace
     .command('get-model <entityType>')
-    .description('Return the domain workspace model for one editable entity')
+    .description('Deprecated alias for domain get-model --entity-kind <entityType>')
     .option('--entity-id <id>', 'Optional entity id used to expand editable path hints')
     .option('--workspace <dir>', 'Project workspace Git repository root')
     .option('--cwd <dir>', 'Alias for --workspace')
@@ -40,7 +40,7 @@ export function registerWorkspaceCommands(program: Command): void {
     .option('--user <id>', 'Workspace user id')
     .option('--json', 'Print JSON output')
     .action(async (entityType: string, options: WorkspaceGetModelOptions, command: Command) => {
-      await runWorkspaceCommand(workspaceCommandSpec('workspace.get_model'), workspaceArgs(options, command, {
+      await runWorkspaceCommand(domainCommandSpec('domain.get_model'), workspaceArgs(options, command, {
         entityKind: entityType,
         entityId: options.entityId,
       }))
@@ -48,7 +48,7 @@ export function registerWorkspaceCommands(program: Command): void {
 
   workspace
     .command('review')
-    .description('Review current MovScript source files and diagnostics without publishing product state')
+    .description('Deprecated alias for domain diagnostics inspect')
     .option('--workspace <dir>', 'Project workspace Git repository root')
     .option('--cwd <dir>', 'Alias for --workspace')
     .option('--project-dir <dir>', 'Alias for --workspace')
@@ -59,13 +59,13 @@ export function registerWorkspaceCommands(program: Command): void {
     .option('--commit <ref>', 'Compare current source against a specific git commit/ref')
     .option('--json', 'Print JSON output')
     .action(async (options: WorkspaceCommandOptions, command: Command) => {
-      const execution = await runWorkspaceCommand(workspaceCommandSpec('workspace.review'), workspaceArgs(options, command))
+      const execution = await runWorkspaceCommand(domainCommandSpec('domain.diagnostics.inspect'), workspaceArgs(options, command))
       if (isRecord(execution?.data) && execution.data.readyToInterpret === false) process.exitCode = 2
     })
 
   workspace
     .command('interpret')
-    .description('Validate current MovScript source files and refresh interpreter debug artifacts')
+    .description('Deprecated alias for domain diagnostics interpret')
     .option('--workspace <dir>', 'Project workspace Git repository root')
     .option('--cwd <dir>', 'Alias for --workspace')
     .option('--project-dir <dir>', 'Alias for --workspace')
@@ -75,7 +75,7 @@ export function registerWorkspaceCommands(program: Command): void {
     .option('--org <id>', 'Workspace organization id')
     .option('--json', 'Print JSON output')
     .action(async (options: WorkspaceCommandOptions, command: Command) => {
-      const execution = await runWorkspaceCommand(workspaceCommandSpec('workspace.interpret'), workspaceArgs(options, command))
+      const execution = await runWorkspaceCommand(domainCommandSpec('domain.diagnostics.interpret'), workspaceArgs(options, command))
       if (isRecord(execution?.data) && execution.data.status === 'failed') process.exitCode = 2
     })
 }
@@ -92,11 +92,11 @@ function commandGlobalOptions(command: Command): { server?: string; workspace?: 
 }
 
 async function runWorkspaceCommand(
-  spec: WorkspaceCommandSpec,
+  spec: DomainCommandSpec,
   args: Record<string, unknown>,
 ): Promise<MovScriptCommandExecution | undefined> {
   try {
-    const execution = await runMovScriptWorkspaceCommand(spec, args)
+    const execution = await runMovScriptDomainCommand(spec, args)
     console.log(JSON.stringify(execution, null, 2))
     return execution
   } catch (error) {
@@ -112,9 +112,9 @@ async function runWorkspaceCommand(
   }
 }
 
-function workspaceCommandSpec(commandId: string): WorkspaceCommandSpec {
-  const spec = workspaceCommandById.get(commandId)
-  if (!spec) throw new Error(`workspace command is not registered: ${commandId}`)
+function domainCommandSpec(commandId: string): DomainCommandSpec {
+  const spec = domainCommandById.get(commandId)
+  if (!spec) throw new Error(`domain command is not registered: ${commandId}`)
   return spec
 }
 

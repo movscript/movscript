@@ -20,8 +20,25 @@ export class BackendHTTPError extends Error {
   }
 }
 
+export class BackendNetworkError extends Error {
+  constructor(
+    public readonly method: string,
+    public readonly path: string,
+    public readonly url: string,
+    public override readonly cause: unknown,
+  ) {
+    super(`Backend ${method} ${url} failed before response: ${errorMessage(cause)}`)
+    this.name = 'BackendNetworkError'
+  }
+
+  toJSON(): Record<string, unknown> {
+    return normalizeBackendNetworkError(this.method, this.path, this.url, this.cause)
+  }
+}
+
 export function errorData(error: unknown): unknown {
   if (error instanceof BackendHTTPError) return error.toJSON()
+  if (error instanceof BackendNetworkError) return error.toJSON()
   return undefined
 }
 
@@ -46,6 +63,17 @@ export function normalizeBackendHTTPError(method: string, path: string, status: 
 
 export const normalizeBackendHTTPErrorForMCP = normalizeBackendHTTPError
 
+export function normalizeBackendNetworkError(method: string, path: string, url: string, cause: unknown): Record<string, unknown> {
+  return {
+    type: 'backend_network_error',
+    method,
+    path,
+    url,
+    cause: errorMessage(cause),
+    ...(errorCode(cause) ? { code: errorCode(cause) } : {}),
+  }
+}
+
 export function parseJSONBody(rawBody: string): unknown {
   if (!rawBody.trim()) return undefined
   try {
@@ -58,6 +86,14 @@ export function parseJSONBody(rawBody: string): unknown {
 export function backendErrorMessage(body: unknown, rawBody: string): string {
   if (isRecord(body) && typeof body.error === 'string') return body.error
   return rawBody
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function errorCode(error: unknown): string | undefined {
+  return isRecord(error) && typeof error.code === 'string' ? error.code : undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

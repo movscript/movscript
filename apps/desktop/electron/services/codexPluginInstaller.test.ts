@@ -62,6 +62,8 @@ test('installMovScriptCodexPlugin runs marketplace and plugin install commands',
 
     assert.deepEqual(calls, [
       ['plugin', 'marketplace', 'add', marketplaceRoot],
+      ['plugin', 'remove', 'movscript@movscript-local'],
+      ['plugin', 'remove', 'movscript@movscript'],
       ['plugin', 'add', 'movscript@movscript-local'],
     ])
   } finally {
@@ -84,21 +86,32 @@ test('prepareMovScriptAgentProviderTargets writes provider registrations for mai
       'harness',
       'openclaw',
       'claude-code',
+      'workbuddy',
+      'trae',
     ])
     assert.equal(result.installCommands.some((command) => command.includes('codex plugin add movscript@movscript')), true)
     assert.equal(result.installCommands.some((command) => command.includes('claude mcp add')), true)
-    assert.equal(result.installCommands.some((command) => command.includes('openclaw mcp add')), true)
+    assert.equal(result.installCommands.some((command) => command.includes('openclaw plugins install --link')), true)
+    assert.equal(result.installCommands.some((command) => command.includes('$HOME/.workbuddy/mcp.json')), true)
+    assert.equal(result.installCommands.some((command) => command.includes('Trae/User/mcp.json')), true)
 
-    for (const target of ['codex', 'harness', 'openclaw', 'claude-code']) {
+    for (const target of ['codex', 'harness', 'openclaw', 'claude-code', 'workbuddy', 'trae']) {
       const providerRoot = join(homeDir, 'provider', target)
       assert.equal(existsSync(join(providerRoot, 'registration.json')), true)
       assert.equal(realpathSync(join(providerRoot, 'plugins', 'movscript')), realpathSync(result.paths.homeCurrentPluginRoot))
     }
 
     assert.equal(existsSync(join(homeDir, 'provider', 'codex', 'marketplace.json')), true)
+    assert.equal(existsSync(join(homeDir, 'provider', 'codex', '.agents', 'plugins', 'marketplace.json')), true)
     assert.equal(existsSync(join(homeDir, 'provider', 'claude-code', '.mcp.json')), true)
     assert.equal(existsSync(join(homeDir, 'provider', 'openclaw', 'mcp.json')), true)
+    assert.equal(existsSync(join(homeDir, 'provider', 'openclaw', 'plugin', 'package.json')), true)
+    assert.equal(existsSync(join(homeDir, 'provider', 'openclaw', 'plugin', 'openclaw.plugin.json')), true)
+    assert.equal(existsSync(join(homeDir, 'provider', 'openclaw', 'plugin', 'index.ts')), true)
     assert.equal(existsSync(join(homeDir, 'provider', 'harness', 'worker-agent.json')), true)
+    assert.equal(existsSync(join(homeDir, 'provider', 'workbuddy', 'mcp.json')), true)
+    assert.equal(existsSync(join(homeDir, 'provider', 'trae', 'mcp.json')), true)
+    assert.equal(existsSync(join(homeDir, 'provider', 'trae', 'project', '.trae', 'mcp.json')), true)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
@@ -113,13 +126,15 @@ test('prepareMovScriptAgentProviderTargets normalizes agent target aliases', () 
     const result = prepareMovScriptAgentProviderTargets({
       sourcePluginRoot: source,
       homeDir,
-      targets: ['xiaolongxia', 'claude', 'harness-agent'],
+      targets: ['xiaolongxia', 'claude', 'harness-agent', 'work-buddy', 'trea'],
     })
 
     assert.deepEqual(result.targets.map((registration) => registration.target), [
       'openclaw',
       'claude-code',
       'harness',
+      'workbuddy',
+      'trae',
     ])
   } finally {
     rmSync(root, { recursive: true, force: true })
@@ -187,6 +202,8 @@ function writePluginSource(root: string): string {
       harness: true,
       openclaw: true,
       'claude-code': true,
+      workbuddy: true,
+      trae: true,
     },
   }), 'utf8')
   writeFileSync(join(source, '.mcp.json'), JSON.stringify({ mcpServers: {} }), 'utf8')

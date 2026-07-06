@@ -13,6 +13,10 @@ Use this skill after `production-editing` opens a `remotion` workspace and retur
 
 This skill owns Remotion-specific project work: reading and editing the Remotion project files, running Studio, checking package/runtime readiness, rendering, and importing the result back as a RawResource.
 
+Open `../domain/references/resource-discoverability.md` before importing rendered files or creating candidates so Remotion previews/exports have clear names, revision status, and source provenance.
+
+Open `../domain/references/user-facing-response.md` before ordinary preview, render, import, or blocker replies so the user hears what changed, what was saved, and what choice remains.
+
 ## Workspace Files
 
 Typical handoff context includes:
@@ -35,7 +39,7 @@ Expected Remotion files include:
 3. Open preview with the workspace preview command, usually `npx remotion studio`.
 4. Edit Remotion source files only inside the workspace project directory.
 5. Render only when the user asks, using the workspace render command.
-6. Import the rendered file as RawResource when requested.
+6. Import the rendered file as RawResource by default when render succeeds, unless the user explicitly asks for local-only output or import is unavailable.
 7. Create candidates only as a separate explicit decision.
 
 ## Rules
@@ -52,4 +56,4 @@ Expected Remotion files include:
 - Systems/config: Requires Remotion project files, Node/npm or another package manager, Project Service workspace provenance, and Media Pipeline or Remotion CLI for rendering.
 - Blockers: Missing Remotion project files, missing package dependencies, unavailable renderer runtime, missing handoff context, or failed render output.
 - Human review: Users approve package installs, source edits, renders, imports, and any candidate creation/adoption/selection.
-- Output: Updated Remotion workspace files, preview/render diagnostics, optional RawResource import, and no automatic candidate decision.
+- Output: Updated Remotion workspace files, preview/render diagnostics, RawResource import when possible, and no automatic candidate decision.

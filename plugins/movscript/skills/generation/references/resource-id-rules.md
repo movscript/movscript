@@ -7,7 +7,7 @@ Use RawResource IDs for:
 - `input_resource_ids`
 - `reference_resource_ids`
 - candidate output `resource_id`
-- selected content unit `resource_id`
+- selected 内容制作任务 `resource_id`
 
 Do not pass these as generation inputs:
 
@@ -33,7 +33,7 @@ If extracted or edited media must become an input, reference, candidate output, 
 - `system_resource_video_extract_audio_to_resource` for audio tracks or ranges.
 - `system_resource_video_compose_to_resource` or `system_resource_video_concat_to_resource` only for resource-level drafts or neutral resource utilities. For product editing, create a `MediaEditingProject` and use `editing_*` tools through Editing Service and Media Pipeline.
 
-These resource/media operations are not business candidate operations. After creating one of these existing RawResources, write content-unit candidate or selection metadata separately when the output should affect domain state. This rule does not apply to `generation_submit` content-unit image/video jobs`; their successful terminal monitors create or refresh content candidates automatically. Do not manually call `domain_create_content_candidate` after `generation_submit` content-unit image/video jobs`.
+These resource/media operations are not business candidate operations. After creating one of these existing RawResources, write 内容制作任务 candidate or selection metadata separately when the output should affect domain state. This rule does not apply to `generation_submit` `content_unit` image/video jobs; their successful terminal monitors create or refresh content candidates automatically. Do not manually call `domain_create_content_candidate` after `generation_submit` `content_unit` image/video jobs.
 
 ## Trusted Provider References
 

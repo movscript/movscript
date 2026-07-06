@@ -9,6 +9,7 @@ import {
   contextCommandSpecs,
   domainCommandSpecs,
   editingCommandSpecs,
+  isWorkspaceMCPToolName,
   productionEditingCommandSpecs,
   runMovScriptContextCommand,
   runMovScriptEditingCommand,
@@ -26,6 +27,9 @@ const temporaryFallbackCommandIds = new Set([
   'domain.candidate.legacy.select',
   'domain.candidate.legacy.update',
   'domain.candidate.legacy.unlock',
+  'workspace.get_model',
+  'workspace.review',
+  'workspace.interpret',
 ])
 
 test('shared CLI/MCP command specs expose stable product contract metadata', () => {
@@ -37,7 +41,6 @@ test('shared CLI/MCP command specs expose stable product contract metadata', () 
     ['domain', domainCommandSpecs],
     ['editing', editingCommandSpecs],
     ['production-editing', productionEditingCommandSpecs],
-    ['workspace', workspaceCommandSpecs],
   ]
   const commandIds = new Set()
   const mcpToolNames = new Set()
@@ -67,6 +70,26 @@ test('shared CLI/MCP command specs expose stable product contract metadata', () 
       commandIds.add(spec.commandId)
       mcpToolNames.add(spec.mcpToolName)
     }
+  }
+})
+
+test('legacy workspace command specs are compatibility aliases to domain tools', () => {
+  const aliases = [
+    ['workspace.get_model', 'domain_get_model', ['movscript', 'workspace', 'get-model', 'project', '--json']],
+    ['workspace.review', 'domain_inspect', ['movscript', 'workspace', 'review', '--json']],
+    ['workspace.interpret', 'domain_interpret', ['movscript', 'workspace', 'interpret', '--json']],
+  ]
+
+  assert.equal(workspaceCommandSpecs.length, aliases.length)
+  for (const [commandId, mcpToolName, argv] of aliases) {
+    const spec = workspaceCommandSpecs.find((candidate) => candidate.commandId === commandId)
+    assert.ok(spec, `${commandId} must remain available as a compatibility alias`)
+    assert.equal(spec.family, 'workspace')
+    assert.equal(spec.stability, 'temporary_fallback')
+    assert.equal(spec.mcpToolName, mcpToolName)
+    assert.deepEqual(spec.examples[0].argv, argv)
+    assert.ok(domainCommandSpecs.some((domainSpec) => domainSpec.mcpToolName === mcpToolName))
+    assert.equal(isWorkspaceMCPToolName(mcpToolName), false)
   }
 })
 
@@ -481,6 +504,23 @@ test('domain read and status tools are first-class read-only CLI contracts', () 
 
   const prompt = domainCommandSpecs.find((candidate) => candidate.commandId === 'domain.read.content_unit.generation_prompt')
   assert.equal(prompt?.mcpAliases?.includes('domain_read_content_unit_input_version'), true)
+})
+
+test('domain model and diagnostics tools own the canonical CLI contracts', () => {
+  const domainCommands = [
+    ['domain.get_model', 'domain_get_model', ['movscript', 'domain', 'get-model', '--entity-kind', 'project', '--json'], ['project:read']],
+    ['domain.diagnostics.inspect', 'domain_inspect', ['movscript', 'domain', 'diagnostics', 'inspect', '--json'], ['project:read']],
+    ['domain.diagnostics.interpret', 'domain_interpret', ['movscript', 'domain', 'diagnostics', 'interpret', '--json'], ['project:read', 'project:interpret']],
+  ]
+
+  for (const [commandId, mcpToolName, argv, permissions] of domainCommands) {
+    const spec = domainCommandSpecs.find((candidate) => candidate.commandId === commandId)
+    assert.ok(spec, `${commandId} must be exposed as a canonical domain command`)
+    assert.equal(spec.mcpToolName, mcpToolName)
+    assert.deepEqual(spec.examples[0].argv, argv)
+    assert.deepEqual(spec.permissions, permissions)
+    assert.equal(spec.stability, 'stable')
+  }
 })
 
 test('domain source writes are first-class project-write CLI contracts', () => {

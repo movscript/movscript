@@ -12,6 +12,8 @@ export const WELL_KNOWN_AGENT_PROVIDER_TARGETS = [
   'harness',
   'openclaw',
   'claude-code',
+  'workbuddy',
+  'trae',
 ] as const
 
 export type WellKnownAgentProviderTarget = typeof WELL_KNOWN_AGENT_PROVIDER_TARGETS[number]
@@ -124,14 +126,26 @@ export function defaultAgentPackageTargets(): AgentPackageTargetManifest[] {
     {
       id: 'openclaw',
       manifest: './.provider-plugin/plugin.json',
-      registration: 'mcp-registry',
-      capabilities: ['mcpServers'],
+      registration: 'openclaw-plugin',
+      capabilities: ['mcpServers', 'tools'],
     },
     {
       id: 'harness',
       manifest: './.provider-plugin/plugin.json',
       registration: 'worker-agent',
       capabilities: ['mcpServers', 'instructions'],
+    },
+    {
+      id: 'workbuddy',
+      manifest: './.provider-plugin/plugin.json',
+      registration: 'mcp-json',
+      capabilities: ['mcpServers'],
+    },
+    {
+      id: 'trae',
+      manifest: './.provider-plugin/plugin.json',
+      registration: 'mcp-json',
+      capabilities: ['mcpServers'],
     },
   ]
 }
@@ -153,6 +167,8 @@ export function normalizeAgentProviderTarget(value: string): AgentProviderTarget
   if (target === 'claude' || target === 'claude-code' || target === 'anthropic-claude') return 'claude-code'
   if (target === 'open-claw' || target === 'openclaw' || target === 'xiaolongxia') return 'openclaw'
   if (target === 'harness' || target === 'harness-agent') return 'harness'
+  if (target === 'workbuddy' || target === 'work-buddy' || target === 'tencent-workbuddy') return 'workbuddy'
+  if (target === 'trae' || target === 'trea' || target === 'trae-ide') return 'trae'
   if (target === 'codex' || target === 'openai-codex') return 'codex'
   return target
 }

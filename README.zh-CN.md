@@ -14,6 +14,7 @@
 
 <p align="center">
   <a href="#介绍">介绍</a> |
+  <a href="#产品截图">产品截图</a> |
   <a href="#产物">产物</a> |
   <a href="#docker">Docker</a>
 </p>
@@ -29,6 +30,28 @@ Movscript 是一个面向 Vibe Motion、AI 规划成片与自动剪辑的视频�
 Movscript 的核心思路是先描述动态影像的意图、感觉、节奏和结构，再让系统协助组织项目、手记、素材、分镜、镜头、生成任务、模型配置、助手工作流和粗剪版本。
 
 项目仍处于早期阶段。功能、文件格式、插件行为和工作流在稳定版本发布前可能继续调整。
+
+## 产品截图
+
+### 项目 Home
+
+![项目 Home 总览](docs/assets/readme/project-home.jpg)
+
+### 内容画布
+
+![内容画布 Prompt 工作区](docs/assets/readme/content-canvas.png)
+
+### 图片 Tool
+
+![图片生成 Tool 与资源库](docs/assets/readme/image-tool.png)
+
+### 制作剪辑台
+
+![制作剪辑台工作区](docs/assets/readme/production-editing-dialog.png)
+
+### Remotion 预览与 Shell 工作台
+
+![Remotion 预览与 Shell 工作台](docs/assets/readme/remotion-shell-workbench.png)
 
 ## 产物
 

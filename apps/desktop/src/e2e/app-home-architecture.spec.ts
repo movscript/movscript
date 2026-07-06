@@ -65,7 +65,7 @@ test('app home opens agent, project, and canvas entry points', async ({ page }, 
   await expectWindowCall(page, { type: 'agent-provider-targets' })
   await expect(page.getByText(/Agent Provider 已连接到 Home current/)).toBeVisible()
   await expect(page.getByText('/tmp/movscript-home', { exact: true })).toBeVisible()
-  await expect(page.getByText('codex, harness, openclaw, claude-code', { exact: true })).toBeVisible()
+  await expect(page.getByText('codex, harness, openclaw, claude-code, workbuddy, trae', { exact: true })).toBeVisible()
 
   await page.getByRole('button', { name: /工作流画布|Canvas/ }).click()
   await expectWindowCall(page, { type: 'canvas' })
@@ -167,7 +167,13 @@ async function installWindowApiRecorder(page: Page) {
               providerRoot: '/tmp/movscript-home/provider/codex',
               pluginLink: '/tmp/movscript-home/provider/codex/plugins/movscript',
               registrationPath: '/tmp/movscript-home/provider/codex/registration.json',
-              nativeCommands: ['codex plugin add movscript@movscript'],
+              nativeCommands: [
+                'codex plugin remove movscript@movscript-local || true',
+                'codex plugin marketplace remove movscript-local || true',
+                'codex plugin remove movscript@movscript || true',
+                'codex plugin marketplace add "$MOVSCRIPT_HOME/provider/codex"',
+                'codex plugin add movscript@movscript',
+              ],
             },
             {
               target: 'harness',
@@ -181,7 +187,7 @@ async function installWindowApiRecorder(page: Page) {
               providerRoot: '/tmp/movscript-home/provider/openclaw',
               pluginLink: '/tmp/movscript-home/provider/openclaw/plugins/movscript',
               registrationPath: '/tmp/movscript-home/provider/openclaw/registration.json',
-              nativeCommands: ['openclaw mcp add movscript'],
+              nativeCommands: ['openclaw plugins install --link "$MOVSCRIPT_HOME/provider/openclaw/plugin"'],
             },
             {
               target: 'claude-code',
@@ -190,11 +196,31 @@ async function installWindowApiRecorder(page: Page) {
               registrationPath: '/tmp/movscript-home/provider/claude-code/registration.json',
               nativeCommands: ['claude mcp add --transport stdio movscript'],
             },
+            {
+              target: 'workbuddy',
+              providerRoot: '/tmp/movscript-home/provider/workbuddy',
+              pluginLink: '/tmp/movscript-home/provider/workbuddy/plugins/movscript',
+              registrationPath: '/tmp/movscript-home/provider/workbuddy/registration.json',
+              nativeCommands: ['Merge "$MOVSCRIPT_HOME/provider/workbuddy/mcp.json" into "$HOME/.workbuddy/mcp.json" or paste it in WorkBuddy MCP settings.'],
+            },
+            {
+              target: 'trae',
+              providerRoot: '/tmp/movscript-home/provider/trae',
+              pluginLink: '/tmp/movscript-home/provider/trae/plugins/movscript',
+              registrationPath: '/tmp/movscript-home/provider/trae/registration.json',
+              nativeCommands: ['Merge "$MOVSCRIPT_HOME/provider/trae/mcp.json" into "$HOME/Library/Application Support/Trae/User/mcp.json" or paste it in Trae MCP settings.'],
+            },
           ],
           installCommands: [
+            'codex plugin remove movscript@movscript-local || true',
+            'codex plugin marketplace remove movscript-local || true',
+            'codex plugin remove movscript@movscript || true',
+            'codex plugin marketplace add "$MOVSCRIPT_HOME/provider/codex"',
             'codex plugin add movscript@movscript',
-            'openclaw mcp add movscript',
+            'openclaw plugins install --link "$MOVSCRIPT_HOME/provider/openclaw/plugin"',
             'claude mcp add --transport stdio movscript',
+            'Merge "$MOVSCRIPT_HOME/provider/workbuddy/mcp.json" into "$HOME/.workbuddy/mcp.json" or paste it in WorkBuddy MCP settings.',
+            'Merge "$MOVSCRIPT_HOME/provider/trae/mcp.json" into "$HOME/Library/Application Support/Trae/User/mcp.json" or paste it in Trae MCP settings.',
           ],
         }
       },

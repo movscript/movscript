@@ -20,6 +20,7 @@ const mirroredPaths = [
   'README.md',
 ]
 const runtimeApiVersion = '1.0'
+const expectedPluginVersion = String(rootPackage.version || pluginPackage.version || '0.0.0')
 const args = new Set(process.argv.slice(2))
 const write = args.has('--write')
 const check = args.has('--check') || !write
@@ -72,6 +73,8 @@ function distributionDifferences() {
     compareTrees(sourcePath, targetPath, relativePath, errors)
   }
   validateRuntimeManifest(distributionDir, errors)
+  validatePluginMetadataVersions(sourceDir, 'apps/plugin', errors)
+  validatePluginMetadataVersions(distributionDir, 'plugins/movscript', errors)
   return errors
 }
 
@@ -81,7 +84,7 @@ function expectedRuntimeManifest(pluginDir = distributionDir, generatedAt = new 
     appId: 'plugin',
     applicationId: 'movscript.agent-plugin',
     artifact: 'movscript-agent-plugin',
-    version: String(rootPackage.version || pluginPackage.version || '0.0.0'),
+    version: expectedPluginVersion,
     packageName: pluginPackage.name,
     generatedAt,
     apiVersion: runtimeApiVersion,
@@ -105,6 +108,20 @@ function expectedRuntimeManifest(pluginDir = distributionDir, generatedAt = new 
     daemonArgs: ['daemon', 'run'],
     cliEntrypoint: './bin/movscript',
     legacyMcpEntrypoint: './bin/movscript-agent-mcp',
+  }
+}
+
+function validatePluginMetadataVersions(pluginDir, label, errors) {
+  for (const path of ['.agent-package/package.json', '.codex-plugin/plugin.json', '.provider-plugin/plugin.json']) {
+    const manifestPath = resolve(pluginDir, path)
+    if (!existsSync(manifestPath)) {
+      errors.push(`${label}/${path} is missing`)
+      continue
+    }
+    const manifest = readJSON(manifestPath)
+    if (manifest.version !== expectedPluginVersion) {
+      errors.push(`${label}/${path} version is ${JSON.stringify(manifest.version)}, expected ${JSON.stringify(expectedPluginVersion)}`)
+    }
   }
 }
 

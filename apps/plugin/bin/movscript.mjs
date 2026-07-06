@@ -3133,7 +3133,7 @@ import { createReadStream as createReadStream2, existsSync as existsSync9, mkdir
 import { createServer as createServer6 } from "http";
 import { basename as basename52, dirname as dirname112, extname as extname32, join as join112, resolve as resolve122 } from "path";
 function normalizeBackendHTTPError2(method, path, status, body) {
-  const bodyRecord = isRecord35(body) ? body : void 0;
+  const bodyRecord = isRecord36(body) ? body : void 0;
   return {
     type: "backend_http_error",
     method,
@@ -3143,11 +3143,21 @@ function normalizeBackendHTTPError2(method, path, status, body) {
     ...bodyRecord && typeof bodyRecord.code === "string" ? { code: bodyRecord.code } : {},
     ...bodyRecord && typeof bodyRecord.field === "string" ? { field: bodyRecord.field } : {},
     ...bodyRecord && Array.isArray(bodyRecord.allowed_values) ? { allowed_values: bodyRecord.allowed_values } : {},
-    ...bodyRecord && isRecord35(bodyRecord.suggested_fix) ? { suggested_fix: bodyRecord.suggested_fix } : {},
+    ...bodyRecord && isRecord36(bodyRecord.suggested_fix) ? { suggested_fix: bodyRecord.suggested_fix } : {},
     ...bodyRecord && Number.isInteger(bodyRecord.required_min) ? { required_min: bodyRecord.required_min } : {},
     ...bodyRecord && Number.isInteger(bodyRecord.allowed_max) ? { allowed_max: bodyRecord.allowed_max } : {},
     ...bodyRecord && Number.isInteger(bodyRecord.actual_count) ? { actual_count: bodyRecord.actual_count } : {},
-    ...bodyRecord && isRecord35(bodyRecord.details) ? { details: bodyRecord.details } : {}
+    ...bodyRecord && isRecord36(bodyRecord.details) ? { details: bodyRecord.details } : {}
+  };
+}
+function normalizeBackendNetworkError2(method, path, url, cause) {
+  return {
+    type: "backend_network_error",
+    method,
+    path,
+    url,
+    cause: errorMessage12(cause),
+    ...errorCode2(cause) ? { code: errorCode2(cause) } : {}
   };
 }
 function parseJSONBody2(rawBody) {
@@ -3159,10 +3169,16 @@ function parseJSONBody2(rawBody) {
   }
 }
 function backendErrorMessage2(body, rawBody) {
-  if (isRecord35(body) && typeof body.error === "string") return body.error;
+  if (isRecord36(body) && typeof body.error === "string") return body.error;
   return rawBody;
 }
-function isRecord35(value) {
+function errorMessage12(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+function errorCode2(error) {
+  return isRecord36(error) && typeof error.code === "string" ? error.code : void 0;
+}
+function isRecord36(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function validateApplicationManifest2(value) {
@@ -4006,7 +4022,7 @@ function defaultMovScriptBackendConfig2(baseURL = MOVSCRIPT_DEFAULT_BACKEND_BASE
 function readMovScriptBackendConfig2(workspaceDir = process.cwd()) {
   const paths = resolveMovScriptBackendPaths2(workspaceDir);
   const parsed = readJSON32(paths.configPath);
-  if (!isRecord36(parsed) || parsed.schema !== MOVSCRIPT_BACKEND_CONFIG_SCHEMA2) return defaultMovScriptBackendConfig2();
+  if (!isRecord37(parsed) || parsed.schema !== MOVSCRIPT_BACKEND_CONFIG_SCHEMA2) return defaultMovScriptBackendConfig2();
   const baseURL = stringField28(parsed.baseURL) ?? MOVSCRIPT_DEFAULT_BACKEND_BASE_URL2;
   const realm = normalizeRealm2(parsed.realm);
   const activeUserId = idField14(parsed.activeUserId);
@@ -4036,7 +4052,7 @@ function readMovScriptBackendAuth2(workspaceDir = process.cwd(), realmInput) {
   const requestedRealm = normalizeRealm2(realmInput) ?? config.realm;
   const paths = resolveMovScriptBackendPaths2(workspaceDir, requestedRealm);
   const parsed = readJSON32(paths.authPath);
-  if (!isRecord36(parsed) || parsed.schema !== MOVSCRIPT_BACKEND_AUTH_SCHEMA2) return void 0;
+  if (!isRecord37(parsed) || parsed.schema !== MOVSCRIPT_BACKEND_AUTH_SCHEMA2) return void 0;
   const token = stringField28(parsed.token);
   if (!token) return void 0;
   const tokenType = parsed.tokenType === "Bearer" ? "Bearer" : void 0;
@@ -4122,7 +4138,7 @@ async function loginMovScriptBackend2(input3) {
     token,
     tokenType: "Bearer",
     ...stringField28(response.expires_at) ? { expiresAt: stringField28(response.expires_at) } : {},
-    ...isRecord36(response.user) ? { user: response.user } : {},
+    ...isRecord37(response.user) ? { user: response.user } : {},
     ...normalizeGitCredential2(response.git_credential) ? { gitCredential: normalizeGitCredential2(response.git_credential) } : {}
   };
 }
@@ -4170,7 +4186,7 @@ function writeJSONAtomic32(filePath, value, mode) {
   renameSync32(tmpPath, filePath);
 }
 function normalizeAuthUser2(value) {
-  if (!isRecord36(value)) return void 0;
+  if (!isRecord37(value)) return void 0;
   const id = idField14(value.id);
   const username = stringField28(value.username);
   const displayName22 = stringField28(value.displayName) ?? stringField28(value.display_name);
@@ -4188,7 +4204,7 @@ function normalizeAuthUser2(value) {
   return Object.keys(user).length > 0 ? user : void 0;
 }
 function normalizeGitCredential2(value) {
-  if (!isRecord36(value)) return void 0;
+  if (!isRecord37(value)) return void 0;
   const provider = stringField28(value.provider);
   const username = stringField28(value.username);
   if (provider !== "gitea" || !username) return void 0;
@@ -4206,7 +4222,7 @@ function normalizeGitCredential2(value) {
   };
 }
 function normalizeRealm2(value) {
-  if (!isRecord36(value)) return void 0;
+  if (!isRecord37(value)) return void 0;
   const kind = value.kind === "local" || value.kind === "cloud" ? value.kind : void 0;
   if (!kind) return void 0;
   if (kind === "local") return { kind, id: "local" };
@@ -4221,11 +4237,11 @@ function idField14(value) {
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
 }
-function isRecord36(value) {
+function isRecord37(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function asRecord22(value, label) {
-  if (!isRecord36(value)) throw new Error(`${label} must be a JSON object`);
+  if (!isRecord37(value)) throw new Error(`${label} must be a JSON object`);
   return value;
 }
 function isNotFoundError22(error) {
@@ -4262,7 +4278,7 @@ function defaultMovScriptBackendBaseURL2() {
 }
 async function backendGet22(path) {
   const headers = backendHeaders22();
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL2()}${path}`, { headers });
+  const res = await backendFetch2("GET", path, { headers });
   if (!res.ok) {
     throw await BackendHTTPError2.fromResponse("GET", path, res);
   }
@@ -4270,7 +4286,7 @@ async function backendGet22(path) {
 }
 async function backendPost22(path, body, userId) {
   const headers = backendHeaders22({ json: true, userId });
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL2()}${path}`, {
+  const res = await backendFetch2("POST", path, {
     method: "POST",
     headers,
     body: JSON.stringify(body)
@@ -4282,7 +4298,7 @@ async function backendPost22(path, body, userId) {
 }
 async function backendPut2(path, body, userId) {
   const headers = backendHeaders22({ json: true, userId });
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL2()}${path}`, {
+  const res = await backendFetch2("PUT", path, {
     method: "PUT",
     headers,
     body: JSON.stringify(body)
@@ -4295,7 +4311,7 @@ async function backendPut2(path, body, userId) {
 }
 async function backendPatch2(path, body, userId) {
   const headers = backendHeaders22({ json: true, userId });
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL2()}${path}`, {
+  const res = await backendFetch2("PATCH", path, {
     method: "PATCH",
     headers,
     body: JSON.stringify(body)
@@ -4308,7 +4324,7 @@ async function backendPatch2(path, body, userId) {
 }
 async function backendDelete2(path, userId) {
   const headers = backendHeaders22({ userId });
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL2()}${path}`, {
+  const res = await backendFetch2("DELETE", path, {
     method: "DELETE",
     headers
   });
@@ -4317,6 +4333,14 @@ async function backendDelete2(path, userId) {
   }
   const text = await res.text();
   return text.trim() ? JSON.parse(text) : null;
+}
+async function backendFetch2(method, path, init) {
+  const url = `${getMovScriptBackendAPIBaseURL2()}${path}`;
+  try {
+    return await fetch(url, init);
+  } catch (error) {
+    throw new BackendNetworkError2(method, path, url, error);
+  }
 }
 function backendHeaders22(input3 = {}) {
   const headers = input3.json ? { "Content-Type": "application/json" } : {};
@@ -7472,6 +7496,16 @@ function normalizeBackendHTTPError22(method, path, status, body) {
     ...bodyRecord && isRecord63(bodyRecord.details) ? { details: bodyRecord.details } : {}
   };
 }
+function normalizeBackendNetworkError22(method, path, url, cause) {
+  return {
+    type: "backend_network_error",
+    method,
+    path,
+    url,
+    cause: errorMessage23(cause),
+    ...errorCode22(cause) ? { code: errorCode22(cause) } : {}
+  };
+}
 function parseJSONBody22(rawBody) {
   if (!rawBody.trim()) return void 0;
   try {
@@ -7483,6 +7517,12 @@ function parseJSONBody22(rawBody) {
 function backendErrorMessage22(body, rawBody) {
   if (isRecord63(body) && typeof body.error === "string") return body.error;
   return rawBody;
+}
+function errorMessage23(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+function errorCode22(error) {
+  return isRecord63(error) && typeof error.code === "string" ? error.code : void 0;
 }
 function isRecord63(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -7673,7 +7713,7 @@ function defaultMovScriptBackendBaseURL22() {
 }
 async function backendGet222(path) {
   const headers = backendHeaders222();
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL22()}${path}`, { headers });
+  const res = await backendFetch22("GET", path, { headers });
   if (!res.ok) {
     throw await BackendHTTPError22.fromResponse("GET", path, res);
   }
@@ -7681,7 +7721,7 @@ async function backendGet222(path) {
 }
 async function backendGetBinary2(path, options = {}) {
   const headers = backendHeaders222();
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL22()}${path}`, { headers });
+  const res = await backendFetch22("GET", path, { headers });
   if (!res.ok) {
     throw await BackendHTTPError22.fromResponse("GET", path, res);
   }
@@ -7745,7 +7785,7 @@ async function readBinaryResponse2(path, res, options) {
 }
 async function backendPost222(path, body, userId) {
   const headers = backendHeaders222({ json: true, userId });
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL22()}${path}`, {
+  const res = await backendFetch22("POST", path, {
     method: "POST",
     headers,
     body: JSON.stringify(body)
@@ -7757,7 +7797,7 @@ async function backendPost222(path, body, userId) {
 }
 async function backendPostMultipart2(path, form, userId) {
   const headers = backendHeaders222({ userId });
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL22()}${path}`, {
+  const res = await backendFetch22("POST", path, {
     method: "POST",
     headers,
     body: form
@@ -7772,6 +7812,14 @@ async function backendList2(path) {
   if (Array.isArray(data)) return data;
   if (isRecord222(data) && Array.isArray(data.items)) return data.items;
   return [];
+}
+async function backendFetch22(method, path, init) {
+  const url = `${getMovScriptBackendAPIBaseURL22()}${path}`;
+  try {
+    return await fetch(url, init);
+  } catch (error) {
+    throw new BackendNetworkError22(method, path, url, error);
+  }
 }
 function backendHeaders222(input3 = {}) {
   const headers = input3.json ? { "Content-Type": "application/json" } : {};
@@ -8775,167 +8823,6 @@ function isMovScriptNonSourceRootDirectory2(path) {
   if (normalized.includes("/")) return false;
   return normalized === ".movscript" || normalized === ".git" || normalized === ".base" || normalized === ".update" || normalized === "runtime" || normalized === "tmp" || normalized.startsWith(".");
 }
-function buildContentSourceWorkspaceProjectTimelineStatus2(snapshot, _contentUnitSummaries = []) {
-  const namespaceVocabulary = snapshot.namespaceVocabulary ?? {
-    timelineTemplate: void 0,
-    timelineNamespaces: [],
-    settingNamespaces: [],
-    diagnostics: []
-  };
-  const timelineNamespaceNodes = (snapshot.domainNodes ?? []).filter((node) => node.category === "timeline_namespace").sort((left, right) => (left.order ?? 0) - (right.order ?? 0) || String(left.path ?? left.id ?? "").localeCompare(String(right.path ?? right.id ?? ""), "zh-CN"));
-  const timelineNamespaces = timelineNamespaceNodes.map((node) => {
-    const parent = domainParentRefForNode2(snapshot, node);
-    const record = domainRecordForNode2(snapshot, node);
-    const productionType = stringField232(record?.production_type ?? record?.productionType ?? record?.timeline_profile ?? record?.timelineProfile);
-    const nodeTimelineNamespaces = stringArrayField2(record?.timeline_namespaces ?? record?.timelineNamespaces);
-    return {
-      id: node.id,
-      kind: node.kind,
-      title: node.title,
-      path: node.path,
-      order: node.order,
-      entity_kind: stringField232(node.metadata?.entityKind),
-      ...productionType ? { production_type: productionType } : {},
-      ...nodeTimelineNamespaces.length ? { timeline_namespaces: nodeTimelineNamespaces } : {},
-      ...parent ? { parent } : {}
-    };
-  });
-  return {
-    schema: "movscript.project_timeline_status.v1",
-    status: "ok",
-    namespace_vocabulary: {
-      timeline_template: namespaceVocabulary.timelineTemplate,
-      timeline_namespaces: namespaceVocabulary.timelineNamespaces,
-      setting_namespaces: namespaceVocabulary.settingNamespaces,
-      diagnostics: namespaceVocabulary.diagnostics
-    },
-    timeline_namespace_count: timelineNamespaces.length,
-    timeline_namespaces: timelineNamespaces,
-    system_primitives: {
-      scene_moments_count: snapshot.sceneMoments.length,
-      expression_units_count: snapshot.expressionUnits.length,
-      storyboards_count: snapshot.storyboards.length,
-      keyframes_count: snapshot.keyframes.length,
-      audio_cues_count: snapshot.audioCues.length,
-      assets_count: snapshot.assets.length
-    }
-  };
-}
-function contentSourceWorkspaceContentUnitStatusSummaries2(snapshot) {
-  const candidatesByContentUnit = contentCandidateRecordsByContentUnitId5(snapshot.indexDocuments);
-  const selectionsByContentUnit = selectionRecordsByContentUnitId5(snapshot.indexDocuments);
-  return snapshot.contentUnits.map((unit) => summarizeContentUnitStatus2(unit, candidatesByContentUnit, selectionsByContentUnit));
-}
-function summarizeContentUnitStatus2(unit, candidatesByContentUnit, selectionsByContentUnit) {
-  const id = entityId2(unit);
-  const contentUnitId = String(id);
-  const candidates = candidatesByContentUnit.get(contentUnitId) ?? [];
-  const selection = selectionsByContentUnit.get(contentUnitId);
-  const selectedCandidate = selection?.candidate_id !== void 0 ? candidates.find((candidate) => sameId8(candidate.id, selection.candidate_id)) : void 0;
-  const selectedResourceId22 = numberField222(selection?.resource_id) ?? numberField222(firstCandidateOutput22(selectedCandidate)?.resource_id);
-  return {
-    content_unit_id: id,
-    title: stringField232(unit.record.title),
-    path: unit.path,
-    content_unit_type: stringField232(unit.record.content_unit_type),
-    output_kind: stringField232(unit.record.output_kind),
-    target_kind: stringField232(unit.record.target_kind),
-    target_ref: idField32(unit.record.target_ref),
-    candidate_count: candidates.length,
-    candidate_ids: candidates.map((candidate) => idField32(candidate.id)).filter((value) => value !== void 0),
-    selected_candidate: selection?.candidate_id,
-    selected_resource: selectedResourceId22,
-    stale_status: stringField232(selection?.stale_policy) === "accept_stale" ? "accepted_stale" : "ok",
-    blocking_refs: selection?.candidate_id === void 0 && candidates.length > 0 ? ["selection_missing"] : []
-  };
-}
-function domainParentRefForNode2(snapshot, node) {
-  const edge = (snapshot.domainEdges ?? []).find((candidate) => candidate.relation === "parent" && candidate.target.category === node.category && domainRefMatchesNode2(candidate.source, node));
-  return edge ? {
-    id: edge.target.id,
-    kind: edge.target.kind,
-    path: edge.target.path
-  } : void 0;
-}
-function domainRecordForNode2(snapshot, node) {
-  const entityKind = stringField232(node.metadata?.entityKind);
-  const entities = entityKind === "production" ? snapshot.productions : entityKind === "segment" ? snapshot.segments : [];
-  return entities.find(
-    (entity) => node.path !== void 0 && entity.path === node.path || node.id !== void 0 && sameId8(idField32(entity.id ?? entity.record.id ?? entity.record.ID ?? entity.path), node.id)
-  )?.record;
-}
-function domainRefMatchesNode2(ref, node) {
-  return ref.category === node.category && ref.kind === node.kind && (sameId8(ref.id, node.id) || ref.path !== void 0 && ref.path === node.path);
-}
-function contentCandidateRecordsByContentUnitId5(documents) {
-  const output3 = /* @__PURE__ */ new Map();
-  for (const document of documents) {
-    if (!document.path.endsWith("/content_candidate.json") || !isRecord232(document.data)) continue;
-    const contentUnitId = contentUnitIdForRuntimeDocument22(document.path, stringField232(document.data.content_unit_ref));
-    if (!contentUnitId) continue;
-    output3.set(contentUnitId, [...output3.get(contentUnitId) ?? [], document.data]);
-  }
-  return output3;
-}
-function selectionRecordsByContentUnitId5(documents) {
-  const output3 = /* @__PURE__ */ new Map();
-  for (const document of documents) {
-    if (!isRecord232(document.data)) continue;
-    const selection = isRecord232(document.data.selection) ? document.data.selection : void 0;
-    if (!selection) continue;
-    const contentUnitId = contentUnitIdForRuntimeDocument22(document.path, stringField232(document.data.target_ref));
-    if (!contentUnitId) continue;
-    output3.set(contentUnitId, {
-      ...idField32(selection.candidate_id) !== void 0 ? { candidate_id: idField32(selection.candidate_id) } : {},
-      ...numberField222(selection.resource_id) !== void 0 ? { resource_id: numberField222(selection.resource_id) } : {},
-      ...stringField232(selection.stale_policy) ? { stale_policy: stringField232(selection.stale_policy) } : {}
-    });
-  }
-  return output3;
-}
-function entityId2(entity) {
-  return idField32(entity.id ?? entity.record.id ?? entity.record.ID ?? pathSegmentAfter32(entity.path, "content_units") ?? entity.path) ?? entity.path;
-}
-function contentUnitIdForRuntimeDocument22(path, ref) {
-  if (ref) return lastPathSegment10(ref) ?? ref;
-  return pathSegmentAfter32(path, "content_units");
-}
-function firstCandidateOutput22(candidate) {
-  const outputs = Array.isArray(candidate?.outputs) ? candidate.outputs : [];
-  return outputs.find(isRecord232);
-}
-function stringArrayField2(value) {
-  return Array.isArray(value) ? value.filter((item) => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim()) : [];
-}
-function idField32(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) return value.trim();
-  return void 0;
-}
-function stringField232(value) {
-  const id = idField32(value);
-  return id === void 0 ? void 0 : String(id);
-}
-function numberField222(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
-  return void 0;
-}
-function pathSegmentAfter32(path, segment) {
-  if (!path) return void 0;
-  const parts = path.split("/").filter(Boolean);
-  const index = parts.indexOf(segment);
-  return index >= 0 ? parts[index + 1] : void 0;
-}
-function lastPathSegment10(path) {
-  return path?.split("/").filter(Boolean).at(-1);
-}
-function sameId8(left, right) {
-  return left !== void 0 && right !== void 0 && String(left) === String(right);
-}
-function isRecord232(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function getMovScriptDomainWorkspaceModel2(kind) {
   const model = MOVSCRIPT_DOMAIN_WORKSPACE_MODELS2[kind];
   if (!model) throw new Error(`Unsupported MovScript workspace kind: ${kind}`);
@@ -9012,7 +8899,7 @@ function queryMovScriptWorkspaceSettings2(index, query = {}) {
     limit: query.limit
   });
   if (query.settingId === void 0) return references;
-  return references.filter((entity) => sameId22(entity.id, query.settingId));
+  return references.filter((entity) => sameId8(entity.id, query.settingId));
 }
 function queryMovScriptWorkspaceAssets2(index, query = {}) {
   const assets = queryMovScriptWorkspaceEntities2(index, {
@@ -9021,11 +8908,11 @@ function queryMovScriptWorkspaceAssets2(index, query = {}) {
     settingId: query.settingId,
     settingStateId: query.settingStateId,
     limit: query.limit
-  }).filter((entity) => query.assetId === void 0 || sameId22(entity.id, query.assetId));
+  }).filter((entity) => query.assetId === void 0 || sameId8(entity.id, query.assetId));
   if (!query.includeCandidates) return { assets };
   const candidates = assets.flatMap((entity) => {
     const rows = entity.record.candidates;
-    return Array.isArray(rows) ? rows.filter(isRecord93) : [];
+    return Array.isArray(rows) ? rows.filter(isRecord92) : [];
   });
   return { assets, candidates };
 }
@@ -9037,7 +8924,7 @@ function queryMovScriptWorkspaceProductionContext2(index, query = {}) {
       entityKind: "production",
       query: query.query,
       limit: query.limit
-    }).filter((entity) => query.productionId === void 0 || sameId22(entity.id, query.productionId));
+    }).filter((entity) => query.productionId === void 0 || sameId8(entity.id, query.productionId));
   }
   if (include.has("segments")) {
     result.segments = queryMovScriptWorkspaceEntities2(index, {
@@ -9045,7 +8932,7 @@ function queryMovScriptWorkspaceProductionContext2(index, query = {}) {
       productionId: query.productionId,
       query: query.query,
       limit: query.limit
-    }).filter((entity) => query.segmentId === void 0 || sameId22(entity.id, query.segmentId));
+    }).filter((entity) => query.segmentId === void 0 || sameId8(entity.id, query.segmentId));
   }
   if (include.has("scene_moments")) {
     result.scene_moments = queryMovScriptWorkspaceEntities2(index, {
@@ -9054,7 +8941,7 @@ function queryMovScriptWorkspaceProductionContext2(index, query = {}) {
       segmentId: query.segmentId,
       query: query.query,
       limit: query.limit
-    }).filter((entity) => query.sceneMomentId === void 0 || sameId22(entity.id, query.sceneMomentId));
+    }).filter((entity) => query.sceneMomentId === void 0 || sameId8(entity.id, query.sceneMomentId));
   }
   if (include.has("storyboards")) {
     result.storyboards = queryMovScriptWorkspaceEntities2(index, {
@@ -9064,7 +8951,7 @@ function queryMovScriptWorkspaceProductionContext2(index, query = {}) {
       sceneMomentId: query.sceneMomentId,
       query: query.query,
       limit: query.limit
-    }).filter((entity) => query.storyboardId === void 0 || sameId22(entity.id, query.storyboardId));
+    }).filter((entity) => query.storyboardId === void 0 || sameId8(entity.id, query.storyboardId));
   }
   if (include.has("audio_cues")) {
     result.audio_cues = queryMovScriptWorkspaceEntities2(index, {
@@ -9108,7 +8995,7 @@ function queryMovScriptWorkspaceProductionContext2(index, query = {}) {
 }
 function indexedEntitiesFromDocument2(document) {
   const path = normalizeIndexedDocumentPath2(document.path);
-  if (!isRecord93(document.data)) return [];
+  if (!isRecord92(document.data)) return [];
   const entityKind = entityKindFromSchema2(stringField72(document.data.schema)) ?? entityKindFromPath3(path);
   return entityKind ? [indexedEntity2(entityKind, workspaceRecordWithDocumentMetadata2(document.data, document), path, 0)] : [];
 }
@@ -9232,16 +9119,16 @@ function entityKindFromPath3(path) {
   return void 0;
 }
 function entityPathMatchesProduction2(path, productionId) {
-  return pathSegmentAfter11(path, "productions") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "productions"), productionId, "production");
+  return pathSegmentAfter10(path, "productions") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "productions"), productionId, "production");
 }
 function entityPathMatchesSegment2(path, segmentId) {
-  return pathSegmentAfter11(path, "segments") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "segments"), segmentId, "segment");
+  return pathSegmentAfter10(path, "segments") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "segments"), segmentId, "segment");
 }
 function entityPathMatchesSceneMoment2(path, sceneMomentId) {
-  return pathSegmentAfter11(path, "scene_moments") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "scene_moments"), sceneMomentId, "scene_moment");
+  return pathSegmentAfter10(path, "scene_moments") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "scene_moments"), sceneMomentId, "scene_moment");
 }
 function entityPathMatchesStoryboard2(path, storyboardId) {
-  return pathSegmentAfter11(path, "storyboards") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "storyboards"), storyboardId, "storyboard");
+  return pathSegmentAfter10(path, "storyboards") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "storyboards"), storyboardId, "storyboard");
 }
 function entityMatchesStoryboard2(entity, storyboardId, context) {
   if (entityMatchesScope2(entity, "storyboard", storyboardId, context)) return true;
@@ -9250,13 +9137,13 @@ function entityMatchesStoryboard2(entity, storyboardId, context) {
   return storyboardRef !== void 0 && (entityPathMatchesStoryboard2(storyboardRef, storyboardId) || sameNormalizedEntityPath2(storyboardRef, storyboardId, "storyboard"));
 }
 function entityPathMatchesContentUnit2(path, contentUnitId) {
-  return pathSegmentAfter11(path, "content_units") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "content_units"), contentUnitId, "content_unit");
+  return pathSegmentAfter10(path, "content_units") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "content_units"), contentUnitId, "content_unit");
 }
 function entityPathMatchesSetting2(path, settingId) {
-  return pathSegmentAfter11(path, "settings") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "settings"), settingId, "setting");
+  return pathSegmentAfter10(path, "settings") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "settings"), settingId, "setting");
 }
 function entityPathMatchesSettingState2(path, stateId) {
-  return pathSegmentAfter11(path, "states") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "states"), stateId, "setting_state");
+  return pathSegmentAfter10(path, "states") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "states"), stateId, "setting_state");
 }
 function createEntityQueryContext2(index) {
   const entityByPath = new Map(index.entities.map((entity) => [entity.path, entity]));
@@ -9354,16 +9241,16 @@ function limitEntities2(items, limit) {
   if (!Number.isFinite(limit) || limit <= 0) return [];
   return items.slice(0, Math.floor(limit));
 }
-function sameId22(left, right) {
-  const leftId = idField42(left);
-  const rightId = idField42(right);
+function sameId8(left, right) {
+  const leftId = idField32(left);
+  const rightId = idField32(right);
   return leftId !== void 0 && rightId !== void 0 && String(leftId) === String(rightId);
 }
 function entityIdField2(entityKind, record) {
-  if (entityKind === "project") return idField42(record.project_id ?? record.ID ?? record.id);
-  return idField42(record.ID ?? record.id);
+  if (entityKind === "project") return idField32(record.project_id ?? record.ID ?? record.id);
+  return idField32(record.ID ?? record.id);
 }
-function idField42(value) {
+function idField32(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
@@ -9375,7 +9262,7 @@ function finiteNumber4(value) {
   const next = Number(value);
   return Number.isFinite(next) ? next : void 0;
 }
-function pathSegmentAfter11(path, segment) {
+function pathSegmentAfter10(path, segment) {
   const parts = path.split("/");
   const index = parts.indexOf(segment);
   return index >= 0 ? parts[index + 1] : void 0;
@@ -9392,7 +9279,7 @@ function sameNormalizedEntityPath2(pathOrDir, ref, entityKind) {
 function normalizeIndexedDocumentPath2(path) {
   return normalizeWorkspacePath8(path).replace(/^\.movscript\//, "");
 }
-function isRecord93(value) {
+function isRecord92(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function pruneUndefined17(value) {
@@ -9782,7 +9669,7 @@ function defaultWorkspaceDomainFileFilter2(path) {
   return isMovScriptSourcePath2(path);
 }
 function buildMovScriptCandidateSelectionRecord2(candidate, input3 = {}) {
-  const candidateId = idField52(candidate.id);
+  const candidateId = idField42(candidate.id);
   const resourceId = resourceIdField6(candidate.resource_id ?? candidate.resourceId);
   const artifactRef = stringField92(candidate.artifact_ref ?? candidate.artifactRef);
   if (candidateId === void 0 && resourceId === void 0) {
@@ -9817,16 +9704,16 @@ function clearMovScriptCandidateSelectionRecord2(record, options = {}) {
   return nextRecord;
 }
 function findCandidate2(record, candidateId) {
-  return arrayField7(record.candidates).filter(isRecord102).find((item) => sameId32(item.id, candidateId));
+  return arrayField7(record.candidates).filter(isRecord102).find((item) => sameId22(item.id, candidateId));
 }
 function selectionField2(options) {
   return options.selectionField?.trim() || DEFAULT_SELECTION_FIELD2;
 }
-function sameId32(left, right) {
+function sameId22(left, right) {
   if (left === void 0 || right === void 0) return false;
   return String(left) === String(right);
 }
-function idField52(value) {
+function idField42(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
@@ -11238,9 +11125,9 @@ function promptRefKind4(value) {
   return isContentUnitPromptRefKind2(value) ? value : void 0;
 }
 function sameRefId3(left, right, kind) {
-  return sameEntityRef3(left, right, kind) || lastPathSegment22(left) === right || lastPathSegment22(right) === left;
+  return sameEntityRef3(left, right, kind) || lastPathSegment10(left) === right || lastPathSegment10(right) === left;
 }
-function lastPathSegment22(value) {
+function lastPathSegment10(value) {
   if (typeof value !== "string" || !value.includes("/")) return void 0;
   return value.split("/").filter(Boolean).at(-1);
 }
@@ -11286,162 +11173,6 @@ function pruneUndefined102(value) {
     if (item !== void 0 && item !== "") output3[key] = item;
   }
   return output3;
-}
-function createMovScriptBackendDecisionStore2(options) {
-  const baseUrl = options.baseUrl.replace(/\/+$/, "");
-  const projectId = encodeURIComponent(String(options.projectId));
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  if (!fetchImpl) throw new Error("fetch is required for backend decision store");
-  const headers = () => ({
-    "content-type": "application/json",
-    ...options.token ? { authorization: `Bearer ${options.token}` } : {},
-    ...options.headers ?? {}
-  });
-  const request = async (path, init = {}) => {
-    const response = await fetchImpl(`${baseUrl}/api/v1/projects/${projectId}${path}`, {
-      ...init,
-      headers: {
-        ...headers(),
-        ...init.headers ?? {}
-      }
-    });
-    if (response.status === 404) {
-      console.info("[movscript-decision-store] backend decision request not found", {
-        projectId: options.projectId,
-        method: init.method ?? "GET",
-        path,
-        status: response.status
-      });
-      return void 0;
-    }
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      console.warn("[movscript-decision-store] backend decision request failed", {
-        projectId: options.projectId,
-        method: init.method ?? "GET",
-        path,
-        status: response.status,
-        body
-      });
-      throw new Error(`backend decision request failed: ${response.status}${body ? ` ${body}` : ""}`);
-    }
-    if (response.status === 204) return void 0;
-    return await response.json();
-  };
-  return {
-    async getContentUnitDecision(input3) {
-      const targetRef = contentUnitDecisionTargetRef2(input3.contentUnitId);
-      const context = await request(`/decisions?target_kind=content_unit&target_ref=${encodeURIComponent(targetRef)}`);
-      if (isMovScriptDecisionStoreDebugEnabled2()) {
-        console.info("[movscript-decision-store] get content unit decision", {
-          projectId: options.projectId,
-          contentUnitId: input3.contentUnitId,
-          targetRef,
-          found: Boolean(context),
-          candidateCount: context?.candidates.length ?? 0,
-          candidateIds: decisionCandidateIds2(context?.candidates ?? []),
-          hasSelection: Boolean(context?.selection)
-        });
-      }
-      return context;
-    },
-    async getContentUnitDecisions(input3) {
-      const ids = uniqueContentUnitIds2(input3.contentUnitIds);
-      if (ids.length === 0) return /* @__PURE__ */ new Map();
-      const contexts = await request("/decisions/query", {
-        method: "POST",
-        body: JSON.stringify({
-          target_kind: "content_unit",
-          target_refs: ids.map(contentUnitDecisionTargetRef2)
-        })
-      }) ?? [];
-      if (isMovScriptDecisionStoreDebugEnabled2()) {
-        console.info("[movscript-decision-store] get content unit decisions", {
-          projectId: options.projectId,
-          requestedCount: ids.length,
-          foundCount: contexts.length
-        });
-      }
-      const byTargetRef = new Map(contexts.map((context) => [context.target_ref, context]));
-      const out = /* @__PURE__ */ new Map();
-      for (const id of ids) {
-        const context = byTargetRef.get(contentUnitDecisionTargetRef2(id));
-        if (context) out.set(String(id), context);
-      }
-      return out;
-    },
-    async replaceContentUnitCandidates(input3) {
-      const targetRef = contentUnitDecisionTargetRef2(input3.contentUnitId);
-      const context = await requiredDecisionContext2(request("/decisions/candidates", {
-        method: "PUT",
-        body: JSON.stringify({
-          target_kind: "content_unit",
-          target_ref: targetRef,
-          candidates: input3.candidates
-        })
-      }));
-      console.info("[movscript-decision-store] replace content unit candidates", {
-        projectId: options.projectId,
-        contentUnitId: input3.contentUnitId,
-        targetRef,
-        candidateCount: context.candidates.length,
-        candidateIds: decisionCandidateIds2(context.candidates)
-      });
-      return context;
-    },
-    async upsertContentUnitCandidate(input3) {
-      const targetRef = contentUnitDecisionTargetRef2(input3.contentUnitId);
-      const context = await requiredDecisionContext2(request("/decisions/candidates", {
-        method: "POST",
-        body: JSON.stringify({
-          target_kind: "content_unit",
-          target_ref: targetRef,
-          candidate: input3.candidate
-        })
-      }));
-      console.info("[movscript-decision-store] upsert content unit candidate", {
-        projectId: options.projectId,
-        contentUnitId: input3.contentUnitId,
-        targetRef,
-        candidateId: idField62(input3.candidate.id),
-        candidateCount: context.candidates.length,
-        candidateIds: decisionCandidateIds2(context.candidates)
-      });
-      return context;
-    },
-    async selectContentUnitCandidate(input3) {
-      const targetRef = contentUnitDecisionTargetRef2(input3.contentUnitId);
-      const context = await requiredDecisionContext2(request("/decisions/selection", {
-        method: "PUT",
-        body: JSON.stringify({
-          target_kind: "content_unit",
-          target_ref: targetRef,
-          candidate_id: stringIdField2(input3.candidateId),
-          resource_id: input3.resourceId === void 0 ? void 0 : requiredResourceId32(input3.resourceId),
-          stale_policy: input3.stalePolicy,
-          reason: input3.reason,
-          selected_at: input3.selectedAt,
-          metadata: input3.metadata
-        })
-      }));
-      console.info("[movscript-decision-store] select content unit candidate", {
-        projectId: options.projectId,
-        contentUnitId: input3.contentUnitId,
-        targetRef,
-        candidateId: stringIdField2(input3.candidateId),
-        candidateCount: context.candidates.length,
-        candidateIds: decisionCandidateIds2(context.candidates),
-        hasSelection: Boolean(context.selection)
-      });
-      return context;
-    },
-    clearContentUnitSelection(input3) {
-      const targetRef = contentUnitDecisionTargetRef2(input3.contentUnitId);
-      return requiredDecisionContext2(request(`/decisions/selection?target_kind=content_unit&target_ref=${encodeURIComponent(targetRef)}`, {
-        method: "DELETE"
-      }));
-    }
-  };
 }
 function createMovScriptScopedProjectDataDecisionStore2(options) {
   const baseUrl = options.baseUrl.replace(/\/+$/, "");
@@ -11577,7 +11308,7 @@ function createMovScriptScopedProjectDataDecisionStore2(options) {
         projectUid: options.projectUid,
         contentUnitId: input3.contentUnitId,
         targetRef,
-        candidateId: idField62(input3.candidate.id),
+        candidateId: idField52(input3.candidate.id),
         candidateCount: context.candidates.length
       });
       return context;
@@ -11640,7 +11371,7 @@ async function overlayMovScriptDecisionDocuments2(documents, decisionStore) {
       data: normalizeDecisionContext2(context, contentUnitRef)
     });
     for (const candidate of context.candidates) {
-      const candidateId = idField62(candidate.id);
+      const candidateId = idField52(candidate.id);
       if (candidateId === void 0) continue;
       overlays.push({
         path: `${contentUnitRef}/candidates/${entityPathSlug2(candidateId, "candidate")}/content_candidate.json`,
@@ -11729,16 +11460,16 @@ async function requiredDecisionContext2(promise) {
 function entityDir33(path) {
   return path.replace(/\/[^/]+$/, "");
 }
-function idField62(value) {
+function idField52(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
 }
 function decisionCandidateIds2(candidates) {
-  return candidates.map((candidate) => idField62(candidate.id)).filter((id) => id !== void 0);
+  return candidates.map((candidate) => idField52(candidate.id)).filter((id) => id !== void 0);
 }
 function stringIdField2(value) {
-  const id = idField62(value);
+  const id = idField52(value);
   return id === void 0 ? void 0 : String(id);
 }
 function requiredResourceId32(value) {
@@ -11819,7 +11550,7 @@ function pruneUndefined122(value) {
 async function upsertMovScriptProjectStandards2(input3) {
   const current = stripWorkspacePrivateFields52(input3.record ?? {});
   const projectStyle = {
-    ...parseProjectStyle3(current.project_style),
+    ...parseProjectStyle4(current.project_style),
     ...input3.projectStyle
   };
   const record = pruneUndefined132({
@@ -11838,7 +11569,7 @@ async function upsertMovScriptProjectStandards2(input3) {
 ` });
   return { path, record };
 }
-function parseProjectStyle3(value) {
+function parseProjectStyle4(value) {
   if (isRecord192(value)) return value;
   if (typeof value !== "string" || !value.trim()) return {};
   try {
@@ -11879,7 +11610,7 @@ async function syncMovScriptProjectStandardSkills2(input3) {
   return results;
 }
 function renderMovScriptProjectStandardSkill2(standards) {
-  const projectStyle = parseProjectStyle23(standards.project_style);
+  const projectStyle = parseProjectStyle22(standards.project_style);
   const coreSections = [
     fieldSection2("Aspect ratio", standards.aspect_ratio ?? projectStyle.aspect_ratio),
     fieldSection2("Visual style", standards.visual_style ?? projectStyle.visual_style),
@@ -11973,7 +11704,7 @@ function resourceIdsFromValue4(value) {
   if (!text) return [];
   return Array.from(text.matchAll(/\b(?:resource[_-]?id|resource)[_:#\s-]*(\d+)\b/gi)).map((match) => Number(match[1])).filter((id) => Number.isInteger(id));
 }
-function parseProjectStyle23(value) {
+function parseProjectStyle22(value) {
   if (isRecord202(value)) return value;
   const text = textValue2(value);
   if (!text) return {};
@@ -13079,6 +12810,167 @@ function newLocalServerId2() {
     return `local-${crypto.randomUUID()}`;
   }
   return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+function buildContentSourceWorkspaceProjectTimelineStatus2(snapshot, _contentUnitSummaries = []) {
+  const namespaceVocabulary = snapshot.namespaceVocabulary ?? {
+    timelineTemplate: void 0,
+    timelineNamespaces: [],
+    settingNamespaces: [],
+    diagnostics: []
+  };
+  const timelineNamespaceNodes = (snapshot.domainNodes ?? []).filter((node) => node.category === "timeline_namespace").sort((left, right) => (left.order ?? 0) - (right.order ?? 0) || String(left.path ?? left.id ?? "").localeCompare(String(right.path ?? right.id ?? ""), "zh-CN"));
+  const timelineNamespaces = timelineNamespaceNodes.map((node) => {
+    const parent = domainParentRefForNode2(snapshot, node);
+    const record = domainRecordForNode2(snapshot, node);
+    const productionType = stringField232(record?.production_type ?? record?.productionType ?? record?.timeline_profile ?? record?.timelineProfile);
+    const nodeTimelineNamespaces = stringArrayField2(record?.timeline_namespaces ?? record?.timelineNamespaces);
+    return {
+      id: node.id,
+      kind: node.kind,
+      title: node.title,
+      path: node.path,
+      order: node.order,
+      entity_kind: stringField232(node.metadata?.entityKind),
+      ...productionType ? { production_type: productionType } : {},
+      ...nodeTimelineNamespaces.length ? { timeline_namespaces: nodeTimelineNamespaces } : {},
+      ...parent ? { parent } : {}
+    };
+  });
+  return {
+    schema: "movscript.project_timeline_status.v1",
+    status: "ok",
+    namespace_vocabulary: {
+      timeline_template: namespaceVocabulary.timelineTemplate,
+      timeline_namespaces: namespaceVocabulary.timelineNamespaces,
+      setting_namespaces: namespaceVocabulary.settingNamespaces,
+      diagnostics: namespaceVocabulary.diagnostics
+    },
+    timeline_namespace_count: timelineNamespaces.length,
+    timeline_namespaces: timelineNamespaces,
+    system_primitives: {
+      scene_moments_count: snapshot.sceneMoments.length,
+      expression_units_count: snapshot.expressionUnits.length,
+      storyboards_count: snapshot.storyboards.length,
+      keyframes_count: snapshot.keyframes.length,
+      audio_cues_count: snapshot.audioCues.length,
+      assets_count: snapshot.assets.length
+    }
+  };
+}
+function contentSourceWorkspaceContentUnitStatusSummaries2(snapshot) {
+  const candidatesByContentUnit = contentCandidateRecordsByContentUnitId5(snapshot.indexDocuments);
+  const selectionsByContentUnit = selectionRecordsByContentUnitId5(snapshot.indexDocuments);
+  return snapshot.contentUnits.map((unit) => summarizeContentUnitStatus2(unit, candidatesByContentUnit, selectionsByContentUnit));
+}
+function summarizeContentUnitStatus2(unit, candidatesByContentUnit, selectionsByContentUnit) {
+  const id = entityId2(unit);
+  const contentUnitId = String(id);
+  const candidates = candidatesByContentUnit.get(contentUnitId) ?? [];
+  const selection = selectionsByContentUnit.get(contentUnitId);
+  const selectedCandidate = selection?.candidate_id !== void 0 ? candidates.find((candidate) => sameId32(candidate.id, selection.candidate_id)) : void 0;
+  const selectedResourceId22 = numberField222(selection?.resource_id) ?? numberField222(firstCandidateOutput22(selectedCandidate)?.resource_id);
+  return {
+    content_unit_id: id,
+    title: stringField232(unit.record.title),
+    path: unit.path,
+    content_unit_type: stringField232(unit.record.content_unit_type),
+    output_kind: stringField232(unit.record.output_kind),
+    target_kind: stringField232(unit.record.target_kind),
+    target_ref: idField62(unit.record.target_ref),
+    candidate_count: candidates.length,
+    candidate_ids: candidates.map((candidate) => idField62(candidate.id)).filter((value) => value !== void 0),
+    selected_candidate: selection?.candidate_id,
+    selected_resource: selectedResourceId22,
+    stale_status: stringField232(selection?.stale_policy) === "accept_stale" ? "accepted_stale" : "ok",
+    blocking_refs: selection?.candidate_id === void 0 && candidates.length > 0 ? ["selection_missing"] : []
+  };
+}
+function domainParentRefForNode2(snapshot, node) {
+  const edge = (snapshot.domainEdges ?? []).find((candidate) => candidate.relation === "parent" && candidate.target.category === node.category && domainRefMatchesNode2(candidate.source, node));
+  return edge ? {
+    id: edge.target.id,
+    kind: edge.target.kind,
+    path: edge.target.path
+  } : void 0;
+}
+function domainRecordForNode2(snapshot, node) {
+  const entityKind = stringField232(node.metadata?.entityKind);
+  const entities = entityKind === "production" ? snapshot.productions : entityKind === "segment" ? snapshot.segments : [];
+  return entities.find(
+    (entity) => node.path !== void 0 && entity.path === node.path || node.id !== void 0 && sameId32(idField62(entity.id ?? entity.record.id ?? entity.record.ID ?? entity.path), node.id)
+  )?.record;
+}
+function domainRefMatchesNode2(ref, node) {
+  return ref.category === node.category && ref.kind === node.kind && (sameId32(ref.id, node.id) || ref.path !== void 0 && ref.path === node.path);
+}
+function contentCandidateRecordsByContentUnitId5(documents) {
+  const output3 = /* @__PURE__ */ new Map();
+  for (const document of documents) {
+    if (!document.path.endsWith("/content_candidate.json") || !isRecord232(document.data)) continue;
+    const contentUnitId = contentUnitIdForRuntimeDocument22(document.path, stringField232(document.data.content_unit_ref));
+    if (!contentUnitId) continue;
+    output3.set(contentUnitId, [...output3.get(contentUnitId) ?? [], document.data]);
+  }
+  return output3;
+}
+function selectionRecordsByContentUnitId5(documents) {
+  const output3 = /* @__PURE__ */ new Map();
+  for (const document of documents) {
+    if (!isRecord232(document.data)) continue;
+    const selection = isRecord232(document.data.selection) ? document.data.selection : void 0;
+    if (!selection) continue;
+    const contentUnitId = contentUnitIdForRuntimeDocument22(document.path, stringField232(document.data.target_ref));
+    if (!contentUnitId) continue;
+    output3.set(contentUnitId, {
+      ...idField62(selection.candidate_id) !== void 0 ? { candidate_id: idField62(selection.candidate_id) } : {},
+      ...numberField222(selection.resource_id) !== void 0 ? { resource_id: numberField222(selection.resource_id) } : {},
+      ...stringField232(selection.stale_policy) ? { stale_policy: stringField232(selection.stale_policy) } : {}
+    });
+  }
+  return output3;
+}
+function entityId2(entity) {
+  return idField62(entity.id ?? entity.record.id ?? entity.record.ID ?? pathSegmentAfter33(entity.path, "content_units") ?? entity.path) ?? entity.path;
+}
+function contentUnitIdForRuntimeDocument22(path, ref) {
+  if (ref) return lastPathSegment22(ref) ?? ref;
+  return pathSegmentAfter33(path, "content_units");
+}
+function firstCandidateOutput22(candidate) {
+  const outputs = Array.isArray(candidate?.outputs) ? candidate.outputs : [];
+  return outputs.find(isRecord232);
+}
+function stringArrayField2(value) {
+  return Array.isArray(value) ? value.filter((item) => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim()) : [];
+}
+function idField62(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) return value.trim();
+  return void 0;
+}
+function stringField232(value) {
+  const id = idField62(value);
+  return id === void 0 ? void 0 : String(id);
+}
+function numberField222(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return void 0;
+}
+function pathSegmentAfter33(path, segment) {
+  if (!path) return void 0;
+  const parts = path.split("/").filter(Boolean);
+  const index = parts.indexOf(segment);
+  return index >= 0 ? parts[index + 1] : void 0;
+}
+function lastPathSegment22(path) {
+  return path?.split("/").filter(Boolean).at(-1);
+}
+function sameId32(left, right) {
+  return left !== void 0 && right !== void 0 && String(left) === String(right);
+}
+function isRecord232(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function createProjectServiceClientFromRuntime2(options = {}) {
   const baseUrl = resolveProjectServiceBaseUrl2(options);
@@ -19727,7 +19619,7 @@ function createProjectServiceAccessor2(projectDir, decisionStoreConfig) {
     candidateAction: async (endpoint, input3 = {}) => {
       const resolvedDecisionStoreConfig = await decisionStoreConfig?.();
       if (!resolvedDecisionStoreConfig) {
-        throw new Error("content unit candidate action requires a scoped project data decisionStore");
+        throw new Error("content unit candidate action requires a scoped project data decisionStore. Provide projectUid/MOVSCRIPT_PROJECT_UID and scoped project-data context; do not retry through legacy MOVSCRIPT_PROJECT_ID decisions.");
       }
       return (await getClient().candidateAction(endpoint, {
         projectDir,
@@ -19755,7 +19647,9 @@ function normalizeRuntimeInput2(input3) {
     ...input3.userId !== void 0 ? { userId: input3.userId } : {},
     ...input3.orgId !== void 0 ? { orgId: input3.orgId } : {},
     ...input3.projectUid !== void 0 ? { projectUid: input3.projectUid } : {},
-    ...input3.projectTitle !== void 0 ? { projectTitle: input3.projectTitle } : {}
+    ...input3.projectTitle !== void 0 ? { projectTitle: input3.projectTitle } : {},
+    ...input3.scopeKind !== void 0 ? { scopeKind: input3.scopeKind } : {},
+    ...input3.scopeId !== void 0 ? { scopeId: input3.scopeId } : {}
   };
 }
 function runtimeKey2(input3) {
@@ -19770,6 +19664,8 @@ function runtimeKey2(input3) {
     input3.userId ?? "",
     input3.orgId ?? "",
     input3.projectUid ?? "",
+    input3.scopeKind ?? "",
+    input3.scopeId ?? "",
     session.baseURL,
     session.userId ?? "",
     token
@@ -19784,7 +19680,9 @@ function createMCPDecisionStore2(resolveConfig) {
   };
   const requireStore = async () => {
     const store = await getStore();
-    if (!store) throw new Error("content unit candidate command requires a scoped project data decisionStore");
+    if (!store) {
+      throw new Error("content unit candidate command requires a scoped project data decisionStore. Provide projectDir/cwd plus projectUid, or run from a project shell with MOVSCRIPT_PROJECT_UID; do not fall back to legacy MOVSCRIPT_PROJECT_ID decisions.");
+    }
     return store;
   };
   return {
@@ -19817,7 +19715,6 @@ function createMCPDecisionStoreConfigResolver2(input3) {
     userId: input3.userId
   });
   const token = getMCPAuthToken2() || getMovScriptBackendRuntimeAuthToken22() || session.token;
-  if (!token) return void 0;
   const projectCwd = projectCwdFromInput2(input3);
   let configPromise;
   return async () => {
@@ -19830,6 +19727,7 @@ function createMCPDecisionStoreConfigResolver2(input3) {
       const projectUid = resolvedLocator.locator.projectUid ?? input3.projectUid;
       const projectTitle = input3.projectTitle ?? resolvedLocator.locator.projectTitle;
       if (!projectUid) return void 0;
+      const scope = scopedProjectDataDecisionScope2(input3, session.userId);
       const headers = {
         ...session.userId ? { "X-User-ID": session.userId } : {},
         ...input3.orgId !== void 0 ? { "X-Org-ID": String(input3.orgId) } : {}
@@ -19839,13 +19737,20 @@ function createMCPDecisionStoreConfigResolver2(input3) {
         baseUrl: session.baseURL,
         projectUid,
         ...projectTitle ? { title: projectTitle } : {},
-        ...input3.orgId !== void 0 ? { scopeKind: "org", scopeId: input3.orgId } : {},
-        token,
+        ...scope ? { scopeKind: scope.kind, scopeId: scope.id } : {},
+        ...token ? { token } : {},
         ...Object.keys(headers).length > 0 ? { headers } : {}
       };
     })();
     return configPromise;
   };
+}
+function scopedProjectDataDecisionScope2(input3, sessionUserId) {
+  if (input3.scopeKind && input3.scopeId !== void 0) return { kind: input3.scopeKind, id: input3.scopeId };
+  if (input3.orgId !== void 0) return { kind: "org", id: input3.orgId };
+  const userId = input3.userId ?? sessionUserId;
+  if (userId !== void 0) return { kind: "user", id: userId };
+  return void 0;
 }
 function projectCwdFromInput2(input3) {
   if (input3.projectDir) return input3.projectDir;
@@ -19861,13 +19766,27 @@ function resolveMCPDefaultWorkspaceDir2() {
 function resolveMCPProjectWorkspaceLocator2(args) {
   const workspaceDir = stringValue24(args.workspaceDir ?? args.workspace_dir) ?? resolveMCPDefaultWorkspaceDir2();
   const projectDir = pathValue4(args.projectDir ?? args.project_dir ?? args.projectPath ?? args.project_path ?? args.cwd);
-  const projectUid = stringValue24(args.projectUid ?? args.project_uid);
+  const projectUid = stringValue24(args.projectUid ?? args.project_uid) ?? stringValue24(process.env.MOVSCRIPT_PROJECT_UID);
+  const projectTitle = stringValue24(args.projectTitle ?? args.project_title) ?? stringValue24(process.env.MOVSCRIPT_PROJECT_TITLE);
+  const userId = stringValue24(args.userId ?? args.user_id ?? args.user) ?? stringValue24(process.env.MOVSCRIPT_USER_ID);
+  const orgId = stringValue24(args.orgId ?? args.org_id ?? args.org) ?? stringValue24(process.env.MOVSCRIPT_ORG_ID);
+  const scopeKind = scopedProjectDataScopeKind2(args.scopeKind ?? args.scope_kind ?? process.env.MOVSCRIPT_SCOPE_KIND);
+  const scopeId = stringValue24(args.scopeId ?? args.scope_id) ?? stringValue24(process.env.MOVSCRIPT_SCOPE_ID);
   if (projectDir === void 0) throw new Error("projectDir or cwd is required for MovScript project-scoped MCP tools");
   return {
     workspaceDir,
     projectDir,
-    ...projectUid !== void 0 ? { projectUid } : {}
+    ...projectUid !== void 0 ? { projectUid } : {},
+    ...projectTitle !== void 0 ? { projectTitle } : {},
+    ...userId !== void 0 ? { userId } : {},
+    ...orgId !== void 0 ? { orgId } : {},
+    ...scopeKind !== void 0 ? { scopeKind } : {},
+    ...scopeId !== void 0 ? { scopeId } : {}
   };
+}
+function scopedProjectDataScopeKind2(value) {
+  const raw = stringValue24(value);
+  return raw === "user" || raw === "org" ? raw : void 0;
 }
 function pathValue4(value) {
   const raw = stringValue24(value);
@@ -19885,7 +19804,11 @@ async function requireMCPBackendBoundProject2(args) {
     resolvedLocator.workspaceDir,
     resolvedLocator.projectDir,
     projectUid,
-    projectTitle
+    projectTitle,
+    resolvedLocator.userId ?? "",
+    resolvedLocator.orgId ?? "",
+    resolvedLocator.scopeKind ?? "",
+    resolvedLocator.scopeId ?? ""
   ].join("");
   const cached = ensuredProjectBindings2.get(key);
   if (cached) return cached;
@@ -19915,11 +19838,16 @@ async function resolveProjectBindingLocator2(locator) {
     ...locator.projectUid ? { projectUid: locator.projectUid } : {}
   });
   const projectLocator32 = response.locator;
+  const projectTitle = projectLocator32.projectTitle ?? locator.projectTitle;
   return {
     workspaceDir: projectLocator32.workspaceDir ?? locator.workspaceDir,
-    projectDir: projectLocator32.projectDir,
+    projectDir: projectLocator32.projectDir ?? locator.projectDir,
     ...projectLocator32.projectUid ?? locator.projectUid ? { projectUid: projectLocator32.projectUid ?? locator.projectUid } : {},
-    ...projectLocator32.projectTitle ? { projectTitle: projectLocator32.projectTitle } : {},
+    ...projectTitle ? { projectTitle } : {},
+    ...locator.userId !== void 0 ? { userId: locator.userId } : {},
+    ...locator.orgId !== void 0 ? { orgId: locator.orgId } : {},
+    ...locator.scopeKind !== void 0 ? { scopeKind: locator.scopeKind } : {},
+    ...locator.scopeId !== void 0 ? { scopeId: locator.scopeId } : {},
     ...projectLocator32.description ? { description: projectLocator32.description } : {}
   };
 }
@@ -21139,7 +21067,7 @@ async function runDomainBatch2(args, action) {
     try {
       results.push({ index, status: "ok", result: await action({ ...defaults, ...item }) });
     } catch (error) {
-      results.push({ index, status: "error", error: errorMessage12(error) });
+      results.push({ index, status: "error", error: errorMessage33(error) });
       if (!continueOnError) break;
     }
   }
@@ -22029,7 +21957,7 @@ function isContentUnitDecisionContextRecord2(value) {
 }
 async function withContentUnitCandidateVisibility2(args, contentUnitId, result, extra = {}) {
   const status = await readContentUnitCandidateVisibility2(args, contentUnitId).catch((error) => ({
-    visibility_error: errorMessage12(error),
+    visibility_error: errorMessage33(error),
     content_unit_candidates: [],
     selected_candidate: void 0,
     selected_raw_resource: void 0,
@@ -22127,7 +22055,7 @@ function lastPathSegment72(path) {
 function sameId52(left, right) {
   return left !== void 0 && right !== void 0 && String(left) === String(right);
 }
-function errorMessage12(error) {
+function errorMessage33(error) {
   return error instanceof Error ? error.message : String(error);
 }
 function isString32(value) {
@@ -24831,7 +24759,7 @@ async function runBatch2(items, concurrency, worker, continueOnError) {
         results[index] = {
           index,
           status: "error",
-          error: errorMessage32(error)
+          error: errorMessage322(error)
         };
         if (!continueOnError) stopped = true;
       }
@@ -24848,7 +24776,7 @@ function batchStatus2(successCount, failedCount) {
   if (failedCount === 0) return "completed";
   return successCount > 0 ? "partial_error" : "error";
 }
-function errorMessage32(error) {
+function errorMessage322(error) {
   return error instanceof Error ? error.message : String(error);
 }
 function neutralVideoResourcePreparationCompatibility2() {
@@ -28589,7 +28517,7 @@ function normalizeEndpoint2(endpoint, context, runtime) {
     pid: endpoint.pid ?? runtime.pid
   };
 }
-function errorMessage23(error) {
+function errorMessage52(error) {
   return error instanceof Error ? error.message : String(error);
 }
 async function runPersistentLocalRuntimeDaemon2(options) {
@@ -28815,7 +28743,7 @@ async function probeLocalRuntimeDaemon2(homeDir) {
       ...status
     };
   } catch (error) {
-    return { available: false, endpoint, ...appProbeDetails, error: errorMessage52(error) };
+    return { available: false, endpoint, ...appProbeDetails, error: errorMessage62(error) };
   }
 }
 async function stopLocalRuntimeDaemon2(homeDir, options = {}) {
@@ -28828,7 +28756,7 @@ async function stopLocalRuntimeDaemon2(homeDir, options = {}) {
       process.kill(app.pid, "SIGTERM");
       return { status: "stopping", forced: true, pid: app.pid };
     } catch (error) {
-      return { status: "error", forced: true, pid: app.pid, error: errorMessage52(error) };
+      return { status: "error", forced: true, pid: app.pid, error: errorMessage62(error) };
     }
   }
   return { status: "not_running", forced: true };
@@ -29089,7 +29017,7 @@ function endpointURL32(endpoint) {
 function delay3(ms) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
 }
-function errorMessage52(error) {
+function errorMessage62(error) {
   return error instanceof Error ? error.message : String(error);
 }
 function commandContractDefaults2(family) {
@@ -29204,6 +29132,7 @@ function commandExecutionContract2(spec) {
 function commandExampleArgv2(family, command) {
   const argv = command.productCliPath ? ["movscript", ...command.productCliPath] : family === "production-editing" ? ["movscript", "production", "editing", ...command.cliPath] : ["movscript", family, ...command.cliPath];
   if (command.commandId === "workspace.get_model") argv.push("project");
+  if (command.commandId === "domain.get_model") argv.push("--entity-kind", "project");
   argv.push("--json");
   return argv;
 }
@@ -29251,9 +29180,6 @@ function isEditingMCPToolName2(name) {
 }
 function isProductionEditingMCPToolName2(name) {
   return Boolean(name && productionEditingCommandByMCPToolName2.has(name));
-}
-function isWorkspaceMCPToolName2(name) {
-  return Boolean(name && workspaceCommandByMCPToolName2.has(name));
 }
 async function runMovScriptRuntimeCommand2(specOrName, args = {}) {
   const spec = typeof specOrName === "string" ? runtimeCommandByMCPToolName2.get(specOrName) ?? runtimeCommandById2.get(specOrName) : specOrName;
@@ -29305,7 +29231,7 @@ function productionWorkflowContract2() {
         primary_cli: [
           ["movscript", "domain", "source", "production-tree", "upsert", "--json"],
           ["movscript", "domain", "source", "content-unit", "upsert", "--json"],
-          ["movscript", "workspace", "review", "--json"],
+          ["movscript", "domain", "diagnostics", "inspect", "--json"],
           ["movscript", "domain", "read", "production-work-plan", "--json"]
         ],
         mcp_tools: [
@@ -29524,7 +29450,8 @@ async function runMovScriptDomainCommand2(specOrName, args = {}) {
   if (!spec) throw new Error(`Unknown domain command: ${specOrName}`);
   const binding = bindWorkspaceRuntime2(args);
   try {
-    const data = await spec.run(args);
+    const runArgs = domainRunArgs2(spec, args);
+    const data = await spec.run(runArgs);
     return {
       schema: "movscript.command_result.v1",
       status: "ok",
@@ -29542,6 +29469,11 @@ async function runMovScriptDomainCommand2(specOrName, args = {}) {
   } finally {
     binding.restore?.();
   }
+}
+function domainRunArgs2(spec, args) {
+  if (spec.commandId !== "domain.get_model") return args;
+  if (hasWorkspaceProjectLocator2(args)) return args;
+  return { ...args, cwd: process.cwd() };
 }
 async function runMovScriptEditingCommand2(specOrName, args = {}) {
   const spec = typeof specOrName === "string" ? editingCommandByMCPToolName2.get(specOrName) ?? editingCommandById2.get(specOrName) : specOrName;
@@ -29584,31 +29516,6 @@ async function runMovScriptProductionEditingCommand2(specOrName, args = {}) {
       data,
       debug: {
         cli_argv: productionEditingDebugCliArgv2(spec, args),
-        cwd: process.cwd(),
-        ...binding.backendEndpoint ? { runtime_endpoint: binding.backendEndpoint } : {},
-        ...binding.projectServiceEndpoint ? { project_service_endpoint: binding.projectServiceEndpoint } : {}
-      }
-    };
-  } finally {
-    binding.restore?.();
-  }
-}
-async function runMovScriptWorkspaceCommand2(specOrName, args = {}) {
-  const spec = typeof specOrName === "string" ? workspaceCommandByMCPToolName2.get(specOrName) ?? workspaceCommandById2.get(specOrName) : specOrName;
-  if (!spec) throw new Error(`Unknown workspace command: ${specOrName}`);
-  const binding = bindWorkspaceRuntime2(args);
-  try {
-    const runArgs = workspaceRunArgs2(spec, args);
-    const data = await spec.run(runArgs);
-    return {
-      schema: "movscript.command_result.v1",
-      status: "ok",
-      commandId: spec.commandId,
-      mcpToolName: spec.mcpToolName,
-      contract: commandExecutionContract2(spec),
-      data,
-      debug: {
-        cli_argv: workspaceDebugCliArgv2(spec, args),
         cwd: process.cwd(),
         ...binding.backendEndpoint ? { runtime_endpoint: binding.backendEndpoint } : {},
         ...binding.projectServiceEndpoint ? { project_service_endpoint: binding.projectServiceEndpoint } : {}
@@ -30061,7 +29968,7 @@ async function localNodeControl2(args, method, path) {
       ...response.ok ? {} : { httpStatus: response.status }
     };
   } catch (error) {
-    return { status: "error", homeDir, endpoint, error: errorMessage62(error) };
+    return { status: "error", homeDir, endpoint, error: errorMessage72(error) };
   }
 }
 function runtimeConfigure2(args = {}) {
@@ -30221,7 +30128,7 @@ async function probeBackend2(baseURL, timeoutMs) {
     const response = await fetch(`${baseURL.replace(/\/+$/, "")}/health`, { signal: controller.signal });
     return { available: response.ok, status: response.status, ...response.ok ? {} : { error: `HTTP ${response.status}` } };
   } catch (error) {
-    return { available: false, error: errorMessage62(error) };
+    return { available: false, error: errorMessage72(error) };
   } finally {
     clearTimeout(timeout);
   }
@@ -30257,7 +30164,7 @@ async function probeDesktop2(timeoutMs, runtimeHome) {
       applicationId: desktopApp?.applicationId,
       mediaPipeline: mediaPipeline.available,
       ...mediaPipeline.endpoint ? { mediaPipelineEndpoint: mediaPipeline.endpoint } : {},
-      error: errorMessage62(error)
+      error: errorMessage72(error)
     };
   } finally {
     clearTimeout(timeout);
@@ -30553,8 +30460,11 @@ function recommendedMode2(selected, hasProject) {
   return void 0;
 }
 function bindBackendRuntime2(args) {
-  const workspaceDir = stringValue122(args.workspaceDir ?? args.workspace_dir) ?? stringValue122(args.projectDir ?? args.project_dir) ?? stringValue122(args.cwd) ?? process.env.MOVSCRIPT_WORKSPACE_DIR;
-  if (workspaceDir) setMovScriptBackendDefaultWorkspaceDir2(resolve102(workspaceDir));
+  const workspaceDirInput = stringValue122(args.workspaceDir ?? args.workspace_dir) ?? stringValue122(args.projectDir ?? args.project_dir) ?? stringValue122(args.cwd) ?? process.env.MOVSCRIPT_WORKSPACE_DIR;
+  const workspaceDir = workspaceDirInput ? resolve102(workspaceDirInput) : void 0;
+  const homeDir = resolveRuntimeHomeArg3(args);
+  const defaultWorkspaceDir = workspaceDir ?? homeDir;
+  setMovScriptBackendDefaultWorkspaceDir2(defaultWorkspaceDir);
   const token = stringValue122(args.token);
   if (token) setMovScriptBackendRuntimeAuthToken2(token);
   const explicitBackend = stringValue122(args.backendBaseURL ?? args.backend_base_url ?? args.server);
@@ -30562,7 +30472,13 @@ function bindBackendRuntime2(args) {
     setMovScriptBackendAPIBaseURL2(explicitBackend);
     return { backendEndpoint: explicitBackend };
   }
-  const homeDir = resolveRuntimeHomeArg3(args);
+  const configuredSession = resolveMovScriptBackendSession2({ workspaceDir: defaultWorkspaceDir });
+  setMovScriptBackendDefaultWorkspaceDir2(configuredSession.workspaceDir);
+  const hasConfiguredBackend = Boolean(process.env.MOVSCRIPT_API_BASE_URL) || existsSync8(configuredSession.configPath);
+  if (hasConfiguredBackend) {
+    setMovScriptBackendAPIBaseURL2(configuredSession.baseURL);
+    return { backendEndpoint: configuredSession.baseURL };
+  }
   const runtimeHome = readRuntimeHomeSnapshot2(homeDir);
   const gatewayEndpoint = endpointURL42(
     findRuntimeEndpoint2(runtimeHome, LOCAL_NODE_GATEWAY_SERVICE5) ?? findRuntimeService2(runtimeHome, LOCAL_NODE_GATEWAY_SERVICE5)?.endpoint
@@ -30572,7 +30488,8 @@ function bindBackendRuntime2(args) {
   );
   const backendEndpoint = gatewayEndpoint ?? dataEndpoint;
   if (backendEndpoint) setMovScriptBackendAPIBaseURL2(backendEndpoint);
-  return { backendEndpoint };
+  if (backendEndpoint) return { backendEndpoint };
+  return {};
 }
 function bindWorkspaceRuntime2(args) {
   const backendBinding = bindBackendRuntime2(args);
@@ -30613,11 +30530,6 @@ function bindEditingRuntime2(args) {
       restoreOptionalEnv2("MOVSCRIPT_PROJECT_SERVICE_URL", previousProjectURL);
     }
   };
-}
-function workspaceRunArgs2(spec, args) {
-  if (spec.commandId !== "workspace.get_model") return args;
-  if (hasWorkspaceProjectLocator2(args)) return args;
-  return { ...args, cwd: process.cwd() };
 }
 function hasWorkspaceProjectLocator2(args) {
   return Boolean(stringValue122(args.projectDir ?? args.project_dir ?? args.projectPath ?? args.project_path ?? args.cwd));
@@ -30952,6 +30864,8 @@ function domainDebugCliArgv2(spec, args) {
   appendPathArg2(argv, args, ["projectId", "project_id"], "--project-id");
   appendPathArg2(argv, args, ["projectUid", "project_uid"], "--project-uid");
   appendPathArg2(argv, args, ["projectTitle", "project_title"], "--project-title");
+  appendPathArg2(argv, args, ["scopeKind", "scope_kind"], "--scope-kind");
+  appendPathArg2(argv, args, ["scopeId", "scope_id"], "--scope-id");
   appendPathArg2(argv, args, ["userId", "user_id", "user"], "--user");
   appendPathArg2(argv, args, ["orgId", "org_id", "org"], "--org");
   appendPathArg2(argv, args, ["entityKind", "entity_kind"], "--entity-kind");
@@ -31159,24 +31073,6 @@ function productionEditingDebugCliArgv2(spec, args) {
   appendPathArg2(argv, args, ["pageSize", "page_size"], "--page-size");
   if (args.includeCandidates === true || args.include_candidates === true) argv.push("--include-candidates");
   if (args.includeUnselected === true || args.include_unselected === true) argv.push("--include-unselected");
-  return argv;
-}
-function workspaceDebugCliArgv2(spec, args) {
-  const argv = ["movscript", "workspace", ...spec.cliPath];
-  const entityKind = stringValue122(args.entityKind ?? args.entity_kind);
-  if (spec.commandId === "workspace.get_model" && entityKind) argv.push(entityKind);
-  argv.push("--json");
-  const server = stringValue122(args.backendBaseURL ?? args.backend_base_url ?? args.server ?? args.projectServiceURL ?? args.project_service_url);
-  if (server) argv.push("--server", server);
-  const workspaceDir = stringValue122(args.workspaceDir ?? args.workspace_dir);
-  if (workspaceDir) argv.push("--workspace", workspaceDir);
-  const projectDir = stringValue122(args.projectDir ?? args.project_dir ?? args.projectPath ?? args.project_path ?? args.cwd);
-  if (projectDir) argv.push("--project-dir", projectDir);
-  appendPathArg2(argv, args, ["projectUid", "project_uid"], "--project-uid");
-  appendPathArg2(argv, args, ["user"], "--user");
-  appendPathArg2(argv, args, ["org"], "--org");
-  appendPathArg2(argv, args, ["commit"], "--commit");
-  appendPathArg2(argv, args, ["entityId", "entity_id"], "--entity-id");
   return argv;
 }
 function workspaceProjectServiceEndpoint2(args) {
@@ -31618,7 +31514,7 @@ function compactObject2(input3) {
 function isRecord352(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function errorMessage62(error) {
+function errorMessage72(error) {
   return error instanceof Error ? error.message : String(error);
 }
 function registerAdminCommands(program2) {
@@ -31656,7 +31552,7 @@ async function runAdminCommand(spec, options, command) {
       status: "error",
       error: {
         code: "admin_command_failed",
-        message: errorMessage72(error)
+        message: errorMessage82(error)
       }
     }, null, 2));
     process.exitCode = 1;
@@ -31769,7 +31665,7 @@ function compactRecord32(input3) {
 function isRecord362(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function errorMessage72(error) {
+function errorMessage82(error) {
   return error instanceof Error ? error.message : String(error);
 }
 function registerAuthCommands(program2) {
@@ -32003,7 +31899,7 @@ async function runContextCommand(commandName, args) {
       status: "error",
       error: {
         code: "context_command_failed",
-        message: errorMessage82(error)
+        message: errorMessage92(error)
       }
     }, null, 2));
     process.exitCode = 1;
@@ -32032,11 +31928,11 @@ function rootCommand2(command) {
 function compactRecord42(input3) {
   return Object.fromEntries(Object.entries(input3).filter(([, value]) => value !== void 0));
 }
-function errorMessage82(error) {
+function errorMessage92(error) {
   return error instanceof Error ? error.message : String(error);
 }
 function registerDomainCommands(program2) {
-  const domain = program2.command("domain").description("Write MovScript domain candidates and review decisions without requiring a frontend");
+  const domain = program2.command("domain").description("Inspect and change MovScript project domain state without requiring a frontend");
   for (const spec of domainCommandSpecs2) {
     const command = ensureCommandPath2(domain, spec.cliPath);
     command.description(spec.description);
@@ -32056,7 +31952,7 @@ function ensureCommandPath2(root, path) {
   return current;
 }
 function addDomainOptions(command) {
-  command.option("--home-dir <dir>", "MovScript Home directory used to discover daemon and project endpoints").option("--workspace <dir>", "Workspace root directory used for backend auth lookup").option("--project-dir <dir>", "MovScript project directory").option("--cwd <dir>", "Alias for --project-dir").option("--server <url>", "Daemon gateway or Project Service base URL").option("--project-service-url <url>", "Explicit Project Service base URL").option("--token <token>", "Backend bearer token").option("--provider-scope-id <id>", "Provider asset-library project/group scope id").option("--project-id <id>", "Deprecated alias for --provider-scope-id; not a MovScript source project locator").option("--project-uid <uid>", "Project uid used for scoped candidate decisions").option("--project-title <title>", "Project title for scoped candidate decisions").option("--user <id>", "Workspace user id").option("--org <id>", "Workspace organization id").option("--entity-kind <kind>", "Domain entity kind").option("--entity-id <id>", "Domain entity id").option("--query <text>", "Free-text query").option("--production-id <id>", "Production id").option("--segment-id <id>", "Segment id").option("--scene-moment-id <id>", "Scene moment id").option("--expression-unit-id <id>", "Expression unit id").option("--storyboard-id <id>", "Storyboard id").option("--content-unit-id <id>", "Content unit id").option("--setting-id <id>", "Setting id").option("--setting-state-id <id>", "Setting state id").option("--asset-id <id>", "Asset id").option("--candidate-id <id>", "Candidate id").option("--resource-id <id>", "RawResource id").option("--output-kind <kind>", "Candidate output kind").option("--kind <kind>", "Alias for output kind").option("--source <source>", "Candidate source").option("--status <status>", "Candidate status").option("--mime-type <type>", "Candidate output MIME type").option("--width <px>", "Candidate output width").option("--height <px>", "Candidate output height").option("--duration-sec <seconds>", "Candidate output duration in seconds").option("--decision <decision>", "Candidate decision: adopt, reject, or defer").option("--stale-policy <policy>", "Stale candidate policy").option("--reason <text>", "Decision or selection reason").option("--decided-at <iso>", "Decision timestamp").option("--limit <number>", "Maximum number of records to return").option("--commit <ref>", "Git commit/ref used by diagnostics").option("--checkpoint-hash <hash>", "Compatibility alias for --commit").option("--project-name <name>", "Editing handoff project name").option("--scene-name <name>", "Editing handoff scene name").option("--default-duration-sec <seconds>", "Default edit-plan clip duration in seconds").option("--target <ref>", "Optional affected target ref").option("--target-kind <kind>", "Legacy inline candidate target kind").option("--provider <id>", "Provider id or provider kind selector").option("--provider-key <id>", "Provider key alias").option("--model <id>", "Provider model id").option("--group-id <id>", "Remote provider asset group id").option("--group-ref <id>", "Remote provider asset group ref alias").option("--asset-group-id <id>", "Remote provider asset group id alias").option("--asset-group-name <name>", "Remote provider asset group display name").option("--source-url <url>", "Provider certification source URL override").option("--name <name>", "Provider certification display name").option("--timeout-ms <ms>", "Provider operation timeout in milliseconds").option("--nonce <value>", "Legacy inline candidate nonce").option("--include <json>", "JSON array of query include keys").option("--target-path <path>", "Source target path").option("--namespace-path <path>", "Timeline namespace source path").option("--timeline-namespace-path <path>", "Alias for --namespace-path").option("--parent-path <path>", "Parent source path for path-first writes").option("--expression-unit-path <path>", "Expression unit source path").option("--scene-moment-path <path>", "Scene moment source path").option("--keyframe-id <id>", "Keyframe id").option("--audio-cue-id <id>", "Audio cue id").option("--script-id <id>", "Script id").option("--version-id <id>", "Script version id").option("--version-label <label>", "Script version label").option("--source-text <text>", "Script Markdown source text").option("--source-path <path>", "Script source path").option("--payload <json>", "Generic source write payload JSON").option("--record <json>", "Existing source record JSON").option("--entity <json>", "Existing source entity JSON").option("--project-style <json>", "Project style/standards JSON").option("--setting <json>", "Setting source JSON").option("--states <json>", "Setting-state tree JSON array").option("--unit <json>", "Content unit source JSON").option("--namespace <json>", "Timeline namespace source JSON").option("--root <json>", "Timeline namespace root JSON").option("--tree <json>", "Timeline namespace tree JSON").option("--nodes <json>", "Timeline namespace node array JSON").option("--namespaces <json>", "Timeline namespace array JSON").option("--timeline-namespaces <json>", "Timeline namespace array JSON alias").option("--production <json>", "Production source JSON").option("--segments <json>", "Segment array JSON").option("--content-units <json>", "Content unit array JSON").option("--segment <json>", "Segment source JSON").option("--scene-moment <json>", "Scene moment source JSON").option("--keyframe <json>", "Keyframe source JSON").option("--storyboard <json>", "Storyboard source JSON").option("--audio-cue <json>", "Audio cue source JSON").option("--expression-unit <json>", "Expression unit source JSON").option("--edit-prompt <json>", "Content unit edit_prompt JSON").option("--transition <json>", "Entity transition JSON").option("--timeline <json>", "Storyboard timeline JSON").option("--outputs <json>", "Candidate outputs array JSON").option("--items <json>", "Batch item array JSON").option("--producer <json>", "Candidate producer metadata JSON").option("--prompt-snapshot <json>", "Candidate prompt snapshot JSON").option("--metadata <json>", "Decision or output metadata JSON").option("--target-record <json>", "Legacy inline candidate target record JSON").option("--continue-on-error", "Continue batch commands after an item fails").option("--allow-private-urls", "Allow private URLs for provider asset certification").option("--lock", "Lock a legacy inline candidate when supported").option("--json", "Print JSON output");
+  command.option("--home-dir <dir>", "MovScript Home directory used to discover daemon and project endpoints").option("--workspace <dir>", "Workspace root directory used for backend auth lookup").option("--project-dir <dir>", "MovScript project directory").option("--cwd <dir>", "Alias for --project-dir").option("--server <url>", "Daemon gateway or Project Service base URL").option("--project-service-url <url>", "Explicit Project Service base URL").option("--token <token>", "Backend bearer token").option("--provider-scope-id <id>", "Provider asset-library project/group scope id").option("--project-id <id>", "Deprecated alias for --provider-scope-id; not a MovScript source project locator").option("--project-uid <uid>", "Project uid used for scoped candidate decisions").option("--project-title <title>", "Project title for scoped candidate decisions").option("--scope-kind <kind>", "Scoped project-data decision scope kind: user or org").option("--scope-id <id>", "Scoped project-data decision scope id").option("--user <id>", "Workspace user id").option("--org <id>", "Workspace organization id").option("--entity-kind <kind>", "Domain entity kind").option("--entity-id <id>", "Domain entity id").option("--query <text>", "Free-text query").option("--production-id <id>", "Production id").option("--segment-id <id>", "Segment id").option("--scene-moment-id <id>", "Scene moment id").option("--expression-unit-id <id>", "Expression unit id").option("--storyboard-id <id>", "Storyboard id").option("--content-unit-id <id>", "Content unit id").option("--setting-id <id>", "Setting id").option("--setting-state-id <id>", "Setting state id").option("--asset-id <id>", "Asset id").option("--candidate-id <id>", "Candidate id").option("--resource-id <id>", "RawResource id").option("--output-kind <kind>", "Candidate output kind").option("--kind <kind>", "Alias for output kind").option("--source <source>", "Candidate source").option("--status <status>", "Candidate status").option("--mime-type <type>", "Candidate output MIME type").option("--width <px>", "Candidate output width").option("--height <px>", "Candidate output height").option("--duration-sec <seconds>", "Candidate output duration in seconds").option("--decision <decision>", "Candidate decision: adopt, reject, or defer").option("--stale-policy <policy>", "Stale candidate policy").option("--reason <text>", "Decision or selection reason").option("--decided-at <iso>", "Decision timestamp").option("--limit <number>", "Maximum number of records to return").option("--commit <ref>", "Git commit/ref used by diagnostics").option("--checkpoint-hash <hash>", "Compatibility alias for --commit").option("--project-name <name>", "Editing handoff project name").option("--scene-name <name>", "Editing handoff scene name").option("--default-duration-sec <seconds>", "Default edit-plan clip duration in seconds").option("--target <ref>", "Optional affected target ref").option("--target-kind <kind>", "Legacy inline candidate target kind").option("--provider <id>", "Provider id or provider kind selector").option("--provider-key <id>", "Provider key alias").option("--model <id>", "Provider model id").option("--group-id <id>", "Remote provider asset group id").option("--group-ref <id>", "Remote provider asset group ref alias").option("--asset-group-id <id>", "Remote provider asset group id alias").option("--asset-group-name <name>", "Remote provider asset group display name").option("--source-url <url>", "Provider certification source URL override").option("--name <name>", "Provider certification display name").option("--timeout-ms <ms>", "Provider operation timeout in milliseconds").option("--nonce <value>", "Legacy inline candidate nonce").option("--include <json>", "JSON array of query include keys").option("--target-path <path>", "Source target path").option("--namespace-path <path>", "Timeline namespace source path").option("--timeline-namespace-path <path>", "Alias for --namespace-path").option("--parent-path <path>", "Parent source path for path-first writes").option("--expression-unit-path <path>", "Expression unit source path").option("--scene-moment-path <path>", "Scene moment source path").option("--keyframe-id <id>", "Keyframe id").option("--audio-cue-id <id>", "Audio cue id").option("--script-id <id>", "Script id").option("--version-id <id>", "Script version id").option("--version-label <label>", "Script version label").option("--source-text <text>", "Script Markdown source text").option("--source-path <path>", "Script source path").option("--payload <json>", "Generic source write payload JSON").option("--record <json>", "Existing source record JSON").option("--entity <json>", "Existing source entity JSON").option("--project-style <json>", "Project style/standards JSON").option("--setting <json>", "Setting source JSON").option("--states <json>", "Setting-state tree JSON array").option("--unit <json>", "Content unit source JSON").option("--namespace <json>", "Timeline namespace source JSON").option("--root <json>", "Timeline namespace root JSON").option("--tree <json>", "Timeline namespace tree JSON").option("--nodes <json>", "Timeline namespace node array JSON").option("--namespaces <json>", "Timeline namespace array JSON").option("--timeline-namespaces <json>", "Timeline namespace array JSON alias").option("--production <json>", "Production source JSON").option("--segments <json>", "Segment array JSON").option("--content-units <json>", "Content unit array JSON").option("--segment <json>", "Segment source JSON").option("--scene-moment <json>", "Scene moment source JSON").option("--keyframe <json>", "Keyframe source JSON").option("--storyboard <json>", "Storyboard source JSON").option("--audio-cue <json>", "Audio cue source JSON").option("--expression-unit <json>", "Expression unit source JSON").option("--edit-prompt <json>", "Content unit edit_prompt JSON").option("--transition <json>", "Entity transition JSON").option("--timeline <json>", "Storyboard timeline JSON").option("--outputs <json>", "Candidate outputs array JSON").option("--items <json>", "Batch item array JSON").option("--producer <json>", "Candidate producer metadata JSON").option("--prompt-snapshot <json>", "Candidate prompt snapshot JSON").option("--metadata <json>", "Decision or output metadata JSON").option("--target-record <json>", "Legacy inline candidate target record JSON").option("--continue-on-error", "Continue batch commands after an item fails").option("--allow-private-urls", "Allow private URLs for provider asset certification").option("--lock", "Lock a legacy inline candidate when supported").option("--json", "Print JSON output");
 }
 async function runDomainCommand(spec, options, command) {
   try {
@@ -32067,7 +31963,7 @@ async function runDomainCommand(spec, options, command) {
       status: "error",
       error: {
         code: "domain_command_failed",
-        message: errorMessage92(error)
+        message: errorMessage102(error)
       }
     }, null, 2));
     process.exitCode = 1;
@@ -32084,10 +31980,12 @@ function domainArgs(options, command) {
     token: options.token ?? global.token,
     providerScopeId: options.providerScopeId,
     projectId: options.projectId,
-    projectUid: options.projectUid,
-    projectTitle: options.projectTitle,
-    userId: options.user,
-    orgId: options.org,
+    projectUid: options.projectUid ?? process.env.MOVSCRIPT_PROJECT_UID,
+    projectTitle: options.projectTitle ?? process.env.MOVSCRIPT_PROJECT_TITLE,
+    scopeKind: options.scopeKind ?? process.env.MOVSCRIPT_SCOPE_KIND,
+    scopeId: options.scopeId ?? process.env.MOVSCRIPT_SCOPE_ID,
+    userId: options.user ?? process.env.MOVSCRIPT_USER_ID,
+    orgId: options.org ?? process.env.MOVSCRIPT_ORG_ID,
     entityKind: options.entityKind,
     entityId: options.entityId,
     query: options.query,
@@ -32215,7 +32113,7 @@ function numericArg(value, flag) {
 function compactRecord52(input3) {
   return Object.fromEntries(Object.entries(input3).filter(([, value]) => value !== void 0));
 }
-function errorMessage92(error) {
+function errorMessage102(error) {
   return error instanceof Error ? error.message : String(error);
 }
 function registerEditingCommands(program2) {
@@ -32250,7 +32148,7 @@ async function runEditingCommand(spec, options, command) {
       status: "error",
       error: {
         code: "editing_command_failed",
-        message: errorMessage102(error)
+        message: errorMessage112(error)
       }
     }, null, 2));
     process.exitCode = 1;
@@ -32389,7 +32287,7 @@ function numericArg2(value, flag) {
 function compactRecord6(input3) {
   return Object.fromEntries(Object.entries(input3).filter(([, value]) => value !== void 0));
 }
-function errorMessage102(error) {
+function errorMessage112(error) {
   return error instanceof Error ? error.message : String(error);
 }
 function registerLangCommands(program2) {
@@ -32872,27 +32770,40 @@ function createCliEngine(options) {
   const envProjectDir = stringValue132(process.env.MOVSCRIPT_PROJECT_DIR);
   const workspaceDir = options.cwd ?? envWorkspaceDir;
   const projectDir = options.cwd === void 0 ? envProjectDir : void 0;
-  const decisionStore = createCliBackendDecisionStore({ workspaceDir: envWorkspaceDir ?? options.cwd });
+  const decisionStore = createCliDecisionStore({ workspaceDir: envWorkspaceDir ?? options.cwd });
   return createNodeMovScriptEngine2({
     ...projectDir !== void 0 ? { projectDir } : workspaceDir !== void 0 ? { workspaceDir } : {},
     ...decisionStore ? { decisionStore } : {}
   });
 }
-function createCliBackendDecisionStore(input3) {
-  const projectId = stringValue132(process.env.MOVSCRIPT_PROJECT_ID);
-  if (!projectId) return void 0;
+function createCliDecisionStore(input3) {
+  const projectUid = stringValue132(process.env.MOVSCRIPT_PROJECT_UID);
+  if (!projectUid) return void 0;
   const session = resolveMovScriptBackendSession2({
     workspaceDir: input3.workspaceDir,
     server: stringValue132(process.env.MOVSCRIPT_DATA_SERVICE_URL),
     token: stringValue132(process.env.MOVSCRIPT_DATA_SERVICE_TOKEN),
     userId: stringValue132(process.env.MOVSCRIPT_USER_ID)
   });
-  return createMovScriptBackendDecisionStore2({
+  const scope = cliScopedProjectDataDecisionScope(session.userId);
+  return createMovScriptScopedProjectDataDecisionStore2({
     baseUrl: session.baseURL,
-    projectId,
+    projectUid,
+    ...stringValue132(process.env.MOVSCRIPT_PROJECT_TITLE) ? { title: stringValue132(process.env.MOVSCRIPT_PROJECT_TITLE) } : {},
+    ...scope ? { scopeKind: scope.kind, scopeId: scope.id } : {},
     ...session.token ? { token: session.token } : {},
     ...session.userId ? { headers: { "X-User-ID": session.userId } } : {}
   });
+}
+function cliScopedProjectDataDecisionScope(sessionUserId) {
+  const scopeKind = stringValue132(process.env.MOVSCRIPT_SCOPE_KIND);
+  const scopeId = stringValue132(process.env.MOVSCRIPT_SCOPE_ID);
+  if ((scopeKind === "user" || scopeKind === "org") && scopeId !== void 0) return { kind: scopeKind, id: scopeId };
+  const orgId = stringValue132(process.env.MOVSCRIPT_ORG_ID);
+  if (orgId) return { kind: "org", id: orgId };
+  const userId = stringValue132(process.env.MOVSCRIPT_USER_ID) ?? sessionUserId;
+  if (userId) return { kind: "user", id: userId };
+  return void 0;
 }
 function createCliFileRepository(options) {
   return createCliFileRepositoryFromEngine(createCliEngine(options));
@@ -32906,6 +32817,7 @@ async function addCandidateFromCliOptions(engine, target, options) {
   if (resourceId === void 0) throw new Error("--resource-id is required");
   const targetKind = parseTargetKindOption(options.targetKind, target, { defaultContentUnit: true });
   if (targetKind === "content_unit") {
+    assertContentUnitCandidateDecisionPath("add");
     const contentUnit = await resolveContentUnitTarget(engine, target);
     const contentUnitId = stringValue132(contentUnit.id ?? contentUnit.record.id);
     if (!contentUnitId) throw new Error(`content_unit missing id: ${contentUnit.path}`);
@@ -32936,6 +32848,7 @@ async function addCandidateFromCliOptions(engine, target, options) {
 async function selectCandidateFromCliOptions(engine, target, candidateId, options) {
   const targetKind = parseTargetKindOption(options.targetKind ?? options.kind, target, { defaultContentUnit: true });
   if (targetKind === "content_unit") {
+    assertContentUnitCandidateDecisionPath("select");
     const contentUnit = await resolveContentUnitTarget(engine, target);
     const contentUnitId = stringValue132(contentUnit.id ?? contentUnit.record.id);
     if (!contentUnitId) throw new Error(`content_unit missing id: ${contentUnit.path}`);
@@ -33003,7 +32916,7 @@ async function readContentUnitSelectionForList(engine, contentUnit) {
   const contentUnitDir = normalizeCliPath(contentUnit.path.replace(/\/content_unit\.json$/, ""));
   const index = await engine.loadIndex().catch(() => void 0);
   const decisionContext = index?.documents.find((document) => {
-    if (!isRecord37(document.data)) return false;
+    if (!isRecord372(document.data)) return false;
     return document.data.schema === "movscript.decision_context.v1" && document.data.target_kind === "content_unit" && document.data.target_ref === contentUnitDir;
   })?.data;
   const overlaySelection = recordField8(recordField8(decisionContext)?.selection);
@@ -33016,7 +32929,7 @@ async function readContentUnitSelectionForList(engine, contentUnit) {
 }
 function contentUnitCandidateListItem(contentUnit, candidate, selectionValidity, selectedCandidateId) {
   const record = candidate.record;
-  const outputs = arrayField72(record.outputs).filter(isRecord37);
+  const outputs = arrayField72(record.outputs).filter(isRecord372);
   const id = record.id;
   const selected = selectedCandidateId !== void 0 && String(selectedCandidateId) === String(id);
   return {
@@ -33037,12 +32950,20 @@ function contentUnitCandidateListItem(contentUnit, candidate, selectionValidity,
     record
   };
 }
+function assertContentUnitCandidateDecisionPath(action) {
+  if (stringValue132(process.env.MOVSCRIPT_PROJECT_UID)) return;
+  const projectId = stringValue132(process.env.MOVSCRIPT_PROJECT_ID);
+  if (projectId) {
+    throw new Error(`refusing to ${action} a content-unit candidate through legacy MOVSCRIPT_PROJECT_ID=${projectId} decisions. Use "movscript domain candidate ..." with --project-uid/MOVSCRIPT_PROJECT_UID for current UI projects.`);
+  }
+  throw new Error(`content-unit candidate ${action} requires scoped project-data context. Set MOVSCRIPT_PROJECT_UID or use "movscript domain candidate ..." with --project-uid; do not use legacy MOVSCRIPT_PROJECT_ID decisions for current UI projects.`);
+}
 async function readInlineCandidateTarget(engine, target, targetKind) {
   const targetPath = normalizeCliPath(targetPathFromSelectionTarget(target));
   const repository = createCliFileRepositoryFromEngine(engine);
   const file = await repository.read({ path: targetPath });
   const parsed = JSON.parse(file.content);
-  if (!isRecord37(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
+  if (!isRecord372(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
   return {
     entityKind: targetKind,
     id: parsed.id,
@@ -33053,7 +32974,7 @@ async function readInlineCandidateTarget(engine, target, targetKind) {
 function inlineCandidateItemsFromEntity(entity, targetKind) {
   const selection = recordField8(entity.record.lock);
   const selectedCandidateId = selection?.candidate_id;
-  return arrayField72(entity.record.candidates).filter(isRecord37).map((candidate) => {
+  return arrayField72(entity.record.candidates).filter(isRecord372).map((candidate) => {
     const id = candidate.id;
     const resourceId = candidate.resource_id;
     const selected = selectedCandidateId !== void 0 && String(selectedCandidateId) === String(id);
@@ -33316,13 +33237,13 @@ async function createDemoProjectFromCliOptions(options, command) {
       "movscript interpret"
     ]
   }, merged);
-  if (isRecord37(interpretation) && interpretation.status === "failed") process.exitCode = 2;
+  if (isRecord372(interpretation) && interpretation.status === "failed") process.exitCode = 2;
 }
 function summarizeDemoInterpretation(interpretation) {
-  if (!isRecord37(interpretation)) return interpretation;
-  const review = isRecord37(interpretation.review) ? interpretation.review : void 0;
-  const manifest = isRecord37(interpretation.manifest) ? interpretation.manifest : void 0;
-  const output3 = isRecord37(manifest?.output) ? manifest.output : void 0;
+  if (!isRecord372(interpretation)) return interpretation;
+  const review = isRecord372(interpretation.review) ? interpretation.review : void 0;
+  const manifest = isRecord372(interpretation.manifest) ? interpretation.manifest : void 0;
+  const output3 = isRecord372(manifest?.output) ? manifest.output : void 0;
   return pruneUndefined19({
     status: interpretation.status,
     readyToInterpret: review?.readyToInterpret,
@@ -33550,7 +33471,7 @@ async function inspectWorkspaceFromCliOptions(options, command) {
     ...merged.commit ? { commit: merged.commit } : {}
   });
   printResult(result, merged);
-  if (isRecord37(result) && result.readyToInterpret === false) process.exitCode = 2;
+  if (isRecord372(result) && result.readyToInterpret === false) process.exitCode = 2;
 }
 async function interpretWorkspaceFromCliOptions(options, command) {
   const merged = mergeGlobalOptions(options, command);
@@ -33558,7 +33479,7 @@ async function interpretWorkspaceFromCliOptions(options, command) {
     fileRepository: createCliFileRepository(merged)
   });
   printResult(result, merged);
-  if (isRecord37(result) && result.status === "failed") process.exitCode = 2;
+  if (isRecord372(result) && result.status === "failed") process.exitCode = 2;
 }
 async function regenerationPlanFromCliOptions(options, command) {
   const merged = mergeGlobalOptions(options, command);
@@ -34347,7 +34268,7 @@ async function listContentUnitCandidates(engine, contentUnit) {
   const contentUnitDir = normalizeCliPath(contentUnit.path.replace(/\/content_unit\.json$/, ""));
   const index = await engine.loadIndex().catch(() => void 0);
   const indexedCandidates = index?.documents.filter((document) => document.path.startsWith(`${contentUnitDir}/candidates/`) && document.path.endsWith("/content_candidate.json")).map((document) => {
-    if (!isRecord37(document.data)) return void 0;
+    if (!isRecord372(document.data)) return void 0;
     return { path: document.path, record: document.data };
   }).filter((candidate) => candidate !== void 0) ?? [];
   if (indexedCandidates.length > 0) return indexedCandidates;
@@ -34360,7 +34281,7 @@ async function listContentUnitCandidates(engine, contentUnit) {
     const file = await repository.read({ path }).catch(() => void 0);
     if (!file) return void 0;
     const parsed = JSON.parse(file.content);
-    if (!isRecord37(parsed)) return void 0;
+    if (!isRecord372(parsed)) return void 0;
     return { path: file.path, record: parsed };
   }));
   return candidates.filter((candidate) => candidate !== void 0);
@@ -34370,7 +34291,7 @@ async function findContentUnitCandidate(engine, contentUnit, candidateId) {
   return candidates.find((candidate) => String(candidate.record.id ?? "") === candidateId);
 }
 function candidateResourceId(candidate) {
-  const firstOutput = arrayField72(candidate?.outputs).filter(isRecord37)[0];
+  const firstOutput = arrayField72(candidate?.outputs).filter(isRecord372)[0];
   const resourceId = firstOutput?.resource_id;
   return resourceIdOption(resourceId);
 }
@@ -34428,12 +34349,12 @@ function printContentUnitStatusPanel(panel, options) {
   const summary = recordField8(panel.summary);
   const prompt = recordField8(runtime?.prompt);
   const runtimeRequest = recordField8(runtime?.runtime_request);
-  const candidates = arrayField72(panel.candidates).filter(isRecord37);
-  const dependencies = arrayField72(dependencyReport?.dependencies).filter(isRecord37);
-  const upstreamSelections = arrayField72(dependencyReport?.upstream_selections).filter(isRecord37);
-  const runtimeInputs = arrayField72(runtimeRequest?.inputs).filter(isRecord37);
-  const issues = arrayField72(dependencyReport?.issues).filter(isRecord37);
-  const backendBlockers = arrayField72(backendPrompt?.blockers ?? compiledPrompt?.blockers).filter(isRecord37);
+  const candidates = arrayField72(panel.candidates).filter(isRecord372);
+  const dependencies = arrayField72(dependencyReport?.dependencies).filter(isRecord372);
+  const upstreamSelections = arrayField72(dependencyReport?.upstream_selections).filter(isRecord372);
+  const runtimeInputs = arrayField72(runtimeRequest?.inputs).filter(isRecord372);
+  const issues = arrayField72(dependencyReport?.issues).filter(isRecord372);
+  const backendBlockers = arrayField72(backendPrompt?.blockers ?? compiledPrompt?.blockers).filter(isRecord372);
   const lines = [
     `Content Unit: ${scalarDisplayValue2(contentUnit?.id)}  ${scalarDisplayValue2(contentUnit?.title)}`,
     `Path: ${scalarDisplayValue2(contentUnit?.path)}`,
@@ -34484,7 +34405,7 @@ function printContentUnitStatusPanel(panel, options) {
     ...candidates.length ? candidates.map((item) => {
       const record = recordField8(item.record) ?? {};
       const selected = selectionValidity?.candidate_id !== void 0 && String(selectionValidity.candidate_id) === String(record.id) ? "*" : " ";
-      const outputs = arrayField72(record.outputs).filter(isRecord37);
+      const outputs = arrayField72(record.outputs).filter(isRecord372);
       const outputSummary = outputs.length ? outputs.map((output3) => `${scalarDisplayValue2(output3.kind)}:${scalarDisplayValue2(output3.resource_id)}`).join(", ") : "-";
       const candidateHash = shortHash(recordField8(record.input_version)?.hash);
       return ` ${selected} ${scalarDisplayValue2(record.id)} source=${scalarDisplayValue2(record.source)} status=${scalarDisplayValue2(record.status)} hash=${candidateHash} outputs=${outputSummary}`;
@@ -34628,11 +34549,11 @@ function scalarDisplayValue2(value) {
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
   return JSON.stringify(value);
 }
-function isRecord37(value) {
+function isRecord372(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function recordField8(value) {
-  return isRecord37(value) ? value : void 0;
+  return isRecord372(value) ? value : void 0;
 }
 function arrayField72(value) {
   return Array.isArray(value) ? value : [];
@@ -34959,7 +34880,7 @@ async function handleDaemonMCPJSONRPC3(req, options = {}) {
         if (options.touchRuntime !== false) {
           await touchLocalNode3().catch(() => void 0);
         }
-        return makeResult2(id, await callDaemonMCPTool3(req.params));
+        return makeResult2(id, toMCPCallToolResult3(await callDaemonMCPTool3(req.params)));
       case "resources/list":
         return makeResult2(id, { resources: listResources2() });
       case "resources/read":
@@ -34970,7 +34891,7 @@ async function handleDaemonMCPJSONRPC3(req, options = {}) {
     }
   } catch (error) {
     if (isNotification) return void 0;
-    return makeError2(id, -32e3, errorMessage112(error));
+    return makeError2(id, -32e3, errorMessage122(error));
   }
 }
 function listDaemonMCPTools3() {
@@ -35000,10 +34921,36 @@ async function callDaemonMCPTool3(params) {
   if (isProductionEditingMCPToolName2(name)) {
     return unwrapCommandDataWithDebug2(await runMovScriptProductionEditingCommand2(name, args));
   }
-  if (isWorkspaceMCPToolName2(name)) {
-    return unwrapCommandDataWithDebug2(await runMovScriptWorkspaceCommand2(name, args));
-  }
   throw new Error(`unknown daemon MCP tool: ${name ?? "<missing>"}`);
+}
+function toMCPCallToolResult3(value) {
+  const normalized = toMCPJSONValue2(value ?? null);
+  if (isCallToolResultLike3(normalized)) return normalizeCallToolResult3(normalized);
+  const passthroughFields = isRecord38(normalized) ? normalized : {};
+  return {
+    ...passthroughFields,
+    content: [
+      {
+        type: "text",
+        text: renderMarkdown2(value ?? null)
+      }
+    ],
+    structuredContent: normalized,
+    data: normalized
+  };
+}
+function normalizeCallToolResult3(value) {
+  const data = value.data;
+  const structuredContent = value.structuredContent ?? value.structured_content ?? data;
+  const result = {
+    ...value,
+    content: Array.isArray(value.content) ? value.content : []
+  };
+  if (structuredContent !== void 0) result.structuredContent = toMCPJSONValue2(structuredContent);
+  if (value.isError !== void 0) result.isError = toMCPJSONValue2(value.isError);
+  if (value._meta !== void 0) result._meta = toMCPJSONValue2(value._meta);
+  if (data !== void 0) result.data = toMCPJSONValue2(data);
+  return result;
 }
 function commandSpecsToMCPTools3(tools) {
   return tools.flatMap((tool) => {
@@ -35064,7 +35011,13 @@ function stringValue142(value) {
 function isRecord38(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function errorMessage112(error) {
+function isCallToolResultLike3(value) {
+  return isRecord38(value) && (isMCPContentArray3(value.content) || value.structuredContent !== void 0 || value.structured_content !== void 0 || value.isError !== void 0 || value._meta !== void 0);
+}
+function isMCPContentArray3(value) {
+  return Array.isArray(value) && value.every((item) => isRecord38(item) && typeof item.type === "string");
+}
+function errorMessage122(error) {
   return error instanceof Error ? error.message : String(error);
 }
 async function startMCPStdioHost2() {
@@ -35086,7 +35039,7 @@ async function startMCPStdioHost2() {
           writeMessage2(response);
         }
       } catch (error) {
-        writeMessage2(makeError2(null, -32700, "Parse error", errorMessage122(error)));
+        writeMessage2(makeError2(null, -32700, "Parse error", errorMessage13(error)));
       }
     })();
     pending.add(task);
@@ -35127,7 +35080,7 @@ async function handleMCPHostJSONRPC2(req, options = {}) {
     });
   } catch (error) {
     if (isNotification) return void 0;
-    return makeError2(id, -32e3, errorMessage122(error));
+    return makeError2(id, -32e3, errorMessage13(error));
   }
 }
 function shouldProxyToDaemon2(req, options) {
@@ -35171,7 +35124,14 @@ async function proxyMCPHostJSONRPCToDaemon2(req, endpoint, options) {
     throw new Error(`MovScript daemon MCP endpoint ${endpoint} returned HTTP ${response.status}${text ? `: ${text}` : ""}`);
   }
   if (!text.trim()) return void 0;
-  return JSON.parse(text);
+  return normalizeProxiedMCPResponse2(req, JSON.parse(text));
+}
+function normalizeProxiedMCPResponse2(req, response) {
+  if (req.method !== "tools/call" || response.result === void 0 || response.error !== void 0) return response;
+  return {
+    ...response,
+    result: toMCPCallToolResult3(response.result)
+  };
 }
 function runtimeDiscoveredEndpoints22(runtimeHome) {
   const endpoints = {};
@@ -35241,7 +35201,7 @@ function writeMessage2(message) {
   process.stdout.write(`${JSON.stringify(message)}
 `);
 }
-function errorMessage122(error) {
+function errorMessage13(error) {
   return error instanceof Error ? error.message : String(error);
 }
 function registerMCPCommands(program2) {
@@ -35376,7 +35336,7 @@ async function handleDaemonMCPJSONRPC22(req, options = {}) {
         if (options.touchRuntime !== false) {
           await touchLocalNode22().catch(() => void 0);
         }
-        return makeResult2(id, await callDaemonMCPTool22(req.params));
+        return makeResult2(id, toMCPCallToolResult22(await callDaemonMCPTool22(req.params)));
       case "resources/list":
         return makeResult2(id, { resources: listResources2() });
       case "resources/read":
@@ -35387,7 +35347,7 @@ async function handleDaemonMCPJSONRPC22(req, options = {}) {
     }
   } catch (error) {
     if (isNotification) return void 0;
-    return makeError2(id, -32e3, errorMessage13(error));
+    return makeError2(id, -32e3, errorMessage14(error));
   }
 }
 function listDaemonMCPTools22() {
@@ -35417,10 +35377,36 @@ async function callDaemonMCPTool22(params) {
   if (isProductionEditingMCPToolName2(name)) {
     return unwrapCommandDataWithDebug2(await runMovScriptProductionEditingCommand2(name, args));
   }
-  if (isWorkspaceMCPToolName2(name)) {
-    return unwrapCommandDataWithDebug2(await runMovScriptWorkspaceCommand2(name, args));
-  }
   throw new Error(`unknown daemon MCP tool: ${name ?? "<missing>"}`);
+}
+function toMCPCallToolResult22(value) {
+  const normalized = toMCPJSONValue2(value ?? null);
+  if (isCallToolResultLike22(normalized)) return normalizeCallToolResult22(normalized);
+  const passthroughFields = isRecord40(normalized) ? normalized : {};
+  return {
+    ...passthroughFields,
+    content: [
+      {
+        type: "text",
+        text: renderMarkdown2(value ?? null)
+      }
+    ],
+    structuredContent: normalized,
+    data: normalized
+  };
+}
+function normalizeCallToolResult22(value) {
+  const data = value.data;
+  const structuredContent = value.structuredContent ?? value.structured_content ?? data;
+  const result = {
+    ...value,
+    content: Array.isArray(value.content) ? value.content : []
+  };
+  if (structuredContent !== void 0) result.structuredContent = toMCPJSONValue2(structuredContent);
+  if (value.isError !== void 0) result.isError = toMCPJSONValue2(value.isError);
+  if (value._meta !== void 0) result._meta = toMCPJSONValue2(value._meta);
+  if (data !== void 0) result.data = toMCPJSONValue2(data);
+  return result;
 }
 function commandSpecsToMCPTools22(tools) {
   return tools.flatMap((tool) => {
@@ -35481,7 +35467,13 @@ function stringValue162(value) {
 function isRecord40(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function errorMessage13(error) {
+function isCallToolResultLike22(value) {
+  return isRecord40(value) && (isMCPContentArray22(value.content) || value.structuredContent !== void 0 || value.structured_content !== void 0 || value.isError !== void 0 || value._meta !== void 0);
+}
+function isMCPContentArray22(value) {
+  return Array.isArray(value) && value.every((item) => isRecord40(item) && typeof item.type === "string");
+}
+function errorMessage14(error) {
   return error instanceof Error ? error.message : String(error);
 }
 function resolveLocalDaemonServicePlanePaths2(options = {}) {
@@ -37745,7 +37737,7 @@ async function runRuntimeTool(name, argsInput, options, command) {
     }
     return result;
   } catch (error) {
-    printError(errorMessage14(error), options);
+    printError(errorMessage15(error), options);
     process.exitCode = 1;
     return void 0;
   }
@@ -37881,7 +37873,7 @@ function printError(message, _options) {
 function isRecord41(value) {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
-function errorMessage14(error) {
+function errorMessage15(error) {
   return error instanceof Error ? error.message : String(error);
 }
 function registerSystemCommands(program2) {
@@ -37962,7 +37954,7 @@ async function runSystemCommand(spec, options, command) {
       status: "error",
       error: {
         code: "system_command_failed",
-        message: errorMessage15(error)
+        message: errorMessage16(error)
       }
     }, null, 2));
     process.exitCode = 1;
@@ -38165,23 +38157,23 @@ function jsonArg4(value, flag) {
 function compactRecord9(input3) {
   return Object.fromEntries(Object.entries(input3).filter(([, value]) => value !== void 0));
 }
-function errorMessage15(error) {
+function errorMessage16(error) {
   return error instanceof Error ? error.message : String(error);
 }
 function registerWorkspaceCommands(program2) {
-  const workspace = program2.command("workspace").alias("ws").description("Inspect, review, and interpret MovScript project workspaces");
-  workspace.command("get-model <entityType>").description("Return the domain workspace model for one editable entity").option("--entity-id <id>", "Optional entity id used to expand editable path hints").option("--workspace <dir>", "Project workspace Git repository root").option("--cwd <dir>", "Alias for --workspace").option("--project-dir <dir>", "Alias for --workspace").option("--project-uid <uid>", "Project uid used by Project Service backed workspace commands").option("--server <url>", "Project Service or daemon gateway base URL").option("--user <id>", "Workspace user id").option("--json", "Print JSON output").action(async (entityType, options, command) => {
-    await runWorkspaceCommand(workspaceCommandSpec("workspace.get_model"), workspaceArgs(options, command, {
+  const workspace = program2.command("workspace").alias("ws").description("Deprecated aliases for domain project diagnostics");
+  workspace.command("get-model <entityType>").description("Deprecated alias for domain get-model --entity-kind <entityType>").option("--entity-id <id>", "Optional entity id used to expand editable path hints").option("--workspace <dir>", "Project workspace Git repository root").option("--cwd <dir>", "Alias for --workspace").option("--project-dir <dir>", "Alias for --workspace").option("--project-uid <uid>", "Project uid used by Project Service backed workspace commands").option("--server <url>", "Project Service or daemon gateway base URL").option("--user <id>", "Workspace user id").option("--json", "Print JSON output").action(async (entityType, options, command) => {
+    await runWorkspaceCommand(domainCommandSpec("domain.get_model"), workspaceArgs(options, command, {
       entityKind: entityType,
       entityId: options.entityId
     }));
   });
-  workspace.command("review").description("Review current MovScript source files and diagnostics without publishing product state").option("--workspace <dir>", "Project workspace Git repository root").option("--cwd <dir>", "Alias for --workspace").option("--project-dir <dir>", "Alias for --workspace").option("--project-uid <uid>", "Project uid used by Project Service backed workspace commands").option("--server <url>", "Project Service or daemon gateway base URL").option("--user <id>", "Workspace user id").option("--org <id>", "Workspace organization id").option("--commit <ref>", "Compare current source against a specific git commit/ref").option("--json", "Print JSON output").action(async (options, command) => {
-    const execution = await runWorkspaceCommand(workspaceCommandSpec("workspace.review"), workspaceArgs(options, command));
+  workspace.command("review").description("Deprecated alias for domain diagnostics inspect").option("--workspace <dir>", "Project workspace Git repository root").option("--cwd <dir>", "Alias for --workspace").option("--project-dir <dir>", "Alias for --workspace").option("--project-uid <uid>", "Project uid used by Project Service backed workspace commands").option("--server <url>", "Project Service or daemon gateway base URL").option("--user <id>", "Workspace user id").option("--org <id>", "Workspace organization id").option("--commit <ref>", "Compare current source against a specific git commit/ref").option("--json", "Print JSON output").action(async (options, command) => {
+    const execution = await runWorkspaceCommand(domainCommandSpec("domain.diagnostics.inspect"), workspaceArgs(options, command));
     if (isRecord422(execution?.data) && execution.data.readyToInterpret === false) process.exitCode = 2;
   });
-  workspace.command("interpret").description("Validate current MovScript source files and refresh interpreter debug artifacts").option("--workspace <dir>", "Project workspace Git repository root").option("--cwd <dir>", "Alias for --workspace").option("--project-dir <dir>", "Alias for --workspace").option("--project-uid <uid>", "Project uid used by Project Service backed workspace commands").option("--server <url>", "Project Service or daemon gateway base URL").option("--user <id>", "Workspace user id").option("--org <id>", "Workspace organization id").option("--json", "Print JSON output").action(async (options, command) => {
-    const execution = await runWorkspaceCommand(workspaceCommandSpec("workspace.interpret"), workspaceArgs(options, command));
+  workspace.command("interpret").description("Deprecated alias for domain diagnostics interpret").option("--workspace <dir>", "Project workspace Git repository root").option("--cwd <dir>", "Alias for --workspace").option("--project-dir <dir>", "Alias for --workspace").option("--project-uid <uid>", "Project uid used by Project Service backed workspace commands").option("--server <url>", "Project Service or daemon gateway base URL").option("--user <id>", "Workspace user id").option("--org <id>", "Workspace organization id").option("--json", "Print JSON output").action(async (options, command) => {
+    const execution = await runWorkspaceCommand(domainCommandSpec("domain.diagnostics.interpret"), workspaceArgs(options, command));
     if (isRecord422(execution?.data) && execution.data.status === "failed") process.exitCode = 2;
   });
 }
@@ -38197,7 +38189,7 @@ function commandGlobalOptions9(command) {
 }
 async function runWorkspaceCommand(spec, args) {
   try {
-    const execution = await runMovScriptWorkspaceCommand2(spec, args);
+    const execution = await runMovScriptDomainCommand2(spec, args);
     console.log(JSON.stringify(execution, null, 2));
     return execution;
   } catch (error) {
@@ -38205,16 +38197,16 @@ async function runWorkspaceCommand(spec, args) {
       status: "error",
       error: {
         code: "workspace_command_failed",
-        message: errorMessage16(error)
+        message: errorMessage17(error)
       }
     }, null, 2));
     process.exitCode = 1;
     return void 0;
   }
 }
-function workspaceCommandSpec(commandId) {
-  const spec = workspaceCommandById2.get(commandId);
-  if (!spec) throw new Error(`workspace command is not registered: ${commandId}`);
+function domainCommandSpec(commandId) {
+  const spec = domainCommandById2.get(commandId);
+  if (!spec) throw new Error(`domain command is not registered: ${commandId}`);
   return spec;
 }
 function workspaceArgs(options, command, extra = {}) {
@@ -38242,7 +38234,7 @@ function compactRecord10(input3) {
 function isRecord422(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function errorMessage16(error) {
+function errorMessage17(error) {
   return error instanceof Error ? error.message : String(error);
 }
 function createMovScriptCliProgram(name = "movscript") {
@@ -38309,7 +38301,7 @@ function isDirectMovScriptCliInvocation() {
   if (["movscript", "movscript.cmd", "movscript.mjs"].includes(invokedName)) return true;
   return invokedName === "index.cjs" || invokedName === "index.js" || invokedName === "index.ts";
 }
-var BackendHTTPError2, MOVSCRIPT_DEFAULT_HOME_DIR_NAME2, MOVSCRIPT_RUNTIME_DIR_NAME2, MOVSCRIPT_RUNTIME_APPS_DIR_NAME2, MOVSCRIPT_RUNTIME_SERVICES_DIR_NAME2, MOVSCRIPT_RUNTIME_ENDPOINTS_DIR_NAME2, MOVSCRIPT_APPLICATION_MANIFEST_SCHEMA2, MOVSCRIPT_PROGRAM_MANIFEST_SCHEMA2, MOVSCRIPT_SCENARIO_POLICY_SCHEMA2, MOVSCRIPT_RUNTIME_BUNDLE_MANIFEST_SCHEMA2, MOVSCRIPT_RUNTIME_API_VERSION2, MOVSCRIPT_RUNTIME_BUNDLE_HASH_ALGORITHM2, MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME3, MOVSCRIPT_WORKSPACE_CONFIG_TOML_FILE_NAME2, MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA3, MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME3, MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME2, MOVSCRIPT_WORKSPACE_BIN_DIR_NAME2, MOVSCRIPT_WORKSPACE_REALMS_DIR_NAME2, MOVSCRIPT_WORKSPACE_LOGS_DIR_NAME2, MOVSCRIPT_BACKEND_CONFIG_SCHEMA2, MOVSCRIPT_BACKEND_AUTH_SCHEMA2, MOVSCRIPT_BACKEND_CONFIG_FILE_NAME2, MOVSCRIPT_BACKEND_AUTH_FILE_NAME2, MOVSCRIPT_DEFAULT_BACKEND_BASE_URL2, workspaceLocator3, contentCandidateStatuses2, entityQuery2, inspectOptions2, projectLocator3, editingProjectInput2, projectLocator22, productionLocator2, workspaceLocator22, GENERATION_CAPABILITIES2, MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME22, MOVSCRIPT_WORKSPACE_CONFIG_TOML_FILE_NAME22, MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA22, MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME22, MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME22, MOVSCRIPT_WORKSPACE_BIN_DIR_NAME22, MOVSCRIPT_WORKSPACE_REALMS_DIR_NAME22, MOVSCRIPT_WORKSPACE_LOGS_DIR_NAME22, BackendHTTPError22, MOVSCRIPT_BACKEND_CONFIG_SCHEMA22, MOVSCRIPT_BACKEND_AUTH_SCHEMA22, MOVSCRIPT_BACKEND_CONFIG_FILE_NAME22, MOVSCRIPT_BACKEND_AUTH_FILE_NAME22, MOVSCRIPT_DEFAULT_BACKEND_BASE_URL22, MOVSCRIPT_TIMELINE_NAMESPACE_ENTITY_KINDS2, MOVSCRIPT_SETTING_NAMESPACE_ENTITY_KINDS2, MOVSCRIPT_SYSTEM_PRIMITIVE_KINDS2, TIMELINE_NAMESPACE_KINDS2, SETTING_NAMESPACE_KINDS2, SYSTEM_PRIMITIVE_KINDS2, MOVSCRIPT_SPECIALIZED_CONTENT_UNIT_TYPES2, CONTENT_UNIT_TARGET_ADAPTERS2, PROMPT_REF_KINDS2, MOVSCRIPT_EXPRESSION_UNIT_SLOT_KINDS2, SLOT_KIND_SET2, MOVSCRIPT_DOMAIN_PATH_SEMANTICS2, MOVSCRIPT_PRODUCTION_TYPE_TEMPLATES2, MOVSCRIPT_TIMELINE_NAMESPACE_TEMPLATES2, MOVSCRIPT_TIMELINE_NAMESPACE_TEMPLATE_STRATEGIES2, MOVSCRIPT_NAMESPACE_FORBIDDEN_CONTENT_UNIT_FIELDS2, MOVSCRIPT_NAMESPACE_FORBIDDEN_PRODUCTION_STATE_FIELDS2, ENTITY_KIND_FALLBACK_PREFIXES2, AGENT_SURFACE_ROUTES2, MOVSCRIPT_INTERPRET_CURRENT_DIR2, MOVSCRIPT_INTERPRET_MANIFESTS_DIR2, MOVSCRIPT_DOMAIN_TREE_PATH2, MOVSCRIPT_EDITOR_STATE_PATH2, MOVSCRIPT_DOMAIN_INDEX_PATH2, MOVSCRIPT_ASSET_INDEX_PATH2, MOVSCRIPT_RELATION_GRAPH_PATH2, MOVSCRIPT_SOURCE_COLLECTION_DIRS3, MOVSCRIPT_SOURCE_ROOT_FILES3, MOVSCRIPT_SOURCE_ENTITY_FILES2, WORKSPACE_ENTITY_KIND2, MOVSCRIPT_DOMAIN_WORKSPACE_MODELS2, ENTITY_WORKSPACE_KIND2, schemaEntityKinds2, RESOURCE_MENTION_RE2, RESOURCE_MEDIA_TYPES2, DEFAULT_SELECTION_FIELD2, CANDIDATE_SCHEMA2, assetPath2, PROMPT_REF_PATTERN4, MOVSCRIPT_PROJECT_STANDARD_SKILL_PATHS2, MOVSCRIPT_GITIGNORE_PATH2, MOVSCRIPT_INTERPRET_GITIGNORE_ENTRY2, MOVSCRIPT_LOCAL_CONTROL_GITIGNORE_ENTRY2, MOVSCRIPT_INTERPRET_GITIGNORE_BLOCK2, IMAGE_REFERENCE_ROLES2, VIDEO_REFERENCE_ROLES2, AUDIO_REFERENCE_ROLES2, DEFAULT_GENERATION_TOOLS_SETTINGS2, defaultFetch3, PROJECT_SERVICE_NAME3, PROJECT_SERVICE_CAPABILITIES_ENDPOINT2, PROJECT_SERVICE_SOURCE_SNAPSHOT_ENDPOINT2, PROJECT_SERVICE_SOURCE_INSPECT_ENDPOINT2, PROJECT_SERVICE_SOURCE_OVERVIEW_ENDPOINT2, PROJECT_SERVICE_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_HOME_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_CONTENT_CANVAS_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_SCRIPTS_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNITS_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_LOCATOR_RESOLVE_ENDPOINT2, PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT2, PROJECT_SERVICE_LIFECYCLE_COMMAND_ENDPOINT2, PROJECT_SERVICE_SOURCE_INTERPRET_ENDPOINT2, PROJECT_SERVICE_SOURCE_REGENERATION_PLAN_ENDPOINT2, PROJECT_SERVICE_SOURCE_PRODUCTION_WORK_PLAN_ENDPOINT2, PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT2, PROJECT_SERVICE_ENTITIES_QUERY_ENDPOINT2, PROJECT_SERVICE_SETTINGS_QUERY_ENDPOINT2, PROJECT_SERVICE_ASSETS_QUERY_ENDPOINT2, PROJECT_SERVICE_CONTENT_WORKSPACE_SNAPSHOT_ENDPOINT2, PROJECT_SERVICE_CONTENT_WORKSPACE_READ_ENDPOINT2, PROJECT_SERVICE_STANDARDS_UPSERT_ENDPOINT2, PROJECT_SERVICE_SCRIPT_SOURCE_READ_ENDPOINT2, PROJECT_SERVICE_SCRIPT_UPSERT_ENDPOINT2, PROJECT_SERVICE_SCRIPT_VERSION_SNAPSHOT_ENDPOINT2, PROJECT_SERVICE_SETTING_UPSERT_ENDPOINT2, PROJECT_SERVICE_SETTING_CREATE_ENDPOINT2, PROJECT_SERVICE_SETTING_STATE_CREATE_ENDPOINT2, PROJECT_SERVICE_ASSET_UPSERT_ENDPOINT2, PROJECT_SERVICE_ASSET_CREATE_ENDPOINT2, PROJECT_SERVICE_ASSET_PROVIDER_CERTIFICATION_PATCH_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_UPSERT_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_CREATE_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_ENSURE_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_LIST_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_CREATE_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_OPEN_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_DELETE_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_EDITING_RESOURCES_REFRESH_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_EDIT_PROMPT_UPDATE_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_CREATE_ENDPOINT2, PROJECT_SERVICE_SEGMENT_CREATE_ENDPOINT2, PROJECT_SERVICE_SCENE_MOMENT_CREATE_ENDPOINT2, PROJECT_SERVICE_EXPRESSION_UNIT_CREATE_ENDPOINT2, PROJECT_SERVICE_KEYFRAME_CREATE_ENDPOINT2, PROJECT_SERVICE_STORYBOARD_CREATE_ENDPOINT2, PROJECT_SERVICE_STORYBOARD_TIMELINE_UPDATE_ENDPOINT2, PROJECT_SERVICE_AUDIO_CUE_CREATE_ENDPOINT2, PROJECT_SERVICE_ENTITY_TRANSITION_UPDATE_ENDPOINT2, PROJECT_SERVICE_ENTITY_DELETE_ENDPOINT2, PROJECT_SERVICE_HIERARCHY_WRITE_ENDPOINT2, PROJECT_SERVICE_NAMESPACE_WRITE_ENDPOINT2, PROJECT_SERVICE_WORKSPACE_CANDIDATE_SELECT_ENDPOINT2, PROJECT_SERVICE_WORKSPACE_CANDIDATE_APPEND_ENDPOINT2, PROJECT_SERVICE_WORKSPACE_ASSET_SLOT_CANDIDATE_CREATE_ENDPOINT2, PROJECT_SERVICE_WORKSPACE_KEYFRAME_CANDIDATE_CREATE_ENDPOINT2, PROJECT_SERVICE_CONTENT_CANDIDATE_CREATE_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_SELECT_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT2, PROJECT_SERVICE_CANDIDATE_COMMAND_ENDPOINT2, PROJECT_SERVICE_CANDIDATE_VIEW_ENDPOINT2, PROJECT_SERVICE_PROMPT_CONTEXT_ENDPOINT2, ProjectServiceClient2, ProjectServiceHTTPError2, defaultFetch22, EDITING_SERVICE_NAME3, EDITING_SERVICE_CAPABILITIES_ENDPOINT2, EDITING_SERVICE_PROJECT_COMMAND_ENDPOINT2, EDITING_SERVICE_TIMELINE_VIEW_ENDPOINT2, EDITING_SERVICE_TASK_REQUEST_ENDPOINT2, EDITING_SERVICE_TASK_ACTION_ENDPOINT2, MEDIA_PIPELINE_SERVICE_NAME3, MEDIA_PIPELINE_CAPABILITIES_ENDPOINT2, MEDIA_PIPELINE_PROBE_ENDPOINT2, MEDIA_PIPELINE_TASK_CREATE_ENDPOINT2, MEDIA_PIPELINE_TASK_ACTION_ENDPOINT2, MEDIA_PIPELINE_RESULT_REGISTER_ENDPOINT2, MEDIA_PIPELINE_RESULT_GET_ENDPOINT2, MEDIA_PIPELINE_RESULT_LIST_ENDPOINT2, MEDIA_PIPELINE_RESULT_WATCH_CREATE_ENDPOINT2, MEDIA_PIPELINE_RESULT_WATCH_GET_ENDPOINT2, MEDIA_PIPELINE_RESULT_WATCH_LIST_ENDPOINT2, MEDIA_PIPELINE_RESULT_WATCH_CANCEL_ENDPOINT2, EditingServiceClient2, MediaPipelineServiceClient2, EditingServiceHTTPError2, MediaPipelineServiceHTTPError2, execFileAsync2, MOVSCRIPT_GIT_SOURCE_PATHS2, PROMPT_REF_PATTERN22, CONTENT_UNIT_ADAPTERS2, INTERPRETER_VERSION2, MOVSCRIPT_CHECKPOINT_DIR2, MOVSCRIPT_CHECKPOINT_CURRENT_SOURCE_DIR2, MOVSCRIPT_CHECKPOINT_CURRENT_MANIFEST_PATH2, FIELD_SEMANTIC_RULES2, sourceRefSchema2, transitionSchema2, projectEntitySchema2, projectStandardsEntitySchema2, settingEntitySchema2, settingStateEntitySchema2, assetEntitySchema2, scriptEntitySchema2, scriptVersionEntitySchema2, scriptBlockEntitySchema2, productionEntitySchema2, segmentEntitySchema2, sceneMomentEntitySchema2, storyboardEntitySchema2, audioCueEntitySchema2, expressionUnitEntitySchema2, contentUnitEntitySchema2, keyframeEntitySchema2, SEMANTIC_ENTITY_SCHEMA_REGISTRY2, SEMANTIC_ENTITY_SCHEMA_IDS2, SEMANTIC_ENTITY_KIND_VALUES2, PROMPT_REF_PATTERN32, NodeMovScriptEngineRegistry2, contextSnapshot2, contextAuthToken2, persistContextAuth2, movScriptDomainEngineRegistry2, configuredMCPDefaultWorkspaceDir2, ensuredProjectBindings2, ENSURED_PROJECT_BINDING_LIMIT2, RESOURCE_AGENT_ROUTES2, CONTENT_CANDIDATE_STATUSES2, TIMELINE_PRIMITIVE_SPECS2, focusResourceReaders2, projectResourceReaders2, DEFAULT_SCENE_THRESHOLD2, DEFAULT_MIN_SHOT_DURATION_SEC2, DEFAULT_MAX_SHOT_DURATION_SEC2, DEFAULT_TARGET_SHOT_DURATION_SEC2, DEFAULT_MAX_VIDEO_BYTES3, ABSOLUTE_MAX_VIDEO_BYTES3, shotLibraryResourceReaders2, resourceLibraryResourceReaders2, DEFAULT_MAX_IMAGE_BYTES2, ABSOLUTE_MAX_IMAGE_BYTES2, DEFAULT_MAX_IMAGE_WIDTH2, DEFAULT_MAX_IMAGE_HEIGHT2, ABSOLUTE_MAX_IMAGE_DIMENSION2, DEFAULT_MAX_UPLOAD_BYTES2, ABSOLUTE_MAX_UPLOAD_BYTES2, DEFAULT_MAX_VIDEO_BYTES22, ABSOLUTE_MAX_VIDEO_BYTES22, DEFAULT_VIDEO_FRAME_COUNT2, DEFAULT_VIDEO_FRAME_INTERVAL_SEC2, DEFAULT_MAX_WIDTH2, DEFAULT_MAX_FRAMES2, ABSOLUTE_MAX_VIDEO_FRAMES2, DEFAULT_RANGE_FPS2, MAX_FPS2, DEFAULT_BURST_WINDOW_SEC2, DEFAULT_ANNOTATION_WIDTH2, DEFAULT_ANNOTATION_HEIGHT2, resourceMediaResourceReaders2, externalResourceReaders2, resourceReaders2, currentEditingRuntimePort2, STANDALONE_EDITING_PROJECT_ID2, LOCATOR_KEYS2, generationCapabilities2, TERMINAL_STATUSES2, SUCCESS_STATUSES2, MCP_DEBUG3, MCP_DEBUG22, ApplicationRunner2, LOCAL_RUNTIME_DAEMON_APP_ID2, LOCAL_RUNTIME_DAEMON_CONTROL_SERVICE2, LOCAL_RUNTIME_DAEMON_GATEWAY_SERVICE2, REQUIRED_LOCAL_RUNTIME_DAEMON_SERVICES2, LOCAL_DATA_SERVICE2, LOCAL_RUNTIME_LOG_DIR_NAME2, LOCAL_RUNTIME_DAEMON_LOG_FILE2, DEFAULT_LOCAL_RUNTIME_LOG_MAX_BYTES2, DEFAULT_LOCAL_RUNTIME_LOG_RETAIN2, MOVSCRIPT_SOURCE_COLLECTION_DIRS22, MOVSCRIPT_SOURCE_ROOT_FILES22, LOCAL_NODE_GATEWAY_SERVICE5, LOCAL_NODE_CONTROL_SERVICE5, DEFAULT_LOCAL_BACKEND2, DATA_SERVICE3, PROJECT_SERVICE3, EDITING_SERVICE3, LOCAL_SURFACE_HOST_SERVICE3, MEDIA_PIPELINE_SERVICE3, RUNTIME_GATEWAY_SERVICE3, CLOUD_RUNTIME_GATEWAY_SERVICE3, EXTERNAL_RUNTIME_GATEWAY_SERVICE3, COMMAND_RUNNER_SERVICE2, runtimeCommandSpecs2, contextCommandSpecs2, adminCommandSpecs2, systemCommandSpecs2, domainCommandSpecs2, editingCommandSpecs2, productionEditingCommandSpecs2, workspaceCommandSpecs2, runtimeCommandByMCPToolName2, runtimeCommandById2, contextCommandByMCPToolName2, contextCommandById2, adminCommandByMCPToolName2, adminCommandById2, systemCommandByMCPToolName2, systemCommandById2, domainCommandByMCPToolName2, domainCommandById2, editingCommandByMCPToolName2, editingCommandById2, productionEditingCommandByMCPToolName2, productionEditingCommandById2, workspaceCommandByMCPToolName2, workspaceCommandById2, bindAdminBackendRuntime2, SEMANTIC_ENTITY_KINDS2, CONTENT_UNIT_OUTPUT_KINDS, INTERACTIVE_PROMPT, LOCAL_NODE_CONTROL_SERVICE23, adminTools3, contextTools22, domainTools22, editingTools22, productionEditingTools22, runtimeTools3, systemTools3, workspaceTools3, daemonMCPCommandTools3, daemonMCPRuntimeBootstrapToolNames3, daemonMCPRuntimeBootstrapTools3, MCP_HOST_DEBUG2, MCP_PROXY_TIMEOUT_MS2, LOCAL_NODE_CONTROL_SERVICE32, LOCAL_NODE_GATEWAY_SERVICE22, RUNTIME_GATEWAY_SERVICE22, CLOUD_RUNTIME_GATEWAY_SERVICE22, EXTERNAL_RUNTIME_GATEWAY_SERVICE22, DATA_SERVICE22, PROJECT_SERVICE22, EDITING_SERVICE22, LOCAL_SURFACE_HOST_SERVICE22, MEDIA_PIPELINE_SERVICE22, runtimeBootstrapToolNames2, runtimeBootstrapTools2, MCP_HOST_HTTP_DEBUG, LOCAL_NODE_CONTROL_SERVICE42, adminTools22, contextTools32, domainTools32, editingTools32, productionEditingTools32, runtimeTools22, systemTools22, workspaceTools22, daemonMCPCommandTools22, daemonMCPRuntimeBootstrapToolNames22, daemonMCPRuntimeBootstrapTools22, MEDIA_PIPELINE_SERVICE_NAME22, LOCAL_NODE_APP_ID2, LOCAL_NODE_CONTROL_SERVICE222, LOCAL_NODE_GATEWAY_SERVICE32, PROJECT_SERVICE_NAME22, EDITING_SERVICE_NAME22, CANVAS_SERVICE_NAME3, DATA_SERVICE_NAME3, DEFAULT_LOCAL_NODE_GATEWAY_PORT2, RUNTIME_ENDPOINT_WAIT_TIMEOUT_MS2, RUNTIME_ENDPOINT_WAIT_INTERVAL_MS2, DAEMON_RUNTIME_DESCRIPTOR_ENDPOINT2, DAEMON_RUNTIME_STATUS_ENDPOINT2, DAEMON_RUNTIME_DIAGNOSTICS_ENDPOINT2, DAEMON_RUNTIME_CONFIGURE_ENDPOINT2, DAEMON_MCP_ENDPOINT2, DAEMON_MCP_HEALTH_ENDPOINT2, LEGACY_MCP_ENDPOINT2, DAEMON_CONTEXT_ENDPOINT2, DAEMON_CONTEXT_SESSIONS_ENDPOINT2, REMOTION_STUDIO_SESSIONS_ENDPOINT2, REMOTION_STUDIO_SESSION_OPEN_ENDPOINT2, REMOTION_STUDIO_SESSION_GET_ENDPOINT2, REMOTION_STUDIO_SESSION_LOGS_ENDPOINT2, REMOTION_STUDIO_SESSION_STOP_ENDPOINT2, LOCAL_PROJECT_SERVICE_PROXY_PREFIX2, LOCAL_PROJECT_SERVICE_ALIAS_PREFIX2, LOCAL_PROJECT_SERVICE_PROXY_ROUTES2, daemonContextSessions2, remotionStudioSessions2, nextRemotionStudioLogCursor2, localNodeApplicationManifest2, localNodeStartupPolicy2, localNodeCloudDataStartupPolicy2, dataServiceProgramManifest2, localNodeControlProgramManifest2, projectServiceProgramManifest2, editingServiceProgramManifest2, canvasServiceProgramManifest2, localSurfaceHostProgramManifest2, mediaPipelineProgramManifest2;
+var BackendHTTPError2, BackendNetworkError2, MOVSCRIPT_DEFAULT_HOME_DIR_NAME2, MOVSCRIPT_RUNTIME_DIR_NAME2, MOVSCRIPT_RUNTIME_APPS_DIR_NAME2, MOVSCRIPT_RUNTIME_SERVICES_DIR_NAME2, MOVSCRIPT_RUNTIME_ENDPOINTS_DIR_NAME2, MOVSCRIPT_APPLICATION_MANIFEST_SCHEMA2, MOVSCRIPT_PROGRAM_MANIFEST_SCHEMA2, MOVSCRIPT_SCENARIO_POLICY_SCHEMA2, MOVSCRIPT_RUNTIME_BUNDLE_MANIFEST_SCHEMA2, MOVSCRIPT_RUNTIME_API_VERSION2, MOVSCRIPT_RUNTIME_BUNDLE_HASH_ALGORITHM2, MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME3, MOVSCRIPT_WORKSPACE_CONFIG_TOML_FILE_NAME2, MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA3, MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME3, MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME2, MOVSCRIPT_WORKSPACE_BIN_DIR_NAME2, MOVSCRIPT_WORKSPACE_REALMS_DIR_NAME2, MOVSCRIPT_WORKSPACE_LOGS_DIR_NAME2, MOVSCRIPT_BACKEND_CONFIG_SCHEMA2, MOVSCRIPT_BACKEND_AUTH_SCHEMA2, MOVSCRIPT_BACKEND_CONFIG_FILE_NAME2, MOVSCRIPT_BACKEND_AUTH_FILE_NAME2, MOVSCRIPT_DEFAULT_BACKEND_BASE_URL2, workspaceLocator3, contentCandidateStatuses2, entityQuery2, inspectOptions2, projectLocator3, editingProjectInput2, projectLocator22, productionLocator2, workspaceLocator22, GENERATION_CAPABILITIES2, MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME22, MOVSCRIPT_WORKSPACE_CONFIG_TOML_FILE_NAME22, MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA22, MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME22, MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME22, MOVSCRIPT_WORKSPACE_BIN_DIR_NAME22, MOVSCRIPT_WORKSPACE_REALMS_DIR_NAME22, MOVSCRIPT_WORKSPACE_LOGS_DIR_NAME22, BackendHTTPError22, BackendNetworkError22, MOVSCRIPT_BACKEND_CONFIG_SCHEMA22, MOVSCRIPT_BACKEND_AUTH_SCHEMA22, MOVSCRIPT_BACKEND_CONFIG_FILE_NAME22, MOVSCRIPT_BACKEND_AUTH_FILE_NAME22, MOVSCRIPT_DEFAULT_BACKEND_BASE_URL22, MOVSCRIPT_TIMELINE_NAMESPACE_ENTITY_KINDS2, MOVSCRIPT_SETTING_NAMESPACE_ENTITY_KINDS2, MOVSCRIPT_SYSTEM_PRIMITIVE_KINDS2, TIMELINE_NAMESPACE_KINDS2, SETTING_NAMESPACE_KINDS2, SYSTEM_PRIMITIVE_KINDS2, MOVSCRIPT_SPECIALIZED_CONTENT_UNIT_TYPES2, CONTENT_UNIT_TARGET_ADAPTERS2, PROMPT_REF_KINDS2, MOVSCRIPT_EXPRESSION_UNIT_SLOT_KINDS2, SLOT_KIND_SET2, MOVSCRIPT_DOMAIN_PATH_SEMANTICS2, MOVSCRIPT_PRODUCTION_TYPE_TEMPLATES2, MOVSCRIPT_TIMELINE_NAMESPACE_TEMPLATES2, MOVSCRIPT_TIMELINE_NAMESPACE_TEMPLATE_STRATEGIES2, MOVSCRIPT_NAMESPACE_FORBIDDEN_CONTENT_UNIT_FIELDS2, MOVSCRIPT_NAMESPACE_FORBIDDEN_PRODUCTION_STATE_FIELDS2, ENTITY_KIND_FALLBACK_PREFIXES2, AGENT_SURFACE_ROUTES2, MOVSCRIPT_INTERPRET_CURRENT_DIR2, MOVSCRIPT_INTERPRET_MANIFESTS_DIR2, MOVSCRIPT_DOMAIN_TREE_PATH2, MOVSCRIPT_EDITOR_STATE_PATH2, MOVSCRIPT_DOMAIN_INDEX_PATH2, MOVSCRIPT_ASSET_INDEX_PATH2, MOVSCRIPT_RELATION_GRAPH_PATH2, MOVSCRIPT_SOURCE_COLLECTION_DIRS3, MOVSCRIPT_SOURCE_ROOT_FILES3, MOVSCRIPT_SOURCE_ENTITY_FILES2, WORKSPACE_ENTITY_KIND2, MOVSCRIPT_DOMAIN_WORKSPACE_MODELS2, ENTITY_WORKSPACE_KIND2, schemaEntityKinds2, RESOURCE_MENTION_RE2, RESOURCE_MEDIA_TYPES2, DEFAULT_SELECTION_FIELD2, CANDIDATE_SCHEMA2, assetPath2, PROMPT_REF_PATTERN4, MOVSCRIPT_PROJECT_STANDARD_SKILL_PATHS2, MOVSCRIPT_GITIGNORE_PATH2, MOVSCRIPT_INTERPRET_GITIGNORE_ENTRY2, MOVSCRIPT_LOCAL_CONTROL_GITIGNORE_ENTRY2, MOVSCRIPT_INTERPRET_GITIGNORE_BLOCK2, IMAGE_REFERENCE_ROLES2, VIDEO_REFERENCE_ROLES2, AUDIO_REFERENCE_ROLES2, DEFAULT_GENERATION_TOOLS_SETTINGS2, defaultFetch3, PROJECT_SERVICE_NAME3, PROJECT_SERVICE_CAPABILITIES_ENDPOINT2, PROJECT_SERVICE_SOURCE_SNAPSHOT_ENDPOINT2, PROJECT_SERVICE_SOURCE_INSPECT_ENDPOINT2, PROJECT_SERVICE_SOURCE_OVERVIEW_ENDPOINT2, PROJECT_SERVICE_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_HOME_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_STANDARDS_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_CONTENT_CANVAS_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_SCRIPTS_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNITS_READ_MODEL_ENDPOINT2, PROJECT_SERVICE_LOCATOR_RESOLVE_ENDPOINT2, PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT2, PROJECT_SERVICE_LIFECYCLE_COMMAND_ENDPOINT2, PROJECT_SERVICE_SOURCE_INTERPRET_ENDPOINT2, PROJECT_SERVICE_SOURCE_REGENERATION_PLAN_ENDPOINT2, PROJECT_SERVICE_SOURCE_PRODUCTION_WORK_PLAN_ENDPOINT2, PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT2, PROJECT_SERVICE_ENTITIES_QUERY_ENDPOINT2, PROJECT_SERVICE_SETTINGS_QUERY_ENDPOINT2, PROJECT_SERVICE_ASSETS_QUERY_ENDPOINT2, PROJECT_SERVICE_CONTENT_WORKSPACE_SNAPSHOT_ENDPOINT2, PROJECT_SERVICE_CONTENT_WORKSPACE_READ_ENDPOINT2, PROJECT_SERVICE_STANDARDS_UPSERT_ENDPOINT2, PROJECT_SERVICE_SCRIPT_SOURCE_READ_ENDPOINT2, PROJECT_SERVICE_SCRIPT_UPSERT_ENDPOINT2, PROJECT_SERVICE_SCRIPT_VERSION_SNAPSHOT_ENDPOINT2, PROJECT_SERVICE_SETTING_UPSERT_ENDPOINT2, PROJECT_SERVICE_SETTING_CREATE_ENDPOINT2, PROJECT_SERVICE_SETTING_STATE_CREATE_ENDPOINT2, PROJECT_SERVICE_ASSET_UPSERT_ENDPOINT2, PROJECT_SERVICE_ASSET_CREATE_ENDPOINT2, PROJECT_SERVICE_ASSET_PROVIDER_CERTIFICATION_PATCH_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_UPSERT_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_CREATE_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_ENSURE_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_LIST_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_CREATE_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_OPEN_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_EDITING_WORKSPACES_DELETE_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_EDITING_RESOURCES_REFRESH_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_EDIT_PROMPT_UPDATE_ENDPOINT2, PROJECT_SERVICE_PRODUCTION_CREATE_ENDPOINT2, PROJECT_SERVICE_SEGMENT_CREATE_ENDPOINT2, PROJECT_SERVICE_SCENE_MOMENT_CREATE_ENDPOINT2, PROJECT_SERVICE_EXPRESSION_UNIT_CREATE_ENDPOINT2, PROJECT_SERVICE_KEYFRAME_CREATE_ENDPOINT2, PROJECT_SERVICE_STORYBOARD_CREATE_ENDPOINT2, PROJECT_SERVICE_STORYBOARD_TIMELINE_UPDATE_ENDPOINT2, PROJECT_SERVICE_AUDIO_CUE_CREATE_ENDPOINT2, PROJECT_SERVICE_ENTITY_TRANSITION_UPDATE_ENDPOINT2, PROJECT_SERVICE_ENTITY_DELETE_ENDPOINT2, PROJECT_SERVICE_HIERARCHY_WRITE_ENDPOINT2, PROJECT_SERVICE_NAMESPACE_WRITE_ENDPOINT2, PROJECT_SERVICE_WORKSPACE_CANDIDATE_SELECT_ENDPOINT2, PROJECT_SERVICE_WORKSPACE_CANDIDATE_APPEND_ENDPOINT2, PROJECT_SERVICE_WORKSPACE_ASSET_SLOT_CANDIDATE_CREATE_ENDPOINT2, PROJECT_SERVICE_WORKSPACE_KEYFRAME_CANDIDATE_CREATE_ENDPOINT2, PROJECT_SERVICE_CONTENT_CANDIDATE_CREATE_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_SELECT_ENDPOINT2, PROJECT_SERVICE_CONTENT_UNIT_CANDIDATE_DECIDE_ENDPOINT2, PROJECT_SERVICE_CANDIDATE_COMMAND_ENDPOINT2, PROJECT_SERVICE_CANDIDATE_VIEW_ENDPOINT2, PROJECT_SERVICE_PROMPT_CONTEXT_ENDPOINT2, ProjectServiceClient2, ProjectServiceHTTPError2, defaultFetch22, EDITING_SERVICE_NAME3, EDITING_SERVICE_CAPABILITIES_ENDPOINT2, EDITING_SERVICE_PROJECT_COMMAND_ENDPOINT2, EDITING_SERVICE_TIMELINE_VIEW_ENDPOINT2, EDITING_SERVICE_TASK_REQUEST_ENDPOINT2, EDITING_SERVICE_TASK_ACTION_ENDPOINT2, MEDIA_PIPELINE_SERVICE_NAME3, MEDIA_PIPELINE_CAPABILITIES_ENDPOINT2, MEDIA_PIPELINE_PROBE_ENDPOINT2, MEDIA_PIPELINE_TASK_CREATE_ENDPOINT2, MEDIA_PIPELINE_TASK_ACTION_ENDPOINT2, MEDIA_PIPELINE_RESULT_REGISTER_ENDPOINT2, MEDIA_PIPELINE_RESULT_GET_ENDPOINT2, MEDIA_PIPELINE_RESULT_LIST_ENDPOINT2, MEDIA_PIPELINE_RESULT_WATCH_CREATE_ENDPOINT2, MEDIA_PIPELINE_RESULT_WATCH_GET_ENDPOINT2, MEDIA_PIPELINE_RESULT_WATCH_LIST_ENDPOINT2, MEDIA_PIPELINE_RESULT_WATCH_CANCEL_ENDPOINT2, EditingServiceClient2, MediaPipelineServiceClient2, EditingServiceHTTPError2, MediaPipelineServiceHTTPError2, execFileAsync2, MOVSCRIPT_GIT_SOURCE_PATHS2, PROMPT_REF_PATTERN22, CONTENT_UNIT_ADAPTERS2, INTERPRETER_VERSION2, MOVSCRIPT_CHECKPOINT_DIR2, MOVSCRIPT_CHECKPOINT_CURRENT_SOURCE_DIR2, MOVSCRIPT_CHECKPOINT_CURRENT_MANIFEST_PATH2, FIELD_SEMANTIC_RULES2, sourceRefSchema2, transitionSchema2, projectEntitySchema2, projectStandardsEntitySchema2, settingEntitySchema2, settingStateEntitySchema2, assetEntitySchema2, scriptEntitySchema2, scriptVersionEntitySchema2, scriptBlockEntitySchema2, productionEntitySchema2, segmentEntitySchema2, sceneMomentEntitySchema2, storyboardEntitySchema2, audioCueEntitySchema2, expressionUnitEntitySchema2, contentUnitEntitySchema2, keyframeEntitySchema2, SEMANTIC_ENTITY_SCHEMA_REGISTRY2, SEMANTIC_ENTITY_SCHEMA_IDS2, SEMANTIC_ENTITY_KIND_VALUES2, PROMPT_REF_PATTERN32, NodeMovScriptEngineRegistry2, contextSnapshot2, contextAuthToken2, persistContextAuth2, movScriptDomainEngineRegistry2, configuredMCPDefaultWorkspaceDir2, ensuredProjectBindings2, ENSURED_PROJECT_BINDING_LIMIT2, RESOURCE_AGENT_ROUTES2, CONTENT_CANDIDATE_STATUSES2, TIMELINE_PRIMITIVE_SPECS2, focusResourceReaders2, projectResourceReaders2, DEFAULT_SCENE_THRESHOLD2, DEFAULT_MIN_SHOT_DURATION_SEC2, DEFAULT_MAX_SHOT_DURATION_SEC2, DEFAULT_TARGET_SHOT_DURATION_SEC2, DEFAULT_MAX_VIDEO_BYTES3, ABSOLUTE_MAX_VIDEO_BYTES3, shotLibraryResourceReaders2, resourceLibraryResourceReaders2, DEFAULT_MAX_IMAGE_BYTES2, ABSOLUTE_MAX_IMAGE_BYTES2, DEFAULT_MAX_IMAGE_WIDTH2, DEFAULT_MAX_IMAGE_HEIGHT2, ABSOLUTE_MAX_IMAGE_DIMENSION2, DEFAULT_MAX_UPLOAD_BYTES2, ABSOLUTE_MAX_UPLOAD_BYTES2, DEFAULT_MAX_VIDEO_BYTES22, ABSOLUTE_MAX_VIDEO_BYTES22, DEFAULT_VIDEO_FRAME_COUNT2, DEFAULT_VIDEO_FRAME_INTERVAL_SEC2, DEFAULT_MAX_WIDTH2, DEFAULT_MAX_FRAMES2, ABSOLUTE_MAX_VIDEO_FRAMES2, DEFAULT_RANGE_FPS2, MAX_FPS2, DEFAULT_BURST_WINDOW_SEC2, DEFAULT_ANNOTATION_WIDTH2, DEFAULT_ANNOTATION_HEIGHT2, resourceMediaResourceReaders2, externalResourceReaders2, resourceReaders2, currentEditingRuntimePort2, STANDALONE_EDITING_PROJECT_ID2, LOCATOR_KEYS2, generationCapabilities2, TERMINAL_STATUSES2, SUCCESS_STATUSES2, MCP_DEBUG3, MCP_DEBUG22, ApplicationRunner2, LOCAL_RUNTIME_DAEMON_APP_ID2, LOCAL_RUNTIME_DAEMON_CONTROL_SERVICE2, LOCAL_RUNTIME_DAEMON_GATEWAY_SERVICE2, REQUIRED_LOCAL_RUNTIME_DAEMON_SERVICES2, LOCAL_DATA_SERVICE2, LOCAL_RUNTIME_LOG_DIR_NAME2, LOCAL_RUNTIME_DAEMON_LOG_FILE2, DEFAULT_LOCAL_RUNTIME_LOG_MAX_BYTES2, DEFAULT_LOCAL_RUNTIME_LOG_RETAIN2, MOVSCRIPT_SOURCE_COLLECTION_DIRS22, MOVSCRIPT_SOURCE_ROOT_FILES22, LOCAL_NODE_GATEWAY_SERVICE5, LOCAL_NODE_CONTROL_SERVICE5, DEFAULT_LOCAL_BACKEND2, DATA_SERVICE3, PROJECT_SERVICE3, EDITING_SERVICE3, LOCAL_SURFACE_HOST_SERVICE3, MEDIA_PIPELINE_SERVICE3, RUNTIME_GATEWAY_SERVICE3, CLOUD_RUNTIME_GATEWAY_SERVICE3, EXTERNAL_RUNTIME_GATEWAY_SERVICE3, COMMAND_RUNNER_SERVICE2, runtimeCommandSpecs2, contextCommandSpecs2, adminCommandSpecs2, systemCommandSpecs2, domainCommandSpecs2, editingCommandSpecs2, productionEditingCommandSpecs2, workspaceCommandSpecs2, runtimeCommandByMCPToolName2, runtimeCommandById2, contextCommandByMCPToolName2, contextCommandById2, adminCommandByMCPToolName2, adminCommandById2, systemCommandByMCPToolName2, systemCommandById2, domainCommandByMCPToolName2, domainCommandById2, editingCommandByMCPToolName2, editingCommandById2, productionEditingCommandByMCPToolName2, productionEditingCommandById2, workspaceCommandById2, bindAdminBackendRuntime2, SEMANTIC_ENTITY_KINDS2, CONTENT_UNIT_OUTPUT_KINDS, INTERACTIVE_PROMPT, LOCAL_NODE_CONTROL_SERVICE23, adminTools3, contextTools22, domainTools22, editingTools22, productionEditingTools22, runtimeTools3, systemTools3, daemonMCPCommandTools3, daemonMCPRuntimeBootstrapToolNames3, daemonMCPRuntimeBootstrapTools3, MCP_HOST_DEBUG2, MCP_PROXY_TIMEOUT_MS2, LOCAL_NODE_CONTROL_SERVICE32, LOCAL_NODE_GATEWAY_SERVICE22, RUNTIME_GATEWAY_SERVICE22, CLOUD_RUNTIME_GATEWAY_SERVICE22, EXTERNAL_RUNTIME_GATEWAY_SERVICE22, DATA_SERVICE22, PROJECT_SERVICE22, EDITING_SERVICE22, LOCAL_SURFACE_HOST_SERVICE22, MEDIA_PIPELINE_SERVICE22, runtimeBootstrapToolNames2, runtimeBootstrapTools2, MCP_HOST_HTTP_DEBUG, LOCAL_NODE_CONTROL_SERVICE42, adminTools22, contextTools32, domainTools32, editingTools32, productionEditingTools32, runtimeTools22, systemTools22, daemonMCPCommandTools22, daemonMCPRuntimeBootstrapToolNames22, daemonMCPRuntimeBootstrapTools22, MEDIA_PIPELINE_SERVICE_NAME22, LOCAL_NODE_APP_ID2, LOCAL_NODE_CONTROL_SERVICE222, LOCAL_NODE_GATEWAY_SERVICE32, PROJECT_SERVICE_NAME22, EDITING_SERVICE_NAME22, CANVAS_SERVICE_NAME3, DATA_SERVICE_NAME3, DEFAULT_LOCAL_NODE_GATEWAY_PORT2, RUNTIME_ENDPOINT_WAIT_TIMEOUT_MS2, RUNTIME_ENDPOINT_WAIT_INTERVAL_MS2, DAEMON_RUNTIME_DESCRIPTOR_ENDPOINT2, DAEMON_RUNTIME_STATUS_ENDPOINT2, DAEMON_RUNTIME_DIAGNOSTICS_ENDPOINT2, DAEMON_RUNTIME_CONFIGURE_ENDPOINT2, DAEMON_MCP_ENDPOINT2, DAEMON_MCP_HEALTH_ENDPOINT2, LEGACY_MCP_ENDPOINT2, DAEMON_CONTEXT_ENDPOINT2, DAEMON_CONTEXT_SESSIONS_ENDPOINT2, REMOTION_STUDIO_SESSIONS_ENDPOINT2, REMOTION_STUDIO_SESSION_OPEN_ENDPOINT2, REMOTION_STUDIO_SESSION_GET_ENDPOINT2, REMOTION_STUDIO_SESSION_LOGS_ENDPOINT2, REMOTION_STUDIO_SESSION_STOP_ENDPOINT2, LOCAL_PROJECT_SERVICE_PROXY_PREFIX2, LOCAL_PROJECT_SERVICE_ALIAS_PREFIX2, LOCAL_PROJECT_SERVICE_PROXY_ROUTES2, daemonContextSessions2, remotionStudioSessions2, nextRemotionStudioLogCursor2, localNodeApplicationManifest2, localNodeStartupPolicy2, localNodeCloudDataStartupPolicy2, dataServiceProgramManifest2, localNodeControlProgramManifest2, projectServiceProgramManifest2, editingServiceProgramManifest2, canvasServiceProgramManifest2, localSurfaceHostProgramManifest2, mediaPipelineProgramManifest2;
 var init_dist = __esm({
   "../cli/dist/index.js"() {
     "use strict";
@@ -38333,6 +38325,23 @@ var init_dist = __esm({
       }
       toJSON() {
         return normalizeBackendHTTPError2(this.method, this.path, this.status, this.body);
+      }
+    };
+    BackendNetworkError2 = class extends Error {
+      constructor(method, path, url, cause) {
+        super(`Backend ${method} ${url} failed before response: ${errorMessage12(cause)}`);
+        this.method = method;
+        this.path = path;
+        this.url = url;
+        this.cause = cause;
+        this.name = "BackendNetworkError";
+      }
+      method;
+      path;
+      url;
+      cause;
+      toJSON() {
+        return normalizeBackendNetworkError2(this.method, this.path, this.url, this.cause);
       }
     };
     MOVSCRIPT_DEFAULT_HOME_DIR_NAME2 = ".movscript";
@@ -38368,7 +38377,13 @@ var init_dist = __esm({
       project_path: { type: "string", description: "Alias for projectDir." },
       cwd: { type: "string", description: "Alias for projectDir when a provider passes the current project working directory." },
       projectUid: { type: "string", description: "Optional manifest project_uid used for scoped backend candidate metadata." },
-      project_uid: { type: "string", description: "Alias for projectUid." }
+      project_uid: { type: "string", description: "Alias for projectUid." },
+      projectTitle: { type: "string", description: "Optional project title used when ensuring scoped project-data decision space." },
+      project_title: { type: "string", description: "Alias for projectTitle." },
+      scopeKind: { type: "string", enum: ["user", "org"], description: "Optional scoped project-data decision scope kind." },
+      scope_kind: { type: "string", enum: ["user", "org"], description: "Alias for scopeKind." },
+      scopeId: { type: ["string", "number"], description: "Optional scoped project-data decision scope id." },
+      scope_id: { type: ["string", "number"], description: "Alias for scopeId." }
     };
     contentCandidateStatuses2 = ["queued", "running", "succeeded", "failed", "canceled", "imported"];
     entityQuery2 = {
@@ -38485,6 +38500,23 @@ var init_dist = __esm({
       }
       toJSON() {
         return normalizeBackendHTTPError22(this.method, this.path, this.status, this.body);
+      }
+    };
+    BackendNetworkError22 = class extends Error {
+      constructor(method, path, url, cause) {
+        super(`Backend ${method} ${url} failed before response: ${errorMessage23(cause)}`);
+        this.method = method;
+        this.path = path;
+        this.url = url;
+        this.cause = cause;
+        this.name = "BackendNetworkError";
+      }
+      method;
+      path;
+      url;
+      cause;
+      toJSON() {
+        return normalizeBackendNetworkError22(this.method, this.path, this.url, this.cause);
       }
     };
     MOVSCRIPT_BACKEND_CONFIG_SCHEMA22 = "movscript.backend-config.v1";
@@ -40264,7 +40296,7 @@ ${programValidation.errors.join("\n")}`);
           this.writeApplicationRecord("ready", true);
         } catch (error) {
           this.state = "error";
-          this.writeApplicationRecord("error", false, { error: errorMessage23(error) });
+          this.writeApplicationRecord("error", false, { error: errorMessage52(error) });
           await this.shutdownStarted("error");
           throw error;
         }
@@ -40292,7 +40324,7 @@ ${programValidation.errors.join("\n")}`);
             await item.adapter.stop?.(item.context, item.runtime);
             this.writeServiceRecord(item.context, finalStatus, false, item.runtime);
           } catch (error) {
-            this.writeServiceRecord(item.context, "error", false, item.runtime, item.runtime.endpoint, { error: errorMessage23(error) });
+            this.writeServiceRecord(item.context, "error", false, item.runtime, item.runtime.endpoint, { error: errorMessage52(error) });
           }
         }
       }
@@ -41372,6 +41404,15 @@ ${programValidation.errors.join("\n")}`);
     ], commandContractDefaults2("system"));
     domainCommandSpecs2 = withCommandContract2([
       {
+        commandId: "domain.get_model",
+        mcpToolName: "domain_get_model",
+        cliPath: ["get-model"],
+        description: "Domain: return the editable source model for one entity without requiring a frontend.",
+        inputSchema: toolInputSchema2(domainTools4(), "domain_get_model"),
+        permissions: ["project:read"],
+        run: domainGetModel2
+      },
+      {
         commandId: "domain.overview",
         mcpToolName: "domain_overview",
         cliPath: ["overview"],
@@ -41914,6 +41955,24 @@ ${programValidation.errors.join("\n")}`);
         run: domainUnlockCandidate2
       },
       {
+        commandId: "domain.diagnostics.inspect",
+        mcpToolName: "domain_inspect",
+        cliPath: ["diagnostics", "inspect"],
+        description: "Domain diagnostics: inspect project source changes and readiness without writing interpreted artifacts.",
+        inputSchema: toolInputSchema2(domainTools4(), "domain_inspect"),
+        permissions: ["project:read"],
+        run: domainInspect2
+      },
+      {
+        commandId: "domain.diagnostics.interpret",
+        mcpToolName: "domain_interpret",
+        cliPath: ["diagnostics", "interpret"],
+        description: "Domain diagnostics: validate source and refresh interpreter diagnostics.",
+        inputSchema: toolInputSchema2(domainTools4(), "domain_interpret"),
+        permissions: ["project:read", "project:interpret"],
+        run: domainInterpret2
+      },
+      {
         commandId: "domain.diagnostics.review",
         mcpToolName: "domain_review",
         cliPath: ["diagnostics", "review"],
@@ -42356,24 +42415,29 @@ ${programValidation.errors.join("\n")}`);
         commandId: "workspace.get_model",
         mcpToolName: "domain_get_model",
         cliPath: ["get-model"],
-        description: "Workspace: return the editable domain model for one entity without requiring a frontend.",
+        description: "Workspace compatibility alias for domain_get_model. Prefer domain.get_model for new workflows.",
         inputSchema: toolInputSchema2(domainTools4(), "domain_get_model"),
+        stability: "temporary_fallback",
+        permissions: ["project:read"],
         run: domainGetModel2
       },
       {
         commandId: "workspace.review",
         mcpToolName: "domain_inspect",
         cliPath: ["review"],
-        description: "Workspace: inspect project source changes and diagnostics without writing interpreted artifacts.",
+        description: "Workspace compatibility alias for domain_inspect. Prefer domain.diagnostics.inspect for new workflows.",
         inputSchema: toolInputSchema2(domainTools4(), "domain_inspect"),
+        stability: "temporary_fallback",
+        permissions: ["project:read"],
         run: domainInspect2
       },
       {
         commandId: "workspace.interpret",
         mcpToolName: "domain_interpret",
         cliPath: ["interpret"],
-        description: "Workspace: validate source and refresh interpreter diagnostics without requiring a frontend.",
+        description: "Workspace compatibility alias for domain_interpret. Prefer domain.diagnostics.interpret for new workflows.",
         inputSchema: toolInputSchema2(domainTools4(), "domain_interpret"),
+        stability: "temporary_fallback",
         run: domainInterpret2
       }
     ], commandContractDefaults2("workspace"));
@@ -42400,7 +42464,6 @@ ${programValidation.errors.join("\n")}`);
     editingCommandById2 = new Map(editingCommandSpecs2.map((spec) => [spec.commandId, spec]));
     productionEditingCommandByMCPToolName2 = new Map(productionEditingCommandSpecs2.map((spec) => [spec.mcpToolName, spec]));
     productionEditingCommandById2 = new Map(productionEditingCommandSpecs2.map((spec) => [spec.commandId, spec]));
-    workspaceCommandByMCPToolName2 = new Map(workspaceCommandSpecs2.map((spec) => [spec.mcpToolName, spec]));
     workspaceCommandById2 = new Map(workspaceCommandSpecs2.map((spec) => [spec.commandId, spec]));
     bindAdminBackendRuntime2 = bindBackendRuntime2;
     SEMANTIC_ENTITY_KINDS2 = SEMANTIC_ENTITY_KIND_VALUES2;
@@ -42414,7 +42477,6 @@ ${programValidation.errors.join("\n")}`);
     productionEditingTools22 = commandSpecsToMCPTools3(productionEditingCommandSpecs2);
     runtimeTools3 = commandSpecsToMCPTools3(runtimeCommandSpecs2);
     systemTools3 = commandSpecsToMCPTools3(systemCommandSpecs2);
-    workspaceTools3 = commandSpecsToMCPTools3(workspaceCommandSpecs2);
     daemonMCPCommandTools3 = [
       ...adminTools3,
       ...contextTools22,
@@ -42422,8 +42484,7 @@ ${programValidation.errors.join("\n")}`);
       ...editingTools22,
       ...productionEditingTools22,
       ...runtimeTools3,
-      ...systemTools3,
-      ...workspaceTools3
+      ...systemTools3
     ];
     daemonMCPRuntimeBootstrapToolNames3 = new Set(runtimeTools3.map((tool) => tool.name));
     daemonMCPRuntimeBootstrapTools3 = mergeTools3(
@@ -42453,7 +42514,6 @@ ${programValidation.errors.join("\n")}`);
     productionEditingTools32 = commandSpecsToMCPTools22(productionEditingCommandSpecs2);
     runtimeTools22 = commandSpecsToMCPTools22(runtimeCommandSpecs2);
     systemTools22 = commandSpecsToMCPTools22(systemCommandSpecs2);
-    workspaceTools22 = commandSpecsToMCPTools22(workspaceCommandSpecs2);
     daemonMCPCommandTools22 = [
       ...adminTools22,
       ...contextTools32,
@@ -42461,8 +42521,7 @@ ${programValidation.errors.join("\n")}`);
       ...editingTools32,
       ...productionEditingTools32,
       ...runtimeTools22,
-      ...systemTools22,
-      ...workspaceTools22
+      ...systemTools22
     ];
     daemonMCPRuntimeBootstrapToolNames22 = new Set(runtimeTools22.map((tool) => tool.name));
     daemonMCPRuntimeBootstrapTools22 = mergeTools22(
@@ -43822,7 +43881,7 @@ function isNotFoundError(error) {
   return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
 }
 
-// ../../packages/core/dist/chunk-YOOKICW5.js
+// ../../packages/core/dist/chunk-3MKVBI2N.js
 var BackendHTTPError = class _BackendHTTPError extends Error {
   constructor(method, path, status, body, rawBody) {
     super(`Backend ${method} ${path} failed: HTTP ${status} ${backendErrorMessage(body, rawBody)}`);
@@ -43844,6 +43903,23 @@ var BackendHTTPError = class _BackendHTTPError extends Error {
     return normalizeBackendHTTPError(this.method, this.path, this.status, this.body);
   }
 };
+var BackendNetworkError = class extends Error {
+  constructor(method, path, url, cause) {
+    super(`Backend ${method} ${url} failed before response: ${errorMessage2(cause)}`);
+    this.method = method;
+    this.path = path;
+    this.url = url;
+    this.cause = cause;
+    this.name = "BackendNetworkError";
+  }
+  method;
+  path;
+  url;
+  cause;
+  toJSON() {
+    return normalizeBackendNetworkError(this.method, this.path, this.url, this.cause);
+  }
+};
 function normalizeBackendHTTPError(method, path, status, body) {
   const bodyRecord = isRecord2(body) ? body : void 0;
   return {
@@ -43862,6 +43938,16 @@ function normalizeBackendHTTPError(method, path, status, body) {
     ...bodyRecord && isRecord2(bodyRecord.details) ? { details: bodyRecord.details } : {}
   };
 }
+function normalizeBackendNetworkError(method, path, url, cause) {
+  return {
+    type: "backend_network_error",
+    method,
+    path,
+    url,
+    cause: errorMessage2(cause),
+    ...errorCode(cause) ? { code: errorCode(cause) } : {}
+  };
+}
 function parseJSONBody(rawBody) {
   if (!rawBody.trim()) return void 0;
   try {
@@ -43874,11 +43960,17 @@ function backendErrorMessage(body, rawBody) {
   if (isRecord2(body) && typeof body.error === "string") return body.error;
   return rawBody;
 }
+function errorMessage2(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+function errorCode(error) {
+  return isRecord2(error) && typeof error.code === "string" ? error.code : void 0;
+}
 function isRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// ../../packages/core/dist/chunk-XRV4MHLJ.js
+// ../../packages/core/dist/chunk-4UNA77HO.js
 import { mkdirSync as mkdirSync3, readFileSync as readFileSync3, renameSync as renameSync3, rmSync as rmSync2, writeFileSync as writeFileSync3 } from "fs";
 import { dirname as dirname3, join as join3 } from "path";
 var MOVSCRIPT_BACKEND_CONFIG_SCHEMA = "movscript.backend-config.v1";
@@ -44099,7 +44191,7 @@ function defaultMovScriptBackendBaseURL() {
 }
 async function backendGet2(path) {
   const headers = backendHeaders2();
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL()}${path}`, { headers });
+  const res = await backendFetch("GET", path, { headers });
   if (!res.ok) {
     throw await BackendHTTPError.fromResponse("GET", path, res);
   }
@@ -44107,7 +44199,7 @@ async function backendGet2(path) {
 }
 async function backendGetBinary(path, options = {}) {
   const headers = backendHeaders2();
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL()}${path}`, { headers });
+  const res = await backendFetch("GET", path, { headers });
   if (!res.ok) {
     throw await BackendHTTPError.fromResponse("GET", path, res);
   }
@@ -44171,7 +44263,7 @@ async function readBinaryResponse(path, res, options) {
 }
 async function backendPost2(path, body, userId) {
   const headers = backendHeaders2({ json: true, userId });
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL()}${path}`, {
+  const res = await backendFetch("POST", path, {
     method: "POST",
     headers,
     body: JSON.stringify(body)
@@ -44183,7 +44275,7 @@ async function backendPost2(path, body, userId) {
 }
 async function backendPut(path, body, userId) {
   const headers = backendHeaders2({ json: true, userId });
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL()}${path}`, {
+  const res = await backendFetch("PUT", path, {
     method: "PUT",
     headers,
     body: JSON.stringify(body)
@@ -44196,7 +44288,7 @@ async function backendPut(path, body, userId) {
 }
 async function backendPostMultipart(path, form, userId) {
   const headers = backendHeaders2({ userId });
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL()}${path}`, {
+  const res = await backendFetch("POST", path, {
     method: "POST",
     headers,
     body: form
@@ -44208,7 +44300,7 @@ async function backendPostMultipart(path, form, userId) {
 }
 async function backendPatch(path, body, userId) {
   const headers = backendHeaders2({ json: true, userId });
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL()}${path}`, {
+  const res = await backendFetch("PATCH", path, {
     method: "PATCH",
     headers,
     body: JSON.stringify(body)
@@ -44221,7 +44313,7 @@ async function backendPatch(path, body, userId) {
 }
 async function backendDelete(path, userId) {
   const headers = backendHeaders2({ userId });
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL()}${path}`, {
+  const res = await backendFetch("DELETE", path, {
     method: "DELETE",
     headers
   });
@@ -44236,6 +44328,14 @@ async function backendList(path) {
   if (Array.isArray(data)) return data;
   if (isRecord22(data) && Array.isArray(data.items)) return data.items;
   return [];
+}
+async function backendFetch(method, path, init) {
+  const url = `${getMovScriptBackendAPIBaseURL()}${path}`;
+  try {
+    return await fetch(url, init);
+  } catch (error) {
+    throw new BackendNetworkError(method, path, url, error);
+  }
 }
 function backendHeaders2(input3 = {}) {
   const headers = input3.json ? { "Content-Type": "application/json" } : {};
@@ -44263,7 +44363,7 @@ function isRecord22(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// ../../packages/core/dist/chunk-OAR4ABRL.js
+// ../../packages/core/dist/chunk-LFNAR4V6.js
 function isRecord4(value) {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
@@ -44720,7 +44820,13 @@ var workspaceLocator = {
   project_path: { type: "string", description: "Alias for projectDir." },
   cwd: { type: "string", description: "Alias for projectDir when a provider passes the current project working directory." },
   projectUid: { type: "string", description: "Optional manifest project_uid used for scoped backend candidate metadata." },
-  project_uid: { type: "string", description: "Alias for projectUid." }
+  project_uid: { type: "string", description: "Alias for projectUid." },
+  projectTitle: { type: "string", description: "Optional project title used when ensuring scoped project-data decision space." },
+  project_title: { type: "string", description: "Alias for projectTitle." },
+  scopeKind: { type: "string", enum: ["user", "org"], description: "Optional scoped project-data decision scope kind." },
+  scope_kind: { type: "string", enum: ["user", "org"], description: "Alias for scopeKind." },
+  scopeId: { type: ["string", "number"], description: "Optional scoped project-data decision scope id." },
+  scope_id: { type: ["string", "number"], description: "Alias for scopeId." }
 };
 var contentCandidateStatuses = ["queued", "running", "succeeded", "failed", "canceled", "imported"];
 var entityQuery = {
@@ -48559,1549 +48665,6 @@ var MOVSCRIPT_SOURCE_ENTITY_FILES = /* @__PURE__ */ new Set([
   "expression_unit.json"
 ]);
 
-// ../../packages/core/dist/chunk-5H5P6PXX.js
-function buildContentSourceWorkspaceData(input3) {
-  const productions = input3.productions;
-  const segments = input3.segments;
-  const sceneMoments = input3.sceneMoments;
-  const storyboards = input3.storyboards;
-  const expressionUnits = input3.expressionUnits;
-  const audioCues = input3.audioCues;
-  const contentUnits = input3.contentUnits;
-  const keyframes = input3.keyframes;
-  const assets = input3.assets;
-  const settings = input3.settings;
-  const settingStates = input3.settingStates;
-  const previewTimelines = input3.previewTimelines;
-  const productionWorkPlan = normalizeProductionWorkPlanView(input3.productionWorkPlan);
-  const domainGraph = buildContentSourceWorkspaceDomainGraph(input3);
-  const ancestryIndex = buildContentSourceWorkspaceEntityAncestryIndex(input3, domainGraph);
-  const contentUnitsByPrimaryRef = groupContentUnitsByPrimaryRef(contentUnits);
-  const candidateRecordsByContentUnitId = groupContentCandidateRecordsByContentUnitId(input3.indexDocuments);
-  const selectionRecordsByContentUnitId23 = groupSelectionRecordsByContentUnitId(input3.indexDocuments);
-  const selectionByContentUnitId = buildSelectionStateByContentUnitId(contentUnits, selectionRecordsByContentUnitId23);
-  const contentUnitCandidates = buildContentUnitCandidates({
-    contentUnits,
-    candidateRecordsByContentUnitId,
-    selectionRecordsByContentUnitId: selectionRecordsByContentUnitId23
-  });
-  const previewMoments = buildPreviewMoments({
-    productions,
-    segments,
-    sceneMoments,
-    expressionUnits,
-    storyboards,
-    keyframes,
-    assets,
-    previewTimelines,
-    ancestryIndex,
-    contentUnitsByPrimaryRef,
-    candidateRecordsByContentUnitId,
-    selectionRecordsByContentUnitId: selectionRecordsByContentUnitId23,
-    selectionByContentUnitId
-  });
-  const expressionUnitsByMoment = buildExpressionUnitsByMoment(expressionUnits, ancestryIndex);
-  const audioCuesByMoment = buildAudioCuesByMoment(audioCues, {
-    ancestryIndex,
-    contentUnitsByPrimaryRef,
-    candidateRecordsByContentUnitId,
-    selectionRecordsByContentUnitId: selectionRecordsByContentUnitId23,
-    selectionByContentUnitId
-  });
-  const expressionUnitWorkspaceDetails = buildExpressionUnitWorkspaceDetails({
-    expressionUnits,
-    storyboards,
-    keyframes,
-    assets,
-    settings,
-    contentUnitsByPrimaryRef,
-    ancestryIndex,
-    candidateRecordsByContentUnitId,
-    selectionRecordsByContentUnitId: selectionRecordsByContentUnitId23,
-    selectionByContentUnitId
-  });
-  const assetReferenceUnits = buildAssetReferenceUnits({
-    assets,
-    settings,
-    settingStates,
-    expressionUnits,
-    storyboards,
-    keyframes,
-    contentUnits,
-    contentUnitsByPrimaryRef,
-    ancestryIndex,
-    candidateRecordsByContentUnitId,
-    selectionRecordsByContentUnitId: selectionRecordsByContentUnitId23,
-    selectionByContentUnitId
-  });
-  return {
-    source: "workspace",
-    domainGraph,
-    hierarchyTree: buildHierarchyTree({
-      settings,
-      settingStates,
-      assets,
-      productions,
-      segments,
-      sceneMoments,
-      storyboards,
-      keyframes,
-      expressionUnits,
-      audioCues,
-      assetReferenceUnits,
-      ancestryIndex
-    }),
-    previewMoments,
-    contentUnitCandidates,
-    expressionUnitsByMoment,
-    audioCuesByMoment,
-    expressionUnitWorkspaceDetails,
-    assetReferenceUnits,
-    editingTimelines: input3.editingTimelines ?? [],
-    productionWorkPlan
-  };
-}
-function buildContentSourceWorkspaceDomainGraph(input3) {
-  const nodes = input3.domainNodes?.length ? input3.domainNodes : deriveContentSourceWorkspaceDomainNodes(input3);
-  const edges = input3.domainEdges?.length ? input3.domainEdges : deriveContentSourceWorkspaceDomainEdges(input3, nodes);
-  return {
-    namespaceVocabulary: input3.namespaceVocabulary ?? deriveContentSourceWorkspaceNamespaceVocabulary(input3),
-    nodes,
-    edges,
-    timelineNamespaceNodes: nodes.filter((node) => node.category === "timeline_namespace"),
-    settingNamespaceNodes: nodes.filter((node) => node.category === "setting_namespace"),
-    systemPrimitiveNodes: nodes.filter((node) => node.category === "system_primitive"),
-    contentUnitNodes: nodes.filter((node) => node.category === "content_unit")
-  };
-}
-function deriveContentSourceWorkspaceNamespaceVocabulary(input3) {
-  const projectDocument = input3.indexDocuments.find(
-    (document) => normalizeWorkspacePath(document.path) === "project.json" && isRecord6(document.data)
-  );
-  return normalizeNamespaceVocabulary(projectDocument?.data);
-}
-function deriveContentSourceWorkspaceDomainNodes(input3) {
-  return sourceWorkspaceDomainEntities(input3).flatMap((entity) => {
-    const category = classifyMovScriptEntityKind(entity.entityKind);
-    if (!category) return [];
-    return [pruneUndefinedRecord({
-      category,
-      kind: projectMovScriptDomainNodeKind(entity.entityKind, entity.record),
-      ...entity.id !== void 0 ? { id: entity.id } : {},
-      path: entity.path,
-      title: stringField7(entity.record.title) ?? stringField7(entity.record.label),
-      order: optionalNumberField(entity.record.order),
-      metadata: { entityKind: entity.entityKind }
-    })];
-  });
-}
-function deriveContentSourceWorkspaceDomainPathParentEdges(nodes) {
-  const nodeByDir = /* @__PURE__ */ new Map();
-  for (const node of nodes) {
-    if (node.path) nodeByDir.set(entityDir2(node.path), node);
-  }
-  const edges = [];
-  for (const node of nodes) {
-    if (!node.path) continue;
-    const parentPath = nearestParentPath(entityDir2(node.path), nodeByDir.keys());
-    if (!parentPath) continue;
-    const parent = nodeByDir.get(parentPath);
-    const normalized = normalizePathParentEdge(domainRefFromNode(node), parent ? domainRefFromNode(parent) : void 0);
-    if (normalized.edge) edges.push(normalized.edge);
-  }
-  return dedupeDomainEdges(edges);
-}
-function deriveContentSourceWorkspaceDomainEdges(input3, nodes) {
-  return dedupeDomainEdges([
-    ...deriveContentSourceWorkspaceDomainPathParentEdges(nodes),
-    ...deriveContentSourceWorkspaceContentUnitTargetEdges(input3.contentUnits, nodes)
-  ]);
-}
-function deriveContentSourceWorkspaceContentUnitTargetEdges(contentUnits, nodes) {
-  const nodeByPath = new Map(nodes.flatMap((node) => node.path ? [[node.path, node]] : []));
-  const timelineNamespaceNodes = nodes.filter((node) => node.category === "timeline_namespace");
-  const edges = [];
-  for (const contentUnit of contentUnits) {
-    const sourceNode = nodeByPath.get(contentUnit.path);
-    if (!sourceNode) continue;
-    edges.push(...normalizeContentUnitTargetEdges({
-      source: domainRefFromNode(sourceNode),
-      record: contentUnit.record,
-      scopeTarget(scope) {
-        return domainRefFromTimelineScope(scope.kind, scope.ref, timelineNamespaceNodes);
-      }
-    }));
-  }
-  return edges;
-}
-function sourceWorkspaceDomainEntities(input3) {
-  return [
-    ...input3.settings,
-    ...input3.settingStates,
-    ...input3.assets,
-    ...input3.productions,
-    ...input3.segments,
-    ...input3.sceneMoments,
-    ...input3.storyboards,
-    ...input3.keyframes,
-    ...input3.expressionUnits,
-    ...input3.audioCues,
-    ...input3.contentUnits
-  ];
-}
-function buildContentSourceWorkspaceEntityAncestryIndex(input3, domainGraph) {
-  const entities = sourceWorkspaceDomainEntities(input3);
-  const entityByPath = new Map(entities.map((entity) => [entity.path, entity]));
-  const entityByDir = new Map(entities.map((entity) => [entityDir2(entity.path), entity]));
-  const parentPathByPath = /* @__PURE__ */ new Map();
-  for (const edge of domainGraph.edges) {
-    if (edge.relation !== "parent" || edge.origin !== "path") continue;
-    if (!edge.source.path || !edge.target.path) continue;
-    parentPathByPath.set(edge.source.path, edge.target.path);
-  }
-  for (const entity of entities) {
-    if (parentPathByPath.has(entity.path)) continue;
-    const parentDir = nearestParentPath(entityDir2(entity.path), entityByDir.keys());
-    const parent = parentDir ? entityByDir.get(parentDir) : void 0;
-    if (parent) parentPathByPath.set(entity.path, parent.path);
-  }
-  const childrenByParentPath = /* @__PURE__ */ new Map();
-  for (const [childPath, parentPath] of parentPathByPath) {
-    const child = entityByPath.get(childPath);
-    if (!child) continue;
-    childrenByParentPath.set(parentPath, [...childrenByParentPath.get(parentPath) ?? [], child]);
-  }
-  return { entityByPath, parentPathByPath, childrenByParentPath };
-}
-function domainRefFromTimelineScope(scopeKind, scopeRef, timelineNamespaceNodes) {
-  const node = timelineNamespaceNodes.find(
-    (candidate) => String(candidate.id ?? "") === scopeRef && (candidate.kind === scopeKind || candidate.metadata?.entityKind === scopeKind)
-  );
-  return node ? domainRefFromNode(node) : { category: "timeline_namespace", kind: scopeKind, id: scopeRef };
-}
-function domainRefFromNode(node) {
-  return {
-    category: node.category,
-    kind: node.kind,
-    ...node.id !== void 0 ? { id: node.id } : {},
-    ...node.path ? { path: node.path } : {}
-  };
-}
-function dedupeDomainEdges(edges) {
-  const seen = /* @__PURE__ */ new Set();
-  const out = [];
-  for (const edge of edges) {
-    const key = JSON.stringify(edge);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(edge);
-  }
-  return out;
-}
-function normalizeProductionWorkPlanView(plan) {
-  if (!plan) return void 0;
-  if (isProductionWorkPlanView(plan)) {
-    return {
-      summary: {
-        open: optionalNumberField(plan.summary.open) ?? 0,
-        blocking: optionalNumberField(plan.summary.blocking) ?? 0,
-        humanRecommended: optionalNumberField(plan.summary.humanRecommended) ?? 0,
-        agentRecommended: optionalNumberField(plan.summary.agentRecommended) ?? 0,
-        readyToGenerate: optionalNumberField(plan.summary.readyToGenerate) ?? 0,
-        staleSelections: optionalNumberField(plan.summary.staleSelections) ?? 0
-      },
-      items: plan.items.map(normalizeProductionWorkItemView).filter(isDefined)
-    };
-  }
-  const rawPlan = plan;
-  return {
-    summary: {
-      open: optionalNumberField(rawPlan.summary.open) ?? 0,
-      blocking: optionalNumberField(rawPlan.summary.blocking) ?? 0,
-      humanRecommended: optionalNumberField(rawPlan.summary.human_recommended) ?? 0,
-      agentRecommended: optionalNumberField(rawPlan.summary.agent_recommended) ?? 0,
-      readyToGenerate: optionalNumberField(rawPlan.summary.ready_to_generate) ?? 0,
-      staleSelections: optionalNumberField(rawPlan.summary.stale_selections) ?? 0
-    },
-    items: rawPlan.items.map((item) => ({
-      id: item.id,
-      kind: item.kind,
-      status: item.status,
-      severity: item.severity,
-      priority: item.priority,
-      reason: item.reason,
-      targetKind: item.target.entityKind,
-      targetId: item.target.id !== void 0 ? String(item.target.id) : void 0,
-      targetPath: item.target.path,
-      recommendedActor: item.recommended_actor,
-      actionLabels: item.actions.map((action) => productionWorkActionLabel(action.type))
-    }))
-  };
-}
-function isProductionWorkPlanView(plan) {
-  return "humanRecommended" in plan.summary;
-}
-function normalizeProductionWorkItemView(item) {
-  if (!item.id || !item.kind || !item.status || !item.severity || !item.reason || !item.targetKind) return void 0;
-  return {
-    id: item.id,
-    kind: normalizeProductionWorkItemKind(item.kind),
-    status: normalizeProductionWorkItemStatus(item.status),
-    severity: normalizeProductionWorkItemSeverity(item.severity),
-    priority: optionalNumberField(item.priority) ?? 100,
-    reason: item.reason,
-    targetKind: item.targetKind,
-    targetId: item.targetId,
-    targetPath: item.targetPath,
-    recommendedActor: item.recommendedActor === "agent" || item.recommendedActor === "workflow" ? item.recommendedActor : "human",
-    actionLabels: Array.isArray(item.actionLabels) ? item.actionLabels.filter((label) => typeof label === "string" && label.trim()) : []
-  };
-}
-function normalizeProductionWorkItemKind(kind) {
-  switch (kind) {
-    case "fix_source":
-    case "edit_structure":
-    case "create_content_unit":
-    case "generate_candidates":
-    case "select_candidate":
-    case "review_stale_selection":
-    case "review_affected_output":
-      return kind;
-    default:
-      return "edit_structure";
-  }
-}
-function normalizeProductionWorkItemStatus(status) {
-  if (status === "open" || status === "blocked" || status === "ready" || status === "informational") return status;
-  return "open";
-}
-function normalizeProductionWorkItemSeverity(severity) {
-  if (severity === "blocking" || severity === "warning" || severity === "suggestion") return severity;
-  return "warning";
-}
-function productionWorkActionLabel(type) {
-  switch (type) {
-    case "open_editor":
-      return "\u6253\u5F00\u7F16\u8F91\u5668";
-    case "upsert_entity":
-      return "\u8865\u7ED3\u6784";
-    case "derive_content_unit_artifact":
-      return "\u5237\u65B0\u521B\u4F5C\u7247\u6BB5";
-    case "generate_candidates":
-      return "\u751F\u6210\u5019\u9009";
-    case "open_candidate_picker":
-      return "\u6253\u5F00\u5019\u9009\u9009\u62E9";
-    case "agent_review_candidates":
-      return "\u8F85\u52A9\u5BA1\u9605\u5019\u9009";
-    case "accept_stale":
-      return "\u63A5\u53D7 stale";
-    default:
-      return type;
-  }
-}
-function buildHierarchyTree(input3) {
-  return [
-    {
-      id: "settings_root",
-      type: "group",
-      title: "Settings",
-      path: "settings/",
-      children: sortEntities(input3.settings).map((setting) => {
-        const states = childEntitiesForParent(input3.ancestryIndex, input3.settingStates, setting);
-        return entityNode(setting, "setting", {
-          children: sortEntities(states).map((state) => {
-            const stateAssets = childEntitiesForParent(input3.ancestryIndex, input3.assets, state);
-            return entityNode(state, "state", {
-              children: sortEntities(stateAssets).map((asset) => {
-                const unit = input3.assetReferenceUnits[nodeId(asset, "asset")];
-                return entityNode(asset, "asset", { state: unit?.selectionState === "needs_candidate" ? "missing" : void 0 });
-              })
-            });
-          })
-        });
-      })
-    },
-    {
-      id: "productions_group",
-      type: "group",
-      title: "Productions",
-      path: "productions",
-      children: sortEntities(input3.productions).map((production) => {
-        const segments = childEntitiesForParent(input3.ancestryIndex, input3.segments, production);
-        return entityNode(production, "production", {
-          children: sortEntities(segments).map((segment) => {
-            const sceneMoments = childEntitiesForParent(input3.ancestryIndex, input3.sceneMoments, segment);
-            return entityNode(segment, "segment", {
-              children: sortEntities(sceneMoments).map((sceneMoment) => {
-                const momentDir = entityDir2(sceneMoment.path);
-                const expressions = childEntitiesForParent(input3.ancestryIndex, input3.expressionUnits, sceneMoment);
-                const momentStoryboards = childEntitiesForParent(input3.ancestryIndex, input3.storyboards, sceneMoment);
-                const momentKeyframes = childEntitiesForParent(input3.ancestryIndex, input3.keyframes, sceneMoment);
-                const audioCues = childEntitiesForParent(input3.ancestryIndex, input3.audioCues, sceneMoment);
-                const momentId = idText(sceneMoment);
-                const expressionGroup = {
-                  id: `${nodeId(sceneMoment, "scene_moment")}_expression_group`,
-                  type: "group",
-                  title: "Expression Units",
-                  path: `${momentDir}/expression_units`,
-                  momentId,
-                  children: sortEntities(expressions).map((expression) => {
-                    const expressionDir = entityDir2(expression.path);
-                    const expressionUnitId = idText(expression);
-                    const storyboards = childEntitiesForParent(input3.ancestryIndex, input3.storyboards, expression);
-                    const keyframes = childEntitiesForParent(input3.ancestryIndex, input3.keyframes, expression);
-                    return entityNode(expression, "expression_unit", {
-                      momentId,
-                      expressionUnitId,
-                      children: [
-                        {
-                          id: `${nodeId(expression, "expression_unit")}_storyboards_group`,
-                          type: "group",
-                          title: "Storyboards",
-                          path: `${expressionDir}/storyboards`,
-                          momentId,
-                          expressionUnitId,
-                          children: sortEntities(storyboards).map((storyboard) => entityNode(storyboard, "storyboard", { momentId, expressionUnitId }))
-                        },
-                        {
-                          id: `${nodeId(expression, "expression_unit")}_keyframes_group`,
-                          type: "group",
-                          title: "Keyframes",
-                          path: `${expressionDir}/keyframes`,
-                          momentId,
-                          expressionUnitId,
-                          children: sortEntities(keyframes).map((keyframe) => entityNode(keyframe, "keyframe", { momentId, expressionUnitId }))
-                        }
-                      ]
-                    });
-                  })
-                };
-                const storyboardGroup = {
-                  id: `${nodeId(sceneMoment, "scene_moment")}_storyboards_group`,
-                  type: "group",
-                  title: "Storyboards",
-                  path: `${momentDir}/storyboards`,
-                  momentId,
-                  children: sortEntities(momentStoryboards).map((storyboard) => entityNode(storyboard, "storyboard", { momentId }))
-                };
-                const keyframeGroup = {
-                  id: `${nodeId(sceneMoment, "scene_moment")}_keyframes_group`,
-                  type: "group",
-                  title: "Keyframes",
-                  path: `${momentDir}/keyframes`,
-                  momentId,
-                  children: sortEntities(momentKeyframes).map((keyframe) => entityNode(keyframe, "keyframe", { momentId }))
-                };
-                const audioCueGroup = {
-                  id: `${nodeId(sceneMoment, "scene_moment")}_audio_group`,
-                  type: "group",
-                  title: "Audio Cues",
-                  path: `${momentDir}/audio_cues`,
-                  momentId,
-                  children: sortEntities(audioCues).map((audioCue) => entityNode(audioCue, "audio_cue", { momentId }))
-                };
-                return entityNode(sceneMoment, "scene_moment", {
-                  momentId,
-                  children: [expressionGroup, storyboardGroup, keyframeGroup, audioCueGroup]
-                });
-              })
-            });
-          })
-        });
-      })
-    }
-  ];
-}
-function buildPreviewMoments(input3) {
-  return orderedSceneMoments(input3.sceneMoments, input3.previewTimelines).map((moment, momentIndex) => {
-    const segment = ancestorEntity(input3.ancestryIndex, moment, "segment") ?? parentByDir(input3.segments, moment.path);
-    const production = segment ? ancestorEntity(input3.ancestryIndex, segment, "production") ?? parentByDir(input3.productions, segment.path) : ancestorEntity(input3.ancestryIndex, moment, "production");
-    const expressionUnits = orderedChildEntitiesForTimelineParent(input3.expressionUnits, input3.previewTimelines, timelineItemIdForEntity(moment), "expression_unit");
-    const momentExpressionUnits = (expressionUnits.length > 0 ? expressionUnits : sortEntities(childEntitiesForParent(input3.ancestryIndex, input3.expressionUnits, moment))).map(
-      (expressionUnit, expressionUnitIndex) => previewExpressionUnit(expressionUnit, expressionUnitIndex, moment, input3)
-    );
-    return {
-      id: idText(moment),
-      title: titleOf(moment, `Scene Moment ${momentIndex + 1}`),
-      path: entityDir2(moment.path),
-      selectionState: momentSelectionState(momentExpressionUnits),
-      priority: momentIndex < 1 ? "\u9AD8\u4F18\u5148\u7EA7" : momentIndex < 3 ? "\u4E2D\u4F18\u5148\u7EA7" : "\u4F4E\u4F18\u5148\u7EA7",
-      production: production ? titleOf(production, idText(production)) : "",
-      segment: segment ? titleOf(segment, idText(segment)) : "",
-      settings: settingRefsForMoment(moment, momentExpressionUnits, input3.assets),
-      expressionUnits: momentExpressionUnits
-    };
-  });
-}
-function previewExpressionUnit(expressionUnit, expressionUnitIndex, moment, input3) {
-  const storyboards = sortEntities(childEntitiesForParent(input3.ancestryIndex, input3.storyboards, expressionUnit));
-  const keyframes = sortEntities(childEntitiesForParent(input3.ancestryIndex, input3.keyframes, expressionUnit));
-  const primaryStoryboard = storyboards[0];
-  const primaryKeyframe = keyframes[0];
-  const contentUnit = contentUnitForEntity(input3.contentUnitsByPrimaryRef, "expression_unit", expressionUnit) ?? (primaryStoryboard ? contentUnitForEntity(input3.contentUnitsByPrimaryRef, "storyboard", primaryStoryboard) : void 0) ?? (primaryKeyframe ? contentUnitForEntity(input3.contentUnitsByPrimaryRef, "keyframe", primaryKeyframe) : void 0);
-  return {
-    id: idText(expressionUnit),
-    title: titleOf(expressionUnit, `Expression Unit ${expressionUnitIndex + 1}`),
-    kind: stringField7(expressionUnit.record.kind) ?? "expression_unit",
-    camera: shotCameraText(expressionUnit),
-    duration: durationText(recordField(expressionUnit.record.timing_intent)?.duration_sec ?? recordField(expressionUnit.record.timing)?.duration_sec ?? recordField(contentUnit?.record.model_intent)?.duration_sec),
-    expression: shotExpressionText(expressionUnit),
-    stillPosition: stillPositionForIndex(expressionUnitIndex),
-    path: entityDir2(expressionUnit.path),
-    keyframes: keyframes.map((keyframe) => idText(keyframe)),
-    assets: shotAssets(expressionUnit, keyframes, input3.assets),
-    storyboard: primaryStoryboard ? nodeId(primaryStoryboard, "storyboard") : "",
-    contentUnit: previewContentUnit(contentUnit, expressionUnit, moment, primaryStoryboard, keyframes, input3)
-  };
-}
-function orderedSceneMoments(sceneMoments, previewTimelines) {
-  const timelineMoments = previewTimelines.flatMap(
-    (timeline) => timeline.items.filter((item) => item.itemType === "scene_moment").sort((left, right) => left.order - right.order).map((item) => entityForTimelineItem(sceneMoments, item)).filter(isDefined)
-  );
-  if (timelineMoments.length === 0) return sortEntities(sceneMoments);
-  return uniqueEntities([...timelineMoments, ...sortEntities(sceneMoments)]);
-}
-function orderedChildEntitiesForTimelineParent(entities, previewTimelines, parentItemId, itemType) {
-  return previewTimelines.flatMap(
-    (timeline) => timeline.items.filter((item) => item.itemType === itemType && item.parentId === parentItemId).sort((left, right) => left.order - right.order).map((item) => entityForTimelineItem(entities, item)).filter(isDefined)
-  );
-}
-function entityForTimelineItem(entities, item) {
-  return entities.find(
-    (entity) => item.entity.id !== void 0 && String(entity.id ?? "") === String(item.entity.id) || entity.path === item.entity.path
-  );
-}
-function uniqueEntities(entities) {
-  return Array.from(new Map(entities.map((entity) => [entity.path, entity])).values());
-}
-function timelineItemIdForEntity(entity) {
-  return `${entity.entityKind}:${String(entity.id ?? entity.path)}`;
-}
-function previewContentUnit(contentUnit, expressionUnit, moment, storyboard, keyframes, input3) {
-  const type = contentUnitType(contentUnit);
-  const id = contentUnit ? idText(contentUnit) : `cu_${idText(expressionUnit)}`;
-  const selection = input3.selectionRecordsByContentUnitId.get(id);
-  return {
-    id,
-    type,
-    outputKind: outputKindForContentUnit(contentUnit),
-    path: contentUnit?.path ?? `content_units/${id}/content_unit.json`,
-    editPrompt: editPromptText(contentUnit) ?? "",
-    sceneMomentRef: `scene_moment/${idText(moment)}`,
-    expressionUnitRef: idText(expressionUnit),
-    storyboardRef: storyboard ? nodeId(storyboard, "storyboard") : "",
-    keyframeRefs: keyframes.map((keyframe) => idText(keyframe)),
-    selectionState: input3.selectionByContentUnitId.get(id) ?? selectionStateFromSourceSelection(selection, contentUnit),
-    candidates: previewCandidatesForContentUnit(id, input3.candidateRecordsByContentUnitId.get(id) ?? [], selection)
-  };
-}
-function buildExpressionUnitsByMoment(expressionUnits, ancestryIndex) {
-  const output3 = {};
-  for (const expression of sortEntities(expressionUnits)) {
-    const momentId = ancestorId(ancestryIndex, expression, "scene_moment") ?? pathSegmentAfter(expression.path, "scene_moments") ?? "";
-    const item = {
-      id: idText(expression),
-      title: titleOf(expression, stringField7(expression.record.text) ?? idText(expression)),
-      path: expression.path,
-      kind: stringField7(expression.record.slot_kind ?? expression.record.expression_kind ?? expression.record.kind) ?? "visual",
-      slotKind: expressionUnitSlotKindFromRecord(expression.record),
-      text: stringField7(expression.record.text) ?? "",
-      summary: stringField7(expression.record.intent ?? expression.record.note ?? expression.record.text) ?? "",
-      speaker: stringField7(expression.record.speaker),
-      note: stringField7(expression.record.note),
-      sceneMomentId: momentId
-    };
-    output3[momentId] = [...output3[momentId] ?? [], item];
-  }
-  return output3;
-}
-function buildAudioCuesByMoment(audioCues, input3) {
-  const output3 = {};
-  for (const audioCue of sortEntities(audioCues)) {
-    const momentId = ancestorId(input3.ancestryIndex, audioCue, "scene_moment") ?? pathSegmentAfter(audioCue.path, "scene_moments") ?? "";
-    const contentUnit = contentUnitForEntity(input3.contentUnitsByPrimaryRef, "audio_cue", audioCue);
-    const item = {
-      id: idText(audioCue),
-      title: titleOf(audioCue, idText(audioCue)),
-      path: audioCue.path,
-      cueKind: stringField7(audioCue.record.cue_kind ?? audioCue.record.kind) ?? "sound_effect",
-      promptHint: stringField7(audioCue.record.prompt_hint) ?? "",
-      expressionUnitRef: stringField7(audioCue.record.expression_unit_ref),
-      storyboardRef: stringField7(audioCue.record.storyboard_ref),
-      timing: recordField(audioCue.record.timing) ?? {},
-      assetRefs: arrayField(audioCue.record.asset_refs).map(String),
-      sceneMomentId: momentId,
-      ...contentUnit ? { contentUnit: previewAudioCueContentUnit(contentUnit, audioCue, input3) } : {}
-    };
-    output3[momentId] = [...output3[momentId] ?? [], item];
-  }
-  return output3;
-}
-function previewAudioCueContentUnit(contentUnit, audioCue, input3) {
-  const id = idText(contentUnit);
-  const selection = input3.selectionRecordsByContentUnitId.get(id);
-  return {
-    id,
-    type: contentUnitType(contentUnit),
-    outputKind: outputKindForContentUnit(contentUnit),
-    path: contentUnit.path,
-    editPrompt: editPromptText(contentUnit) ?? "",
-    sceneMomentRef: ancestorId(input3.ancestryIndex, audioCue, "scene_moment") ?? pathSegmentAfter(audioCue.path, "scene_moments") ?? "",
-    expressionUnitRef: stringField7(audioCue.record.expression_unit_ref) ?? "",
-    storyboardRef: stringField7(audioCue.record.storyboard_ref) ?? "",
-    keyframeRefs: [],
-    selectionState: input3.selectionByContentUnitId.get(id) ?? selectionStateFromSourceSelection(selection, contentUnit),
-    candidates: previewCandidatesForContentUnit(id, input3.candidateRecordsByContentUnitId.get(id) ?? [], selection)
-  };
-}
-function transitionFromEntity(entity) {
-  const transition = recordField(entity.record.transition);
-  if (!transition) return void 0;
-  const value = {
-    in: stringField7(transition.in),
-    out: stringField7(transition.out),
-    notes: stringField7(transition.notes)
-  };
-  return Object.values(value).some(Boolean) ? value : void 0;
-}
-function storyboardTimelineFromEntity(entity) {
-  const timeline = recordField(entity.record.timeline);
-  if (!timeline) return void 0;
-  const value = {
-    caption: stringField7(timeline.caption),
-    gapAfterSec: optionalNumberField(timeline.gap_after_sec),
-    durationSec: optionalNumberField(timeline.duration_sec)
-  };
-  return Object.values(value).some((item) => item !== void 0) ? value : void 0;
-}
-function buildExpressionUnitWorkspaceDetails(input3) {
-  return Object.fromEntries(input3.expressionUnits.map((expressionUnit) => {
-    const keyframes = sortEntities(childEntitiesForParent(input3.ancestryIndex, input3.keyframes, expressionUnit));
-    const storyboards = sortEntities(childEntitiesForParent(input3.ancestryIndex, input3.storyboards, expressionUnit));
-    const refs = shotAssets(expressionUnit, keyframes, input3.assets);
-    const assets = refs.map((ref) => ({
-      id: ref.title,
-      title: ref.title.replace(/^asset\//, ""),
-      owner: ref.title,
-      status: ref.status === "missing" ? "missing" : ref.status === "locked" ? "locked" : "current",
-      summary: ref.status === "missing" ? "\u8BE5\u7D20\u6750\u5F15\u7528\u5C1A\u672A\u5728 setting/state asset \u4E2D\u89E3\u6790\u3002" : "\u6765\u81EA workspace source \u7684\u7D20\u6750\u5F15\u7528\u3002",
-      downstream: [idText(expressionUnit)]
-    }));
-    const settings = input3.settings.slice(0, 4).map((setting) => ({
-      id: nodeId(setting, "setting"),
-      title: titleOf(setting, idText(setting)),
-      owner: setting.path,
-      status: "current",
-      summary: stringField7(setting.record.summary ?? setting.record.description ?? setting.record.prompt_hint) ?? "Workspace setting context.",
-      downstream: [idText(expressionUnit)]
-    }));
-    return [idText(expressionUnit), {
-      settings,
-      assets,
-      keyframes: keyframes.map((keyframe) => expressionUnitChildOption(keyframe, "keyframe", expressionUnit, input3)),
-      storyboards: storyboards.map((storyboard) => expressionUnitChildOption(storyboard, "storyboard", expressionUnit, input3)),
-      impacts: []
-    }];
-  }));
-}
-function buildAssetReferenceUnits(input3) {
-  return Object.fromEntries(input3.assets.map((asset) => {
-    const contentUnit = contentUnitForEntity(input3.contentUnitsByPrimaryRef, "asset", asset);
-    const contentUnitId = contentUnit ? idText(contentUnit) : `cu_${idText(asset)}`;
-    const ownerState = ancestorEntity(input3.ancestryIndex, asset, "setting_state") ?? parentByDir(input3.settingStates, asset.path);
-    const ownerSetting = ownerState ? ancestorEntity(input3.ancestryIndex, ownerState, "setting") ?? parentByDir(input3.settings, ownerState.path) : ancestorEntity(input3.ancestryIndex, asset, "setting");
-    const assetId = nodeId(asset, "asset");
-    const selection = input3.selectionRecordsByContentUnitId.get(contentUnitId);
-    const selectionState = contentUnit ? input3.selectionByContentUnitId.get(contentUnitId) ?? "needs_candidate" : "ready";
-    return [assetId, {
-      assetId,
-      title: titleOf(asset, idText(asset)),
-      path: contentUnit?.path ?? `content_units/${contentUnitId}/content_unit.json`,
-      contentUnitId,
-      contentUnitType: "asset_ref",
-      outputKind: "image",
-      editPrompt: editPromptText(contentUnit) ?? "",
-      usage: `${titleOf(asset, idText(asset))} \u4F5C\u4E3A setting/state \u4E0B\u7684\u7D20\u6750\u53C2\u8003\u8F93\u5165\u3002`,
-      lockPolicy: "\u9009\u62E9\u53D8\u5316\u540E\uFF0C\u4E0B\u6E38\u5F15\u7528\u8BE5 asset_ref \u7684\u521B\u4F5C\u7247\u6BB5\u9700\u8981\u91CD\u65B0\u68C0\u67E5\u3002",
-      selectionState,
-      upstream: [
-        ...ownerSetting ? [{ id: `setting:${idText(ownerSetting)}`, title: titleOf(ownerSetting, idText(ownerSetting)), kind: "setting", ownerNodeId: nodeId(ownerSetting, "setting"), state: "current", summary: ownerSetting.path }] : [],
-        ...ownerState ? [{ id: `state:${idText(ownerState)}`, title: titleOf(ownerState, idText(ownerState)), kind: "state", ownerNodeId: nodeId(ownerState, "state"), state: "current", summary: ownerState.path }] : []
-      ],
-      candidates: previewAssetCandidatesForContentUnit(contentUnitId, input3.candidateRecordsByContentUnitId.get(contentUnitId) ?? [], selection),
-      downstream: buildAssetDownstreamUnits(asset, input3)
-    }];
-  }));
-}
-function buildAssetDownstreamUnits(asset, input3) {
-  const assetId = idText(asset);
-  const refs = /* @__PURE__ */ new Set([assetId, nodeId(asset, "asset")]);
-  return input3.contentUnits.filter((contentUnit) => {
-    const promptRefs = editPromptRefs(contentUnit);
-    const referencesAsset = promptRefs.some((ref) => ref.kind === "asset" && refs.has(ref.id));
-    const isOwnAssetRef = stringField7(contentUnit.record.content_unit_type) === "asset_ref" && primaryRefIdsForContentUnitRecord2(contentUnit.record, "asset").some((ref) => refs.has(ref));
-    return referencesAsset && !isOwnAssetRef;
-  }).map((contentUnit) => {
-    const contentUnitId = idText(contentUnit);
-    const owner = primaryOwnerForContentUnit(contentUnit, input3);
-    const selection = input3.selectionRecordsByContentUnitId.get(contentUnitId);
-    const selectedCandidateId = idValue(selection?.candidate_id);
-    const selectedCandidate = selectedCandidateId ? input3.candidateRecordsByContentUnitId.get(contentUnitId)?.find((candidate) => selectionCandidateMatches(selection, idValue(candidate.id) ?? "")) : void 0;
-    const state = input3.selectionByContentUnitId.get(contentUnitId) ?? selectionStateFromSourceSelection(selection, contentUnit);
-    return {
-      id: `asset:${assetId}:content_unit:${contentUnitId}`,
-      title: titleOf(contentUnit, contentUnitId),
-      kind: "content_unit",
-      ownerNodeId: owner?.nodeId ?? contentUnitId,
-      momentId: owner?.momentId ?? "",
-      expressionUnitId: owner?.expressionUnitId ?? "",
-      dependencyHash: selectedCandidate ? candidateInputHash(selectedCandidate, contentUnitId) : contentUnitId,
-      state,
-      action: state === "selected" ? "\u5DF2\u9009\u62E9\u5019\u9009\u5F15\u7528\u8BE5 asset" : "\u9700\u8981\u5019\u9009\u6216\u9009\u62E9\u786E\u8BA4",
-      preview: `${contentUnitId} \u5728 edit_prompt \u4E2D\u5F15\u7528 ${nodeId(asset, "asset")}\u3002`
-    };
-  });
-}
-function primaryOwnerForContentUnit(contentUnit, input3) {
-  const expressionUnitRef = primaryRefIdsForContentUnitRecord2(contentUnit.record, "expression_unit")[0];
-  if (expressionUnitRef) {
-    const expressionUnit = input3.expressionUnits.find((item) => entityMatchesRef(item, expressionUnitRef, "expression_unit"));
-    return {
-      nodeId: expressionUnit ? idText(expressionUnit) : expressionUnitRef,
-      momentId: expressionUnit ? ancestorId(input3.ancestryIndex, expressionUnit, "scene_moment") ?? pathSegmentAfter(expressionUnit.path, "scene_moments") ?? "" : "",
-      expressionUnitId: expressionUnit ? idText(expressionUnit) : expressionUnitRef
-    };
-  }
-  const storyboardRef = primaryRefIdsForContentUnitRecord2(contentUnit.record, "storyboard")[0];
-  if (storyboardRef) {
-    const storyboard = input3.storyboards.find((item) => entityMatchesRef(item, storyboardRef, "storyboard"));
-    return {
-      nodeId: storyboard ? nodeId(storyboard, "storyboard") : `storyboard/${storyboardRef}`,
-      momentId: storyboard ? ancestorId(input3.ancestryIndex, storyboard, "scene_moment") ?? pathSegmentAfter(storyboard.path, "scene_moments") ?? "" : "",
-      expressionUnitId: storyboard ? ancestorId(input3.ancestryIndex, storyboard, "expression_unit") ?? pathSegmentAfter(storyboard.path, "expression_units") ?? "" : ""
-    };
-  }
-  const keyframeRef = primaryRefIdsForContentUnitRecord2(contentUnit.record, "keyframe")[0];
-  if (keyframeRef) {
-    const keyframe = input3.keyframes.find((item) => entityMatchesRef(item, keyframeRef, "keyframe"));
-    return {
-      nodeId: keyframe ? idText(keyframe) : keyframeRef,
-      momentId: keyframe ? ancestorId(input3.ancestryIndex, keyframe, "scene_moment") ?? pathSegmentAfter(keyframe.path, "scene_moments") ?? "" : "",
-      expressionUnitId: keyframe ? ancestorId(input3.ancestryIndex, keyframe, "expression_unit") ?? pathSegmentAfter(keyframe.path, "expression_units") ?? "" : ""
-    };
-  }
-  return void 0;
-}
-function expressionUnitChildOption(entity, primaryKind, expressionUnit, input3) {
-  const contentUnit = contentUnitForEntity(input3.contentUnitsByPrimaryRef, primaryKind, entity);
-  const contentUnitId = contentUnit ? idText(contentUnit) : "";
-  const selection = contentUnitId ? input3.selectionRecordsByContentUnitId.get(contentUnitId) : void 0;
-  return {
-    id: idText(entity),
-    title: titleOf(entity, idText(entity)),
-    status: contentUnit ? "candidate" : "draft",
-    inputHash: contentUnitId || "source",
-    summary: stringField7(entity.record.visual_intent ?? entity.record.summary ?? entity.record.description ?? entity.record.slot) ?? entity.path,
-    ...contentUnit ? {
-      contentUnit: {
-        id: contentUnitId,
-        type: primaryKind === "keyframe" ? "keyframe_ref" : "storyboard_ref",
-        outputKind: outputKindForContentUnit(contentUnit),
-        path: contentUnit.path,
-        editPrompt: editPromptText(contentUnit) ?? "",
-        sceneMomentRef: `scene_moment/${ancestorId(input3.ancestryIndex, expressionUnit, "scene_moment") ?? pathSegmentAfter(expressionUnit.path, "scene_moments") ?? ""}`,
-        expressionUnitRef: idText(expressionUnit),
-        storyboardRef: primaryKind === "storyboard" ? nodeId(entity, "storyboard") : "",
-        keyframeRefs: primaryKind === "keyframe" ? [idText(entity)] : [],
-        selectionState: input3.selectionByContentUnitId.get(contentUnitId) ?? selectionStateFromSourceSelection(selection, contentUnit),
-        candidates: previewCandidatesForContentUnit(contentUnitId, input3.candidateRecordsByContentUnitId.get(contentUnitId) ?? [], selection)
-      }
-    } : {}
-  };
-}
-function buildContentUnitCandidates(input3) {
-  const ids = /* @__PURE__ */ new Set([
-    ...input3.contentUnits.map(idText),
-    ...input3.candidateRecordsByContentUnitId.keys(),
-    ...input3.selectionRecordsByContentUnitId.keys()
-  ]);
-  const output3 = {};
-  for (const contentUnitId of ids) {
-    output3[contentUnitId] = previewCandidatesForContentUnit(
-      contentUnitId,
-      input3.candidateRecordsByContentUnitId.get(contentUnitId) ?? [],
-      input3.selectionRecordsByContentUnitId.get(contentUnitId)
-    );
-  }
-  return output3;
-}
-function groupContentUnitsByPrimaryRef(contentUnits) {
-  const output3 = /* @__PURE__ */ new Map();
-  for (const contentUnit of contentUnits) {
-    const type = stringField7(contentUnit.record.content_unit_type);
-    const primaryKind = primaryKindForContentUnitType(type);
-    if (!primaryKind) continue;
-    for (const ref of primaryRefIdsForContentUnitRecord2(contentUnit.record, primaryKind)) {
-      for (const key of primaryRefKeys(primaryKind, ref)) {
-        output3.set(key, [...output3.get(key) ?? [], contentUnit]);
-      }
-    }
-  }
-  return output3;
-}
-function groupContentCandidateRecordsByContentUnitId(documents) {
-  const output3 = /* @__PURE__ */ new Map();
-  for (const document of documents) {
-    if (document.path.endsWith("/content_candidate.json") && isContentCandidateRecord(document.data)) {
-      const contentUnitId2 = contentUnitIdForRuntimeDocument(document.path, document.data.content_unit_ref);
-      if (!contentUnitId2) continue;
-      appendContentCandidateRecord(output3, contentUnitId2, document.data);
-      continue;
-    }
-    if (!isDecisionContextRecord(document.data)) continue;
-    const contentUnitId = contentUnitIdForRuntimeDocument(document.path, stringField7(document.data.target_ref));
-    if (!contentUnitId) continue;
-    for (const candidate of arrayField(document.data.candidates)) {
-      const record = normalizeDecisionContentCandidateRecord(candidate, contentUnitId);
-      if (record) appendContentCandidateRecord(output3, contentUnitId, record);
-    }
-  }
-  for (const [contentUnitId, candidates] of output3.entries()) {
-    output3.set(contentUnitId, candidates.sort((left, right) => (stringField7(right.created_at) ?? "").localeCompare(stringField7(left.created_at) ?? "")));
-  }
-  return output3;
-}
-function appendContentCandidateRecord(output3, contentUnitId, candidate) {
-  const candidates = output3.get(contentUnitId) ?? [];
-  const candidateId = idValue(candidate.id);
-  if (!candidateId) {
-    output3.set(contentUnitId, [...candidates, candidate]);
-    return;
-  }
-  const existingIndex = candidates.findIndex((existing) => idValue(existing.id) === candidateId);
-  if (existingIndex < 0) {
-    output3.set(contentUnitId, [...candidates, candidate]);
-    return;
-  }
-  output3.set(contentUnitId, [
-    ...candidates.slice(0, existingIndex),
-    mergeContentCandidateRecords(candidates[existingIndex], candidate),
-    ...candidates.slice(existingIndex + 1)
-  ]);
-}
-function normalizeDecisionContentCandidateRecord(value, contentUnitId) {
-  if (!isRecord6(value) || !idValue(value.id)) return void 0;
-  return {
-    ...value,
-    content_unit_ref: stringField7(value.content_unit_ref) ?? `content_units/${contentUnitId}`
-  };
-}
-function mergeContentCandidateRecords(existing, incoming) {
-  const merged = { ...existing, ...incoming };
-  if (arrayField(incoming.outputs).length === 0 && arrayField(existing.outputs).length > 0) merged.outputs = existing.outputs;
-  if (!recordField(incoming.producer) && recordField(existing.producer)) merged.producer = existing.producer;
-  if (!recordField(incoming.prompt_snapshot) && recordField(existing.prompt_snapshot)) merged.prompt_snapshot = existing.prompt_snapshot;
-  if (!stringField7(incoming.status) && stringField7(existing.status)) merged.status = existing.status;
-  if (!stringField7(incoming.source) && stringField7(existing.source)) merged.source = existing.source;
-  if (!stringField7(incoming.created_at) && stringField7(existing.created_at)) merged.created_at = existing.created_at;
-  if (!stringField7(incoming.content_unit_ref) && stringField7(existing.content_unit_ref)) merged.content_unit_ref = existing.content_unit_ref;
-  return merged;
-}
-function groupSelectionRecordsByContentUnitId(documents) {
-  const output3 = /* @__PURE__ */ new Map();
-  for (const document of documents) {
-    if (!isDecisionContextRecord(document.data)) continue;
-    const selection = recordField(document.data.selection);
-    if (!selection) continue;
-    const contentUnitId = contentUnitIdForRuntimeDocument(document.path, stringField7(document.data.target_ref));
-    if (!contentUnitId) continue;
-    output3.set(contentUnitId, normalizeContentSelectionRecord(selection));
-  }
-  return output3;
-}
-function previewCandidatesForContentUnit(contentUnitId, candidates, selection) {
-  return candidates.map((candidate, index) => {
-    const id = idValue(candidate.id) ?? `candidate_${index + 1}`;
-    const output3 = firstCandidateOutput(candidate);
-    return {
-      id,
-      title: candidateTitle(candidate, candidateOrdinalTitle(index)),
-      model: candidateModel(candidate),
-      inputHash: candidateInputHash(candidate, contentUnitId),
-      selected: selectionCandidateMatches(selection, id),
-      note: candidateNote(candidate),
-      resourceId: resourceIdValue(output3?.resource_id),
-      streamId: streamIdValue(output3?.stream_id),
-      resourceKind: stringField7(output3?.kind),
-      artifactRef: stringField7(output3?.artifact_ref),
-      status: stringField7(candidate.status),
-      decisionStatus: candidateDecisionStatus(candidate),
-      decisionReason: candidateDecisionReason(candidate),
-      source: stringField7(candidate.source),
-      producer: candidate.producer,
-      outputs: candidate.outputs,
-      promptSnapshot: candidate.prompt_snapshot,
-      createdAt: stringField7(candidate.created_at)
-    };
-  });
-}
-function previewAssetCandidatesForContentUnit(contentUnitId, candidates, selection) {
-  return candidates.map((candidate, index) => {
-    const id = idValue(candidate.id) ?? `candidate_${index + 1}`;
-    const output3 = firstCandidateOutput(candidate);
-    return {
-      id,
-      title: candidateTitle(candidate, candidateOrdinalTitle(index)),
-      model: candidateModel(candidate),
-      inputHash: candidateInputHash(candidate, contentUnitId),
-      selected: selectionCandidateMatches(selection, id),
-      note: candidateNote(candidate),
-      resourceId: resourceIdValue(output3?.resource_id),
-      streamId: streamIdValue(output3?.stream_id),
-      resourceKind: stringField7(output3?.kind),
-      artifactRef: stringField7(output3?.artifact_ref),
-      status: stringField7(candidate.status),
-      decisionStatus: candidateDecisionStatus(candidate),
-      decisionReason: candidateDecisionReason(candidate),
-      source: stringField7(candidate.source),
-      producer: candidate.producer,
-      outputs: candidate.outputs,
-      promptSnapshot: candidate.prompt_snapshot,
-      createdAt: stringField7(candidate.created_at),
-      confirmation: assetCandidateConfirmation(candidate, selection, id)
-    };
-  });
-}
-function selectionStateFromSourceSelection(selection, contentUnit) {
-  if (selection?.candidate_id !== void 0) return "selected";
-  return contentUnit ? "needs_candidate" : "ready";
-}
-function buildSelectionStateByContentUnitId(contentUnits, selections) {
-  const entries = contentUnits.map((contentUnit) => {
-    const id = idText(contentUnit);
-    const selection = selections.get(id);
-    if (selection?.candidate_id !== void 0) return [id, "selected"];
-    return [id, "needs_candidate"];
-  });
-  return new Map(entries);
-}
-function contentUnitForEntity(contentUnitsByPrimaryRef, entityKind, entity) {
-  if (entity.id === void 0) return void 0;
-  return contentUnitsByPrimaryRef.get(primaryRefKey(entityKind, entity.id))?.[0];
-}
-function primaryKindForContentUnitType(type) {
-  return type ? primaryRefKindForContentUnitType(type) : void 0;
-}
-function primaryRefIdsForContentUnitRecord2(record, kind) {
-  return isContentUnitPromptRefKind(kind) ? primaryRefIdsForContentUnitRecord(record, kind) : [];
-}
-function editPromptRefs(contentUnit) {
-  const text = editPromptText(contentUnit) ?? "";
-  const refs = [];
-  const pattern = /\{\{\s*([a-z_]+)\s*:\s*([^}\s]+)\s*\}\}/g;
-  let match = pattern.exec(text);
-  while (match) {
-    refs.push({ kind: match[1] ?? "", id: match[2] ?? "" });
-    match = pattern.exec(text);
-  }
-  return refs;
-}
-function editPromptText(contentUnit) {
-  const prompt = contentUnit?.record.edit_prompt;
-  if (typeof prompt === "string") return prompt;
-  if (isRecord6(prompt)) return stringField7(prompt.text);
-  return void 0;
-}
-function entityNode(entity, type, extras = {}) {
-  return {
-    id: nodeId(entity, type),
-    type,
-    title: titleOf(entity, idText(entity)),
-    path: entity.path,
-    transition: supportsTransition(type) ? transitionFromEntity(entity) : void 0,
-    storyboardTimeline: type === "storyboard" ? storyboardTimelineFromEntity(entity) : void 0,
-    ...extras
-  };
-}
-function supportsTransition(type) {
-  return type === "production" || type === "segment" || type === "scene_moment" || type === "storyboard";
-}
-function nodeId(entity, type) {
-  if (type === "setting") return `setting/${idText(entity)}`;
-  if (type === "state") return `state/${pathSegmentAfter(entity.path, "settings") ?? ""}/${idText(entity)}`;
-  if (type === "asset") return `asset/${idText(entity)}`;
-  if (type === "storyboard") return `storyboard/${idText(entity)}`;
-  return idText(entity);
-}
-function titleOf(entity, fallback) {
-  return stringField7(entity.record.title ?? entity.record.name ?? entity.record.label ?? entity.record.text) ?? fallback;
-}
-function idText(entity) {
-  return String(entity.id ?? entity.record.id ?? entity.record.ID ?? entity.path);
-}
-function entityMatchesRef(entity, ref, kind) {
-  const normalized = ref.replace(/\/+$/, "");
-  const dir = entity.path.replace(/\/[^/]+$/, "");
-  return String(entity.id ?? "") === ref || dir === normalized || entity.path === `${normalized}/${kind}.json`;
-}
-function sortEntities(entities) {
-  return [...entities].sort((left, right) => numberField2(left.record.order) - numberField2(right.record.order) || left.path.localeCompare(right.path));
-}
-function childEntitiesForParent(ancestryIndex, entities, parent) {
-  const directChildren = new Set((ancestryIndex.childrenByParentPath.get(parent.path) ?? []).map((entity) => entity.path));
-  return entities.filter((entity) => directChildren.has(entity.path));
-}
-function ancestorEntity(ancestryIndex, entity, entityKind) {
-  const seen = /* @__PURE__ */ new Set([entity.path]);
-  let currentPath = entity.path;
-  while (true) {
-    const parentPath = ancestryIndex.parentPathByPath.get(currentPath);
-    if (!parentPath || seen.has(parentPath)) return void 0;
-    seen.add(parentPath);
-    const parent = ancestryIndex.entityByPath.get(parentPath);
-    if (!parent) return void 0;
-    if (parent.entityKind === entityKind) return parent;
-    currentPath = parent.path;
-  }
-}
-function ancestorId(ancestryIndex, entity, entityKind) {
-  const ancestor = ancestorEntity(ancestryIndex, entity, entityKind);
-  return ancestor ? idText(ancestor) : void 0;
-}
-function parentByDir(entities, childPath) {
-  const childDir = entityDir2(childPath);
-  return entities.find((entity) => childDir.startsWith(`${entityDir2(entity.path)}/`));
-}
-function entityDir2(path) {
-  return path.replace(/\/[^/]+$/, "");
-}
-function pathSegmentAfter(path, segment) {
-  const parts = path.split("/");
-  const index = parts.indexOf(segment);
-  return index >= 0 ? parts[index + 1] : void 0;
-}
-function primaryRefKey(kind, id) {
-  return `${kind}:${String(id ?? "")}`;
-}
-function primaryRefKeys(kind, ref) {
-  const value = String(ref);
-  const keys = [primaryRefKey(kind, value)];
-  const lastSegment = value.split("/").filter(Boolean).at(-1);
-  if (lastSegment && lastSegment !== value) keys.push(primaryRefKey(kind, lastSegment));
-  return keys;
-}
-function shotCameraText(shot) {
-  return [
-    stringField7(shot.record.shot_size),
-    stringField7(recordField(shot.record.camera)?.movement),
-    stringField7(recordField(shot.record.camera)?.angle)
-  ].filter(Boolean).join(" \xB7 ") || stringField7(shot.record.shot_kind) || "shot";
-}
-function shotExpressionText(shot) {
-  return stringField7(shot.record.description ?? shot.record.summary ?? recordField(shot.record.expression)?.text ?? recordField(shot.record.expression)?.intent) ?? titleOf(shot, idText(shot));
-}
-function durationText(value) {
-  const duration = Number(value);
-  return Number.isFinite(duration) && duration > 0 ? `${duration}s` : "\u5F85\u5B9A";
-}
-function stillPositionForIndex(index) {
-  return ["0% 0%", "100% 0%", "0% 100%", "100% 100%"][index % 4] ?? "0% 0%";
-}
-function contentUnitType(contentUnit) {
-  const type = stringField7(contentUnit?.record.content_unit_type);
-  if (type === "keyframe_ref" || type === "storyboard_ref" || type === "audio_cue_ref" || type === "scence_moment_ref" || type === "scene_moment_ref" || type === "expression_unit_ref") return type;
-  return "expression_unit_ref";
-}
-function outputKindForContentUnit(contentUnit) {
-  const outputKind = stringField7(contentUnit?.record.output_kind);
-  if (outputKind === "image" || outputKind === "video" || outputKind === "audio" || outputKind === "text" || outputKind === "metadata" || outputKind === "storyboard") return outputKind;
-  const type = contentUnitType(contentUnit);
-  if (type === "keyframe_ref" || type === "storyboard_ref") return "image";
-  if (type === "audio_cue_ref") return "audio";
-  return "video";
-}
-function momentSelectionState(expressionUnits) {
-  if (expressionUnits.some((expressionUnit) => expressionUnit.contentUnit.selectionState === "stale")) return "stale";
-  if (expressionUnits.some((expressionUnit) => expressionUnit.contentUnit.selectionState === "needs_candidate")) return "needs_candidate";
-  if (expressionUnits.some((expressionUnit) => expressionUnit.contentUnit.selectionState === "selected")) return "selected";
-  return "ready";
-}
-function settingRefsForMoment(_moment, expressionUnits, assets) {
-  const refs = /* @__PURE__ */ new Set();
-  for (const expressionUnit of expressionUnits) {
-    for (const asset of expressionUnit.assets) refs.add(asset.title);
-  }
-  if (refs.size === 0) {
-    for (const asset of assets.slice(0, 3)) refs.add(nodeId(asset, "asset"));
-  }
-  return [...refs];
-}
-function shotAssets(shot, keyframes, assets) {
-  const refs = [
-    ...arrayField(shot.record.reference_asset_refs),
-    ...keyframes.flatMap((keyframe) => arrayField(keyframe.record.reference_asset_refs))
-  ].map(String);
-  const uniqueRefs = [...new Set(refs)];
-  return uniqueRefs.map((ref) => ({
-    title: ref.startsWith("asset/") ? ref : `asset/${ref}`,
-    status: assets.some((asset) => String(asset.id ?? "") === ref || entityDir2(asset.path) === ref || asset.path.startsWith(`${ref}/`)) ? "ready" : "missing"
-  }));
-}
-function contentUnitIdForRuntimeDocument(path, explicitRef) {
-  const ref = explicitRef ?? entityDir2(path);
-  const id = pathSegmentAfter(ref, "content_units");
-  return id;
-}
-function candidateTitle(candidate, fallback) {
-  const explicitTitle = stringField7(candidate.prompt_snapshot?.title) ?? stringField7(candidate.producer?.title) ?? stringField7(candidate.producer?.name);
-  if (explicitTitle && !candidateTitleIsGeneric(explicitTitle)) return explicitTitle;
-  return readableCandidateTitleFallback(fallback);
-}
-function candidateOrdinalTitle(index) {
-  return `\u5019\u9009 ${index + 1}`;
-}
-function candidateTitleIsGeneric(value) {
-  const normalized = value.trim().toLowerCase();
-  return normalized === "queued generation" || normalized === "pending generation" || normalized === "content unit image generation" || normalized === "content unit video generation" || technicalCandidateIdPattern.test(normalized);
-}
-function readableCandidateTitleFallback(value) {
-  return technicalCandidateIdPattern.test(value.trim().toLowerCase()) ? "\u5019\u9009" : value;
-}
-var technicalCandidateIdPattern = /^(canvas|resource|content)_candidate_[\w-]+$|^resource_\d+_[\w-]+$|^gen_(image|video)_\d+_\d+$/;
-function candidateModel(candidate) {
-  return stringField7(candidate.producer?.model_id) ?? stringField7(candidate.producer?.model) ?? stringField7(candidate.producer?.kind) ?? stringField7(candidate.source) ?? "runtime";
-}
-function candidateInputHash(candidate, contentUnitId) {
-  return stringField7(candidate.prompt_snapshot?.input_hash) ?? stringField7(candidate.prompt_snapshot?.content_hash) ?? stringField7(candidate.prompt_snapshot?.hash) ?? stringField7(candidate.created_at) ?? contentUnitId;
-}
-function candidateNote(candidate) {
-  const output3 = firstCandidateOutput(candidate);
-  return stringField7(candidate.prompt_snapshot?.note) ?? stringField7(candidate.prompt_snapshot?.summary) ?? stringField7(output3?.mime_type) ?? stringField7(candidate.status) ?? "Workspace runtime candidate.";
-}
-function candidateDecisionStatus(candidate) {
-  const record = candidate;
-  return stringField7(record.decision_status) ?? stringField7(record.decisionStatus);
-}
-function candidateDecisionReason(candidate) {
-  const record = candidate;
-  return stringField7(record.decision_reason) ?? stringField7(record.decisionReason);
-}
-function firstCandidateOutput(candidate) {
-  return arrayField(candidate.outputs).filter(isRecord6)[0];
-}
-function assetCandidateConfirmation(candidate, selection, candidateId) {
-  if (selectionCandidateMatches(selection, candidateId)) return "confirmed";
-  if (candidate.status === "failed" || candidate.status === "canceled") return "stale";
-  return "review";
-}
-function selectionCandidateMatches(selection, candidateId) {
-  return selection?.candidate_id !== void 0 && String(selection.candidate_id) === candidateId;
-}
-function idValue(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  if (typeof value === "string" && value.trim()) return value.trim();
-  return void 0;
-}
-function recordField(value) {
-  return isRecord6(value) ? value : void 0;
-}
-function stringField7(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : void 0;
-}
-function numberField2(value) {
-  const numberValue24 = Number(value);
-  return Number.isFinite(numberValue24) ? numberValue24 : Number.MAX_SAFE_INTEGER;
-}
-function optionalNumberField(value) {
-  const numberValue24 = Number(value);
-  return Number.isFinite(numberValue24) ? numberValue24 : void 0;
-}
-function pruneUndefinedRecord(record) {
-  const output3 = {};
-  for (const [key, value] of Object.entries(record)) {
-    if (value !== void 0) output3[key] = value;
-  }
-  return output3;
-}
-function arrayField(value) {
-  return Array.isArray(value) ? value : [];
-}
-function isRecord6(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-function isContentCandidateRecord(value) {
-  return isRecord6(value) && value.schema === "movscript.content_candidate.v1";
-}
-function isDecisionContextRecord(value) {
-  return isRecord6(value) && value.schema === "movscript.decision_context.v1" && value.target_kind === "content_unit";
-}
-function normalizeContentSelectionRecord(value) {
-  return {
-    candidate_id: value.candidate_id,
-    resource_id: resourceIdValue(value.resource_id),
-    stream_id: streamIdValue(value.stream_id),
-    artifact_ref: stringField7(value.artifact_ref),
-    stale_policy: value.stale_policy,
-    reason: value.reason,
-    selected_at: value.selected_at
-  };
-}
-function streamIdValue(value) {
-  if (typeof value === "string" && value.trim()) return value.trim();
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  return void 0;
-}
-function resourceIdValue(value) {
-  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value);
-    if (Number.isInteger(parsed) && parsed > 0) return parsed;
-  }
-  return void 0;
-}
-function isDefined(value) {
-  return value !== void 0;
-}
-function buildContentSourceWorkspaceProjectTimelineStatus(snapshot, _contentUnitSummaries = []) {
-  const namespaceVocabulary = snapshot.namespaceVocabulary ?? {
-    timelineTemplate: void 0,
-    timelineNamespaces: [],
-    settingNamespaces: [],
-    diagnostics: []
-  };
-  const timelineNamespaceNodes = (snapshot.domainNodes ?? []).filter((node) => node.category === "timeline_namespace").sort((left, right) => (left.order ?? 0) - (right.order ?? 0) || String(left.path ?? left.id ?? "").localeCompare(String(right.path ?? right.id ?? ""), "zh-CN"));
-  const timelineNamespaces = timelineNamespaceNodes.map((node) => {
-    const parent = domainParentRefForNode(snapshot, node);
-    const record = domainRecordForNode(snapshot, node);
-    const productionType = stringField23(record?.production_type ?? record?.productionType ?? record?.timeline_profile ?? record?.timelineProfile);
-    const nodeTimelineNamespaces = stringArrayField(record?.timeline_namespaces ?? record?.timelineNamespaces);
-    return {
-      id: node.id,
-      kind: node.kind,
-      title: node.title,
-      path: node.path,
-      order: node.order,
-      entity_kind: stringField23(node.metadata?.entityKind),
-      ...productionType ? { production_type: productionType } : {},
-      ...nodeTimelineNamespaces.length ? { timeline_namespaces: nodeTimelineNamespaces } : {},
-      ...parent ? { parent } : {}
-    };
-  });
-  return {
-    schema: "movscript.project_timeline_status.v1",
-    status: "ok",
-    namespace_vocabulary: {
-      timeline_template: namespaceVocabulary.timelineTemplate,
-      timeline_namespaces: namespaceVocabulary.timelineNamespaces,
-      setting_namespaces: namespaceVocabulary.settingNamespaces,
-      diagnostics: namespaceVocabulary.diagnostics
-    },
-    timeline_namespace_count: timelineNamespaces.length,
-    timeline_namespaces: timelineNamespaces,
-    system_primitives: {
-      scene_moments_count: snapshot.sceneMoments.length,
-      expression_units_count: snapshot.expressionUnits.length,
-      storyboards_count: snapshot.storyboards.length,
-      keyframes_count: snapshot.keyframes.length,
-      audio_cues_count: snapshot.audioCues.length,
-      assets_count: snapshot.assets.length
-    }
-  };
-}
-function contentSourceWorkspaceContentUnitStatusSummaries(snapshot) {
-  const candidatesByContentUnit = contentCandidateRecordsByContentUnitId(snapshot.indexDocuments);
-  const selectionsByContentUnit = selectionRecordsByContentUnitId(snapshot.indexDocuments);
-  return snapshot.contentUnits.map((unit) => summarizeContentUnitStatus(unit, candidatesByContentUnit, selectionsByContentUnit));
-}
-function summarizeContentUnitStatus(unit, candidatesByContentUnit, selectionsByContentUnit) {
-  const id = entityId(unit);
-  const contentUnitId = String(id);
-  const candidates = candidatesByContentUnit.get(contentUnitId) ?? [];
-  const selection = selectionsByContentUnit.get(contentUnitId);
-  const selectedCandidate = selection?.candidate_id !== void 0 ? candidates.find((candidate) => sameId(candidate.id, selection.candidate_id)) : void 0;
-  const selectedResourceId3 = numberField22(selection?.resource_id) ?? numberField22(firstCandidateOutput2(selectedCandidate)?.resource_id);
-  return {
-    content_unit_id: id,
-    title: stringField23(unit.record.title),
-    path: unit.path,
-    content_unit_type: stringField23(unit.record.content_unit_type),
-    output_kind: stringField23(unit.record.output_kind),
-    target_kind: stringField23(unit.record.target_kind),
-    target_ref: idField2(unit.record.target_ref),
-    candidate_count: candidates.length,
-    candidate_ids: candidates.map((candidate) => idField2(candidate.id)).filter((value) => value !== void 0),
-    selected_candidate: selection?.candidate_id,
-    selected_resource: selectedResourceId3,
-    stale_status: stringField23(selection?.stale_policy) === "accept_stale" ? "accepted_stale" : "ok",
-    blocking_refs: selection?.candidate_id === void 0 && candidates.length > 0 ? ["selection_missing"] : []
-  };
-}
-function domainParentRefForNode(snapshot, node) {
-  const edge = (snapshot.domainEdges ?? []).find((candidate) => candidate.relation === "parent" && candidate.target.category === node.category && domainRefMatchesNode(candidate.source, node));
-  return edge ? {
-    id: edge.target.id,
-    kind: edge.target.kind,
-    path: edge.target.path
-  } : void 0;
-}
-function domainRecordForNode(snapshot, node) {
-  const entityKind = stringField23(node.metadata?.entityKind);
-  const entities = entityKind === "production" ? snapshot.productions : entityKind === "segment" ? snapshot.segments : [];
-  return entities.find(
-    (entity) => node.path !== void 0 && entity.path === node.path || node.id !== void 0 && sameId(idField2(entity.id ?? entity.record.id ?? entity.record.ID ?? entity.path), node.id)
-  )?.record;
-}
-function domainRefMatchesNode(ref, node) {
-  return ref.category === node.category && ref.kind === node.kind && (sameId(ref.id, node.id) || ref.path !== void 0 && ref.path === node.path);
-}
-function contentCandidateRecordsByContentUnitId(documents) {
-  const output3 = /* @__PURE__ */ new Map();
-  for (const document of documents) {
-    if (!document.path.endsWith("/content_candidate.json") || !isRecord23(document.data)) continue;
-    const contentUnitId = contentUnitIdForRuntimeDocument2(document.path, stringField23(document.data.content_unit_ref));
-    if (!contentUnitId) continue;
-    output3.set(contentUnitId, [...output3.get(contentUnitId) ?? [], document.data]);
-  }
-  return output3;
-}
-function selectionRecordsByContentUnitId(documents) {
-  const output3 = /* @__PURE__ */ new Map();
-  for (const document of documents) {
-    if (!isRecord23(document.data)) continue;
-    const selection = isRecord23(document.data.selection) ? document.data.selection : void 0;
-    if (!selection) continue;
-    const contentUnitId = contentUnitIdForRuntimeDocument2(document.path, stringField23(document.data.target_ref));
-    if (!contentUnitId) continue;
-    output3.set(contentUnitId, {
-      ...idField2(selection.candidate_id) !== void 0 ? { candidate_id: idField2(selection.candidate_id) } : {},
-      ...numberField22(selection.resource_id) !== void 0 ? { resource_id: numberField22(selection.resource_id) } : {},
-      ...stringField23(selection.stale_policy) ? { stale_policy: stringField23(selection.stale_policy) } : {}
-    });
-  }
-  return output3;
-}
-function entityId(entity) {
-  return idField2(entity.id ?? entity.record.id ?? entity.record.ID ?? pathSegmentAfter3(entity.path, "content_units") ?? entity.path) ?? entity.path;
-}
-function contentUnitIdForRuntimeDocument2(path, ref) {
-  if (ref) return lastPathSegment(ref) ?? ref;
-  return pathSegmentAfter3(path, "content_units");
-}
-function firstCandidateOutput2(candidate) {
-  const outputs = Array.isArray(candidate?.outputs) ? candidate.outputs : [];
-  return outputs.find(isRecord23);
-}
-function stringArrayField(value) {
-  return Array.isArray(value) ? value.filter((item) => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim()) : [];
-}
-function idField2(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) return value.trim();
-  return void 0;
-}
-function stringField23(value) {
-  const id = idField2(value);
-  return id === void 0 ? void 0 : String(id);
-}
-function numberField22(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
-  return void 0;
-}
-function pathSegmentAfter3(path, segment) {
-  if (!path) return void 0;
-  const parts = path.split("/").filter(Boolean);
-  const index = parts.indexOf(segment);
-  return index >= 0 ? parts[index + 1] : void 0;
-}
-function lastPathSegment(path) {
-  return path?.split("/").filter(Boolean).at(-1);
-}
-function sameId(left, right) {
-  return left !== void 0 && right !== void 0 && String(left) === String(right);
-}
-function isRecord23(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-var PROJECT_CONTEXT_STYLE_REFERENCE_RULE_KEY = "style_reference_images";
-var PROJECT_CONTEXT_CORE_STANDARDS = [
-  { key: "aspect_ratio", label: "\u753B\u5E45\u6BD4\u4F8B", promptRole: "context" },
-  { key: "visual_style", label: "\u89C6\u89C9\u98CE\u683C", promptRole: "style" },
-  { key: "shot_size_system", label: "\u955C\u5934\u5927\u5C0F\u4F53\u7CFB", promptRole: "style" },
-  { key: "camera_language", label: "\u955C\u5934\u8BED\u8A00", promptRole: "style" },
-  { key: "lighting_style", label: "\u706F\u5149\u89C4\u5219", promptRole: "style" },
-  { key: "color_palette", label: "\u8272\u5F69\u89C4\u5219", promptRole: "style" },
-  { key: "pacing_rules", label: "\u8282\u594F\u89C4\u5219", promptRole: "constraint" },
-  { key: "negative_rules", label: "\u8D1F\u9762\u89C4\u5219", promptRole: "negative" }
-];
-function buildProjectContextSnapshot(input3) {
-  const entity = input3.standardsEntity;
-  const standards = entity?.record ?? {};
-  const namespaceVocabulary = input3.namespaceVocabulary ?? {
-    timelineTemplate: void 0,
-    timelineNamespaces: [],
-    settingNamespaces: [],
-    diagnostics: []
-  };
-  const projectStyle = parseProjectStyle(standards.project_style);
-  const core = PROJECT_CONTEXT_CORE_STANDARDS.map((item) => {
-    const value = projectContextFieldText(item.key === "aspect_ratio" ? standards.aspect_ratio ?? projectStyle.aspect_ratio : item.key === "visual_style" ? standards.visual_style ?? projectStyle.visual_style : projectStyle[item.key] ?? standards[item.key]);
-    return {
-      key: item.key,
-      label: item.label,
-      prompt_role: item.promptRole,
-      required: true,
-      value,
-      filled: Boolean(value)
-    };
-  });
-  const customRules = normalizeProjectContextRules(projectStyle.custom_rules);
-  const enabledRules = customRules.filter((rule) => rule.enabled && rule.value);
-  const promptPreview = buildProjectContextPromptPreview(core, enabledRules);
-  const styleReferenceResourceIds = Array.from(new Set(
-    enabledRules.flatMap((rule) => rule.key === PROJECT_CONTEXT_STYLE_REFERENCE_RULE_KEY ? extractProjectContextResourceIds(rule.value) : [])
-  ));
-  return {
-    schema: "movscript.project_context_snapshot.v1",
-    kind: "project_context_snapshot",
-    source: {
-      entity_kind: "project_standards",
-      entity_id: entity?.id ?? standards.id ?? "project_standards",
-      path: entity?.path ?? "project_standards.json",
-      updated_at: standards.updated_at
-    },
-    namespace_vocabulary: {
-      timeline_template: namespaceVocabulary.timelineTemplate,
-      timeline_namespaces: namespaceVocabulary.timelineNamespaces,
-      setting_namespaces: namespaceVocabulary.settingNamespaces,
-      diagnostics: namespaceVocabulary.diagnostics
-    },
-    standards_hash: stableProjectContextHash({
-      aspect_ratio: standards.aspect_ratio,
-      visual_style: standards.visual_style,
-      project_style: projectStyle,
-      namespace_vocabulary: namespaceVocabulary
-    }),
-    core_standards: core,
-    missing_core_keys: core.filter((item) => !item.filled).map((item) => item.key),
-    missing_core_labels: core.filter((item) => !item.filled).map((item) => item.label),
-    custom_rules: customRules,
-    enabled_rules: enabledRules,
-    style_reference_resource_ids: styleReferenceResourceIds,
-    prompt_preview: promptPreview,
-    agent_guidance: [
-      "Read this snapshot before planning, content-unit work, or generation that depends on project house style or constraints.",
-      "Use namespace_vocabulary for project-specific timeline/setting terms; do not infer concrete parent relationships from vocabulary templates.",
-      "Do not modify project standards just because fields are missing; only use domain_upsert_project_standards when the user asks to add, remove, or change standards.",
-      "When visual generation supports reference images, pass style_reference_resource_ids as house-style reference_resource_ids."
-    ]
-  };
-}
-function parseProjectStyle(value) {
-  if (isRecord32(value)) return value;
-  if (typeof value !== "string" || !value.trim()) return {};
-  try {
-    const parsed = JSON.parse(value);
-    return isRecord32(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-function projectContextFieldText(value) {
-  if (value === void 0 || value === null) return "";
-  if (typeof value === "string") return value.trim();
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  if (Array.isArray(value)) return value.map((item) => projectContextFieldText(item)).filter(Boolean).join("\uFF1B");
-  if (isRecord32(value)) {
-    try {
-      return JSON.stringify(value);
-    } catch {
-      return String(value);
-    }
-  }
-  return String(value);
-}
-function normalizeProjectContextRules(value) {
-  const rules = Array.isArray(value) ? value.filter(isRecord32) : [];
-  return rules.map((rule, index) => {
-    const key = projectContextFieldText(rule.key).toLowerCase().replace(/\s+/g, "_");
-    const label = projectContextFieldText(rule.label ?? rule.name ?? rule.key) || `\u6269\u5C55\u89C4\u8303 ${index + 1}`;
-    const ruleValue = projectContextFieldText(rule.value ?? rule.content ?? rule.description);
-    return {
-      id: projectContextFieldText(rule.id) || `rule_${key || index}_${index}`,
-      key: key || label.toLowerCase().replace(/\s+/g, "_"),
-      label,
-      category: projectContextFieldText(rule.category) || "\u901A\u7528",
-      value: ruleValue,
-      prompt_role: normalizeProjectContextPromptRole(rule.prompt_role ?? rule.promptRole ?? rule.role),
-      enabled: typeof rule.enabled === "boolean" ? rule.enabled : true,
-      required: typeof rule.required === "boolean" ? rule.required : false,
-      order: numberValue2(rule.order) ?? (index + 1) * 10
-    };
-  }).filter((rule) => rule.key || rule.label || rule.value).sort((left, right) => left.order - right.order || left.label.localeCompare(right.label));
-}
-function normalizeProjectContextPromptRole(value) {
-  if (value === "context" || value === "style" || value === "constraint" || value === "negative" || value === "quality_gate") return value;
-  return "constraint";
-}
-function buildProjectContextPromptPreview(core, rules) {
-  const items = [
-    ...core.filter((item) => item.value),
-    ...rules.filter((item) => item.value)
-  ];
-  const sections = [
-    { role: "context", title: "\u9879\u76EE\u80CC\u666F\u89C4\u8303" },
-    { role: "style", title: "\u89C6\u89C9\u4E0E\u8868\u8FBE\u89C4\u8303" },
-    { role: "constraint", title: "\u5FC5\u987B\u9075\u5B88" },
-    { role: "negative", title: "\u7981\u6B62\u51FA\u73B0" },
-    { role: "quality_gate", title: "\u8D28\u68C0\u53E3\u5F84" }
-  ].flatMap((section) => {
-    const sectionItems = items.filter((item) => item.prompt_role === section.role);
-    if (sectionItems.length === 0) return [];
-    return [`${section.title}\uFF1A`, ...sectionItems.map((item) => `- ${item.label}\uFF1A${item.value}`)];
-  });
-  return sections.length > 0 ? `\u9879\u76EE\u89C4\u8303\uFF1A
-${sections.join("\n")}` : "\u9879\u76EE\u89C4\u8303\uFF1A\n- \u6682\u65E0\u5DF2\u542F\u7528\u89C4\u8303\u3002";
-}
-function extractProjectContextResourceIds(value) {
-  const ids = /* @__PURE__ */ new Set();
-  for (const pattern of [/resource#(\d+)/gi, /reference_resource_ids\s*[:=]\s*\[?([0-9,\s]+)\]?/gi]) {
-    for (const match of value.matchAll(pattern)) {
-      const idText2 = match[1] ?? "";
-      for (const part of idText2.split(",")) {
-        const id = Number(part.trim());
-        if (Number.isInteger(id) && id > 0) ids.add(id);
-      }
-    }
-  }
-  return Array.from(ids);
-}
-function stableProjectContextHash(value) {
-  const text = stableStringify(value);
-  let hash = 2166136261;
-  for (let index = 0; index < text.length; index += 1) {
-    hash ^= text.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(16).padStart(8, "0");
-}
-function stableStringify(value) {
-  if (Array.isArray(value)) return `[${value.map((item) => stableStringify(item)).join(",")}]`;
-  if (isRecord32(value)) {
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
-function isRecord32(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function numberValue2(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value !== "string" || !value.trim()) return void 0;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : void 0;
-}
-
 // ../../packages/workspace/dist/chunk-LJ7J62DV.js
 function deriveMovScriptWorkspaceDomainIndex(documents) {
   const entities = documents.flatMap((document) => indexedEntitiesFromDocument(document));
@@ -50140,7 +48703,7 @@ function queryMovScriptWorkspaceSettings(index, query = {}) {
     limit: query.limit
   });
   if (query.settingId === void 0) return references;
-  return references.filter((entity) => sameId2(entity.id, query.settingId));
+  return references.filter((entity) => sameId(entity.id, query.settingId));
 }
 function queryMovScriptWorkspaceAssets(index, query = {}) {
   const assets = queryMovScriptWorkspaceEntities(index, {
@@ -50149,11 +48712,11 @@ function queryMovScriptWorkspaceAssets(index, query = {}) {
     settingId: query.settingId,
     settingStateId: query.settingStateId,
     limit: query.limit
-  }).filter((entity) => query.assetId === void 0 || sameId2(entity.id, query.assetId));
+  }).filter((entity) => query.assetId === void 0 || sameId(entity.id, query.assetId));
   if (!query.includeCandidates) return { assets };
   const candidates = assets.flatMap((entity) => {
     const rows = entity.record.candidates;
-    return Array.isArray(rows) ? rows.filter(isRecord7) : [];
+    return Array.isArray(rows) ? rows.filter(isRecord6) : [];
   });
   return { assets, candidates };
 }
@@ -50165,7 +48728,7 @@ function queryMovScriptWorkspaceProductionContext(index, query = {}) {
       entityKind: "production",
       query: query.query,
       limit: query.limit
-    }).filter((entity) => query.productionId === void 0 || sameId2(entity.id, query.productionId));
+    }).filter((entity) => query.productionId === void 0 || sameId(entity.id, query.productionId));
   }
   if (include.has("segments")) {
     result.segments = queryMovScriptWorkspaceEntities(index, {
@@ -50173,7 +48736,7 @@ function queryMovScriptWorkspaceProductionContext(index, query = {}) {
       productionId: query.productionId,
       query: query.query,
       limit: query.limit
-    }).filter((entity) => query.segmentId === void 0 || sameId2(entity.id, query.segmentId));
+    }).filter((entity) => query.segmentId === void 0 || sameId(entity.id, query.segmentId));
   }
   if (include.has("scene_moments")) {
     result.scene_moments = queryMovScriptWorkspaceEntities(index, {
@@ -50182,7 +48745,7 @@ function queryMovScriptWorkspaceProductionContext(index, query = {}) {
       segmentId: query.segmentId,
       query: query.query,
       limit: query.limit
-    }).filter((entity) => query.sceneMomentId === void 0 || sameId2(entity.id, query.sceneMomentId));
+    }).filter((entity) => query.sceneMomentId === void 0 || sameId(entity.id, query.sceneMomentId));
   }
   if (include.has("storyboards")) {
     result.storyboards = queryMovScriptWorkspaceEntities(index, {
@@ -50192,7 +48755,7 @@ function queryMovScriptWorkspaceProductionContext(index, query = {}) {
       sceneMomentId: query.sceneMomentId,
       query: query.query,
       limit: query.limit
-    }).filter((entity) => query.storyboardId === void 0 || sameId2(entity.id, query.storyboardId));
+    }).filter((entity) => query.storyboardId === void 0 || sameId(entity.id, query.storyboardId));
   }
   if (include.has("audio_cues")) {
     result.audio_cues = queryMovScriptWorkspaceEntities(index, {
@@ -50236,14 +48799,14 @@ function queryMovScriptWorkspaceProductionContext(index, query = {}) {
 }
 function indexedEntitiesFromDocument(document) {
   const path = normalizeIndexedDocumentPath(document.path);
-  if (!isRecord7(document.data)) return [];
-  const entityKind = entityKindFromSchema(stringField8(document.data.schema)) ?? entityKindFromPath(path);
+  if (!isRecord6(document.data)) return [];
+  const entityKind = entityKindFromSchema(stringField7(document.data.schema)) ?? entityKindFromPath(path);
   return entityKind ? [indexedEntity(entityKind, workspaceRecordWithDocumentMetadata(document.data, document), path, 0)] : [];
 }
 function indexedEntity(entityKind, record, path, index) {
-  const schema = stringField8(record.schema);
+  const schema = stringField7(record.schema);
   const id = entityIdField(entityKind, record);
-  const clientId = stringField8(record.client_id ?? record.clientId);
+  const clientId = stringField7(record.client_id ?? record.clientId);
   return {
     entityKind,
     record,
@@ -50263,7 +48826,7 @@ function deriveMovScriptDomainNodes(entities) {
       kind: projectMovScriptDomainNodeKind(entity.entityKind, entity.record),
       ...entity.id !== void 0 ? { id: entity.id } : {},
       path: entity.path,
-      title: stringField8(entity.record.title) ?? stringField8(entity.record.label),
+      title: stringField7(entity.record.title) ?? stringField7(entity.record.label),
       order: finiteNumber(entity.record.order),
       metadata: {
         entityKind: entity.entityKind
@@ -50283,13 +48846,13 @@ function deriveMovScriptDomainPathParentEdges(nodes) {
     const parentPath = nearestParentPath(entityDir(node.path), nodeByDir.keys());
     if (!parentPath) continue;
     const parent = nodeByDir.get(parentPath);
-    const normalized = normalizePathParentEdge(domainRefFromNode2(node), parent ? domainRefFromNode2(parent) : void 0);
+    const normalized = normalizePathParentEdge(domainRefFromNode(node), parent ? domainRefFromNode(parent) : void 0);
     if (normalized.edge) edges.push(normalized.edge);
   }
-  return dedupeDomainEdges2(edges);
+  return dedupeDomainEdges(edges);
 }
 function deriveMovScriptDomainEdges(entities, nodes) {
-  return dedupeDomainEdges2([
+  return dedupeDomainEdges([
     ...deriveMovScriptDomainPathParentEdges(nodes),
     ...deriveMovScriptContentUnitTargetEdges(entities, nodes)
   ]);
@@ -50303,22 +48866,22 @@ function deriveMovScriptContentUnitTargetEdges(entities, nodes) {
     const sourceNode = nodeByPath.get(entity.path);
     if (!sourceNode) continue;
     edges.push(...normalizeContentUnitTargetEdges({
-      source: domainRefFromNode2(sourceNode),
+      source: domainRefFromNode(sourceNode),
       record: entity.record,
       scopeTarget(scope) {
-        return domainRefFromTimelineScope2(scope.kind, scope.ref, timelineNamespaceNodes);
+        return domainRefFromTimelineScope(scope.kind, scope.ref, timelineNamespaceNodes);
       }
     }));
   }
   return edges;
 }
-function domainRefFromTimelineScope2(scopeKind, scopeRef, timelineNamespaceNodes) {
+function domainRefFromTimelineScope(scopeKind, scopeRef, timelineNamespaceNodes) {
   const node = timelineNamespaceNodes.find(
     (candidate) => String(candidate.id ?? "") === scopeRef && (candidate.kind === scopeKind || candidate.metadata?.entityKind === scopeKind)
   );
-  return node ? domainRefFromNode2(node) : { category: "timeline_namespace", kind: scopeKind, id: scopeRef };
+  return node ? domainRefFromNode(node) : { category: "timeline_namespace", kind: scopeKind, id: scopeRef };
 }
-function domainRefFromNode2(node) {
+function domainRefFromNode(node) {
   return {
     category: node.category,
     kind: node.kind,
@@ -50378,31 +48941,31 @@ var schemaEntityKinds = {
   asset: "asset"
 };
 function entityPathMatchesProduction(path, productionId) {
-  return pathSegmentAfter2(path, "productions") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "productions"), productionId, "production");
+  return pathSegmentAfter(path, "productions") !== void 0 && sameEntityRef(pathSegmentAfter(path, "productions"), productionId, "production");
 }
 function entityPathMatchesSegment(path, segmentId) {
-  return pathSegmentAfter2(path, "segments") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "segments"), segmentId, "segment");
+  return pathSegmentAfter(path, "segments") !== void 0 && sameEntityRef(pathSegmentAfter(path, "segments"), segmentId, "segment");
 }
 function entityPathMatchesSceneMoment(path, sceneMomentId) {
-  return pathSegmentAfter2(path, "scene_moments") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "scene_moments"), sceneMomentId, "scene_moment");
+  return pathSegmentAfter(path, "scene_moments") !== void 0 && sameEntityRef(pathSegmentAfter(path, "scene_moments"), sceneMomentId, "scene_moment");
 }
 function entityPathMatchesStoryboard(path, storyboardId) {
-  return pathSegmentAfter2(path, "storyboards") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "storyboards"), storyboardId, "storyboard");
+  return pathSegmentAfter(path, "storyboards") !== void 0 && sameEntityRef(pathSegmentAfter(path, "storyboards"), storyboardId, "storyboard");
 }
 function entityMatchesStoryboard(entity, storyboardId, context) {
   if (entityMatchesScope(entity, "storyboard", storyboardId, context)) return true;
   if (entityPathMatchesStoryboard(entity.path, storyboardId)) return true;
-  const storyboardRef = stringField8(entity.record.storyboard_ref);
+  const storyboardRef = stringField7(entity.record.storyboard_ref);
   return storyboardRef !== void 0 && (entityPathMatchesStoryboard(storyboardRef, storyboardId) || sameNormalizedEntityPath(storyboardRef, storyboardId, "storyboard"));
 }
 function entityPathMatchesContentUnit(path, contentUnitId) {
-  return pathSegmentAfter2(path, "content_units") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "content_units"), contentUnitId, "content_unit");
+  return pathSegmentAfter(path, "content_units") !== void 0 && sameEntityRef(pathSegmentAfter(path, "content_units"), contentUnitId, "content_unit");
 }
 function entityPathMatchesSetting(path, settingId) {
-  return pathSegmentAfter2(path, "settings") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "settings"), settingId, "setting");
+  return pathSegmentAfter(path, "settings") !== void 0 && sameEntityRef(pathSegmentAfter(path, "settings"), settingId, "setting");
 }
 function entityPathMatchesSettingState(path, stateId) {
-  return pathSegmentAfter2(path, "states") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "states"), stateId, "setting_state");
+  return pathSegmentAfter(path, "states") !== void 0 && sameEntityRef(pathSegmentAfter(path, "states"), stateId, "setting_state");
 }
 function createEntityQueryContext(index) {
   const entityByPath = new Map(index.entities.map((entity) => [entity.path, entity]));
@@ -50490,7 +49053,7 @@ function recordKindMatches(record, kind) {
     record.expressionKind,
     record.cue_kind,
     record.cueKind
-  ].some((value) => stringField8(value) === kind);
+  ].some((value) => stringField7(value) === kind);
 }
 function isDeletedWorkspaceRecord(record) {
   return record.__delete === true || record.deleted === true;
@@ -50500,28 +49063,28 @@ function limitEntities(items, limit) {
   if (!Number.isFinite(limit) || limit <= 0) return [];
   return items.slice(0, Math.floor(limit));
 }
-function sameId2(left, right) {
-  const leftId = idField3(left);
-  const rightId = idField3(right);
+function sameId(left, right) {
+  const leftId = idField2(left);
+  const rightId = idField2(right);
   return leftId !== void 0 && rightId !== void 0 && String(leftId) === String(rightId);
 }
 function entityIdField(entityKind, record) {
-  if (entityKind === "project") return idField3(record.project_id ?? record.ID ?? record.id);
-  return idField3(record.ID ?? record.id);
+  if (entityKind === "project") return idField2(record.project_id ?? record.ID ?? record.id);
+  return idField2(record.ID ?? record.id);
 }
-function idField3(value) {
+function idField2(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
 }
-function stringField8(value) {
+function stringField7(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
 function finiteNumber(value) {
   const next = Number(value);
   return Number.isFinite(next) ? next : void 0;
 }
-function pathSegmentAfter2(path, segment) {
+function pathSegmentAfter(path, segment) {
   const parts = path.split("/");
   const index = parts.indexOf(segment);
   return index >= 0 ? parts[index + 1] : void 0;
@@ -50538,7 +49101,7 @@ function sameNormalizedEntityPath(pathOrDir, ref, entityKind) {
 function normalizeIndexedDocumentPath(path) {
   return normalizeWorkspacePath(path).replace(/^\.movscript\//, "");
 }
-function isRecord7(value) {
+function isRecord6(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function pruneUndefined(value) {
@@ -50548,7 +49111,7 @@ function pruneUndefined(value) {
   }
   return output3;
 }
-function dedupeDomainEdges2(edges) {
+function dedupeDomainEdges(edges) {
   const seen = /* @__PURE__ */ new Set();
   const out = [];
   for (const edge of edges) {
@@ -50563,9 +49126,9 @@ function dedupeDomainEdges2(edges) {
 // ../../packages/decision/dist/index.js
 var DEFAULT_SELECTION_FIELD = "lock";
 function buildMovScriptCandidateSelectionRecord(candidate, input3 = {}) {
-  const candidateId = idField4(candidate.id);
+  const candidateId = idField3(candidate.id);
   const resourceId = resourceIdField(candidate.resource_id ?? candidate.resourceId);
-  const artifactRef = stringField9(candidate.artifact_ref ?? candidate.artifactRef);
+  const artifactRef = stringField8(candidate.artifact_ref ?? candidate.artifactRef);
   if (candidateId === void 0 && resourceId === void 0) {
     throw new Error("candidate selection requires candidate id or resource_id");
   }
@@ -50598,16 +49161,16 @@ function clearMovScriptCandidateSelectionRecord(record, options = {}) {
   return nextRecord;
 }
 function findCandidate(record, candidateId) {
-  return arrayField2(record.candidates).filter(isRecord8).find((item) => sameId3(item.id, candidateId));
+  return arrayField(record.candidates).filter(isRecord7).find((item) => sameId2(item.id, candidateId));
 }
 function selectionField(options) {
   return options.selectionField?.trim() || DEFAULT_SELECTION_FIELD;
 }
-function sameId3(left, right) {
+function sameId2(left, right) {
   if (left === void 0 || right === void 0) return false;
   return String(left) === String(right);
 }
-function idField4(value) {
+function idField3(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
@@ -50620,13 +49183,13 @@ function resourceIdField(value) {
   }
   return void 0;
 }
-function stringField9(value) {
+function stringField8(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
-function arrayField2(value) {
+function arrayField(value) {
   return Array.isArray(value) ? value : [];
 }
-function isRecord8(value) {
+function isRecord7(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function pruneUndefined2(value) {
@@ -50691,7 +49254,7 @@ async function appendMovScriptInlineCandidate(input3) {
   const current = await readTargetRecord(input3.fileRepository, targetPath);
   validateTargetKind(input3.targetKind, current);
   const candidate = buildInlineCandidate(input3.payload, input3.nonce);
-  const candidates = arrayField3(current.candidates).filter(isRecord9);
+  const candidates = arrayField2(current.candidates).filter(isRecord8);
   if (candidates.some((item) => String(item.id) === String(candidate.id))) {
     throw new Error(`candidate already exists: ${String(candidate.id)}`);
   }
@@ -50717,14 +49280,14 @@ async function updateMovScriptInlineCandidate(input3) {
   const targetPath = normalizeWorkspacePath2(input3.targetPath ?? input3.targetEntity?.path ?? workspacePath(input3.targetRecord));
   const current = await readTargetRecord(input3.fileRepository, targetPath);
   validateTargetKind(input3.targetKind, current);
-  const candidates = arrayField3(current.candidates).filter(isRecord9);
+  const candidates = arrayField2(current.candidates).filter(isRecord8);
   const candidateIndex = candidates.findIndex((item) => String(item.id) === input3.candidateId);
   if (candidateIndex < 0) throw new Error(`candidate not found: ${input3.candidateId}`);
   const currentCandidate = candidates[candidateIndex];
   const candidate = pruneUndefined3({
     ...currentCandidate,
     ...input3.payload.resource_id !== void 0 || input3.payload.resourceId !== void 0 ? { resource_id: requiredResourceId(input3.payload.resource_id ?? input3.payload.resourceId) } : {},
-    ...input3.payload.artifact_ref !== void 0 || input3.payload.artifactRef !== void 0 ? { artifact_ref: stringField10(input3.payload.artifact_ref ?? input3.payload.artifactRef) } : {},
+    ...input3.payload.artifact_ref !== void 0 || input3.payload.artifactRef !== void 0 ? { artifact_ref: stringField9(input3.payload.artifact_ref ?? input3.payload.artifactRef) } : {},
     ...input3.payload.source !== void 0 ? { source: input3.payload.source } : {},
     ...input3.payload.notes !== void 0 ? { notes: input3.payload.notes } : {},
     ...input3.payload.metadata !== void 0 ? { metadata: input3.payload.metadata } : {}
@@ -50754,7 +49317,7 @@ async function unlockMovScriptInlineCandidate(input3) {
 function readTargetRecord(fileRepository, targetPath) {
   return fileRepository.read({ path: targetPath }).then((file) => {
     const parsed = JSON.parse(file.content);
-    if (!isRecord9(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
+    if (!isRecord8(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
     return parsed;
   });
 }
@@ -50776,7 +49339,7 @@ function buildInlineCandidate(payload, nonce) {
   return pruneUndefined3({
     id,
     resource_id: resourceId,
-    artifact_ref: stringField10(payload.artifact_ref ?? payload.artifactRef),
+    artifact_ref: stringField9(payload.artifact_ref ?? payload.artifactRef),
     source: payload.source ?? "manual",
     notes: payload.notes,
     metadata: payload.metadata
@@ -50801,7 +49364,7 @@ function requiredResourceId(value) {
   }
   throw new Error("resource_id must be a positive integer RawResource ID");
 }
-function stringField10(value) {
+function stringField9(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
 function randomNonce() {
@@ -50809,10 +49372,10 @@ function randomNonce() {
   if (random?.randomUUID) return random.randomUUID();
   return `${Date.now()}_${Math.random().toString(36).slice(2)}`;
 }
-function arrayField3(value) {
+function arrayField2(value) {
   return Array.isArray(value) ? value : [];
 }
-function isRecord9(value) {
+function isRecord8(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function pruneUndefined3(value) {
@@ -50829,7 +49392,7 @@ async function updateMovScriptContentUnitEditPrompt(input3) {
     text: stringValue3(input3.editPrompt.text),
     negative_text: stringValue3(input3.editPrompt.negative_text),
     notes: stringValue3(input3.editPrompt.notes),
-    structured: isRecord24(input3.editPrompt.structured) ? input3.editPrompt.structured : void 0
+    structured: isRecord23(input3.editPrompt.structured) ? input3.editPrompt.structured : void 0
   });
   const record = {
     ...current,
@@ -50844,7 +49407,7 @@ async function updateMovScriptContentUnitEditPrompt(input3) {
 function readContentUnitRecord(fileRepository, targetPath) {
   return fileRepository.read({ path: targetPath }).then((file) => {
     const parsed = JSON.parse(file.content);
-    if (!isRecord24(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
+    if (!isRecord23(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
     const schemaKind = typeof parsed.schema === "string" ? parsed.schema.replace(/^movscript\./, "").replace(/\.v\d+$/, "") : void 0;
     if (parsed.kind !== "content_unit" && schemaKind !== "content_unit") {
       throw new Error("target kind mismatch: expected content_unit");
@@ -50870,7 +49433,7 @@ function positiveNumberValue(value) {
   }
   return void 0;
 }
-function isRecord24(value) {
+function isRecord23(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function pruneUndefined22(value) {
@@ -50883,7 +49446,7 @@ function pruneUndefined22(value) {
 function normalizeGenerationReferences(value) {
   if (!Array.isArray(value)) return void 0;
   const refs = value.flatMap((item) => {
-    if (!isRecord24(item)) return [];
+    if (!isRecord23(item)) return [];
     const ref = pruneUndefined22({
       id: stringValue3(item.id),
       kind: stringValue3(item.kind ?? item.ref_kind ?? item.refKind ?? item.type),
@@ -50903,7 +49466,7 @@ function normalizeGenerationReferences(value) {
 function normalizeReferenceAssets(value) {
   if (!Array.isArray(value)) return void 0;
   const refs = value.flatMap((item) => {
-    if (!isRecord24(item)) return [];
+    if (!isRecord23(item)) return [];
     const ref = pruneUndefined22({
       role: stringValue3(item.role),
       media_type: stringValue3(item.media_type ?? item.mediaType),
@@ -50915,7 +49478,7 @@ function normalizeReferenceAssets(value) {
   return refs.length > 0 ? refs : void 0;
 }
 function normalizeModelIntent(value) {
-  if (!isRecord24(value)) return void 0;
+  if (!isRecord23(value)) return void 0;
   const out = pruneUndefined22({ ...value });
   return Object.keys(out).length > 0 ? out : void 0;
 }
@@ -51059,7 +49622,7 @@ async function updateMovScriptStoryboardTimeline(input3) {
 async function readWorkspaceRecord(fileRepository, targetPath, expectedKind) {
   const file = await fileRepository.read({ path: targetPath });
   const parsed = JSON.parse(file.content);
-  if (!isRecord33(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
+  if (!isRecord32(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
   const schemaKind = typeof parsed.schema === "string" ? parsed.schema.replace(/^movscript\./, "").replace(/\.v\d+$/, "") : void 0;
   if (expectedKind !== void 0 && parsed.kind !== expectedKind && schemaKind !== expectedKind) {
     throw new Error(`target kind mismatch: expected ${expectedKind}`);
@@ -51070,7 +49633,7 @@ async function readOptionalWorkspaceRecord(fileRepository, targetPath) {
   const file = await fileRepository.read({ path: targetPath }).catch(() => void 0);
   if (!file) return {};
   const parsed = JSON.parse(file.content);
-  if (!isRecord33(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
+  if (!isRecord32(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
   return parsed;
 }
 function assertRecordKind(current, expectedKind, targetPath) {
@@ -51108,7 +49671,7 @@ function stringValue22(value) {
 function finiteNumber2(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : void 0;
 }
-function isRecord33(value) {
+function isRecord32(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function stripWorkspacePrivateFields(record) {
@@ -51218,7 +49781,7 @@ function createMovScriptWorkspaceAssetSlotCandidateRecord(input3) {
       resource_id: resourceId,
       source_type: sourceType,
       source_id: sourceId,
-      score: numberValue3(input3.payload.score),
+      score: numberValue2(input3.payload.score),
       note
     }))
   });
@@ -51238,14 +49801,14 @@ function createMovScriptWorkspaceKeyframeCandidateRecord(input3) {
     target: { type: "keyframe", id: targetKeyframeId },
     keyframe_id: targetKeyframeId,
     resource_id: resourceId,
-    production_id: numberValue3(input3.payload.production_id ?? input3.payload.productionId),
-    scene_moment_id: numberValue3(input3.payload.scene_moment_id ?? input3.payload.sceneMomentId),
-    content_unit_id: numberValue3(input3.payload.content_unit_id ?? input3.payload.contentUnitId),
-    canvas_id: numberValue3(input3.payload.canvas_id ?? input3.payload.canvasId),
+    production_id: numberValue2(input3.payload.production_id ?? input3.payload.productionId),
+    scene_moment_id: numberValue2(input3.payload.scene_moment_id ?? input3.payload.sceneMomentId),
+    content_unit_id: numberValue2(input3.payload.content_unit_id ?? input3.payload.contentUnitId),
+    canvas_id: numberValue2(input3.payload.canvas_id ?? input3.payload.canvasId),
     title: stringValue32(input3.payload.title) ?? `\u5019\u9009\u753B\u9762 #${resourceId}`,
     description: stringValue32(input3.payload.description) ?? "",
     prompt: stringValue32(input3.payload.prompt) ?? "",
-    order: numberValue3(input3.payload.order ?? input3.payload.sort_order ?? input3.payload.sortOrder) ?? 0
+    order: numberValue2(input3.payload.order ?? input3.payload.sort_order ?? input3.payload.sortOrder) ?? 0
   });
 }
 function inlineCandidatePayload(payload) {
@@ -51275,7 +49838,7 @@ function workspaceCandidateRecordFromInline(input3) {
     target: { type: input3.targetKind, id: targetId },
     asset_slot_id: input3.targetKind === "asset" ? numericId(targetId) : void 0,
     keyframe_id: input3.targetKind === "keyframe" ? numericId(targetId) : void 0,
-    resource_id: resourceIdValue2(input3.candidate.resource_id),
+    resource_id: resourceIdValue(input3.candidate.resource_id),
     artifact_ref: stringValue32(input3.candidate.artifact_ref),
     source_type: input3.candidate.source,
     note: input3.candidate.notes,
@@ -51327,10 +49890,10 @@ function safeFileToken2(value) {
   return value.replace(/[^a-zA-Z0-9_-]+/g, "_");
 }
 function positiveNumber(value) {
-  const number = numberValue3(value);
+  const number = numberValue2(value);
   return number !== void 0 && number > 0 ? number : void 0;
 }
-function numberValue3(value) {
+function numberValue2(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) {
     const number = Number(value);
@@ -51339,9 +49902,9 @@ function numberValue3(value) {
   return void 0;
 }
 function numericId(value) {
-  return numberValue3(value);
+  return numberValue2(value);
 }
-function resourceIdValue2(value) {
+function resourceIdValue(value) {
   if (value === void 0) return void 0;
   return requiredResourceId2(value);
 }
@@ -51395,8 +49958,8 @@ async function upsertMovScriptWorkspaceAsset(input3) {
   const current = stripEntityPrivateFields(input3.entity?.record ?? input3.record ?? {});
   const payload = stripEntityPrivateFields(input3.payload);
   const identity = entityIdentity(entityIdentityValue(current, payload, input3.now), "asset");
-  const sourcePathSettingId = sourcePath ? pathSegmentAfter4(sourcePath, "settings") : void 0;
-  const sourcePathSettingStateId = sourcePath ? pathSegmentAfter4(sourcePath, "states") : void 0;
+  const sourcePathSettingId = sourcePath ? pathSegmentAfter2(sourcePath, "settings") : void 0;
+  const sourcePathSettingStateId = sourcePath ? pathSegmentAfter2(sourcePath, "states") : void 0;
   if (sourcePath && !sourcePathSettingStateId) {
     throw new Error("asset source path must be under a setting state");
   }
@@ -51437,7 +50000,7 @@ async function upsertMovScriptWorkspaceSettingState(input3) {
   const current = stripEntityPrivateFields(input3.entity?.record ?? input3.record ?? {});
   const payload = stripEntityPrivateFields(input3.payload);
   const identity = entityIdentity(entityIdentityValue(current, payload, input3.now), "setting_state");
-  const sourcePathSettingId = sourcePath ? pathSegmentAfter4(sourcePath, "settings") : void 0;
+  const sourcePathSettingId = sourcePath ? pathSegmentAfter2(sourcePath, "settings") : void 0;
   const settingId = entityRef(
     payload.setting_id ?? payload.settingId ?? payload.setting_ref ?? payload.settingRef ?? current.setting_id ?? current.settingId ?? current.setting_ref ?? current.settingRef,
     "setting"
@@ -51513,7 +50076,7 @@ function normalizeProfile(payload, current) {
 function workspacePath3(record) {
   return stringValue4(record.__workspace_path ?? record.workspace_path ?? record.path);
 }
-function pathSegmentAfter4(path, segment) {
+function pathSegmentAfter2(path, segment) {
   const parts = path.split("/");
   const index = parts.indexOf(segment);
   return index >= 0 ? parts[index + 1] : void 0;
@@ -52072,9 +50635,9 @@ function promptRefKind(value) {
   return isContentUnitPromptRefKind(value) ? value : void 0;
 }
 function sameRefId(left, right, kind) {
-  return sameEntityRef(left, right, kind) || lastPathSegment2(left) === right || lastPathSegment2(right) === left;
+  return sameEntityRef(left, right, kind) || lastPathSegment(left) === right || lastPathSegment(right) === left;
 }
-function lastPathSegment2(value) {
+function lastPathSegment(value) {
   if (typeof value !== "string" || !value.includes("/")) return void 0;
   return value.split("/").filter(Boolean).at(-1);
 }
@@ -52255,7 +50818,7 @@ function createMovScriptScopedProjectDataDecisionStore(options) {
         projectUid: options.projectUid,
         contentUnitId: input3.contentUnitId,
         targetRef,
-        candidateId: idField5(input3.candidate.id),
+        candidateId: idField4(input3.candidate.id),
         candidateCount: context.candidates.length
       });
       return context;
@@ -52306,7 +50869,7 @@ async function overlayMovScriptDecisionDocuments(documents, decisionStore) {
     if (contentUnit.id === void 0) continue;
     const context = decisionsByContentUnitId.get(String(contentUnit.id));
     if (!context) continue;
-    const contentUnitRef = entityDir3(contentUnit.path);
+    const contentUnitRef = entityDir2(contentUnit.path);
     rows.push({
       contentUnitId: contentUnit.id,
       targetRef: context.target_ref,
@@ -52318,7 +50881,7 @@ async function overlayMovScriptDecisionDocuments(documents, decisionStore) {
       data: normalizeDecisionContext(context, contentUnitRef)
     });
     for (const candidate of context.candidates) {
-      const candidateId = idField5(candidate.id);
+      const candidateId = idField4(candidate.id);
       if (candidateId === void 0) continue;
       overlays.push({
         path: `${contentUnitRef}/candidates/${entityPathSlug(candidateId, "candidate")}/content_candidate.json`,
@@ -52404,19 +50967,19 @@ async function requiredDecisionContext(promise) {
   if (!context) throw new Error("backend decision context not found");
   return context;
 }
-function entityDir3(path) {
+function entityDir2(path) {
   return path.replace(/\/[^/]+$/, "");
 }
-function idField5(value) {
+function idField4(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
 }
 function decisionCandidateIds(candidates) {
-  return candidates.map((candidate) => idField5(candidate.id)).filter((id) => id !== void 0);
+  return candidates.map((candidate) => idField4(candidate.id)).filter((id) => id !== void 0);
 }
 function stringIdField(value) {
-  const id = idField5(value);
+  const id = idField4(value);
   return id === void 0 ? void 0 : String(id);
 }
 function requiredResourceId3(value) {
@@ -52467,7 +51030,7 @@ function normalizeOutputs(outputs) {
       ...output3,
       resource_id: resourceId,
       stream_id: streamId,
-      artifact_ref: stringField24(output3.artifact_ref)
+      artifact_ref: stringField23(output3.artifact_ref)
     });
   });
 }
@@ -52484,7 +51047,7 @@ function streamIdField(value) {
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
   return void 0;
 }
-function stringField24(value) {
+function stringField23(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
 function pruneUndefined10(value) {
@@ -52497,7 +51060,7 @@ function pruneUndefined10(value) {
 async function upsertMovScriptProjectStandards(input3) {
   const current = stripWorkspacePrivateFields5(input3.record ?? {});
   const projectStyle = {
-    ...parseProjectStyle2(current.project_style),
+    ...parseProjectStyle(current.project_style),
     ...input3.projectStyle
   };
   const record = pruneUndefined11({
@@ -52516,12 +51079,12 @@ async function upsertMovScriptProjectStandards(input3) {
 ` });
   return { path, record };
 }
-function parseProjectStyle2(value) {
-  if (isRecord92(value)) return value;
+function parseProjectStyle(value) {
+  if (isRecord9(value)) return value;
   if (typeof value !== "string" || !value.trim()) return {};
   try {
     const parsed = JSON.parse(value);
-    return isRecord92(parsed) ? parsed : {};
+    return isRecord9(parsed) ? parsed : {};
   } catch {
     return {};
   }
@@ -52537,7 +51100,7 @@ function stripWorkspacePrivateFields5(record) {
 function stringValue8(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
-function isRecord92(value) {
+function isRecord9(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function pruneUndefined11(value) {
@@ -52562,7 +51125,7 @@ async function syncMovScriptProjectStandardSkills(input3) {
   return results;
 }
 function renderMovScriptProjectStandardSkill(standards) {
-  const projectStyle = parseProjectStyle22(standards.project_style);
+  const projectStyle = parseProjectStyle2(standards.project_style);
   const coreSections = [
     fieldSection("Aspect ratio", standards.aspect_ratio ?? projectStyle.aspect_ratio),
     fieldSection("Visual style", standards.visual_style ?? projectStyle.visual_style),
@@ -52656,7 +51219,7 @@ function resourceIdsFromValue(value) {
   if (!text) return [];
   return Array.from(text.matchAll(/\b(?:resource[_-]?id|resource)[_:#\s-]*(\d+)\b/gi)).map((match) => Number(match[1])).filter((id) => Number.isInteger(id));
 }
-function parseProjectStyle22(value) {
+function parseProjectStyle2(value) {
   if (isRecord10(value)) return value;
   const text = textValue(value);
   if (!text) return {};
@@ -53004,114 +51567,114 @@ function normalizeMentionPart(value) {
 }
 function deriveMovScriptWorkspacePreviewTimelines(index) {
   const sourceEntities = canonicalEntities(index);
-  const contentUnitsByPrimaryRef = groupContentUnitsByPrimaryRef2(index);
+  const contentUnitsByPrimaryRef = groupContentUnitsByPrimaryRef(index);
   return sourceEntities.filter(isProductionWithId).map((production) => {
-    const productionDir = entityDir4(production.path);
+    const productionDir = entityDir3(production.path);
     const segments = childEntities(index, productionDir, "segment");
     const items = [];
     let order = 0;
-    for (const segment of sortEntities2(segments)) {
+    for (const segment of sortEntities(segments)) {
       const segmentItemId = timelineItemId(segment);
       items.push({
         ...timelineItem(segmentItemId, "segment", segment, order++),
-        transition: recordField2(segment.record.transition)
+        transition: recordField(segment.record.transition)
       });
-      const sceneMoments = childEntities(index, entityDir4(segment.path), "scene_moment");
-      for (const sceneMoment of sortEntities2(sceneMoments)) {
+      const sceneMoments = childEntities(index, entityDir3(segment.path), "scene_moment");
+      for (const sceneMoment of sortEntities(sceneMoments)) {
         const sceneMomentItemId = timelineItemId(sceneMoment);
         const sceneMomentContentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "scene_moment", sceneMoment);
         items.push({
           ...timelineItem(sceneMomentItemId, "scene_moment", sceneMoment, order++),
           parentId: segmentItemId,
-          transition: recordField2(sceneMoment.record.transition),
-          contentUnitIds: sceneMomentContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
+          transition: recordField(sceneMoment.record.transition),
+          contentUnitIds: sceneMomentContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
         });
-        for (const contentUnit of sortEntities2(sceneMomentContentUnits)) {
+        for (const contentUnit of sortEntities(sceneMomentContentUnits)) {
           items.push({
             ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
             parentId: sceneMomentItemId
           });
         }
-        for (const storyboard of sortEntities2(childEntities(index, entityDir4(sceneMoment.path), "storyboard"))) {
+        for (const storyboard of sortEntities(childEntities(index, entityDir3(sceneMoment.path), "storyboard"))) {
           const storyboardItemId = timelineItemId(storyboard);
           const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "storyboard", storyboard);
-          const timeline = recordField2(storyboard.record.timeline);
+          const timeline = recordField(storyboard.record.timeline);
           items.push({
             ...timelineItem(storyboardItemId, "storyboard", storyboard, order++),
             parentId: sceneMomentItemId,
-            caption: stringField11(timeline?.caption),
-            gapAfterSec: numberField3(timeline?.gap_after_sec),
+            caption: stringField10(timeline?.caption),
+            gapAfterSec: numberField2(timeline?.gap_after_sec),
             timing: timeline,
-            transition: recordField2(storyboard.record.transition),
-            contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
+            transition: recordField(storyboard.record.transition),
+            contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
           });
-          for (const contentUnit of sortEntities2(contentUnits)) {
+          for (const contentUnit of sortEntities(contentUnits)) {
             items.push({
               ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
               parentId: storyboardItemId
             });
           }
         }
-        for (const keyframe of sortEntities2(childEntities(index, entityDir4(sceneMoment.path), "keyframe"))) {
+        for (const keyframe of sortEntities(childEntities(index, entityDir3(sceneMoment.path), "keyframe"))) {
           const keyframeItemId = timelineItemId(keyframe);
           const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "keyframe", keyframe);
           items.push({
             ...timelineItem(keyframeItemId, "keyframe", keyframe, order++),
             parentId: sceneMomentItemId,
-            timing: recordField2(keyframe.record.timing),
-            contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
+            timing: recordField(keyframe.record.timing),
+            contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
           });
-          for (const contentUnit of sortEntities2(contentUnits)) {
+          for (const contentUnit of sortEntities(contentUnits)) {
             items.push({
               ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
               parentId: keyframeItemId
             });
           }
         }
-        for (const expressionUnit of sortEntities2(childEntities(index, entityDir4(sceneMoment.path), "expression_unit"))) {
+        for (const expressionUnit of sortEntities(childEntities(index, entityDir3(sceneMoment.path), "expression_unit"))) {
           const expressionUnitItemId = timelineItemId(expressionUnit);
           const expressionUnitContentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "expression_unit", expressionUnit);
           items.push({
             ...timelineItem(expressionUnitItemId, "expression_unit", expressionUnit, order++),
             parentId: sceneMomentItemId,
-            contentUnitIds: expressionUnitContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
+            contentUnitIds: expressionUnitContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
           });
-          for (const contentUnit of sortEntities2(expressionUnitContentUnits)) {
+          for (const contentUnit of sortEntities(expressionUnitContentUnits)) {
             items.push({
               ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
               parentId: expressionUnitItemId
             });
           }
-          for (const storyboard of sortEntities2(childEntities(index, entityDir4(expressionUnit.path), "storyboard"))) {
+          for (const storyboard of sortEntities(childEntities(index, entityDir3(expressionUnit.path), "storyboard"))) {
             const storyboardItemId = timelineItemId(storyboard);
             const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "storyboard", storyboard);
-            const timeline = recordField2(storyboard.record.timeline);
+            const timeline = recordField(storyboard.record.timeline);
             items.push({
               ...timelineItem(storyboardItemId, "storyboard", storyboard, order++),
               parentId: expressionUnitItemId,
-              caption: stringField11(timeline?.caption),
-              gapAfterSec: numberField3(timeline?.gap_after_sec),
+              caption: stringField10(timeline?.caption),
+              gapAfterSec: numberField2(timeline?.gap_after_sec),
               timing: timeline,
-              transition: recordField2(storyboard.record.transition),
-              contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
+              transition: recordField(storyboard.record.transition),
+              contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
             });
-            for (const contentUnit of sortEntities2(contentUnits)) {
+            for (const contentUnit of sortEntities(contentUnits)) {
               items.push({
                 ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
                 parentId: storyboardItemId
               });
             }
           }
-          for (const keyframe of sortEntities2(childEntities(index, entityDir4(expressionUnit.path), "keyframe"))) {
+          for (const keyframe of sortEntities(childEntities(index, entityDir3(expressionUnit.path), "keyframe"))) {
             const keyframeItemId = timelineItemId(keyframe);
             const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "keyframe", keyframe);
             items.push({
               ...timelineItem(keyframeItemId, "keyframe", keyframe, order++),
               parentId: expressionUnitItemId,
-              timing: recordField2(keyframe.record.timing),
-              contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
+              timing: recordField(keyframe.record.timing),
+              contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
             });
-            for (const contentUnit of sortEntities2(contentUnits)) {
+            for (const contentUnit of sortEntities(contentUnits)) {
               items.push({
                 ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
                 parentId: keyframeItemId
@@ -53119,12 +51682,12 @@ function deriveMovScriptWorkspacePreviewTimelines(index) {
             }
           }
         }
-        for (const audioCue of sortEntities2(childEntities(index, entityDir4(sceneMoment.path), "audio_cue"))) {
+        for (const audioCue of sortEntities(childEntities(index, entityDir3(sceneMoment.path), "audio_cue"))) {
           items.push({
             ...timelineItem(timelineItemId(audioCue), "audio_cue", audioCue, order++),
             parentId: sceneMomentItemId,
-            cueKind: stringField11(audioCue.record.cue_kind),
-            timing: recordField2(audioCue.record.timing)
+            cueKind: stringField10(audioCue.record.cue_kind),
+            timing: recordField(audioCue.record.timing)
           });
         }
       }
@@ -53137,11 +51700,11 @@ function deriveMovScriptWorkspacePreviewTimelines(index) {
     };
   });
 }
-function groupContentUnitsByPrimaryRef2(index) {
+function groupContentUnitsByPrimaryRef(index) {
   const out = /* @__PURE__ */ new Map();
   for (const entity of canonicalEntities(index)) {
     if (entity.entityKind !== "content_unit") continue;
-    const contentUnitType2 = stringField11(entity.record.content_unit_type);
+    const contentUnitType2 = stringField10(entity.record.content_unit_type);
     if (!contentUnitType2 || !hasSpecializedContentUnitType(contentUnitType2)) continue;
     const primaryKind = primaryRefKindForContentUnitType(contentUnitType2);
     if (!primaryKind) continue;
@@ -53149,7 +51712,7 @@ function groupContentUnitsByPrimaryRef2(index) {
     if (primaryRefs.length !== 1) continue;
     const primaryRef = primaryRefs[0];
     if (!primaryRef) continue;
-    for (const key of primaryRefKeys2(primaryKind, primaryRef)) {
+    for (const key of primaryRefKeys(primaryKind, primaryRef)) {
       out.set(key, [...out.get(key) ?? [], entity]);
     }
   }
@@ -53157,16 +51720,16 @@ function groupContentUnitsByPrimaryRef2(index) {
 }
 function contentUnitsForEntity(contentUnitsByPrimaryRef, entityKind, entity) {
   if (entity.id === void 0) return [];
-  return contentUnitsByPrimaryRef.get(primaryRefKey2(entityKind, entity.id)) ?? [];
+  return contentUnitsByPrimaryRef.get(primaryRefKey(entityKind, entity.id)) ?? [];
 }
-function primaryRefKey2(kind, id) {
+function primaryRefKey(kind, id) {
   return `${kind}:${String(id)}`;
 }
-function primaryRefKeys2(kind, ref) {
+function primaryRefKeys(kind, ref) {
   const value = String(ref);
-  const keys = [primaryRefKey2(kind, value)];
+  const keys = [primaryRefKey(kind, value)];
   const lastSegment = value.split("/").filter(Boolean).at(-1);
-  if (lastSegment && lastSegment !== value) keys.push(primaryRefKey2(kind, lastSegment));
+  if (lastSegment && lastSegment !== value) keys.push(primaryRefKey(kind, lastSegment));
   return keys;
 }
 function timelineItem(id, itemType, entity, order) {
@@ -53175,7 +51738,7 @@ function timelineItem(id, itemType, entity, order) {
     itemType,
     entity: entityRef2(entity),
     order,
-    title: stringField11(entity.record.title) ?? String(entity.id ?? entity.path)
+    title: stringField10(entity.record.title) ?? String(entity.id ?? entity.path)
   };
 }
 function timelineItemId(entity) {
@@ -53191,7 +51754,7 @@ function entityRef2(entity) {
 function childEntities(index, parentDir, entityKind) {
   const collectionName = collectionDirForEntityKind(entityKind);
   if (!collectionName) return [];
-  return canonicalEntities(index).filter((entity) => entity.entityKind === entityKind && entity.path.startsWith(`${parentDir}/${collectionName}/`) && entityDir4(entity.path).replace(`${parentDir}/${collectionName}/`, "").split("/").length === 1);
+  return canonicalEntities(index).filter((entity) => entity.entityKind === entityKind && entity.path.startsWith(`${parentDir}/${collectionName}/`) && entityDir3(entity.path).replace(`${parentDir}/${collectionName}/`, "").split("/").length === 1);
 }
 function collectionDirForEntityKind(entityKind) {
   if (entityKind === "segment") return "segments";
@@ -53208,27 +51771,27 @@ function canonicalEntities(index) {
 function isProductionWithId(entity) {
   return entity.entityKind === "production" && entity.id !== void 0;
 }
-function sortEntities2(entities) {
+function sortEntities(entities) {
   return [...entities].sort((left, right) => {
-    const leftOrder = numberField3(left.record.order) ?? Number.MAX_SAFE_INTEGER;
-    const rightOrder = numberField3(right.record.order) ?? Number.MAX_SAFE_INTEGER;
+    const leftOrder = numberField2(left.record.order) ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder = numberField2(right.record.order) ?? Number.MAX_SAFE_INTEGER;
     if (leftOrder !== rightOrder) return leftOrder - rightOrder;
     return left.path.localeCompare(right.path);
   });
 }
-function entityDir4(path) {
+function entityDir3(path) {
   return path.replace(/\/[^/]+$/, "");
 }
-function recordField2(value) {
+function recordField(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
 }
-function stringField11(value) {
+function stringField10(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
-function numberField3(value) {
+function numberField2(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : void 0;
 }
-function isDefined2(value) {
+function isDefined(value) {
   return value !== void 0;
 }
 function createMovScriptWorkspaceService(options) {
@@ -53274,9 +51837,9 @@ function createMovScriptWorkspaceService(options) {
       const now = options.now?.() ?? /* @__PURE__ */ new Date();
       const createdAt = now.toISOString();
       const existingWorkspace = await readJSONArtifact(options.fileRepository, "workspace.json");
-      const title = stringField25(input3.title) ?? "MovScript Project";
-      const projectId = stringField25(input3.localProjectId) ?? stringField25(input3.local_project_id) ?? stringField25(input3.projectId) ?? stringField25(input3.project_id) ?? stringField25(existingWorkspace?.project_id) ?? safeProjectSlug(title);
-      const projectUid = stringField25(input3.projectUid) ?? stringField25(existingWorkspace?.project_uid) ?? stringField25(existingWorkspace?.projectUid) ?? createMovScriptProjectUid();
+      const title = stringField24(input3.title) ?? "MovScript Project";
+      const projectId = stringField24(input3.localProjectId) ?? stringField24(input3.local_project_id) ?? stringField24(input3.projectId) ?? stringField24(input3.project_id) ?? stringField24(existingWorkspace?.project_id) ?? safeProjectSlug(title);
+      const projectUid = stringField24(input3.projectUid) ?? stringField24(existingWorkspace?.project_uid) ?? stringField24(existingWorkspace?.projectUid) ?? createMovScriptProjectUid();
       const standardsRecord = {
         schema: "movscript.project_standards.v1",
         kind: "project_standards",
@@ -53300,7 +51863,7 @@ function createMovScriptWorkspaceService(options) {
           project_uid: projectUid,
           project_id: projectId,
           title,
-          created_at: stringField25(existingWorkspace?.created_at) ?? createdAt,
+          created_at: stringField24(existingWorkspace?.created_at) ?? createdAt,
           updated_at: createdAt
         }, Boolean(input3.overwrite)),
         await writeJSONDocument(options.fileRepository, "project.json", {
@@ -53308,7 +51871,7 @@ function createMovScriptWorkspaceService(options) {
           kind: "project",
           project_id: projectId,
           title,
-          language: stringField25(input3.language),
+          language: stringField24(input3.language),
           created_at: createdAt,
           updated_at: createdAt
         }, Boolean(input3.overwrite)),
@@ -53607,11 +52170,11 @@ async function updateMovScriptExpressionUnit(fileRepository, input3) {
   if (existing.kind !== "expression_unit") throw new Error(`Target is not an expression_unit: ${normalizedPath}`);
   const record = pruneUndefined12({
     ...existing,
-    schema: stringField25(existing.schema) ?? "movscript.expression_unit.v1",
+    schema: stringField24(existing.schema) ?? "movscript.expression_unit.v1",
     kind: "expression_unit",
     title: input3.patch.title !== void 0 ? input3.patch.title : existing.title,
     slot_kind: input3.patch.slotKind !== void 0 ? normalizeExpressionUnitSlotKind(input3.patch.slotKind) : normalizeExpressionUnitSlotKind(existing.slot_kind ?? existing.slotKind ?? existing.expression_kind ?? existing.kind),
-    expression_kind: input3.patch.expressionKind !== void 0 ? legacyExpressionKind(input3.patch.expressionKind, stringField25(existing.expression_kind)) : existing.expression_kind,
+    expression_kind: input3.patch.expressionKind !== void 0 ? legacyExpressionKind(input3.patch.expressionKind, stringField24(existing.expression_kind)) : existing.expression_kind,
     speaker: input3.patch.speaker !== void 0 ? input3.patch.speaker : existing.speaker,
     text: input3.patch.text !== void 0 ? input3.patch.text : existing.text,
     note: input3.patch.note !== void 0 ? input3.patch.note : existing.note,
@@ -53639,7 +52202,7 @@ async function updateMovScriptAudioCue(fileRepository, input3) {
   if (existing.kind !== "audio_cue") throw new Error(`Target is not an audio_cue: ${normalizedPath}`);
   const record = pruneUndefined12({
     ...existing,
-    schema: stringField25(existing.schema) ?? "movscript.audio_cue.v1",
+    schema: stringField24(existing.schema) ?? "movscript.audio_cue.v1",
     kind: "audio_cue",
     title: input3.patch.title !== void 0 ? input3.patch.title : existing.title,
     cue_kind: input3.patch.cueKind !== void 0 ? input3.patch.cueKind : existing.cue_kind,
@@ -53675,7 +52238,7 @@ function mergePromptSnapshots(runtimePrompt, promptSnapshot) {
   return pruneUndefined12({ ...runtimePrompt, ...promptSnapshot });
 }
 function firstCandidateResourceId(candidate) {
-  const firstOutput = arrayField4(candidate?.outputs).filter(isRecord11)[0];
+  const firstOutput = arrayField3(candidate?.outputs).filter(isRecord11)[0];
   const resourceId = firstOutput?.resource_id;
   return resourceIdField2(resourceId);
 }
@@ -53687,7 +52250,7 @@ function resourceIdField2(value) {
   }
   return void 0;
 }
-function arrayField4(value) {
+function arrayField3(value) {
   return Array.isArray(value) ? value : [];
 }
 var MOVSCRIPT_GITIGNORE_PATH = ".gitignore";
@@ -53775,9 +52338,9 @@ async function contentUnitWithGeneratedEntityId(loadIndex, unit) {
 async function existingWorkspaceEntityIds(loadIndex, entityKind) {
   const entities = queryMovScriptWorkspaceEntities(await loadIndex(), { entityKind });
   return entities.flatMap((entity) => [
-    stringField25(entity.id),
-    stringField25(entity.record.id),
-    stringField25(entity.record.ID)
+    stringField24(entity.id),
+    stringField24(entity.record.id),
+    stringField24(entity.record.ID)
   ]).filter((id) => Boolean(id));
 }
 function hasEntityIdentity(record) {
@@ -53790,12 +52353,12 @@ function hasEntityIdentity(record) {
     record.ID,
     record.client_id,
     record.clientId
-  ].some((value) => stringField25(value) !== void 0);
+  ].some((value) => stringField24(value) !== void 0);
 }
 function entityTitleSeed(payload, current) {
   return payload.title ?? payload.name ?? payload.slot ?? payload.slot_key ?? payload.slotKey ?? payload.text ?? payload.description ?? current.title ?? current.name ?? current.slot ?? current.slot_key ?? current.slotKey ?? current.text ?? current.description;
 }
-function stringField25(value) {
+function stringField24(value) {
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
@@ -54125,8 +52688,8 @@ function buildContentUnitGenerationOutputCandidate(input3) {
   const jobId = contentUnitGenerationJobId(input3.job);
   const candidateId = input3.candidateId ?? contentUnitGenerationCandidateId(input3.outputKind, jobId, input3.resourceId);
   const promptSnapshot = input3.promptSnapshot ?? {};
-  const modelId = input3.modelId ?? stringField12(input3.job.model_id) ?? stringField12(promptSnapshot.model_id);
-  const modelParams = nonEmptyRecord(input3.modelParams ?? recordField3(promptSnapshot.model_params));
+  const modelId = input3.modelId ?? stringField11(input3.job.model_id) ?? stringField11(promptSnapshot.model_id);
+  const modelParams = nonEmptyRecord(input3.modelParams ?? recordField2(promptSnapshot.model_params));
   return {
     contentUnitId: String(input3.contentUnitId),
     candidateId: String(candidateId),
@@ -54137,7 +52700,7 @@ function buildContentUnitGenerationOutputCandidate(input3) {
       tool: contentUnitGenerationToolName(input3.outputKind),
       job_id: jobId,
       ...modelId ? { model_id: modelId } : {},
-      ...stringField12(input3.job.job_type) ? { job_type: stringField12(input3.job.job_type) } : {},
+      ...stringField11(input3.job.job_type) ? { job_type: stringField11(input3.job.job_type) } : {},
       ...modelParams ? { model_params: modelParams } : {}
     },
     outputs: [{
@@ -54146,19 +52709,19 @@ function buildContentUnitGenerationOutputCandidate(input3) {
       metadata: {
         job_id: jobId,
         ...modelId ? { model_id: modelId } : {},
-        ...stringField12(input3.job.job_type) ? { job_type: stringField12(input3.job.job_type) } : {},
+        ...stringField11(input3.job.job_type) ? { job_type: stringField11(input3.job.job_type) } : {},
         tool: contentUnitGenerationMonitorToolName(input3.outputKind)
       }
     }],
     promptSnapshot,
-    createdAt: stringField12(input3.job.CreatedAt) ?? stringField12(input3.job.created_at) ?? (/* @__PURE__ */ new Date()).toISOString()
+    createdAt: stringField11(input3.job.CreatedAt) ?? stringField11(input3.job.created_at) ?? (/* @__PURE__ */ new Date()).toISOString()
   };
 }
 function contentUnitGenerationCandidateId(outputKind, jobId, resourceId) {
   return `gen_${outputKind}_${String(jobId)}_${String(resourceId)}`;
 }
 function compiledContentUnitGenerationPromptText(prompt) {
-  const text = stringField12(prompt.text);
+  const text = stringField11(prompt.text);
   if (text) return normalizeCompiledPromptResourceMentions(text);
   throw new Error("compiled content unit prompt has no text");
 }
@@ -54179,8 +52742,8 @@ function normalizeCompiledPromptResourceMentions(text) {
 }
 function compiledContentUnitGenerationPromptResourceIds(prompt) {
   return positiveIntegerIds([
-    ...resourceIdsFromMentions(stringField12(prompt.text)),
-    ...resourceIdsFromMentions(stringField12(prompt.negative_text)),
+    ...resourceIdsFromMentions(stringField11(prompt.text)),
+    ...resourceIdsFromMentions(stringField11(prompt.negative_text)),
     ...numericList(prompt.resource_ids),
     ...numericList(prompt.resourceIds),
     ...numericList(prompt.style_reference_resource_ids),
@@ -54190,9 +52753,9 @@ function compiledContentUnitGenerationPromptResourceIds(prompt) {
 function compiledContentUnitGenerationPromptReferenceAssets(prompt) {
   const declared = referenceAssetsFromValue(prompt.reference_assets ?? prompt.referenceAssets);
   const mentioned = [
-    ...referenceAssetsFromMentions(stringField12(prompt.text)),
-    ...referenceAssetsFromMentions(stringField12(prompt.negative_text)),
-    ...referenceAssetsFromMentions(stringField12(prompt.notes))
+    ...referenceAssetsFromMentions(stringField11(prompt.text)),
+    ...referenceAssetsFromMentions(stringField11(prompt.negative_text)),
+    ...referenceAssetsFromMentions(stringField11(prompt.notes))
   ];
   const all = [...declared, ...mentioned];
   const seen = /* @__PURE__ */ new Set();
@@ -54238,7 +52801,7 @@ function contentUnitGenerationParams(outputKind, prompt, params = {}) {
   const next = { ...params };
   if (outputKind === "image") {
     if (next.aspect_ratio === void 0) next.aspect_ratio = "1:1";
-    const negativePrompt = stringField12(prompt.negative_text);
+    const negativePrompt = stringField11(prompt.negative_text);
     if (negativePrompt && next.negative_prompt === void 0) next.negative_prompt = negativePrompt;
   } else {
     if (next.aspect_ratio === void 0) next.aspect_ratio = "16:9";
@@ -54254,14 +52817,14 @@ function contentUnitGenerationJobId(job) {
 function referenceAssetsFromValue(value) {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
-    const record = recordField3(item);
+    const record = recordField2(item);
     if (!record) return [];
     const resourceId = numericId2(record.resource_id ?? record.resourceId ?? record.id);
     if (resourceId === void 0) return [];
-    const role = stringField12(record.role);
-    const mediaType = stringField12(record.media_type ?? record.mediaType);
-    const referenceId = stringField12(record.reference_id ?? record.referenceId);
-    const sourceKind = stringField12(record.source_kind ?? record.sourceKind);
+    const role = stringField11(record.role);
+    const mediaType = stringField11(record.media_type ?? record.mediaType);
+    const referenceId = stringField11(record.reference_id ?? record.referenceId);
+    const sourceKind = stringField11(record.source_kind ?? record.sourceKind);
     const sourceId = stringOrNumberField(record.source_id ?? record.sourceId);
     const sourceRef = stringOrNumberField(record.source_ref ?? record.sourceRef);
     return [{
@@ -54300,16 +52863,16 @@ function numericId2(value) {
 }
 function stringOrNumberField(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
-  return stringField12(value);
+  return stringField11(value);
 }
-function stringField12(value) {
+function stringField11(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
-function recordField3(value) {
+function recordField2(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
 }
 function nonEmptyRecord(value) {
-  const record = recordField3(value);
+  const record = recordField2(value);
   return record && Object.keys(record).length > 0 ? record : void 0;
 }
 var DEFAULT_GENERATION_TOOLS_SETTINGS = {
@@ -54356,6 +52919,1549 @@ function newLocalServerId() {
     return `local-${crypto.randomUUID()}`;
   }
   return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// ../../packages/core/dist/chunk-5H5P6PXX.js
+function buildContentSourceWorkspaceData(input3) {
+  const productions = input3.productions;
+  const segments = input3.segments;
+  const sceneMoments = input3.sceneMoments;
+  const storyboards = input3.storyboards;
+  const expressionUnits = input3.expressionUnits;
+  const audioCues = input3.audioCues;
+  const contentUnits = input3.contentUnits;
+  const keyframes = input3.keyframes;
+  const assets = input3.assets;
+  const settings = input3.settings;
+  const settingStates = input3.settingStates;
+  const previewTimelines = input3.previewTimelines;
+  const productionWorkPlan = normalizeProductionWorkPlanView(input3.productionWorkPlan);
+  const domainGraph = buildContentSourceWorkspaceDomainGraph(input3);
+  const ancestryIndex = buildContentSourceWorkspaceEntityAncestryIndex(input3, domainGraph);
+  const contentUnitsByPrimaryRef = groupContentUnitsByPrimaryRef2(contentUnits);
+  const candidateRecordsByContentUnitId = groupContentCandidateRecordsByContentUnitId(input3.indexDocuments);
+  const selectionRecordsByContentUnitId23 = groupSelectionRecordsByContentUnitId(input3.indexDocuments);
+  const selectionByContentUnitId = buildSelectionStateByContentUnitId(contentUnits, selectionRecordsByContentUnitId23);
+  const contentUnitCandidates = buildContentUnitCandidates({
+    contentUnits,
+    candidateRecordsByContentUnitId,
+    selectionRecordsByContentUnitId: selectionRecordsByContentUnitId23
+  });
+  const previewMoments = buildPreviewMoments({
+    productions,
+    segments,
+    sceneMoments,
+    expressionUnits,
+    storyboards,
+    keyframes,
+    assets,
+    previewTimelines,
+    ancestryIndex,
+    contentUnitsByPrimaryRef,
+    candidateRecordsByContentUnitId,
+    selectionRecordsByContentUnitId: selectionRecordsByContentUnitId23,
+    selectionByContentUnitId
+  });
+  const expressionUnitsByMoment = buildExpressionUnitsByMoment(expressionUnits, ancestryIndex);
+  const audioCuesByMoment = buildAudioCuesByMoment(audioCues, {
+    ancestryIndex,
+    contentUnitsByPrimaryRef,
+    candidateRecordsByContentUnitId,
+    selectionRecordsByContentUnitId: selectionRecordsByContentUnitId23,
+    selectionByContentUnitId
+  });
+  const expressionUnitWorkspaceDetails = buildExpressionUnitWorkspaceDetails({
+    expressionUnits,
+    storyboards,
+    keyframes,
+    assets,
+    settings,
+    contentUnitsByPrimaryRef,
+    ancestryIndex,
+    candidateRecordsByContentUnitId,
+    selectionRecordsByContentUnitId: selectionRecordsByContentUnitId23,
+    selectionByContentUnitId
+  });
+  const assetReferenceUnits = buildAssetReferenceUnits({
+    assets,
+    settings,
+    settingStates,
+    expressionUnits,
+    storyboards,
+    keyframes,
+    contentUnits,
+    contentUnitsByPrimaryRef,
+    ancestryIndex,
+    candidateRecordsByContentUnitId,
+    selectionRecordsByContentUnitId: selectionRecordsByContentUnitId23,
+    selectionByContentUnitId
+  });
+  return {
+    source: "workspace",
+    domainGraph,
+    hierarchyTree: buildHierarchyTree({
+      settings,
+      settingStates,
+      assets,
+      productions,
+      segments,
+      sceneMoments,
+      storyboards,
+      keyframes,
+      expressionUnits,
+      audioCues,
+      assetReferenceUnits,
+      ancestryIndex
+    }),
+    previewMoments,
+    contentUnitCandidates,
+    expressionUnitsByMoment,
+    audioCuesByMoment,
+    expressionUnitWorkspaceDetails,
+    assetReferenceUnits,
+    editingTimelines: input3.editingTimelines ?? [],
+    productionWorkPlan
+  };
+}
+function buildContentSourceWorkspaceDomainGraph(input3) {
+  const nodes = input3.domainNodes?.length ? input3.domainNodes : deriveContentSourceWorkspaceDomainNodes(input3);
+  const edges = input3.domainEdges?.length ? input3.domainEdges : deriveContentSourceWorkspaceDomainEdges(input3, nodes);
+  return {
+    namespaceVocabulary: input3.namespaceVocabulary ?? deriveContentSourceWorkspaceNamespaceVocabulary(input3),
+    nodes,
+    edges,
+    timelineNamespaceNodes: nodes.filter((node) => node.category === "timeline_namespace"),
+    settingNamespaceNodes: nodes.filter((node) => node.category === "setting_namespace"),
+    systemPrimitiveNodes: nodes.filter((node) => node.category === "system_primitive"),
+    contentUnitNodes: nodes.filter((node) => node.category === "content_unit")
+  };
+}
+function deriveContentSourceWorkspaceNamespaceVocabulary(input3) {
+  const projectDocument = input3.indexDocuments.find(
+    (document) => normalizeWorkspacePath(document.path) === "project.json" && isRecord12(document.data)
+  );
+  return normalizeNamespaceVocabulary(projectDocument?.data);
+}
+function deriveContentSourceWorkspaceDomainNodes(input3) {
+  return sourceWorkspaceDomainEntities(input3).flatMap((entity) => {
+    const category = classifyMovScriptEntityKind(entity.entityKind);
+    if (!category) return [];
+    return [pruneUndefinedRecord({
+      category,
+      kind: projectMovScriptDomainNodeKind(entity.entityKind, entity.record),
+      ...entity.id !== void 0 ? { id: entity.id } : {},
+      path: entity.path,
+      title: stringField12(entity.record.title) ?? stringField12(entity.record.label),
+      order: optionalNumberField(entity.record.order),
+      metadata: { entityKind: entity.entityKind }
+    })];
+  });
+}
+function deriveContentSourceWorkspaceDomainPathParentEdges(nodes) {
+  const nodeByDir = /* @__PURE__ */ new Map();
+  for (const node of nodes) {
+    if (node.path) nodeByDir.set(entityDir4(node.path), node);
+  }
+  const edges = [];
+  for (const node of nodes) {
+    if (!node.path) continue;
+    const parentPath = nearestParentPath(entityDir4(node.path), nodeByDir.keys());
+    if (!parentPath) continue;
+    const parent = nodeByDir.get(parentPath);
+    const normalized = normalizePathParentEdge(domainRefFromNode2(node), parent ? domainRefFromNode2(parent) : void 0);
+    if (normalized.edge) edges.push(normalized.edge);
+  }
+  return dedupeDomainEdges2(edges);
+}
+function deriveContentSourceWorkspaceDomainEdges(input3, nodes) {
+  return dedupeDomainEdges2([
+    ...deriveContentSourceWorkspaceDomainPathParentEdges(nodes),
+    ...deriveContentSourceWorkspaceContentUnitTargetEdges(input3.contentUnits, nodes)
+  ]);
+}
+function deriveContentSourceWorkspaceContentUnitTargetEdges(contentUnits, nodes) {
+  const nodeByPath = new Map(nodes.flatMap((node) => node.path ? [[node.path, node]] : []));
+  const timelineNamespaceNodes = nodes.filter((node) => node.category === "timeline_namespace");
+  const edges = [];
+  for (const contentUnit of contentUnits) {
+    const sourceNode = nodeByPath.get(contentUnit.path);
+    if (!sourceNode) continue;
+    edges.push(...normalizeContentUnitTargetEdges({
+      source: domainRefFromNode2(sourceNode),
+      record: contentUnit.record,
+      scopeTarget(scope) {
+        return domainRefFromTimelineScope2(scope.kind, scope.ref, timelineNamespaceNodes);
+      }
+    }));
+  }
+  return edges;
+}
+function sourceWorkspaceDomainEntities(input3) {
+  return [
+    ...input3.settings,
+    ...input3.settingStates,
+    ...input3.assets,
+    ...input3.productions,
+    ...input3.segments,
+    ...input3.sceneMoments,
+    ...input3.storyboards,
+    ...input3.keyframes,
+    ...input3.expressionUnits,
+    ...input3.audioCues,
+    ...input3.contentUnits
+  ];
+}
+function buildContentSourceWorkspaceEntityAncestryIndex(input3, domainGraph) {
+  const entities = sourceWorkspaceDomainEntities(input3);
+  const entityByPath = new Map(entities.map((entity) => [entity.path, entity]));
+  const entityByDir = new Map(entities.map((entity) => [entityDir4(entity.path), entity]));
+  const parentPathByPath = /* @__PURE__ */ new Map();
+  for (const edge of domainGraph.edges) {
+    if (edge.relation !== "parent" || edge.origin !== "path") continue;
+    if (!edge.source.path || !edge.target.path) continue;
+    parentPathByPath.set(edge.source.path, edge.target.path);
+  }
+  for (const entity of entities) {
+    if (parentPathByPath.has(entity.path)) continue;
+    const parentDir = nearestParentPath(entityDir4(entity.path), entityByDir.keys());
+    const parent = parentDir ? entityByDir.get(parentDir) : void 0;
+    if (parent) parentPathByPath.set(entity.path, parent.path);
+  }
+  const childrenByParentPath = /* @__PURE__ */ new Map();
+  for (const [childPath, parentPath] of parentPathByPath) {
+    const child = entityByPath.get(childPath);
+    if (!child) continue;
+    childrenByParentPath.set(parentPath, [...childrenByParentPath.get(parentPath) ?? [], child]);
+  }
+  return { entityByPath, parentPathByPath, childrenByParentPath };
+}
+function domainRefFromTimelineScope2(scopeKind, scopeRef, timelineNamespaceNodes) {
+  const node = timelineNamespaceNodes.find(
+    (candidate) => String(candidate.id ?? "") === scopeRef && (candidate.kind === scopeKind || candidate.metadata?.entityKind === scopeKind)
+  );
+  return node ? domainRefFromNode2(node) : { category: "timeline_namespace", kind: scopeKind, id: scopeRef };
+}
+function domainRefFromNode2(node) {
+  return {
+    category: node.category,
+    kind: node.kind,
+    ...node.id !== void 0 ? { id: node.id } : {},
+    ...node.path ? { path: node.path } : {}
+  };
+}
+function dedupeDomainEdges2(edges) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const edge of edges) {
+    const key = JSON.stringify(edge);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(edge);
+  }
+  return out;
+}
+function normalizeProductionWorkPlanView(plan) {
+  if (!plan) return void 0;
+  if (isProductionWorkPlanView(plan)) {
+    return {
+      summary: {
+        open: optionalNumberField(plan.summary.open) ?? 0,
+        blocking: optionalNumberField(plan.summary.blocking) ?? 0,
+        humanRecommended: optionalNumberField(plan.summary.humanRecommended) ?? 0,
+        agentRecommended: optionalNumberField(plan.summary.agentRecommended) ?? 0,
+        readyToGenerate: optionalNumberField(plan.summary.readyToGenerate) ?? 0,
+        staleSelections: optionalNumberField(plan.summary.staleSelections) ?? 0
+      },
+      items: plan.items.map(normalizeProductionWorkItemView).filter(isDefined2)
+    };
+  }
+  const rawPlan = plan;
+  return {
+    summary: {
+      open: optionalNumberField(rawPlan.summary.open) ?? 0,
+      blocking: optionalNumberField(rawPlan.summary.blocking) ?? 0,
+      humanRecommended: optionalNumberField(rawPlan.summary.human_recommended) ?? 0,
+      agentRecommended: optionalNumberField(rawPlan.summary.agent_recommended) ?? 0,
+      readyToGenerate: optionalNumberField(rawPlan.summary.ready_to_generate) ?? 0,
+      staleSelections: optionalNumberField(rawPlan.summary.stale_selections) ?? 0
+    },
+    items: rawPlan.items.map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      status: item.status,
+      severity: item.severity,
+      priority: item.priority,
+      reason: item.reason,
+      targetKind: item.target.entityKind,
+      targetId: item.target.id !== void 0 ? String(item.target.id) : void 0,
+      targetPath: item.target.path,
+      recommendedActor: item.recommended_actor,
+      actionLabels: item.actions.map((action) => productionWorkActionLabel(action.type))
+    }))
+  };
+}
+function isProductionWorkPlanView(plan) {
+  return "humanRecommended" in plan.summary;
+}
+function normalizeProductionWorkItemView(item) {
+  if (!item.id || !item.kind || !item.status || !item.severity || !item.reason || !item.targetKind) return void 0;
+  return {
+    id: item.id,
+    kind: normalizeProductionWorkItemKind(item.kind),
+    status: normalizeProductionWorkItemStatus(item.status),
+    severity: normalizeProductionWorkItemSeverity(item.severity),
+    priority: optionalNumberField(item.priority) ?? 100,
+    reason: item.reason,
+    targetKind: item.targetKind,
+    targetId: item.targetId,
+    targetPath: item.targetPath,
+    recommendedActor: item.recommendedActor === "agent" || item.recommendedActor === "workflow" ? item.recommendedActor : "human",
+    actionLabels: Array.isArray(item.actionLabels) ? item.actionLabels.filter((label) => typeof label === "string" && label.trim()) : []
+  };
+}
+function normalizeProductionWorkItemKind(kind) {
+  switch (kind) {
+    case "fix_source":
+    case "edit_structure":
+    case "create_content_unit":
+    case "generate_candidates":
+    case "select_candidate":
+    case "review_stale_selection":
+    case "review_affected_output":
+      return kind;
+    default:
+      return "edit_structure";
+  }
+}
+function normalizeProductionWorkItemStatus(status) {
+  if (status === "open" || status === "blocked" || status === "ready" || status === "informational") return status;
+  return "open";
+}
+function normalizeProductionWorkItemSeverity(severity) {
+  if (severity === "blocking" || severity === "warning" || severity === "suggestion") return severity;
+  return "warning";
+}
+function productionWorkActionLabel(type) {
+  switch (type) {
+    case "open_editor":
+      return "\u6253\u5F00\u7F16\u8F91\u5668";
+    case "upsert_entity":
+      return "\u8865\u7ED3\u6784";
+    case "derive_content_unit_artifact":
+      return "\u5237\u65B0\u521B\u4F5C\u7247\u6BB5";
+    case "generate_candidates":
+      return "\u751F\u6210\u5019\u9009";
+    case "open_candidate_picker":
+      return "\u6253\u5F00\u5019\u9009\u9009\u62E9";
+    case "agent_review_candidates":
+      return "\u8F85\u52A9\u5BA1\u9605\u5019\u9009";
+    case "accept_stale":
+      return "\u63A5\u53D7 stale";
+    default:
+      return type;
+  }
+}
+function buildHierarchyTree(input3) {
+  return [
+    {
+      id: "settings_root",
+      type: "group",
+      title: "Settings",
+      path: "settings/",
+      children: sortEntities2(input3.settings).map((setting) => {
+        const states = childEntitiesForParent(input3.ancestryIndex, input3.settingStates, setting);
+        return entityNode(setting, "setting", {
+          children: sortEntities2(states).map((state) => {
+            const stateAssets = childEntitiesForParent(input3.ancestryIndex, input3.assets, state);
+            return entityNode(state, "state", {
+              children: sortEntities2(stateAssets).map((asset) => {
+                const unit = input3.assetReferenceUnits[nodeId(asset, "asset")];
+                return entityNode(asset, "asset", { state: unit?.selectionState === "needs_candidate" ? "missing" : void 0 });
+              })
+            });
+          })
+        });
+      })
+    },
+    {
+      id: "productions_group",
+      type: "group",
+      title: "Productions",
+      path: "productions",
+      children: sortEntities2(input3.productions).map((production) => {
+        const segments = childEntitiesForParent(input3.ancestryIndex, input3.segments, production);
+        return entityNode(production, "production", {
+          children: sortEntities2(segments).map((segment) => {
+            const sceneMoments = childEntitiesForParent(input3.ancestryIndex, input3.sceneMoments, segment);
+            return entityNode(segment, "segment", {
+              children: sortEntities2(sceneMoments).map((sceneMoment) => {
+                const momentDir = entityDir4(sceneMoment.path);
+                const expressions = childEntitiesForParent(input3.ancestryIndex, input3.expressionUnits, sceneMoment);
+                const momentStoryboards = childEntitiesForParent(input3.ancestryIndex, input3.storyboards, sceneMoment);
+                const momentKeyframes = childEntitiesForParent(input3.ancestryIndex, input3.keyframes, sceneMoment);
+                const audioCues = childEntitiesForParent(input3.ancestryIndex, input3.audioCues, sceneMoment);
+                const momentId = idText(sceneMoment);
+                const expressionGroup = {
+                  id: `${nodeId(sceneMoment, "scene_moment")}_expression_group`,
+                  type: "group",
+                  title: "Expression Units",
+                  path: `${momentDir}/expression_units`,
+                  momentId,
+                  children: sortEntities2(expressions).map((expression) => {
+                    const expressionDir = entityDir4(expression.path);
+                    const expressionUnitId = idText(expression);
+                    const storyboards = childEntitiesForParent(input3.ancestryIndex, input3.storyboards, expression);
+                    const keyframes = childEntitiesForParent(input3.ancestryIndex, input3.keyframes, expression);
+                    return entityNode(expression, "expression_unit", {
+                      momentId,
+                      expressionUnitId,
+                      children: [
+                        {
+                          id: `${nodeId(expression, "expression_unit")}_storyboards_group`,
+                          type: "group",
+                          title: "Storyboards",
+                          path: `${expressionDir}/storyboards`,
+                          momentId,
+                          expressionUnitId,
+                          children: sortEntities2(storyboards).map((storyboard) => entityNode(storyboard, "storyboard", { momentId, expressionUnitId }))
+                        },
+                        {
+                          id: `${nodeId(expression, "expression_unit")}_keyframes_group`,
+                          type: "group",
+                          title: "Keyframes",
+                          path: `${expressionDir}/keyframes`,
+                          momentId,
+                          expressionUnitId,
+                          children: sortEntities2(keyframes).map((keyframe) => entityNode(keyframe, "keyframe", { momentId, expressionUnitId }))
+                        }
+                      ]
+                    });
+                  })
+                };
+                const storyboardGroup = {
+                  id: `${nodeId(sceneMoment, "scene_moment")}_storyboards_group`,
+                  type: "group",
+                  title: "Storyboards",
+                  path: `${momentDir}/storyboards`,
+                  momentId,
+                  children: sortEntities2(momentStoryboards).map((storyboard) => entityNode(storyboard, "storyboard", { momentId }))
+                };
+                const keyframeGroup = {
+                  id: `${nodeId(sceneMoment, "scene_moment")}_keyframes_group`,
+                  type: "group",
+                  title: "Keyframes",
+                  path: `${momentDir}/keyframes`,
+                  momentId,
+                  children: sortEntities2(momentKeyframes).map((keyframe) => entityNode(keyframe, "keyframe", { momentId }))
+                };
+                const audioCueGroup = {
+                  id: `${nodeId(sceneMoment, "scene_moment")}_audio_group`,
+                  type: "group",
+                  title: "Audio Cues",
+                  path: `${momentDir}/audio_cues`,
+                  momentId,
+                  children: sortEntities2(audioCues).map((audioCue) => entityNode(audioCue, "audio_cue", { momentId }))
+                };
+                return entityNode(sceneMoment, "scene_moment", {
+                  momentId,
+                  children: [expressionGroup, storyboardGroup, keyframeGroup, audioCueGroup]
+                });
+              })
+            });
+          })
+        });
+      })
+    }
+  ];
+}
+function buildPreviewMoments(input3) {
+  return orderedSceneMoments(input3.sceneMoments, input3.previewTimelines).map((moment, momentIndex) => {
+    const segment = ancestorEntity(input3.ancestryIndex, moment, "segment") ?? parentByDir(input3.segments, moment.path);
+    const production = segment ? ancestorEntity(input3.ancestryIndex, segment, "production") ?? parentByDir(input3.productions, segment.path) : ancestorEntity(input3.ancestryIndex, moment, "production");
+    const expressionUnits = orderedChildEntitiesForTimelineParent(input3.expressionUnits, input3.previewTimelines, timelineItemIdForEntity(moment), "expression_unit");
+    const momentExpressionUnits = (expressionUnits.length > 0 ? expressionUnits : sortEntities2(childEntitiesForParent(input3.ancestryIndex, input3.expressionUnits, moment))).map(
+      (expressionUnit, expressionUnitIndex) => previewExpressionUnit(expressionUnit, expressionUnitIndex, moment, input3)
+    );
+    return {
+      id: idText(moment),
+      title: titleOf(moment, `Scene Moment ${momentIndex + 1}`),
+      path: entityDir4(moment.path),
+      selectionState: momentSelectionState(momentExpressionUnits),
+      priority: momentIndex < 1 ? "\u9AD8\u4F18\u5148\u7EA7" : momentIndex < 3 ? "\u4E2D\u4F18\u5148\u7EA7" : "\u4F4E\u4F18\u5148\u7EA7",
+      production: production ? titleOf(production, idText(production)) : "",
+      segment: segment ? titleOf(segment, idText(segment)) : "",
+      settings: settingRefsForMoment(moment, momentExpressionUnits, input3.assets),
+      expressionUnits: momentExpressionUnits
+    };
+  });
+}
+function previewExpressionUnit(expressionUnit, expressionUnitIndex, moment, input3) {
+  const storyboards = sortEntities2(childEntitiesForParent(input3.ancestryIndex, input3.storyboards, expressionUnit));
+  const keyframes = sortEntities2(childEntitiesForParent(input3.ancestryIndex, input3.keyframes, expressionUnit));
+  const primaryStoryboard = storyboards[0];
+  const primaryKeyframe = keyframes[0];
+  const contentUnit = contentUnitForEntity(input3.contentUnitsByPrimaryRef, "expression_unit", expressionUnit) ?? (primaryStoryboard ? contentUnitForEntity(input3.contentUnitsByPrimaryRef, "storyboard", primaryStoryboard) : void 0) ?? (primaryKeyframe ? contentUnitForEntity(input3.contentUnitsByPrimaryRef, "keyframe", primaryKeyframe) : void 0);
+  return {
+    id: idText(expressionUnit),
+    title: titleOf(expressionUnit, `Expression Unit ${expressionUnitIndex + 1}`),
+    kind: stringField12(expressionUnit.record.kind) ?? "expression_unit",
+    camera: shotCameraText(expressionUnit),
+    duration: durationText(recordField3(expressionUnit.record.timing_intent)?.duration_sec ?? recordField3(expressionUnit.record.timing)?.duration_sec ?? recordField3(contentUnit?.record.model_intent)?.duration_sec),
+    expression: shotExpressionText(expressionUnit),
+    stillPosition: stillPositionForIndex(expressionUnitIndex),
+    path: entityDir4(expressionUnit.path),
+    keyframes: keyframes.map((keyframe) => idText(keyframe)),
+    assets: shotAssets(expressionUnit, keyframes, input3.assets),
+    storyboard: primaryStoryboard ? nodeId(primaryStoryboard, "storyboard") : "",
+    contentUnit: previewContentUnit(contentUnit, expressionUnit, moment, primaryStoryboard, keyframes, input3)
+  };
+}
+function orderedSceneMoments(sceneMoments, previewTimelines) {
+  const timelineMoments = previewTimelines.flatMap(
+    (timeline) => timeline.items.filter((item) => item.itemType === "scene_moment").sort((left, right) => left.order - right.order).map((item) => entityForTimelineItem(sceneMoments, item)).filter(isDefined2)
+  );
+  if (timelineMoments.length === 0) return sortEntities2(sceneMoments);
+  return uniqueEntities([...timelineMoments, ...sortEntities2(sceneMoments)]);
+}
+function orderedChildEntitiesForTimelineParent(entities, previewTimelines, parentItemId, itemType) {
+  return previewTimelines.flatMap(
+    (timeline) => timeline.items.filter((item) => item.itemType === itemType && item.parentId === parentItemId).sort((left, right) => left.order - right.order).map((item) => entityForTimelineItem(entities, item)).filter(isDefined2)
+  );
+}
+function entityForTimelineItem(entities, item) {
+  return entities.find(
+    (entity) => item.entity.id !== void 0 && String(entity.id ?? "") === String(item.entity.id) || entity.path === item.entity.path
+  );
+}
+function uniqueEntities(entities) {
+  return Array.from(new Map(entities.map((entity) => [entity.path, entity])).values());
+}
+function timelineItemIdForEntity(entity) {
+  return `${entity.entityKind}:${String(entity.id ?? entity.path)}`;
+}
+function previewContentUnit(contentUnit, expressionUnit, moment, storyboard, keyframes, input3) {
+  const type = contentUnitType(contentUnit);
+  const id = contentUnit ? idText(contentUnit) : `cu_${idText(expressionUnit)}`;
+  const selection = input3.selectionRecordsByContentUnitId.get(id);
+  return {
+    id,
+    type,
+    outputKind: outputKindForContentUnit(contentUnit),
+    path: contentUnit?.path ?? `content_units/${id}/content_unit.json`,
+    editPrompt: editPromptText(contentUnit) ?? "",
+    sceneMomentRef: `scene_moment/${idText(moment)}`,
+    expressionUnitRef: idText(expressionUnit),
+    storyboardRef: storyboard ? nodeId(storyboard, "storyboard") : "",
+    keyframeRefs: keyframes.map((keyframe) => idText(keyframe)),
+    selectionState: input3.selectionByContentUnitId.get(id) ?? selectionStateFromSourceSelection(selection, contentUnit),
+    candidates: previewCandidatesForContentUnit(id, input3.candidateRecordsByContentUnitId.get(id) ?? [], selection)
+  };
+}
+function buildExpressionUnitsByMoment(expressionUnits, ancestryIndex) {
+  const output3 = {};
+  for (const expression of sortEntities2(expressionUnits)) {
+    const momentId = ancestorId(ancestryIndex, expression, "scene_moment") ?? pathSegmentAfter3(expression.path, "scene_moments") ?? "";
+    const item = {
+      id: idText(expression),
+      title: titleOf(expression, stringField12(expression.record.text) ?? idText(expression)),
+      path: expression.path,
+      kind: stringField12(expression.record.slot_kind ?? expression.record.expression_kind ?? expression.record.kind) ?? "visual",
+      slotKind: expressionUnitSlotKindFromRecord(expression.record),
+      text: stringField12(expression.record.text) ?? "",
+      summary: stringField12(expression.record.intent ?? expression.record.note ?? expression.record.text) ?? "",
+      speaker: stringField12(expression.record.speaker),
+      note: stringField12(expression.record.note),
+      sceneMomentId: momentId
+    };
+    output3[momentId] = [...output3[momentId] ?? [], item];
+  }
+  return output3;
+}
+function buildAudioCuesByMoment(audioCues, input3) {
+  const output3 = {};
+  for (const audioCue of sortEntities2(audioCues)) {
+    const momentId = ancestorId(input3.ancestryIndex, audioCue, "scene_moment") ?? pathSegmentAfter3(audioCue.path, "scene_moments") ?? "";
+    const contentUnit = contentUnitForEntity(input3.contentUnitsByPrimaryRef, "audio_cue", audioCue);
+    const item = {
+      id: idText(audioCue),
+      title: titleOf(audioCue, idText(audioCue)),
+      path: audioCue.path,
+      cueKind: stringField12(audioCue.record.cue_kind ?? audioCue.record.kind) ?? "sound_effect",
+      promptHint: stringField12(audioCue.record.prompt_hint) ?? "",
+      expressionUnitRef: stringField12(audioCue.record.expression_unit_ref),
+      storyboardRef: stringField12(audioCue.record.storyboard_ref),
+      timing: recordField3(audioCue.record.timing) ?? {},
+      assetRefs: arrayField4(audioCue.record.asset_refs).map(String),
+      sceneMomentId: momentId,
+      ...contentUnit ? { contentUnit: previewAudioCueContentUnit(contentUnit, audioCue, input3) } : {}
+    };
+    output3[momentId] = [...output3[momentId] ?? [], item];
+  }
+  return output3;
+}
+function previewAudioCueContentUnit(contentUnit, audioCue, input3) {
+  const id = idText(contentUnit);
+  const selection = input3.selectionRecordsByContentUnitId.get(id);
+  return {
+    id,
+    type: contentUnitType(contentUnit),
+    outputKind: outputKindForContentUnit(contentUnit),
+    path: contentUnit.path,
+    editPrompt: editPromptText(contentUnit) ?? "",
+    sceneMomentRef: ancestorId(input3.ancestryIndex, audioCue, "scene_moment") ?? pathSegmentAfter3(audioCue.path, "scene_moments") ?? "",
+    expressionUnitRef: stringField12(audioCue.record.expression_unit_ref) ?? "",
+    storyboardRef: stringField12(audioCue.record.storyboard_ref) ?? "",
+    keyframeRefs: [],
+    selectionState: input3.selectionByContentUnitId.get(id) ?? selectionStateFromSourceSelection(selection, contentUnit),
+    candidates: previewCandidatesForContentUnit(id, input3.candidateRecordsByContentUnitId.get(id) ?? [], selection)
+  };
+}
+function transitionFromEntity(entity) {
+  const transition = recordField3(entity.record.transition);
+  if (!transition) return void 0;
+  const value = {
+    in: stringField12(transition.in),
+    out: stringField12(transition.out),
+    notes: stringField12(transition.notes)
+  };
+  return Object.values(value).some(Boolean) ? value : void 0;
+}
+function storyboardTimelineFromEntity(entity) {
+  const timeline = recordField3(entity.record.timeline);
+  if (!timeline) return void 0;
+  const value = {
+    caption: stringField12(timeline.caption),
+    gapAfterSec: optionalNumberField(timeline.gap_after_sec),
+    durationSec: optionalNumberField(timeline.duration_sec)
+  };
+  return Object.values(value).some((item) => item !== void 0) ? value : void 0;
+}
+function buildExpressionUnitWorkspaceDetails(input3) {
+  return Object.fromEntries(input3.expressionUnits.map((expressionUnit) => {
+    const keyframes = sortEntities2(childEntitiesForParent(input3.ancestryIndex, input3.keyframes, expressionUnit));
+    const storyboards = sortEntities2(childEntitiesForParent(input3.ancestryIndex, input3.storyboards, expressionUnit));
+    const refs = shotAssets(expressionUnit, keyframes, input3.assets);
+    const assets = refs.map((ref) => ({
+      id: ref.title,
+      title: ref.title.replace(/^asset\//, ""),
+      owner: ref.title,
+      status: ref.status === "missing" ? "missing" : ref.status === "locked" ? "locked" : "current",
+      summary: ref.status === "missing" ? "\u8BE5\u7D20\u6750\u5F15\u7528\u5C1A\u672A\u5728 setting/state asset \u4E2D\u89E3\u6790\u3002" : "\u6765\u81EA workspace source \u7684\u7D20\u6750\u5F15\u7528\u3002",
+      downstream: [idText(expressionUnit)]
+    }));
+    const settings = input3.settings.slice(0, 4).map((setting) => ({
+      id: nodeId(setting, "setting"),
+      title: titleOf(setting, idText(setting)),
+      owner: setting.path,
+      status: "current",
+      summary: stringField12(setting.record.summary ?? setting.record.description ?? setting.record.prompt_hint) ?? "Workspace setting context.",
+      downstream: [idText(expressionUnit)]
+    }));
+    return [idText(expressionUnit), {
+      settings,
+      assets,
+      keyframes: keyframes.map((keyframe) => expressionUnitChildOption(keyframe, "keyframe", expressionUnit, input3)),
+      storyboards: storyboards.map((storyboard) => expressionUnitChildOption(storyboard, "storyboard", expressionUnit, input3)),
+      impacts: []
+    }];
+  }));
+}
+function buildAssetReferenceUnits(input3) {
+  return Object.fromEntries(input3.assets.map((asset) => {
+    const contentUnit = contentUnitForEntity(input3.contentUnitsByPrimaryRef, "asset", asset);
+    const contentUnitId = contentUnit ? idText(contentUnit) : `cu_${idText(asset)}`;
+    const ownerState = ancestorEntity(input3.ancestryIndex, asset, "setting_state") ?? parentByDir(input3.settingStates, asset.path);
+    const ownerSetting = ownerState ? ancestorEntity(input3.ancestryIndex, ownerState, "setting") ?? parentByDir(input3.settings, ownerState.path) : ancestorEntity(input3.ancestryIndex, asset, "setting");
+    const assetId = nodeId(asset, "asset");
+    const selection = input3.selectionRecordsByContentUnitId.get(contentUnitId);
+    const selectionState = contentUnit ? input3.selectionByContentUnitId.get(contentUnitId) ?? "needs_candidate" : "ready";
+    return [assetId, {
+      assetId,
+      title: titleOf(asset, idText(asset)),
+      path: contentUnit?.path ?? `content_units/${contentUnitId}/content_unit.json`,
+      contentUnitId,
+      contentUnitType: "asset_ref",
+      outputKind: "image",
+      editPrompt: editPromptText(contentUnit) ?? "",
+      usage: `${titleOf(asset, idText(asset))} \u4F5C\u4E3A setting/state \u4E0B\u7684\u7D20\u6750\u53C2\u8003\u8F93\u5165\u3002`,
+      lockPolicy: "\u9009\u62E9\u53D8\u5316\u540E\uFF0C\u4E0B\u6E38\u5F15\u7528\u8BE5 asset_ref \u7684\u521B\u4F5C\u7247\u6BB5\u9700\u8981\u91CD\u65B0\u68C0\u67E5\u3002",
+      selectionState,
+      upstream: [
+        ...ownerSetting ? [{ id: `setting:${idText(ownerSetting)}`, title: titleOf(ownerSetting, idText(ownerSetting)), kind: "setting", ownerNodeId: nodeId(ownerSetting, "setting"), state: "current", summary: ownerSetting.path }] : [],
+        ...ownerState ? [{ id: `state:${idText(ownerState)}`, title: titleOf(ownerState, idText(ownerState)), kind: "state", ownerNodeId: nodeId(ownerState, "state"), state: "current", summary: ownerState.path }] : []
+      ],
+      candidates: previewAssetCandidatesForContentUnit(contentUnitId, input3.candidateRecordsByContentUnitId.get(contentUnitId) ?? [], selection),
+      downstream: buildAssetDownstreamUnits(asset, input3)
+    }];
+  }));
+}
+function buildAssetDownstreamUnits(asset, input3) {
+  const assetId = idText(asset);
+  const refs = /* @__PURE__ */ new Set([assetId, nodeId(asset, "asset")]);
+  return input3.contentUnits.filter((contentUnit) => {
+    const promptRefs = editPromptRefs(contentUnit);
+    const referencesAsset = promptRefs.some((ref) => ref.kind === "asset" && refs.has(ref.id));
+    const isOwnAssetRef = stringField12(contentUnit.record.content_unit_type) === "asset_ref" && primaryRefIdsForContentUnitRecord2(contentUnit.record, "asset").some((ref) => refs.has(ref));
+    return referencesAsset && !isOwnAssetRef;
+  }).map((contentUnit) => {
+    const contentUnitId = idText(contentUnit);
+    const owner = primaryOwnerForContentUnit(contentUnit, input3);
+    const selection = input3.selectionRecordsByContentUnitId.get(contentUnitId);
+    const selectedCandidateId = idValue(selection?.candidate_id);
+    const selectedCandidate = selectedCandidateId ? input3.candidateRecordsByContentUnitId.get(contentUnitId)?.find((candidate) => selectionCandidateMatches(selection, idValue(candidate.id) ?? "")) : void 0;
+    const state = input3.selectionByContentUnitId.get(contentUnitId) ?? selectionStateFromSourceSelection(selection, contentUnit);
+    return {
+      id: `asset:${assetId}:content_unit:${contentUnitId}`,
+      title: titleOf(contentUnit, contentUnitId),
+      kind: "content_unit",
+      ownerNodeId: owner?.nodeId ?? contentUnitId,
+      momentId: owner?.momentId ?? "",
+      expressionUnitId: owner?.expressionUnitId ?? "",
+      dependencyHash: selectedCandidate ? candidateInputHash(selectedCandidate, contentUnitId) : contentUnitId,
+      state,
+      action: state === "selected" ? "\u5DF2\u9009\u62E9\u5019\u9009\u5F15\u7528\u8BE5 asset" : "\u9700\u8981\u5019\u9009\u6216\u9009\u62E9\u786E\u8BA4",
+      preview: `${contentUnitId} \u5728 edit_prompt \u4E2D\u5F15\u7528 ${nodeId(asset, "asset")}\u3002`
+    };
+  });
+}
+function primaryOwnerForContentUnit(contentUnit, input3) {
+  const expressionUnitRef = primaryRefIdsForContentUnitRecord2(contentUnit.record, "expression_unit")[0];
+  if (expressionUnitRef) {
+    const expressionUnit = input3.expressionUnits.find((item) => entityMatchesRef(item, expressionUnitRef, "expression_unit"));
+    return {
+      nodeId: expressionUnit ? idText(expressionUnit) : expressionUnitRef,
+      momentId: expressionUnit ? ancestorId(input3.ancestryIndex, expressionUnit, "scene_moment") ?? pathSegmentAfter3(expressionUnit.path, "scene_moments") ?? "" : "",
+      expressionUnitId: expressionUnit ? idText(expressionUnit) : expressionUnitRef
+    };
+  }
+  const storyboardRef = primaryRefIdsForContentUnitRecord2(contentUnit.record, "storyboard")[0];
+  if (storyboardRef) {
+    const storyboard = input3.storyboards.find((item) => entityMatchesRef(item, storyboardRef, "storyboard"));
+    return {
+      nodeId: storyboard ? nodeId(storyboard, "storyboard") : `storyboard/${storyboardRef}`,
+      momentId: storyboard ? ancestorId(input3.ancestryIndex, storyboard, "scene_moment") ?? pathSegmentAfter3(storyboard.path, "scene_moments") ?? "" : "",
+      expressionUnitId: storyboard ? ancestorId(input3.ancestryIndex, storyboard, "expression_unit") ?? pathSegmentAfter3(storyboard.path, "expression_units") ?? "" : ""
+    };
+  }
+  const keyframeRef = primaryRefIdsForContentUnitRecord2(contentUnit.record, "keyframe")[0];
+  if (keyframeRef) {
+    const keyframe = input3.keyframes.find((item) => entityMatchesRef(item, keyframeRef, "keyframe"));
+    return {
+      nodeId: keyframe ? idText(keyframe) : keyframeRef,
+      momentId: keyframe ? ancestorId(input3.ancestryIndex, keyframe, "scene_moment") ?? pathSegmentAfter3(keyframe.path, "scene_moments") ?? "" : "",
+      expressionUnitId: keyframe ? ancestorId(input3.ancestryIndex, keyframe, "expression_unit") ?? pathSegmentAfter3(keyframe.path, "expression_units") ?? "" : ""
+    };
+  }
+  return void 0;
+}
+function expressionUnitChildOption(entity, primaryKind, expressionUnit, input3) {
+  const contentUnit = contentUnitForEntity(input3.contentUnitsByPrimaryRef, primaryKind, entity);
+  const contentUnitId = contentUnit ? idText(contentUnit) : "";
+  const selection = contentUnitId ? input3.selectionRecordsByContentUnitId.get(contentUnitId) : void 0;
+  return {
+    id: idText(entity),
+    title: titleOf(entity, idText(entity)),
+    status: contentUnit ? "candidate" : "draft",
+    inputHash: contentUnitId || "source",
+    summary: stringField12(entity.record.visual_intent ?? entity.record.summary ?? entity.record.description ?? entity.record.slot) ?? entity.path,
+    ...contentUnit ? {
+      contentUnit: {
+        id: contentUnitId,
+        type: primaryKind === "keyframe" ? "keyframe_ref" : "storyboard_ref",
+        outputKind: outputKindForContentUnit(contentUnit),
+        path: contentUnit.path,
+        editPrompt: editPromptText(contentUnit) ?? "",
+        sceneMomentRef: `scene_moment/${ancestorId(input3.ancestryIndex, expressionUnit, "scene_moment") ?? pathSegmentAfter3(expressionUnit.path, "scene_moments") ?? ""}`,
+        expressionUnitRef: idText(expressionUnit),
+        storyboardRef: primaryKind === "storyboard" ? nodeId(entity, "storyboard") : "",
+        keyframeRefs: primaryKind === "keyframe" ? [idText(entity)] : [],
+        selectionState: input3.selectionByContentUnitId.get(contentUnitId) ?? selectionStateFromSourceSelection(selection, contentUnit),
+        candidates: previewCandidatesForContentUnit(contentUnitId, input3.candidateRecordsByContentUnitId.get(contentUnitId) ?? [], selection)
+      }
+    } : {}
+  };
+}
+function buildContentUnitCandidates(input3) {
+  const ids = /* @__PURE__ */ new Set([
+    ...input3.contentUnits.map(idText),
+    ...input3.candidateRecordsByContentUnitId.keys(),
+    ...input3.selectionRecordsByContentUnitId.keys()
+  ]);
+  const output3 = {};
+  for (const contentUnitId of ids) {
+    output3[contentUnitId] = previewCandidatesForContentUnit(
+      contentUnitId,
+      input3.candidateRecordsByContentUnitId.get(contentUnitId) ?? [],
+      input3.selectionRecordsByContentUnitId.get(contentUnitId)
+    );
+  }
+  return output3;
+}
+function groupContentUnitsByPrimaryRef2(contentUnits) {
+  const output3 = /* @__PURE__ */ new Map();
+  for (const contentUnit of contentUnits) {
+    const type = stringField12(contentUnit.record.content_unit_type);
+    const primaryKind = primaryKindForContentUnitType(type);
+    if (!primaryKind) continue;
+    for (const ref of primaryRefIdsForContentUnitRecord2(contentUnit.record, primaryKind)) {
+      for (const key of primaryRefKeys2(primaryKind, ref)) {
+        output3.set(key, [...output3.get(key) ?? [], contentUnit]);
+      }
+    }
+  }
+  return output3;
+}
+function groupContentCandidateRecordsByContentUnitId(documents) {
+  const output3 = /* @__PURE__ */ new Map();
+  for (const document of documents) {
+    if (document.path.endsWith("/content_candidate.json") && isContentCandidateRecord(document.data)) {
+      const contentUnitId2 = contentUnitIdForRuntimeDocument(document.path, document.data.content_unit_ref);
+      if (!contentUnitId2) continue;
+      appendContentCandidateRecord(output3, contentUnitId2, document.data);
+      continue;
+    }
+    if (!isDecisionContextRecord(document.data)) continue;
+    const contentUnitId = contentUnitIdForRuntimeDocument(document.path, stringField12(document.data.target_ref));
+    if (!contentUnitId) continue;
+    for (const candidate of arrayField4(document.data.candidates)) {
+      const record = normalizeDecisionContentCandidateRecord(candidate, contentUnitId);
+      if (record) appendContentCandidateRecord(output3, contentUnitId, record);
+    }
+  }
+  for (const [contentUnitId, candidates] of output3.entries()) {
+    output3.set(contentUnitId, candidates.sort((left, right) => (stringField12(right.created_at) ?? "").localeCompare(stringField12(left.created_at) ?? "")));
+  }
+  return output3;
+}
+function appendContentCandidateRecord(output3, contentUnitId, candidate) {
+  const candidates = output3.get(contentUnitId) ?? [];
+  const candidateId = idValue(candidate.id);
+  if (!candidateId) {
+    output3.set(contentUnitId, [...candidates, candidate]);
+    return;
+  }
+  const existingIndex = candidates.findIndex((existing) => idValue(existing.id) === candidateId);
+  if (existingIndex < 0) {
+    output3.set(contentUnitId, [...candidates, candidate]);
+    return;
+  }
+  output3.set(contentUnitId, [
+    ...candidates.slice(0, existingIndex),
+    mergeContentCandidateRecords(candidates[existingIndex], candidate),
+    ...candidates.slice(existingIndex + 1)
+  ]);
+}
+function normalizeDecisionContentCandidateRecord(value, contentUnitId) {
+  if (!isRecord12(value) || !idValue(value.id)) return void 0;
+  return {
+    ...value,
+    content_unit_ref: stringField12(value.content_unit_ref) ?? `content_units/${contentUnitId}`
+  };
+}
+function mergeContentCandidateRecords(existing, incoming) {
+  const merged = { ...existing, ...incoming };
+  if (arrayField4(incoming.outputs).length === 0 && arrayField4(existing.outputs).length > 0) merged.outputs = existing.outputs;
+  if (!recordField3(incoming.producer) && recordField3(existing.producer)) merged.producer = existing.producer;
+  if (!recordField3(incoming.prompt_snapshot) && recordField3(existing.prompt_snapshot)) merged.prompt_snapshot = existing.prompt_snapshot;
+  if (!stringField12(incoming.status) && stringField12(existing.status)) merged.status = existing.status;
+  if (!stringField12(incoming.source) && stringField12(existing.source)) merged.source = existing.source;
+  if (!stringField12(incoming.created_at) && stringField12(existing.created_at)) merged.created_at = existing.created_at;
+  if (!stringField12(incoming.content_unit_ref) && stringField12(existing.content_unit_ref)) merged.content_unit_ref = existing.content_unit_ref;
+  return merged;
+}
+function groupSelectionRecordsByContentUnitId(documents) {
+  const output3 = /* @__PURE__ */ new Map();
+  for (const document of documents) {
+    if (!isDecisionContextRecord(document.data)) continue;
+    const selection = recordField3(document.data.selection);
+    if (!selection) continue;
+    const contentUnitId = contentUnitIdForRuntimeDocument(document.path, stringField12(document.data.target_ref));
+    if (!contentUnitId) continue;
+    output3.set(contentUnitId, normalizeContentSelectionRecord(selection));
+  }
+  return output3;
+}
+function previewCandidatesForContentUnit(contentUnitId, candidates, selection) {
+  return candidates.map((candidate, index) => {
+    const id = idValue(candidate.id) ?? `candidate_${index + 1}`;
+    const output3 = firstCandidateOutput(candidate);
+    return {
+      id,
+      title: candidateTitle(candidate, candidateOrdinalTitle(index)),
+      model: candidateModel(candidate),
+      inputHash: candidateInputHash(candidate, contentUnitId),
+      selected: selectionCandidateMatches(selection, id),
+      note: candidateNote(candidate),
+      resourceId: resourceIdValue2(output3?.resource_id),
+      streamId: streamIdValue(output3?.stream_id),
+      resourceKind: stringField12(output3?.kind),
+      artifactRef: stringField12(output3?.artifact_ref),
+      status: stringField12(candidate.status),
+      decisionStatus: candidateDecisionStatus(candidate),
+      decisionReason: candidateDecisionReason(candidate),
+      source: stringField12(candidate.source),
+      producer: candidate.producer,
+      outputs: candidate.outputs,
+      promptSnapshot: candidate.prompt_snapshot,
+      createdAt: stringField12(candidate.created_at)
+    };
+  });
+}
+function previewAssetCandidatesForContentUnit(contentUnitId, candidates, selection) {
+  return candidates.map((candidate, index) => {
+    const id = idValue(candidate.id) ?? `candidate_${index + 1}`;
+    const output3 = firstCandidateOutput(candidate);
+    return {
+      id,
+      title: candidateTitle(candidate, candidateOrdinalTitle(index)),
+      model: candidateModel(candidate),
+      inputHash: candidateInputHash(candidate, contentUnitId),
+      selected: selectionCandidateMatches(selection, id),
+      note: candidateNote(candidate),
+      resourceId: resourceIdValue2(output3?.resource_id),
+      streamId: streamIdValue(output3?.stream_id),
+      resourceKind: stringField12(output3?.kind),
+      artifactRef: stringField12(output3?.artifact_ref),
+      status: stringField12(candidate.status),
+      decisionStatus: candidateDecisionStatus(candidate),
+      decisionReason: candidateDecisionReason(candidate),
+      source: stringField12(candidate.source),
+      producer: candidate.producer,
+      outputs: candidate.outputs,
+      promptSnapshot: candidate.prompt_snapshot,
+      createdAt: stringField12(candidate.created_at),
+      confirmation: assetCandidateConfirmation(candidate, selection, id)
+    };
+  });
+}
+function selectionStateFromSourceSelection(selection, contentUnit) {
+  if (selection?.candidate_id !== void 0) return "selected";
+  return contentUnit ? "needs_candidate" : "ready";
+}
+function buildSelectionStateByContentUnitId(contentUnits, selections) {
+  const entries = contentUnits.map((contentUnit) => {
+    const id = idText(contentUnit);
+    const selection = selections.get(id);
+    if (selection?.candidate_id !== void 0) return [id, "selected"];
+    return [id, "needs_candidate"];
+  });
+  return new Map(entries);
+}
+function contentUnitForEntity(contentUnitsByPrimaryRef, entityKind, entity) {
+  if (entity.id === void 0) return void 0;
+  return contentUnitsByPrimaryRef.get(primaryRefKey2(entityKind, entity.id))?.[0];
+}
+function primaryKindForContentUnitType(type) {
+  return type ? primaryRefKindForContentUnitType(type) : void 0;
+}
+function primaryRefIdsForContentUnitRecord2(record, kind) {
+  return isContentUnitPromptRefKind(kind) ? primaryRefIdsForContentUnitRecord(record, kind) : [];
+}
+function editPromptRefs(contentUnit) {
+  const text = editPromptText(contentUnit) ?? "";
+  const refs = [];
+  const pattern = /\{\{\s*([a-z_]+)\s*:\s*([^}\s]+)\s*\}\}/g;
+  let match = pattern.exec(text);
+  while (match) {
+    refs.push({ kind: match[1] ?? "", id: match[2] ?? "" });
+    match = pattern.exec(text);
+  }
+  return refs;
+}
+function editPromptText(contentUnit) {
+  const prompt = contentUnit?.record.edit_prompt;
+  if (typeof prompt === "string") return prompt;
+  if (isRecord12(prompt)) return stringField12(prompt.text);
+  return void 0;
+}
+function entityNode(entity, type, extras = {}) {
+  return {
+    id: nodeId(entity, type),
+    type,
+    title: titleOf(entity, idText(entity)),
+    path: entity.path,
+    transition: supportsTransition(type) ? transitionFromEntity(entity) : void 0,
+    storyboardTimeline: type === "storyboard" ? storyboardTimelineFromEntity(entity) : void 0,
+    ...extras
+  };
+}
+function supportsTransition(type) {
+  return type === "production" || type === "segment" || type === "scene_moment" || type === "storyboard";
+}
+function nodeId(entity, type) {
+  if (type === "setting") return `setting/${idText(entity)}`;
+  if (type === "state") return `state/${pathSegmentAfter3(entity.path, "settings") ?? ""}/${idText(entity)}`;
+  if (type === "asset") return `asset/${idText(entity)}`;
+  if (type === "storyboard") return `storyboard/${idText(entity)}`;
+  return idText(entity);
+}
+function titleOf(entity, fallback) {
+  return stringField12(entity.record.title ?? entity.record.name ?? entity.record.label ?? entity.record.text) ?? fallback;
+}
+function idText(entity) {
+  return String(entity.id ?? entity.record.id ?? entity.record.ID ?? entity.path);
+}
+function entityMatchesRef(entity, ref, kind) {
+  const normalized = ref.replace(/\/+$/, "");
+  const dir = entity.path.replace(/\/[^/]+$/, "");
+  return String(entity.id ?? "") === ref || dir === normalized || entity.path === `${normalized}/${kind}.json`;
+}
+function sortEntities2(entities) {
+  return [...entities].sort((left, right) => numberField3(left.record.order) - numberField3(right.record.order) || left.path.localeCompare(right.path));
+}
+function childEntitiesForParent(ancestryIndex, entities, parent) {
+  const directChildren = new Set((ancestryIndex.childrenByParentPath.get(parent.path) ?? []).map((entity) => entity.path));
+  return entities.filter((entity) => directChildren.has(entity.path));
+}
+function ancestorEntity(ancestryIndex, entity, entityKind) {
+  const seen = /* @__PURE__ */ new Set([entity.path]);
+  let currentPath = entity.path;
+  while (true) {
+    const parentPath = ancestryIndex.parentPathByPath.get(currentPath);
+    if (!parentPath || seen.has(parentPath)) return void 0;
+    seen.add(parentPath);
+    const parent = ancestryIndex.entityByPath.get(parentPath);
+    if (!parent) return void 0;
+    if (parent.entityKind === entityKind) return parent;
+    currentPath = parent.path;
+  }
+}
+function ancestorId(ancestryIndex, entity, entityKind) {
+  const ancestor = ancestorEntity(ancestryIndex, entity, entityKind);
+  return ancestor ? idText(ancestor) : void 0;
+}
+function parentByDir(entities, childPath) {
+  const childDir = entityDir4(childPath);
+  return entities.find((entity) => childDir.startsWith(`${entityDir4(entity.path)}/`));
+}
+function entityDir4(path) {
+  return path.replace(/\/[^/]+$/, "");
+}
+function pathSegmentAfter3(path, segment) {
+  const parts = path.split("/");
+  const index = parts.indexOf(segment);
+  return index >= 0 ? parts[index + 1] : void 0;
+}
+function primaryRefKey2(kind, id) {
+  return `${kind}:${String(id ?? "")}`;
+}
+function primaryRefKeys2(kind, ref) {
+  const value = String(ref);
+  const keys = [primaryRefKey2(kind, value)];
+  const lastSegment = value.split("/").filter(Boolean).at(-1);
+  if (lastSegment && lastSegment !== value) keys.push(primaryRefKey2(kind, lastSegment));
+  return keys;
+}
+function shotCameraText(shot) {
+  return [
+    stringField12(shot.record.shot_size),
+    stringField12(recordField3(shot.record.camera)?.movement),
+    stringField12(recordField3(shot.record.camera)?.angle)
+  ].filter(Boolean).join(" \xB7 ") || stringField12(shot.record.shot_kind) || "shot";
+}
+function shotExpressionText(shot) {
+  return stringField12(shot.record.description ?? shot.record.summary ?? recordField3(shot.record.expression)?.text ?? recordField3(shot.record.expression)?.intent) ?? titleOf(shot, idText(shot));
+}
+function durationText(value) {
+  const duration = Number(value);
+  return Number.isFinite(duration) && duration > 0 ? `${duration}s` : "\u5F85\u5B9A";
+}
+function stillPositionForIndex(index) {
+  return ["0% 0%", "100% 0%", "0% 100%", "100% 100%"][index % 4] ?? "0% 0%";
+}
+function contentUnitType(contentUnit) {
+  const type = stringField12(contentUnit?.record.content_unit_type);
+  if (type === "keyframe_ref" || type === "storyboard_ref" || type === "audio_cue_ref" || type === "scence_moment_ref" || type === "scene_moment_ref" || type === "expression_unit_ref") return type;
+  return "expression_unit_ref";
+}
+function outputKindForContentUnit(contentUnit) {
+  const outputKind = stringField12(contentUnit?.record.output_kind);
+  if (outputKind === "image" || outputKind === "video" || outputKind === "audio" || outputKind === "text" || outputKind === "metadata" || outputKind === "storyboard") return outputKind;
+  const type = contentUnitType(contentUnit);
+  if (type === "keyframe_ref" || type === "storyboard_ref") return "image";
+  if (type === "audio_cue_ref") return "audio";
+  return "video";
+}
+function momentSelectionState(expressionUnits) {
+  if (expressionUnits.some((expressionUnit) => expressionUnit.contentUnit.selectionState === "stale")) return "stale";
+  if (expressionUnits.some((expressionUnit) => expressionUnit.contentUnit.selectionState === "needs_candidate")) return "needs_candidate";
+  if (expressionUnits.some((expressionUnit) => expressionUnit.contentUnit.selectionState === "selected")) return "selected";
+  return "ready";
+}
+function settingRefsForMoment(_moment, expressionUnits, assets) {
+  const refs = /* @__PURE__ */ new Set();
+  for (const expressionUnit of expressionUnits) {
+    for (const asset of expressionUnit.assets) refs.add(asset.title);
+  }
+  if (refs.size === 0) {
+    for (const asset of assets.slice(0, 3)) refs.add(nodeId(asset, "asset"));
+  }
+  return [...refs];
+}
+function shotAssets(shot, keyframes, assets) {
+  const refs = [
+    ...arrayField4(shot.record.reference_asset_refs),
+    ...keyframes.flatMap((keyframe) => arrayField4(keyframe.record.reference_asset_refs))
+  ].map(String);
+  const uniqueRefs = [...new Set(refs)];
+  return uniqueRefs.map((ref) => ({
+    title: ref.startsWith("asset/") ? ref : `asset/${ref}`,
+    status: assets.some((asset) => String(asset.id ?? "") === ref || entityDir4(asset.path) === ref || asset.path.startsWith(`${ref}/`)) ? "ready" : "missing"
+  }));
+}
+function contentUnitIdForRuntimeDocument(path, explicitRef) {
+  const ref = explicitRef ?? entityDir4(path);
+  const id = pathSegmentAfter3(ref, "content_units");
+  return id;
+}
+function candidateTitle(candidate, fallback) {
+  const explicitTitle = stringField12(candidate.prompt_snapshot?.title) ?? stringField12(candidate.producer?.title) ?? stringField12(candidate.producer?.name);
+  if (explicitTitle && !candidateTitleIsGeneric(explicitTitle)) return explicitTitle;
+  return readableCandidateTitleFallback(fallback);
+}
+function candidateOrdinalTitle(index) {
+  return `\u5019\u9009 ${index + 1}`;
+}
+function candidateTitleIsGeneric(value) {
+  const normalized = value.trim().toLowerCase();
+  return normalized === "queued generation" || normalized === "pending generation" || normalized === "content unit image generation" || normalized === "content unit video generation" || technicalCandidateIdPattern.test(normalized);
+}
+function readableCandidateTitleFallback(value) {
+  return technicalCandidateIdPattern.test(value.trim().toLowerCase()) ? "\u5019\u9009" : value;
+}
+var technicalCandidateIdPattern = /^(canvas|resource|content)_candidate_[\w-]+$|^resource_\d+_[\w-]+$|^gen_(image|video)_\d+_\d+$/;
+function candidateModel(candidate) {
+  return stringField12(candidate.producer?.model_id) ?? stringField12(candidate.producer?.model) ?? stringField12(candidate.producer?.kind) ?? stringField12(candidate.source) ?? "runtime";
+}
+function candidateInputHash(candidate, contentUnitId) {
+  return stringField12(candidate.prompt_snapshot?.input_hash) ?? stringField12(candidate.prompt_snapshot?.content_hash) ?? stringField12(candidate.prompt_snapshot?.hash) ?? stringField12(candidate.created_at) ?? contentUnitId;
+}
+function candidateNote(candidate) {
+  const output3 = firstCandidateOutput(candidate);
+  return stringField12(candidate.prompt_snapshot?.note) ?? stringField12(candidate.prompt_snapshot?.summary) ?? stringField12(output3?.mime_type) ?? stringField12(candidate.status) ?? "Workspace runtime candidate.";
+}
+function candidateDecisionStatus(candidate) {
+  const record = candidate;
+  return stringField12(record.decision_status) ?? stringField12(record.decisionStatus);
+}
+function candidateDecisionReason(candidate) {
+  const record = candidate;
+  return stringField12(record.decision_reason) ?? stringField12(record.decisionReason);
+}
+function firstCandidateOutput(candidate) {
+  return arrayField4(candidate.outputs).filter(isRecord12)[0];
+}
+function assetCandidateConfirmation(candidate, selection, candidateId) {
+  if (selectionCandidateMatches(selection, candidateId)) return "confirmed";
+  if (candidate.status === "failed" || candidate.status === "canceled") return "stale";
+  return "review";
+}
+function selectionCandidateMatches(selection, candidateId) {
+  return selection?.candidate_id !== void 0 && String(selection.candidate_id) === candidateId;
+}
+function idValue(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "string" && value.trim()) return value.trim();
+  return void 0;
+}
+function recordField3(value) {
+  return isRecord12(value) ? value : void 0;
+}
+function stringField12(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function numberField3(value) {
+  const numberValue24 = Number(value);
+  return Number.isFinite(numberValue24) ? numberValue24 : Number.MAX_SAFE_INTEGER;
+}
+function optionalNumberField(value) {
+  const numberValue24 = Number(value);
+  return Number.isFinite(numberValue24) ? numberValue24 : void 0;
+}
+function pruneUndefinedRecord(record) {
+  const output3 = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (value !== void 0) output3[key] = value;
+  }
+  return output3;
+}
+function arrayField4(value) {
+  return Array.isArray(value) ? value : [];
+}
+function isRecord12(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function isContentCandidateRecord(value) {
+  return isRecord12(value) && value.schema === "movscript.content_candidate.v1";
+}
+function isDecisionContextRecord(value) {
+  return isRecord12(value) && value.schema === "movscript.decision_context.v1" && value.target_kind === "content_unit";
+}
+function normalizeContentSelectionRecord(value) {
+  return {
+    candidate_id: value.candidate_id,
+    resource_id: resourceIdValue2(value.resource_id),
+    stream_id: streamIdValue(value.stream_id),
+    artifact_ref: stringField12(value.artifact_ref),
+    stale_policy: value.stale_policy,
+    reason: value.reason,
+    selected_at: value.selected_at
+  };
+}
+function streamIdValue(value) {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return void 0;
+}
+function resourceIdValue2(value) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  }
+  return void 0;
+}
+function isDefined2(value) {
+  return value !== void 0;
+}
+function buildContentSourceWorkspaceProjectTimelineStatus(snapshot, _contentUnitSummaries = []) {
+  const namespaceVocabulary = snapshot.namespaceVocabulary ?? {
+    timelineTemplate: void 0,
+    timelineNamespaces: [],
+    settingNamespaces: [],
+    diagnostics: []
+  };
+  const timelineNamespaceNodes = (snapshot.domainNodes ?? []).filter((node) => node.category === "timeline_namespace").sort((left, right) => (left.order ?? 0) - (right.order ?? 0) || String(left.path ?? left.id ?? "").localeCompare(String(right.path ?? right.id ?? ""), "zh-CN"));
+  const timelineNamespaces = timelineNamespaceNodes.map((node) => {
+    const parent = domainParentRefForNode(snapshot, node);
+    const record = domainRecordForNode(snapshot, node);
+    const productionType = stringField25(record?.production_type ?? record?.productionType ?? record?.timeline_profile ?? record?.timelineProfile);
+    const nodeTimelineNamespaces = stringArrayField(record?.timeline_namespaces ?? record?.timelineNamespaces);
+    return {
+      id: node.id,
+      kind: node.kind,
+      title: node.title,
+      path: node.path,
+      order: node.order,
+      entity_kind: stringField25(node.metadata?.entityKind),
+      ...productionType ? { production_type: productionType } : {},
+      ...nodeTimelineNamespaces.length ? { timeline_namespaces: nodeTimelineNamespaces } : {},
+      ...parent ? { parent } : {}
+    };
+  });
+  return {
+    schema: "movscript.project_timeline_status.v1",
+    status: "ok",
+    namespace_vocabulary: {
+      timeline_template: namespaceVocabulary.timelineTemplate,
+      timeline_namespaces: namespaceVocabulary.timelineNamespaces,
+      setting_namespaces: namespaceVocabulary.settingNamespaces,
+      diagnostics: namespaceVocabulary.diagnostics
+    },
+    timeline_namespace_count: timelineNamespaces.length,
+    timeline_namespaces: timelineNamespaces,
+    system_primitives: {
+      scene_moments_count: snapshot.sceneMoments.length,
+      expression_units_count: snapshot.expressionUnits.length,
+      storyboards_count: snapshot.storyboards.length,
+      keyframes_count: snapshot.keyframes.length,
+      audio_cues_count: snapshot.audioCues.length,
+      assets_count: snapshot.assets.length
+    }
+  };
+}
+function contentSourceWorkspaceContentUnitStatusSummaries(snapshot) {
+  const candidatesByContentUnit = contentCandidateRecordsByContentUnitId(snapshot.indexDocuments);
+  const selectionsByContentUnit = selectionRecordsByContentUnitId(snapshot.indexDocuments);
+  return snapshot.contentUnits.map((unit) => summarizeContentUnitStatus(unit, candidatesByContentUnit, selectionsByContentUnit));
+}
+function summarizeContentUnitStatus(unit, candidatesByContentUnit, selectionsByContentUnit) {
+  const id = entityId(unit);
+  const contentUnitId = String(id);
+  const candidates = candidatesByContentUnit.get(contentUnitId) ?? [];
+  const selection = selectionsByContentUnit.get(contentUnitId);
+  const selectedCandidate = selection?.candidate_id !== void 0 ? candidates.find((candidate) => sameId3(candidate.id, selection.candidate_id)) : void 0;
+  const selectedResourceId3 = numberField22(selection?.resource_id) ?? numberField22(firstCandidateOutput2(selectedCandidate)?.resource_id);
+  return {
+    content_unit_id: id,
+    title: stringField25(unit.record.title),
+    path: unit.path,
+    content_unit_type: stringField25(unit.record.content_unit_type),
+    output_kind: stringField25(unit.record.output_kind),
+    target_kind: stringField25(unit.record.target_kind),
+    target_ref: idField5(unit.record.target_ref),
+    candidate_count: candidates.length,
+    candidate_ids: candidates.map((candidate) => idField5(candidate.id)).filter((value) => value !== void 0),
+    selected_candidate: selection?.candidate_id,
+    selected_resource: selectedResourceId3,
+    stale_status: stringField25(selection?.stale_policy) === "accept_stale" ? "accepted_stale" : "ok",
+    blocking_refs: selection?.candidate_id === void 0 && candidates.length > 0 ? ["selection_missing"] : []
+  };
+}
+function domainParentRefForNode(snapshot, node) {
+  const edge = (snapshot.domainEdges ?? []).find((candidate) => candidate.relation === "parent" && candidate.target.category === node.category && domainRefMatchesNode(candidate.source, node));
+  return edge ? {
+    id: edge.target.id,
+    kind: edge.target.kind,
+    path: edge.target.path
+  } : void 0;
+}
+function domainRecordForNode(snapshot, node) {
+  const entityKind = stringField25(node.metadata?.entityKind);
+  const entities = entityKind === "production" ? snapshot.productions : entityKind === "segment" ? snapshot.segments : [];
+  return entities.find(
+    (entity) => node.path !== void 0 && entity.path === node.path || node.id !== void 0 && sameId3(idField5(entity.id ?? entity.record.id ?? entity.record.ID ?? entity.path), node.id)
+  )?.record;
+}
+function domainRefMatchesNode(ref, node) {
+  return ref.category === node.category && ref.kind === node.kind && (sameId3(ref.id, node.id) || ref.path !== void 0 && ref.path === node.path);
+}
+function contentCandidateRecordsByContentUnitId(documents) {
+  const output3 = /* @__PURE__ */ new Map();
+  for (const document of documents) {
+    if (!document.path.endsWith("/content_candidate.json") || !isRecord24(document.data)) continue;
+    const contentUnitId = contentUnitIdForRuntimeDocument2(document.path, stringField25(document.data.content_unit_ref));
+    if (!contentUnitId) continue;
+    output3.set(contentUnitId, [...output3.get(contentUnitId) ?? [], document.data]);
+  }
+  return output3;
+}
+function selectionRecordsByContentUnitId(documents) {
+  const output3 = /* @__PURE__ */ new Map();
+  for (const document of documents) {
+    if (!isRecord24(document.data)) continue;
+    const selection = isRecord24(document.data.selection) ? document.data.selection : void 0;
+    if (!selection) continue;
+    const contentUnitId = contentUnitIdForRuntimeDocument2(document.path, stringField25(document.data.target_ref));
+    if (!contentUnitId) continue;
+    output3.set(contentUnitId, {
+      ...idField5(selection.candidate_id) !== void 0 ? { candidate_id: idField5(selection.candidate_id) } : {},
+      ...numberField22(selection.resource_id) !== void 0 ? { resource_id: numberField22(selection.resource_id) } : {},
+      ...stringField25(selection.stale_policy) ? { stale_policy: stringField25(selection.stale_policy) } : {}
+    });
+  }
+  return output3;
+}
+function entityId(entity) {
+  return idField5(entity.id ?? entity.record.id ?? entity.record.ID ?? pathSegmentAfter32(entity.path, "content_units") ?? entity.path) ?? entity.path;
+}
+function contentUnitIdForRuntimeDocument2(path, ref) {
+  if (ref) return lastPathSegment2(ref) ?? ref;
+  return pathSegmentAfter32(path, "content_units");
+}
+function firstCandidateOutput2(candidate) {
+  const outputs = Array.isArray(candidate?.outputs) ? candidate.outputs : [];
+  return outputs.find(isRecord24);
+}
+function stringArrayField(value) {
+  return Array.isArray(value) ? value.filter((item) => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim()) : [];
+}
+function idField5(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) return value.trim();
+  return void 0;
+}
+function stringField25(value) {
+  const id = idField5(value);
+  return id === void 0 ? void 0 : String(id);
+}
+function numberField22(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return void 0;
+}
+function pathSegmentAfter32(path, segment) {
+  if (!path) return void 0;
+  const parts = path.split("/").filter(Boolean);
+  const index = parts.indexOf(segment);
+  return index >= 0 ? parts[index + 1] : void 0;
+}
+function lastPathSegment2(path) {
+  return path?.split("/").filter(Boolean).at(-1);
+}
+function sameId3(left, right) {
+  return left !== void 0 && right !== void 0 && String(left) === String(right);
+}
+function isRecord24(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+var PROJECT_CONTEXT_STYLE_REFERENCE_RULE_KEY = "style_reference_images";
+var PROJECT_CONTEXT_CORE_STANDARDS = [
+  { key: "aspect_ratio", label: "\u753B\u5E45\u6BD4\u4F8B", promptRole: "context" },
+  { key: "visual_style", label: "\u89C6\u89C9\u98CE\u683C", promptRole: "style" },
+  { key: "shot_size_system", label: "\u955C\u5934\u5927\u5C0F\u4F53\u7CFB", promptRole: "style" },
+  { key: "camera_language", label: "\u955C\u5934\u8BED\u8A00", promptRole: "style" },
+  { key: "lighting_style", label: "\u706F\u5149\u89C4\u5219", promptRole: "style" },
+  { key: "color_palette", label: "\u8272\u5F69\u89C4\u5219", promptRole: "style" },
+  { key: "pacing_rules", label: "\u8282\u594F\u89C4\u5219", promptRole: "constraint" },
+  { key: "negative_rules", label: "\u8D1F\u9762\u89C4\u5219", promptRole: "negative" }
+];
+function buildProjectContextSnapshot(input3) {
+  const entity = input3.standardsEntity;
+  const standards = entity?.record ?? {};
+  const namespaceVocabulary = input3.namespaceVocabulary ?? {
+    timelineTemplate: void 0,
+    timelineNamespaces: [],
+    settingNamespaces: [],
+    diagnostics: []
+  };
+  const projectStyle = parseProjectStyle3(standards.project_style);
+  const core = PROJECT_CONTEXT_CORE_STANDARDS.map((item) => {
+    const value = projectContextFieldText(item.key === "aspect_ratio" ? standards.aspect_ratio ?? projectStyle.aspect_ratio : item.key === "visual_style" ? standards.visual_style ?? projectStyle.visual_style : projectStyle[item.key] ?? standards[item.key]);
+    return {
+      key: item.key,
+      label: item.label,
+      prompt_role: item.promptRole,
+      required: true,
+      value,
+      filled: Boolean(value)
+    };
+  });
+  const customRules = normalizeProjectContextRules(projectStyle.custom_rules);
+  const enabledRules = customRules.filter((rule) => rule.enabled && rule.value);
+  const promptPreview = buildProjectContextPromptPreview(core, enabledRules);
+  const styleReferenceResourceIds = Array.from(new Set(
+    enabledRules.flatMap((rule) => rule.key === PROJECT_CONTEXT_STYLE_REFERENCE_RULE_KEY ? extractProjectContextResourceIds(rule.value) : [])
+  ));
+  return {
+    schema: "movscript.project_context_snapshot.v1",
+    kind: "project_context_snapshot",
+    source: {
+      entity_kind: "project_standards",
+      entity_id: entity?.id ?? standards.id ?? "project_standards",
+      path: entity?.path ?? "project_standards.json",
+      updated_at: standards.updated_at
+    },
+    namespace_vocabulary: {
+      timeline_template: namespaceVocabulary.timelineTemplate,
+      timeline_namespaces: namespaceVocabulary.timelineNamespaces,
+      setting_namespaces: namespaceVocabulary.settingNamespaces,
+      diagnostics: namespaceVocabulary.diagnostics
+    },
+    standards_hash: stableProjectContextHash({
+      aspect_ratio: standards.aspect_ratio,
+      visual_style: standards.visual_style,
+      project_style: projectStyle,
+      namespace_vocabulary: namespaceVocabulary
+    }),
+    core_standards: core,
+    missing_core_keys: core.filter((item) => !item.filled).map((item) => item.key),
+    missing_core_labels: core.filter((item) => !item.filled).map((item) => item.label),
+    custom_rules: customRules,
+    enabled_rules: enabledRules,
+    style_reference_resource_ids: styleReferenceResourceIds,
+    prompt_preview: promptPreview,
+    agent_guidance: [
+      "Read this snapshot before planning, content-unit work, or generation that depends on project house style or constraints.",
+      "Use namespace_vocabulary for project-specific timeline/setting terms; do not infer concrete parent relationships from vocabulary templates.",
+      "Do not modify project standards just because fields are missing; only use domain_upsert_project_standards when the user asks to add, remove, or change standards.",
+      "When visual generation supports reference images, pass style_reference_resource_ids as house-style reference_resource_ids."
+    ]
+  };
+}
+function parseProjectStyle3(value) {
+  if (isRecord33(value)) return value;
+  if (typeof value !== "string" || !value.trim()) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return isRecord33(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+function projectContextFieldText(value) {
+  if (value === void 0 || value === null) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.map((item) => projectContextFieldText(item)).filter(Boolean).join("\uFF1B");
+  if (isRecord33(value)) {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+  return String(value);
+}
+function normalizeProjectContextRules(value) {
+  const rules = Array.isArray(value) ? value.filter(isRecord33) : [];
+  return rules.map((rule, index) => {
+    const key = projectContextFieldText(rule.key).toLowerCase().replace(/\s+/g, "_");
+    const label = projectContextFieldText(rule.label ?? rule.name ?? rule.key) || `\u6269\u5C55\u89C4\u8303 ${index + 1}`;
+    const ruleValue = projectContextFieldText(rule.value ?? rule.content ?? rule.description);
+    return {
+      id: projectContextFieldText(rule.id) || `rule_${key || index}_${index}`,
+      key: key || label.toLowerCase().replace(/\s+/g, "_"),
+      label,
+      category: projectContextFieldText(rule.category) || "\u901A\u7528",
+      value: ruleValue,
+      prompt_role: normalizeProjectContextPromptRole(rule.prompt_role ?? rule.promptRole ?? rule.role),
+      enabled: typeof rule.enabled === "boolean" ? rule.enabled : true,
+      required: typeof rule.required === "boolean" ? rule.required : false,
+      order: numberValue3(rule.order) ?? (index + 1) * 10
+    };
+  }).filter((rule) => rule.key || rule.label || rule.value).sort((left, right) => left.order - right.order || left.label.localeCompare(right.label));
+}
+function normalizeProjectContextPromptRole(value) {
+  if (value === "context" || value === "style" || value === "constraint" || value === "negative" || value === "quality_gate") return value;
+  return "constraint";
+}
+function buildProjectContextPromptPreview(core, rules) {
+  const items = [
+    ...core.filter((item) => item.value),
+    ...rules.filter((item) => item.value)
+  ];
+  const sections = [
+    { role: "context", title: "\u9879\u76EE\u80CC\u666F\u89C4\u8303" },
+    { role: "style", title: "\u89C6\u89C9\u4E0E\u8868\u8FBE\u89C4\u8303" },
+    { role: "constraint", title: "\u5FC5\u987B\u9075\u5B88" },
+    { role: "negative", title: "\u7981\u6B62\u51FA\u73B0" },
+    { role: "quality_gate", title: "\u8D28\u68C0\u53E3\u5F84" }
+  ].flatMap((section) => {
+    const sectionItems = items.filter((item) => item.prompt_role === section.role);
+    if (sectionItems.length === 0) return [];
+    return [`${section.title}\uFF1A`, ...sectionItems.map((item) => `- ${item.label}\uFF1A${item.value}`)];
+  });
+  return sections.length > 0 ? `\u9879\u76EE\u89C4\u8303\uFF1A
+${sections.join("\n")}` : "\u9879\u76EE\u89C4\u8303\uFF1A\n- \u6682\u65E0\u5DF2\u542F\u7528\u89C4\u8303\u3002";
+}
+function extractProjectContextResourceIds(value) {
+  const ids = /* @__PURE__ */ new Set();
+  for (const pattern of [/resource#(\d+)/gi, /reference_resource_ids\s*[:=]\s*\[?([0-9,\s]+)\]?/gi]) {
+    for (const match of value.matchAll(pattern)) {
+      const idText2 = match[1] ?? "";
+      for (const part of idText2.split(",")) {
+        const id = Number(part.trim());
+        if (Number.isInteger(id) && id > 0) ids.add(id);
+      }
+    }
+  }
+  return Array.from(ids);
+}
+function stableProjectContextHash(value) {
+  const text = stableStringify(value);
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+function stableStringify(value) {
+  if (Array.isArray(value)) return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  if (isRecord33(value)) {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+function isRecord33(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function numberValue3(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string" || !value.trim()) return void 0;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : void 0;
 }
 
 // ../../packages/project/dist/index.js
@@ -55832,14 +55938,14 @@ async function updateEntityBasics(workspaceService, input3) {
   }
   if (entityKind === "production") {
     return saveProduction(workspaceService, {
-      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter5(input3.targetPath ?? "", "productions"),
+      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter4(input3.targetPath ?? "", "productions"),
       title: stringValue9(patched.title)
     });
   }
   if (entityKind === "segment") {
     return saveSegment(workspaceService, {
-      productionId: input3.productionId ?? pathSegmentAfter5(input3.targetPath ?? "", "productions"),
-      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter5(input3.targetPath ?? "", "segments"),
+      productionId: input3.productionId ?? pathSegmentAfter4(input3.targetPath ?? "", "productions"),
+      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter4(input3.targetPath ?? "", "segments"),
       title: stringValue9(patched.title),
       summary: stringValue9(patched.summary ?? patched.description),
       kind: stringValue9(patched.segment_kind ?? patched.kind)
@@ -55847,9 +55953,9 @@ async function updateEntityBasics(workspaceService, input3) {
   }
   if (entityKind === "scene_moment") {
     return saveSceneMoment(workspaceService, {
-      productionId: input3.productionId ?? pathSegmentAfter5(input3.targetPath ?? "", "productions"),
-      segmentId: input3.segmentId ?? pathSegmentAfter5(input3.targetPath ?? "", "segments"),
-      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter5(input3.targetPath ?? "", "scene_moments"),
+      productionId: input3.productionId ?? pathSegmentAfter4(input3.targetPath ?? "", "productions"),
+      segmentId: input3.segmentId ?? pathSegmentAfter4(input3.targetPath ?? "", "segments"),
+      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter4(input3.targetPath ?? "", "scene_moments"),
       title: stringValue9(patched.title),
       actionText: stringValue9(patched.action_text ?? patched.action),
       description: stringValue9(patched.description),
@@ -55858,10 +55964,10 @@ async function updateEntityBasics(workspaceService, input3) {
   }
   if (entityKind === "expression_unit") {
     return saveExpressionUnit(workspaceService, {
-      productionId: input3.productionId ?? pathSegmentAfter5(input3.targetPath ?? "", "productions"),
-      segmentId: input3.segmentId ?? pathSegmentAfter5(input3.targetPath ?? "", "segments"),
-      sceneMomentId: input3.sceneMomentId ?? idValue2(record.scene_moment_id) ?? pathSegmentAfter5(input3.targetPath ?? "", "scene_moments"),
-      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter5(input3.targetPath ?? "", "expression_units"),
+      productionId: input3.productionId ?? pathSegmentAfter4(input3.targetPath ?? "", "productions"),
+      segmentId: input3.segmentId ?? pathSegmentAfter4(input3.targetPath ?? "", "segments"),
+      sceneMomentId: input3.sceneMomentId ?? idValue2(record.scene_moment_id) ?? pathSegmentAfter4(input3.targetPath ?? "", "scene_moments"),
+      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter4(input3.targetPath ?? "", "expression_units"),
       title: stringValue9(patched.title),
       slotKind: stringValue9(patched.slot_kind ?? patched.slotKind),
       kind: stringValue9(patched.kind),
@@ -55871,32 +55977,32 @@ async function updateEntityBasics(workspaceService, input3) {
   }
   if (entityKind === "keyframe") {
     return saveKeyframe(workspaceService, {
-      productionId: input3.productionId ?? pathSegmentAfter5(input3.targetPath ?? "", "productions"),
-      segmentId: input3.segmentId ?? pathSegmentAfter5(input3.targetPath ?? "", "segments"),
-      sceneMomentId: input3.sceneMomentId ?? idValue2(record.scene_moment_id) ?? pathSegmentAfter5(input3.targetPath ?? "", "scene_moments"),
-      expressionUnitId: input3.expressionUnitId ?? idValue2(record.expression_unit_id) ?? pathSegmentAfter5(input3.targetPath ?? "", "expression_units"),
-      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter5(input3.targetPath ?? "", "keyframes"),
+      productionId: input3.productionId ?? pathSegmentAfter4(input3.targetPath ?? "", "productions"),
+      segmentId: input3.segmentId ?? pathSegmentAfter4(input3.targetPath ?? "", "segments"),
+      sceneMomentId: input3.sceneMomentId ?? idValue2(record.scene_moment_id) ?? pathSegmentAfter4(input3.targetPath ?? "", "scene_moments"),
+      expressionUnitId: input3.expressionUnitId ?? idValue2(record.expression_unit_id) ?? pathSegmentAfter4(input3.targetPath ?? "", "expression_units"),
+      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter4(input3.targetPath ?? "", "keyframes"),
       title: stringValue9(patched.title),
       role: stringValue9(patched.role),
       visualIntent: stringValue9(patched.visual_intent ?? patched.description),
-      timing: isRecord12(patched.timing) ? patched.timing : void 0,
-      composition: isRecord12(patched.composition) ? patched.composition : void 0,
-      continuity: isRecord12(patched.continuity) ? patched.continuity : void 0,
+      timing: isRecord13(patched.timing) ? patched.timing : void 0,
+      composition: isRecord13(patched.composition) ? patched.composition : void 0,
+      continuity: isRecord13(patched.continuity) ? patched.continuity : void 0,
       referenceAssetRefs: Array.isArray(patched.reference_asset_refs) ? patched.reference_asset_refs : void 0,
       referenceKeyframeRefs: Array.isArray(patched.reference_keyframe_refs) ? patched.reference_keyframe_refs : void 0
     });
   }
   if (entityKind === "storyboard") {
     return saveStoryboard(workspaceService, {
-      productionId: input3.productionId ?? pathSegmentAfter5(input3.targetPath ?? "", "productions"),
-      segmentId: input3.segmentId ?? pathSegmentAfter5(input3.targetPath ?? "", "segments"),
-      sceneMomentId: input3.sceneMomentId ?? idValue2(record.scene_moment_id) ?? pathSegmentAfter5(input3.targetPath ?? "", "scene_moments"),
-      expressionUnitId: input3.expressionUnitId ?? idValue2(record.expression_unit_id) ?? pathSegmentAfter5(input3.targetPath ?? "", "expression_units"),
-      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter5(input3.targetPath ?? "", "storyboards"),
+      productionId: input3.productionId ?? pathSegmentAfter4(input3.targetPath ?? "", "productions"),
+      segmentId: input3.segmentId ?? pathSegmentAfter4(input3.targetPath ?? "", "segments"),
+      sceneMomentId: input3.sceneMomentId ?? idValue2(record.scene_moment_id) ?? pathSegmentAfter4(input3.targetPath ?? "", "scene_moments"),
+      expressionUnitId: input3.expressionUnitId ?? idValue2(record.expression_unit_id) ?? pathSegmentAfter4(input3.targetPath ?? "", "expression_units"),
+      id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter4(input3.targetPath ?? "", "storyboards"),
       title: stringValue9(patched.title),
       visualIntent: stringValue9(patched.visual_intent ?? patched.description),
-      timeline: isRecord12(patched.timeline) ? patched.timeline : void 0,
-      graph: isRecord12(patched.graph) ? patched.graph : void 0
+      timeline: isRecord13(patched.timeline) ? patched.timeline : void 0,
+      graph: isRecord13(patched.graph) ? patched.graph : void 0
     });
   }
   throw new Error(`Unsupported entity basics update kind: ${entityKind}`);
@@ -55912,8 +56018,8 @@ function connectSceneMomentSetting(workspaceService, input3) {
   const settingStateId = idValue2(input3.settingStateId);
   const alreadyLinked = currentRefs.some((ref) => String(idValue2(ref.id ?? ref.settingId) ?? "") === String(settingId) && String(idValue2(ref.settingStateId) ?? "") === String(settingStateId ?? ""));
   return saveSceneMoment(workspaceService, {
-    productionId: input3.productionId ?? pathSegmentAfter5(stringValue9(sceneMomentRecord.__workspace_path ?? sceneMomentRecord.workspace_path ?? "") ?? "", "productions"),
-    segmentId: input3.segmentId ?? pathSegmentAfter5(stringValue9(sceneMomentRecord.__workspace_path ?? sceneMomentRecord.workspace_path ?? "") ?? "", "segments"),
+    productionId: input3.productionId ?? pathSegmentAfter4(stringValue9(sceneMomentRecord.__workspace_path ?? sceneMomentRecord.workspace_path ?? "") ?? "", "productions"),
+    segmentId: input3.segmentId ?? pathSegmentAfter4(stringValue9(sceneMomentRecord.__workspace_path ?? sceneMomentRecord.workspace_path ?? "") ?? "", "segments"),
     id: sceneMomentId,
     title: stringValue9(sceneMomentRecord.title),
     actionText: stringValue9(sceneMomentRecord.action_text ?? sceneMomentRecord.action),
@@ -56298,7 +56404,7 @@ function pathPreservingHierarchyRecord(targetPath, record, entityKind) {
 }
 function entityIdFromTargetPath(targetPath, entityKind) {
   const collection = collectionSegmentForSourceKind(entityKind);
-  const collectionId = collection ? pathSegmentAfter5(targetPath, collection) : void 0;
+  const collectionId = collection ? pathSegmentAfter4(targetPath, collection) : void 0;
   if (collectionId) return collectionId;
   const parts = normalizePath(targetPath).split("/").filter(Boolean);
   const filename = parts.at(-1);
@@ -56359,7 +56465,7 @@ function patchEntityBasics(record, input3) {
 }
 function contentUnitInputFromPatchedRecord(record, input3) {
   return {
-    id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter5(input3.targetPath ?? "", "content_units"),
+    id: input3.id ?? idValue2(record.id) ?? pathSegmentAfter4(input3.targetPath ?? "", "content_units"),
     title: stringValue9(record.title),
     contentUnitType: stringValue9(record.content_unit_type ?? record.kind),
     outputKind: stringValue9(record.output_kind),
@@ -56375,7 +56481,7 @@ function contentUnitInputFromPatchedRecord(record, input3) {
   };
 }
 function settingRefsFromRecord(record) {
-  const refs = Array.isArray(record.setting_refs) ? record.setting_refs.filter(isRecord12) : [];
+  const refs = Array.isArray(record.setting_refs) ? record.setting_refs.filter(isRecord13) : [];
   return refs.flatMap((ref) => {
     const settingId = idValue2(ref.setting_id ?? ref.settingId ?? ref.setting_ref ?? ref.settingRef);
     if (!settingId) return [];
@@ -56424,7 +56530,7 @@ function normalizeEntityRef(value, kind) {
   if (value === void 0 || value === null || String(value).trim() === "") throw new Error(`${kind} ref is required`);
   const raw = normalizePath(String(value));
   const collection = collectionSegmentForTargetKind(kind);
-  const pathId = pathSegmentAfter5(raw, collection);
+  const pathId = pathSegmentAfter4(raw, collection);
   if (pathId) return pathId;
   if (raw.endsWith(".json")) {
     const parts = raw.split("/").filter(Boolean);
@@ -56454,7 +56560,7 @@ function entityRefAliases2(value) {
   if (tail) aliases.add(tail);
   if (tail?.endsWith(".json") && parts.at(-2)) aliases.add(parts.at(-2));
   for (const marker of ["assets", "scene_moments", "expression_units", "keyframes", "storyboards", "content_units"]) {
-    const segment = pathSegmentAfter5(raw, marker);
+    const segment = pathSegmentAfter4(raw, marker);
     if (segment) aliases.add(segment);
   }
   return [...aliases];
@@ -56466,7 +56572,7 @@ function compactStrings2(...values) {
   });
 }
 function recordValue(value) {
-  return isRecord12(value) ? value : void 0;
+  return isRecord13(value) ? value : void 0;
 }
 function numberValue4(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -56519,11 +56625,11 @@ function normalizePath(value) {
 }
 function pathSegmentMatches(path, marker, id, entityKind) {
   if (!path) return false;
-  const segment = pathSegmentAfter5(path, marker);
+  const segment = pathSegmentAfter4(path, marker);
   if (!segment) return false;
   return refAliases(id, entityKind).includes(segment);
 }
-function pathSegmentAfter5(path, marker) {
+function pathSegmentAfter4(path, marker) {
   const parts = normalizePath(path).split("/").filter(Boolean);
   const index = parts.indexOf(marker);
   return index >= 0 ? parts[index + 1] : void 0;
@@ -56533,7 +56639,7 @@ function refAliases(value, entityKind) {
   const withoutPrefix = raw.startsWith(`${entityKind}_`) ? raw.slice(entityKind.length + 1) : raw;
   return [raw, withoutPrefix, `${entityKind}_${withoutPrefix}`];
 }
-function isRecord12(value) {
+function isRecord13(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function stringValue9(value) {
@@ -56797,7 +56903,7 @@ function jsonPointerToFieldPath(pointer) {
 function diffJsonValueAtPointer(before, after, pointer) {
   if (jsonValueEquals(before, after)) return [];
   if (Array.isArray(before) && Array.isArray(after)) return diffJsonArrayAtPointer(before, after, pointer);
-  if (isRecord13(before) && isRecord13(after)) return diffJsonObjectAtPointer(before, after, pointer);
+  if (isRecord14(before) && isRecord14(after)) return diffJsonObjectAtPointer(before, after, pointer);
   if (before === void 0) return [{ path: pointer, operation: "added", newValue: after }];
   if (after === void 0) return [{ path: pointer, operation: "removed", oldValue: before }];
   return [{ path: pointer, operation: "replaced", oldValue: before, newValue: after }];
@@ -56893,7 +56999,7 @@ function diffTrackableJsonArrayAtPointer(before, after, beforeKeys, afterKeys, p
   return changes.sort(compareJsonChanges);
 }
 function stableArrayItemKey(value) {
-  if (isRecord13(value)) {
+  if (isRecord14(value)) {
     const id = value.id ?? value.ID ?? value.client_id ?? value.key ?? value.name;
     if (typeof id === "string" && id.trim()) return id.trim();
     if (typeof id === "number" && Number.isFinite(id)) return String(id);
@@ -56919,7 +57025,7 @@ function unescapeJsonPointerSegment(segment) {
 function jsonValueEquals(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
-function isRecord13(value) {
+function isRecord14(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -56981,7 +57087,7 @@ function buildSourceDomainGraph(files) {
   const records = files.map((file) => {
     const data = parseWorkspaceDocument2(file.path, file.content);
     const entityKind = sourceEntityKindFromRelativePath(file.relativePath);
-    const id = isRecord14(data) && entityKind ? sourceEntityStableId(data, entityKind) : void 0;
+    const id = isRecord15(data) && entityKind ? sourceEntityStableId(data, entityKind) : void 0;
     return {
       file,
       data,
@@ -57024,7 +57130,7 @@ function changedEntitiesFromFiles(changedFiles, sourceGraph, currentGraph) {
     const sourceRecord = sourceByPath.get(file.path);
     const currentRecord = currentByRelativePath.get(file.path);
     const record = sourceRecord ?? currentRecord;
-    const entity = isRecord14(record?.data) ? record.data : {};
+    const entity = isRecord15(record?.data) ? record.data : {};
     const entityKind = record?.entityKind ?? entityKindFromFilePath(file.path, entity);
     const id = sourceEntityStableId(entity, entityKind);
     return [{
@@ -57103,7 +57209,7 @@ function idField6(value) {
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
 }
-function isRecord14(value) {
+function isRecord15(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -57145,7 +57251,7 @@ function interpretWorkspaceOverview(input3) {
 function projectInfoFromSource(source) {
   const projectFile = source.files.find((file) => file.relativePath === "project.json");
   const project = projectFile ? parseWorkspaceDocument3(projectFile.path, projectFile.content) : void 0;
-  if (!isRecord15(project)) return {};
+  if (!isRecord16(project)) return {};
   const projectId = idField7(project.project_id ?? project.ID ?? project.id);
   return {
     ...projectId !== void 0 ? { projectId } : {},
@@ -57171,7 +57277,7 @@ function idField7(value) {
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
 }
-function isRecord15(value) {
+function isRecord16(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -57587,7 +57693,7 @@ function dedupeTargets(targets) {
   });
 }
 function selectionRecord(value) {
-  if (!isRecord16(value)) return void 0;
+  if (!isRecord17(value)) return void 0;
   return pruneUndefined14({
     contentUnitId: idField8(value.contentUnitId),
     contentUnitPath: stringField14(value.contentUnitPath),
@@ -57646,12 +57752,12 @@ function parseWorkspaceDocument4(path, content) {
   }
 }
 function isInterpretManifest(value) {
-  return isRecord16(value) && value.schema === "movscript.workspace-interpret.v1" && typeof value.interpretationId === "string" && typeof value.interpretedAt === "string" && isRecord16(value.output);
+  return isRecord17(value) && value.schema === "movscript.workspace-interpret.v1" && typeof value.interpretationId === "string" && typeof value.interpretedAt === "string" && isRecord17(value.output);
 }
 function isImpactReportArtifact(value) {
-  return isRecord16(value) && value.schema === "movscript.impact-report.v1" && Array.isArray(value.changedEntities);
+  return isRecord17(value) && value.schema === "movscript.impact-report.v1" && Array.isArray(value.changedEntities);
 }
-function isRecord16(value) {
+function isRecord17(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -57696,7 +57802,7 @@ function projectStyleReferenceResourceIds(index) {
     ...resourceIdsFromValue2(standards.record.style_reference_images),
     ...resourceIdsFromValue2(standards.record.style_references),
     ...resourceIdsFromValue2(standards.record.reference_resource_ids),
-    ...arrayField5(standards.record.custom_rules).filter(isRecord17).filter((rule) => rule.enabled !== false).filter((rule) => stringField15(rule.key) === "style_reference_images").flatMap((rule) => resourceIdsFromValue2(rule.value))
+    ...arrayField5(standards.record.custom_rules).filter(isRecord18).filter((rule) => rule.enabled !== false).filter((rule) => stringField15(rule.key) === "style_reference_images").flatMap((rule) => resourceIdsFromValue2(rule.value))
   ]);
 }
 var PROMPT_REF_PATTERN2 = /\{\{([a-z_]+)::?([^{}:\s][^{}]*)\}\}/g;
@@ -57889,7 +57995,7 @@ function lastPathSegment3(value) {
 }
 function readSelectedContentUnit(index, contentUnitRef) {
   const context = index.documents.find((document) => {
-    if (!isRecord17(document.data)) return false;
+    if (!isRecord18(document.data)) return false;
     if (document.data.schema !== "movscript.decision_context.v1") return false;
     return document.data.target_kind === "content_unit" && document.data.target_ref === contentUnitRef;
   })?.data;
@@ -57941,7 +58047,7 @@ function entityDir5(path) {
   return path.replace(/\/[^/]+$/, "");
 }
 function recordField4(value) {
-  return isRecord17(value) ? value : void 0;
+  return isRecord18(value) ? value : void 0;
 }
 function arrayField5(value) {
   return Array.isArray(value) ? value : [];
@@ -57970,7 +58076,7 @@ function resourceIdsFromValue2(value) {
   }
   const id = resourceIdField4(value);
   if (id !== void 0) return [id];
-  if (isRecord17(value)) return resourceIdsFromValue2(value.resource_id ?? value.resourceId ?? value.id);
+  if (isRecord18(value)) return resourceIdsFromValue2(value.resource_id ?? value.resourceId ?? value.id);
   return [];
 }
 function uniqueIds(values) {
@@ -58012,10 +58118,10 @@ function providerAssetUri(certification) {
 }
 function stableJsonValue(value) {
   if (Array.isArray(value)) return value.map(stableJsonValue);
-  if (!isRecord17(value)) return value;
+  if (!isRecord18(value)) return value;
   return Object.fromEntries(Object.entries(value).filter(([key]) => !key.startsWith("__workspace_")).sort(([left], [right]) => left.localeCompare(right)).map(([key, item]) => [key, stableJsonValue(item)]));
 }
-function isRecord17(value) {
+function isRecord18(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function isDefined3(value) {
@@ -58623,7 +58729,7 @@ function getSemanticEntitySchemaEntry(schemaId) {
   return SEMANTIC_ENTITY_SCHEMA_REGISTRY[schemaId] ?? null;
 }
 
-// ../../packages/interpreter/dist/chunk-XN62JBAH.js
+// ../../packages/interpreter/dist/chunk-FLQGLAYV.js
 function validateEditableFiles(files) {
   const issues = [];
   for (const file of files) {
@@ -58645,7 +58751,7 @@ function validateSourceDomainGraph(graph) {
   const issues = [];
   for (const entry of graph.records) {
     if (!entry.file.path.endsWith(".json")) continue;
-    if (!isRecord18(entry.data)) continue;
+    if (!isRecord19(entry.data)) continue;
     const expectedKind = entry.entityKind;
     const schemaKind = typeof entry.data.schema === "string" ? entry.data.schema.replace(/^movscript\./, "").replace(/\.v\d+$/, "") : void 0;
     const actualKind = typeof entry.data.kind === "string" ? entry.data.kind : void 0;
@@ -58744,7 +58850,7 @@ function validateSourceDomainGraph(graph) {
   return issues;
 }
 function validateExplicitPathParentRefs(entry, graph, issues) {
-  if (!entry.entityKind || !isRecord18(entry.data)) return;
+  if (!entry.entityKind || !isRecord19(entry.data)) return;
   for (const ref of explicitPathParentRefs(entry.entityKind, entry.data)) {
     const pathParent = ref.parentKind ? nearestAncestorRecord(graph, entry.file.relativePath, ref.parentKind) : nearestPathParentRecord(graph, entry);
     const childId = sourceRecordStableRef(entry);
@@ -59029,7 +59135,7 @@ function validateAudioCueRefs(file, record, graph, issues) {
   }
 }
 function validateStoryboardSettingRefs(file, record, graph, issues) {
-  const settingRefs = Array.isArray(record.setting_refs) ? record.setting_refs.filter(isRecord18) : [];
+  const settingRefs = Array.isArray(record.setting_refs) ? record.setting_refs.filter(isRecord19) : [];
   for (const [index, settingRef] of settingRefs.entries()) {
     const settingId = idField10(settingRef.setting_id);
     const settingStateId = idField10(settingRef.setting_state_id);
@@ -59084,7 +59190,7 @@ function validateKeyframeReferenceAssetRefs(file, record, graph, issues) {
   }
 }
 function validateJsonSchemaValue(value, schema, path) {
-  if (!isRecord18(schema)) return [];
+  if (!isRecord19(schema)) return [];
   const messages = [];
   if ("const" in schema && !jsonValueEquals2(value, schema.const)) {
     messages.push(`${path} must be ${JSON.stringify(schema.const)}`);
@@ -59099,8 +59205,8 @@ function validateJsonSchemaValue(value, schema, path) {
   if (typeof value === "string" && typeof schema.minLength === "number" && value.length < schema.minLength) {
     messages.push(`${path} must contain at least ${schema.minLength} character${schema.minLength === 1 ? "" : "s"}`);
   }
-  if (schema.type === "object" && isRecord18(value)) {
-    const properties = isRecord18(schema.properties) ? schema.properties : {};
+  if (schema.type === "object" && isRecord19(value)) {
+    const properties = isRecord19(schema.properties) ? schema.properties : {};
     const required = Array.isArray(schema.required) ? schema.required.filter((item) => typeof item === "string") : [];
     for (const key of required) {
       if (value[key] === void 0) messages.push(`${path}.${key} is required`);
@@ -59123,7 +59229,7 @@ function validateJsonSchemaValue(value, schema, path) {
 }
 function jsonSchemaTypeMatches(value, type) {
   if (Array.isArray(type)) return type.some((item) => jsonSchemaTypeMatches(value, item));
-  if (type === "object") return isRecord18(value);
+  if (type === "object") return isRecord19(value);
   if (type === "array") return Array.isArray(value);
   if (type === "string") return typeof value === "string";
   if (type === "number") return typeof value === "number" && Number.isFinite(value);
@@ -59188,7 +59294,7 @@ function lastPathSegment4(value) {
   if (typeof value !== "string" || !value.includes("/")) return void 0;
   return value.split("/").filter(Boolean).at(-1);
 }
-function isRecord18(value) {
+function isRecord19(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -59197,7 +59303,7 @@ function businessChangesFromChangedEntities(changedEntities, sourceGraph, curren
   const semanticByEntity = groupSemanticChangesByEntity(semanticChanges);
   return changedEntities.map((entity) => {
     const record = sourceRecordForChangedEntity(sourceGraph, entity) ?? sourceRecordForChangedEntity(currentGraph, entity);
-    const title = isRecord19(record?.data) ? stringField16(record.data.title) : void 0;
+    const title = isRecord20(record?.data) ? stringField16(record.data.title) : void 0;
     const entitySemanticChanges = semanticByEntity.get(entitySemanticKey(entity.entityKind, entity.id)) ?? [];
     const businessKinds = uniqueSorted(entitySemanticChanges.map((change) => change.businessKind));
     const semanticKinds = uniqueSorted(entitySemanticChanges.map((change) => change.kind));
@@ -59330,7 +59436,7 @@ function businessKindLabel(kind) {
 function stringField16(value) {
   return typeof value === "string" && value.trim() ? value : void 0;
 }
-function isRecord19(value) {
+function isRecord20(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -59891,7 +59997,7 @@ function normalizedEditPrompt(value) {
     text: stringField15(record.text),
     negative_text: stringField15(record.negative_text),
     notes: stringField15(record.notes),
-    structured: isRecord17(record.structured) ? record.structured : void 0
+    structured: isRecord18(record.structured) ? record.structured : void 0
   });
 }
 function capabilityForOutputKind(outputKind) {
@@ -59913,11 +60019,11 @@ function inputKindForRef(context, ref) {
   return contentUnitOutputKind2(upstream?.record.output_kind);
 }
 function hasExplicitGenerationReferencePool(record) {
-  return arrayField5(record.generation_references ?? record.generationReferences).some(isRecord17) || arrayField5(record.reference_assets ?? record.referenceAssets).some(isRecord17);
+  return arrayField5(record.generation_references ?? record.generationReferences).some(isRecord18) || arrayField5(record.reference_assets ?? record.referenceAssets).some(isRecord18);
 }
 function contentUnitGenerationPromptRefs(record) {
   return arrayField5(record.generation_references ?? record.generationReferences).flatMap((item) => {
-    if (!isRecord17(item)) return [];
+    if (!isRecord18(item)) return [];
     const kindValue = stringField15(item.kind ?? item.ref_kind ?? item.refKind ?? item.type);
     if (!isContentUnitPromptRefKind(kindValue)) return [];
     const id = idField9(item.ref ?? item.target_ref ?? item.targetRef ?? item.id);
@@ -59933,7 +60039,7 @@ function contentUnitGenerationPromptRefs(record) {
 }
 function contentUnitGenerationResourceInputs(record) {
   const fromGenerationReferences = arrayField5(record.generation_references ?? record.generationReferences).flatMap((item) => {
-    if (!isRecord17(item)) return [];
+    if (!isRecord18(item)) return [];
     const kind = stringField15(item.kind ?? item.ref_kind ?? item.refKind ?? item.type);
     const resourceId = resourceIdField4(item.resource_id ?? item.resourceId) ?? (kind === "resource" ? resourceIdField4(item.ref ?? item.target_ref ?? item.targetRef) : void 0);
     if (resourceId === void 0) return [];
@@ -59947,7 +60053,7 @@ function contentUnitGenerationResourceInputs(record) {
     }];
   });
   const fromReferenceAssets = arrayField5(record.reference_assets ?? record.referenceAssets).flatMap((item) => {
-    if (!isRecord17(item)) return [];
+    if (!isRecord18(item)) return [];
     const resourceId = resourceIdField4(item.resource_id ?? item.resourceId);
     if (resourceId === void 0) return [];
     const mediaType = generationReferenceMediaType(item.media_type ?? item.mediaType, item.role);
@@ -60161,10 +60267,10 @@ function findEntityByRef2(entities, entityKind, ref) {
 function parentExpressionUnitForEntity(entity, entityByPathDir, entityById) {
   const expressionUnitRef = normalizedRefDir(entity.record.expression_unit_ref);
   if (expressionUnitRef) return entityByPathDir.get(expressionUnitRef) ?? entityById.get(entityKey2("expression_unit", expressionUnitRef));
-  const expressionUnitId = pathSegmentAfter6(entity.path, "expression_units");
+  const expressionUnitId = pathSegmentAfter5(entity.path, "expression_units");
   return expressionUnitId ? entityById.get(entityKey2("expression_unit", expressionUnitId)) : void 0;
 }
-function pathSegmentAfter6(path, segment) {
+function pathSegmentAfter5(path, segment) {
   const parts = path.split("/");
   const index = parts.indexOf(segment);
   return index >= 0 ? parts[index + 1] : void 0;
@@ -61467,7 +61573,7 @@ function businessImpactLabel2(businessKind) {
   return labels[businessKind];
 }
 
-// ../../packages/interpreter/dist/chunk-VIYR4SFO.js
+// ../../packages/interpreter/dist/chunk-PFXBR63J.js
 async function reviewMovScriptWorkspace(input3) {
   const now = input3.now ?? /* @__PURE__ */ new Date();
   const sourceOptions = workspaceSourceOptions(input3);
@@ -62427,7 +62533,7 @@ function selectedResourceId(decision) {
   return firstCandidateResourceId2(candidate);
 }
 function firstCandidateResourceId2(candidate) {
-  const output3 = arrayField6(candidate?.outputs).filter(isRecord20)[0];
+  const output3 = arrayField6(candidate?.outputs).filter(isRecord21)[0];
   return resourceIdField5(output3?.resource_id);
 }
 function latestResourceCandidate(candidates) {
@@ -62532,7 +62638,7 @@ function projectStyleReferenceResourceIds2(index) {
     ...resourceIdsFromValue3(standards.record.style_reference_images),
     ...resourceIdsFromValue3(standards.record.style_references),
     ...resourceIdsFromValue3(standards.record.reference_resource_ids),
-    ...arrayField6(standards.record.custom_rules).filter(isRecord20).filter((rule) => rule.enabled !== false).filter((rule) => stringField17(rule.key) === "style_reference_images").flatMap((rule) => resourceIdsFromValue3(rule.value))
+    ...arrayField6(standards.record.custom_rules).filter(isRecord21).filter((rule) => rule.enabled !== false).filter((rule) => stringField17(rule.key) === "style_reference_images").flatMap((rule) => resourceIdsFromValue3(rule.value))
   ]);
 }
 function resourceIdsFromValue3(value) {
@@ -62559,7 +62665,7 @@ function resourceIdsFromValue3(value) {
   }
   const id = resourceIdField5(value);
   if (id !== void 0) return [id];
-  if (isRecord20(value)) return resourceIdsFromValue3(value.resource_id ?? value.resourceId ?? value.id);
+  if (isRecord21(value)) return resourceIdsFromValue3(value.resource_id ?? value.resourceId ?? value.id);
   return [];
 }
 function referenceAssetsForResolvedRefs(refs) {
@@ -62638,7 +62744,7 @@ function dedupeBlockers2(blockers) {
   return output3;
 }
 function recordField5(value) {
-  return isRecord20(value) ? value : void 0;
+  return isRecord21(value) ? value : void 0;
 }
 function arrayField6(value) {
   return Array.isArray(value) ? value : [];
@@ -62690,7 +62796,7 @@ function promptEntityReferenceIdField(value, kind) {
   if (kind === "resource" || kind === "candidate" || typeof id !== "string") return id;
   return id.trim().replace(new RegExp(`^${kind}(?:::|:)`, "i"), "");
 }
-function isRecord20(value) {
+function isRecord21(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function pruneUndefined16(value) {
@@ -62981,7 +63087,7 @@ function createProjectServiceAccessor(projectDir, decisionStoreConfig) {
     candidateAction: async (endpoint, input3 = {}) => {
       const resolvedDecisionStoreConfig = await decisionStoreConfig?.();
       if (!resolvedDecisionStoreConfig) {
-        throw new Error("content unit candidate action requires a scoped project data decisionStore");
+        throw new Error("content unit candidate action requires a scoped project data decisionStore. Provide projectUid/MOVSCRIPT_PROJECT_UID and scoped project-data context; do not retry through legacy MOVSCRIPT_PROJECT_ID decisions.");
       }
       return (await getClient().candidateAction(endpoint, {
         projectDir,
@@ -63009,7 +63115,9 @@ function normalizeRuntimeInput(input3) {
     ...input3.userId !== void 0 ? { userId: input3.userId } : {},
     ...input3.orgId !== void 0 ? { orgId: input3.orgId } : {},
     ...input3.projectUid !== void 0 ? { projectUid: input3.projectUid } : {},
-    ...input3.projectTitle !== void 0 ? { projectTitle: input3.projectTitle } : {}
+    ...input3.projectTitle !== void 0 ? { projectTitle: input3.projectTitle } : {},
+    ...input3.scopeKind !== void 0 ? { scopeKind: input3.scopeKind } : {},
+    ...input3.scopeId !== void 0 ? { scopeId: input3.scopeId } : {}
   };
 }
 function runtimeKey(input3) {
@@ -63024,6 +63132,8 @@ function runtimeKey(input3) {
     input3.userId ?? "",
     input3.orgId ?? "",
     input3.projectUid ?? "",
+    input3.scopeKind ?? "",
+    input3.scopeId ?? "",
     session.baseURL,
     session.userId ?? "",
     token
@@ -63038,7 +63148,9 @@ function createMCPDecisionStore(resolveConfig) {
   };
   const requireStore = async () => {
     const store = await getStore();
-    if (!store) throw new Error("content unit candidate command requires a scoped project data decisionStore");
+    if (!store) {
+      throw new Error("content unit candidate command requires a scoped project data decisionStore. Provide projectDir/cwd plus projectUid, or run from a project shell with MOVSCRIPT_PROJECT_UID; do not fall back to legacy MOVSCRIPT_PROJECT_ID decisions.");
+    }
     return store;
   };
   return {
@@ -63071,7 +63183,6 @@ function createMCPDecisionStoreConfigResolver(input3) {
     userId: input3.userId
   });
   const token = getMCPAuthToken() || getMovScriptBackendRuntimeAuthToken() || session.token;
-  if (!token) return void 0;
   const projectCwd = projectCwdFromInput(input3);
   let configPromise;
   return async () => {
@@ -63084,6 +63195,7 @@ function createMCPDecisionStoreConfigResolver(input3) {
       const projectUid = resolvedLocator.locator.projectUid ?? input3.projectUid;
       const projectTitle = input3.projectTitle ?? resolvedLocator.locator.projectTitle;
       if (!projectUid) return void 0;
+      const scope = scopedProjectDataDecisionScope(input3, session.userId);
       const headers = {
         ...session.userId ? { "X-User-ID": session.userId } : {},
         ...input3.orgId !== void 0 ? { "X-Org-ID": String(input3.orgId) } : {}
@@ -63093,13 +63205,20 @@ function createMCPDecisionStoreConfigResolver(input3) {
         baseUrl: session.baseURL,
         projectUid,
         ...projectTitle ? { title: projectTitle } : {},
-        ...input3.orgId !== void 0 ? { scopeKind: "org", scopeId: input3.orgId } : {},
-        token,
+        ...scope ? { scopeKind: scope.kind, scopeId: scope.id } : {},
+        ...token ? { token } : {},
         ...Object.keys(headers).length > 0 ? { headers } : {}
       };
     })();
     return configPromise;
   };
+}
+function scopedProjectDataDecisionScope(input3, sessionUserId) {
+  if (input3.scopeKind && input3.scopeId !== void 0) return { kind: input3.scopeKind, id: input3.scopeId };
+  if (input3.orgId !== void 0) return { kind: "org", id: input3.orgId };
+  const userId = input3.userId ?? sessionUserId;
+  if (userId !== void 0) return { kind: "user", id: userId };
+  return void 0;
 }
 function projectCwdFromInput(input3) {
   if (input3.projectDir) return input3.projectDir;
@@ -63116,13 +63235,27 @@ function resolveMCPDefaultWorkspaceDir() {
 function resolveMCPProjectWorkspaceLocator(args) {
   const workspaceDir = stringValue2(args.workspaceDir ?? args.workspace_dir) ?? resolveMCPDefaultWorkspaceDir();
   const projectDir = pathValue(args.projectDir ?? args.project_dir ?? args.projectPath ?? args.project_path ?? args.cwd);
-  const projectUid = stringValue2(args.projectUid ?? args.project_uid);
+  const projectUid = stringValue2(args.projectUid ?? args.project_uid) ?? stringValue2(process.env.MOVSCRIPT_PROJECT_UID);
+  const projectTitle = stringValue2(args.projectTitle ?? args.project_title) ?? stringValue2(process.env.MOVSCRIPT_PROJECT_TITLE);
+  const userId = stringValue2(args.userId ?? args.user_id ?? args.user) ?? stringValue2(process.env.MOVSCRIPT_USER_ID);
+  const orgId = stringValue2(args.orgId ?? args.org_id ?? args.org) ?? stringValue2(process.env.MOVSCRIPT_ORG_ID);
+  const scopeKind = scopedProjectDataScopeKind(args.scopeKind ?? args.scope_kind ?? process.env.MOVSCRIPT_SCOPE_KIND);
+  const scopeId = stringValue2(args.scopeId ?? args.scope_id) ?? stringValue2(process.env.MOVSCRIPT_SCOPE_ID);
   if (projectDir === void 0) throw new Error("projectDir or cwd is required for MovScript project-scoped MCP tools");
   return {
     workspaceDir,
     projectDir,
-    ...projectUid !== void 0 ? { projectUid } : {}
+    ...projectUid !== void 0 ? { projectUid } : {},
+    ...projectTitle !== void 0 ? { projectTitle } : {},
+    ...userId !== void 0 ? { userId } : {},
+    ...orgId !== void 0 ? { orgId } : {},
+    ...scopeKind !== void 0 ? { scopeKind } : {},
+    ...scopeId !== void 0 ? { scopeId } : {}
   };
+}
+function scopedProjectDataScopeKind(value) {
+  const raw = stringValue2(value);
+  return raw === "user" || raw === "org" ? raw : void 0;
 }
 function pathValue(value) {
   const raw = stringValue2(value);
@@ -63142,7 +63275,11 @@ async function requireMCPBackendBoundProject(args) {
     resolvedLocator.workspaceDir,
     resolvedLocator.projectDir,
     projectUid,
-    projectTitle
+    projectTitle,
+    resolvedLocator.userId ?? "",
+    resolvedLocator.orgId ?? "",
+    resolvedLocator.scopeKind ?? "",
+    resolvedLocator.scopeId ?? ""
   ].join("");
   const cached = ensuredProjectBindings.get(key);
   if (cached) return cached;
@@ -63172,11 +63309,16 @@ async function resolveProjectBindingLocator(locator) {
     ...locator.projectUid ? { projectUid: locator.projectUid } : {}
   });
   const projectLocator4 = response.locator;
+  const projectTitle = projectLocator4.projectTitle ?? locator.projectTitle;
   return {
     workspaceDir: projectLocator4.workspaceDir ?? locator.workspaceDir,
-    projectDir: projectLocator4.projectDir,
+    projectDir: projectLocator4.projectDir ?? locator.projectDir,
     ...projectLocator4.projectUid ?? locator.projectUid ? { projectUid: projectLocator4.projectUid ?? locator.projectUid } : {},
-    ...projectLocator4.projectTitle ? { projectTitle: projectLocator4.projectTitle } : {},
+    ...projectTitle ? { projectTitle } : {},
+    ...locator.userId !== void 0 ? { userId: locator.userId } : {},
+    ...locator.orgId !== void 0 ? { orgId: locator.orgId } : {},
+    ...locator.scopeKind !== void 0 ? { scopeKind: locator.scopeKind } : {},
+    ...locator.scopeId !== void 0 ? { scopeId: locator.scopeId } : {},
     ...projectLocator4.description ? { description: projectLocator4.description } : {}
   };
 }
@@ -64460,7 +64602,7 @@ async function runDomainBatch(args, action) {
     try {
       results.push({ index, status: "ok", result: await action({ ...defaults, ...item }) });
     } catch (error) {
-      results.push({ index, status: "error", error: errorMessage2(error) });
+      results.push({ index, status: "error", error: errorMessage3(error) });
       if (!continueOnError) break;
     }
   }
@@ -65350,7 +65492,7 @@ function isContentUnitDecisionContextRecord(value) {
 }
 async function withContentUnitCandidateVisibility(args, contentUnitId, result, extra = {}) {
   const status = await readContentUnitCandidateVisibility(args, contentUnitId).catch((error) => ({
-    visibility_error: errorMessage2(error),
+    visibility_error: errorMessage3(error),
     content_unit_candidates: [],
     selected_candidate: void 0,
     selected_raw_resource: void 0,
@@ -65398,7 +65540,7 @@ function selectionRecordsByContentUnitId2(documents) {
 }
 function contentUnitIdForRuntimeDocument3(path, ref) {
   if (ref) return lastPathSegment7(ref) ?? ref;
-  return pathSegmentAfter7(path, "content_units");
+  return pathSegmentAfter6(path, "content_units");
 }
 function entityStatusLine(entity) {
   return {
@@ -65436,7 +65578,7 @@ function firstOutputStreamId(outputs) {
   }
   return void 0;
 }
-function pathSegmentAfter7(path, segment) {
+function pathSegmentAfter6(path, segment) {
   if (!path) return void 0;
   const parts = path.split("/").filter(Boolean);
   const index = parts.indexOf(segment);
@@ -65448,7 +65590,7 @@ function lastPathSegment7(path) {
 function sameId5(left, right) {
   return left !== void 0 && right !== void 0 && String(left) === String(right);
 }
-function errorMessage2(error) {
+function errorMessage3(error) {
   return error instanceof Error ? error.message : String(error);
 }
 function isString3(value) {
@@ -68189,7 +68331,7 @@ async function runBatch(items, concurrency, worker, continueOnError) {
         results[index] = {
           index,
           status: "error",
-          error: errorMessage3(error)
+          error: errorMessage32(error)
         };
         if (!continueOnError) stopped = true;
       }
@@ -68206,7 +68348,7 @@ function batchStatus(successCount, failedCount) {
   if (failedCount === 0) return "completed";
   return successCount > 0 ? "partial_error" : "error";
 }
-function errorMessage3(error) {
+function errorMessage32(error) {
   return error instanceof Error ? error.message : String(error);
 }
 function neutralVideoResourcePreparationCompatibility() {
@@ -72586,6 +72728,7 @@ function commandExecutionContract(spec) {
 function commandExampleArgv(family, command) {
   const argv = command.productCliPath ? ["movscript", ...command.productCliPath] : family === "production-editing" ? ["movscript", "production", "editing", ...command.cliPath] : ["movscript", family, ...command.cliPath];
   if (command.commandId === "workspace.get_model") argv.push("project");
+  if (command.commandId === "domain.get_model") argv.push("--entity-kind", "project");
   argv.push("--json");
   return argv;
 }
@@ -73601,6 +73744,15 @@ var systemCommandSpecs = withCommandContract([
 ], commandContractDefaults("system"));
 var domainCommandSpecs = withCommandContract([
   {
+    commandId: "domain.get_model",
+    mcpToolName: "domain_get_model",
+    cliPath: ["get-model"],
+    description: "Domain: return the editable source model for one entity without requiring a frontend.",
+    inputSchema: toolInputSchema(domainTools(), "domain_get_model"),
+    permissions: ["project:read"],
+    run: domainGetModel
+  },
+  {
     commandId: "domain.overview",
     mcpToolName: "domain_overview",
     cliPath: ["overview"],
@@ -74143,6 +74295,24 @@ var domainCommandSpecs = withCommandContract([
     run: domainUnlockCandidate
   },
   {
+    commandId: "domain.diagnostics.inspect",
+    mcpToolName: "domain_inspect",
+    cliPath: ["diagnostics", "inspect"],
+    description: "Domain diagnostics: inspect project source changes and readiness without writing interpreted artifacts.",
+    inputSchema: toolInputSchema(domainTools(), "domain_inspect"),
+    permissions: ["project:read"],
+    run: domainInspect
+  },
+  {
+    commandId: "domain.diagnostics.interpret",
+    mcpToolName: "domain_interpret",
+    cliPath: ["diagnostics", "interpret"],
+    description: "Domain diagnostics: validate source and refresh interpreter diagnostics.",
+    inputSchema: toolInputSchema(domainTools(), "domain_interpret"),
+    permissions: ["project:read", "project:interpret"],
+    run: domainInterpret
+  },
+  {
     commandId: "domain.diagnostics.review",
     mcpToolName: "domain_review",
     cliPath: ["diagnostics", "review"],
@@ -74585,24 +74755,29 @@ var workspaceCommandSpecs = withCommandContract([
     commandId: "workspace.get_model",
     mcpToolName: "domain_get_model",
     cliPath: ["get-model"],
-    description: "Workspace: return the editable domain model for one entity without requiring a frontend.",
+    description: "Workspace compatibility alias for domain_get_model. Prefer domain.get_model for new workflows.",
     inputSchema: toolInputSchema(domainTools(), "domain_get_model"),
+    stability: "temporary_fallback",
+    permissions: ["project:read"],
     run: domainGetModel
   },
   {
     commandId: "workspace.review",
     mcpToolName: "domain_inspect",
     cliPath: ["review"],
-    description: "Workspace: inspect project source changes and diagnostics without writing interpreted artifacts.",
+    description: "Workspace compatibility alias for domain_inspect. Prefer domain.diagnostics.inspect for new workflows.",
     inputSchema: toolInputSchema(domainTools(), "domain_inspect"),
+    stability: "temporary_fallback",
+    permissions: ["project:read"],
     run: domainInspect
   },
   {
     commandId: "workspace.interpret",
     mcpToolName: "domain_interpret",
     cliPath: ["interpret"],
-    description: "Workspace: validate source and refresh interpreter diagnostics without requiring a frontend.",
+    description: "Workspace compatibility alias for domain_interpret. Prefer domain.diagnostics.interpret for new workflows.",
     inputSchema: toolInputSchema(domainTools(), "domain_interpret"),
+    stability: "temporary_fallback",
     run: domainInterpret
   }
 ], commandContractDefaults("workspace"));
@@ -74629,7 +74804,6 @@ var editingCommandByMCPToolName = new Map(editingCommandSpecs.map((spec) => [spe
 var editingCommandById = new Map(editingCommandSpecs.map((spec) => [spec.commandId, spec]));
 var productionEditingCommandByMCPToolName = new Map(productionEditingCommandSpecs.map((spec) => [spec.mcpToolName, spec]));
 var productionEditingCommandById = new Map(productionEditingCommandSpecs.map((spec) => [spec.commandId, spec]));
-var workspaceCommandByMCPToolName = new Map(workspaceCommandSpecs.map((spec) => [spec.mcpToolName, spec]));
 var workspaceCommandById = new Map(workspaceCommandSpecs.map((spec) => [spec.commandId, spec]));
 function isRuntimeMCPToolName(name) {
   return Boolean(name && runtimeCommandByMCPToolName.has(name));
@@ -74651,9 +74825,6 @@ function isEditingMCPToolName(name) {
 }
 function isProductionEditingMCPToolName(name) {
   return Boolean(name && productionEditingCommandByMCPToolName.has(name));
-}
-function isWorkspaceMCPToolName(name) {
-  return Boolean(name && workspaceCommandByMCPToolName.has(name));
 }
 async function runMovScriptRuntimeCommand(specOrName, args = {}) {
   const spec = typeof specOrName === "string" ? runtimeCommandByMCPToolName.get(specOrName) ?? runtimeCommandById.get(specOrName) : specOrName;
@@ -74705,7 +74876,7 @@ function productionWorkflowContract() {
         primary_cli: [
           ["movscript", "domain", "source", "production-tree", "upsert", "--json"],
           ["movscript", "domain", "source", "content-unit", "upsert", "--json"],
-          ["movscript", "workspace", "review", "--json"],
+          ["movscript", "domain", "diagnostics", "inspect", "--json"],
           ["movscript", "domain", "read", "production-work-plan", "--json"]
         ],
         mcp_tools: [
@@ -74924,7 +75095,8 @@ async function runMovScriptDomainCommand(specOrName, args = {}) {
   if (!spec) throw new Error(`Unknown domain command: ${specOrName}`);
   const binding = bindWorkspaceRuntime(args);
   try {
-    const data = await spec.run(args);
+    const runArgs = domainRunArgs(spec, args);
+    const data = await spec.run(runArgs);
     return {
       schema: "movscript.command_result.v1",
       status: "ok",
@@ -74942,6 +75114,11 @@ async function runMovScriptDomainCommand(specOrName, args = {}) {
   } finally {
     binding.restore?.();
   }
+}
+function domainRunArgs(spec, args) {
+  if (spec.commandId !== "domain.get_model") return args;
+  if (hasWorkspaceProjectLocator(args)) return args;
+  return { ...args, cwd: process.cwd() };
 }
 async function runMovScriptEditingCommand(specOrName, args = {}) {
   const spec = typeof specOrName === "string" ? editingCommandByMCPToolName.get(specOrName) ?? editingCommandById.get(specOrName) : specOrName;
@@ -74993,33 +75170,8 @@ async function runMovScriptProductionEditingCommand(specOrName, args = {}) {
     binding.restore?.();
   }
 }
-async function runMovScriptWorkspaceCommand(specOrName, args = {}) {
-  const spec = typeof specOrName === "string" ? workspaceCommandByMCPToolName.get(specOrName) ?? workspaceCommandById.get(specOrName) : specOrName;
-  if (!spec) throw new Error(`Unknown workspace command: ${specOrName}`);
-  const binding = bindWorkspaceRuntime(args);
-  try {
-    const runArgs = workspaceRunArgs(spec, args);
-    const data = await spec.run(runArgs);
-    return {
-      schema: "movscript.command_result.v1",
-      status: "ok",
-      commandId: spec.commandId,
-      mcpToolName: spec.mcpToolName,
-      contract: commandExecutionContract(spec),
-      data,
-      debug: {
-        cli_argv: workspaceDebugCliArgv(spec, args),
-        cwd: process.cwd(),
-        ...binding.backendEndpoint ? { runtime_endpoint: binding.backendEndpoint } : {},
-        ...binding.projectServiceEndpoint ? { project_service_endpoint: binding.projectServiceEndpoint } : {}
-      }
-    };
-  } finally {
-    binding.restore?.();
-  }
-}
 function unwrapCommandDataWithDebug(execution) {
-  if (isRecord21(execution.data) && !Array.isArray(execution.data)) {
+  if (isRecord27(execution.data) && !Array.isArray(execution.data)) {
     return {
       ...execution.data,
       contract: execution.contract,
@@ -75117,7 +75269,7 @@ async function runtimeStatus(args = {}) {
   const desktop = await probeDesktop(timeoutMs, runtimeHome);
   const localAvailable = localProbe.available;
   const cloudConfigured = Boolean(cloudBaseURL || runtimeGatewayBaseURL || cloudAuth.authenticated || !configuredIsLocal && configuredSession.token);
-  const cloudAvailable = Boolean(cloudBaseURL && isRecord21(cloudProbe) && cloudProbe.available === true);
+  const cloudAvailable = Boolean(cloudBaseURL && isRecord27(cloudProbe) && cloudProbe.available === true);
   const selected = selectedBackendMode({
     configuredIsLocal,
     localAvailable,
@@ -75171,7 +75323,7 @@ async function runtimeStatus(args = {}) {
         ...cloudBaseURL ? { baseURL: cloudBaseURL } : {},
         ...runtimeGatewayBaseURL ? { runtimeGatewayBaseURL } : {},
         authenticated: Boolean(cloudAuth.authenticated || !configuredIsLocal && configuredSession.token),
-        ...isRecord21(cloudProbe) && typeof cloudProbe.error === "string" ? { error: cloudProbe.error } : {}
+        ...isRecord27(cloudProbe) && typeof cloudProbe.error === "string" ? { error: cloudProbe.error } : {}
       },
       selected
     },
@@ -75257,7 +75409,7 @@ async function runtimeDoctor(args = {}) {
   };
 }
 function runtimeDoctorRecommendedNextCommands(preflight) {
-  const checks = Array.isArray(preflight.checks) ? preflight.checks.filter(isRecord21) : [];
+  const checks = Array.isArray(preflight.checks) ? preflight.checks.filter(isRecord27) : [];
   const blocked = new Set(checks.filter((check) => check.status === "blocked").map((check) => stringValue10(check.id)).filter(Boolean));
   const warnings = new Set(checks.filter((check) => check.status === "warning").map((check) => stringValue10(check.id)).filter(Boolean));
   const commands = [];
@@ -75328,7 +75480,7 @@ async function fetchCanonicalRuntimeDescriptor(gatewayBaseURL) {
     });
     if (!response.ok) return void 0;
     const payload = await response.json().catch(() => void 0);
-    if (!isRecord21(payload) || payload.schema !== "movscript.runtime-descriptor.v1") return void 0;
+    if (!isRecord27(payload) || payload.schema !== "movscript.runtime-descriptor.v1") return void 0;
     return payload;
   } catch {
     return void 0;
@@ -75600,8 +75752,8 @@ function inspectProjectSource(projectDir) {
   const sourceRootFiles = Array.from(MOVSCRIPT_SOURCE_ROOT_FILES2).filter((name) => existsSync4(resolve7(projectDir, name))).sort();
   const hasSourceDirs = sourceCollections.length > 0;
   const hasSourceRootFiles = sourceRootFiles.length > 0;
-  const projectUid = isRecord21(metadata) ? stringValue10(metadata.project_uid ?? metadata.projectUid) : void 0;
-  const projectTitle = isRecord21(metadata) ? stringValue10(metadata.title ?? metadata.name) : void 0;
+  const projectUid = isRecord27(metadata) ? stringValue10(metadata.project_uid ?? metadata.projectUid) : void 0;
+  const projectTitle = isRecord27(metadata) ? stringValue10(metadata.title ?? metadata.name) : void 0;
   return {
     isMovScriptProject: Boolean(metadataPath || hasSourceDirs || hasSourceRootFiles),
     hasMetadata: Boolean(metadataPath),
@@ -75925,7 +76077,7 @@ function findCloudAuth(workspaceDir) {
     for (const realmId of readdirSync2(cloudRoot)) {
       const authPath = resolve7(cloudRoot, realmId, "auth.json");
       const auth = readJSON4(authPath);
-      if (isRecord21(auth) && stringValue10(auth.token)) return { authenticated: true };
+      if (isRecord27(auth) && stringValue10(auth.token)) return { authenticated: true };
     }
   } catch {
   }
@@ -75953,8 +76105,11 @@ function recommendedMode(selected, hasProject) {
   return void 0;
 }
 function bindBackendRuntime(args) {
-  const workspaceDir = stringValue10(args.workspaceDir ?? args.workspace_dir) ?? stringValue10(args.projectDir ?? args.project_dir) ?? stringValue10(args.cwd) ?? process.env.MOVSCRIPT_WORKSPACE_DIR;
-  if (workspaceDir) setMovScriptBackendDefaultWorkspaceDir(resolve7(workspaceDir));
+  const workspaceDirInput = stringValue10(args.workspaceDir ?? args.workspace_dir) ?? stringValue10(args.projectDir ?? args.project_dir) ?? stringValue10(args.cwd) ?? process.env.MOVSCRIPT_WORKSPACE_DIR;
+  const workspaceDir = workspaceDirInput ? resolve7(workspaceDirInput) : void 0;
+  const homeDir = resolveRuntimeHomeArg(args);
+  const defaultWorkspaceDir = workspaceDir ?? homeDir;
+  setMovScriptBackendDefaultWorkspaceDir(defaultWorkspaceDir);
   const token = stringValue10(args.token);
   if (token) setMovScriptBackendRuntimeAuthToken(token);
   const explicitBackend = stringValue10(args.backendBaseURL ?? args.backend_base_url ?? args.server);
@@ -75962,7 +76117,13 @@ function bindBackendRuntime(args) {
     setMovScriptBackendAPIBaseURL(explicitBackend);
     return { backendEndpoint: explicitBackend };
   }
-  const homeDir = resolveRuntimeHomeArg(args);
+  const configuredSession = resolveMovScriptBackendSession({ workspaceDir: defaultWorkspaceDir });
+  setMovScriptBackendDefaultWorkspaceDir(configuredSession.workspaceDir);
+  const hasConfiguredBackend = Boolean(process.env.MOVSCRIPT_API_BASE_URL) || existsSync4(configuredSession.configPath);
+  if (hasConfiguredBackend) {
+    setMovScriptBackendAPIBaseURL(configuredSession.baseURL);
+    return { backendEndpoint: configuredSession.baseURL };
+  }
   const runtimeHome = readRuntimeHomeSnapshot(homeDir);
   const gatewayEndpoint = endpointURL4(
     findRuntimeEndpoint(runtimeHome, LOCAL_NODE_GATEWAY_SERVICE) ?? findRuntimeService(runtimeHome, LOCAL_NODE_GATEWAY_SERVICE)?.endpoint
@@ -75972,7 +76133,8 @@ function bindBackendRuntime(args) {
   );
   const backendEndpoint = gatewayEndpoint ?? dataEndpoint;
   if (backendEndpoint) setMovScriptBackendAPIBaseURL(backendEndpoint);
-  return { backendEndpoint };
+  if (backendEndpoint) return { backendEndpoint };
+  return {};
 }
 var bindAdminBackendRuntime = bindBackendRuntime;
 function bindWorkspaceRuntime(args) {
@@ -76015,11 +76177,6 @@ function bindEditingRuntime(args) {
     }
   };
 }
-function workspaceRunArgs(spec, args) {
-  if (spec.commandId !== "workspace.get_model") return args;
-  if (hasWorkspaceProjectLocator(args)) return args;
-  return { ...args, cwd: process.cwd() };
-}
 function hasWorkspaceProjectLocator(args) {
   return Boolean(stringValue10(args.projectDir ?? args.project_dir ?? args.projectPath ?? args.project_path ?? args.cwd));
 }
@@ -76040,7 +76197,7 @@ async function callAdminBackend(spec, path, args) {
   }
 }
 function adminPathWithQuery(path, args) {
-  const query = isRecord21(args.query) ? args.query : {};
+  const query = isRecord27(args.query) ? args.query : {};
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (typeof value === "string" && value.trim()) params.set(key, value.trim());
@@ -76053,7 +76210,7 @@ function adminPathWithQuery(path, args) {
 function adminPayload(args) {
   const payload = args.payload ?? args.body;
   if (payload === void 0) return {};
-  if (!isRecord21(payload)) throw new Error("admin command payload must be an object");
+  if (!isRecord27(payload)) throw new Error("admin command payload must be an object");
   return payload;
 }
 function adminCommandPayload(spec, args) {
@@ -76092,8 +76249,8 @@ function adminGenerationToolCallPayload(args) {
     server_scope: stringValue10(args.toolServerScope ?? args.tool_server_scope ?? args.serverScope ?? args.server_scope),
     operation: stringValue10(args.operation),
     path: stringValue10(args.toolPath ?? args.tool_path ?? args.path),
-    workflow: isRecord21(args.workflow) ? args.workflow : void 0,
-    payload: isRecord21(args.toolPayload ?? args.tool_payload) ? args.toolPayload ?? args.tool_payload : void 0,
+    workflow: isRecord27(args.workflow) ? args.workflow : void 0,
+    payload: isRecord27(args.toolPayload ?? args.tool_payload) ? args.toolPayload ?? args.tool_payload : void 0,
     client_id: stringValue10(args.clientID ?? args.clientId ?? args.client_id),
     prompt_id: stringValue10(args.promptID ?? args.promptId ?? args.prompt_id),
     filename: stringValue10(args.filename),
@@ -76143,7 +76300,7 @@ function adminDebugCliArgv(spec, args) {
   appendPathArg(argv, args, ["subfolder"], "--subfolder");
   appendPathArg(argv, args, ["fileType", "file_type"], "--file-type");
   appendPathArg(argv, args, ["id"], "--id");
-  if (isRecord21(args.query)) {
+  if (isRecord27(args.query)) {
     for (const [key, value] of Object.entries(args.query)) {
       argv.push("--query", `${key}=${String(value)}`);
     }
@@ -76337,7 +76494,7 @@ function systemDebugCliArgv(spec, args) {
   if (args.continue_on_error === true || args.continueOnError === true) argv.push("--continue-on-error");
   const referenceAssets = Array.isArray(args.reference_assets) ? args.reference_assets : Array.isArray(args.referenceAssets) ? args.referenceAssets : [];
   for (const item of referenceAssets) {
-    if (!isRecord21(item)) continue;
+    if (!isRecord27(item)) continue;
     const role = stringValue10(item.role);
     if (!role) continue;
     const mediaType = stringValue10(item.media_type ?? item.mediaType);
@@ -76353,6 +76510,8 @@ function domainDebugCliArgv(spec, args) {
   appendPathArg(argv, args, ["projectId", "project_id"], "--project-id");
   appendPathArg(argv, args, ["projectUid", "project_uid"], "--project-uid");
   appendPathArg(argv, args, ["projectTitle", "project_title"], "--project-title");
+  appendPathArg(argv, args, ["scopeKind", "scope_kind"], "--scope-kind");
+  appendPathArg(argv, args, ["scopeId", "scope_id"], "--scope-id");
   appendPathArg(argv, args, ["userId", "user_id", "user"], "--user");
   appendPathArg(argv, args, ["orgId", "org_id", "org"], "--org");
   appendPathArg(argv, args, ["entityKind", "entity_kind"], "--entity-kind");
@@ -76560,24 +76719,6 @@ function productionEditingDebugCliArgv(spec, args) {
   appendPathArg(argv, args, ["pageSize", "page_size"], "--page-size");
   if (args.includeCandidates === true || args.include_candidates === true) argv.push("--include-candidates");
   if (args.includeUnselected === true || args.include_unselected === true) argv.push("--include-unselected");
-  return argv;
-}
-function workspaceDebugCliArgv(spec, args) {
-  const argv = ["movscript", "workspace", ...spec.cliPath];
-  const entityKind = stringValue10(args.entityKind ?? args.entity_kind);
-  if (spec.commandId === "workspace.get_model" && entityKind) argv.push(entityKind);
-  argv.push("--json");
-  const server = stringValue10(args.backendBaseURL ?? args.backend_base_url ?? args.server ?? args.projectServiceURL ?? args.project_service_url);
-  if (server) argv.push("--server", server);
-  const workspaceDir = stringValue10(args.workspaceDir ?? args.workspace_dir);
-  if (workspaceDir) argv.push("--workspace", workspaceDir);
-  const projectDir = stringValue10(args.projectDir ?? args.project_dir ?? args.projectPath ?? args.project_path ?? args.cwd);
-  if (projectDir) argv.push("--project-dir", projectDir);
-  appendPathArg(argv, args, ["projectUid", "project_uid"], "--project-uid");
-  appendPathArg(argv, args, ["user"], "--user");
-  appendPathArg(argv, args, ["org"], "--org");
-  appendPathArg(argv, args, ["commit"], "--commit");
-  appendPathArg(argv, args, ["entityId", "entity_id"], "--entity-id");
   return argv;
 }
 function workspaceProjectServiceEndpoint(args) {
@@ -76966,7 +77107,7 @@ function objectSchema3(properties, required = []) {
 }
 function toolInputSchema(tools, name) {
   const schema = tools.find((tool) => tool.name === name)?.inputSchema;
-  if (isRecord21(schema)) return schema;
+  if (isRecord27(schema)) return schema;
   return objectSchema3({});
 }
 function stringValue10(value) {
@@ -76980,7 +77121,7 @@ function numberValue6(value) {
   return void 0;
 }
 function recordValue2(value) {
-  return isRecord21(value) ? value : {};
+  return isRecord27(value) ? value : {};
 }
 function readJSON4(path) {
   try {
@@ -77016,7 +77157,7 @@ function adminRequiredNumberArg(args, keys) {
 function compactObject(input3) {
   return Object.fromEntries(Object.entries(input3).filter(([, value]) => value !== void 0));
 }
-function isRecord21(value) {
+function isRecord27(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function errorMessage6(error) {
@@ -77032,7 +77173,6 @@ var editingTools2 = commandSpecsToMCPTools(editingCommandSpecs);
 var productionEditingTools2 = commandSpecsToMCPTools(productionEditingCommandSpecs);
 var runtimeTools = commandSpecsToMCPTools(runtimeCommandSpecs);
 var systemTools = commandSpecsToMCPTools(systemCommandSpecs);
-var workspaceTools = commandSpecsToMCPTools(workspaceCommandSpecs);
 var daemonMCPCommandTools = [
   ...adminTools,
   ...contextTools2,
@@ -77040,8 +77180,7 @@ var daemonMCPCommandTools = [
   ...editingTools2,
   ...productionEditingTools2,
   ...runtimeTools,
-  ...systemTools,
-  ...workspaceTools
+  ...systemTools
 ];
 var daemonMCPRuntimeBootstrapToolNames = new Set(runtimeTools.map((tool) => tool.name));
 var daemonMCPRuntimeBootstrapTools = mergeTools(
@@ -77079,7 +77218,7 @@ async function handleDaemonMCPJSONRPC(req, options = {}) {
         if (options.touchRuntime !== false) {
           await touchLocalNode().catch(() => void 0);
         }
-        return makeResult(id, await callDaemonMCPTool(req.params));
+        return makeResult(id, toMCPCallToolResult(await callDaemonMCPTool(req.params)));
       case "resources/list":
         return makeResult(id, { resources: listResources() });
       case "resources/read":
@@ -77120,10 +77259,36 @@ async function callDaemonMCPTool(params) {
   if (isProductionEditingMCPToolName(name)) {
     return unwrapCommandDataWithDebug(await runMovScriptProductionEditingCommand(name, args));
   }
-  if (isWorkspaceMCPToolName(name)) {
-    return unwrapCommandDataWithDebug(await runMovScriptWorkspaceCommand(name, args));
-  }
   throw new Error(`unknown daemon MCP tool: ${name ?? "<missing>"}`);
+}
+function toMCPCallToolResult(value) {
+  const normalized = toMCPJSONValue(value ?? null);
+  if (isCallToolResultLike(normalized)) return normalizeCallToolResult(normalized);
+  const passthroughFields = isRecord28(normalized) ? normalized : {};
+  return {
+    ...passthroughFields,
+    content: [
+      {
+        type: "text",
+        text: renderMarkdown(value ?? null)
+      }
+    ],
+    structuredContent: normalized,
+    data: normalized
+  };
+}
+function normalizeCallToolResult(value) {
+  const data = value.data;
+  const structuredContent = value.structuredContent ?? value.structured_content ?? data;
+  const result = {
+    ...value,
+    content: Array.isArray(value.content) ? value.content : []
+  };
+  if (structuredContent !== void 0) result.structuredContent = toMCPJSONValue(structuredContent);
+  if (value.isError !== void 0) result.isError = toMCPJSONValue(value.isError);
+  if (value._meta !== void 0) result._meta = toMCPJSONValue(value._meta);
+  if (data !== void 0) result.data = toMCPJSONValue(data);
+  return result;
 }
 function commandSpecsToMCPTools(tools) {
   return tools.flatMap((tool) => {
@@ -77170,19 +77335,25 @@ function mergeTools(primary, secondary) {
   return tools;
 }
 function objectParam(value, key) {
-  if (!isRecord27(value)) return {};
+  if (!isRecord28(value)) return {};
   const candidate = value[key];
-  return isRecord27(candidate) ? candidate : {};
+  return isRecord28(candidate) ? candidate : {};
 }
 function stringParam2(value, key) {
-  if (!isRecord27(value)) return void 0;
+  if (!isRecord28(value)) return void 0;
   return stringValue11(value[key]);
 }
 function stringValue11(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
-function isRecord27(value) {
+function isRecord28(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function isCallToolResultLike(value) {
+  return isRecord28(value) && (isMCPContentArray(value.content) || value.structuredContent !== void 0 || value.structured_content !== void 0 || value.isError !== void 0 || value._meta !== void 0);
+}
+function isMCPContentArray(value) {
+  return Array.isArray(value) && value.every((item) => isRecord28(item) && typeof item.type === "string");
 }
 function errorMessage7(error) {
   return error instanceof Error ? error.message : String(error);
@@ -79640,7 +79811,6 @@ var editingTools3 = commandSpecsToMCPTools2(editingCommandSpecs);
 var productionEditingTools3 = commandSpecsToMCPTools2(productionEditingCommandSpecs);
 var runtimeTools2 = commandSpecsToMCPTools2(runtimeCommandSpecs);
 var systemTools2 = commandSpecsToMCPTools2(systemCommandSpecs);
-var workspaceTools2 = commandSpecsToMCPTools2(workspaceCommandSpecs);
 var daemonMCPCommandTools2 = [
   ...adminTools2,
   ...contextTools3,
@@ -79648,8 +79818,7 @@ var daemonMCPCommandTools2 = [
   ...editingTools3,
   ...productionEditingTools3,
   ...runtimeTools2,
-  ...systemTools2,
-  ...workspaceTools2
+  ...systemTools2
 ];
 var daemonMCPRuntimeBootstrapToolNames2 = new Set(runtimeTools2.map((tool) => tool.name));
 var daemonMCPRuntimeBootstrapTools2 = mergeTools2(
@@ -79687,7 +79856,7 @@ async function handleDaemonMCPJSONRPC2(req, options = {}) {
         if (options.touchRuntime !== false) {
           await touchLocalNode2().catch(() => void 0);
         }
-        return makeResult(id, await callDaemonMCPTool2(req.params));
+        return makeResult(id, toMCPCallToolResult2(await callDaemonMCPTool2(req.params)));
       case "resources/list":
         return makeResult(id, { resources: listResources() });
       case "resources/read":
@@ -79728,10 +79897,36 @@ async function callDaemonMCPTool2(params) {
   if (isProductionEditingMCPToolName(name)) {
     return unwrapCommandDataWithDebug(await runMovScriptProductionEditingCommand(name, args));
   }
-  if (isWorkspaceMCPToolName(name)) {
-    return unwrapCommandDataWithDebug(await runMovScriptWorkspaceCommand(name, args));
-  }
   throw new Error(`unknown daemon MCP tool: ${name ?? "<missing>"}`);
+}
+function toMCPCallToolResult2(value) {
+  const normalized = toMCPJSONValue(value ?? null);
+  if (isCallToolResultLike2(normalized)) return normalizeCallToolResult2(normalized);
+  const passthroughFields = isRecord29(normalized) ? normalized : {};
+  return {
+    ...passthroughFields,
+    content: [
+      {
+        type: "text",
+        text: renderMarkdown(value ?? null)
+      }
+    ],
+    structuredContent: normalized,
+    data: normalized
+  };
+}
+function normalizeCallToolResult2(value) {
+  const data = value.data;
+  const structuredContent = value.structuredContent ?? value.structured_content ?? data;
+  const result = {
+    ...value,
+    content: Array.isArray(value.content) ? value.content : []
+  };
+  if (structuredContent !== void 0) result.structuredContent = toMCPJSONValue(structuredContent);
+  if (value.isError !== void 0) result.isError = toMCPJSONValue(value.isError);
+  if (value._meta !== void 0) result._meta = toMCPJSONValue(value._meta);
+  if (data !== void 0) result.data = toMCPJSONValue(data);
+  return result;
 }
 function commandSpecsToMCPTools2(tools) {
   return tools.flatMap((tool) => {
@@ -79778,19 +79973,25 @@ function mergeTools2(primary, secondary) {
   return tools;
 }
 function objectParam2(value, key) {
-  if (!isRecord28(value)) return {};
+  if (!isRecord29(value)) return {};
   const candidate = value[key];
-  return isRecord28(candidate) ? candidate : {};
+  return isRecord29(candidate) ? candidate : {};
 }
 function stringParam3(value, key) {
-  if (!isRecord28(value)) return void 0;
+  if (!isRecord29(value)) return void 0;
   return stringValue12(value[key]);
 }
 function stringValue12(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
-function isRecord28(value) {
+function isRecord29(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function isCallToolResultLike2(value) {
+  return isRecord29(value) && (isMCPContentArray2(value.content) || value.structuredContent !== void 0 || value.structured_content !== void 0 || value.isError !== void 0 || value._meta !== void 0);
+}
+function isMCPContentArray2(value) {
+  return Array.isArray(value) && value.every((item) => isRecord29(item) && typeof item.type === "string");
 }
 function errorMessage8(error) {
   return error instanceof Error ? error.message : String(error);
@@ -79918,7 +80119,14 @@ async function proxyMCPHostJSONRPCToDaemon(req, endpoint, options) {
     throw new Error(`MovScript daemon MCP endpoint ${endpoint} returned HTTP ${response.status}${text ? `: ${text}` : ""}`);
   }
   if (!text.trim()) return void 0;
-  return JSON.parse(text);
+  return normalizeProxiedMCPResponse(req, JSON.parse(text));
+}
+function normalizeProxiedMCPResponse(req, response) {
+  if (req.method !== "tools/call" || response.result === void 0 || response.error !== void 0) return response;
+  return {
+    ...response,
+    result: toMCPCallToolResult2(response.result)
+  };
 }
 function runtimeDiscoveredEndpoints2(runtimeHome) {
   const endpoints = {};
@@ -79956,12 +80164,12 @@ function endpointURL7(endpoint) {
   return void 0;
 }
 function objectParam3(value, key) {
-  if (!isRecord29(value)) return {};
+  if (!isRecord30(value)) return {};
   const candidate = value[key];
-  return isRecord29(candidate) ? candidate : {};
+  return isRecord30(candidate) ? candidate : {};
 }
 function stringParam4(value, key) {
-  if (!isRecord29(value)) return void 0;
+  if (!isRecord30(value)) return void 0;
   return stringValue13(value[key]);
 }
 function explicitRuntimeGatewayBaseURL() {
@@ -79981,7 +80189,7 @@ function stringValue13(value) {
 function positiveNumberValue2(value) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : void 0;
 }
-function isRecord29(value) {
+function isRecord30(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function writeMessage(message) {
@@ -80214,7 +80422,7 @@ async function handleRuntimeTextRequest({ fetchImpl, modelGatewayBaseURL, reques
     writeJSON(response, 400, { error: "model_id is required" });
     return;
   }
-  const params = isRecord30(input3.params) ? input3.params : {};
+  const params = isRecord31(input3.params) ? input3.params : {};
   const upstream = await fetchImpl(`${modelGatewayBaseURL}/v1/chat/completions`, {
     method: "POST",
     headers: {
@@ -80333,7 +80541,7 @@ async function readJSONBody(request) {
   if (body.length === 0) return {};
   return JSON.parse(body.toString("utf8"));
 }
-function isRecord30(value) {
+function isRecord31(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function normalizeOptionalBaseURL(value, label) {
@@ -80709,7 +80917,7 @@ function sameTimelineProductionId(left, right) {
   return sameId6(left, right) || safeId2(String(left)) === safeId2(String(right));
 }
 function productionTimelineClips(input3) {
-  const contentUnitsById = new Map(input3.contentUnits.map((unit) => [String(unit.id ?? pathSegmentAfter8(unit.path, "content_units") ?? unit.path), unit]));
+  const contentUnitsById = new Map(input3.contentUnits.map((unit) => [String(unit.id ?? pathSegmentAfter7(unit.path, "content_units") ?? unit.path), unit]));
   const candidatesByContentUnitId = contentCandidateRecordsByContentUnitId3(input3.documents);
   const selectionsByContentUnitId = selectionRecordsByContentUnitId3(input3.documents);
   return input3.previewTimeline.items.filter((item) => item.itemType === "scene_moment").sort((left, right) => left.order - right.order).flatMap((item, index) => {
@@ -80759,7 +80967,7 @@ function productionTimelineClips(input3) {
 }
 function productionSceneMomentContentUnitIds(contentUnits, item) {
   const fromTimeline = previewTimelineItemContentUnitIds(item);
-  const scanned = contentUnits.filter((unit) => recordValue3(unit.record) && isSceneMomentVideoContentUnit(unit.record) && sceneMomentRefMatches(unit.record, item)).map((unit) => unit.id ?? pathSegmentAfter8(unit.path, "content_units")).filter((id) => typeof id === "string" || typeof id === "number");
+  const scanned = contentUnits.filter((unit) => recordValue3(unit.record) && isSceneMomentVideoContentUnit(unit.record) && sceneMomentRefMatches(unit.record, item)).map((unit) => unit.id ?? pathSegmentAfter7(unit.path, "content_units")).filter((id) => typeof id === "string" || typeof id === "number");
   return Array.from(new Map([...fromTimeline, ...scanned].map((id) => [String(id), id])).values());
 }
 function previewTimelineItemTitle(item) {
@@ -80808,7 +81016,7 @@ function selectionRecordsByContentUnitId3(documents) {
 }
 function contentUnitIdForRuntimeDocument4(path, ref) {
   if (ref) return lastPathSegment8(ref) ?? ref;
-  return pathSegmentAfter8(path, "content_units");
+  return pathSegmentAfter7(path, "content_units");
 }
 function selectedVideoResourceId(candidate) {
   const output3 = firstCandidateOutput4(candidate);
@@ -82198,7 +82406,7 @@ function projectDirFromBody(body) {
   }
   return resolve10(projectDir);
 }
-function pathSegmentAfter8(path, segment) {
+function pathSegmentAfter7(path, segment) {
   if (!path) return void 0;
   const parts = path.split("/").filter(Boolean);
   const index = parts.indexOf(segment);
@@ -83193,15 +83401,15 @@ function updateTask(entry, patch) {
     updatedAt: (/* @__PURE__ */ new Date()).toISOString()
   };
 }
-function failTask(entry, errorCode, errorMessageValue) {
+function failTask(entry, errorCode3, errorMessageValue) {
   updateTask(entry, {
     status: "failed",
     progressPercent: 100,
     currentStep: "failed",
-    errorCode,
+    errorCode: errorCode3,
     errorMessage: errorMessageValue
   });
-  entry.logs.push(`${(/* @__PURE__ */ new Date()).toISOString()} failed ${entry.task.taskId}: ${errorCode} ${errorMessageValue}`);
+  entry.logs.push(`${(/* @__PURE__ */ new Date()).toISOString()} failed ${entry.task.taskId}: ${errorCode3} ${errorMessageValue}`);
 }
 function notFoundTask(taskId) {
   const now = (/* @__PURE__ */ new Date()).toISOString();
@@ -84351,7 +84559,7 @@ async function loadContentSourceWorkspaceSnapshotFromEngine(engine) {
       const sceneMomentId = idField13(sceneMoment.id ?? sceneMoment.record.id ?? sceneMoment.record.ID);
       if (sceneMomentId === void 0) return void 0;
       const editPlan = await readSceneMomentEditPlanForIndexedEntity(engine, sceneMoment).catch(() => void 0);
-      if (!isRecord31(editPlan)) return void 0;
+      if (!isRecord35(editPlan)) return void 0;
       const mediaEditingProject = createMediaEditingProjectFromMovScriptEditPlan(editPlan, {
         projectId: String(editPlan.productionId ?? "MovScript"),
         title: String(sceneMoment.record.title ?? editPlan.sceneMomentId ?? sceneMomentId)
@@ -84400,12 +84608,12 @@ async function readSceneMomentEditPlanForIndexedEntity(engine, sceneMoment) {
   if (sceneMomentDir === sceneMoment.path) return void 0;
   const path = join12(engine.projectDir, MOVSCRIPT_INTERPRET_CURRENT_DIR, sceneMomentDir, "edit_plan.json");
   const parsed = JSON.parse(await readFile6(path, "utf8"));
-  return isRecord31(parsed) ? parsed : void 0;
+  return isRecord35(parsed) ? parsed : void 0;
 }
 function productionTimelineFromPreview(input3) {
   const candidateRecords = contentCandidateRecordsByContentUnitId4(input3.documents);
   const selections = selectionRecordsByContentUnitId4(input3.documents);
-  const contentUnitsById = new Map(input3.contentUnits.map((unit) => [String(unit.id ?? pathSegmentAfter9(unit.path, "content_units") ?? unit.path), unit]));
+  const contentUnitsById = new Map(input3.contentUnits.map((unit) => [String(unit.id ?? pathSegmentAfter8(unit.path, "content_units") ?? unit.path), unit]));
   const blockers = [];
   const clips = input3.previewTimeline.items.filter((item) => item.itemType === "scene_moment").sort((left, right) => left.order - right.order).flatMap((item, index) => {
     const contentUnitIds = productionSceneMomentContentUnitIds2(input3.contentUnits, item);
@@ -84477,7 +84685,7 @@ function uniquePreviewTimelines(timelines) {
 }
 function productionSceneMomentContentUnitIds2(contentUnits, item) {
   const explicit = Array.isArray(item.contentUnitIds) ? (item.contentUnitIds ?? []).filter((id) => typeof id === "string" || typeof id === "number") : [];
-  const scanned = contentUnits.filter((unit) => isSceneMomentVideoContentUnit2(unit.record) && sceneMomentRefMatches2(unit.record, item)).map((unit) => unit.id ?? pathSegmentAfter9(unit.path, "content_units")).filter((id) => typeof id === "string" || typeof id === "number");
+  const scanned = contentUnits.filter((unit) => isSceneMomentVideoContentUnit2(unit.record) && sceneMomentRefMatches2(unit.record, item)).map((unit) => unit.id ?? pathSegmentAfter8(unit.path, "content_units")).filter((id) => typeof id === "string" || typeof id === "number");
   return [...new Map([...explicit, ...scanned].map((id) => [String(id), id])).values()];
 }
 function previewTimelineItemTitle2(item) {
@@ -84501,7 +84709,7 @@ function sceneMomentRefMatches2(record, item) {
 function contentCandidateRecordsByContentUnitId4(documents) {
   const output3 = /* @__PURE__ */ new Map();
   for (const document of documents) {
-    if (!document.path.endsWith("/content_candidate.json") || !isRecord31(document.data)) continue;
+    if (!document.path.endsWith("/content_candidate.json") || !isRecord35(document.data)) continue;
     const contentUnitId = contentUnitIdForRuntimeDocument5(document.path, stringField19(document.data.content_unit_ref));
     if (!contentUnitId) continue;
     output3.set(contentUnitId, [...output3.get(contentUnitId) ?? [], document.data]);
@@ -84511,8 +84719,8 @@ function contentCandidateRecordsByContentUnitId4(documents) {
 function selectionRecordsByContentUnitId4(documents) {
   const output3 = /* @__PURE__ */ new Map();
   for (const document of documents) {
-    if (!isRecord31(document.data)) continue;
-    const selection = isRecord31(document.data.selection) ? document.data.selection : void 0;
+    if (!isRecord35(document.data)) continue;
+    const selection = isRecord35(document.data.selection) ? document.data.selection : void 0;
     if (!selection) continue;
     const contentUnitId = contentUnitIdForRuntimeDocument5(document.path, stringField19(document.data.target_ref));
     if (!contentUnitId) continue;
@@ -84524,19 +84732,19 @@ function selectionRecordsByContentUnitId4(documents) {
 }
 function contentUnitIdForRuntimeDocument5(path, ref) {
   if (ref) return lastPathSegment9(ref) ?? ref;
-  return pathSegmentAfter9(path, "content_units");
+  return pathSegmentAfter8(path, "content_units");
 }
 function firstCandidateOutput5(candidate) {
-  return Array.isArray(candidate?.outputs) ? candidate.outputs.find(isRecord31) : void 0;
+  return Array.isArray(candidate?.outputs) ? candidate.outputs.find(isRecord35) : void 0;
 }
 function productionWorkPlanFromReview(value) {
-  if (!isRecord31(value)) return void 0;
+  if (!isRecord35(value)) return void 0;
   return value.productionWorkPlan;
 }
 function isDefined5(value) {
   return value !== void 0;
 }
-function isRecord31(value) {
+function isRecord35(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function idField13(value) {
@@ -84553,7 +84761,7 @@ function numberField7(value) {
   if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
   return void 0;
 }
-function pathSegmentAfter9(path, segment) {
+function pathSegmentAfter8(path, segment) {
   if (!path) return void 0;
   const parts = path.split("/").filter(Boolean);
   const index = parts.indexOf(segment);
@@ -84650,7 +84858,7 @@ function numberValue8(value) {
 function recordValue8(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
 }
-function pathSegmentAfter10(path, segment) {
+function pathSegmentAfter9(path, segment) {
   const parts = String(path ?? "").split("/").filter(Boolean);
   const index = parts.indexOf(segment);
   return index >= 0 ? parts[index + 1] : void 0;
@@ -84920,7 +85128,7 @@ function contentCanvasRunAffectedContentUnitIds(canvasRecord, snapshot) {
   }
   const affected = [];
   for (const unit of snapshot.contentUnits ?? []) {
-    const unitId = idValue4(unit.id ?? unit.record?.id ?? pathSegmentAfter10(unit.path, "content_units"));
+    const unitId = idValue4(unit.id ?? unit.record?.id ?? pathSegmentAfter9(unit.path, "content_units"));
     if (unitId === void 0) continue;
     const refs = contentUnitRunRefs(unit);
     if (refs.some((ref) => nodeRefs.has(ref) || nodeRefs.has(contentCanvasNodeIdSuffix(ref)))) {
@@ -84931,7 +85139,7 @@ function contentCanvasRunAffectedContentUnitIds(canvasRecord, snapshot) {
 }
 function contentUnitRunRefs(unit) {
   const record = recordValue8(unit.record) ?? {};
-  const id = idValue4(unit.id ?? record.id ?? pathSegmentAfter10(unit.path, "content_units"));
+  const id = idValue4(unit.id ?? record.id ?? pathSegmentAfter9(unit.path, "content_units"));
   const refs = [
     id,
     id !== void 0 ? `content_unit:${id}` : void 0,
@@ -86338,7 +86546,7 @@ function productionEditingContentUnitKind(entity) {
   return void 0;
 }
 function productionEditingContentUnitId(entity) {
-  return contentUnitRefValue(entity?.id ?? entity?.record?.id ?? entity?.record?.ID ?? pathSegmentAfter10(entity?.path, "content_units"));
+  return contentUnitRefValue(entity?.id ?? entity?.record?.id ?? entity?.record?.ID ?? pathSegmentAfter9(entity?.path, "content_units"));
 }
 function productionEditingContentUnitMatchesProduction(entity, productionId, productionContext) {
   const kind = productionEditingContentUnitKind(entity);
@@ -86577,7 +86785,7 @@ function projectDecisionContextContentUnitRefs(context) {
     context.targetRef
   ].flatMap((value) => [
     contentUnitRefValue(value),
-    contentUnitRefValue(pathSegmentAfter10(value, "content_units"))
+    contentUnitRefValue(pathSegmentAfter9(value, "content_units"))
   ]).filter(Boolean);
 }
 function contentUnitRefValue(value) {
@@ -86585,7 +86793,7 @@ function contentUnitRefValue(value) {
   if (ref === void 0) return void 0;
   const text = String(ref).trim();
   if (!text) return void 0;
-  const suffix = pathSegmentAfter10(text, "content_units");
+  const suffix = pathSegmentAfter9(text, "content_units");
   const normalized = suffix || text;
   return normalized.startsWith("content_unit_") ? normalized.replace(/^content_unit_/, "") : normalized;
 }
@@ -87796,7 +88004,7 @@ function namespaceEntityIdFromPath(targetPath, entityKind) {
     setting: "settings",
     setting_state: "states"
   }[entityKind];
-  return pathSegmentAfter10(targetPath, collection) ?? targetPath.split("/").filter(Boolean).at(-2);
+  return pathSegmentAfter9(targetPath, collection) ?? targetPath.split("/").filter(Boolean).at(-2);
 }
 async function readProjectReadModel(context, now) {
   const engine = createProjectWorkspaceEngine(context);
@@ -88254,7 +88462,7 @@ function projectScriptVersionRefValues(version) {
     version.record?.scriptId,
     version.record?.script_ref,
     version.record?.scriptRef,
-    pathSegmentAfter10(version.path, "scripts")
+    pathSegmentAfter9(version.path, "scripts")
   ].map(scriptRefValue).filter(Boolean);
   return [...new Set(refs)];
 }
@@ -88268,7 +88476,7 @@ function projectScriptRefValues(entity, record) {
     record.scriptId,
     record.script_ref,
     record.scriptRef,
-    pathSegmentAfter10(entity.path, "scripts")
+    pathSegmentAfter9(entity.path, "scripts")
   ].map(scriptRefValue).filter(Boolean);
   return [...new Set(refs)];
 }
@@ -88323,7 +88531,7 @@ function projectDecisionContextContentUnitRefs2(context) {
     context.targetRef
   ].flatMap((value) => [
     contentUnitRefValue2(value),
-    contentUnitRefValue2(pathSegmentAfter10(value, "content_units"))
+    contentUnitRefValue2(pathSegmentAfter9(value, "content_units"))
   ]).filter(Boolean);
 }
 function projectContentUnitReadModelRecord({ contentUnitId, entity, decisionContext }) {
@@ -88395,7 +88603,7 @@ function projectContentUnitRefValues(entity) {
     record.id,
     record.content_unit_id,
     record.contentUnitId,
-    pathSegmentAfter10(entity?.path, "content_units")
+    pathSegmentAfter9(entity?.path, "content_units")
   ].map(contentUnitRefValue2).filter(Boolean);
   return [...new Set(refs)];
 }
@@ -88404,7 +88612,7 @@ function contentUnitRefValue2(value) {
   if (ref === void 0) return void 0;
   const text = String(ref).trim();
   if (!text) return void 0;
-  const suffix = pathSegmentAfter10(text, "content_units");
+  const suffix = pathSegmentAfter9(text, "content_units");
   const normalized = suffix || text;
   return normalized.startsWith("content_unit_") ? normalized.replace(/^content_unit_/, "") : normalized;
 }
@@ -89018,7 +89226,7 @@ var BUNDLED_RUNTIME_ROOT = resolve17(PLUGIN_ROOT, "runtime");
 var HAS_BUNDLED_RUNTIME = existsSync11(BUNDLED_RUNTIME_ROOT);
 var AGENT_MCP_ENTRYPOINT = resolve17(import.meta.dirname, "movscript.mjs");
 var RUN_CWD = HAS_BUNDLED_RUNTIME ? PLUGIN_ROOT : DEV_REPO_ROOT;
-function errorMessage17(error) {
+function errorMessage18(error) {
   return error instanceof Error ? error.message : String(error);
 }
 function currentPluginIdentity() {
@@ -89379,7 +89587,7 @@ async function ensureLocalNode(homeDir, options = {}) {
     if (!rollback.rolledBack) throw error;
     const previousEntrypoint = resolve17(rollback.previousRoot, "bin/movscript.mjs");
     if (!existsSync11(previousEntrypoint)) {
-      throw new Error(`MovScript local daemon startup failed, plugin rollback switched current to ${rollback.previousRoot}, but previous entrypoint is missing: ${previousEntrypoint}; original error: ${errorMessage17(error)}`);
+      throw new Error(`MovScript local daemon startup failed, plugin rollback switched current to ${rollback.previousRoot}, but previous entrypoint is missing: ${previousEntrypoint}; original error: ${errorMessage18(error)}`);
     }
     try {
       const result = await ensureLocalRuntimeDaemon({
@@ -89396,7 +89604,7 @@ async function ensureLocalNode(homeDir, options = {}) {
         rollback
       };
     } catch (rollbackError) {
-      throw new Error(`MovScript local daemon startup failed for current plugin and rollback bundle; rollback=${JSON.stringify(rollback)}; original error: ${errorMessage17(error)}; rollback error: ${errorMessage17(rollbackError)}`);
+      throw new Error(`MovScript local daemon startup failed for current plugin and rollback bundle; rollback=${JSON.stringify(rollback)}; original error: ${errorMessage18(error)}; rollback error: ${errorMessage18(rollbackError)}`);
     }
   }
 }
@@ -89471,7 +89679,7 @@ function writePluginBundleIdentity(input3) {
     `previousRoot=${input3.previousRoot}`,
     `installedAt=${(/* @__PURE__ */ new Date()).toISOString()}`,
     `reason=${input3.reason}`,
-    `startupError=${errorMessage17(input3.error).replace(/\r?\n/g, " ")}`,
+    `startupError=${errorMessage18(input3.error).replace(/\r?\n/g, " ")}`,
     ""
   ].join("\n");
   writeFileSync7(identityPath, content, "utf8");
@@ -89533,7 +89741,7 @@ function createPluginProgramAdapters() {
   ];
 }
 main2().catch((error) => {
-  process.stderr.write(`MovScript Agent MCP host failed: ${errorMessage17(error)}
+  process.stderr.write(`MovScript Agent MCP host failed: ${errorMessage18(error)}
 `);
   process.exit(1);
 });

@@ -539,7 +539,7 @@ test('MCP domain runtime can bind directly to a project directory without backen
 
     assert.equal(runtime.projectCwd, projectDir)
     assert.equal(runtime.projectDir, projectDir)
-    assert.equal(runtime.decisionStore, undefined)
+    assert.ok(runtime.decisionStore)
   } finally {
     await rm(projectDir, { recursive: true, force: true })
   }
@@ -674,6 +674,7 @@ test('MCP domain asset certification registers selected asset resource and write
     assert.deepEqual(postedBodies, [{
       provider: 'volcengine_ark_official',
       resource_id: 101,
+      source_candidate_id: 'candidate_wet_hair_1',
       project_id: 'prj_asset_certification',
       project_name: 'prj_asset_certification',
       setting_id: 'hero',
@@ -686,6 +687,63 @@ test('MCP domain asset certification registers selected asset resource and write
     assert.equal(asset.provider_certifications['volc-ark-main'].source_candidate_id, 'candidate_wet_hair_1')
   } finally {
     globalThis.fetch = originalFetch
+    await rm(projectDir, { recursive: true, force: true })
+  }
+})
+
+test('MCP domain runtime builds scoped project data decisions without requiring auth token', async () => {
+  const originalFetch = globalThis.fetch
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-mcp-scoped-no-auth-home-'))
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-mcp-scoped-no-auth-project-'))
+  const requests = []
+  try {
+    await writeFile(join(projectDir, 'workspace.json'), JSON.stringify({
+      schema: 'movscript.workspace.v2',
+      project_uid: 'prj_scoped_no_auth',
+      title: 'Scoped No Auth',
+    }))
+    writeMovScriptBackendConfig(workspaceDir, {
+      baseURL: 'http://127.0.0.1:54216',
+      activeUserId: 1,
+    })
+    globalThis.fetch = async (url, init = {}) => {
+      if (projectServiceRuntime && String(url).startsWith(projectServiceRuntime.url)) {
+        return originalFetch(url, init)
+      }
+      requests.push({ url: String(url), init })
+      return new Response(JSON.stringify({
+        id: 1,
+        project_uid: 'prj_scoped_no_auth',
+        target_kind: 'content_unit',
+        target_ref: 'content_units/cu_opening',
+        candidates: [{ id: 'candidate_a' }],
+        status: 'open',
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+
+    const runtime = createMovScriptDomainRuntime({ workspaceDir, projectDir, userId: 1 })
+    assert.ok(runtime.decisionStore)
+
+    await runtime.decisionStore.upsertContentUnitCandidate({
+      contentUnitId: 'opening',
+      candidate: { id: 'candidate_a' },
+    })
+
+    assert.equal(requests.length, 1)
+    assert.equal(requests[0].url, 'http://127.0.0.1:54216/api/v1/project-data/decisions/candidates')
+    assert.equal(requests[0].init.headers.authorization, undefined)
+    assert.equal(requests[0].init.headers['X-User-ID'], '1')
+    const body = JSON.parse(requests[0].init.body)
+    assert.equal(body.scope_kind, 'user')
+    assert.equal(body.scope_id, '1')
+    assert.equal(body.project_uid, 'prj_scoped_no_auth')
+    assert.equal(body.title, 'Scoped No Auth')
+  } finally {
+    globalThis.fetch = originalFetch
+    await rm(workspaceDir, { recursive: true, force: true })
     await rm(projectDir, { recursive: true, force: true })
   }
 })

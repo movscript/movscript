@@ -2,7 +2,7 @@
   "schema": "movscript.agent-package.v1",
   "id": "movscript",
   "name": "MovScript",
-  "version": "0.1.42",
+  "version": "0.1.43",
   "description": "MovScript runtime agent package for agent providers that support skills, MCP servers, or provider-native plugin registries.",
   "kind": "runtime-agent",
   "displayName": "MovScript",
@@ -25,15 +25,27 @@
     },
     "openclaw": {
       "manifest": "./.provider-plugin/plugin.json",
-      "registration": "mcp-registry",
-      "capabilities": ["mcpServers"],
-      "notes": ["Use openclaw mcp add or the generated MCP registry projection."]
+      "registration": "openclaw-plugin",
+      "capabilities": ["mcpServers", "tools"],
+      "notes": ["Use openclaw plugins install --link with the generated OpenClaw plugin package."]
     },
     "harness": {
       "manifest": "./.provider-plugin/plugin.json",
       "registration": "worker-agent",
       "capabilities": ["mcpServers", "instructions"],
       "notes": ["Import the generated Worker Agent export into Harness."]
+    },
+    "workbuddy": {
+      "manifest": "./.provider-plugin/plugin.json",
+      "registration": "mcp-json",
+      "capabilities": ["mcpServers"],
+      "notes": ["Merge the generated mcp.json into ~/.workbuddy/mcp.json or paste it in WorkBuddy MCP settings."]
+    },
+    "trae": {
+      "manifest": "./.provider-plugin/plugin.json",
+      "registration": "mcp-json",
+      "capabilities": ["mcpServers"],
+      "notes": ["Merge the generated mcp.json into ~/Library/Application Support/Trae/User/mcp.json on macOS or paste it in Trae MCP settings."]
     }
   }
 }

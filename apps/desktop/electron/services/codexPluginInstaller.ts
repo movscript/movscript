@@ -19,6 +19,10 @@ const execFileAsync = promisify(execFile)
 
 export const MOVSCRIPT_CODEX_MARKETPLACE_NAME = 'movscript-local'
 export const MOVSCRIPT_CODEX_PLUGIN_NAME = 'movscript'
+const MOVSCRIPT_CODEX_REPLACEMENT_SELECTORS = [
+  `${MOVSCRIPT_CODEX_PLUGIN_NAME}@${MOVSCRIPT_CODEX_MARKETPLACE_NAME}`,
+  `${MOVSCRIPT_CODEX_PLUGIN_NAME}@movscript`,
+] as const
 
 export interface CodexPluginInstallPaths {
   homeDir: string
@@ -84,6 +88,9 @@ export async function installMovScriptCodexPlugin(
   const paths = prepareMovScriptCodexMarketplace(options)
   const execCodex = options.execCodex ?? runCodexCommand
   await execCodex(['plugin', 'marketplace', 'add', paths.marketplaceRoot])
+  for (const selector of MOVSCRIPT_CODEX_REPLACEMENT_SELECTORS) {
+    await removeCodexPluginIfInstalled(execCodex, selector)
+  }
   await execCodex(['plugin', 'add', `${MOVSCRIPT_CODEX_PLUGIN_NAME}@${MOVSCRIPT_CODEX_MARKETPLACE_NAME}`])
   return {
     paths,
@@ -196,6 +203,7 @@ export function prepareMovScriptAgentProviderTargets(
 export function codexPluginInstallCommand(marketplaceRoot = defaultCodexMarketplaceRoot()): string {
   return [
     `codex plugin marketplace add ${shellQuote(marketplaceRoot)}`,
+    ...MOVSCRIPT_CODEX_REPLACEMENT_SELECTORS.map((selector) => `codex plugin remove ${selector} || true`),
     `codex plugin add ${MOVSCRIPT_CODEX_PLUGIN_NAME}@${MOVSCRIPT_CODEX_MARKETPLACE_NAME}`,
   ].join('\n')
 }
@@ -287,6 +295,14 @@ async function runCodexCommand(args: string[]): Promise<void> {
     await execFileAsync(codex, args, { env: codexCommandEnv(codex), shell: shouldRunCodexThroughShell(codex) })
   } catch (error) {
     throw new Error(`Failed to run "codex ${args.join(' ')}": ${errorMessage(error)}`)
+  }
+}
+
+async function removeCodexPluginIfInstalled(execCodex: (args: string[]) => Promise<void>, selector: string): Promise<void> {
+  try {
+    await execCodex(['plugin', 'remove', selector])
+  } catch {
+    // Absence is expected on first install; the following add installs the current bundle.
   }
 }
 

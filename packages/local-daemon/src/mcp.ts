@@ -3,10 +3,12 @@ import {
   makeError,
   makeResult,
   readResource,
+  renderMarkdown,
   type JSONRPCRequest,
   type JSONRPCResponse,
   type MCPJSONValue,
   type MCPTool,
+  toMCPJSONValue,
 } from '@movscript/core/mcp/node'
 import {
   adminCommandSpecs,
@@ -20,7 +22,6 @@ import {
   isProductionEditingMCPToolName,
   isRuntimeMCPToolName,
   isSystemMCPToolName,
-  isWorkspaceMCPToolName,
   productionEditingCommandSpecs,
   runMovScriptAdminCommand,
   runMovScriptContextCommand,
@@ -29,11 +30,9 @@ import {
   runMovScriptProductionEditingCommand,
   runMovScriptRuntimeCommand,
   runMovScriptSystemCommand,
-  runMovScriptWorkspaceCommand,
   runtimeCommandSpecs,
   systemCommandSpecs,
   unwrapCommandDataWithDebug,
-  workspaceCommandSpecs,
 } from '@movscript/cli-commands'
 import {
   LOCAL_RUNTIME_DAEMON_CONTROL_SERVICE,
@@ -62,7 +61,6 @@ const editingTools: MCPTool[] = commandSpecsToMCPTools(editingCommandSpecs)
 const productionEditingTools: MCPTool[] = commandSpecsToMCPTools(productionEditingCommandSpecs)
 const runtimeTools: MCPTool[] = commandSpecsToMCPTools(runtimeCommandSpecs)
 const systemTools: MCPTool[] = commandSpecsToMCPTools(systemCommandSpecs)
-const workspaceTools: MCPTool[] = commandSpecsToMCPTools(workspaceCommandSpecs)
 
 export const daemonMCPCommandTools: MCPTool[] = [
   ...adminTools,
@@ -72,7 +70,6 @@ export const daemonMCPCommandTools: MCPTool[] = [
   ...productionEditingTools,
   ...runtimeTools,
   ...systemTools,
-  ...workspaceTools,
 ]
 
 export const daemonMCPRuntimeBootstrapToolNames = new Set(runtimeTools.map((tool) => tool.name))
@@ -116,7 +113,7 @@ export async function handleDaemonMCPJSONRPC(
         if (options.touchRuntime !== false) {
           await touchLocalNode().catch(() => undefined)
         }
-        return makeResult(id, await callDaemonMCPTool(req.params))
+        return makeResult(id, toMCPCallToolResult(await callDaemonMCPTool(req.params)))
       case 'resources/list':
         return makeResult(id, { resources: listResources() })
       case 'resources/read':
@@ -159,10 +156,38 @@ export async function callDaemonMCPTool(params: MCPJSONValue | undefined): Promi
   if (isProductionEditingMCPToolName(name)) {
     return unwrapCommandDataWithDebug(await runMovScriptProductionEditingCommand(name!, args)) as MCPJSONValue
   }
-  if (isWorkspaceMCPToolName(name)) {
-    return unwrapCommandDataWithDebug(await runMovScriptWorkspaceCommand(name!, args)) as MCPJSONValue
-  }
   throw new Error(`unknown daemon MCP tool: ${name ?? '<missing>'}`)
+}
+
+export function toMCPCallToolResult(value: unknown): MCPJSONValue {
+  const normalized = toMCPJSONValue(value ?? null)
+  if (isCallToolResultLike(normalized)) return normalizeCallToolResult(normalized)
+  const passthroughFields = isRecord(normalized) ? normalized : {}
+  return {
+    ...passthroughFields,
+    content: [
+      {
+        type: 'text',
+        text: renderMarkdown(value ?? null),
+      },
+    ],
+    structuredContent: normalized,
+    data: normalized,
+  }
+}
+
+function normalizeCallToolResult(value: Record<string, MCPJSONValue>): MCPJSONValue {
+  const data = value.data
+  const structuredContent = value.structuredContent ?? value.structured_content ?? data
+  const result: Record<string, MCPJSONValue> = {
+    ...value,
+    content: Array.isArray(value.content) ? value.content : [],
+  }
+  if (structuredContent !== undefined) result.structuredContent = toMCPJSONValue(structuredContent)
+  if (value.isError !== undefined) result.isError = toMCPJSONValue(value.isError)
+  if (value._meta !== undefined) result._meta = toMCPJSONValue(value._meta)
+  if (data !== undefined) result.data = toMCPJSONValue(data)
+  return result
 }
 
 export async function readDaemonMCPResource(uri: string): Promise<MCPJSONValue> {
@@ -245,6 +270,22 @@ function stringValue(value: unknown): string | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isCallToolResultLike(value: MCPJSONValue): value is Record<string, MCPJSONValue> {
+  return isRecord(value)
+    && (
+      isMCPContentArray(value.content)
+      || value.structuredContent !== undefined
+      || value.structured_content !== undefined
+      || value.isError !== undefined
+      || value._meta !== undefined
+    )
+}
+
+function isMCPContentArray(value: unknown): value is MCPJSONValue[] {
+  return Array.isArray(value)
+    && value.every((item) => isRecord(item) && typeof item.type === 'string')
 }
 
 function errorMessage(error: unknown): string {

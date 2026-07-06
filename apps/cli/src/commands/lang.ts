@@ -26,7 +26,7 @@ import {
   createNodeMovScriptWorkspaceFileRepository,
 } from '@movscript/workspace/node'
 import {
-  createMovScriptBackendDecisionStore,
+  createMovScriptScopedProjectDataDecisionStore,
 } from '@movscript/workspace/repository'
 import type {
   MovScriptWorkspaceEntityQuery,
@@ -1436,28 +1436,44 @@ function createCliEngine(options: WorkspaceOptions) {
   const envProjectDir = stringValue(process.env.MOVSCRIPT_PROJECT_DIR)
   const workspaceDir = options.cwd ?? envWorkspaceDir
   const projectDir = options.cwd === undefined ? envProjectDir : undefined
-  const decisionStore = createCliBackendDecisionStore({ workspaceDir: envWorkspaceDir ?? options.cwd })
+  const decisionStore = createCliDecisionStore({ workspaceDir: envWorkspaceDir ?? options.cwd })
   return createNodeMovScriptEngine({
     ...(projectDir !== undefined ? { projectDir } : workspaceDir !== undefined ? { workspaceDir } : {}),
     ...(decisionStore ? { decisionStore } : {}),
   })
 }
 
-function createCliBackendDecisionStore(input: { workspaceDir?: string }) {
-  const projectId = stringValue(process.env.MOVSCRIPT_PROJECT_ID)
-  if (!projectId) return undefined
+function createCliDecisionStore(input: { workspaceDir?: string }) {
+  const projectUid = stringValue(process.env.MOVSCRIPT_PROJECT_UID)
+  if (!projectUid) return undefined
   const session = resolveMovScriptBackendSession({
     workspaceDir: input.workspaceDir,
     server: stringValue(process.env.MOVSCRIPT_DATA_SERVICE_URL),
     token: stringValue(process.env.MOVSCRIPT_DATA_SERVICE_TOKEN),
     userId: stringValue(process.env.MOVSCRIPT_USER_ID),
   })
-  return createMovScriptBackendDecisionStore({
+  const scope = cliScopedProjectDataDecisionScope(session.userId)
+  return createMovScriptScopedProjectDataDecisionStore({
     baseUrl: session.baseURL,
-    projectId,
+    projectUid,
+    ...(stringValue(process.env.MOVSCRIPT_PROJECT_TITLE) ? { title: stringValue(process.env.MOVSCRIPT_PROJECT_TITLE) } : {}),
+    ...(scope ? { scopeKind: scope.kind, scopeId: scope.id } : {}),
     ...(session.token ? { token: session.token } : {}),
     ...(session.userId ? { headers: { 'X-User-ID': session.userId } } : {}),
   })
+}
+
+function cliScopedProjectDataDecisionScope(
+  sessionUserId?: string,
+): { kind: 'user' | 'org'; id: string | number } | undefined {
+  const scopeKind = stringValue(process.env.MOVSCRIPT_SCOPE_KIND)
+  const scopeId = stringValue(process.env.MOVSCRIPT_SCOPE_ID)
+  if ((scopeKind === 'user' || scopeKind === 'org') && scopeId !== undefined) return { kind: scopeKind, id: scopeId }
+  const orgId = stringValue(process.env.MOVSCRIPT_ORG_ID)
+  if (orgId) return { kind: 'org', id: orgId }
+  const userId = stringValue(process.env.MOVSCRIPT_USER_ID) ?? sessionUserId
+  if (userId) return { kind: 'user', id: userId }
+  return undefined
 }
 
 type CliEngine = ReturnType<typeof createCliEngine>
@@ -1499,6 +1515,7 @@ async function addCandidateFromCliOptions(
   if (resourceId === undefined) throw new Error('--resource-id is required')
   const targetKind = parseTargetKindOption(options.targetKind, target, { defaultContentUnit: true })
   if (targetKind === 'content_unit') {
+    assertContentUnitCandidateDecisionPath('add')
     const contentUnit = await resolveContentUnitTarget(engine, target)
     const contentUnitId = stringValue(contentUnit.id ?? contentUnit.record.id)
     if (!contentUnitId) throw new Error(`content_unit missing id: ${contentUnit.path}`)
@@ -1535,6 +1552,7 @@ async function selectCandidateFromCliOptions(
 ): Promise<unknown> {
   const targetKind = parseTargetKindOption(options.targetKind ?? options.kind, target, { defaultContentUnit: true })
   if (targetKind === 'content_unit') {
+    assertContentUnitCandidateDecisionPath('select')
     const contentUnit = await resolveContentUnitTarget(engine, target)
     const contentUnitId = stringValue(contentUnit.id ?? contentUnit.record.id)
     if (!contentUnitId) throw new Error(`content_unit missing id: ${contentUnit.path}`)
@@ -1670,6 +1688,15 @@ function contentUnitCandidateListItem(
     notes: stringValue(record.notes),
     record,
   }
+}
+
+function assertContentUnitCandidateDecisionPath(action: 'add' | 'select'): void {
+  if (stringValue(process.env.MOVSCRIPT_PROJECT_UID)) return
+  const projectId = stringValue(process.env.MOVSCRIPT_PROJECT_ID)
+  if (projectId) {
+    throw new Error(`refusing to ${action} a content-unit candidate through legacy MOVSCRIPT_PROJECT_ID=${projectId} decisions. Use "movscript domain candidate ..." with --project-uid/MOVSCRIPT_PROJECT_UID for current UI projects.`)
+  }
+  throw new Error(`content-unit candidate ${action} requires scoped project-data context. Set MOVSCRIPT_PROJECT_UID or use "movscript domain candidate ..." with --project-uid; do not use legacy MOVSCRIPT_PROJECT_ID decisions for current UI projects.`)
 }
 
 async function readInlineCandidateTarget(

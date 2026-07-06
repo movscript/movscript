@@ -123,6 +123,7 @@ class DesktopShellHostManager {
         userId: workspace.context.userId,
         orgId: workspace.context.orgId,
         ...(projectId ? { projectId } : {}),
+        ...(input.projectUid ? { projectUid: input.projectUid } : {}),
       }),
     })
     const session: DesktopShellHostSession = {

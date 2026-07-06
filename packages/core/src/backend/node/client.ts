@@ -2,7 +2,7 @@ import {
   readMovScriptBackendAuth,
   resolveMovScriptBackendSession,
 } from './config.js'
-import { BackendHTTPError } from '../errors.js'
+import { BackendHTTPError, BackendNetworkError } from '../errors.js'
 import {
   getMovScriptBackendAPIBaseURL,
   getMovScriptBackendRuntimeAuthToken,
@@ -11,7 +11,7 @@ import {
 
 export async function backendGet(path: string): Promise<any> {
   const headers = backendHeaders()
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL()}${path}`, { headers })
+  const res = await backendFetch('GET', path, { headers })
   if (!res.ok) {
     throw await BackendHTTPError.fromResponse('GET', path, res)
   }
@@ -30,7 +30,7 @@ export async function backendGetBinary(path: string, options: {
   onProgress?: (progress: BackendBinaryProgress) => void
 } = {}): Promise<{ bytes: Buffer; contentType?: string; contentLength?: number }> {
   const headers = backendHeaders()
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL()}${path}`, { headers })
+  const res = await backendFetch('GET', path, { headers })
   if (!res.ok) {
     throw await BackendHTTPError.fromResponse('GET', path, res)
   }
@@ -105,7 +105,7 @@ async function readBinaryResponse(
 
 export async function backendPost(path: string, body: Record<string, unknown>, userId?: unknown): Promise<any> {
   const headers = backendHeaders({ json: true, userId })
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL()}${path}`, {
+  const res = await backendFetch('POST', path, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
@@ -118,7 +118,7 @@ export async function backendPost(path: string, body: Record<string, unknown>, u
 
 export async function backendPut(path: string, body: Record<string, unknown>, userId?: unknown): Promise<any> {
   const headers = backendHeaders({ json: true, userId })
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL()}${path}`, {
+  const res = await backendFetch('PUT', path, {
     method: 'PUT',
     headers,
     body: JSON.stringify(body),
@@ -132,7 +132,7 @@ export async function backendPut(path: string, body: Record<string, unknown>, us
 
 export async function backendPostMultipart(path: string, form: FormData, userId?: unknown): Promise<any> {
   const headers = backendHeaders({ userId })
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL()}${path}`, {
+  const res = await backendFetch('POST', path, {
     method: 'POST',
     headers,
     body: form,
@@ -145,7 +145,7 @@ export async function backendPostMultipart(path: string, form: FormData, userId?
 
 export async function backendPatch(path: string, body: Record<string, unknown>, userId?: unknown): Promise<any> {
   const headers = backendHeaders({ json: true, userId })
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL()}${path}`, {
+  const res = await backendFetch('PATCH', path, {
     method: 'PATCH',
     headers,
     body: JSON.stringify(body),
@@ -159,7 +159,7 @@ export async function backendPatch(path: string, body: Record<string, unknown>, 
 
 export async function backendDelete(path: string, userId?: unknown): Promise<any> {
   const headers = backendHeaders({ userId })
-  const res = await fetch(`${getMovScriptBackendAPIBaseURL()}${path}`, {
+  const res = await backendFetch('DELETE', path, {
     method: 'DELETE',
     headers,
   })
@@ -175,6 +175,15 @@ export async function backendList(path: string): Promise<any[]> {
   if (Array.isArray(data)) return data
   if (isRecord(data) && Array.isArray(data.items)) return data.items
   return []
+}
+
+async function backendFetch(method: string, path: string, init: RequestInit): Promise<Response> {
+  const url = `${getMovScriptBackendAPIBaseURL()}${path}`
+  try {
+    return await fetch(url, init)
+  } catch (error) {
+    throw new BackendNetworkError(method, path, url, error)
+  }
 }
 
 export async function fetchWithTimeout(url: string, init: RequestInit, timeoutMS: number): Promise<Response> {

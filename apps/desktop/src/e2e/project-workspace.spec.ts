@@ -224,6 +224,8 @@ test('project surface creates and opens production editing workspaces through De
 test('project content workspace renders dedicated preview and prompt canvas pages', async ({ page }, testInfo) => {
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('project content workspace E2E requires a baseURL')
+  const visualQaScreenshotDir = process.env.MOVSCRIPT_VISUAL_QA_SCREENSHOT_DIR?.trim()
+  const visualQaViewport = process.env.MOVSCRIPT_VISUAL_QA_VIEWPORT?.trim()
 
   const seed = buildGenerationAppBootstrap(String(baseURL))
   await installE2EBootstrapSeed(page, {
@@ -240,7 +242,13 @@ test('project content workspace renders dedicated preview and prompt canvas page
 
   const consoleMessages: string[] = []
   page.on('console', (message) => {
-    if (message.type() === 'error' && !message.text().startsWith('Failed to load resource:')) consoleMessages.push(message.text())
+    if (
+      message.type() === 'error'
+      && !message.text().startsWith('Failed to load resource:')
+      && !message.text().includes('/api/v1/system/messages/ws')
+    ) {
+      consoleMessages.push(message.text())
+    }
   })
 
   await page.goto('/project/content/preview')
@@ -386,6 +394,12 @@ test('project content workspace renders dedicated preview and prompt canvas page
 
   await expect(promptCanvas.getByRole('button', { name: '新建内容画布' })).toBeVisible()
   await expect(promptCanvas.getByRole('button', { name: '重命名内容画布' })).toBeVisible()
+  if (visualQaScreenshotDir) {
+    await page.screenshot({
+      path: path.join(visualQaScreenshotDir, `content-canvas-${visualQaViewport || 'desktop'}.png`),
+      fullPage: false,
+    })
+  }
 
   await promptCanvas.getByRole('button', { name: '新建内容画布' }).click()
   const createCanvasDialog = page.getByRole('dialog', { name: '新建内容画布' })

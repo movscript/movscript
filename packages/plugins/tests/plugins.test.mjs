@@ -85,6 +85,12 @@ test('plugins package reads neutral agent package manifests and target aliases',
         'harness-agent': {
           registration: 'worker-agent',
         },
+        'work-buddy': {
+          registration: 'mcp-json',
+        },
+        trea: {
+          registration: 'mcp-json',
+        },
       },
     }),
   })
@@ -93,8 +99,15 @@ test('plugins package reads neutral agent package manifests and target aliases',
 
   assert.equal(manifest?.schema, 'movscript.agent-package.v1')
   assert.equal(manifest?.id, 'movscript')
-  assert.deepEqual(manifest?.targets.map((target) => target.id).sort(), ['claude-code', 'codex', 'harness', 'openclaw'])
-  assert.deepEqual(normalizeAgentProviderTargets('codex,claude,xiaolongxia,harness-agent'), ['codex', 'claude-code', 'openclaw', 'harness'])
+  assert.deepEqual(manifest?.targets.map((target) => target.id).sort(), ['claude-code', 'codex', 'harness', 'openclaw', 'trae', 'workbuddy'])
+  assert.deepEqual(normalizeAgentProviderTargets('codex,claude,xiaolongxia,harness-agent,work-buddy,trea'), [
+    'codex',
+    'claude-code',
+    'openclaw',
+    'harness',
+    'workbuddy',
+    'trae',
+  ])
 })
 
 test('plugins package synthesizes an agent package from provider plugin archives', async () => {
@@ -111,7 +124,7 @@ test('plugins package synthesizes an agent package from provider plugin archives
 
   assert.equal(manifest?.id, 'story-pack')
   assert.equal(manifest?.kind, 'runtime-agent')
-  assert.deepEqual(manifest?.targets.map((target) => target.id).sort(), ['claude-code', 'codex', 'harness', 'openclaw'])
+  assert.deepEqual(manifest?.targets.map((target) => target.id).sort(), ['claude-code', 'codex', 'harness', 'openclaw', 'trae', 'workbuddy'])
   assert.equal(manifest?.providerPlugin?.name, 'story-pack')
 })
 
@@ -191,7 +204,7 @@ test('plugins package normalizes local plugin lists as installed provider plugin
   assert.equal(providerPluginMarketplaceKey('mova', undefined, 'provider-local', 'story-pack'), 'mova:provider-local:story-pack')
 })
 
-test('agent provider registration writes codex, Claude Code, OpenClaw, and Harness adapters', () => {
+test('agent provider registration writes codex, Claude Code, OpenClaw, Harness, WorkBuddy, and Trae adapters', () => {
   const homeDir = mkdtempSync(join(tmpdir(), 'movscript-provider-registration-'))
   const source = fakeMovScriptPluginBundle('0.1.40', 'hash-provider')
   try {
@@ -204,7 +217,7 @@ test('agent provider registration writes codex, Claude Code, OpenClaw, and Harne
     })
     const registrations = registerMovScriptAgentProviderTargets({
       homeDir,
-      targets: 'codex,claude-code,openclaw,harness',
+      targets: 'codex,claude-code,openclaw,harness,workbuddy,trea',
       currentLink: installed.paths.currentLink,
       packageManifest: {
         schema: 'movscript.agent-package.v1',
@@ -217,8 +230,8 @@ test('agent provider registration writes codex, Claude Code, OpenClaw, and Harne
       now: new Date('2026-07-04T00:01:00.000Z'),
     })
 
-    assert.deepEqual(registrations.map((registration) => registration.target), ['codex', 'claude-code', 'openclaw', 'harness'])
-    for (const target of ['codex', 'claude-code', 'openclaw', 'harness']) {
+    assert.deepEqual(registrations.map((registration) => registration.target), ['codex', 'claude-code', 'openclaw', 'harness', 'workbuddy', 'trae'])
+    for (const target of ['codex', 'claude-code', 'openclaw', 'harness', 'workbuddy', 'trae']) {
       assert.equal(realpathSync(join(homeDir, 'provider', target, 'plugins', 'movscript')), realpathSync(installed.paths.currentLink))
       const registration = JSON.parse(readFileSync(join(homeDir, 'provider', target, 'registration.json'), 'utf8'))
       assert.equal(registration.schema, 'movscript.agent-provider-registration.v1')
@@ -229,13 +242,32 @@ test('agent provider registration writes codex, Claude Code, OpenClaw, and Harne
 
     const codexMarketplace = JSON.parse(readFileSync(join(homeDir, 'provider', 'codex', 'marketplace.json'), 'utf8'))
     assert.equal(codexMarketplace.plugins[0].source.path, './plugins/movscript')
+    const codexNativeMarketplace = JSON.parse(readFileSync(join(homeDir, 'provider', 'codex', '.agents', 'plugins', 'marketplace.json'), 'utf8'))
+    assert.equal(codexNativeMarketplace.plugins[0].source.path, './plugins/movscript')
     const claudeMcp = JSON.parse(readFileSync(join(homeDir, 'provider', 'claude-code', '.mcp.json'), 'utf8'))
     assert.deepEqual(claudeMcp.mcpServers.movscript.args, ['mcp', 'stdio'])
     const openclawMcp = JSON.parse(readFileSync(join(homeDir, 'provider', 'openclaw', 'mcp.json'), 'utf8'))
     assert.equal(openclawMcp.mcpServers.movscript.transport, 'stdio')
+    assert.equal(existsSync(join(homeDir, 'provider', 'openclaw', 'plugin', 'package.json')), true)
+    assert.equal(existsSync(join(homeDir, 'provider', 'openclaw', 'plugin', 'openclaw.plugin.json')), true)
+    assert.equal(existsSync(join(homeDir, 'provider', 'openclaw', 'plugin', 'index.ts')), true)
+    const openclawPackage = JSON.parse(readFileSync(join(homeDir, 'provider', 'openclaw', 'plugin', 'package.json'), 'utf8'))
+    assert.deepEqual(openclawPackage.openclaw.extensions, ['./index.ts'])
+    const openclawPluginManifest = JSON.parse(readFileSync(join(homeDir, 'provider', 'openclaw', 'plugin', 'openclaw.plugin.json'), 'utf8'))
+    assert.equal(openclawPluginManifest.id, 'movscript')
+    const openclawEntrypoint = readFileSync(join(homeDir, 'provider', 'openclaw', 'plugin', 'index.ts'), 'utf8')
+    assert.match(openclawEntrypoint, /api\.registerTool/)
+    assert.match(openclawEntrypoint, /spawn\(MOVSCRIPT_COMMAND, args/)
     const harnessWorker = JSON.parse(readFileSync(join(homeDir, 'provider', 'harness', 'worker-agent.json'), 'utf8'))
     assert.equal(harnessWorker.schema, 'movscript.harness-worker-agent-export.v1')
     assert.equal(harnessWorker.mcpServers[0].name, 'movscript')
+    const workbuddyMcp = JSON.parse(readFileSync(join(homeDir, 'provider', 'workbuddy', 'mcp.json'), 'utf8'))
+    assert.deepEqual(workbuddyMcp.mcpServers.movscript.args, ['mcp', 'stdio'])
+    assert.equal(workbuddyMcp.mcpServers.movscript.transport, undefined)
+    const traeMcp = JSON.parse(readFileSync(join(homeDir, 'provider', 'trae', 'mcp.json'), 'utf8'))
+    assert.deepEqual(traeMcp.mcpServers.movscript.args, ['mcp', 'stdio'])
+    const traeProjectMcp = JSON.parse(readFileSync(join(homeDir, 'provider', 'trae', 'project', '.trae', 'mcp.json'), 'utf8'))
+    assert.deepEqual(traeProjectMcp.mcpServers.movscript.args, ['mcp', 'stdio'])
   } finally {
     rmSync(homeDir, { recursive: true, force: true })
     rmSync(source, { recursive: true, force: true })

@@ -63,6 +63,8 @@ export interface MovScriptDomainRuntimeInput {
   orgId?: string | number
   projectUid?: string
   projectTitle?: string
+  scopeKind?: 'user' | 'org'
+  scopeId?: string | number
 }
 
 export type MovScriptDomainRuntime = NodeMovScriptEngine & NodeMovScriptWorkspaceService & {
@@ -216,7 +218,7 @@ function createProjectServiceAccessor(projectDir: string, decisionStoreConfig?: 
     candidateAction: async (endpoint, input = {}) => {
       const resolvedDecisionStoreConfig = await decisionStoreConfig?.()
       if (!resolvedDecisionStoreConfig) {
-        throw new Error('content unit candidate action requires a scoped project data decisionStore')
+        throw new Error('content unit candidate action requires a scoped project data decisionStore. Provide projectUid/MOVSCRIPT_PROJECT_UID and scoped project-data context; do not retry through legacy MOVSCRIPT_PROJECT_ID decisions.')
       }
       return (await getClient().candidateAction(endpoint, {
         projectDir,
@@ -249,6 +251,8 @@ function normalizeRuntimeInput(input: MovScriptDomainRuntimeInput): MovScriptDom
     ...(input.orgId !== undefined ? { orgId: input.orgId } : {}),
     ...(input.projectUid !== undefined ? { projectUid: input.projectUid } : {}),
     ...(input.projectTitle !== undefined ? { projectTitle: input.projectTitle } : {}),
+    ...(input.scopeKind !== undefined ? { scopeKind: input.scopeKind } : {}),
+    ...(input.scopeId !== undefined ? { scopeId: input.scopeId } : {}),
   }
 }
 
@@ -264,6 +268,8 @@ function runtimeKey(input: MovScriptDomainRuntimeInput): string {
     input.userId ?? '',
     input.orgId ?? '',
     input.projectUid ?? '',
+    input.scopeKind ?? '',
+    input.scopeId ?? '',
     session.baseURL,
     session.userId ?? '',
     token,
@@ -279,7 +285,9 @@ function createMCPDecisionStore(resolveConfig: ProjectDecisionStoreConfigResolve
   }
   const requireStore = async () => {
     const store = await getStore()
-    if (!store) throw new Error('content unit candidate command requires a scoped project data decisionStore')
+    if (!store) {
+      throw new Error('content unit candidate command requires a scoped project data decisionStore. Provide projectDir/cwd plus projectUid, or run from a project shell with MOVSCRIPT_PROJECT_UID; do not fall back to legacy MOVSCRIPT_PROJECT_ID decisions.')
+    }
     return store
   }
   return {
@@ -314,7 +322,6 @@ function createMCPDecisionStoreConfigResolver(input: MovScriptDomainRuntimeInput
     userId: input.userId,
   })
   const token = getMCPAuthToken() || getMovScriptBackendRuntimeAuthToken() || session.token
-  if (!token) return undefined
   const projectCwd = projectCwdFromInput(input)
   let configPromise: Promise<ProjectDecisionStoreConfig | undefined> | undefined
   return async () => {
@@ -327,6 +334,7 @@ function createMCPDecisionStoreConfigResolver(input: MovScriptDomainRuntimeInput
       const projectUid = resolvedLocator.locator.projectUid ?? input.projectUid
       const projectTitle = input.projectTitle ?? resolvedLocator.locator.projectTitle
       if (!projectUid) return undefined
+      const scope = scopedProjectDataDecisionScope(input, session.userId)
       const headers = {
         ...(session.userId ? { 'X-User-ID': session.userId } : {}),
         ...(input.orgId !== undefined ? { 'X-Org-ID': String(input.orgId) } : {}),
@@ -336,13 +344,24 @@ function createMCPDecisionStoreConfigResolver(input: MovScriptDomainRuntimeInput
         baseUrl: session.baseURL,
         projectUid,
         ...(projectTitle ? { title: projectTitle } : {}),
-        ...(input.orgId !== undefined ? { scopeKind: 'org' as const, scopeId: input.orgId } : {}),
-        token,
+        ...(scope ? { scopeKind: scope.kind, scopeId: scope.id } : {}),
+        ...(token ? { token } : {}),
         ...(Object.keys(headers).length > 0 ? { headers } : {}),
       }
     })()
     return configPromise
   }
+}
+
+function scopedProjectDataDecisionScope(
+  input: MovScriptDomainRuntimeInput,
+  sessionUserId?: string | number,
+): { kind: 'user' | 'org'; id: string | number } | undefined {
+  if (input.scopeKind && input.scopeId !== undefined) return { kind: input.scopeKind, id: input.scopeId }
+  if (input.orgId !== undefined) return { kind: 'org', id: input.orgId }
+  const userId = input.userId ?? sessionUserId
+  if (userId !== undefined) return { kind: 'user', id: userId }
+  return undefined
 }
 
 function projectCwdFromInput(input: MovScriptDomainRuntimeInput): string {

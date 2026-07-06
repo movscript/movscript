@@ -31,6 +31,10 @@ export async function requireMCPBackendBoundProject(
     resolvedLocator.projectDir,
     projectUid,
     projectTitle,
+    resolvedLocator.userId ?? '',
+    resolvedLocator.orgId ?? '',
+    resolvedLocator.scopeKind ?? '',
+    resolvedLocator.scopeId ?? '',
   ].join('\u001f')
   const cached = ensuredProjectBindings.get(key)
   if (cached) return cached
@@ -73,11 +77,16 @@ async function resolveProjectBindingLocator(locator: MCPResolvedProjectWorkspace
     ...(locator.projectUid ? { projectUid: locator.projectUid } : {}),
   })
   const projectLocator = response.locator
+  const projectTitle = projectLocator.projectTitle ?? locator.projectTitle
   return {
     workspaceDir: projectLocator.workspaceDir ?? locator.workspaceDir,
-    projectDir: projectLocator.projectDir,
+    projectDir: projectLocator.projectDir ?? locator.projectDir,
     ...(projectLocator.projectUid ?? locator.projectUid ? { projectUid: projectLocator.projectUid ?? locator.projectUid } : {}),
-    ...(projectLocator.projectTitle ? { projectTitle: projectLocator.projectTitle } : {}),
+    ...(projectTitle ? { projectTitle } : {}),
+    ...(locator.userId !== undefined ? { userId: locator.userId } : {}),
+    ...(locator.orgId !== undefined ? { orgId: locator.orgId } : {}),
+    ...(locator.scopeKind !== undefined ? { scopeKind: locator.scopeKind } : {}),
+    ...(locator.scopeId !== undefined ? { scopeId: locator.scopeId } : {}),
     ...(projectLocator.description ? { description: projectLocator.description } : {}),
   }
 }

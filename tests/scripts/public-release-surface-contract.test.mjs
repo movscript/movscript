@@ -119,6 +119,7 @@ test('GitHub Pages install surface keeps plugin-only and Desktop paths separate'
   const installDoc = read('docs/install.md')
   const pagesWorkflow = read('.github/workflows/pages.yml')
   const page = read('site/index.html')
+  const pageStyle = read('site/styles.css')
   const pageScript = read('site/app.js')
 
   assert.match(installDoc, /Movscript publishes two app releases/)
@@ -139,6 +140,8 @@ test('GitHub Pages install surface keeps plugin-only and Desktop paths separate'
 
   assert.match(pagesWorkflow, /cp install-desktop\.sh public\/install-desktop\.sh/)
   assert.match(pagesWorkflow, /cp install-plugin\.sh public\/install-plugin\.sh/)
+  assert.match(pagesWorkflow, /cp -R site\/\. public\//)
+  assert.match(pagesWorkflow, /cp assets\/logo\.png public\/logo\.png/)
 
   assert.match(page, /Agent plugin only/)
   assert.match(page, /Desktop app/)
@@ -153,14 +156,29 @@ test('GitHub Pages install surface keeps plugin-only and Desktop paths separate'
   assert.match(pageScript, /movscript-desktop-linux-x64-/)
   assert.match(pageScript, /linux-x64/)
   assert.match(pageScript, /dataset\.platformPanel !== platform/)
+
+  assert.match(pageStyle, /\.install-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\);/s)
+  assert.match(pageStyle, /\.install-grid\s*\{[^}]*gap:\s*28px;/s)
+  assert.match(pageStyle, /\.option-copy\s*\{[^}]*min-height:\s*0;/s)
+  assert.doesNotMatch(pageStyle, /\.install-grid\s*\{[^}]*grid-template-columns:[^}]*0\.92fr/s)
+  assert.doesNotMatch(pageStyle, /\.install-grid\s*\{[^}]*grid-template-columns:[^}]*1\.08fr/s)
 })
 
 test('README docs index points to existing product docs and current desktop platforms', () => {
   const readme = read('README.md')
   const readmeZh = read('README.zh-CN.md')
+  const screenshotPaths = [
+    'docs/assets/readme/project-home.jpg',
+    'docs/assets/readme/content-canvas.png',
+    'docs/assets/readme/image-tool.png',
+    'docs/assets/readme/production-editing-dialog.png',
+    'docs/assets/readme/remotion-shell-workbench.png',
+  ]
 
   assert.match(readme, /Linux x64 AppImage/)
   assert.match(readmeZh, /Linux x64 AppImage/)
+  assert.match(readme, /Product Screenshots/)
+  assert.match(readmeZh, /产品截图/)
   assert.match(readme, /Product runtime distribution standard/)
   assert.match(readme, /Movscript Agent runtime architecture/)
   assert.match(readmeZh, /docs\/product-runtime-distribution-standard\.zh-CN\.md/)
@@ -172,6 +190,12 @@ test('README docs index points to existing product docs and current desktop plat
     for (const match of markdown.matchAll(/\]\((docs\/[^)]+\.md)\)/g)) {
       assert.equal(existsSync(resolve(root, match[1])), true, `${match[1]} should exist`)
     }
+  }
+
+  for (const screenshotPath of screenshotPaths) {
+    assert.equal(existsSync(resolve(root, screenshotPath)), true, `${screenshotPath} should exist`)
+    assert.match(readme, new RegExp(screenshotPath.replaceAll('.', '\\.').replaceAll('/', '\\/')))
+    assert.match(readmeZh, new RegExp(screenshotPath.replaceAll('.', '\\.').replaceAll('/', '\\/')))
   }
 })
 
@@ -243,10 +267,30 @@ test('Agent Plugin installer retains rollback bundles and prints bundle identity
   assert.match(installer, /PLUGIN_RETAIN="\$\{MOVSCRIPT_PLUGIN_RETAIN:-2\}"/)
   assert.match(installer, /--retain <count>/)
   assert.match(installer, /--rollback-version <ver>/)
-  assert.match(installer, /codex,harness,openclaw,claude-code,all/, 'plugin installer must document non-Codex provider targets')
+  assert.match(installer, /codex,harness,openclaw,claude-code,workbuddy,trae,all/, 'plugin installer must document non-Codex provider targets')
+  assert.match(installer, /--no-native/, 'plugin installer must expose a native provider install opt-out')
+  assert.match(installer, /MOVSCRIPT_NATIVE_PROVIDER_INSTALL/, 'plugin installer must allow CI to disable native provider CLI writes')
   assert.match(installer, /PROVIDER_TARGETS=\$\(provider_targets "\$PROVIDER"\)/, 'plugin installer must normalize provider targets')
   assert.match(installer, /xiaolongxia\) printf '%s\\n' "openclaw"/, 'plugin installer must keep the old Xiaolongxia alias pointed at OpenClaw')
+  assert.match(installer, /trea\|trae-ide\) printf '%s\\n' "trae"/, 'plugin installer must tolerate the common Trea typo')
+  assert.match(installer, /work-buddy\|tencent-workbuddy\) printf '%s\\n' "workbuddy"/, 'plugin installer must normalize WorkBuddy aliases')
   assert.match(installer, /provider\/\$target/, 'plugin installer must write provider-specific registration roots')
+  assert.match(installer, /\.agents\/plugins\/marketplace\.json/, 'plugin installer must write the Codex-native marketplace layout')
+  assert.match(installer, /codex_home_dir="\$\{CODEX_HOME:-\$HOME\/\.codex\}"/, 'plugin installer must honor CODEX_HOME for native Codex installs')
+  assert.match(installer, /codex_home_dir\/plugins\/movscript/, 'plugin installer must materialize a Codex Home compatibility plugin link')
+  assert.match(installer, /codex plugin remove movscript@movscript-local/, 'plugin installer must remove legacy MovScript Codex installs before replacing')
+  assert.match(installer, /codex plugin remove movscript@movscript/, 'plugin installer must remove current MovScript Codex installs before replacing')
+  assert.match(installer, /codex plugin marketplace remove movscript-local/, 'plugin installer must remove the legacy MovScript Codex marketplace')
+  assert.match(installer, /codex plugin marketplace add "\$MOVSCRIPT_HOME\/provider\/codex"/, 'plugin installer must call the Codex native marketplace installer when available')
+  assert.match(installer, /openclaw plugins install --link[\s\S]*provider\/openclaw\/plugin/, 'plugin installer must call the OpenClaw native plugin installer when available')
+  assert.match(installer, /merge_mcp_server_config\(\)/, 'plugin installer must merge MCP JSON for MCP-config based provider targets')
+  assert.match(installer, /\.workbuddy\/mcp\.json/, 'plugin installer must write the WorkBuddy user MCP config when native install is enabled')
+  assert.match(installer, /Application Support\/Trae\/User\/mcp\.json/, 'plugin installer must write the macOS Trae user MCP config when native install is enabled')
+  assert.match(installer, /write_openclaw_plugin_package\(\)/, 'plugin installer must generate an OpenClaw plugin package, not only an MCP descriptor')
+  assert.match(installer, /openclaw\.plugin\.json/, 'plugin installer must write the OpenClaw plugin manifest required by OpenClaw')
+  assert.match(installer, /api\.registerTool/, 'OpenClaw package must expose MovScript as an agent tool')
+  assert.match(installer, /spawn\(MOVSCRIPT_COMMAND, args/, 'OpenClaw package must forward MovScript CLI args without invoking a shell')
+  assert.doesNotMatch(installer, /openclaw mcp add/, 'OpenClaw does not expose an mcp add command in current releases')
   assert.match(installer, /\.agent-package\/package\.json/, 'plugin installer must require the neutral Agent Package manifest')
   assert.match(installer, /previous_plugin_target\(\)/)
   assert.match(installer, /switch_plugin_pointer\(\)/)
@@ -273,6 +317,7 @@ test('Agent Plugin installer retains rollback bundles and prints bundle identity
   assert.match(pluginAgentMcp, /auto-rollback-daemon-startup-failure/, 'plugin rollback must write bundle identity reason metadata')
 
   assert.match(pluginSmoke, /runInstaller\(root, artifact, homeDir, env, spawn\)/, 'plugin package smoke must exercise the public installer')
+  assert.match(pluginSmoke, /MOVSCRIPT_NATIVE_PROVIDER_INSTALL: '0'/, 'plugin package smoke must not write native provider config outside the temporary Home')
   assert.match(pluginSmoke, /const artifactVersion = pluginVersionFromArtifact\(artifact\)/, 'plugin package smoke must resolve the current artifact version once')
   assert.match(pluginSmoke, /locateInstalledPluginRoot\(homeDir, artifactVersion\)/, 'plugin package smoke must start from the installed current bundle and expected artifact version')
   assert.match(pluginSmoke, /validateInstalledHomeCliShim\(homeDir\)/, 'plugin package smoke must verify the public Home CLI shim')
@@ -282,6 +327,7 @@ test('Agent Plugin installer retains rollback bundles and prints bundle identity
   assert.match(pluginSmoke, /identity\.version/, 'plugin package smoke must verify current.identity version')
   assert.match(pluginSmoke, /identity\.bundleHash/, 'plugin package smoke must verify current.identity bundle hash')
   assert.match(pluginSmoke, /provider\/codex\/plugins\/movscript/, 'plugin package smoke must verify the Codex marketplace plugin link')
+  assert.match(pluginSmoke, /provider\/codex\/\.agents\/plugins\/marketplace\.json/, 'plugin package smoke must verify the Codex-native marketplace path')
   assert.match(pluginSmoke, /realpathSync\(codexPluginLink\)/, 'plugin package smoke must ensure Codex plugin link targets Home current')
   assert.match(pluginSmoke, /--previous-artifact/, 'plugin package smoke must expose a previous artifact rollback path')
   assert.match(pluginSmoke, /MOVSCRIPT_PLUGIN_SMOKE_PREVIOUS_ARTIFACT/, 'plugin package smoke must support CI-provided previous artifacts')

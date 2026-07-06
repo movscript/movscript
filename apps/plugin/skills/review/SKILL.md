@@ -1,6 +1,6 @@
 ---
 name: review
-description: Explain MovScript pending changes, readiness, affected content units, stale or missing selections, and regeneration decisions without automatically editing or generating.
+description: Explain MovScript pending changes, readiness, affected outputs/materials, stale or missing selections, and regeneration decisions without automatically editing or generating.
 toolGrants:
   - mcp__movscript__movscript_runtime_status
   - mcp__movscript__domain_overview
@@ -21,19 +21,22 @@ toolGrants:
 
 # Review
 
-Use this skill when a user asks what changed, whether the project is ready, what is stale, why a content unit changed, or which downstream outputs need attention. If runtime ownership or service availability is unclear, use the `runtime` skill first.
+Use this skill when a user asks what changed, whether the project is ready, what is stale, why an output or prompt changed, or which downstream outputs need attention. If project locator, initialization, open/fetch state, or service availability is unclear, use the `project` skill's Project Management Gate before review. If runtime ownership or service availability is unclear, use the `runtime` skill first.
 
 ## Production Contract
 
 - Production step: review gate across content planning, generation candidates, timeline readiness, and export impact.
 - Systems/config: Project Service/Data Service expose source changes, diagnostics, candidate decisions, selection validity, and regeneration plans; runtime/daemon supplies service readiness.
-- Blockers: missing project locator, diagnostic errors, stale/unselected upstream choices, missing content-unit artifacts, or unavailable Project/Data/Editing/Media services.
+- Blockers: missing project locator, unresolved project initialization/open state, diagnostic errors, stale/unselected upstream choices, missing output prompt/material context, or unavailable Project/Data/Editing/Media services.
 - Human review: do not select candidates, accept stale impact, regenerate, or edit source unless the user explicitly asks; browser URLs are review entrypoints, not completed approvals.
 - Output: report changed source, blocking issues, readiness, stale/affected outputs, missing adoptions/selections, review URL, and concrete decision options.
 
 ## Rules
 
 - Start with `domain_overview` for interpret status and next actions.
+- If generated resources/candidates are present but their title, purpose, placement, status, or provenance is unclear, open `../domain/references/resource-discoverability.md` and report it as a review gap instead of asking the user to choose from opaque ids.
+- Before ordinary review summaries, blockers, and decision options, open `../domain/references/user-facing-response.md` and translate diagnostics into project impact, missing choices, and next actions.
+- Before project-scoped review, confirm the explicit project locator and Project Service context. If the project is not clearly initialized, open/fetched, or able to return overview, run the `project` skill's Project Management Gate; use project init/create only when the user explicitly asks or confirms.
 - When reviewing unclear story, continuity, scene-beat, dialogue, or script-derived impact, read the relevant script source before explaining readiness or downstream effects.
 - If review tools fail because Project Service, Data Service, Editing Service, or Media Pipeline is missing, call `movscript_runtime_status`, classify the runtime owner/data plane, and explain the capability gap. Do not require Desktop or cloud when the local runtime daemon can satisfy the workflow.
 - When a review, impact, candidate, preview timeline, prompt, or project-status result includes `surface.kind: "browser_url"` and `surface.url`, include that URL in the user-facing response and tell the user to open it to complete the review action.
@@ -41,21 +44,22 @@ Use this skill when a user asks what changed, whether the project is ready, what
 - If secondary surfaces are returned, lead with the primary `surface.url` and include secondary URLs only when they clarify the next decision. Use URLs exactly as returned.
 - Use `domain_inspect` for current source changes. Use `domain_review` only when the user explicitly asks for review or an older workflow expects that name.
 - `domain_inspect` is the primary diagnostic entrypoint. `domain_review` is a compatibility diagnostic alias. They report pending files/entities/business changes, issues, and interpret readiness; they do not write interpreted artifacts.
-- Full affected content unit review is post-interpret. Use `domain_regeneration_plan` after interpret to explain changed entities, affected content units, prompt bundles, preview timelines, and stale selections.
+- Full affected output review is post-interpret. Use `domain_regeneration_plan` after interpret to explain changed project items, affected outputs, prompt bundles, preview timelines, and stale selections.
 - Affected does not mean regenerate. Affected means review the downstream target and choose keep, relink, re-prompt, regenerate, re-shoot, deprecate, or accept stale.
-- Missing upstream adoption/selection means downstream generation should stop until the user selects, confirms, or explicitly accepts an unstable draft path. `待定` and `放弃` candidates are still unresolved or rejected; they do not unblock stable downstream generation.
+- Missing upstream adoption/selection means downstream generation should stop until the user selects, confirms, or explicitly accepts an unstable draft path. `待定` and `放弃` candidates are still unresolved or rejected; they remain discoverable but do not unblock stable downstream generation.
 - Do not modify source, select candidates, or regenerate media during review unless the user explicitly asks for that follow-up.
-- When reviewing generated candidates, distinguish the decision states: `采纳`/`adopt` is stable, `放弃`/`reject` is discarded, and `待定`/`defer` remains available but not stable.
-- When reviewing generation readiness, classify the focused scene_moment, expression unit, or content unit as `缺规划`, `可补图`, `缺选择`, or `可生成`, and bind the recommendation to the user's goal.
+- When reviewing generated candidates, distinguish the decision states: `采纳`/`adopt` is stable, `放弃`/`reject` means rejected for use but still traceable as a Resource/candidate, and `待定`/`defer` remains available but not stable.
+- When reviewing generation readiness, classify the focused story beat or concrete output item as `缺规划`, `可补图`, `缺选择`, or `可生成`, and bind the recommendation to the user's goal.
+- When exact diagnostics require internal language, name the relevant 内容制作任务 after the user-facing output description; do not make ordinary users learn the term "content unit" first.
 
 ## Workflow
 
-1. Resolve the intended project and optional timeline namespace, production editing workspace, or content-unit target from explicit user input, a passed locator, or Project Service context. Do not infer it from UI focus.
+1. Resolve the intended project and optional timeline namespace, production editing workspace, or 内容制作任务 target from explicit user input, a passed locator, or Project Service context. Do not infer it from UI focus. If project initialization, open/fetch state, or Project Service context is unclear, run the `project` skill's Project Management Gate before review.
 2. Call `domain_overview`.
 3. If the review depends on story, continuity, dialogue, or script-derived planning context, read the relevant script source before explaining the result.
 4. If source has pending edits, call `domain_inspect` and explain changed files, changed entities, business changes, blocking issues, and `readyToInterpret`.
 5. If the user asks to validate/refresh diagnostics and `domain_inspect` has no blocking errors, run `domain_interpret`; describe it as diagnostic/artifact refresh, not a publish, approval, commit, checkpoint, or product-state transition.
-6. If explaining generated output readiness or staleness, read content unit artifacts in this order: dependency report, input version, selection validity, runtime panel.
+6. If explaining generated output readiness or staleness, read the internal output-task artifacts in this order: dependency report, input version, selection validity, runtime panel.
 7. After interpret, call `domain_regeneration_plan` when downstream content may need review.
 8. Open `references/affected-vs-regenerate.md` when explaining stale or affected outputs.
 
@@ -66,8 +70,8 @@ Summaries should say:
 - What source changed since the last successful interpret.
 - Whether `domain_inspect` found blocking issues.
 - Whether diagnostic/artifact context is missing, current, or stale.
-- Which content units or selections are affected or stale, and what decision options exist.
+- Which outputs/materials or selections are affected or stale, and what decision options exist.
 - Which upstream adoptions/selections are missing before downstream generation can start, including candidates that are only deferred.
-- The focused scene_moment/shot readiness when the user is deciding whether to keep planning, supplement keyframes/storyboards, generate, or review generated candidates.
+- The focused story beat/shot readiness when the user is deciding whether to keep planning, supplement 关键帧/分镜图, call a generation tool, or review generated results.
 
 Do not say "must regenerate" unless artifacts or an explicit user/workflow policy says regeneration is mandatory.

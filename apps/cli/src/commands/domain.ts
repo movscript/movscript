@@ -17,6 +17,8 @@ interface DomainCliOptions {
   providerScopeId?: string
   projectUid?: string
   projectTitle?: string
+  scopeKind?: string
+  scopeId?: string
   user?: string
   org?: string
   entityKind?: string
@@ -118,7 +120,7 @@ interface DomainCliOptions {
 export function registerDomainCommands(program: Command): void {
   const domain = program
     .command('domain')
-    .description('Write MovScript domain candidates and review decisions without requiring a frontend')
+    .description('Inspect and change MovScript project domain state without requiring a frontend')
 
   for (const spec of domainCommandSpecs) {
     const command = ensureCommandPath(domain, spec.cliPath)
@@ -153,6 +155,8 @@ function addDomainOptions(command: Command): void {
     .option('--project-id <id>', 'Deprecated alias for --provider-scope-id; not a MovScript source project locator')
     .option('--project-uid <uid>', 'Project uid used for scoped candidate decisions')
     .option('--project-title <title>', 'Project title for scoped candidate decisions')
+    .option('--scope-kind <kind>', 'Scoped project-data decision scope kind: user or org')
+    .option('--scope-id <id>', 'Scoped project-data decision scope id')
     .option('--user <id>', 'Workspace user id')
     .option('--org <id>', 'Workspace organization id')
     .option('--entity-kind <kind>', 'Domain entity kind')
@@ -278,10 +282,12 @@ function domainArgs(options: DomainCliOptions, command: Command): Record<string,
     token: options.token ?? global.token,
     providerScopeId: options.providerScopeId,
     projectId: options.projectId,
-    projectUid: options.projectUid,
-    projectTitle: options.projectTitle,
-    userId: options.user,
-    orgId: options.org,
+    projectUid: options.projectUid ?? process.env.MOVSCRIPT_PROJECT_UID,
+    projectTitle: options.projectTitle ?? process.env.MOVSCRIPT_PROJECT_TITLE,
+    scopeKind: options.scopeKind ?? process.env.MOVSCRIPT_SCOPE_KIND,
+    scopeId: options.scopeId ?? process.env.MOVSCRIPT_SCOPE_ID,
+    userId: options.user ?? process.env.MOVSCRIPT_USER_ID,
+    orgId: options.org ?? process.env.MOVSCRIPT_ORG_ID,
     entityKind: options.entityKind,
     entityId: options.entityId,
     query: options.query,

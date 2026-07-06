@@ -6,6 +6,15 @@ This project follows semantic versioning once stable releases begin.
 
 ## Unreleased
 
+## 0.1.43 - 2026-07-06
+
+### Changed
+
+- Refreshed MovScript Agent Plugin prompt and skill guidance across project, domain, planning, review, generation, editing, and runtime workflows.
+- Changed the public install page to stack the Agent Plugin and Desktop install paths vertically.
+- Added README product screenshots for project home, content canvas, image generation tools, production editing workspaces, and the Remotion shell workbench.
+- Bumped release package manifests to 0.1.43.
+
 ## 0.1.42 - 2026-07-06
 
 ### Added

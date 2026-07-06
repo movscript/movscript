@@ -14,6 +14,7 @@
 
 <p align="center">
   <a href="#overview">Overview</a> |
+  <a href="#product-screenshots">Screenshots</a> |
   <a href="#downloads">Downloads</a> |
   <a href="#docker">Docker</a>
 </p>
@@ -29,6 +30,28 @@ Movscript helps creators turn scripts, references, and creative direction into a
 The public distribution currently focuses on desktop video creation workflows: project planning, scripts, assets, storyboards, shots, generation jobs, model configuration, assistant workflows, and rough-cut assembly.
 
 Movscript is still early. Features, file formats, plugin behavior, and workflows may change before a stable release.
+
+## Product Screenshots
+
+### Project Home
+
+![Project Home overview](docs/assets/readme/project-home.jpg)
+
+### Content Canvas
+
+![Content canvas prompt workspace](docs/assets/readme/content-canvas.png)
+
+### Image Tool
+
+![Image generation tool with resource library](docs/assets/readme/image-tool.png)
+
+### Production Editing Workspace
+
+![Production editing workspace picker](docs/assets/readme/production-editing-dialog.png)
+
+### Remotion Preview And Shell Workbench
+
+![Remotion preview with shell workbench](docs/assets/readme/remotion-shell-workbench.png)
 
 ## Downloads
 

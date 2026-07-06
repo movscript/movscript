@@ -87,7 +87,7 @@
 
       .project-kicker {
         margin: 0 0 6px;
-        color: var(--teal);
+        color: var(--muted);
         font-size: 12px;
         font-weight: 760;
         line-height: 1.2;
@@ -188,10 +188,9 @@
         grid-template-rows: auto minmax(0, 1fr);
         gap: 8px;
         min-height: 0;
-        border: 1px solid color-mix(in srgb, var(--teal) 24%, var(--line));
-        border-left: 3px solid var(--teal);
+        border: 1px solid var(--line);
         border-radius: var(--radius);
-        background: linear-gradient(90deg, rgba(15, 118, 110, 0.08), transparent 70%), var(--surface-soft);
+        background: var(--surface-soft);
         padding: 10px;
       }
 
@@ -272,11 +271,11 @@
         display: inline-flex;
         min-height: 24px;
         align-items: center;
-        border: 1px solid color-mix(in srgb, var(--teal) 30%, var(--line));
+        border: 1px solid var(--line);
         border-radius: 999px;
-        background: var(--surface-tint);
+        background: var(--surface-soft);
         padding: 4px 8px;
-        color: var(--teal);
+        color: var(--muted);
         font-size: 10px;
         font-weight: 780;
         white-space: nowrap;
@@ -391,14 +390,20 @@
         flex: 0 0 auto;
         align-items: center;
         justify-content: center;
+        border: 1px solid var(--line);
         border-radius: var(--radius-sm);
+        background: var(--surface-soft);
+        color: var(--muted);
       }
 
-      .module-icon.blue { background: var(--blue-soft); color: var(--blue); }
-      .module-icon.green { background: var(--green-soft); color: var(--green); }
-      .module-icon.amber { background: var(--amber-soft); color: var(--amber); }
-      .module-icon.violet { background: var(--violet-soft); color: var(--violet); }
-      .module-icon.teal { background: var(--surface-tint); color: var(--teal); }
+      .module-icon.blue,
+      .module-icon.green,
+      .module-icon.amber,
+      .module-icon.violet,
+      .module-icon.teal {
+        background: var(--surface-soft);
+        color: var(--muted);
+      }
 
       .module-copy {
         min-width: 0;
@@ -607,15 +612,15 @@
       }
 
       .scope-pill.production {
-        border-color: color-mix(in srgb, var(--green) 32%, var(--line));
-        background: var(--green-soft);
-        color: var(--green);
+        border-color: var(--line);
+        background: var(--surface-soft);
+        color: var(--muted);
       }
 
       .scope-pill.global {
-        border-color: color-mix(in srgb, var(--blue) 30%, var(--line));
-        background: var(--blue-soft);
-        color: var(--blue);
+        border-color: var(--line);
+        background: var(--surface-soft);
+        color: var(--muted);
       }
 
       .canvas-card-grid {
@@ -639,7 +644,6 @@
       .canvas-card {
         display: flex;
         flex-direction: column;
-        border-top: 3px solid var(--green);
       }
 
       .canvas-card[hidden] {
@@ -755,7 +759,7 @@
         border: 1px solid var(--line-strong);
         border-radius: var(--radius);
         background: var(--surface);
-        color: var(--green);
+        color: var(--muted);
       }
 
       .create-card-inner strong {
@@ -823,7 +827,6 @@
         gap: 10px;
         align-items: center;
         border: 1px solid var(--line);
-        border-left: 3px solid var(--amber);
         border-radius: var(--radius);
         background: var(--surface-soft);
         padding: 12px;
@@ -955,7 +958,7 @@
         height: 92px;
         flex: 0 0 auto;
         object-fit: cover;
-        background: var(--violet-soft);
+        background: var(--surface-soft);
       }
 
       .setting-card-body {
@@ -970,7 +973,7 @@
         display: block;
         min-width: 0;
         overflow: hidden;
-        color: var(--violet);
+        color: var(--muted);
         font-size: 10px;
         font-weight: 760;
         line-height: 1.2;
@@ -992,9 +995,10 @@
         flex: 0 0 auto;
         align-items: center;
         justify-content: center;
+        border: 1px solid var(--line);
         border-radius: var(--radius-sm);
-        background: var(--violet-soft);
-        color: var(--violet);
+        background: var(--surface);
+        color: var(--muted);
         font-size: 14px;
         font-weight: 820;
       }

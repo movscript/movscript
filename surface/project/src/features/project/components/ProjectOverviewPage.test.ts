@@ -57,7 +57,7 @@ test('project home groups plugins, scripts, productions, settings, and canvases 
   assert.match(groupSource, /project-home-card-group__body/)
 })
 
-test('project home uses distinct variants with paginated filters for creative lists', () => {
+test('project home uses neutral module chrome with paginated filters for creative lists', () => {
   const source = readFileSync(resolve('src/features/project/components/ProjectOverviewPage.tsx'), 'utf8')
   const styleSource = readFileSync(resolve('src/features/project/components/ProjectHomeCardGroup.css'), 'utf8')
   const groupSource = readFileSync(resolve('src/features/project/components/ProjectHomeCardGroup.tsx'), 'utf8')
@@ -103,7 +103,9 @@ test('project home uses distinct variants with paginated filters for creative li
   assert.match(styleSource, /project-home-card-column/)
   assert.match(styleSource, /grid-template-rows: minmax\(0, 1fr\) minmax\(0, 1fr\)/)
   assert.match(styleSource, /overflow-y: auto/)
-  assert.match(styleSource, /data-variant="pipeline"/)
+  assert.match(styleSource, /--project-home-accent: var\(--ms-color-muted-foreground\)/)
+  assert.doesNotMatch(styleSource, /--project-home-accent: #[0-9a-fA-F]{6}/)
+  assert.doesNotMatch(styleSource, /#(?:0f766e|2563eb|b45309|6d28d9)/i)
   assert.match(styleSource, /project-home-production-row/)
   assert.match(styleSource, /grid-template-columns: minmax\(0, 1fr\) 92px 92px 112px/)
   assert.match(styleSource, /project-home-canvas-create-card/)

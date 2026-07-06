@@ -24,11 +24,16 @@ test('plugin distribution source hash ignores local runtime staging output', () 
       schema: 'movscript.agent-package.v1',
       id: 'movscript',
       name: 'MovScript',
+      version: '0.1.41',
       kind: 'runtime-agent',
       targets: [{ id: 'codex' }],
     })
-    writeFile(join(tempDir, 'apps/plugin/.codex-plugin/plugin.json'), '{}\n')
-    writeFile(join(tempDir, 'apps/plugin/.provider-plugin/plugin.json'), '{}\n')
+    writeJSON(join(tempDir, 'apps/plugin/.codex-plugin/plugin.json'), {
+      version: '0.1.41',
+    })
+    writeJSON(join(tempDir, 'apps/plugin/.provider-plugin/plugin.json'), {
+      version: '0.1.41',
+    })
     writeFile(join(tempDir, 'apps/plugin/.mcp.json'), '{}\n')
     writeFile(join(tempDir, 'apps/plugin/assets/logo.txt'), 'logo\n')
     writeFile(join(tempDir, 'apps/plugin/bin/movscript'), '#!/usr/bin/env node\n')

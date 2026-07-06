@@ -20,6 +20,8 @@ Use this skill when the user wants to create, list, open, delete, or inspect pro
 
 This skill owns only the production-level lifecycle. It does not edit clips, tracks, Remotion source files, render commands, or candidate decisions.
 
+Open `../domain/references/user-facing-response.md` before ordinary workspace lifecycle replies so the user hears whether an editing workspace exists, what it is for, and what editing step comes next.
+
 ## Concepts
 
 - `timeline_namespace` owns story structure.

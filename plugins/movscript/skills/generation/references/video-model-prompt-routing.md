@@ -55,7 +55,7 @@ Use for models that support several images/videos/audio references and let promp
 MovScript adaptation:
 
 - Keep the provider's reference-role idea, but express roles through MovScript refs and resource inputs.
-- In the content-unit prompt, say what each semantic ref is for: identity, first frame, last frame, camera motion, action rhythm, scene/background, style, product detail, music tempo, voice tone, or sound effect.
+- In the saved prompt, say what each semantic ref is for: identity, first frame, last frame, camera motion, action rhythm, scene/background, style, product detail, music tempo, voice tone, or sound effect.
 - Pass direct RawResource IDs through `input_resource_ids` / `reference_resource_ids` when dependency tracking is not needed.
 
 Prompt shape:
@@ -74,7 +74,7 @@ Best for:
 
 Avoid:
 
-- writing provider-only placeholders such as `@image1` in MovScript content-unit prompts;
+- writing provider-only placeholders such as `@image1` in MovScript saved prompts;
 - passing unselected upstream content-unit outputs as if they were stable references;
 - using every available reference when only one or two influence the shot.
 
@@ -126,7 +126,7 @@ Best for:
 
 MovScript rule:
 
-If the shots must be independently reviewed, regenerated, adopted, or edited, create separate expression-unit material content units and route through the editing skill instead of hiding all shots in one content-unit prompt.
+If the shots must be independently reviewed, regenerated, adopted, or edited, create separate shot/material output tasks and route through the editing skill instead of hiding all shots in one saved prompt.
 
 ### Audio/Dialog-Capable Models
 

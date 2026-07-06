@@ -1,6 +1,6 @@
 ---
 name: admin
-description: Configure and diagnose MovScript system management capabilities: providers, credentials, model catalog, route bindings, model gateway keys, generation tool server settings, ResourceAccessProfile/public tunnel/public backend settings, object relay/cloud file config, usage policy, and resource-access resolve/check diagnostics. Use only for explicit admin/system configuration tasks, not ordinary creative generation or editing.
+description: "Configure and diagnose MovScript system management capabilities: providers, credentials, model catalog, route bindings, model gateway keys, generation tool server settings, ResourceAccessProfile/public tunnel/public backend settings, object relay/cloud file config, usage policy, and resource-access resolve/check diagnostics. Use only for explicit admin/system configuration tasks, not ordinary creative generation or editing."
 toolGrants:
   - mcp__movscript__movscript_runtime_status
   - mcp__movscript__runtime_daemon_status
@@ -61,6 +61,8 @@ toolGrants:
 # Admin
 
 Use this skill only for explicit system management tasks. Admin config is outside the normal creative flow of planning content, planning timeline, generation, and export.
+
+Open `../domain/references/user-facing-response.md` before admin results that ordinary creative users will read. Lead with the practical effect, such as whether generation/export can proceed; put sanitized commands, IDs, and config names under technical details only when useful.
 
 ## Production Contract
 

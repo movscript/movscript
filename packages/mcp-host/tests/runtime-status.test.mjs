@@ -248,10 +248,11 @@ test('stdio MCP host proxies business tools to daemon MCP endpoint when availabl
       },
     })
     assert.equal(businessResponse?.error, undefined)
-    assert.deepEqual(businessResponse.result, {
-      proxied: true,
-      tool: 'admin_provider_list',
-    })
+    assert.equal(businessResponse.result.proxied, true)
+    assert.equal(businessResponse.result.tool, 'admin_provider_list')
+    assert.equal(businessResponse.result.structuredContent.proxied, true)
+    assert.equal(businessResponse.result.structuredContent.tool, 'admin_provider_list')
+    assert.equal(businessResponse.result.content[0].type, 'text')
 
     const runtimeResponse = await handleMCPHostJSONRPC({
       jsonrpc: '2.0',
@@ -264,6 +265,8 @@ test('stdio MCP host proxies business tools to daemon MCP endpoint when availabl
     })
     assert.equal(runtimeResponse?.error, undefined)
     assert.equal(runtimeResponse.result.status, 'not_running')
+    assert.equal(runtimeResponse.result.structuredContent.status, 'not_running')
+    assert.equal(runtimeResponse.result.content[0].type, 'text')
     assert.equal(runtimeResponse.result.contract.family, 'runtime')
     assert.deepEqual(runtimeResponse.result.debug.cli_argv, ['movscript', 'daemon', 'status', '--json', '--home-dir', homeDir])
     assert.deepEqual(mcpProxyRequests.map((request) => request.method), ['tools/list', 'tools/call'])
@@ -319,10 +322,11 @@ test('stdio MCP host proxies business tools to a registered cloud runtime gatewa
       },
     })
     assert.equal(businessResponse?.error, undefined)
-    assert.deepEqual(businessResponse.result, {
-      proxied: true,
-      tool: 'admin_provider_list',
-    })
+    assert.equal(businessResponse.result.proxied, true)
+    assert.equal(businessResponse.result.tool, 'admin_provider_list')
+    assert.equal(businessResponse.result.structuredContent.proxied, true)
+    assert.equal(businessResponse.result.structuredContent.tool, 'admin_provider_list')
+    assert.equal(businessResponse.result.content[0].type, 'text')
     assert.deepEqual(mcpProxyRequests.map((request) => request.method), ['tools/list', 'tools/call'])
   } finally {
     restoreEnv('MOVSCRIPT_HOME', previousHome)
@@ -960,10 +964,11 @@ test('workspace/domain MCP tools run through shared command runner with CLI debu
   assert.equal(modelResponse.result.entityId, 'project_01')
   assert.deepEqual(modelResponse.result.debug.cli_argv, [
     'movscript',
-    'workspace',
+    'domain',
     'get-model',
-    'project',
     '--json',
+    '--entity-kind',
+    'project',
     '--entity-id',
     'project_01',
   ])
@@ -987,13 +992,14 @@ test('workspace/domain MCP tools run through shared command runner with CLI debu
   assert.equal(inspectResponse.result.readyToInterpret, false)
   assert.deepEqual(inspectResponse.result.debug.cli_argv, [
     'movscript',
-    'workspace',
-    'review',
+    'domain',
+    'diagnostics',
+    'inspect',
     '--json',
-    '--server',
-    baseURL,
     '--project-dir',
     projectDir,
+    '--server',
+    baseURL,
     '--project-uid',
     'prj_mcp_workspace',
   ])
@@ -1020,13 +1026,14 @@ test('workspace/domain MCP tools run through shared command runner with CLI debu
   assert.equal(interpretResponse.result.manifest.output.editorStatePath, '.interpret/current/editor-state.json')
   assert.deepEqual(interpretResponse.result.debug.cli_argv, [
     'movscript',
-    'workspace',
+    'domain',
+    'diagnostics',
     'interpret',
     '--json',
-    '--server',
-    baseURL,
     '--project-dir',
     projectDir,
+    '--server',
+    baseURL,
     '--project-uid',
     'prj_mcp_workspace',
   ])

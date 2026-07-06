@@ -12,6 +12,10 @@ export type DesktopShellHostEnvInput = {
   userId?: string
   orgId?: string
   projectId?: string
+  projectUid?: string
+  projectTitle?: string
+  scopeKind?: 'user' | 'org'
+  scopeId?: string | number
   platform?: NodeJS.Platform
   resolveBackendSession?: (input: MovScriptDataServiceSessionInput) => MovScriptDataServiceSession
   resolveCliBinDir?: typeof resolveMovScriptCliBinDir
@@ -26,6 +30,7 @@ export function desktopShellHostEnv(input: DesktopShellHostEnvInput): NodeJS.Pro
   const cliBinDir = resolveCliBin({ workspaceDir: session.workspaceDir, env: inheritedEnv, platform })
   const env = movScriptCliPathEnv({ env: inheritedEnv, cliBinDir, platform })
   const terminalPathKey = pathEnvKey(env, platform)
+  const scope = desktopShellHostScopedProjectDataScope(input, session)
 
   const next: NodeJS.ProcessEnv = {
     ...env,
@@ -36,13 +41,26 @@ export function desktopShellHostEnv(input: DesktopShellHostEnvInput): NodeJS.Pro
     ...(input.projectDir ? { MOVSCRIPT_PROJECT_DIR: input.projectDir } : {}),
     ...(input.userId || session.userId ? { MOVSCRIPT_USER_ID: input.userId ?? session.userId } : {}),
     ...(input.orgId ? { MOVSCRIPT_ORG_ID: input.orgId } : {}),
-    ...(input.projectId ? { MOVSCRIPT_PROJECT_ID: input.projectId } : {}),
+    ...(input.projectUid ? { MOVSCRIPT_PROJECT_UID: input.projectUid } : {}),
+    ...(input.projectTitle ? { MOVSCRIPT_PROJECT_TITLE: input.projectTitle } : {}),
+    ...(scope ? { MOVSCRIPT_SCOPE_KIND: scope.kind, MOVSCRIPT_SCOPE_ID: String(scope.id) } : {}),
     MOVSCRIPT_DATA_SERVICE_URL: session.baseURL,
     ...(session.token ? { MOVSCRIPT_DATA_SERVICE_TOKEN: session.token } : {}),
   }
   delete next.MOVSCRIPT_API_BASE_URL
   delete next.MOVSCRIPT_BACKEND_AUTH_TOKEN
   return next
+}
+
+function desktopShellHostScopedProjectDataScope(
+  input: DesktopShellHostEnvInput,
+  session: MovScriptDataServiceSession,
+): { kind: 'user' | 'org'; id: string | number } | undefined {
+  if (input.scopeKind && input.scopeId !== undefined) return { kind: input.scopeKind, id: input.scopeId }
+  if (input.orgId) return { kind: 'org', id: input.orgId }
+  const userId = input.userId ?? session.userId
+  if (userId) return { kind: 'user', id: userId }
+  return undefined
 }
 
 function normalizeDesktopShellHostPath(currentPath: string | undefined, platform: NodeJS.Platform): string {

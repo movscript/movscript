@@ -70,20 +70,22 @@ movscript auth status --help
 movscript project demo --help
 ```
 
-## Workspace Commands
+## Domain Commands
 
-Inspect a local workspace model:
+Inspect an editable source model:
 
 ```bash
-pnpm --filter @movscript/cli dev -- workspace get-model setting --entity-id hero --workspace /path/to/project-repo
+pnpm --filter @movscript/cli dev -- domain get-model --entity-kind setting --entity-id hero --project-dir /path/to/project-repo
 ```
 
 Review and interpret local edits:
 
 ```bash
-pnpm --filter @movscript/cli dev -- workspace review --workspace /path/to/project-repo
-pnpm --filter @movscript/cli dev -- workspace interpret --workspace /path/to/project-repo
+pnpm --filter @movscript/cli dev -- domain diagnostics inspect --project-dir /path/to/project-repo
+pnpm --filter @movscript/cli dev -- domain diagnostics interpret --project-dir /path/to/project-repo
 ```
+
+The older `workspace get-model`, `workspace review`, and `workspace interpret` commands remain as compatibility aliases.
 
 ## Language Commands
 

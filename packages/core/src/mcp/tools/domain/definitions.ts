@@ -11,6 +11,12 @@ const workspaceLocator = {
   cwd: { type: 'string', description: 'Alias for projectDir when a provider passes the current project working directory.' },
   projectUid: { type: 'string', description: 'Optional manifest project_uid used for scoped backend candidate metadata.' },
   project_uid: { type: 'string', description: 'Alias for projectUid.' },
+  projectTitle: { type: 'string', description: 'Optional project title used when ensuring scoped project-data decision space.' },
+  project_title: { type: 'string', description: 'Alias for projectTitle.' },
+  scopeKind: { type: 'string', enum: ['user', 'org'], description: 'Optional scoped project-data decision scope kind.' },
+  scope_kind: { type: 'string', enum: ['user', 'org'], description: 'Alias for scopeKind.' },
+  scopeId: { type: ['string', 'number'], description: 'Optional scoped project-data decision scope id.' },
+  scope_id: { type: ['string', 'number'], description: 'Alias for scopeId.' },
 }
 
 const contentCandidateStatuses = ['queued', 'running', 'succeeded', 'failed', 'canceled', 'imported'] as const

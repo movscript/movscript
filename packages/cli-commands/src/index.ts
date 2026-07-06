@@ -485,6 +485,7 @@ function commandExampleArgv(
       ? ['movscript', 'production', 'editing', ...command.cliPath]
     : ['movscript', family, ...command.cliPath]
   if (command.commandId === 'workspace.get_model') argv.push('project')
+  if (command.commandId === 'domain.get_model') argv.push('--entity-kind', 'project')
   argv.push('--json')
   return argv
 }
@@ -1507,6 +1508,15 @@ export const systemCommandSpecs: SystemCommandSpec[] = withCommandContract<Syste
 
 export const domainCommandSpecs: DomainCommandSpec[] = withCommandContract<DomainCommandDraft>([
   {
+    commandId: 'domain.get_model',
+    mcpToolName: 'domain_get_model',
+    cliPath: ['get-model'],
+    description: 'Domain: return the editable source model for one entity without requiring a frontend.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_get_model'),
+    permissions: ['project:read'],
+    run: domainGetModel,
+  },
+  {
     commandId: 'domain.overview',
     mcpToolName: 'domain_overview',
     cliPath: ['overview'],
@@ -2049,6 +2059,24 @@ export const domainCommandSpecs: DomainCommandSpec[] = withCommandContract<Domai
     run: domainUnlockCandidate,
   },
   {
+    commandId: 'domain.diagnostics.inspect',
+    mcpToolName: 'domain_inspect',
+    cliPath: ['diagnostics', 'inspect'],
+    description: 'Domain diagnostics: inspect project source changes and readiness without writing interpreted artifacts.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_inspect'),
+    permissions: ['project:read'],
+    run: domainInspect,
+  },
+  {
+    commandId: 'domain.diagnostics.interpret',
+    mcpToolName: 'domain_interpret',
+    cliPath: ['diagnostics', 'interpret'],
+    description: 'Domain diagnostics: validate source and refresh interpreter diagnostics.',
+    inputSchema: toolInputSchema(domainTools(), 'domain_interpret'),
+    permissions: ['project:read', 'project:interpret'],
+    run: domainInterpret,
+  },
+  {
     commandId: 'domain.diagnostics.review',
     mcpToolName: 'domain_review',
     cliPath: ['diagnostics', 'review'],
@@ -2494,24 +2522,29 @@ export const workspaceCommandSpecs: WorkspaceCommandSpec[] = withCommandContract
     commandId: 'workspace.get_model',
     mcpToolName: 'domain_get_model',
     cliPath: ['get-model'],
-    description: 'Workspace: return the editable domain model for one entity without requiring a frontend.',
+    description: 'Workspace compatibility alias for domain_get_model. Prefer domain.get_model for new workflows.',
     inputSchema: toolInputSchema(domainTools(), 'domain_get_model'),
+    stability: 'temporary_fallback',
+    permissions: ['project:read'],
     run: domainGetModel,
   },
   {
     commandId: 'workspace.review',
     mcpToolName: 'domain_inspect',
     cliPath: ['review'],
-    description: 'Workspace: inspect project source changes and diagnostics without writing interpreted artifacts.',
+    description: 'Workspace compatibility alias for domain_inspect. Prefer domain.diagnostics.inspect for new workflows.',
     inputSchema: toolInputSchema(domainTools(), 'domain_inspect'),
+    stability: 'temporary_fallback',
+    permissions: ['project:read'],
     run: domainInspect,
   },
   {
     commandId: 'workspace.interpret',
     mcpToolName: 'domain_interpret',
     cliPath: ['interpret'],
-    description: 'Workspace: validate source and refresh interpreter diagnostics without requiring a frontend.',
+    description: 'Workspace compatibility alias for domain_interpret. Prefer domain.diagnostics.interpret for new workflows.',
     inputSchema: toolInputSchema(domainTools(), 'domain_interpret'),
+    stability: 'temporary_fallback',
     run: domainInterpret,
   },
 ], commandContractDefaults('workspace'))
@@ -2539,7 +2572,7 @@ export const editingCommandByMCPToolName = new Map(editingCommandSpecs.map((spec
 export const editingCommandById = new Map(editingCommandSpecs.map((spec) => [spec.commandId, spec]))
 export const productionEditingCommandByMCPToolName = new Map(productionEditingCommandSpecs.map((spec) => [spec.mcpToolName, spec]))
 export const productionEditingCommandById = new Map(productionEditingCommandSpecs.map((spec) => [spec.commandId, spec]))
-export const workspaceCommandByMCPToolName = new Map(workspaceCommandSpecs.map((spec) => [spec.mcpToolName, spec]))
+export const workspaceCommandByMCPToolName = new Map<string, WorkspaceCommandSpec>()
 export const workspaceCommandById = new Map(workspaceCommandSpecs.map((spec) => [spec.commandId, spec]))
 
 export function isRuntimeMCPToolName(name: string | undefined): boolean {
@@ -2638,7 +2671,7 @@ function productionWorkflowContract(): Record<string, unknown> {
         primary_cli: [
           ['movscript', 'domain', 'source', 'production-tree', 'upsert', '--json'],
           ['movscript', 'domain', 'source', 'content-unit', 'upsert', '--json'],
-          ['movscript', 'workspace', 'review', '--json'],
+          ['movscript', 'domain', 'diagnostics', 'inspect', '--json'],
           ['movscript', 'domain', 'read', 'production-work-plan', '--json'],
         ],
         mcp_tools: [
@@ -2878,7 +2911,8 @@ export async function runMovScriptDomainCommand(
 
   const binding = bindWorkspaceRuntime(args)
   try {
-    const data = await spec.run(args)
+    const runArgs = domainRunArgs(spec, args)
+    const data = await spec.run(runArgs)
     return {
       schema: 'movscript.command_result.v1',
       status: 'ok',
@@ -2896,6 +2930,12 @@ export async function runMovScriptDomainCommand(
   } finally {
     binding.restore?.()
   }
+}
+
+function domainRunArgs(spec: DomainCommandSpec, args: Record<string, unknown>): Record<string, unknown> {
+  if (spec.commandId !== 'domain.get_model') return args
+  if (hasWorkspaceProjectLocator(args)) return args
+  return { ...args, cwd: process.cwd() }
 }
 
 export async function runMovScriptEditingCommand(
@@ -4089,11 +4129,14 @@ function recommendedMode(selected: 'local' | 'cloud' | undefined, hasProject: bo
 }
 
 function bindBackendRuntime(args: Record<string, unknown>): { backendEndpoint?: string } {
-  const workspaceDir = stringValue(args.workspaceDir ?? args.workspace_dir)
+  const workspaceDirInput = stringValue(args.workspaceDir ?? args.workspace_dir)
     ?? stringValue(args.projectDir ?? args.project_dir)
     ?? stringValue(args.cwd)
     ?? process.env.MOVSCRIPT_WORKSPACE_DIR
-  if (workspaceDir) setMovScriptBackendDefaultWorkspaceDir(resolve(workspaceDir))
+  const workspaceDir = workspaceDirInput ? resolve(workspaceDirInput) : undefined
+  const homeDir = resolveRuntimeHomeArg(args)
+  const defaultWorkspaceDir = workspaceDir ?? homeDir
+  setMovScriptBackendDefaultWorkspaceDir(defaultWorkspaceDir)
 
   const token = stringValue(args.token)
   if (token) setMovScriptBackendRuntimeAuthToken(token)
@@ -4104,7 +4147,14 @@ function bindBackendRuntime(args: Record<string, unknown>): { backendEndpoint?: 
     return { backendEndpoint: explicitBackend }
   }
 
-  const homeDir = resolveRuntimeHomeArg(args)
+  const configuredSession = resolveMovScriptBackendSession({ workspaceDir: defaultWorkspaceDir })
+  setMovScriptBackendDefaultWorkspaceDir(configuredSession.workspaceDir)
+  const hasConfiguredBackend = Boolean(process.env.MOVSCRIPT_API_BASE_URL) || existsSync(configuredSession.configPath)
+  if (hasConfiguredBackend) {
+    setMovScriptBackendAPIBaseURL(configuredSession.baseURL)
+    return { backendEndpoint: configuredSession.baseURL }
+  }
+
   const runtimeHome = readRuntimeHomeSnapshot(homeDir)
   const gatewayEndpoint = endpointURL(
     findRuntimeEndpoint(runtimeHome, LOCAL_NODE_GATEWAY_SERVICE)
@@ -4116,7 +4166,8 @@ function bindBackendRuntime(args: Record<string, unknown>): { backendEndpoint?: 
   )
   const backendEndpoint = gatewayEndpoint ?? dataEndpoint
   if (backendEndpoint) setMovScriptBackendAPIBaseURL(backendEndpoint)
-  return { backendEndpoint }
+  if (backendEndpoint) return { backendEndpoint }
+  return {}
 }
 
 const bindAdminBackendRuntime = bindBackendRuntime
@@ -4521,6 +4572,8 @@ function domainDebugCliArgv(spec: DomainCommandSpec, args: Record<string, unknow
   appendPathArg(argv, args, ['projectId', 'project_id'], '--project-id')
   appendPathArg(argv, args, ['projectUid', 'project_uid'], '--project-uid')
   appendPathArg(argv, args, ['projectTitle', 'project_title'], '--project-title')
+  appendPathArg(argv, args, ['scopeKind', 'scope_kind'], '--scope-kind')
+  appendPathArg(argv, args, ['scopeId', 'scope_id'], '--scope-id')
   appendPathArg(argv, args, ['userId', 'user_id', 'user'], '--user')
   appendPathArg(argv, args, ['orgId', 'org_id', 'org'], '--org')
   appendPathArg(argv, args, ['entityKind', 'entity_kind'], '--entity-kind')
